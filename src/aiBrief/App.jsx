@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
-import { Loader2, AlertTriangle } from "lucide-react";
+import { Loader2, AlertTriangle, Eye } from "lucide-react";
 import { StatusBar, BottomNav } from "./components.jsx";
-import { fetchCompany } from "../lib/supabase.js";
+import { fetchCompany, fetchPreviewCompany } from "../lib/supabase.js";
 import { KINGSMEN_SLUG, byId } from "./data.js";
 import Today from "./screens/Today.jsx";
 import Explore from "./screens/Explore.jsx";
@@ -32,8 +32,12 @@ function syntheticProfile(id) {
 
 // The Supabase-backed company. Defaults to Kingsmen, but `?c=<slug>` (used by the
 // admin "Open in app" link) loads and opens any company directly.
-const REAL_SLUG = (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("c")) || KINGSMEN_SLUG;
-const DEEP_LINKED = typeof window !== "undefined" && new URLSearchParams(window.location.search).has("c");
+const PARAMS = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : new URLSearchParams();
+const REAL_SLUG = PARAMS.get("c") || KINGSMEN_SLUG;
+const DEEP_LINKED = PARAMS.has("c");
+// Private preview: `?c=<slug>&preview=<token>` opens an unpublished spec profile
+// via the token-gated reader, so we can show a CEO their profile before it's live.
+const PREVIEW_TOKEN = PARAMS.get("preview") || null;
 
 export default function App() {
   const [tab, setTab] = useState("today");
@@ -42,8 +46,9 @@ export default function App() {
 
   useEffect(() => {
     let alive = true;
-    fetchCompany(REAL_SLUG)
-      .then((row) => alive && setData({ loading: false, error: row ? null : "Company not found", profile: row?.profile || null }))
+    const load = PREVIEW_TOKEN ? fetchPreviewCompany(REAL_SLUG, PREVIEW_TOKEN) : fetchCompany(REAL_SLUG);
+    load
+      .then((row) => alive && setData({ loading: false, error: row ? null : (PREVIEW_TOKEN ? "This preview link is invalid or has expired." : "Company not found"), profile: row?.profile || null }))
       .catch((e) => alive && setData({ loading: false, error: e.message || "Failed to load", profile: null }));
     return () => { alive = false; };
   }, []);
@@ -84,6 +89,11 @@ export default function App() {
   return (
     <PhoneShell>
       <StatusBar />
+      {PREVIEW_TOKEN && !data.loading && !data.error && (
+        <div className="flex items-center justify-center gap-1.5 bg-amber-400 px-3 py-1.5 text-center text-[11.5px] font-bold text-amber-950">
+          <Eye size={13} /> Private preview — not yet published
+        </div>
+      )}
       <div className="min-h-0 flex-1 overflow-hidden">{body}</div>
       <BottomNav active={tab} onChange={goTab} />
     </PhoneShell>

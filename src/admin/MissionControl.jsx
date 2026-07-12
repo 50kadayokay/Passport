@@ -3,7 +3,7 @@ import {
   LayoutDashboard, Building2, Users as UsersIcon, ClipboardCheck, TrendingUp,
   BarChart3, Sparkles, Radio, Star, Bell, Briefcase, CreditCard, LifeBuoy,
   FolderOpen, Search, Activity, ScrollText, Settings,
-  LogOut, Loader2, Circle, CheckCircle2, ExternalLink, Plus, ArrowRight, RefreshCw, AlertTriangle, Inbox,
+  LogOut, Loader2, Circle, CheckCircle2, ExternalLink, Plus, ArrowRight, RefreshCw, AlertTriangle, Inbox, Link2,
 } from "lucide-react";
 import { fetchCompanies, updateCompany, SUPABASE_URL } from "../lib/supabase.js";
 import { authHeaders, getUser, signOut } from "../lib/auth.js";
@@ -233,9 +233,15 @@ function EmptyCard({ title, body, onClick }) {
 /* ================= OPERATIONS ================= */
 function Operations({ companies, reload, go }) {
   const [busy, setBusy] = useState(null);
+  const [copied, setCopied] = useState(null);
   const drafts = companies.filter((c) => !isPublished(c));
   const incomplete = companies.filter(isIncomplete);
   const approve = async (c) => { setBusy(c.slug); try { await updateCompany(c.slug, { status: "published" }, await authHeaders()); await reload(); } finally { setBusy(null); } };
+  const copyPreview = async (c) => {
+    const link = `${window.location.origin}/app?c=${encodeURIComponent(c.slug)}&preview=${c.preview_token}`;
+    try { await navigator.clipboard.writeText(link); } catch { window.prompt("Copy this private preview link:", link); }
+    setCopied(c.slug); setTimeout(() => setCopied((s) => (s === c.slug ? null : s)), 1800);
+  };
   return (
     <div className="mx-auto max-w-5xl">
       <h1 className="text-[26px] font-extrabold tracking-tight">Operations</h1>
@@ -246,7 +252,8 @@ function Operations({ companies, reload, go }) {
         {drafts.length === 0 ? <Done text="Nothing awaiting approval." /> : drafts.map((c, i) => (
           <div key={c.slug} className={`flex items-center gap-4 px-5 py-3.5 ${i > 0 ? "border-t border-slate-100" : ""}`}>
             <div className="min-w-0 flex-1"><p className="truncate text-[15px] font-bold">{c.name || c.slug}</p><p className="truncate text-[12.5px] text-slate-400">{c.slug}{isIncomplete(c) ? " · looks incomplete" : ""} · {timeAgo(c.updated_at)}</p></div>
-            <a href={`/app?c=${encodeURIComponent(c.slug)}`} target="_blank" rel="noreferrer" className="rounded-lg border border-slate-200 px-3.5 py-2 text-[13px] font-bold text-slate-600">Preview</a>
+            <button onClick={() => copyPreview(c)} disabled={!c.preview_token} title={c.preview_token ? "Copy the private link to send a CEO" : "Run migration 0003 to enable preview links"} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3.5 py-2 text-[13px] font-bold text-slate-600 hover:text-slate-900 disabled:opacity-40">{copied === c.slug ? <><CheckCircle2 size={13} className="text-emerald-600" /> Copied</> : <><Link2 size={13} /> Copy link</>}</button>
+            <a href={`/app?c=${encodeURIComponent(c.slug)}${c.preview_token ? `&preview=${c.preview_token}` : ""}`} target="_blank" rel="noreferrer" className="rounded-lg border border-slate-200 px-3.5 py-2 text-[13px] font-bold text-slate-600">Preview</a>
             <button onClick={() => approve(c)} disabled={busy === c.slug} className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-[13px] font-bold text-white disabled:opacity-60">{busy === c.slug ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle2 size={13} />} Approve</button>
           </div>
         ))}

@@ -25,12 +25,30 @@ export async function fetchCompany(slug) {
   return Array.isArray(rows) && rows.length ? rows[0] : null;
 }
 
+// Fetch a DRAFT (or any) company by slug using its private preview token. Calls
+// the token-gated SECURITY DEFINER function, so it works for unpublished spec
+// profiles that the public RLS policy would otherwise hide. Returns the row
+// ({ slug, name, profile, … }) or null if the slug+token don't match.
+export async function fetchPreviewCompany(slug, token) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_preview_company`, {
+    method: "POST",
+    headers: { ...headers, "Content-Type": "application/json" },
+    body: JSON.stringify({ p_slug: slug, p_token: token }),
+  });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    throw new Error(`Preview read failed (${res.status})${detail ? `: ${detail}` : ""}`);
+  }
+  const row = await res.json();
+  return row && typeof row === "object" ? row : null;
+}
+
 // List every company (newest first) for the admin dashboard. Pass the admin's
 // authed headers so RLS shows all rows (incl. drafts) via is_admin().
 export async function fetchCompanies(reqHeaders = headers) {
   const url =
     `${SUPABASE_URL}/rest/v1/companies` +
-    `?select=id,slug,name,primary_ticker,status,profile,created_at,updated_at,owner_id` +
+    `?select=id,slug,name,primary_ticker,status,profile,preview_token,created_at,updated_at,owner_id` +
     `&order=updated_at.desc.nullslast`;
   const res = await fetch(url, { headers: reqHeaders });
   if (!res.ok) {
