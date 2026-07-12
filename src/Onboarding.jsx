@@ -6226,7 +6226,9 @@ export default function Onboarding({ embedded = false }) {
   // `?new=1` (admin "Onboard a company") forces a fresh build, ignoring any existing row.
   useEffect(() => {
     const fresh = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("new") === "1";
-    if (fresh) { setHydrating(false); return; }
+    // New company → skip the (AI-extract) intake and drop straight into the
+    // guided, step-by-step builder where Next/Previous navigation lives.
+    if (fresh) { setScreen("review"); setSpot("co"); setTab("overview"); setHydrating(false); return; }
     let alive = true;
     fetchMyCompany()
       .then((row) => {
@@ -6522,7 +6524,7 @@ export default function Onboarding({ embedded = false }) {
             {saveState === "saving" ? "Saving…" : "Publish"}
           </button>
         </div>
-        <div style={{ flex: 1, overflowY: "auto", padding: "28px 26px" }}>
+        <div style={{ flex: 1, minHeight: 0, overflow: "hidden", padding: "28px 26px" }}>
           {spot && SECTION_DEFS[spot] ? (
             <SectionEditor spot={spot} def={SECTION_DEFS[spot]} getVal={spotGetVal} getStatus={spotGetStatus} onText={spotText} onIdentity={spotIdentity} onStatus={spotStatus}
               onScenario={spotScenario} onThesis={spotThesis} onNext={nextSpot} onPrev={prevSpot} onGotoSpot={(id) => { setFieldSpot(null); setSpot(id); setTab((SECTION_DEFS[id] && SECTION_DEFS[id].tab) || "projects"); }} first={ordIdx(spot) === 0} idx={ordIdx(spot)} total={SECTION_ORDER.length} last={ordIdx(spot) === SECTION_ORDER.length - 1} onFocusField={setFieldSpot} projects={profile.projects} setProjects={setProjects} timeline={profile.timeline} setTimeline={setTimeline} team={profile.team} setTeam={setTeam} company={profile.company} setCompany={setCompany} capital={profile.capital} setCapital={setCapital} companyStatus={profile.companyStatus} setCompanyStatus={setCompanyStatus} companyStatusReview={profile.companyStatusReview} companyStatusAI={profile.companyStatusAI} companyBrief={profile.companyBrief} setCompanyBrief={setCompanyBrief} companyBriefReview={profile.companyBriefReview} companyBriefAI={profile.companyBriefAI} />

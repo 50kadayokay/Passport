@@ -29,7 +29,9 @@ async function loadMyCompany() {
 export default function CompanyConsole() {
   // New companies (?new=1) land on Build; otherwise on their Dashboard.
   const startNew = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("new") === "1";
-  const [section, setSection] = useState(startNew ? "build" : "build");
+  // New companies jump straight into building; returning companies land on their
+  // Dashboard (shows Draft/Published status + a Resume/Edit CTA — the "drafts" view).
+  const [section, setSection] = useState(startNew ? "build" : "dashboard");
   const [company, setCompany] = useState(null);
 
   const refresh = () => loadMyCompany().then(setCompany);
