@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(awk '{ if \\(length\\($0\\) > 2000\\) print NR\": [LONG LINE \"length\\($0\\)\" chars]\"; else print NR\": \"$0 }' \"Passport_ai_brief \\(1\\).html\")"
+    ]
+  }
+}

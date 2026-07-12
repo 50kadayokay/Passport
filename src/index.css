@@ -1,0 +1,32 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  -webkit-font-smoothing: antialiased;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica,
+    Arial, sans-serif;
+}
+
+/* ---- Passport AI Brief app ---- */
+:root {
+  --pp-bg: #f4f5f7;
+}
+
+/* subtle content fade-in for lazy sections / tab switches */
+@keyframes pp-fade {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.pp-fade { animation: pp-fade 0.28s ease both; }
+
+/* hide scrollbars on horizontal strips while keeping scroll */
+.pp-noscroll { scrollbar-width: none; -ms-overflow-style: none; }
+.pp-noscroll::-webkit-scrollbar { display: none; }
