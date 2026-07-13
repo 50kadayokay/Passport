@@ -2,7 +2,7 @@ import React, { useState, useRef } from "react";
 import {
   ArrowLeft, ScanLine, BadgeCheck, Check, MessageSquare, ExternalLink,
   Home, Pickaxe, Clock, PieChart, Users, Radio, Zap, ChevronDown, ChevronRight,
-  MapPin, Layers, Wallet, Coins, Activity, FlaskConical, Newspaper,
+  MapPin, Layers, Wallet, Coins, Activity, FlaskConical, Newspaper, ArrowUpRight,
 } from "lucide-react";
 import { Avatar, initialsOf, fmtShares } from "../components.jsx";
 import Timeline from "./Timeline.jsx";
@@ -54,12 +54,25 @@ function CompanyStatus({ status, name }) {
         <span className="inline-flex items-center gap-2 rounded-full border border-orange-200 px-3 py-1.5 text-[12px] font-bold uppercase tracking-wider text-orange-500">
           <span className="h-1.5 w-1.5 rounded-full bg-orange-500" /> Company Status
         </span>
-        <h2 className="mt-3 text-[28px] font-extrabold leading-tight tracking-tight text-slate-900">{status.statusHeadline}</h2>
-        {has(status.statusHeadlineSubtext) && <p className="mt-2 text-[15.5px] leading-snug text-slate-500">{status.statusHeadlineSubtext}</p>}
+        <div className="mt-3 flex items-start gap-4">
+          <div className="min-w-0 flex-1">
+            <h2 className="text-[26px] font-extrabold leading-tight tracking-tight text-slate-900">{status.statusHeadline}</h2>
+            {has(status.statusHeadlineSubtext) && <p className="mt-2 text-[15px] leading-snug text-slate-500">{status.statusHeadlineSubtext}</p>}
+          </div>
+          {has(status.photo) && (
+            <div className="relative h-24 w-24 flex-shrink-0 overflow-hidden rounded-2xl ring-1 ring-slate-200">
+              <img src={status.photo} alt="" className="h-full w-full object-cover" />
+              <span className="absolute right-1.5 top-1.5 grid h-6 w-6 place-items-center rounded-lg bg-slate-900/65 text-white backdrop-blur-sm"><ArrowUpRight size={13} /></span>
+            </div>
+          )}
+        </div>
         {pct != null && (
           <div className="mt-5">
-            <div className="h-2.5 w-full rounded-full bg-slate-100"><div className="h-full rounded-full bg-emerald-500" style={{ width: `${pct}%` }} /></div>
-            <div className="mt-2 flex items-center justify-between">
+            <div className="relative h-2.5 w-full rounded-full bg-slate-100">
+              <div className="absolute left-0 top-0 h-full rounded-full bg-emerald-500" style={{ width: `${pct}%` }} />
+              <div className="absolute top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-[3px] border-emerald-500 bg-white shadow-[0_1px_4px_rgba(15,23,42,0.25)]" style={{ left: `${pct}%` }} />
+            </div>
+            <div className="mt-2.5 flex items-center justify-between">
               <span className="text-[13px] font-bold uppercase tracking-wide text-slate-400">{pb.current} / {pb.total} {pb.unit || pb.label}</span>
               <span className="text-[15px] font-extrabold text-emerald-600">{pct}%</span>
             </div>
@@ -123,6 +136,30 @@ const TECH_CARDS = [
   { title: "Exploration Results", sub: "Intercepts · Assays · Sections" },
 ];
 
+function Gallery({ images }) {
+  const [idx, setIdx] = useState(0);
+  if (!Array.isArray(images) || !images.length) {
+    return <div className="flex h-40 items-center justify-center rounded-3xl border border-dashed border-slate-200 bg-white/60 text-[13px] font-medium text-slate-400">No project photos yet</div>;
+  }
+  const onScroll = (e) => { const w = e.currentTarget.clientWidth || 1; setIdx(Math.round(e.currentTarget.scrollLeft / w)); };
+  return (
+    <div>
+      <div onScroll={onScroll} className="pp-noscroll flex snap-x snap-mandatory overflow-x-auto rounded-3xl" style={{ scrollbarWidth: "none" }}>
+        {images.map((src, i) => (
+          <img key={i} src={src} alt="" className="h-56 w-full flex-shrink-0 snap-center object-cover" />
+        ))}
+      </div>
+      {images.length > 1 && (
+        <div className="mt-2.5 flex items-center justify-center gap-1.5">
+          {images.map((_, i) => (
+            <span key={i} className={`h-1.5 rounded-full transition-all duration-200 ${i === idx ? "w-4 bg-slate-700" : "w-1.5 bg-slate-300"}`} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Projects({ projects }) {
   const list = (projects || []).filter((p) => p.enabled !== false);
   const [idx, setIdx] = useState(0);
@@ -154,11 +191,7 @@ function Projects({ projects }) {
       )}
 
       {/* gallery */}
-      {Array.isArray(p.gallery) && p.gallery.length ? (
-        <img src={p.gallery[0]} alt="" className="h-56 w-full rounded-3xl object-cover" />
-      ) : (
-        <div className="flex h-40 items-center justify-center rounded-3xl border border-dashed border-slate-200 bg-white/60 text-[13px] font-medium text-slate-400">No project photos yet</div>
-      )}
+      <Gallery images={p.gallery} />
 
       {/* per-project AI */}
       <div>

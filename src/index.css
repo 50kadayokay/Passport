@@ -30,3 +30,5 @@ body {
 /* hide scrollbars on horizontal strips while keeping scroll */
 .pp-noscroll { scrollbar-width: none; -ms-overflow-style: none; }
 .pp-noscroll::-webkit-scrollbar { display: none; }
+
+.pp-noscroll::-webkit-scrollbar { display: none; }
