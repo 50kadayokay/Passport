@@ -290,52 +290,74 @@ function Projects({ projects }) {
 }
 
 /* ============================ CAPITAL ============================ */
-function Capital({ capital }) {
+function Capital({ capital, company }) {
   const c = capital || {};
-  const cards = [
-    { key: "financing", value: c.financing, label: "Latest Financing", sub: c.financingNote || "", Icon: Coins, tone: "text-indigo-500 bg-indigo-50" },
-    { key: "cash", value: c.cash, label: "Cash", sub: c.cashNote || "", Icon: Wallet, tone: "text-indigo-500 bg-indigo-50" },
-    { key: "basic", value: fmtShares(c.outstanding), label: "Basic Shares", Icon: Layers, tone: "text-indigo-500 bg-indigo-50" },
-    { key: "fd", value: fmtShares(c.fd), label: "Fully Diluted", Icon: PieChart, tone: "text-indigo-500 bg-indigo-50" },
+  const listings = Array.isArray(company?.listings) ? company.listings.slice(0, 3) : [];
+  const funded = has(c.headline) || has(c.state);
+  const runwayPct = typeof c.runwayPct === "number" ? c.runwayPct : (c.funded ? 100 : 0);
+  const snap = [
+    { value: c.financing, label: "Latest Financing", sub: c.financingNote, Icon: Coins },
+    { value: c.cash, label: "Cash", sub: c.cashNote, Icon: Wallet },
+    { value: fmtShares(c.outstanding), label: "Basic Shares", sub: "Issued & outstanding", Icon: Layers },
+    { value: fmtShares(c.fd), label: "Fully Diluted", sub: "Incl. options & warrants", Icon: PieChart },
   ].filter((x) => has(x.value));
 
-  const rows = [
-    { title: "Share Structure", sub: [fmtShares(c.outstanding) && `${fmtShares(c.outstanding)} basic`, fmtShares(c.fd) && `${fmtShares(c.fd)} fully diluted`].filter(Boolean).join(" · "), Icon: Layers },
-    { title: "Ownership", sub: has(c.ownership) ? c.ownership : "", Icon: Users },
-    { title: "Balance Sheet", sub: "Cash, working capital, debt", Icon: Activity },
-  ].filter((r) => has(r.sub));
-
-  if (!cards.length && !rows.length) return <EmptyState icon={PieChart} title="No capital structure yet" sub="Share structure and financials haven't been published." />;
+  if (!funded && !listings.length && !snap.length) return <EmptyState icon={PieChart} title="No capital structure yet" sub="Share structure and financials haven't been published." />;
 
   return (
-    <div className="space-y-5">
-      <div><Eyebrow color="#4f46e5">Financials</Eyebrow><h1 className="mt-1 text-[30px] font-extrabold tracking-tight text-slate-900">Capital</h1></div>
-      {cards.length > 0 && (
+    <div className="space-y-6">
+      <div><span className="text-[10px] font-extrabold uppercase tracking-[0.2em]" style={{ color: "#6d28d9" }}>Financials</span><h2 className="-mt-0.5 text-xl font-bold tracking-tight text-slate-900">Capital</h2></div>
+
+      {funded && (
+        <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white" style={{ boxShadow: CARD_SHADOW }}>
+          <div className="px-5 pb-5 pt-5">
+            <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1" style={{ border: "1px solid #10b981", background: "transparent" }}>
+              <span className="relative flex h-1.5 w-1.5"><span className="pp-ping absolute inline-flex h-full w-full rounded-full opacity-75" style={{ background: "#10b981" }} /><span className="relative inline-flex h-1.5 w-1.5 rounded-full" style={{ background: "#10b981" }} /></span>
+              <span className="font-extrabold uppercase" style={{ fontSize: 9, letterSpacing: "0.14em", color: "#0f9b73" }}>{c.state || "Fully Funded"}</span>
+            </span>
+            <h2 className="font-extrabold tracking-tight text-slate-900" style={{ marginTop: 13, fontSize: 25, lineHeight: 1.06 }}>{c.headline || c.state}</h2>
+            {has(c.summary) && <p className="font-medium text-slate-500" style={{ marginTop: 9, fontSize: 12.5, lineHeight: 1.4 }}>{c.summary}</p>}
+            {(has(c.runwayLeft) || has(c.runwayRight)) && (
+              <div style={{ marginTop: 22 }}>
+                <p className="px-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">Funding Runway</p>
+                <div className="relative mt-3 flex h-5 items-center px-1">
+                  <div className="relative h-2 w-full rounded-full bg-slate-200">
+                    <div className="absolute inset-y-0 left-0 rounded-full" style={{ width: `${runwayPct}%`, background: "linear-gradient(90deg,#2563eb,#60a5fa)" }} />
+                    <div className="absolute z-10 h-4 w-4 rounded-full" style={{ left: `${runwayPct}%`, top: "50%", transform: "translate(-50%,-50%)", background: "#1d4ed8", boxShadow: "#fff 0px 0px 0px 2.5px, rgba(37,99,235,0.35) 0px 0px 0px 4.5px, rgba(0,0,0,0.25) 0px 2px 6px -1px" }} />
+                  </div>
+                </div>
+                <div className="mt-1.5 flex justify-between px-1"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{c.runwayLeft || "Today"}</span><span className="text-[10px] font-extrabold uppercase tracking-wider" style={{ color: "#2563eb" }}>{c.runwayRight || ""}</span></div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {listings.length > 0 && (
         <div>
-          <p className="mb-2.5 px-0.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">Capital Snapshot</p>
-          <div className="grid grid-cols-2 gap-3">
-            {cards.map((card) => (
-              <div key={card.key} className="relative rounded-3xl bg-slate-50 p-5">
-                <div className={`mb-4 grid h-9 w-9 place-items-center rounded-xl ${card.tone}`}><card.Icon size={18} /></div>
-                <ChevronRight size={16} className="absolute right-4 top-4 text-slate-300" />
-                <p className="text-[26px] font-extrabold tracking-tight text-slate-900">{card.value}</p>
-                <p className="mt-1 text-[13px] font-bold uppercase tracking-wide text-slate-400">{card.label}</p>
-                {has(card.sub) && <p className="mt-0.5 text-[12.5px] text-slate-400">{card.sub}</p>}
+          <div className="flex items-baseline justify-between px-0.5"><span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">Listings</span><span className="text-[9px] font-semibold uppercase tracking-wider text-slate-300">Delayed 15 min</span></div>
+          <div className="mt-2.5 grid gap-2.5" style={{ gridTemplateColumns: `repeat(${listings.length}, minmax(0,1fr))` }}>
+            {listings.map((l, i) => (
+              <div key={i} className="flex flex-col items-center rounded-2xl p-3.5 text-center" style={{ background: "#0b0f17" }}>
+                <p className="text-[8px] font-semibold uppercase tracking-wider" style={{ color: "#64748b" }}>{l.ex}</p>
+                <p className="mt-1.5 text-[16px] font-extrabold tracking-tight text-white">{l.sym}</p>
               </div>
             ))}
           </div>
         </div>
       )}
-      {rows.length > 0 && (
+
+      {snap.length > 0 && (
         <div>
-          <p className="mb-2.5 px-0.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">Explore</p>
-          <div className="overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
-            {rows.map((r, i) => (
-              <button key={r.title} className={`flex w-full items-center gap-4 px-5 py-4 text-left ${i > 0 ? "border-t border-slate-100" : ""}`}>
-                <span className="grid h-10 w-10 flex-shrink-0 place-items-center rounded-xl bg-indigo-50 text-indigo-500"><r.Icon size={19} /></span>
-                <span className="min-w-0 flex-1"><span className="block text-[17px] font-bold text-slate-900">{r.title}</span><span className="mt-0.5 block truncate text-[13.5px] text-slate-400">{r.sub}</span></span>
-                <ChevronRight size={18} className="flex-shrink-0 text-slate-300" />
-              </button>
+          <span className="px-0.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">Capital Snapshot</span>
+          <div className="mt-2.5 grid grid-cols-2 gap-3">
+            {snap.map((s, i) => (
+              <div key={i} className="rounded-2xl bg-slate-50 p-5">
+                <span className="grid h-8 w-8 place-items-center rounded-xl" style={{ background: "rgba(37,99,235,0.1)" }}><s.Icon size={16} style={{ color: "#2563eb" }} /></span>
+                <p className="mt-3 text-[22px] font-extrabold leading-none tracking-tight text-slate-900 tabular-nums">{s.value}</p>
+                <p className="mt-2.5 text-[10px] font-semibold uppercase tracking-wider text-slate-400">{s.label}</p>
+                {has(s.sub) && <p className="mt-1 text-[10px] font-medium tracking-tight text-slate-400">{s.sub}</p>}
+              </div>
             ))}
           </div>
         </div>
@@ -482,7 +504,7 @@ export default function CompanyProfile({ profile, onBack, tab: controlledTab, on
           {tab === "overview" && <Overview profile={profile} />}
           {tab === "projects" && <Projects projects={profile.projects} />}
           {tab === "timeline" && <Timeline timeline={profile.timeline} />}
-          {tab === "capital" && <Capital capital={profile.capital} />}
+          {tab === "capital" && <Capital capital={profile.capital} company={company} />}
           {tab === "team" && <div className="space-y-5"><div><Eyebrow color="#0f766e">People</Eyebrow><h1 className="mt-1 text-[30px] font-extrabold tracking-tight text-slate-900">Team</h1></div><EmptyState icon={Users} title="No team listed" sub="Management and directors haven't been added to this Passport." /></div>}
           {tab === "updates" && <Updates media={profile.media} />}
         </div>
