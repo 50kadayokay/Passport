@@ -36,51 +36,92 @@ const SUBTABS = [
 ];
 
 /* ============================ OVERVIEW ============================ */
+// Word-by-word blur fade-in (ported 1:1 from the prototype).
+function WordFade({ text }) {
+  const words = String(text || "").split(" ");
+  return (
+    <span>
+      {words.map((w, i) => (
+        <span key={i}>
+          <span className="pp-wordfade" style={{ display: "inline-block", animationDelay: `${i * 70}ms` }}>{w}</span>
+          {i < words.length - 1 ? " " : ""}
+        </span>
+      ))}
+    </span>
+  );
+}
+
+const CARD_SHADOW = "rgba(15,23,42,0.03) 0px 1px 2px, rgba(15,23,42,0.28) 0px 30px 60px -26px";
+
+function StatusCell({ label, value, small }) {
+  return (
+    <div className="flex flex-col p-3">
+      <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">{label}</p>
+      <p className={small ? "mt-1 text-[11px] font-semibold leading-tight tracking-tight text-slate-600" : "mt-1 text-[13px] font-bold tracking-tight text-slate-900"}>{value || "—"}</p>
+    </div>
+  );
+}
+
 function CompanyStatus({ status, name }) {
   const pb = status?.progressBar || {};
   const hasStatus = has(status?.statusHeadline) || has(status?.latestUpdate) || has(status?.nextCatalyst);
   const pct = pb.enabled && pb.total ? Math.round((Number(pb.current) / Number(pb.total)) * 100) : null;
+  const [flipped, setFlipped] = useState(false);
   if (!hasStatus) return <EmptyState icon={Zap} title="No company status yet" sub={`${name} hasn't published a current status update to its Passport.`} />;
+  const photo = status.photo;
 
-  const cell = (label, value) => (
-    <div className="p-4">
-      <p className="text-[12px] font-bold uppercase tracking-wider text-slate-400">{label}</p>
-      <p className="mt-1 text-[16px] font-bold leading-snug text-slate-900">{value || "—"}</p>
-    </div>
-  );
   return (
-    <div className="overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
-      <div className="p-5">
-        <span className="inline-flex items-center gap-2 rounded-full border border-orange-200 px-3 py-1.5 text-[12px] font-bold uppercase tracking-wider text-orange-500">
-          <span className="h-1.5 w-1.5 rounded-full bg-orange-500" /> Company Status
-        </span>
-        <div className="mt-3 flex items-start gap-4">
-          <div className="min-w-0 flex-1">
-            <h2 className="text-[26px] font-extrabold leading-tight tracking-tight text-slate-900">{status.statusHeadline}</h2>
-            {has(status.statusHeadlineSubtext) && <p className="mt-2 text-[15px] leading-snug text-slate-500">{status.statusHeadlineSubtext}</p>}
-          </div>
-          {has(status.photo) && (
-            <div className="relative h-24 w-24 flex-shrink-0 overflow-hidden rounded-2xl ring-1 ring-slate-200">
-              <img src={status.photo} alt="" className="h-full w-full object-cover" />
-              <span className="absolute right-1.5 top-1.5 grid h-6 w-6 place-items-center rounded-lg bg-slate-900/65 text-white backdrop-blur-sm"><ArrowUpRight size={13} /></span>
+    <div style={{ perspective: 1600 }}>
+      <div className="relative" style={{ transformStyle: "preserve-3d", transition: "transform 0.7s cubic-bezier(0.2,0.75,0.2,1)", transform: flipped ? "rotateY(0deg)" : "rotateY(180deg)" }}>
+        {/* FRONT — data */}
+        <div style={{ backfaceVisibility: "hidden", transform: "rotateY(180deg)" }}>
+          <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white" style={{ boxShadow: CARD_SHADOW }}>
+            <div className="p-5">
+              <div style={{ display: "flex", flexDirection: "row-reverse", alignItems: "center", gap: 14 }}>
+                {has(photo) && (
+                  <button onClick={() => setFlipped(true)} aria-label="Show site photo" className="relative overflow-hidden rounded-2xl border border-slate-200 transition active:scale-[0.97]" style={{ width: 96, height: 96, flexShrink: 0, boxShadow: "rgba(15,23,42,0.5) 0px 9px 20px -10px" }}>
+                    <img src={photo} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                    <span className="absolute right-1.5 top-1.5 grid place-items-center rounded-full" style={{ width: 24, height: 24, background: "rgba(15,23,42,0.55)", backdropFilter: "blur(4px)" }}><ArrowUpRight size={13} className="text-white" /></span>
+                  </button>
+                )}
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", flex: "1 1 0%", minWidth: 0 }}>
+                  <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1" style={{ border: "1px solid #f97316", background: "transparent" }}>
+                    <span className="relative flex h-1.5 w-1.5"><span className="pp-ping absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75" /><span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-orange-500" /></span>
+                    <span className="font-extrabold uppercase" style={{ fontSize: 9, letterSpacing: "0.14em", color: "#f97316" }}>Company Status</span>
+                  </span>
+                  <h2 className="font-extrabold tracking-tight text-slate-900" style={{ marginTop: 13, fontSize: 23, lineHeight: 1.08 }}>{status.statusHeadline}</h2>
+                  {has(status.statusHeadlineSubtext) && <p className="font-medium text-slate-500" style={{ marginTop: 9, fontSize: 12, lineHeight: 1.35 }}><WordFade text={status.statusHeadlineSubtext} /></p>}
+                </div>
+              </div>
+              {pct != null && (
+                <div className="mt-7">
+                  <div className="relative flex h-4 items-center">
+                    <div className="relative h-2 w-full overflow-hidden rounded-full bg-slate-200"><div className="absolute inset-y-0 left-0 rounded-full" style={{ width: `${pct}%`, background: "linear-gradient(90deg, #10b981, #34d399)" }} /></div>
+                    <div className="absolute z-10 h-4 w-4 rounded-full" style={{ left: `${pct}%`, transform: "translateX(-50%)", background: "#047857", boxShadow: "#fff 0px 0px 0px 2.5px, rgba(4,120,87,0.35) 0px 0px 0px 4.5px, rgba(0,0,0,0.25) 0px 2px 6px -1px" }} />
+                  </div>
+                  <div className="mt-1.5 flex justify-between"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{pb.current} / {pb.total} {pb.unit || pb.label}</span><span className="text-[10px] font-extrabold tabular-nums tracking-wider" style={{ color: "#0f9b73" }}>{pct}%</span></div>
+                </div>
+              )}
             </div>
-          )}
+            <div className="grid grid-cols-2 border-t border-slate-100">
+              <div className="border-r border-slate-100"><StatusCell label="Latest Update" value={status.latestUpdate} small /></div>
+              <StatusCell label="Next Catalyst" value={status.nextCatalyst} />
+            </div>
+            <div className="grid grid-cols-2 border-t border-slate-100">
+              <div className="border-r border-slate-100"><StatusCell label="Expected" value={status.expected} /></div>
+              <StatusCell label="Investment Impact" value={status.investmentImpact} small />
+            </div>
+          </div>
         </div>
-        {pct != null && (
-          <div className="mt-5">
-            <div className="relative h-2.5 w-full rounded-full bg-slate-100">
-              <div className="absolute left-0 top-0 h-full rounded-full bg-emerald-500" style={{ width: `${pct}%` }} />
-              <div className="absolute top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-[3px] border-emerald-500 bg-white shadow-[0_1px_4px_rgba(15,23,42,0.25)]" style={{ left: `${pct}%` }} />
-            </div>
-            <div className="mt-2.5 flex items-center justify-between">
-              <span className="text-[13px] font-bold uppercase tracking-wide text-slate-400">{pb.current} / {pb.total} {pb.unit || pb.label}</span>
-              <span className="text-[15px] font-extrabold text-emerald-600">{pct}%</span>
-            </div>
-          </div>
-        )}
+        {/* BACK — full photo */}
+        <button onClick={() => setFlipped(false)} aria-label="Show status details" className="absolute inset-0 overflow-hidden rounded-3xl border border-slate-200" style={{ backfaceVisibility: "hidden", pointerEvents: flipped ? "auto" : "none", boxShadow: CARD_SHADOW }}>
+          {has(photo) && <img src={photo} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />}
+          <span style={{ position: "absolute", inset: 0, background: "linear-gradient(rgba(0,0,0,0.1) 0%, rgba(0,0,0,0) 38%, rgba(0,0,0,0.3) 100%)" }} />
+          <span className="absolute inline-flex items-center gap-1.5 rounded-full" style={{ bottom: 12, right: 12, padding: "5px 10px", background: "rgba(15,23,42,0.5)", backdropFilter: "blur(4px)" }}>
+            <span className="font-bold uppercase text-white" style={{ fontSize: 8, letterSpacing: "0.12em" }}>Tap to flip back</span>
+          </span>
+        </button>
       </div>
-      <div className="grid grid-cols-2 divide-x divide-slate-100 border-t border-slate-100">{cell("Latest Update", status.latestUpdate)}{cell("Next Catalyst", status.nextCatalyst)}</div>
-      <div className="grid grid-cols-2 divide-x divide-slate-100 border-t border-slate-100">{cell("Expected", status.expected)}{cell("Investment Impact", status.investmentImpact)}</div>
     </div>
   );
 }

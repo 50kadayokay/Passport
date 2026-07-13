@@ -52,3 +52,18 @@ body {
 /* hide scrollbars on horizontal strips while keeping scroll */
 .pp-noscroll { scrollbar-width: none; -ms-overflow-style: none; }
 .pp-noscroll::-webkit-scrollbar { display: none; }
+
+/* ---- prototype-exact motion (ported 1:1) ---- */
+@keyframes pp-ping { 75%, 100% { transform: scale(2.2); opacity: 0; } }
+.pp-ping { animation: pp-ping 2s cubic-bezier(0,0,0.2,1) infinite; }
+
+@keyframes pp-wordfade { 0% { opacity: 0; filter: blur(5px); transform: translateY(2px); } 100% { opacity: 1; filter: blur(0); transform: none; } }
+.pp-wordfade { opacity: 0; animation: pp-wordfade 0.62s cubic-bezier(0.22,0.61,0.36,1) both; }
+
+@keyframes pp-view { 0% { opacity: 0; transform: translateY(6px); } 100% { opacity: 1; transform: translateY(0); } }
+.pp-view { animation: pp-view 0.34s cubic-bezier(0.22,1,0.36,1) both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .pp-ping, .pp-slide-up, .pp-pop, .pp-fade, .pp-view, .pp-backdrop { animation: none !important; }
+  .pp-wordfade { animation: none !important; opacity: 1 !important; filter: none !important; transform: none !important; }
+}
