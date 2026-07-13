@@ -33,10 +33,18 @@ function errText(d) { return d?.msg || d?.error_description || d?.error || d?.me
 export function getUser() { return load()?.user || null; }
 export function isSignedIn() { return !!load()?.access_token; }
 
+// Public signup is investor-only. Companies are provisioned by a platform admin
+// (concierge model), not via self-serve signup. Any other requested role falls
+// back to 'investor'. The DB trigger (handle_new_user, migration 0004) is the
+// authoritative guard; this clamp keeps the client honest.
+const PUBLIC_SIGNUP_ROLES = ["investor"];
+
 export async function signUp(email, password, meta) {
-  // `meta` becomes user_metadata; the handle_new_user trigger reads data.role
-  // ('company' | 'investor') to set the profile role at signup.
-  const body = meta ? { email, password, data: meta } : { email, password };
+  // `data` becomes user_metadata. Only ever send a safe, whitelisted role;
+  // anything else falls back to the least-privileged 'investor'.
+  const requested = meta && typeof meta.role === "string" ? meta.role : null;
+  const role = PUBLIC_SIGNUP_ROLES.includes(requested) ? requested : "investor";
+  const body = { email, password, data: { role } };
   const res = await fetch(`${AUTH}/signup`, { method: "POST", headers: base, body: JSON.stringify(body) });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(errText(data));
@@ -114,13 +122,18 @@ export async function requestPasswordReset(email) {
 // The reset email link lands on /reset with the token in the URL hash. Adopt it
 // as a session so updatePassword() can run. Returns { type } or null.
 export function consumeHashSession() {
-  if (typeof window === "undefined" || !window.location.hash) return null;
-  const q = new URLSearchParams(window.location.hash.replace(/^#/, ""));
-  const access_token = q.get("access_token");
-  if (!access_token) return null;
-  save({ access_token, refresh_token: q.get("refresh_token"), expires_in: Number(q.get("expires_in")) || 3600, user: null });
-  history.replaceState(null, "", window.location.pathname + window.location.search);
-  return { type: q.get("type") };
+  if (typeof window === "undefined") return null;
+  // Supabase delivers the recovery token in the URL hash (implicit flow) or,
+  // in some configs, the query string — check both. Also surface any error.
+  const hash = new URLSearchParams((window.location.hash || "").replace(/^#/, ""));
+  const query = new URLSearchParams(window.location.search || "");
+  const pick = (k) => hash.get(k) || query.get(k);
+  const access_token = pick("access_token");
+  const error = pick("error_description") || pick("error");
+  if (!access_token) return error ? { type: null, error } : null;
+  save({ access_token, refresh_token: pick("refresh_token"), expires_in: Number(pick("expires_in")) || 3600, user: null });
+  history.replaceState(null, "", window.location.pathname);
+  return { type: pick("type") };
 }
 
 export async function updatePassword(newPassword) {
