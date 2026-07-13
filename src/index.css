@@ -20,15 +20,35 @@ body {
   --pp-bg: #f4f5f7;
 }
 
-/* subtle content fade-in for lazy sections / tab switches */
+/* content fade-in for tab switches / lazy sections */
 @keyframes pp-fade {
-  from { opacity: 0; transform: translateY(6px); }
+  from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
 }
-.pp-fade { animation: pp-fade 0.28s ease both; }
+.pp-fade { animation: pp-fade 0.34s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+/* bottom-sheet slide-up (detail modals) */
+@keyframes pp-slide-up {
+  from { opacity: 0; transform: translateY(26px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.pp-slide-up { animation: pp-slide-up 0.32s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+/* modal / card pop */
+@keyframes pp-pop {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+.pp-pop { animation: pp-pop 0.24s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+/* backdrop fade */
+@keyframes pp-backdrop { from { opacity: 0; } to { opacity: 1; } }
+.pp-backdrop { animation: pp-backdrop 0.24s ease both; }
+
+/* tactile press feedback on tappable cards/buttons */
+.pp-press { transition: transform 0.12s ease; }
+.pp-press:active { transform: scale(0.97); }
 
 /* hide scrollbars on horizontal strips while keeping scroll */
 .pp-noscroll { scrollbar-width: none; -ms-overflow-style: none; }
-.pp-noscroll::-webkit-scrollbar { display: none; }
-
 .pp-noscroll::-webkit-scrollbar { display: none; }

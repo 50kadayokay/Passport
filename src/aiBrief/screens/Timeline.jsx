@@ -89,8 +89,8 @@ function DetailSheet({ e, onClose }) {
   const impact = impactOf(e);
   return (
     <div className="absolute inset-0 z-40 flex items-end justify-center sm:items-center" style={{ padding: 12 }}>
-      <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative flex max-h-[86%] w-full flex-col overflow-hidden rounded-[26px] border border-slate-200 bg-white shadow-2xl">
+      <div className="pp-backdrop absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={onClose} />
+      <div className="pp-slide-up relative flex max-h-[86%] w-full flex-col overflow-hidden rounded-[26px] border border-slate-200 bg-white shadow-2xl">
         <button onClick={onClose} aria-label="Close" className="absolute right-4 top-4 z-10 grid h-8 w-8 place-items-center rounded-full bg-slate-100 text-slate-500"><X size={16} /></button>
         <div className="overflow-y-auto px-6 py-6">
           <div className="flex items-center gap-2"><Tag category={e.category} /><Badge impact={impact} /></div>
