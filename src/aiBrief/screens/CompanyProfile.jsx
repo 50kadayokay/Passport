@@ -183,20 +183,22 @@ const TECH_CARDS = [
 function Gallery({ images }) {
   const [idx, setIdx] = useState(0);
   if (!Array.isArray(images) || !images.length) {
-    return <div className="flex h-40 items-center justify-center rounded-3xl border border-dashed border-slate-200 bg-white/60 text-[13px] font-medium text-slate-400">No project photos yet</div>;
+    return <div className="flex h-40 items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-white/60 text-[13px] font-medium text-slate-400">No project photos yet</div>;
   }
   const onScroll = (e) => { const w = e.currentTarget.clientWidth || 1; setIdx(Math.round(e.currentTarget.scrollLeft / w)); };
   return (
-    <div>
-      <div onScroll={onScroll} className="pp-noscroll flex snap-x snap-mandatory overflow-x-auto rounded-3xl" style={{ scrollbarWidth: "none" }}>
+    <div className="relative overflow-hidden rounded-2xl border border-slate-200" style={{ height: 300, background: "#0f172a" }}>
+      <div onScroll={onScroll} className="pp-noscroll flex overflow-x-auto" style={{ height: "100%", scrollSnapType: "x mandatory" }}>
         {images.map((src, i) => (
-          <img key={i} src={src} alt="" className="h-56 w-full flex-shrink-0 snap-center object-cover" />
+          <div key={i} className="relative flex-shrink-0" style={{ width: "100%", height: "100%", scrollSnapAlign: "center" }}>
+            <img src={src} alt="" draggable="false" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+          </div>
         ))}
       </div>
       {images.length > 1 && (
-        <div className="mt-2.5 flex items-center justify-center gap-1.5">
+        <div className="pointer-events-none absolute inset-x-0 flex justify-center" style={{ bottom: 12, gap: 6 }}>
           {images.map((_, i) => (
-            <span key={i} className={`h-1.5 rounded-full transition-all duration-200 ${i === idx ? "w-4 bg-slate-700" : "w-1.5 bg-slate-300"}`} />
+            <span key={i} style={{ height: 5, width: i === idx ? 16 : 5, borderRadius: 999, background: i === idx ? "#fff" : "rgba(255,255,255,0.5)", transition: "0.3s", boxShadow: "rgba(2,6,23,0.4) 0px 1px 2px" }} />
           ))}
         </div>
       )}
@@ -239,16 +241,17 @@ function Projects({ projects }) {
 
       {/* per-project AI */}
       <div>
-        <p className="mb-2 text-[12px] font-bold uppercase tracking-widest text-slate-400">Project Intelligence</p>
-        <button className="flex w-full items-center justify-between gap-3 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600 px-5 py-4 text-left text-white shadow-[0_10px_30px_-12px_rgba(37,99,235,0.5)]">
-          <span className="flex items-center gap-3"><span className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-xl bg-white/20"><Zap size={17} fill="currentColor" /></span><span className="text-[17px] font-bold leading-tight">Understand this project in 60 seconds</span></span>
-          <ChevronRight size={18} className="flex-shrink-0" />
+        <span className="px-0.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">Project Intelligence</span>
+        <button className="mt-2.5 flex w-full items-center gap-3 overflow-hidden rounded-2xl px-3.5 py-3 text-left transition active:scale-[0.98]" style={{ background: "linear-gradient(150deg, #0b1f4d 0%, #1d4ed8 100%)", boxShadow: "rgba(29,78,216,0.22) 0px 4px 16px" }}>
+          <span className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-xl bg-white/15"><Zap size={16} className="text-white" strokeWidth={2.4} /></span>
+          <span className="min-w-0 flex-1"><span className="block text-[13px] font-bold tracking-tight text-white">Understand this project in 60 seconds</span></span>
+          <ChevronRight size={16} className="flex-shrink-0 text-white/80" />
         </button>
       </div>
 
       {/* snapshot */}
       <div>
-        <p className="mb-2 text-[12px] font-bold uppercase tracking-widest text-slate-400">Project Snapshot</p>
+        <p className="mb-2.5 px-0.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">Project Snapshot</p>
         <div className="grid grid-cols-2 gap-3">
           {snapCell("Location", has(geo.district) ? geo.district : has(snap.location) ? snap.location : "")}
           {snapCell("Commodities", snap.commodities || "")}
@@ -272,7 +275,7 @@ function Projects({ projects }) {
 
       {/* technical intelligence */}
       <div>
-        <p className="mb-2 text-[12px] font-bold uppercase tracking-widest text-slate-400">Technical Intelligence</p>
+        <p className="mb-2.5 px-0.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">Technical Intelligence</p>
         <div className="space-y-3">
           {TECH_CARDS.map((c) => (
             <button key={c.title} className="flex w-full items-center justify-between rounded-2xl border border-slate-100 bg-white px-5 py-4 text-left shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
@@ -309,7 +312,7 @@ function Capital({ capital }) {
       <div><Eyebrow color="#4f46e5">Financials</Eyebrow><h1 className="mt-1 text-[30px] font-extrabold tracking-tight text-slate-900">Capital</h1></div>
       {cards.length > 0 && (
         <div>
-          <p className="mb-2 text-[12px] font-bold uppercase tracking-widest text-slate-400">Capital Snapshot</p>
+          <p className="mb-2.5 px-0.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">Capital Snapshot</p>
           <div className="grid grid-cols-2 gap-3">
             {cards.map((card) => (
               <div key={card.key} className="relative rounded-3xl bg-slate-50 p-5">
@@ -325,7 +328,7 @@ function Capital({ capital }) {
       )}
       {rows.length > 0 && (
         <div>
-          <p className="mb-2 text-[12px] font-bold uppercase tracking-widest text-slate-400">Explore</p>
+          <p className="mb-2.5 px-0.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">Explore</p>
           <div className="overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
             {rows.map((r, i) => (
               <button key={r.title} className={`flex w-full items-center gap-4 px-5 py-4 text-left ${i > 0 ? "border-t border-slate-100" : ""}`}>
