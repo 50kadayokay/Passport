@@ -38,8 +38,9 @@ const SEED_TEAM_MEMBERS = [];
    ============================================================ */
 // SUPABASE_URL / SUPABASE_ANON now come from src/lib/supabase.js (env-driven).
 
-// The template row is a reference only — it must never be overwritten by a save.
-const RESERVED_SLUG = "kingsmen-resources";
+// No row is reserved: Kingsmen is now an editable flagship profile (assigned to
+// an owner), so onboarding can load and update it like any other company.
+const RESERVED_SLUG = "__none__";
 
 // slug ← company name: lowercase, spaces→hyphens, stripped of anything unsafe.
 function slugify(name) {
