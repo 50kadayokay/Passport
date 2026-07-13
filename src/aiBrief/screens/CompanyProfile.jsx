@@ -135,34 +135,37 @@ function Overview({ profile }) {
     <div className="space-y-4">
       <CompanyStatus status={profile.companyStatus} name={name} />
 
-      <div className="overflow-hidden rounded-3xl bg-gradient-to-br from-blue-500 to-sky-400 p-6 text-white shadow-[0_10px_30px_-12px_rgba(37,99,235,0.5)]">
-        <div className="flex items-center gap-3">
-          <div className="grid h-9 w-9 place-items-center rounded-xl bg-white/20"><Zap size={18} fill="currentColor" /></div>
-          <span className="text-[14px] font-bold uppercase tracking-[0.2em]">AI Brief</span>
+      <button className="mt-3 block w-full overflow-hidden rounded-3xl text-left transition-transform active:scale-[0.98]" style={{ padding: 16, background: "radial-gradient(135% 130% at 88% 8%, #7ad6f8 0%, rgba(122,214,248,0) 45%), linear-gradient(140deg, #1b4fd0 0%, #2f86e6 58%, #49b4f0 100%)", boxShadow: "rgba(31,79,208,0.7) 0px 20px 40px -20px" }}>
+        <div className="flex items-center gap-2">
+          <span className="grid h-7 w-7 place-items-center rounded-lg" style={{ background: "rgba(255,255,255,0.22)" }}><Zap size={15} className="text-white" strokeWidth={2.6} /></span>
+          <span className="text-[10px] font-extrabold uppercase tracking-[0.2em] text-white/85">AI Brief</span>
         </div>
-        <h3 className="mt-4 text-[26px] font-extrabold leading-tight tracking-tight">Explain {name} in 60 Seconds</h3>
-        <p className="mt-2 text-[15.5px] leading-snug text-white/90">{has(brief.shortSummary) ? brief.shortSummary : "AI-generated summary covering opportunity, risks, catalysts and project potential."}</p>
-      </div>
+        <p className="mt-2.5 font-extrabold leading-tight tracking-tight text-white" style={{ fontSize: 17 }}>Explain {name} in 60 Seconds</p>
+        <p className="mt-1.5 font-medium leading-snug text-white/80" style={{ fontSize: 12 }}>{has(brief.shortSummary) ? brief.shortSummary : "AI-generated summary covering opportunity, risks, catalysts and project potential."}</p>
+      </button>
 
-      <div className="overflow-hidden rounded-2xl bg-slate-900 text-white">
-        <button onClick={() => setOpen((o) => !o)} className="flex w-full items-center justify-center gap-2 px-5 py-4 text-[17px] font-bold">
-          Core Value Drivers <ChevronDown size={18} className={`transition-transform ${open ? "rotate-180" : ""}`} />
+      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+        <button onClick={() => setOpen((o) => !o)} aria-expanded={open} className="flex w-full items-center justify-center gap-2 px-4 py-4 text-center transition active:scale-[0.99]" style={{ background: "#0f172a" }}>
+          <span className="text-[14px] font-semibold tracking-tight text-white">Core Value Drivers</span>
+          <ChevronDown size={18} strokeWidth={2.4} className="text-white transition-transform" style={{ transform: open ? "rotate(180deg)" : "none" }} />
         </button>
-        {open && (
-          <div className="px-5 pb-5">
-            {drivers.length ? (
-              <ul className="space-y-2.5">
-                {drivers.map((d, i) => (
-                  <li key={i} className="flex items-start gap-3 text-[15px] leading-snug text-white/90">
-                    <Check size={17} className="mt-0.5 flex-shrink-0 text-emerald-400" /> {d}
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-center text-[14px] text-white/60">Value drivers haven't been added yet.</p>
-            )}
+        <div style={{ display: "grid", gridTemplateRows: open ? "1fr" : "0fr", transition: "grid-template-rows 0.38s ease" }}>
+          <div className="overflow-hidden">
+            <div className="relative px-4 pb-4" style={{ paddingTop: 20 }}>
+              {drivers.length ? (<>
+                <span aria-hidden style={{ position: "absolute", left: 26, top: 31, bottom: 24, width: 2, borderRadius: 9999, background: "linear-gradient(#10b981, #34d399)" }} />
+                <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
+                  {drivers.map((d, i) => (
+                    <div key={i} className="relative flex items-center" style={{ gap: 14 }}>
+                      <span className="relative z-10 grid flex-shrink-0 place-items-center rounded-full" style={{ width: 22, height: 22, background: "#fff", border: "2px solid #10b981", boxShadow: "0 0 0 3px rgba(16,185,129,0.12)" }}><Check size={12} strokeWidth={2.6} style={{ color: "#0f9b73" }} /></span>
+                      <span className="font-semibold leading-snug tracking-tight" style={{ fontSize: 13, color: "#334155" }}>{d}</span>
+                    </div>
+                  ))}
+                </div>
+              </>) : <p className="text-center text-[13px] text-slate-400">Value drivers haven't been added yet.</p>}
+            </div>
           </div>
-        )}
+        </div>
       </div>
     </div>
   );
