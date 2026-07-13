@@ -5,7 +5,9 @@ import { Sparkles, Compass, Star, User, ScanLine, ChevronRight, BadgeCheck } fro
 
 export function StatusBar() {
   return (
-    <div className="relative flex items-center justify-between px-8 pt-3 pb-1.5 flex-shrink-0">
+    // Fake iPhone chrome is only for the desktop mockup frame; on a real phone
+    // it double-stacks with the OS status bar, so hide it below the sm breakpoint.
+    <div className="relative hidden sm:flex items-center justify-between px-8 pt-3 pb-1.5 flex-shrink-0">
       <span className="text-[15px] font-semibold text-slate-900 tabular-nums tracking-tight">9:41</span>
       {/* notch */}
       <div className="absolute left-1/2 top-2.5 -translate-x-1/2 h-6 w-28 rounded-full bg-slate-900" />

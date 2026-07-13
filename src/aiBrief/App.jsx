@@ -88,6 +88,8 @@ export default function App() {
 
   return (
     <PhoneShell>
+      {/* real-phone safe area (below the OS status bar); fake chrome shows only on desktop */}
+      <div className="sm:hidden flex-shrink-0" style={{ height: "env(safe-area-inset-top, 0px)" }} />
       <StatusBar />
       {PREVIEW_TOKEN && !data.loading && !data.error && (
         <div className="flex items-center justify-center gap-1.5 bg-amber-400 px-3 py-1.5 text-center text-[11.5px] font-bold text-amber-950">
