@@ -5,6 +5,7 @@ import {
   MapPin, Layers, Wallet, Coins, Activity, FlaskConical, Newspaper,
 } from "lucide-react";
 import { Avatar, initialsOf, fmtShares } from "../components.jsx";
+import Timeline from "./Timeline.jsx";
 
 /* ---------- helpers ---------- */
 const has = (v) => typeof v === "string" && v.trim().length > 0;
@@ -400,7 +401,7 @@ export default function CompanyProfile({ profile, onBack, tab: controlledTab, on
         <div key={tab} className="pp-fade bg-[var(--pp-bg)] px-4 py-4" style={{ minHeight: "60%" }}>
           {tab === "overview" && <Overview profile={profile} />}
           {tab === "projects" && <Projects projects={profile.projects} />}
-          {tab === "timeline" && <div className="space-y-5"><div><Eyebrow color="#2563eb">Progress</Eyebrow><h1 className="mt-1 text-[30px] font-extrabold tracking-tight text-slate-900">Timeline</h1></div><EmptyState icon={Clock} title="No milestones yet" sub="Company milestones and catalysts will appear here." /></div>}
+          {tab === "timeline" && <Timeline timeline={profile.timeline} />}
           {tab === "capital" && <Capital capital={profile.capital} />}
           {tab === "team" && <div className="space-y-5"><div><Eyebrow color="#0f766e">People</Eyebrow><h1 className="mt-1 text-[30px] font-extrabold tracking-tight text-slate-900">Team</h1></div><EmptyState icon={Users} title="No team listed" sub="Management and directors haven't been added to this Passport." /></div>}
           {tab === "updates" && <Updates media={profile.media} />}
