@@ -4,7 +4,7 @@ import Site from "./site/Site.jsx"; // the public marketing site — the front d
 import "./index.css";
 
 // Surfaces are code-split so the marketing bundle stays lean:
-const App = React.lazy(() => import("./aiBrief/App.jsx"));                    // investor app at /app
+const App = React.lazy(() => import("./aiBrief/PassportProto.jsx"));          // investor app at /app — your real prototype (data wiring next)
 const Onboarding = React.lazy(() => import("./console/CompanyConsole.jsx")); // company console (wraps the builder)
 const Admin = React.lazy(() => import("./admin/MissionControl.jsx"));         // Mission Control
 import AuthGate from "./auth/AuthGate.jsx";
