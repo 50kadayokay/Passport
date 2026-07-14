@@ -1,0 +1,11 @@
+{
+  "name": "Passport",
+  "short_name": "Passport",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#ffffff",
+  "theme_color": "#ffffff",
+  "start_url": "/app",
+  "scope": "/",
+  "icons": []
+}
