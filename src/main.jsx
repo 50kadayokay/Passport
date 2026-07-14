@@ -2,9 +2,9 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import Site from "./site/Site.jsx"; // the public marketing site — the front door at "/"
 import "./index.css";
+import { SUPABASE_URL, SUPABASE_ANON } from "./lib/supabase.js";
 
 // Surfaces are code-split so the marketing bundle stays lean:
-const App = React.lazy(() => import("./aiBrief/PassportProto.jsx"));          // investor app at /app — your real prototype (data wiring next)
 const Onboarding = React.lazy(() => import("./console/CompanyConsole.jsx")); // company console (wraps the builder)
 const Admin = React.lazy(() => import("./admin/MissionControl.jsx"));         // Mission Control
 import AuthGate from "./auth/AuthGate.jsx";
@@ -43,24 +43,46 @@ const lazyFallback = (label) => (
   <div style={{ minHeight: "100dvh", display: "grid", placeItems: "center", background: "#f4f5f7", color: "#94a3b8" }}>Loading {label}…</div>
 );
 
-ReactDOM.createRoot(document.getElementById("root")).render(
-  <React.StrictMode>
-    {isOnboarding ? (
-      <DesktopOnly>
-        <AuthGate title="Sign in to your company" subtitle="Build and manage your Passport profile">
-          <React.Suspense fallback={lazyFallback("onboarding")}><Onboarding /></React.Suspense>
-        </AuthGate>
-      </DesktopOnly>
-    ) : isAdmin ? (
-      <DesktopOnly>
-        <AuthGate requireAdmin title="Sign in to Admin" subtitle="Passport operations console">
-          <React.Suspense fallback={lazyFallback("admin")}><Admin /></React.Suspense>
-        </AuthGate>
-      </DesktopOnly>
-    ) : isApp ? (
-      <React.Suspense fallback={lazyFallback("app")}><App /></React.Suspense>
-    ) : (
-      <Site />
-    )}
-  </React.StrictMode>
-);
+const root = ReactDOM.createRoot(document.getElementById("root"));
+
+// The investor app is your prototype fed by live data. We fetch the company's
+// data object and set window.__PP__ BEFORE importing the app, so its module-level
+// consts pick it up (falling back to built-in data if the fetch fails).
+async function bootApp() {
+  root.render(lazyFallback("app"));
+  try {
+    const slug = new URLSearchParams(window.location.search).get("c") || "kingsmen-resources";
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/companies?slug=eq.${encodeURIComponent(slug)}&select=pp:profile->pp`,
+      { headers: { apikey: SUPABASE_ANON, Authorization: `Bearer ${SUPABASE_ANON}` } }
+    );
+    const rows = await res.json().catch(() => []);
+    if (rows && rows[0] && rows[0].pp) window.__PP__ = rows[0].pp;
+  } catch (_) { /* fall back to the app's built-in reference data */ }
+  const { default: App } = await import("./aiBrief/PassportProto.jsx");
+  root.render(<App />);
+}
+
+if (isApp) {
+  bootApp();
+} else {
+  root.render(
+    <React.StrictMode>
+      {isOnboarding ? (
+        <DesktopOnly>
+          <AuthGate title="Sign in to your company" subtitle="Build and manage your Passport profile">
+            <React.Suspense fallback={lazyFallback("onboarding")}><Onboarding /></React.Suspense>
+          </AuthGate>
+        </DesktopOnly>
+      ) : isAdmin ? (
+        <DesktopOnly>
+          <AuthGate requireAdmin title="Sign in to Admin" subtitle="Passport operations console">
+            <React.Suspense fallback={lazyFallback("admin")}><Admin /></React.Suspense>
+          </AuthGate>
+        </DesktopOnly>
+      ) : (
+        <Site />
+      )}
+    </React.StrictMode>
+  );
+}
