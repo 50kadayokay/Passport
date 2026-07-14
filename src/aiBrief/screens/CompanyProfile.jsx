@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   ArrowLeft, ScanLine, BadgeCheck, Check, MessageSquare, ExternalLink,
   Home, Pickaxe, Clock, PieChart, Users, Radio, Zap, ChevronDown, ChevronRight,
@@ -67,6 +67,8 @@ function CompanyStatus({ status, name }) {
   const hasStatus = has(status?.statusHeadline) || has(status?.latestUpdate) || has(status?.nextCatalyst);
   const pct = pb.enabled && pb.total ? Math.round((Number(pb.current) / Number(pb.total)) * 100) : null;
   const [flipped, setFlipped] = useState(false);
+  const [w, setW] = useState(0); // animates the slider fill 0 -> pct on mount (like the prototype)
+  useEffect(() => { const t = setTimeout(() => setW(pct || 0), 150); return () => clearTimeout(t); }, [pct]);
   if (!hasStatus) return <EmptyState icon={Zap} title="No company status yet" sub={`${name} hasn't published a current status update to its Passport.`} />;
   const photo = status.photo;
 
@@ -96,8 +98,8 @@ function CompanyStatus({ status, name }) {
               {pct != null && (
                 <div className="mt-7">
                   <div className="relative flex h-4 items-center">
-                    <div className="relative h-2 w-full overflow-hidden rounded-full bg-slate-200"><div className="absolute inset-y-0 left-0 rounded-full" style={{ width: `${pct}%`, background: "linear-gradient(90deg, #10b981, #34d399)" }} /></div>
-                    <div className="absolute z-10 h-4 w-4 rounded-full" style={{ left: `${pct}%`, transform: "translateX(-50%)", background: "#047857", boxShadow: "#fff 0px 0px 0px 2.5px, rgba(4,120,87,0.35) 0px 0px 0px 4.5px, rgba(0,0,0,0.25) 0px 2px 6px -1px" }} />
+                    <div className="relative h-2 w-full overflow-hidden rounded-full bg-slate-200"><div className="absolute inset-y-0 left-0 rounded-full" style={{ width: `${w}%`, background: "linear-gradient(90deg, #10b981, #34d399)", transition: "width 0.9s cubic-bezier(0.22,1,0.36,1)" }} /></div>
+                    <div className="absolute z-10 h-4 w-4 rounded-full" style={{ left: `${w}%`, transform: "translateX(-50%)", background: "#047857", boxShadow: "#fff 0px 0px 0px 2.5px, rgba(4,120,87,0.35) 0px 0px 0px 4.5px, rgba(0,0,0,0.25) 0px 2px 6px -1px", transition: "left 0.9s cubic-bezier(0.22,1,0.36,1)" }} />
                   </div>
                   <div className="mt-1.5 flex justify-between"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{pb.current} / {pb.total} {pb.unit || pb.label}</span><span className="text-[10px] font-extrabold tabular-nums tracking-wider" style={{ color: "#0f9b73" }}>{pct}%</span></div>
                 </div>
