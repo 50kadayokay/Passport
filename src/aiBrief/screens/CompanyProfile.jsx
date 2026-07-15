@@ -107,11 +107,11 @@ function CompanyStatus({ status, name }) {
             </div>
             <div className="grid grid-cols-2 border-t border-slate-100">
               <div className="border-r border-slate-100"><StatusCell label="Latest Update" value={status.latestUpdate} small /></div>
-              <StatusCell label="Next Catalyst" value={status.nextCatalyst} />
+              <StatusCell label="Investment Impact" value={status.investmentImpact} small />
             </div>
             <div className="grid grid-cols-2 border-t border-slate-100">
-              <div className="border-r border-slate-100"><StatusCell label="Expected" value={status.expected} /></div>
-              <StatusCell label="Investment Impact" value={status.investmentImpact} small />
+              <div className="border-r border-slate-100"><StatusCell label="Next Catalyst" value={status.nextCatalyst} /></div>
+              <StatusCell label="Expected" value={status.expected} />
             </div>
           </div>
         </div>
@@ -373,41 +373,49 @@ const UPD_TONE = {
   drilling: "text-emerald-600 bg-emerald-50", lab: "text-purple-600 bg-purple-50",
   financing: "text-indigo-600 bg-indigo-50", corporate: "text-slate-600 bg-slate-100", default: "text-slate-600 bg-slate-100",
 };
-function Updates({ media }) {
-  const [tab, setTab] = useState("All");
-  const list = Array.isArray(media) ? media : [];
-  if (!list.length) return (
-    <div className="space-y-5">
-      <h1 className="text-[30px] font-extrabold tracking-tight text-slate-900">Updates</h1>
-      <EmptyState icon={Radio} title="No updates yet" sub="Drilling, lab and corporate updates will stream in here as they're posted." />
-    </div>
-  );
+function Updates({ media, company = {} }) {
+  const [tab, setTab] = useState("Updates");
+  const all = Array.isArray(media) ? media : [];
+  const list = tab === "Media" ? all.filter((u) => has(u.image)) : tab === "Reposts" ? [] : all;
+  const emptyFor = { Updates: "No updates yet", Media: "No media yet", Reposts: "No reposts yet" };
   return (
     <div className="space-y-4">
-      <h1 className="text-[30px] font-extrabold tracking-tight text-slate-900">Updates</h1>
-      <div className="flex gap-6 border-b border-slate-100">
-        {["All", "Updates", "Media"].map((t) => (
-          <button key={t} onClick={() => setTab(t)} className={`relative pb-3 text-[16px] font-bold ${tab === t ? "text-slate-900" : "text-slate-400"}`}>
-            {t}{tab === t && <span className="absolute -bottom-px left-0 h-0.5 w-full rounded-full bg-blue-500" />}
-          </button>
-        ))}
-      </div>
-      <div className="space-y-3.5">
-        {list.map((u, i) => {
-          const tone = UPD_TONE[(u.kind || "").toLowerCase()] || UPD_TONE.default;
+      {/* Updates · Media · Reposts — matches the live company profile */}
+      <div className="flex border-b border-slate-100">
+        {["Updates", "Media", "Reposts"].map((t) => {
+          const on = tab === t;
           return (
-            <div key={i} className="rounded-3xl border border-slate-100 bg-white p-4 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
-              <div className="flex items-center justify-between">
-                <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[12px] font-bold uppercase tracking-wide ${tone}`}><FlaskConical size={13} /> {u.kind || "Update"}</span>
-                <span className="text-[13px] font-medium text-slate-400">{u.time || ""}</span>
-              </div>
-              <p className="mt-3 text-[18px] font-bold leading-snug text-slate-900">{u.title}</p>
-              {has(u.body) && <p className="mt-1.5 text-[14.5px] leading-snug text-slate-500">{u.body}</p>}
-              {has(u.image) && <img src={u.image} alt="" className="mt-3 h-48 w-full rounded-2xl object-cover" />}
-            </div>
+            <button key={t} onClick={() => setTab(t)} className="relative flex-1 pb-3 pt-1 text-[15px] font-bold" style={{ color: on ? "#0f172a" : "#94a3b8" }}>
+              {t}{on && <span className="absolute -bottom-px left-1/2 h-0.5 w-10 -translate-x-1/2 rounded-full bg-slate-900" />}
+            </button>
           );
         })}
       </div>
+      {!list.length ? (
+        <EmptyState icon={Radio} title={emptyFor[tab]} sub="Drilling, lab and corporate updates will stream in here as they're posted." />
+      ) : (
+        <div className="space-y-3.5">
+          {list.map((u, i) => {
+            const tone = UPD_TONE[(u.kind || "").toLowerCase()] || UPD_TONE.default;
+            return (
+              <div key={i} className="rounded-3xl border border-slate-100 bg-white p-4 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+                {/* company avatar + name (left), category pill (right) */}
+                <div className="flex items-center gap-2">
+                  <Avatar brand={company.brand} name={company.name} size={28} />
+                  <span className="truncate text-[14px] font-bold tracking-tight text-slate-900">{company.name}</span>
+                  <BadgeCheck size={14} className="flex-shrink-0 text-sky-500" />
+                  <span className={`ml-auto flex-shrink-0 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-wide ${tone}`}><FlaskConical size={12} /> {u.kind || "Update"}</span>
+                </div>
+                <p className="mt-3 text-[17px] font-bold leading-snug text-slate-900">{u.title}</p>
+                {has(u.body) && <p className="mt-1.5 text-[14px] leading-snug text-slate-500">{u.body}</p>}
+                {has(u.image) && <img src={u.image} alt="" className="mt-3 h-48 w-full rounded-2xl object-cover" />}
+                {/* date bottom-right */}
+                <div className="mt-2.5 flex justify-end"><span className="text-[12px] font-medium text-slate-400">{u.time || ""}</span></div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -421,7 +429,7 @@ function CompactHeader({ company }) {
         <span className="truncate text-[18px] font-extrabold tracking-tight text-slate-900">{company.name}</span>
         <BadgeCheck size={17} className="flex-shrink-0 text-sky-500" />
       </div>
-      <button className="flex flex-shrink-0 items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3.5 py-1.5 text-[14px] font-bold text-emerald-600"><Check size={15} /> Following</button>
+      <button className="flex flex-shrink-0 items-center gap-1.5 rounded-full border border-slate-900 bg-slate-900 px-3.5 py-1.5 text-[14px] font-bold text-white"><Check size={15} /> Following</button>
     </div>
   );
 }
@@ -439,7 +447,7 @@ function FullHeader({ company }) {
           {has(company.website) && (
             <a href={company.website} target="_blank" rel="noreferrer" className="mt-1.5 inline-flex items-center gap-1 text-[16px] font-semibold text-sky-500">{displayHost(company.website)} <ExternalLink size={14} /></a>
           )}
-          {has(company.slogan) && <p className="mt-1 text-[15px] italic text-slate-500">{company.slogan}</p>}
+          {has(company.slogan) && <p className="mt-1 text-[15px] text-slate-500">{company.slogan}</p>}
         </div>
       </div>
       <div className="mt-4 flex gap-3">
@@ -470,14 +478,12 @@ export default function CompanyProfile({ profile, onBack, tab: controlledTab, on
 
   return (
     <div className="flex h-full flex-col bg-white">
-      {/* top bar */}
-      <div className="flex flex-shrink-0 items-center justify-between bg-gradient-to-b from-slate-50 to-white px-5 py-2">
-        {showBack ? (
-          <button onClick={onBack} aria-label="Back" className="grid h-9 w-9 place-items-center rounded-full text-slate-500"><ArrowLeft size={22} /></button>
-        ) : <div className="h-9 w-9" />}
-        <span className="text-[13px] font-bold uppercase tracking-[0.16em] text-slate-400">Company Profile</span>
-        <button aria-label="Scan QR code" className="grid h-11 w-11 place-items-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-sm"><ScanLine size={19} /></button>
-      </div>
+      {/* plain back arrow only — no breadcrumb, no QR (matches the live company profile) */}
+      {showBack && (
+        <div className="flex flex-shrink-0 items-center bg-gradient-to-b from-slate-50 to-white px-3 pt-1.5">
+          <button onClick={onBack} aria-label="Back" className="grid h-8 w-8 place-items-center text-slate-700"><ArrowLeft size={22} /></button>
+        </div>
+      )}
 
       <div ref={scrollRef} onScroll={onScroll} className="min-h-0 flex-1 overflow-y-auto">
         {/* full header scrolls away naturally; compact identity appears in the sticky bar */}
@@ -508,7 +514,7 @@ export default function CompanyProfile({ profile, onBack, tab: controlledTab, on
           {tab === "timeline" && <Timeline timeline={profile.timeline} />}
           {tab === "capital" && <Capital capital={profile.capital} company={company} />}
           {tab === "team" && <div className="space-y-5"><div><Eyebrow color="#0f766e">People</Eyebrow><h1 className="mt-1 text-[30px] font-extrabold tracking-tight text-slate-900">Team</h1></div><EmptyState icon={Users} title="No team listed" sub="Management and directors haven't been added to this Passport." /></div>}
-          {tab === "updates" && <Updates media={profile.media} />}
+          {tab === "updates" && <Updates media={profile.media} company={company} />}
         </div>
       </div>
     </div>
