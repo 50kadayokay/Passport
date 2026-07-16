@@ -19,7 +19,7 @@ import { StatusBar as AppStatusBar } from "./aiBrief/components.jsx";
 import { authHeaders, getUser } from "./lib/auth.js";
 import { uploadCompanyMedia, flushProfileAssets } from "./lib/storage.js";
 import { mapProfileToPP } from "./lib/profileToPP.js";
-import { extractCorpus } from "./lib/structureReleases.js";
+import { extractCorpus, synthesizeProfile } from "./lib/structureReleases.js";
 import { SUPABASE_URL, SUPABASE_ANON } from "./lib/supabase.js";
 
 /* --- stubbed data consts (stripped long lines); blank schema by default --- */
@@ -6328,12 +6328,20 @@ export default function Onboarding({ embedded = false }) {
         });
         if (out.timelineEntries && out.timelineEntries.length) setTimeline(out.timelineEntries);
         if (out.suggestions && out.suggestions.length) setProfile((p) => ({ ...p, aiSuggestions: out.suggestions }));
+        // Layer 2 — synthesize the Overview (status card + brief) from the chronology.
+        if (out.timeline && out.timeline.length) {
+          setExtractMsg("Writing the company overview…");
+          const ov = await synthesizeProfile({ company: { name: companyName }, timeline: out.timeline });
+          if (ov) setProfile((p) => ({
+            ...p,
+            companyStatus: { ...(p.companyStatus || {}), ...(ov.companyStatus || {}) },
+            companyBrief: { ...(p.companyBrief || {}), ...(ov.companyBrief || {}) },
+          }));
+        }
         if (out.failures && out.failures.length) setExtractMsg(`${out.failures.length} release(s) couldn't be read — you can add them manually.`);
       } catch (_) { /* extraction failed — fall through to the builder */ }
     }
-    // Status/brief autofill (server-key path via extractCompanyStatus/Brief); harmless if it no-ops.
-    await Promise.all([autofillCompanyStatus(), autofillCompanyBrief()]).catch(() => {});
-    setScreen("review"); setSpot("tl-data"); setTab("timeline");
+    setScreen("review"); setSpot("co"); setTab("overview");
   };
   const seedStatus = SEED_FIELDS.overview.find((f) => f.id === "ov-status").data.status;
   const finishBranding = (assets) => { setBrand(assets); runFill(); setSpot("co"); setTab("overview"); setScreen("review"); };

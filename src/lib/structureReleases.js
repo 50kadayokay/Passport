@@ -181,6 +181,24 @@ export function toTimelineEntries(assembled) {
   }));
 }
 
+// Layer 2 — synthesize the Company Status card + Brief from the assembled timeline.
+// Returns { companyStatus, companyBrief, warnings } or null on failure.
+export async function synthesizeProfile({ company = {}, timeline = [], projects = [] } = {}) {
+  if (!Array.isArray(timeline) || !timeline.length) return null;
+  try {
+    const res = await fetch("/api/synthesize-profile", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ company, timeline, projects }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return null;
+    return data.overview || null;
+  } catch (_) {
+    return null;
+  }
+}
+
 // Convenience: run the whole pipeline (fan out -> assemble -> group + suggestions).
 export async function extractCorpus(items, opts = {}) {
   const results = await structureReleases(items, opts);
