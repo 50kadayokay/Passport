@@ -29,6 +29,11 @@ const BRAND = {                           // placeholders — swap for real bran
 };
 const INK = "#0f172a", MUTED = "#94a3b8", ACCENT = "#10b981";
 
+// The logo is the hero of the front face — it should dominate. Bounds are generous
+// (78% of the card's inner width) and the name/ticker flow BELOW whatever height the
+// logo actually lands at, so any aspect ratio composes correctly.
+const LOGO_MAX_W = 780, LOGO_MAX_H = 560;
+
 // Mobile-first type: the video is watched ~375px wide, so a 52px point renders at
 // ~18px on a phone. Anything smaller stops being scannable mid-scroll — so we start
 // at 52 and only step down if the block genuinely won't fit (see layoutPoints).
@@ -253,40 +258,55 @@ function drawFace1(ctx, d) {
   v.addColorStop(0, "rgba(2,6,23,0.62)"); v.addColorStop(0.42, "rgba(2,6,23,0.34)"); v.addColorStop(1, "rgba(2,6,23,0.92)");
   ctx.fillStyle = v; ctx.fillRect(40, 40, W - 80, H - 80);
 
-  const cx = W / 2, cy = H * 0.43;
+  const cx = W / 2;
 
-  // centred logo — the shadow follows the (background-removed) alpha shape, so it
-  // reads as the mark floating off the photo rather than a box with a shadow.
+  // Compose the hero block (logo + name + ticker) and centre it as ONE unit in the
+  // band above the headline — otherwise a short logo leaves a dead gap underneath.
+  const NAME_GAP = 92, NAME_LH = 64, NAME_FONT = "800 58px Inter, system-ui, sans-serif";
+  let lw, lh;
   if (d.logoImg) {
     const iw = d.logoImg.width || 1, ih = d.logoImg.height || 1;
-    const s = Math.min(470 / iw, 300 / ih);
-    const lw = iw * s, lh = ih * s;
+    const s = Math.min(LOGO_MAX_W / iw, LOGO_MAX_H / ih);
+    lw = iw * s; lh = ih * s;
+  } else { lw = lh = 400; }
+
+  ctx.font = NAME_FONT;
+  const nm = wrap(ctx, d.name, W - 220).slice(0, 2);
+  const tickH = d.ticker ? 46 : 0;
+  const groupH = lh + NAME_GAP + nm.length * NAME_LH + tickH;
+  const areaTop = 132, areaBot = H - 214;                   // leave the headline its band
+  const groupTop = areaTop + Math.max(0, (areaBot - areaTop - groupH) / 2);
+  const cy = groupTop + lh / 2;
+
+  // Hero logo — the shadow follows the (background-removed) alpha shape, so it reads
+  // as the mark floating off the photo rather than a box with a shadow.
+  if (d.logoImg) {
     ctx.save();
-    ctx.shadowColor = "rgba(0,0,0,0.8)"; ctx.shadowBlur = 52; ctx.shadowOffsetY = 16;
+    ctx.shadowColor = "rgba(0,0,0,0.85)"; ctx.shadowBlur = 64; ctx.shadowOffsetY = 20;
     ctx.drawImage(d.logoImg, cx - lw / 2, cy - lh / 2, lw, lh);
-    ctx.shadowBlur = 26; ctx.shadowOffsetY = 6;      // second pass deepens the lift
+    ctx.shadowBlur = 30; ctx.shadowOffsetY = 8;      // second pass deepens the lift
     ctx.drawImage(d.logoImg, cx - lw / 2, cy - lh / 2, lw, lh);
     ctx.restore();
   } else {
     ctx.save();
-    ctx.shadowColor = "rgba(0,0,0,0.7)"; ctx.shadowBlur = 44; ctx.shadowOffsetY = 14;
-    ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(cx, cy, 104, 0, Math.PI * 2); ctx.fill();
+    ctx.shadowColor = "rgba(0,0,0,0.75)"; ctx.shadowBlur = 56; ctx.shadowOffsetY = 18;
+    ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(cx, cy, lh / 2, 0, Math.PI * 2); ctx.fill();
     ctx.restore();
-    ctx.fillStyle = INK; ctx.font = "800 84px Inter, system-ui, sans-serif";
+    ctx.fillStyle = INK; ctx.font = "800 168px Inter, system-ui, sans-serif";
     ctx.textAlign = "center"; ctx.textBaseline = "middle";
-    ctx.fillText((d.name || "?").slice(0, 1).toUpperCase(), cx, cy + 4);
+    ctx.fillText((d.name || "?").slice(0, 1).toUpperCase(), cx, cy + 8);
   }
 
-  // name + ticker
+  // name + ticker — sit directly under the logo inside the centred block
   ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
   ctx.save();
   ctx.shadowColor = "rgba(0,0,0,0.65)"; ctx.shadowBlur = 26; ctx.shadowOffsetY = 6;
-  ctx.fillStyle = "#fff"; ctx.font = "800 62px Inter, system-ui, sans-serif";
-  const nm = wrap(ctx, d.name, W - 220).slice(0, 2);
-  nm.forEach((ln, i) => ctx.fillText(ln, cx, cy + 234 + i * 68));
+  ctx.fillStyle = "#fff"; ctx.font = NAME_FONT;
+  const nameTop = groupTop + lh + NAME_GAP;
+  nm.forEach((ln, i) => ctx.fillText(ln, cx, nameTop + i * NAME_LH));
   if (d.ticker) {
-    ctx.fillStyle = ACCENT; ctx.font = "700 34px Inter, system-ui, sans-serif";
-    ctx.fillText(d.ticker, cx, cy + 234 + nm.length * 68 + 18);
+    ctx.fillStyle = ACCENT; ctx.font = "700 32px Inter, system-ui, sans-serif";
+    ctx.fillText(d.ticker, cx, nameTop + nm.length * NAME_LH + 14);
   }
   ctx.restore();
 
