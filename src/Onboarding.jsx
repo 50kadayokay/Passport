@@ -6163,9 +6163,16 @@ function SectionEditor({ spot, def, getVal, getStatus, onText, onIdentity, onSta
             <button onClick={handlePrev2} disabled={prevDisabled} style={{ fontSize: 14, fontWeight: 600, padding: "12px 20px", borderRadius: 12, border: "1px solid #e2e8f0", background: "#fff", color: prevDisabled ? "#cbd5e1" : "#64748b", cursor: prevDisabled ? "default" : "pointer", display: "inline-flex", alignItems: "center", gap: 7, opacity: prevDisabled ? 0.6 : 1 }}>
               <ArrowLeft size={16} /> {projOpen ? "Back" : "Previous"}
             </button>
-            <button onClick={handleNext2} style={{ fontSize: 14.5, fontWeight: 700, padding: "12px 22px", borderRadius: 12, border: "none", background: "#0f172a", color: "#fff", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 8 }}>
-              {nextLabel} <ArrowRight size={16} />
-            </button>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              {!last && (
+                <button onClick={onNext} title="Skip this section" style={{ fontSize: 13.5, fontWeight: 700, padding: "12px 16px", borderRadius: 12, border: "none", background: "transparent", color: "#94a3b8", cursor: "pointer" }}>
+                  Skip
+                </button>
+              )}
+              <button onClick={handleNext2} style={{ fontSize: 14.5, fontWeight: 700, padding: "12px 22px", borderRadius: 12, border: "none", background: "#0f172a", color: "#fff", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 8 }}>
+                {nextLabel} <ArrowRight size={16} />
+              </button>
+            </div>
           </div>
         );
       })()}
@@ -6401,7 +6408,11 @@ export default function Onboarding({ embedded = false }) {
   const _csReq = [["statusHeadline", "Status Headline"], ["statusHeadlineSubtext", "Status Headline Subtext"], ["latestUpdate", "Latest Update"], ["nextCatalyst", "Next Catalyst"], ["expected", "Expected"], ["investmentImpact", "Investment Impact"]];
   const _csMissing = _csReq.filter(([k]) => !String((profile.companyStatus || {})[k] || "").trim()).map(([, label]) => label);
   const statusComplete = _csMissing.length === 0;
-  const canPublish = approved > 0 && statusComplete;
+  // Complete needs only a company name (so a bare profile can be created and tested
+  // in the Ready-for-Publish folder). The admin decides when a profile is polished
+  // enough to publish — the folder is the quality gate, not this button.
+  const nameOk = !!String((profile.company || {}).name || "").trim();
+  const canPublish = nameOk;
 
   if (hydrating) return (
     <div style={{ minHeight: _vh, display: "grid", placeItems: "center", background: "#f6f8fb" }}>
