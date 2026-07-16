@@ -40,13 +40,13 @@ const LOGO_MAX_W = 780, LOGO_MAX_H = 560;
 const PT_SIZES = [52, 48, 44, 40, 36];
 const PT_MAX_LINES = 2;
 const PT_X = 168, PT_MAX_W = (W - 72) - PT_X;      // text column width
-const PT_AREA_TOP = 268, PT_AREA_BOT = H - 78;     // vertical room for the points block
+const PT_AREA_TOP = 384, PT_AREA_BOT = H - 78;     // vertical room below the banner
 const ptFont = (px = PT_SIZES[0]) => `700 ${px}px Inter, system-ui, -apple-system, sans-serif`;
 
 // Animation beats (seconds) — snappy in, then hold the points long enough to
 // actually read all of them before flipping to the stamp.
-const T_FACE1 = 1.5, T_FLIP = 0.36, T_STAGGER = 0.30, T_PT_IN = 0.28,
-      T_POINTS_HOLD = 3.2, T_FACE3 = 2.5;
+const T_FACE1 = 1.9, T_FLIP = 0.36, T_STAGGER = 0.44, T_PT_IN = 0.36,
+      T_POINTS_HOLD = 3.0, T_FACE3 = 2.5;
 export const timings = (n) => {
   const face1End = T_FACE1;
   const flip1End = face1End + T_FLIP;
@@ -123,59 +123,75 @@ const loadImg = (src) => new Promise((res) => {
 // that way white INSIDE the logo (counters, lettering, a white wordmark on a dark
 // badge) survives, and only the connected background is cleared. Already-transparent
 // PNGs are returned untouched.
-export function removeBackground(img, tol = 30) {
-  const c = document.createElement("canvas");
-  c.width = img.width; c.height = img.height;
+// Returns { canvas, ok, removedPct, alreadyCutOut }.
+// `ok:false` means the flood ate into the mark itself (a light logo on a light
+// backdrop) — the caller should fall back to the original rather than ship a
+// half-eaten logo. Tolerance is deliberately tight by default; the admin can raise
+// it for noisy JPEGs.
+export function removeBackground(img, tol = 18) {
+  const draw = () => {
+    const c = document.createElement("canvas");
+    c.width = img.width; c.height = img.height;
+    c.getContext("2d", { willReadFrequently: true }).drawImage(img, 0, 0);
+    return c;
+  };
+  const c = draw();
   const ctx = c.getContext("2d", { willReadFrequently: true });
-  ctx.drawImage(img, 0, 0);
   const w = c.width, h = c.height;
-  if (!w || !h) return c;
+  if (!w || !h) return { canvas: c, ok: true, removedPct: 0, alreadyCutOut: false };
   let id;
-  try { id = ctx.getImageData(0, 0, w, h); } catch (_) { return c; }   // tainted — skip
+  try { id = ctx.getImageData(0, 0, w, h); } catch (_) { return { canvas: c, ok: true, removedPct: 0, alreadyCutOut: false }; }
   const d = id.data;
   const at = (x, y) => (y * w + x) * 4;
 
-  // If the corners are already transparent, it's a proper cut-out already.
+  // Already a proper cut-out (transparent PNG) — leave it completely alone.
   const corners = [[0, 0], [w - 1, 0], [0, h - 1], [w - 1, h - 1]];
   const opaque = corners.filter(([x, y]) => d[at(x, y) + 3] > 8);
-  if (!opaque.length) return c;
+  if (!opaque.length) return { canvas: c, ok: true, removedPct: 0, alreadyCutOut: true };
 
   let r = 0, g = 0, b = 0;
   opaque.forEach(([x, y]) => { const i = at(x, y); r += d[i]; g += d[i + 1]; b += d[i + 2]; });
   r /= opaque.length; g /= opaque.length; b /= opaque.length;
   const dist = (i) => Math.abs(d[i] - r) + Math.abs(d[i + 1] - g) + Math.abs(d[i + 2] - b);
+  const thresh = tol * 3;
 
   const seen = new Uint8Array(w * h);
   const stack = [];
+  let removed = 0;
   const tryPush = (x, y) => {
     if (x < 0 || y < 0 || x >= w || y >= h) return;
     const p = y * w + x;
     if (seen[p]) return;
     seen[p] = 1;
-    if (dist(p * 4) < tol * 3) stack.push(p);
+    if (dist(p * 4) < thresh) stack.push(p);
   };
   for (let x = 0; x < w; x++) { tryPush(x, 0); tryPush(x, h - 1); }
   for (let y = 0; y < h; y++) { tryPush(0, y); tryPush(w - 1, y); }
   while (stack.length) {
     const p = stack.pop();
+    if (d[p * 4 + 3]) removed++;
     d[p * 4 + 3] = 0;
     const x = p % w, y = (p / w) | 0;
     tryPush(x + 1, y); tryPush(x - 1, y); tryPush(x, y + 1); tryPush(x, y - 1);
   }
+  const removedPct = removed / (w * h);
 
-  // Soften the fringe: pixels still opaque but close to the old backdrop and touching
-  // a cleared pixel get partial alpha, which kills the halo you'd otherwise see.
+  // Sanity: if we cleared nearly the whole image, the mark was the same colour as the
+  // backdrop and we just deleted it. Hand back the untouched original instead.
+  const opaqueLeft = (() => { let n = 0; for (let i = 3; i < d.length; i += 4) if (d[i] > 8) n++; return n; })();
+  if (opaqueLeft < w * h * 0.02) return { canvas: draw(), ok: false, removedPct, alreadyCutOut: false };
+
+  // Soften the fringe only where it's genuinely backdrop-coloured.
   const alphaAt = (x, y) => (x < 0 || y < 0 || x >= w || y >= h ? 0 : d[at(x, y) + 3]);
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
     const i = at(x, y);
     if (!d[i + 3]) continue;
-    const touching = !alphaAt(x + 1, y) || !alphaAt(x - 1, y) || !alphaAt(x, y + 1) || !alphaAt(x, y - 1);
-    if (!touching) continue;
-    const k = dist(i) / (tol * 3);            // 0 = identical to backdrop
-    if (k < 1.6) d[i + 3] = Math.round(255 * clamp01(k / 1.6));
+    if (alphaAt(x + 1, y) && alphaAt(x - 1, y) && alphaAt(x, y + 1) && alphaAt(x, y - 1)) continue;
+    const k = dist(i) / thresh;
+    if (k < 1) d[i + 3] = Math.round(255 * clamp01(k));
   }
   ctx.putImageData(id, 0, 0);
-  return c;
+  return { canvas: c, ok: true, removedPct, alreadyCutOut: false };
 }
 
 // Offscreen context used to check point fit outside the render loop.
@@ -252,7 +268,7 @@ function cardShell(ctx) {
 
 // Front: full-bleed site photo, company logo centred over it with a drop shadow so
 // it lifts off the image, then the name/ticker and a one-line headline.
-function drawFace1(ctx, d) {
+function drawFace1(ctx, d, tIn = 99) {
   faceBase(ctx); cardShell(ctx);
   ctx.save(); rr(ctx, 40, 40, W - 80, H - 80, 48); ctx.clip();
 
@@ -269,28 +285,28 @@ function drawFace1(ctx, d) {
 
   const cx = W / 2;
 
-  // Compose the hero block (logo + name + ticker) and centre it as ONE unit in the
-  // band above the headline — otherwise a short logo leaves a dead gap underneath.
-  const NAME_GAP = 92, NAME_LH = 64, NAME_FONT = "800 58px Inter, system-ui, sans-serif";
+  // Just the logo + the ticker(s) — no company name (the mark carries it) and no
+  // strapline. Both fade up over the photo.
+  const TICK_GAP = 84, TICK_LH = 52;
   let lw, lh;
   if (d.logoImg) {
     const iw = d.logoImg.width || 1, ih = d.logoImg.height || 1;
     const s = Math.min(LOGO_MAX_W / iw, LOGO_MAX_H / ih);
     lw = iw * s; lh = ih * s;
-  } else { lw = lh = 400; }
+  } else { lw = lh = 420; }
 
-  ctx.font = NAME_FONT;
-  const nm = wrap(ctx, d.name, W - 220).slice(0, 2);
-  const tickH = d.ticker ? 46 : 0;
-  const groupH = lh + NAME_GAP + nm.length * NAME_LH + tickH;
-  const areaTop = 132, areaBot = H - 214;                   // leave the headline its band
-  const groupTop = areaTop + Math.max(0, (areaBot - areaTop - groupH) / 2);
+  const ticks = (d.tickers || []).filter(Boolean);
+  const groupH = lh + (ticks.length ? TICK_GAP + TICK_LH : 0);
+  const groupTop = (H - groupH) / 2;                 // dead-centre on the card
   const cy = groupTop + lh / 2;
 
-  // Hero logo — the shadow follows the (background-removed) alpha shape, so it reads
-  // as the mark floating off the photo rather than a box with a shadow.
+  // fade: logo first, tickers just behind it
+  const aLogo = easeOut(tIn / 0.7);
+  const aTick = easeOut((tIn - 0.35) / 0.7);
+
   if (d.logoImg) {
     ctx.save();
+    ctx.globalAlpha = clamp01(aLogo);
     ctx.shadowColor = "rgba(0,0,0,0.85)"; ctx.shadowBlur = 64; ctx.shadowOffsetY = 20;
     ctx.drawImage(d.logoImg, cx - lw / 2, cy - lh / 2, lw, lh);
     ctx.shadowBlur = 30; ctx.shadowOffsetY = 8;      // second pass deepens the lift
@@ -298,42 +314,96 @@ function drawFace1(ctx, d) {
     ctx.restore();
   } else {
     ctx.save();
+    ctx.globalAlpha = clamp01(aLogo);
     ctx.shadowColor = "rgba(0,0,0,0.75)"; ctx.shadowBlur = 56; ctx.shadowOffsetY = 18;
     ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(cx, cy, lh / 2, 0, Math.PI * 2); ctx.fill();
     ctx.restore();
+    ctx.save();
+    ctx.globalAlpha = clamp01(aLogo);
     ctx.fillStyle = INK; ctx.font = "800 168px Inter, system-ui, sans-serif";
     ctx.textAlign = "center"; ctx.textBaseline = "middle";
     ctx.fillText((d.name || "?").slice(0, 1).toUpperCase(), cx, cy + 8);
+    ctx.restore();
   }
 
-  // name + ticker — sit directly under the logo inside the centred block
-  ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
-  ctx.fillStyle = "#fff"; ctx.font = NAME_FONT;
-  const nameTop = groupTop + lh + NAME_GAP;
-  nm.forEach((ln, i) => shadowText(ctx, ln, cx, nameTop + i * NAME_LH));
-  if (d.ticker) {
-    ctx.fillStyle = ACCENT; ctx.font = "700 32px Inter, system-ui, sans-serif";
-    shadowText(ctx, d.ticker, cx, nameTop + nm.length * NAME_LH + 14);
+  // ticker(s) — restrained, wide-tracked caps. Reads as a listing, not a strapline.
+  if (ticks.length && aTick > 0) {
+    ctx.save();
+    ctx.globalAlpha = clamp01(aTick);
+    ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
+    ctx.font = "600 34px Inter, system-ui, sans-serif";
+    ctx.letterSpacing = "6px";
+    const y = groupTop + lh + TICK_GAP;
+    const parts = ticks.map((t) => t.toUpperCase());
+    const sepW = ctx.measureText("   •   ").width;
+    const widths = parts.map((p) => ctx.measureText(p).width);
+    const total = widths.reduce((a, b) => a + b, 0) + sepW * (parts.length - 1);
+    let x = cx - total / 2;
+    ctx.textAlign = "left";
+    parts.forEach((p, i) => {
+      ctx.fillStyle = "#fff";
+      shadowText(ctx, p, x, y);
+      x += widths[i];
+      if (i < parts.length - 1) {
+        ctx.fillStyle = ACCENT;
+        shadowText(ctx, "   •   ", x, y);
+        x += sepW;
+      }
+    });
+    ctx.letterSpacing = "0px";
+    ctx.restore();
   }
+  ctx.restore();
+}
 
-  // headline along the bottom
-  ctx.fillStyle = "#fff"; ctx.font = "700 42px Inter, system-ui, sans-serif";
-  const hl = wrap(ctx, d.headline, W - 200).slice(0, 2);
-  hl.forEach((ln, i) => shadowText(ctx, ln, cx, H - 132 + i * 52 - (hl.length - 1) * 26));
+// Animated cloud banner — soft radial blobs drifting across a blue field, clipped to
+// the banner, so the header feels alive rather than a flat bar.
+function drawCloudBanner(ctx, x, y, w, h, t, eyebrow, title) {
+  ctx.save();
+  ctx.shadowColor = "rgba(37,99,235,0.34)"; ctx.shadowBlur = 36; ctx.shadowOffsetY = 14;
+  ctx.fillStyle = "#2563eb"; rr(ctx, x, y, w, h, 34); ctx.fill();
+  ctx.restore();
+
+  ctx.save();
+  rr(ctx, x, y, w, h, 34); ctx.clip();
+  const g = ctx.createLinearGradient(x, y, x + w, y + h);
+  g.addColorStop(0, "#1e40af"); g.addColorStop(0.55, "#2563eb"); g.addColorStop(1, "#38bdf8");
+  ctx.fillStyle = g; ctx.fillRect(x, y, w, h);
+
+  // drifting clouds — each blob loops across at its own speed
+  [[0.10, 0.30, 250, "#93c5fd", 0.055],
+   [0.45, 0.72, 300, "#7dd3fc", 0.038],
+   [0.78, 0.22, 230, "#bae6fd", 0.047],
+   [0.62, 0.46, 200, "#60a5fa", 0.030]].forEach(([bx, by, r, col, sp], i) => {
+    const px = x + (((bx + t * sp) % 1.5) - 0.25) * w;
+    const py = y + by * h + Math.sin(t * 0.7 + i * 1.3) * 12;
+    const rg = ctx.createRadialGradient(px, py, 0, px, py, r);
+    rg.addColorStop(0, col + "88"); rg.addColorStop(1, col + "00");
+    ctx.fillStyle = rg; ctx.beginPath(); ctx.arc(px, py, r, 0, Math.PI * 2); ctx.fill();
+  });
+  const sheen = ctx.createLinearGradient(x, y, x, y + h);
+  sheen.addColorStop(0, "rgba(255,255,255,0.20)"); sheen.addColorStop(0.55, "rgba(255,255,255,0)");
+  ctx.fillStyle = sheen; ctx.fillRect(x, y, w, h);
+  ctx.restore();
+
+  ctx.save();
+  ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
+  ctx.fillStyle = "rgba(255,255,255,0.85)"; ctx.font = "800 25px Inter, system-ui, sans-serif";
+  ctx.letterSpacing = "3px";
+  ctx.fillText(eyebrow, x + 46, y + 80);
+  ctx.letterSpacing = "0px";
+  ctx.fillStyle = "#fff"; ctx.font = "800 58px Inter, system-ui, sans-serif";
+  wrap(ctx, String(title || ""), w - 92).slice(0, 1).forEach((ln) => ctx.fillText(ln, x + 46, y + 156));
   ctx.restore();
 }
 
 function drawFace2(ctx, d, tIn) {
   faceBase(ctx); cardShell(ctx);
   ctx.save(); rr(ctx, 40, 40, W - 80, H - 80, 48); ctx.clip();
-  ctx.fillStyle = "#0b1220"; ctx.fillRect(40, 40, W - 80, H - 80);
+  ctx.fillStyle = "#ffffff"; ctx.fillRect(40, 40, W - 80, H - 80);
 
-  // header
+  drawCloudBanner(ctx, 80, 94, W - 160, 222, tIn, "WHY INVESTORS ARE WATCHING", d.name);
   ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
-  ctx.fillStyle = ACCENT; ctx.font = "800 26px Inter, system-ui, sans-serif";
-  ctx.fillText("WHY INVESTORS ARE WATCHING", 88, 130);
-  ctx.fillStyle = "#fff"; ctx.font = "800 58px Inter, system-ui, sans-serif";
-  ctx.fillText(String(d.name || "").slice(0, 24), 88, 202);
 
   // Adaptive layout — guarantees the block fits between PT_AREA_TOP/BOT.
   const pts = (d.points || []).slice(0, MAX_POINTS);
@@ -355,8 +425,8 @@ function drawFace2(ctx, d, tIn) {
       ctx.beginPath();
       ctx.moveTo(112 - br * 0.46, by); ctx.lineTo(112 - br * 0.08, by + br * 0.44); ctx.lineTo(112 + br * 0.56, by - br * 0.46);
       ctx.stroke();
-      // text — large, bold, scannable
-      ctx.fillStyle = "#eef4fb"; ctx.font = ptFont(L.size);
+      // text — large, bold, scannable (dark ink on the white card)
+      ctx.fillStyle = INK; ctx.font = ptFont(L.size);
       b.lines.forEach((ln, j) => ctx.fillText(ln, PT_X, y + dy + Math.round(L.lh * 0.72) + j * L.lh));
       ctx.globalAlpha = 1;
     }
@@ -449,8 +519,8 @@ export function drawFrame(ctx, t, d) {
     ctx.restore();
   };
 
-  if (t < T.face1End) drawFace1(ctx, d);
-  else if (t < T.flip1End) flip((t - T.face1End) / T_FLIP, () => drawFace1(ctx, d), () => drawFace2(ctx, d, 0));
+  if (t < T.face1End) drawFace1(ctx, d, t);
+  else if (t < T.flip1End) flip((t - T.face1End) / T_FLIP, () => drawFace1(ctx, d, t), () => drawFace2(ctx, d, 0));
   else if (t < T.pointsEnd) drawFace2(ctx, d, t - T.flip1End);
   else if (t < T.flip2End) flip((t - T.pointsEnd) / T_FLIP, () => drawFace2(ctx, d, t - T.flip1End), () => drawFace3(ctx, d, 0));
   else drawFace3(ctx, d, t - T.flip2End);
@@ -573,6 +643,9 @@ export default function AudienceCard() {
   const [card, setCard] = useState(null);
   const [assets, setAssets] = useState({ projectImg: null, logoImg: null, logoRaw: null });
   const [stripBg, setStripBg] = useState(true);
+  const [bgTol, setBgTol] = useState(18);
+  const [bgWarn, setBgWarn] = useState("");
+  const [tickers, setTickers] = useState("");        // comma-separated, editable
   const [busy, setBusy] = useState("");
   const [err, setErr] = useState("");
   const [checking, setChecking] = useState(false);   // "Check your work" panel
@@ -589,7 +662,7 @@ export default function AudienceCard() {
 
   const data = card ? {
     name: company?.name || "",
-    ticker: company?.primary_ticker || company?.profile?.company?.ticker || "",
+    tickers: tickers.split(",").map((s) => s.trim()).filter(Boolean),
     headline: card.headline, hook: card.hook, points: (card.points || []).slice(0, MAX_POINTS),
     projectImg: assets.projectImg, logoImg: assets.logoImg,
   } : null;
@@ -599,34 +672,57 @@ export default function AudienceCard() {
   const overflow = fit.truncated;
   const overflowCount = overflow.filter(Boolean).length;
 
-  // Pull the company's stored photo/logo as defaults; an upload overrides them.
+  // Cut a logo out, and report honestly when it can't be done cleanly.
+  const cut = useCallback((raw) => {
+    if (!raw) return { logoImg: null, warn: "" };
+    if (!stripBg) return { logoImg: raw, warn: "" };
+    const r = removeBackground(raw, bgTol);
+    if (!r.ok) return {
+      logoImg: r.canvas,
+      warn: "This logo is too close in colour to its own background to separate automatically — using the original. Upload a transparent PNG, or lower the sensitivity.",
+    };
+    return { logoImg: r.canvas, warn: r.alreadyCutOut ? "Already a transparent PNG — used as-is." : "" };
+  }, [stripBg, bgTol]);
+
+  // Pull the company's stored photo/logo + tickers as defaults; uploads override.
   useEffect(() => {
     let alive = true;
-    if (!company) { setAssets({ projectImg: null, logoImg: null, logoRaw: null }); return; }
+    if (!company) { setAssets({ projectImg: null, logoImg: null, logoRaw: null }); setTickers(""); return; }
     const p = company.profile || {};
+    setTickers(company.primary_ticker || p.company?.ticker || "");
     (async () => {
       const [pi, li] = await Promise.all([
         loadImg(p.companyStatus?.photo || p.projects?.[0]?.photos?.[0] || ""),
         loadImg(p.company?.logo || p.company?.brand || p.pp?.AVATAR || ""),
       ]);
       if (!alive) return;
-      setAssets({ projectImg: pi, logoImg: li ? (stripBg ? removeBackground(li) : li) : null, logoRaw: li });
+      const { logoImg, warn } = cut(li);
+      setAssets({ projectImg: pi, logoImg, logoRaw: li });
+      setBgWarn(warn);
     })();
     return () => { alive = false; };
   }, [company?.slug]);   // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Re-run (or undo) background removal when the toggle flips.
+  // Re-cut when the toggle or sensitivity changes.
   useEffect(() => {
-    setAssets((a) => (a.logoRaw ? { ...a, logoImg: stripBg ? removeBackground(a.logoRaw) : a.logoRaw } : a));
-  }, [stripBg]);
+    setAssets((a) => {
+      if (!a.logoRaw) return a;
+      const { logoImg, warn } = cut(a.logoRaw);
+      setBgWarn(warn);
+      return { ...a, logoImg };
+    });
+  }, [stripBg, bgTol, cut]);
 
   const onPick = async (file, which) => {
     if (!file) return;
     setErr("");
     const img = await loadImg(URL.createObjectURL(file));
     if (!img) { setErr("Couldn't read that image file."); return; }
-    if (which === "logo") setAssets((a) => ({ ...a, logoRaw: img, logoImg: stripBg ? removeBackground(img) : img }));
-    else setAssets((a) => ({ ...a, projectImg: img }));
+    if (which === "logo") {
+      const { logoImg, warn } = cut(img);
+      setAssets((a) => ({ ...a, logoRaw: img, logoImg }));
+      setBgWarn(warn);
+    } else setAssets((a) => ({ ...a, projectImg: img }));
   };
   const runtime = card ? timings((card.points || []).slice(0, MAX_POINTS).length).total : 0;
 
@@ -729,14 +825,35 @@ export default function AudienceCard() {
 
       {/* card artwork */}
       {company && (
-        <div className="mt-4 flex flex-wrap items-center gap-3">
-          <Uploader label="Front image" hint="the site / project photo" img={assets.projectImg} onPick={(f) => onPick(f, "project")} />
-          <Uploader label="Company logo" hint={stripBg ? "background removed" : "as uploaded"} img={assets.logoImg} checker onPick={(f) => onPick(f, "logo")} />
-          <label className="inline-flex cursor-pointer items-center gap-2 text-[12.5px] font-semibold text-slate-600">
-            <input type="checkbox" checked={stripBg} onChange={(e) => setStripBg(e.target.checked)} className="h-4 w-4 rounded border-slate-300" />
-            Remove logo background
-          </label>
-        </div>
+        <>
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <Uploader label="Front image" hint="the site / project photo" img={assets.projectImg} onPick={(f) => onPick(f, "project")} />
+            <Uploader label="Company logo" hint={stripBg ? "background removed" : "as uploaded"} img={assets.logoImg} checker onPick={(f) => onPick(f, "logo")} />
+            <div className="rounded-xl border border-slate-200 bg-white px-3.5 py-2">
+              <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400">Ticker(s)</label>
+              <input value={tickers} onChange={(e) => setTickers(e.target.value)} placeholder="TSXV:KNG, OTCQB:KNGRF"
+                className="w-[230px] bg-transparent text-[13.5px] font-semibold text-slate-800 outline-none placeholder:font-normal placeholder:text-slate-300" />
+            </div>
+          </div>
+          <div className="mt-3 flex flex-wrap items-center gap-4">
+            <label className="inline-flex cursor-pointer items-center gap-2 text-[12.5px] font-semibold text-slate-600">
+              <input type="checkbox" checked={stripBg} onChange={(e) => setStripBg(e.target.checked)} className="h-4 w-4 rounded border-slate-300" />
+              Remove logo background
+            </label>
+            {stripBg && (
+              <label className="inline-flex items-center gap-2 text-[12.5px] font-semibold text-slate-500">
+                Sensitivity
+                <input type="range" min="6" max="40" value={bgTol} onChange={(e) => setBgTol(Number(e.target.value))} className="w-36 accent-slate-900" />
+                <span className="w-6 tabular-nums text-slate-400">{bgTol}</span>
+              </label>
+            )}
+          </div>
+          {bgWarn && (
+            <p className="mt-2 inline-flex items-start gap-2 rounded-lg bg-amber-50 px-3 py-2 text-[12.5px] font-semibold text-amber-700">
+              <AlertTriangle size={14} className="mt-0.5 flex-shrink-0" /> {bgWarn}
+            </p>
+          )}
+        </>
       )}
 
       {!isMp4 && mime && (
