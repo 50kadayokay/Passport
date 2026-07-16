@@ -12,6 +12,50 @@ const str = (v) => (v == null ? "" : String(v));
 const initialsOf = (name) =>
   str(name).trim().split(/\s+/).slice(0, 2).map((w) => w[0] || "").join("").toUpperCase() || "?";
 
+// ---- Timeline mapping ------------------------------------------------------
+// The app's TimelineView reads PR_YEARS = [{ year, items: [{ d, headline, why,
+// takeaways, key, id, label }] }] and FULL = { "YYYY-MM-DD": "<verbatim text>" }.
+// `d` MUST be "<Mon> <Day>" (3-letter month) — groupByQuarter derives the quarter
+// from it. `id` is the ISO date and is also the FULL key ("read full release").
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const dayLabel = (iso) => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(str(iso));
+  return m ? `${MONTHS[Number(m[2]) - 1] || ""} ${Number(m[3])}`.trim() : "";
+};
+// Short label for the curated key-milestones view.
+const shortLabel = (e) => {
+  const first = (Array.isArray(e.keyNumbers) && e.keyNumbers[0]) || (Array.isArray(e.takeaways) && e.takeaways[0]) || "";
+  if (first && str(first).length <= 48) return str(first);
+  const h = str(e.headline || e.title);
+  return h.length <= 48 ? h : h.slice(0, 45).trim() + "…";
+};
+// Handles BOTH AI-extracted entries (headline / whyItMatters / keyNumbers / fullText)
+// and hand-entered ones (title / summary) — they share the same ISO `date`.
+function mapTimeline(timeline) {
+  const entries = (Array.isArray(timeline) ? timeline : []).filter((e) => e && /^\d{4}-\d{2}-\d{2}/.test(str(e.date)));
+  const byYear = new Map();
+  const FULL = {};
+  entries.forEach((e) => {
+    const year = Number(str(e.date).slice(0, 4));
+    if (!year) return;
+    if (!byYear.has(year)) byYear.set(year, []);
+    byYear.get(year).push({
+      d: dayLabel(e.date),
+      headline: str(e.headline || e.title),
+      why: str(e.whyItMatters || e.summary || e.why),
+      takeaways: (Array.isArray(e.keyNumbers) ? e.keyNumbers : Array.isArray(e.takeaways) ? e.takeaways : []).map(str).filter(has),
+      key: !!e.key,
+      id: str(e.date),
+      label: shortLabel(e),
+    });
+    if (has(e.fullText)) FULL[str(e.date)] = str(e.fullText);
+  });
+  const PR_YEARS = [...byYear.entries()]
+    .sort((a, b) => b[0] - a[0])                                  // newest year first
+    .map(([year, items]) => ({ year, items: items.sort((a, b) => str(b.id).localeCompare(str(a.id))) }));
+  return { PR_YEARS, FULL };
+}
+
 export function mapProfileToPP(profile = {}) {
   const c = profile.company || {};
   const s = profile.companyStatus || {};
@@ -72,10 +116,11 @@ export function mapProfileToPP(profile = {}) {
   const STAGE_NOW = Number.isFinite(Number(profile.stageNow)) ? Number(profile.stageNow) : 0;
   const STAGE_DESC = STAGES.map(() => "");
 
-  // ---- Heavy sections: safe empty structures (mapped next) ----------------
+  // ---- Timeline (mapped from the company's own releases) ------------------
+  const { PR_YEARS, FULL } = mapTimeline(profile.timeline);
+
+  // ---- Heavy sections still to map: projects + capital --------------------
   const PROJECTS_DATA = {};
-  const PR_YEARS = [];
-  const FULL = {};
   const CAP = { outstanding: 0, fd: 0, rows: [], insider: 0, institutional: 0, retail: 0, options: 0, warrants: 0 };
   const EXCHANGES = [];
   const FUNDING = { funded: false, label: "", note: "", cautionLabel: "", cautionNote: "" };
