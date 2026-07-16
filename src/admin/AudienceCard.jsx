@@ -15,7 +15,7 @@
 // Pacing targets a sub-15s runtime (where watch-time retention on X holds up).
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { Loader2, Sparkles, Play, Download, Film, AlertTriangle, RefreshCw } from "lucide-react";
+import { Loader2, Sparkles, Play, Download, Film, AlertTriangle, RefreshCw, ShieldCheck, CheckCircle2, FileText } from "lucide-react";
 import { fetchCompanies } from "../lib/supabase.js";
 import { authHeaders } from "../lib/auth.js";
 
@@ -109,6 +109,34 @@ const measCtx = () => {
 export function pointOverflows(text) {
   const ctx = measCtx(); if (!ctx) return false;
   return fitLines(ctx, text, PT_MAX_W, PT_MAX_LINES, ptFont()).truncated;
+}
+
+/* ========================== provenance matching ========================== */
+// Find the model's quote inside the ORIGINAL release text and return a context
+// window around it. Whitespace is normalised (source docs are full of ragged
+// newlines) but nothing else — if the quote isn't genuinely in the document we
+// want to know, because that means the point isn't sourced.
+export function locate(fullText, quote, pad = 260) {
+  const norm = (s) => String(s || "").replace(/\s+/g, " ").trim();
+  const hay = norm(fullText), needle = norm(quote);
+  if (!hay || !needle) return null;
+  let i = hay.toLowerCase().indexOf(needle.toLowerCase());
+  if (i < 0) {
+    // Second chance: punctuation/quote-mark drift (curly vs straight, stray commas).
+    const loose = (s) => s.toLowerCase().replace(/[’‘]/g, "'").replace(/[“”]/g, '"').replace(/[^a-z0-9$%./' -]/g, "");
+    const lh = loose(hay), ln = loose(needle);
+    const j = ln ? lh.indexOf(ln) : -1;
+    if (j < 0) return null;
+    i = j; // approximate — good enough to show the region
+  }
+  const start = Math.max(0, i - pad), end = Math.min(hay.length, i + needle.length + pad);
+  return {
+    before: hay.slice(start, i),
+    match: hay.slice(i, i + needle.length),
+    after: hay.slice(i + needle.length, end),
+    truncStart: start > 0,
+    truncEnd: end < hay.length,
+  };
 }
 
 /* ============================== the frames ============================== */
@@ -296,6 +324,82 @@ const MIMES = [
 ];
 const pickMime = () => (typeof MediaRecorder === "undefined" ? "" : MIMES.find((m) => MediaRecorder.isTypeSupported(m)) || "");
 
+/* ============================ provenance panel ============================ */
+// "Check your work": for each point, show the release it came from and highlight
+// the exact quote inside the original document. A point whose quote can't be found
+// is called out as UNVERIFIED rather than quietly shown as fine.
+function Provenance({ points, timeline }) {
+  const byDate = useMemo(() => {
+    const m = new Map();
+    (timeline || []).forEach((e) => { if (e && e.date) m.set(String(e.date), e); });
+    return m;
+  }, [timeline]);
+
+  const rows = (points || []).map((p) => {
+    const src = p.sourceDate ? byDate.get(String(p.sourceDate)) : null;
+    const full = src ? String(src.fullText || src.summary || "") : "";
+    return { p, src, full, hit: locate(full, p.quote) };
+  });
+  const verified = rows.filter((r) => r.hit).length;
+  const allGood = verified === rows.length && rows.length > 0;
+
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-5">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-[12px] font-bold uppercase tracking-wider text-slate-400">Sources — where each point came from</p>
+          <p className="mt-1 text-[13px] text-slate-500">Each quote is matched against the original release text. Anything unmatched is flagged — don't post it without checking.</p>
+        </div>
+        <span className={`inline-flex flex-shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[12px] font-bold ${allGood ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
+          {allGood ? <CheckCircle2 size={13} /> : <AlertTriangle size={13} />} {verified}/{rows.length} verified in source
+        </span>
+      </div>
+
+      <div className="mt-4 space-y-3">
+        {rows.map(({ p, src, full, hit }, i) => (
+          <div key={i} className={`rounded-xl border p-4 ${hit ? "border-slate-200" : "border-amber-300 bg-amber-50/40"}`}>
+            <div className="flex items-start gap-2.5">
+              <span className="mt-0.5 grid h-5 w-5 flex-shrink-0 place-items-center rounded-md bg-slate-900 text-[10.5px] font-bold text-white">{i + 1}</span>
+              <div className="min-w-0 flex-1">
+                <p className="text-[14px] font-bold text-slate-900">{p.text}</p>
+
+                {/* source line */}
+                <p className="mt-1.5 inline-flex items-center gap-1.5 text-[12px] font-semibold text-slate-500">
+                  <FileText size={12} className="flex-shrink-0" />
+                  {src ? (<>{src.headline || src.title || "Release"} <span className="text-slate-400">· {p.sourceDate}</span></>)
+                    : p.sourceDate ? (<span className="text-amber-700">No release found dated {p.sourceDate}</span>)
+                    : (<span className="text-slate-400">From the company brief (no release cited)</span>)}
+                </p>
+
+                {/* highlighted quote in context */}
+                {hit ? (
+                  <p className="mt-2.5 rounded-lg bg-slate-50 p-3 text-[12.5px] leading-relaxed text-slate-500">
+                    {hit.truncStart && "… "}{hit.before}
+                    <mark className="rounded bg-emerald-200 px-1 py-0.5 font-semibold text-emerald-950">{hit.match}</mark>
+                    {hit.after}{hit.truncEnd && " …"}
+                  </p>
+                ) : (
+                  <div className="mt-2.5 rounded-lg bg-white p-3">
+                    <p className="inline-flex items-center gap-1.5 text-[12px] font-bold text-amber-700">
+                      <AlertTriangle size={12} /> UNVERIFIED — this quote isn't in the source text
+                    </p>
+                    {p.quote && <p className="mt-1.5 text-[12.5px] italic text-slate-500">“{p.quote}”</p>}
+                    <p className="mt-1.5 text-[12px] text-slate-500">
+                      {full ? "The claimed quote couldn't be located in that release. Verify it yourself before posting, or delete the point."
+                            : "No original release text is stored for this source, so it can't be checked automatically."}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        ))}
+        {rows.length === 0 && <p className="py-6 text-center text-[13px] text-slate-400">No points to check.</p>}
+      </div>
+    </div>
+  );
+}
+
 /* ============================== the section ============================== */
 export default function AudienceCard() {
   const [companies, setCompanies] = useState([]);
@@ -304,6 +408,7 @@ export default function AudienceCard() {
   const [assets, setAssets] = useState({ projectImg: null, logoImg: null });
   const [busy, setBusy] = useState("");
   const [err, setErr] = useState("");
+  const [checking, setChecking] = useState(false);   // "Check your work" panel
   const canvasRef = useRef(null);
   const rafRef = useRef(0);
 
@@ -417,6 +522,10 @@ export default function AudienceCard() {
               className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-[13.5px] font-bold text-slate-700 disabled:opacity-40">
               <Play size={16} /> Preview
             </button>
+            <button onClick={() => setChecking((v) => !v)}
+              className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-[13.5px] font-bold ${checking ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 bg-white text-slate-700"}`}>
+              <ShieldCheck size={16} /> Check your work
+            </button>
             <button onClick={exportVid} disabled={!!busy || !mime}
               className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-[13.5px] font-bold text-white disabled:opacity-40">
               {busy === "export" ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />} Export {isMp4 ? "MP4" : "WebM"}
@@ -499,6 +608,13 @@ export default function AudienceCard() {
           )}
         </div>
       </div>
+
+      {/* Check your work — provenance for every point */}
+      {card && checking && (
+        <div className="mt-6">
+          <Provenance points={(card.points || []).slice(0, MAX_POINTS)} timeline={company?.profile?.timeline || []} />
+        </div>
+      )}
     </div>
   );
 }

@@ -34,8 +34,10 @@ const TOOL = {
           properties: {
             text: { type: "string", description: `The point itself, <= ${MAX_POINT_CHARS} chars, e.g. '42m of 385 g/t Ag in maiden hole'. Terse — drop filler words.` },
             kind: { type: "string", enum: ["discovery", "grade", "drilling", "scale", "funding", "catalyst", "jurisdiction", "team", "stage", "ownership", "other"], description: "What kind of selling point this is (drives the card's icon)." },
+            sourceDate: { type: "string", description: "YYYY-MM-DD of the release this point came from — MUST exactly match the `date` of one of the supplied releases. Empty string ONLY if it came from the company brief rather than a release." },
+            quote: { type: "string", description: "The EXACT verbatim phrase from that source's `text` that proves this point. Copy it word-for-word — never paraphrase, never reconstruct from memory. <= 200 chars. A human is shown this next to the original document to verify the point, so it must be findable in the source." },
           },
-          required: ["text", "kind"],
+          required: ["text", "kind", "sourceDate", "quote"],
         },
       },
       warnings: { type: "array", items: { type: "string" }, description: "Anything the reviewer should check before this goes public." },
@@ -72,6 +74,17 @@ const SYSTEM = [
   "Ignore promotional adjectives in the source material; extract the underlying fact.",
   "If the company is early-stage with little disclosed, return fewer points and say so",
   "in warnings rather than padding.",
+  "",
+  "PROVENANCE — every point must be independently checkable by a human. For each point:",
+  "- sourceDate: the `date` of the release it came from, copied exactly from the supplied",
+  "  chronology. Use an empty string ONLY when the point comes from the brief.",
+  "- quote: the EXACT verbatim phrase from that release's `text` that proves the point.",
+  "  Copy it character-for-character from the source. Do NOT paraphrase, do NOT tidy the",
+  "  wording, do NOT reconstruct it from the summary fields — it is matched against the",
+  "  original document and a mismatch is reported to the reviewer as unverified.",
+  "  Quote the narrowest phrase that fully supports the point.",
+  "If you cannot find a verbatim phrase in a release that proves a point, DO NOT make",
+  "that point. A point you cannot source is worse than one fewer point.",
 ].join("\n");
 
 function bad(res, code, msg) { res.status(code).json({ error: msg }); }
@@ -88,10 +101,13 @@ export default async function handler(req, res) {
     return bad(res, 400, "Provide the release chronology and/or the company brief.");
   }
 
-  const compact = (Array.isArray(timeline) ? timeline : []).slice(0, 60).map((e) => ({
+  // Include the release's own text (truncated) so `quote` can be genuinely verbatim —
+  // quoting from the summary fields would not be findable in the original document.
+  const compact = (Array.isArray(timeline) ? timeline : []).slice(0, 40).map((e) => ({
     date: e.date, headline: e.headline || e.title, category: e.category,
     what: e.whatHappened, why: e.whyItMatters, impact: e.impact, key: e.key,
     numbers: e.keyNumbers, stageTo: e.stageTo, projects: e.projects,
+    text: String(e.fullText || e.summary || "").slice(0, 1400),
   }));
 
   const parts = [];
