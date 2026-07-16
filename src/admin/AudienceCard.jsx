@@ -45,7 +45,7 @@ const ptFont = (px = PT_SIZES[0]) => `700 ${px}px Inter, system-ui, -apple-syste
 
 // Animation beats (seconds) — snappy in, then hold the points long enough to
 // actually read all of them before flipping to the stamp.
-const T_FACE1 = 1.9, T_FLIP = 0.36, T_STAGGER = 0.44, T_PT_IN = 0.36,
+const T_FACE1 = 2.2, T_FLIP = 0.36, T_STAGGER = 0.44, T_PT_IN = 0.36,
       T_POINTS_HOLD = 3.0, T_FACE3 = 2.5;
 export const timings = (n) => {
   const face1End = T_FACE1;
@@ -57,6 +57,9 @@ export const timings = (n) => {
 
 const clamp01 = (t) => Math.min(1, Math.max(0, t));
 const easeOut = (t) => 1 - Math.pow(1 - clamp01(t), 3);
+// Symmetric ease — for fades. easeOut front-loads so hard it's ~95% opaque a third
+// of the way in, which reads as "no fade at all"; this actually looks like one.
+const smooth = (t) => { const x = clamp01(t); return x * x * (3 - 2 * x); };
 // Slight overshoot — gives the point drop its kinetic snap.
 const easeOutBack = (t) => { const c1 = 1.70158, c3 = c1 + 1, x = clamp01(t); return 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2); };
 
@@ -300,9 +303,9 @@ function drawFace1(ctx, d, tIn = 99) {
   const groupTop = (H - groupH) / 2;                 // dead-centre on the card
   const cy = groupTop + lh / 2;
 
-  // fade: logo first, tickers just behind it
-  const aLogo = easeOut(tIn / 0.7);
-  const aTick = easeOut((tIn - 0.35) / 0.7);
+  // fade up over the photo: logo first, tickers following it in
+  const aLogo = smooth(tIn / 1.15);
+  const aTick = smooth((tIn - 0.6) / 0.95);
 
   if (d.logoImg) {
     ctx.save();
