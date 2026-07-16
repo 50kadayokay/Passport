@@ -6,25 +6,40 @@
 //
 // Three faces, in order:
 //   1. project image + company logo/name          (the status-card look)
-//   2. FLIP -> up to 10 selling points, waterfalling in one at a time
-//   3. FLIP -> Passport branding (logo / name / slogan — placeholders for now)
+//   2. FLIP -> 5-7 selling points, waterfalling in with a snappy kinetic drop
+//   3. FLIP -> "Analyzed & Presented by <brand>" authority stamp + follow CTA
 //
 // The points come from /api/audience-card, which reads the company's extracted
 // press-release corpus — i.e. straight from what was dragged and dropped.
+//
+// Pacing targets a sub-15s runtime (where watch-time retention on X holds up).
 
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { Loader2, Sparkles, Play, Download, Film, AlertTriangle, RefreshCw } from "lucide-react";
 import { fetchCompanies } from "../lib/supabase.js";
 import { authHeaders } from "../lib/auth.js";
 
 /* ============================== card config ============================== */
-const W = 1080, H = 1350;                 // 4:5 portrait — Twitter's best in-feed ratio
-const BRAND = { name: "Passport", slogan: "Every junior miner, one tap away." };  // placeholders
+const W = 1080, H = 1350;                 // 4:5 portrait — X's best in-feed ratio
+const MAX_POINTS = 7;                     // hard cap: 5-7 keeps runtime tight
+const BRAND = {                           // placeholders — swap for real branding
+  name: "Passport",
+  slogan: "Every junior miner, one tap away.",
+  cta: "Follow for next-gen mining intelligence",
+};
 const INK = "#0f172a", MUTED = "#94a3b8", ACCENT = "#10b981";
 
-// Animation beats (seconds). Total scales with the number of points.
-const T_FACE1 = 1.7, T_FLIP = 0.55, T_STAGGER = 0.38, T_POINTS_HOLD = 1.7, T_FACE3 = 2.6;
-const timings = (n) => {
+// Mobile-first type: the video is watched ~375px wide, so a 52px point renders at
+// ~18px on a phone. Anything smaller stops being scannable mid-scroll.
+const PT_SIZE = 52, PT_LH = 62, PT_GAP = 34, PT_MAX_LINES = 2;
+const PT_X = 168, PT_MAX_W = (W - 72) - PT_X;      // text column width
+const ptFont = (px = PT_SIZE) => `700 ${px}px Inter, system-ui, -apple-system, sans-serif`;
+
+// Animation beats (seconds) — snappy: quick flip in, kinetic point drops, fast
+// flip to a stamp that holds just long enough to read the CTA.
+const T_FACE1 = 1.25, T_FLIP = 0.36, T_STAGGER = 0.30, T_PT_IN = 0.28,
+      T_POINTS_HOLD = 1.15, T_FACE3 = 2.5;
+export const timings = (n) => {
   const face1End = T_FACE1;
   const flip1End = face1End + T_FLIP;
   const pointsEnd = flip1End + Math.max(1, n) * T_STAGGER + T_POINTS_HOLD;
@@ -32,18 +47,20 @@ const timings = (n) => {
   return { face1End, flip1End, pointsEnd, flip2End, total: flip2End + T_FACE3 };
 };
 
-const easeOut = (t) => 1 - Math.pow(1 - Math.min(1, Math.max(0, t)), 3);
+const clamp01 = (t) => Math.min(1, Math.max(0, t));
+const easeOut = (t) => 1 - Math.pow(1 - clamp01(t), 3);
+// Slight overshoot — gives the point drop its kinetic snap.
+const easeOutBack = (t) => { const c1 = 1.70158, c3 = c1 + 1, x = clamp01(t); return 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2); };
 
 /* ============================ canvas helpers ============================ */
 function rr(ctx, x, y, w, h, r) {
   ctx.beginPath();
   if (ctx.roundRect) ctx.roundRect(x, y, w, h, r);
-  else { // fallback
+  else {
     ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
     ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
   }
 }
-// draw an image "cover"-style into a box
 function cover(ctx, img, x, y, w, h) {
   const ir = img.width / img.height, br = w / h;
   let sw = img.width, sh = img.height, sx = 0, sy = 0;
@@ -62,6 +79,18 @@ function wrap(ctx, text, maxW) {
   if (line) lines.push(line);
   return lines;
 }
+// Wrap to at most `maxLines`, ellipsizing (and reporting) anything that overflows —
+// the card must never spill, and the admin needs to know which point got cut.
+function fitLines(ctx, text, maxW, maxLines, font) {
+  ctx.font = font;
+  const all = wrap(ctx, text, maxW);
+  if (all.length <= maxLines) return { lines: all, truncated: false };
+  const lines = all.slice(0, maxLines);
+  let last = lines[maxLines - 1];
+  while (last.length && ctx.measureText(last + "…").width > maxW) last = last.slice(0, -1);
+  lines[maxLines - 1] = last.replace(/\s+$/, "") + "…";
+  return { lines, truncated: true };
+}
 const loadImg = (src) => new Promise((res) => {
   if (!src) return res(null);
   const i = new Image();
@@ -70,6 +99,17 @@ const loadImg = (src) => new Promise((res) => {
   i.onerror = () => res(null);
   i.src = src;
 });
+
+// Offscreen context used to check point fit outside the render loop.
+let _meas = null;
+const measCtx = () => {
+  if (!_meas && typeof document !== "undefined") _meas = document.createElement("canvas").getContext("2d");
+  return _meas;
+};
+export function pointOverflows(text) {
+  const ctx = measCtx(); if (!ctx) return false;
+  return fitLines(ctx, text, PT_MAX_W, PT_MAX_LINES, ptFont()).truncated;
+}
 
 /* ============================== the frames ============================== */
 function faceBase(ctx) {
@@ -85,38 +125,35 @@ function cardShell(ctx) {
   ctx.restore();
 }
 
-function drawFace1(ctx, d, a) {
+function drawFace1(ctx, d) {
   faceBase(ctx); cardShell(ctx);
   ctx.save(); rr(ctx, 40, 40, W - 80, H - 80, 48); ctx.clip();
 
-  // project image across the top
   const imgH = 760;
   if (d.projectImg) cover(ctx, d.projectImg, 40, 40, W - 80, imgH);
   else { const g = ctx.createLinearGradient(0, 40, 0, imgH); g.addColorStop(0, "#1e293b"); g.addColorStop(1, "#0f172a"); ctx.fillStyle = g; ctx.fillRect(40, 40, W - 80, imgH); }
-  // scrim
   const s = ctx.createLinearGradient(0, imgH - 320, 0, imgH);
   s.addColorStop(0, "rgba(2,6,23,0)"); s.addColorStop(1, "rgba(2,6,23,0.92)");
   ctx.fillStyle = s; ctx.fillRect(40, imgH - 320, W - 80, 320);
 
-  // logo + name sitting on the scrim
   const lx = 96, ly = imgH - 190;
   if (d.logoImg) { ctx.save(); ctx.beginPath(); ctx.arc(lx + 56, ly + 56, 56, 0, Math.PI * 2); ctx.clip(); cover(ctx, d.logoImg, lx, ly, 112, 112); ctx.restore(); }
-  else { ctx.fillStyle = "#1e293b"; ctx.beginPath(); ctx.arc(lx + 56, ly + 56, 56, 0, Math.PI * 2); ctx.fill();
-         ctx.fillStyle = "#fff"; ctx.font = "700 44px Inter, system-ui, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
-         ctx.fillText((d.name || "?").slice(0, 1).toUpperCase(), lx + 56, ly + 58); }
+  else {
+    ctx.fillStyle = "#1e293b"; ctx.beginPath(); ctx.arc(lx + 56, ly + 56, 56, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#fff"; ctx.font = "700 44px Inter, system-ui, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText((d.name || "?").slice(0, 1).toUpperCase(), lx + 56, ly + 58);
+  }
   ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
   ctx.fillStyle = "#fff"; ctx.font = "800 52px Inter, system-ui, sans-serif";
   ctx.fillText(String(d.name || "").slice(0, 26), lx + 138, ly + 56);
   if (d.ticker) { ctx.fillStyle = ACCENT; ctx.font = "700 30px Inter, system-ui, sans-serif"; ctx.fillText(d.ticker, lx + 140, ly + 100); }
 
-  // headline + hook below the image
   const ty = imgH + 96;
   ctx.fillStyle = INK; ctx.font = "800 62px Inter, system-ui, sans-serif";
   const hl = wrap(ctx, d.headline, W - 200).slice(0, 3);
   hl.forEach((ln, i) => ctx.fillText(ln, 96, ty + i * 72));
   ctx.fillStyle = MUTED; ctx.font = "500 34px Inter, system-ui, sans-serif";
-  const hk = wrap(ctx, d.hook, W - 200).slice(0, 2);
-  hk.forEach((ln, i) => ctx.fillText(ln, 96, ty + hl.length * 72 + 30 + i * 44));
+  wrap(ctx, d.hook, W - 200).slice(0, 2).forEach((ln, i) => ctx.fillText(ln, 96, ty + hl.length * 72 + 30 + i * 44));
   ctx.restore();
 }
 
@@ -128,71 +165,125 @@ function drawFace2(ctx, d, tIn) {
   // header
   ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
   ctx.fillStyle = ACCENT; ctx.font = "800 26px Inter, system-ui, sans-serif";
-  ctx.fillText("WHY INVESTORS ARE WATCHING", 96, 140);
-  ctx.fillStyle = "#fff"; ctx.font = "800 54px Inter, system-ui, sans-serif";
-  ctx.fillText(String(d.name || "").slice(0, 24), 96, 208);
+  ctx.fillText("WHY INVESTORS ARE WATCHING", 88, 140);
+  ctx.fillStyle = "#fff"; ctx.font = "800 58px Inter, system-ui, sans-serif";
+  ctx.fillText(String(d.name || "").slice(0, 24), 88, 212);
 
-  // waterfall points
-  const pts = d.points || [];
-  const top = 290, gap = Math.min(92, (H - 160 - top) / Math.max(1, pts.length));
-  pts.forEach((p, i) => {
-    const local = (tIn - i * T_STAGGER) / 0.42;      // each point's own entrance
-    if (local <= 0) return;
-    const e = easeOut(local);
-    const y = top + i * gap + (1 - e) * 26;          // drop down into place
-    ctx.globalAlpha = Math.min(1, e);
-    // bullet
-    ctx.strokeStyle = ACCENT; ctx.lineWidth = 4;
-    ctx.beginPath(); ctx.arc(112, y - 10, 15, 0, Math.PI * 2); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(104, y - 11); ctx.lineTo(110, y - 4); ctx.lineTo(121, y - 17);
-    ctx.stroke();
-    // text
-    ctx.fillStyle = "#e8eef7"; ctx.font = "600 36px Inter, system-ui, sans-serif";
-    ctx.fillText(String(p.text || "").slice(0, 64), 152, y);
-    ctx.globalAlpha = 1;
+  // layout pass — measure every point, then centre the block in the space left
+  const pts = (d.points || []).slice(0, MAX_POINTS);
+  const blocks = pts.map((p) => fitLines(ctx, p.text, PT_MAX_W, PT_MAX_LINES, ptFont()));
+  const totalH = blocks.reduce((s, b) => s + b.lines.length * PT_LH, 0) + Math.max(0, blocks.length - 1) * PT_GAP;
+  const areaTop = 280, areaBot = H - 110;
+  let y = areaTop + Math.max(0, (areaBot - areaTop - totalH) / 2);
+
+  blocks.forEach((b, i) => {
+    const local = (tIn - i * T_STAGGER) / T_PT_IN;
+    const h = b.lines.length * PT_LH;
+    if (local > 0) {
+      const e = easeOutBack(local);              // snap into place with a slight overshoot
+      const dy = (1 - e) * 34;
+      ctx.globalAlpha = clamp01(local * 1.6);
+      // bullet
+      ctx.strokeStyle = ACCENT; ctx.lineWidth = 5; ctx.lineCap = "round"; ctx.lineJoin = "round";
+      const by = y + dy + 34;
+      ctx.beginPath(); ctx.arc(112, by, 19, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(103, by); ctx.lineTo(110, by + 8); ctx.lineTo(123, by - 9); ctx.stroke();
+      // text — large, bold, scannable
+      ctx.fillStyle = "#eef4fb"; ctx.font = ptFont();
+      b.lines.forEach((ln, j) => ctx.fillText(ln, PT_X, y + dy + 46 + j * PT_LH));
+      ctx.globalAlpha = 1;
+    }
+    y += h + PT_GAP;
   });
   ctx.restore();
 }
 
+// Authority stamp — "Analyzed & Presented by <brand>" + slogan + follow CTA.
 function drawFace3(ctx, d, a) {
   faceBase(ctx); cardShell(ctx);
   ctx.save(); rr(ctx, 40, 40, W - 80, H - 80, 48); ctx.clip();
   const g = ctx.createLinearGradient(0, 40, W, H); g.addColorStop(0, "#0f172a"); g.addColorStop(1, "#0b3b2e");
   ctx.fillStyle = g; ctx.fillRect(40, 40, W - 80, H - 80);
 
-  const e = easeOut(a / 0.7);
-  ctx.globalAlpha = Math.min(1, e);
-  const cx = W / 2, cy = H / 2 - 60;
-  // logo mark (placeholder)
-  ctx.fillStyle = "#fff"; rr(ctx, cx - 78, cy - 168, 156, 156, 40); ctx.fill();
-  ctx.fillStyle = INK; ctx.font = "800 96px Inter, system-ui, sans-serif";
+  const cx = W / 2;
+  // staggered rise-in, quick and confident
+  const step = (delay, dur = 0.4) => easeOut((a - delay) / dur);
   ctx.textAlign = "center"; ctx.textBaseline = "middle";
-  ctx.fillText("P", cx, cy - 84);
-  // name + slogan
-  ctx.fillStyle = "#fff"; ctx.font = "800 76px Inter, system-ui, sans-serif";
-  ctx.fillText(BRAND.name, cx, cy + 30);
-  ctx.fillStyle = "rgba(255,255,255,0.72)"; ctx.font = "500 36px Inter, system-ui, sans-serif";
-  wrap(ctx, BRAND.slogan, W - 260).forEach((ln, i) => ctx.fillText(ln, cx, cy + 100 + i * 48));
-  ctx.globalAlpha = 1;
+
+  // mark
+  let e = step(0);
+  if (e > 0) {
+    ctx.globalAlpha = e;
+    ctx.fillStyle = "#fff"; rr(ctx, cx - 66, 372 + (1 - e) * 18, 132, 132, 34); ctx.fill();
+    ctx.fillStyle = INK; ctx.font = "800 80px Inter, system-ui, sans-serif";
+    ctx.fillText("P", cx, 440 + (1 - e) * 18);
+    ctx.globalAlpha = 1;
+  }
+  // eyebrow
+  e = step(0.14);
+  if (e > 0) {
+    ctx.globalAlpha = e;
+    ctx.fillStyle = ACCENT; ctx.font = "800 27px Inter, system-ui, sans-serif";
+    ctx.letterSpacing = "3px";
+    ctx.fillText("ANALYZED & PRESENTED BY", cx, 585 + (1 - e) * 14);
+    ctx.letterSpacing = "0px";
+    ctx.globalAlpha = 1;
+  }
+  // brand name
+  e = step(0.22);
+  if (e > 0) {
+    ctx.globalAlpha = e;
+    ctx.fillStyle = "#fff"; ctx.font = "800 86px Inter, system-ui, sans-serif";
+    ctx.fillText(BRAND.name, cx, 668 + (1 - e) * 16);
+    ctx.globalAlpha = 1;
+  }
+  // slogan
+  e = step(0.32);
+  if (e > 0) {
+    ctx.globalAlpha = e;
+    ctx.fillStyle = "rgba(255,255,255,0.7)"; ctx.font = "500 36px Inter, system-ui, sans-serif";
+    wrap(ctx, BRAND.slogan, W - 260).forEach((ln, i) => ctx.fillText(ln, cx, 748 + i * 48 + (1 - e) * 12));
+    ctx.globalAlpha = 1;
+  }
+  // rule
+  e = step(0.42);
+  if (e > 0) {
+    ctx.globalAlpha = e * 0.35;
+    ctx.strokeStyle = "#fff"; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(cx - 150 * e, 856); ctx.lineTo(cx + 150 * e, 856); ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+  // follow CTA pill
+  e = step(0.5);
+  if (e > 0) {
+    ctx.globalAlpha = e;
+    ctx.font = "700 32px Inter, system-ui, sans-serif";
+    const tw = ctx.measureText(BRAND.cta).width, pw = tw + 88, ph = 84;
+    const py = 928 + (1 - e) * 16;
+    ctx.fillStyle = ACCENT; rr(ctx, cx - pw / 2, py, pw, ph, 42); ctx.fill();
+    ctx.fillStyle = "#04241b";
+    ctx.fillText(BRAND.cta, cx, py + ph / 2 + 1);
+    ctx.globalAlpha = 1;
+  }
   ctx.restore();
 }
 
-// One frame at time t (seconds).
-function drawFrame(ctx, t, d) {
+// One frame at time t (seconds). Exported so the render can be driven/verified directly.
+export function drawFrame(ctx, t, d) {
   const T = timings((d.points || []).length);
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.clearRect(0, 0, W, H);
 
   const flip = (p, front, back) => {
-    const a = p * Math.PI, sx = Math.cos(a), back_ = p > 0.5;
+    const a = p * Math.PI, sx = Math.cos(a), isBack = p > 0.5;
     ctx.save();
-    ctx.translate(W / 2, 0); ctx.scale(back_ ? -sx : sx, 1); ctx.translate(-W / 2, 0);
-    (back_ ? back : front)();
+    ctx.translate(W / 2, 0); ctx.scale(isBack ? -sx : sx, 1); ctx.translate(-W / 2, 0);
+    (isBack ? back : front)();
     ctx.restore();
   };
 
-  if (t < T.face1End) drawFace1(ctx, d, t);
-  else if (t < T.flip1End) flip((t - T.face1End) / T_FLIP, () => drawFace1(ctx, d, t), () => drawFace2(ctx, d, 0));
+  if (t < T.face1End) drawFace1(ctx, d);
+  else if (t < T.flip1End) flip((t - T.face1End) / T_FLIP, () => drawFace1(ctx, d), () => drawFace2(ctx, d, 0));
   else if (t < T.pointsEnd) drawFace2(ctx, d, t - T.flip1End);
   else if (t < T.flip2End) flip((t - T.pointsEnd) / T_FLIP, () => drawFace2(ctx, d, t - T.flip1End), () => drawFace3(ctx, d, 0));
   else drawFace3(ctx, d, t - T.flip2End);
@@ -200,7 +291,7 @@ function drawFrame(ctx, t, d) {
 
 /* =========================== recording (MP4) =========================== */
 const MIMES = [
-  "video/mp4;codecs=avc1.42E01E", "video/mp4;codecs=h264", "video/mp4",   // Twitter-ready
+  "video/mp4;codecs=avc1.42E01E", "video/mp4;codecs=h264", "video/mp4",   // X-ready
   "video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm",          // fallback
 ];
 const pickMime = () => (typeof MediaRecorder === "undefined" ? "" : MIMES.find((m) => MediaRecorder.isTypeSupported(m)) || "");
@@ -209,7 +300,7 @@ const pickMime = () => (typeof MediaRecorder === "undefined" ? "" : MIMES.find((
 export default function AudienceCard() {
   const [companies, setCompanies] = useState([]);
   const [slug, setSlug] = useState("");
-  const [card, setCard] = useState(null);        // { headline, hook, points[] }
+  const [card, setCard] = useState(null);
   const [assets, setAssets] = useState({ projectImg: null, logoImg: null });
   const [busy, setBusy] = useState("");
   const [err, setErr] = useState("");
@@ -224,20 +315,27 @@ export default function AudienceCard() {
     try { const h = await authHeaders(); setCompanies((await fetchCompanies(h)) || []); } catch (_) {}
   })(); }, []);
 
-  // Build the data object the renderer draws from.
   const data = card ? {
     name: company?.name || "",
     ticker: company?.primary_ticker || company?.profile?.company?.ticker || "",
-    headline: card.headline, hook: card.hook, points: card.points || [],
+    headline: card.headline, hook: card.hook, points: (card.points || []).slice(0, MAX_POINTS),
     projectImg: assets.projectImg, logoImg: assets.logoImg,
   } : null;
+
+  // Which points will get cut on the card (drives the admin warning).
+  const overflow = useMemo(
+    () => (card?.points || []).slice(0, MAX_POINTS).map((p) => pointOverflows(p.text)),
+    [card]
+  );
+  const overflowCount = overflow.filter(Boolean).length;
+  const runtime = card ? timings((card.points || []).slice(0, MAX_POINTS).length).total : 0;
 
   const draw = useCallback((t) => {
     const c = canvasRef.current; if (!c || !data) return;
     drawFrame(c.getContext("2d"), t, data);
   }, [data]);
 
-  useEffect(() => { if (data) draw(timings(data.points.length).flip1End + 0.5); }, [data, draw]);
+  useEffect(() => { if (data) draw(timings(data.points.length).flip1End + 0.6); }, [data, draw]);
 
   const generate = async () => {
     if (!company) return;
@@ -258,7 +356,7 @@ export default function AudienceCard() {
         loadImg(p.company?.logo || p.company?.brand || p.pp?.AVATAR || ""),
       ]);
       setAssets({ projectImg, logoImg });
-      setCard(j.card);
+      setCard({ ...j.card, points: (j.card.points || []).slice(0, MAX_POINTS) });
     } catch (e) { setErr(e.message || "Generation failed"); }
     finally { setBusy(""); }
   };
@@ -267,7 +365,7 @@ export default function AudienceCard() {
     const c = canvasRef.current; if (!c || !data) return resolve();
     const total = timings(data.points.length).total;
     const t0 = performance.now();
-    let rec = null, chunks = [];
+    let rec = null; const chunks = [];
     if (record && mime) {
       const stream = c.captureStream(30);
       rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 8_000_000 });
@@ -276,7 +374,7 @@ export default function AudienceCard() {
         const blob = new Blob(chunks, { type: mime.split(";")[0] });
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
-        a.href = url; a.download = `${(company?.slug || "card")}-passport.${isMp4 ? "mp4" : "webm"}`;
+        a.href = url; a.download = `${company?.slug || "card"}-passport.${isMp4 ? "mp4" : "webm"}`;
         a.click(); URL.revokeObjectURL(url); resolve();
       };
       rec.start();
@@ -298,8 +396,8 @@ export default function AudienceCard() {
     <div className="mx-auto max-w-6xl">
       <h1 className="text-[26px] font-extrabold tracking-tight">Audience Card</h1>
       <p className="mt-1 text-[13.5px] text-slate-500">
-        Generate a shareable card video from a company's extracted releases — flips to reveal its top selling points,
-        then to your Passport branding. Export as {isMp4 ? "MP4" : "video"} and post it; companies reposting it grows your following.
+        Turns a company's extracted releases into a shareable card video — flips to its top selling points,
+        then stamps it with your brand. Kept under 15s for watch-time retention on X.
       </p>
 
       {/* controls */}
@@ -323,13 +421,16 @@ export default function AudienceCard() {
               className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-[13.5px] font-bold text-white disabled:opacity-40">
               {busy === "export" ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />} Export {isMp4 ? "MP4" : "WebM"}
             </button>
+            <span className={`text-[12.5px] font-bold ${runtime <= 15 ? "text-slate-400" : "text-amber-600"}`}>
+              {runtime.toFixed(1)}s runtime
+            </span>
           </>
         )}
       </div>
 
       {!isMp4 && mime && (
         <p className="mt-3 inline-flex items-center gap-2 rounded-lg bg-amber-50 px-3 py-2 text-[12.5px] font-semibold text-amber-700">
-          <AlertTriangle size={14} /> This browser can't encode MP4 — it'll export WebM. Use Chrome for a Twitter-ready MP4.
+          <AlertTriangle size={14} /> This browser can't encode MP4 — it'll export WebM. Use Chrome for an X-ready MP4.
         </p>
       )}
       {err && <p className="mt-3 rounded-lg bg-rose-50 px-3 py-2 text-[12.5px] font-semibold text-rose-600">{err}</p>}
@@ -339,7 +440,7 @@ export default function AudienceCard() {
         <div className="rounded-2xl border border-slate-200 bg-slate-100 p-4">
           <canvas ref={canvasRef} width={W} height={H}
             className="w-full rounded-xl bg-slate-900 shadow-lg" style={{ aspectRatio: "4 / 5" }} />
-          <p className="mt-2 text-center text-[11.5px] text-slate-400">1080 × 1350 · 4:5 · {card ? `${timings(card.points?.length || 0).total.toFixed(1)}s` : "—"}</p>
+          <p className="mt-2 text-center text-[11.5px] text-slate-400">1080 × 1350 · 4:5 · {card ? `${runtime.toFixed(1)}s` : "—"}</p>
         </div>
 
         {/* editable points */}
@@ -363,14 +464,27 @@ export default function AudienceCard() {
                 className="mt-3 w-full rounded-lg border border-slate-200 px-3 py-2 text-[14px] font-bold" />
               <input value={card.hook} onChange={(e) => setCard({ ...card, hook: e.target.value })}
                 className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-[13px]" />
-              <p className="mt-4 text-[12px] font-bold uppercase tracking-wider text-slate-400">{(card.points || []).length}/10 points</p>
+
+              <div className="mt-4 flex items-center justify-between">
+                <p className="text-[12px] font-bold uppercase tracking-wider text-slate-400">{(card.points || []).length}/{MAX_POINTS} points</p>
+                {overflowCount > 0 && (
+                  <span className="inline-flex items-center gap-1.5 rounded-md bg-amber-50 px-2 py-1 text-[11.5px] font-bold text-amber-700">
+                    <AlertTriangle size={12} /> {overflowCount} will be cut off — shorten {overflowCount === 1 ? "it" : "them"}
+                  </span>
+                )}
+              </div>
               <div className="mt-2 space-y-2">
-                {(card.points || []).map((p, i) => (
+                {(card.points || []).slice(0, MAX_POINTS).map((p, i) => (
                   <div key={i} className="flex items-center gap-2">
                     <span className="w-5 text-right text-[11px] font-bold text-slate-300">{i + 1}</span>
-                    <input value={p.text} maxLength={64}
-                      onChange={(e) => { const pts = [...card.points]; pts[i] = { ...p, text: e.target.value }; setCard({ ...card, points: pts }); }}
-                      className="flex-1 rounded-lg border border-slate-200 px-3 py-1.5 text-[13px]" />
+                    <div className="relative flex-1">
+                      <input value={p.text}
+                        onChange={(e) => { const pts = [...card.points]; pts[i] = { ...p, text: e.target.value }; setCard({ ...card, points: pts }); }}
+                        className={`w-full rounded-lg border px-3 py-1.5 pr-14 text-[13px] ${overflow[i] ? "border-amber-400 bg-amber-50/50" : "border-slate-200"}`} />
+                      <span className={`absolute right-2 top-1/2 -translate-y-1/2 text-[10.5px] font-bold ${overflow[i] ? "text-amber-600" : "text-slate-300"}`}>
+                        {String(p.text || "").length}
+                      </span>
+                    </div>
                     <button onClick={() => setCard({ ...card, points: card.points.filter((_, j) => j !== i) })}
                       className="px-1.5 text-[16px] leading-none text-slate-300 hover:text-rose-500">×</button>
                   </div>

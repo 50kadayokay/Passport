@@ -11,7 +11,11 @@
 const MODEL = process.env.AI_MODEL || "claude-sonnet-5";
 const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
 const SCHEMA_VERSION = 1;
-const MAX_POINTS = 10;
+// Hard cap at 7 (target 5–7). Fewer, punchier points keep the exported video under
+// ~15s, which is where watch-time retention on X holds up.
+const MAX_POINTS = 7;
+// Points must stay legible at phone size on a 1080px-wide card — keep them short.
+const MAX_POINT_CHARS = 48;
 
 const TOOL = {
   name: "emit_audience_card",
@@ -24,12 +28,12 @@ const TOOL = {
       points: {
         type: "array",
         maxItems: MAX_POINTS,
-        description: `Up to ${MAX_POINTS} short, concrete selling points that would compel an investor, ordered STRONGEST FIRST. Each must be a specific disclosed fact (grade, metres, dollars, stage, jurisdiction, funding, catalyst) — never a vague claim. <= 60 chars each so they fit the card.`,
+        description: `5 to ${MAX_POINTS} short, concrete selling points that would compel an investor, ordered STRONGEST FIRST. Each must be a specific disclosed fact (grade, drilling, jurisdiction, management, funding, catalyst) — never a vague claim. <= ${MAX_POINT_CHARS} chars each so they stay legible on a phone.`,
         items: {
           type: "object",
           properties: {
-            text: { type: "string", description: "The point itself, <= 60 chars, e.g. '42m of 385 g/t silver in maiden hole'." },
-            kind: { type: "string", enum: ["discovery", "grade", "scale", "funding", "catalyst", "jurisdiction", "team", "stage", "ownership", "other"], description: "What kind of selling point this is (drives the card's icon)." },
+            text: { type: "string", description: `The point itself, <= ${MAX_POINT_CHARS} chars, e.g. '42m of 385 g/t Ag in maiden hole'. Terse — drop filler words.` },
+            kind: { type: "string", enum: ["discovery", "grade", "drilling", "scale", "funding", "catalyst", "jurisdiction", "team", "stage", "ownership", "other"], description: "What kind of selling point this is (drives the card's icon)." },
           },
           required: ["text", "kind"],
         },
@@ -50,12 +54,18 @@ const SYSTEM = [
   "position, a named catalyst. If you cannot ground it, leave it out. Fewer strong",
   "points beat ten weak ones.",
   "",
-  `Return AT MOST ${MAX_POINTS} points, ordered STRONGEST FIRST — the first point should be`,
-  "the single most compelling fact about the company. Each point must be <= 60 characters",
-  "so it fits on the card: terse, concrete, readable at a glance.",
+  `Return 5 to ${MAX_POINTS} points — NEVER more than ${MAX_POINTS} — ordered STRONGEST FIRST.`,
+  "The first point should be the single most compelling fact about the company. The card",
+  "is a short social video: too many points and viewers scroll away, so pick only the",
+  "strongest. Cover a spread where the facts support it — grade, drilling, jurisdiction,",
+  "management, funding, catalyst — rather than five variations of one number.",
   "",
-  "GOOD: '42m of 385 g/t silver in maiden hole' · 'Fully funded through 2026' ·",
-  "'District-scale land package in Chihuahua' · 'Phase 2: 10,000m starting Q3 2026'",
+  `HARD LIMIT: each point <= ${MAX_POINT_CHARS} characters. It is rendered in large bold type on a`,
+  "phone-sized card; anything longer gets truncated. Be terse — drop filler words, use",
+  "symbols and abbreviations (m, g/t, Ag, C$, Q3) rather than spelling things out.",
+  "",
+  "GOOD: '42m at 385 g/t Ag in maiden hole' · 'Fully funded through 2026' ·",
+  "'District-scale land package, Chihuahua' · 'Phase 2: 10,000m starts Q3 2026'",
   "BAD: 'World-class asset' · 'Exceptional potential' · 'Strong management' ·",
   "'Compelling opportunity' — these are hype, not facts. Never use them.",
   "",
@@ -89,7 +99,7 @@ export default async function handler(req, res) {
   if (brief) parts.push("Company brief:\n```json\n" + JSON.stringify(brief, null, 2) + "\n```");
   if (Array.isArray(projects) && projects.length) parts.push("Projects: " + JSON.stringify(projects));
   if (compact.length) parts.push("Release chronology (newest first):\n```json\n" + JSON.stringify(compact, null, 2) + "\n```");
-  parts.push(`Write the card: a headline, a one-line hook, and up to ${MAX_POINTS} grounded selling points, strongest first.`);
+  parts.push(`Write the card: a headline, a one-line hook, and 5 to ${MAX_POINTS} grounded selling points (never more than ${MAX_POINTS}), strongest first, each <= ${MAX_POINT_CHARS} chars.`);
 
   try {
     const r = await fetch(ANTHROPIC_URL, {
