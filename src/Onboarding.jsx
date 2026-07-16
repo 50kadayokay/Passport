@@ -6244,7 +6244,9 @@ export default function Onboarding({ embedded = false }) {
     const editSlug = params.get("company"); // admin editing a specific company by slug
     // New company → skip the (AI-extract) intake and drop straight into the
     // guided, step-by-step builder where Next/Previous navigation lives.
-    if (fresh) { setScreen("review"); setSpot("co"); setTab("overview"); setHydrating(false); return; }
+    // New company → land on the intake screen (drop docs -> AI extract), which itself
+    // has a "Skip — view the blank template" option for a fully manual build.
+    if (fresh) { setScreen("intake"); setHydrating(false); return; }
     let alive = true;
     (async () => {
       let row = null;
