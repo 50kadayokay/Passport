@@ -13,12 +13,17 @@
 
 const API = "/api/structure-release";
 
-// Analyze a single release's text. Returns the `analysis` object or throws.
-export async function structureRelease(text, context = {}) {
+// Analyze a single release. `input` is either a text string, or { text, pdf }
+// where pdf is base64 PDF bytes (no data: prefix) that Claude reads natively.
+// Returns the `analysis` object or throws.
+export async function structureRelease(input, context = {}) {
+  const payload = typeof input === "string"
+    ? { text: input }
+    : { text: input.text || "", pdf: input.pdf || "" };
   const res = await fetch(API, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ mode: "extract", text, context }),
+    body: JSON.stringify({ mode: "extract", ...payload, context }),
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || `Structuring failed (${res.status})`);
@@ -31,7 +36,7 @@ export async function structureRelease(text, context = {}) {
 // Returns [{ item, analysis }] on success or [{ item, error }] per failed item —
 // one bad release never sinks the batch.
 export async function structureReleases(items, { context = {}, concurrency = 4, onProgress } = {}) {
-  const list = Array.isArray(items) ? items.filter((it) => it && String(it.text || "").trim()) : [];
+  const list = Array.isArray(items) ? items.filter((it) => it && (String(it.text || "").trim() || it.pdf)) : [];
   const results = new Array(list.length);
   let done = 0;
   let cursor = 0;
@@ -40,7 +45,7 @@ export async function structureReleases(items, { context = {}, concurrency = 4, 
       const i = cursor++;
       const item = list[i];
       try {
-        results[i] = { item, analysis: await structureRelease(item.text, context) };
+        results[i] = { item, analysis: await structureRelease({ text: item.text, pdf: item.pdf }, context) };
       } catch (e) {
         results[i] = { item, error: (e && e.message) || "failed" };
       }

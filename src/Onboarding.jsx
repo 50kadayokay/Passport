@@ -19,6 +19,7 @@ import { StatusBar as AppStatusBar } from "./aiBrief/components.jsx";
 import { authHeaders, getUser } from "./lib/auth.js";
 import { uploadCompanyMedia, flushProfileAssets } from "./lib/storage.js";
 import { mapProfileToPP } from "./lib/profileToPP.js";
+import { extractCorpus } from "./lib/structureReleases.js";
 import { SUPABASE_URL, SUPABASE_ANON } from "./lib/supabase.js";
 
 /* --- stubbed data consts (stripped long lines); blank schema by default --- */
@@ -6196,6 +6197,7 @@ export default function Onboarding({ embedded = false }) {
   const [files, setFiles] = useState([]);
   const [paste, setPaste] = useState("");
   const [drag, setDrag] = useState(false);
+  const [extractMsg, setExtractMsg] = useState("");
   const [fields, setFields] = useState(BLANK_FIELDS);
   const [tab, setTab] = useState("overview");
   const [sel, setSel] = useState(null);   // { tab, id } | null
@@ -6296,7 +6298,41 @@ export default function Onboarding({ embedded = false }) {
       return res;
     } catch { return null; }
   };
-  const submit = async () => { setScreen("loading"); await Promise.all([autofillCompanyStatus(), autofillCompanyBrief()]); setScreen("branding"); };
+  // Read each dropped file into a release item (PDF -> base64 for native reading,
+  // else plain text) plus any pasted text, then run the AI batch extractor and drop
+  // the results straight into the timeline. Lands the user in the builder on the
+  // Timeline tab so the extraction is immediately visible.
+  const submit = async () => {
+    setScreen("loading");
+    setExtractMsg("Reading your documents…");
+    const items = [];
+    for (const f of files) {
+      const file = f && f.file;
+      if (!file) continue;
+      const isPdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name || "");
+      try {
+        if (isPdf) items.push({ id: "f" + items.length, name: file.name, pdf: await fileToBase64(file) });
+        else items.push({ id: "f" + items.length, name: file.name, text: (await file.text()).slice(0, 200000) });
+      } catch (_) { /* skip unreadable file */ }
+    }
+    if (paste.trim()) items.push({ id: "paste", name: "Pasted text", text: paste.trim() });
+
+    if (items.length) {
+      try {
+        const companyName = (profile.company && profile.company.name) || "";
+        const out = await extractCorpus(items, {
+          context: companyName ? { company: { name: companyName } } : {},
+          onProgress: (done, total) => setExtractMsg(`Analyzing release ${done} of ${total}…`),
+        });
+        if (out.timelineEntries && out.timelineEntries.length) setTimeline(out.timelineEntries);
+        if (out.suggestions && out.suggestions.length) setProfile((p) => ({ ...p, aiSuggestions: out.suggestions }));
+        if (out.failures && out.failures.length) setExtractMsg(`${out.failures.length} release(s) couldn't be read — you can add them manually.`);
+      } catch (_) { /* extraction failed — fall through to the builder */ }
+    }
+    // Status/brief autofill (server-key path via extractCompanyStatus/Brief); harmless if it no-ops.
+    await Promise.all([autofillCompanyStatus(), autofillCompanyBrief()]).catch(() => {});
+    setScreen("review"); setSpot("tl-data"); setTab("timeline");
+  };
   const seedStatus = SEED_FIELDS.overview.find((f) => f.id === "ov-status").data.status;
   const finishBranding = (assets) => { setBrand(assets); runFill(); setSpot("co"); setTab("overview"); setScreen("review"); };
   const finishStatus = (st) => {
@@ -6476,8 +6512,8 @@ export default function Onboarding({ embedded = false }) {
       <style>{OB_KEYFRAMES}</style>
       <div style={{ textAlign: "center" }}>
         <Loader2 size={40} className="pp-spin" color="#10b981" />
-        <p style={{ fontSize: 18, fontWeight: 700, color: "#0f172a", marginTop: 18 }}>Reading your documents…</p>
-        <p style={{ fontSize: 13, color: "#94a3b8", marginTop: 10 }}>extracting fields · attaching sources · scoring confidence</p>
+        <p style={{ fontSize: 18, fontWeight: 700, color: "#0f172a", marginTop: 18 }}>{extractMsg || "Reading your documents…"}</p>
+        <p style={{ fontSize: 13, color: "#94a3b8", marginTop: 10 }}>structuring releases · sorting by date · scoring impact</p>
       </div>
     </div>
   );

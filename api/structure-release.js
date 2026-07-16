@@ -200,23 +200,33 @@ export default async function handler(req, res) {
 
   let body = req.body;
   if (typeof body === "string") { try { body = JSON.parse(body); } catch { return bad(res, 400, "Invalid JSON body"); } }
-  const { mode = "extract", text = "", current = null, instruction = "", context = null } = body || {};
+  const { mode = "extract", text = "", pdf = "", current = null, instruction = "", context = null } = body || {};
 
-  if (mode === "extract" && !text.trim()) return bad(res, 400, "Provide the press-release text.");
+  if (mode === "extract" && !text.trim() && !pdf) return bad(res, 400, "Provide the press-release text or PDF.");
   if (mode === "refine" && !current) return bad(res, 400, "Refine mode needs the current analysis.");
 
   const ctx = contextBlock(context);
-  const userContent = mode === "refine"
-    ? [
-        "Current analysis (JSON):",
-        "```json\n" + JSON.stringify(current, null, 2) + "\n```",
-        text.trim() ? "Original press release for reference:\n\"\"\"\n" + text.trim() + "\n\"\"\"" : "",
-        "Apply this change requested by the company, then emit the FULL revised analysis.",
-        "Only change what the instruction implies; leave everything else intact.",
-        "Instruction: " + (instruction.trim() || "(none — re-emit as-is)"),
-        ctx,
-      ].filter(Boolean).join("\n\n")
-    : "Press release:\n\"\"\"\n" + text.trim() + "\n\"\"\"" + ctx + "\n\nAnalyze it and emit the structured analysis.";
+  let userContent;
+  if (mode === "refine") {
+    userContent = [
+      "Current analysis (JSON):",
+      "```json\n" + JSON.stringify(current, null, 2) + "\n```",
+      text.trim() ? "Original press release for reference:\n\"\"\"\n" + text.trim() + "\n\"\"\"" : "",
+      "Apply this change requested by the company, then emit the FULL revised analysis.",
+      "Only change what the instruction implies; leave everything else intact.",
+      "Instruction: " + (instruction.trim() || "(none — re-emit as-is)"),
+      ctx,
+    ].filter(Boolean).join("\n\n");
+  } else if (pdf) {
+    // PDF release — Claude reads it natively via a document block (no client-side
+    // text extraction). The base64 must be the raw PDF bytes, no data: prefix.
+    userContent = [
+      { type: "document", source: { type: "base64", media_type: "application/pdf", data: pdf } },
+      { type: "text", text: "The attached PDF is a company press release." + ctx + "\n\nAnalyze it and emit the structured analysis." },
+    ];
+  } else {
+    userContent = "Press release:\n\"\"\"\n" + text.trim() + "\n\"\"\"" + ctx + "\n\nAnalyze it and emit the structured analysis.";
+  }
 
   try {
     const r = await fetch(ANTHROPIC_URL, {
