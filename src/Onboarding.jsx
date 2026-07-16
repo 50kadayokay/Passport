@@ -18,6 +18,7 @@ import AppCompanyProfile from "./aiBrief/screens/CompanyProfile.jsx";
 import { StatusBar as AppStatusBar } from "./aiBrief/components.jsx";
 import { authHeaders, getUser } from "./lib/auth.js";
 import { uploadCompanyMedia, flushProfileAssets } from "./lib/storage.js";
+import { mapProfileToPP } from "./lib/profileToPP.js";
 import { SUPABASE_URL, SUPABASE_ANON } from "./lib/supabase.js";
 
 /* --- stubbed data consts (stripped long lines); blank schema by default --- */
@@ -73,6 +74,9 @@ async function sbSaveProfile(profile, slug, status) {
   const name = (profile && profile.company && profile.company.name) || "";
   // Push any base64 images up to Storage first — the DB never stores base64.
   const cleanProfile = await flushProfileAssets(profile);
+  // Store the flattened `pp` the investor app reads (profile->pp) so a published
+  // company renders its OWN data instead of falling back to the sample profile.
+  cleanProfile.pp = mapProfileToPP(cleanProfile);
   const row = { slug, name, profile: cleanProfile, owner_id: user.id };
   if (status) row.status = status;
   const headers = await authHeaders();
