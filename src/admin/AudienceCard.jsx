@@ -76,6 +76,16 @@ function cover(ctx, img, x, y, w, h) {
   else { sh = img.width / br; sy = (img.height - sh) / 2; }
   ctx.drawImage(img, sx, sy, sw, sh, x, y, w, h);
 }
+// Draw text with a tight dark shadow so it stays legible on ANY photo WITHOUT
+// darkening the whole card. Repeat passes deepen the shadow, not the glyph weight.
+function shadowText(ctx, text, x, y, passes = 2) {
+  ctx.save();
+  ctx.shadowColor = "rgba(0,0,0,0.62)";
+  ctx.shadowBlur = 16;          // tight — a soft lift, not a dark cloud behind the type
+  ctx.shadowOffsetY = 2;
+  for (let i = 0; i < passes; i++) ctx.fillText(text, x, y);
+  ctx.restore();
+}
 function wrap(ctx, text, maxW) {
   const words = String(text || "").split(/\s+/).filter(Boolean);
   const lines = []; let line = "";
@@ -253,10 +263,9 @@ function drawFace1(ctx, d) {
     g.addColorStop(0, "#1e293b"); g.addColorStop(1, "#0b1220");
     ctx.fillStyle = g; ctx.fillRect(40, 40, W - 80, H - 80);
   }
-  // graded scrim — keeps the logo and type legible over any photo
-  const v = ctx.createLinearGradient(0, 40, 0, H - 40);
-  v.addColorStop(0, "rgba(2,6,23,0.62)"); v.addColorStop(0.42, "rgba(2,6,23,0.34)"); v.addColorStop(1, "rgba(2,6,23,0.92)");
-  ctx.fillStyle = v; ctx.fillRect(40, 40, W - 80, H - 80);
+  // No card-wide scrim — the photo stays at its natural exposure. Legibility comes
+  // from per-element shadows (shadowText / the logo's own drop shadow) instead, so
+  // the only thing that reads as "shadow" on the card is behind the logo.
 
   const cx = W / 2;
 
@@ -299,24 +308,18 @@ function drawFace1(ctx, d) {
 
   // name + ticker — sit directly under the logo inside the centred block
   ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
-  ctx.save();
-  ctx.shadowColor = "rgba(0,0,0,0.65)"; ctx.shadowBlur = 26; ctx.shadowOffsetY = 6;
   ctx.fillStyle = "#fff"; ctx.font = NAME_FONT;
   const nameTop = groupTop + lh + NAME_GAP;
-  nm.forEach((ln, i) => ctx.fillText(ln, cx, nameTop + i * NAME_LH));
+  nm.forEach((ln, i) => shadowText(ctx, ln, cx, nameTop + i * NAME_LH));
   if (d.ticker) {
     ctx.fillStyle = ACCENT; ctx.font = "700 32px Inter, system-ui, sans-serif";
-    ctx.fillText(d.ticker, cx, nameTop + nm.length * NAME_LH + 14);
+    shadowText(ctx, d.ticker, cx, nameTop + nm.length * NAME_LH + 14);
   }
-  ctx.restore();
 
   // headline along the bottom
-  ctx.save();
-  ctx.shadowColor = "rgba(0,0,0,0.6)"; ctx.shadowBlur = 20; ctx.shadowOffsetY = 4;
-  ctx.fillStyle = "rgba(255,255,255,0.94)"; ctx.font = "700 42px Inter, system-ui, sans-serif";
+  ctx.fillStyle = "#fff"; ctx.font = "700 42px Inter, system-ui, sans-serif";
   const hl = wrap(ctx, d.headline, W - 200).slice(0, 2);
-  hl.forEach((ln, i) => ctx.fillText(ln, cx, H - 132 + i * 52 - (hl.length - 1) * 26));
-  ctx.restore();
+  hl.forEach((ln, i) => shadowText(ctx, ln, cx, H - 132 + i * 52 - (hl.length - 1) * 26));
   ctx.restore();
 }
 
