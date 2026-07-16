@@ -149,13 +149,28 @@ function AppRoot() {
     let cancelled = false;
     (async () => {
       try {
-        const slug = new URLSearchParams(window.location.search).get("c") || "kingsmen-resources";
-        const res = await fetch(
-          `${SUPABASE_URL}/rest/v1/companies?slug=eq.${encodeURIComponent(slug)}&select=pp:profile->pp`,
-          { headers: { apikey: SUPABASE_ANON, Authorization: `Bearer ${SUPABASE_ANON}` } }
-        );
-        const rows = await res.json().catch(() => []);
-        if (rows && rows[0] && rows[0].pp) window.__PP__ = rows[0].pp;
+        const params = new URLSearchParams(window.location.search);
+        const slug = params.get("c") || "kingsmen-resources";
+        const previewToken = params.get("preview");
+        const base = { apikey: SUPABASE_ANON, Authorization: `Bearer ${SUPABASE_ANON}` };
+        if (previewToken) {
+          // Admin preview of an unpublished (ready/archived) company — the token-gated
+          // RPC bypasses the "published only" RLS so the profile renders in the iframe.
+          const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_preview_company`, {
+            method: "POST",
+            headers: { ...base, "Content-Type": "application/json" },
+            body: JSON.stringify({ p_slug: slug, p_token: previewToken }),
+          });
+          const row = await res.json().catch(() => null);
+          if (row && row.profile && row.profile.pp) window.__PP__ = row.profile.pp;
+        } else {
+          const res = await fetch(
+            `${SUPABASE_URL}/rest/v1/companies?slug=eq.${encodeURIComponent(slug)}&select=pp:profile->pp`,
+            { headers: base }
+          );
+          const rows = await res.json().catch(() => []);
+          if (rows && rows[0] && rows[0].pp) window.__PP__ = rows[0].pp;
+        }
       } catch (_) { /* fall back to built-in reference data */ }
       const mod = await import("./aiBrief/PassportProto.jsx");
       if (!cancelled) setApp(() => mod.default);

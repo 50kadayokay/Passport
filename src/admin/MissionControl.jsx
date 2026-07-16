@@ -15,6 +15,7 @@ const NAV = [
   { group: "Mission Control", items: [
     { id: "home", label: "Home", Icon: LayoutDashboard, ready: true },
     { id: "sales", label: "Sales", Icon: TrendingUp, need: "Stripe billing + CRM" },
+    { id: "publish", label: "Ready for Publish", Icon: Inbox, ready: true },
     { id: "companies", label: "Companies", Icon: Building2, ready: true },
     { id: "users", label: "Users", Icon: UsersIcon, ready: true },
     { id: "operations", label: "Operations", Icon: ClipboardCheck, ready: true },
@@ -39,7 +40,7 @@ const NAV = [
     { id: "settings", label: "Settings", Icon: Settings, need: "a platform-config table" },
   ]},
 ];
-const READY = new Set(["home", "companies", "users", "operations"]);
+const READY = new Set(["home", "publish", "companies", "users", "operations"]);
 const flat = (id) => NAV.flatMap((g) => g.items).find((i) => i.id === id) || {};
 
 const isPublished = (c) => (c.status || "").toLowerCase() === "published";
@@ -117,12 +118,158 @@ export default function MissionControl() {
           {section === "companies" ? <Admin /> : (
             <div className="h-full overflow-y-auto px-8 py-7">
               {section === "home" && <Home companies={companies} users={users} loading={loading} go={go} />}
+              {section === "publish" && <ReadyForPublish companies={companies} reload={loadData} loading={loading} />}
               {section === "operations" && <Operations companies={companies} reload={loadData} go={go} />}
               {section === "users" && <UsersSection users={users} loading={loading} />}
               {section === "sales" && <SalesEmpty />}
               {!READY.has(section) && <Stub id={section} />}
             </div>
           )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ============= READY FOR PUBLISH — the concierge publishing folder ============= */
+const statusOf = (c) => (c.status || "draft").toLowerCase();
+const logoOf = (c) => {
+  const p = c.profile || {};
+  return (p.company && (p.company.logo || p.company.brand)) || (p.pp && (p.pp.AVATAR || p.pp.LOGO)) || "";
+};
+const initialsOf = (name) => String(name || "?").trim().split(/\s+/).slice(0, 2).map((w) => w[0] || "").join("").toUpperCase() || "?";
+
+function CompanyTile({ c, selectable, selected, onSelect, onPreview }) {
+  const logo = logoOf(c);
+  return (
+    <div className="group relative flex flex-col items-center">
+      {selectable && (
+        <button onClick={(e) => { e.stopPropagation(); onSelect(c.slug); }}
+          className={`absolute left-2 top-2 z-10 grid h-6 w-6 place-items-center rounded-md border-2 transition ${selected ? "border-slate-900 bg-slate-900 text-white" : "border-slate-300 bg-white text-transparent hover:border-slate-500"}`}>
+          <CheckCircle2 size={13} />
+        </button>
+      )}
+      <button onClick={() => onPreview(c)} className="w-full rounded-2xl border border-slate-200 bg-white p-4 text-center transition hover:border-slate-300 hover:shadow-md">
+        <div className="mx-auto grid h-20 w-20 place-items-center overflow-hidden rounded-2xl bg-slate-100 text-[20px] font-extrabold text-slate-400">
+          {logo ? <img src={logo} alt="" className="h-full w-full object-cover" /> : initialsOf(c.name)}
+        </div>
+        <p className="mt-3 truncate text-[14px] font-bold tracking-tight text-slate-900">{c.name || c.slug}</p>
+        <p className="truncate text-[11.5px] font-medium text-slate-400">{c.primary_ticker || c.slug}</p>
+      </button>
+    </div>
+  );
+}
+
+function ReadyForPublish({ companies, reload, loading }) {
+  const ready = companies.filter((c) => statusOf(c) === "ready");
+  const live = companies.filter((c) => statusOf(c) === "published");
+  const archived = companies.filter((c) => statusOf(c) === "archived");
+  const [sel, setSel] = useState(() => new Set());
+  const [busy, setBusy] = useState(false);
+  const [preview, setPreview] = useState(null);
+
+  const toggle = (slug) => setSel((s) => { const n = new Set(s); n.has(slug) ? n.delete(slug) : n.add(slug); return n; });
+  const setStatus = async (slugs, status) => {
+    setBusy(true);
+    try { const h = await authHeaders(); await Promise.all(slugs.map((slug) => updateCompany(slug, { status }, h))); setSel(new Set()); await reload(); }
+    finally { setBusy(false); }
+  };
+
+  if (preview) return <PreviewPane c={preview} onClose={() => setPreview(null)} />;
+
+  return (
+    <div className="mx-auto max-w-6xl">
+      <div className="flex items-end justify-between">
+        <div>
+          <h1 className="text-[26px] font-extrabold tracking-tight">Ready for Publish</h1>
+          <p className="mt-1 text-[13.5px] text-slate-500">Completed profiles. Select the ones to take live, then publish.</p>
+        </div>
+        <a href="/onboarding?new=1" className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-[13.5px] font-bold text-white"><Plus size={16} /> Onboard a company</a>
+      </div>
+
+      {/* READY */}
+      <div className="mt-6 flex items-center justify-between">
+        <h2 className="text-[13px] font-bold uppercase tracking-wider text-slate-400">Ready — {ready.length}</h2>
+        {sel.size > 0 && (
+          <button onClick={() => setStatus([...sel], "published")} disabled={busy}
+            className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-[13px] font-bold text-white disabled:opacity-50">
+            {busy ? <Loader2 size={15} className="animate-spin" /> : <ArrowRight size={15} />} Publish {sel.size} selected
+          </button>
+        )}
+      </div>
+      {loading ? <p className="mt-4 text-[13px] text-slate-400">Loading…</p>
+        : ready.length === 0 ? <EmptyFolder text="No profiles are ready yet. Onboard a company and click Complete." />
+        : (
+          <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+            {ready.map((c) => <CompanyTile key={c.slug} c={c} selectable selected={sel.has(c.slug)} onSelect={toggle} onPreview={setPreview} />)}
+          </div>
+        )}
+
+      {/* LIVE */}
+      <h2 className="mt-10 text-[13px] font-bold uppercase tracking-wider text-slate-400">Live on the app — {live.length}</h2>
+      {live.length === 0 ? <EmptyFolder text="Nothing is live yet." />
+        : (
+          <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+            {live.map((c) => (
+              <div key={c.slug} className="relative">
+                <CompanyTile c={c} onPreview={setPreview} />
+                <button onClick={() => setStatus([c.slug], "archived")} disabled={busy} title="Archive (remove from app)"
+                  className="absolute right-2 top-2 z-10 grid h-6 w-6 place-items-center rounded-md border border-slate-200 bg-white text-slate-400 hover:text-rose-500">
+                  <Inbox size={13} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+      {/* ARCHIVED */}
+      {archived.length > 0 && (
+        <>
+          <h2 className="mt-10 text-[13px] font-bold uppercase tracking-wider text-slate-400">Archived — {archived.length}</h2>
+          <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+            {archived.map((c) => (
+              <div key={c.slug} className="relative opacity-70">
+                <CompanyTile c={c} onPreview={setPreview} />
+                <button onClick={() => setStatus([c.slug], "published")} disabled={busy}
+                  className="absolute right-2 top-2 z-10 rounded-md border border-slate-200 bg-white px-2 py-1 text-[10px] font-bold text-slate-600 hover:text-emerald-600">Restore</button>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function EmptyFolder({ text }) {
+  return (
+    <div className="mt-4 grid place-items-center rounded-2xl border border-dashed border-slate-200 py-14 text-center">
+      <Inbox size={22} className="text-slate-300" />
+      <p className="mt-2 max-w-[280px] text-[13px] font-medium text-slate-400">{text}</p>
+    </div>
+  );
+}
+
+/* Preview a company as it appears in the app (left) with an Edit action (right). */
+function PreviewPane({ c, onClose }) {
+  const previewUrl = `/app?c=${encodeURIComponent(c.slug)}${c.preview_token ? `&preview=${c.preview_token}` : ""}`;
+  return (
+    <div className="mx-auto flex h-full max-w-6xl flex-col">
+      <div className="flex flex-shrink-0 items-center gap-3 pb-4">
+        <button onClick={onClose} className="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 text-slate-500 hover:text-slate-900"><ArrowRight size={16} className="rotate-180" /></button>
+        <div className="grid h-9 w-9 place-items-center overflow-hidden rounded-lg bg-slate-100 text-[13px] font-extrabold text-slate-400">
+          {logoOf(c) ? <img src={logoOf(c)} alt="" className="h-full w-full object-cover" /> : initialsOf(c.name)}
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-[16px] font-extrabold tracking-tight text-slate-900">{c.name || c.slug}</p>
+          <p className="text-[12px] font-medium capitalize text-slate-400">{statusOf(c)}</p>
+        </div>
+        <a href={`/onboarding?company=${encodeURIComponent(c.slug)}`} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-[13px] font-bold text-slate-700 hover:border-slate-300"><Settings size={15} /> Edit</a>
+        <a href={previewUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-[13px] font-bold text-slate-700 hover:border-slate-300"><ExternalLink size={15} /> Open</a>
+      </div>
+      <div className="flex min-h-0 flex-1 items-center justify-center rounded-2xl border border-slate-200 bg-slate-100 p-6">
+        <div className="overflow-hidden rounded-[40px] border-8 border-slate-900 bg-white shadow-2xl" style={{ width: 390, height: 780, maxHeight: "100%" }}>
+          <iframe title="preview" src={previewUrl} style={{ width: "100%", height: "100%", border: 0 }} />
         </div>
       </div>
     </div>

@@ -6230,20 +6230,34 @@ export default function Onboarding({ embedded = false }) {
   // and jump straight into the editor to resume/edit. Otherwise start fresh.
   // `?new=1` (admin "Onboard a company") forces a fresh build, ignoring any existing row.
   useEffect(() => {
-    const fresh = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("new") === "1";
+    const params = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : new URLSearchParams();
+    const fresh = params.get("new") === "1";
+    const editSlug = params.get("company"); // admin editing a specific company by slug
     // New company → skip the (AI-extract) intake and drop straight into the
     // guided, step-by-step builder where Next/Previous navigation lives.
     if (fresh) { setScreen("review"); setSpot("co"); setTab("overview"); setHydrating(false); return; }
     let alive = true;
-    fetchMyCompany()
-      .then((row) => {
-        if (!alive || !row || !row.profile) return;
+    (async () => {
+      let row = null;
+      if (editSlug) {
+        // Load that specific company (admin RLS lets is_admin() read any row).
+        try {
+          const h = await authHeaders();
+          const res = await fetch(`${SUPABASE_URL}/rest/v1/companies?slug=eq.${encodeURIComponent(editSlug)}&select=*&limit=1`, { headers: h });
+          const rows = await res.json().catch(() => []);
+          row = Array.isArray(rows) && rows[0];
+        } catch (_) { /* fall through */ }
+      } else {
+        row = await fetchMyCompany().catch(() => null);
+      }
+      if (alive && row && row.profile) {
         setProfile((p) => ({ ...p, ...row.profile }));
         if (row.profile.brand) setBrand(row.profile.brand);
         setSavedSlug(row.slug);
         setScreen("review"); setSpot("co"); setTab("overview");
-      })
-      .finally(() => { if (alive) setHydrating(false); });
+      }
+      if (alive) setHydrating(false);
+    })();
     return () => { alive = false; };
   }, []);
 
@@ -6336,14 +6350,16 @@ export default function Onboarding({ embedded = false }) {
   const setCompanyBrief = (patch) => setProfile((p) => ({ ...p, companyBrief: { ...(p.companyBrief || {}), ...patch } }));
   // Save the live profile to Supabase (UPSERT by slug). Returns true on success so
   // callers (e.g. Publish) can gate on it. Never touches the reserved template row.
-  const doSave = async (publish = false) => {
+  const doSave = async (targetStatus) => {
     // Reuse the existing row's slug on edits (stable across renames); derive one on first save.
     const slug = savedSlug || deriveSlug(profile.company && profile.company.name);
     if (!slug) { setSaveState("error"); setSaveMsg("Enter a company name first"); return false; }
     setSaveState("saving"); setSaveMsg("");
     try {
-      // Save keeps it a draft; only Publish takes it live on the app.
-      await sbSaveProfile(profile, slug, publish ? "published" : "draft");
+      // 'draft' = in progress · 'ready' = onboarding complete, sits in the admin
+      // "Ready for Publish" folder · 'published' = live on the app (set from admin).
+      const st = typeof targetStatus === "string" ? targetStatus : "draft";
+      await sbSaveProfile(profile, slug, st);
       setSavedSlug(slug);
       setSaveState("saved");
       return true;
@@ -6458,10 +6474,11 @@ export default function Onboarding({ embedded = false }) {
   if (screen === "published") return (
     <div style={{ minHeight: _vh, background: "radial-gradient(1000px 600px at 50% -10%,#fff,#eef2f7 60%,#e2e8f0)", display: "flex", alignItems: "center", justifyContent: "center" }}>
       <style>{OB_KEYFRAMES}</style>
-      <div style={{ textAlign: "center" }}>
+      <div style={{ textAlign: "center", maxWidth: 360 }}>
         <CheckCircle2 size={54} color="#10b981" />
-        <p style={{ fontSize: 22, fontWeight: 800, color: "#0f172a", marginTop: 16 }}>Profile published</p>
-        <p style={{ fontSize: 13.5, color: "#64748b", marginTop: 8 }}>{approved} approved fields are now live on the the company Passport.</p>
+        <p style={{ fontSize: 22, fontWeight: 800, color: "#0f172a", marginTop: 16 }}>Profile complete</p>
+        <p style={{ fontSize: 13.5, color: "#64748b", marginTop: 8, lineHeight: 1.5 }}>It's in your <b>Ready for Publish</b> folder. Preview it, then publish it live from the admin dashboard whenever you're ready.</p>
+        <a href="/admin" style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 20, background: "#0f172a", color: "#fff", fontSize: 13.5, fontWeight: 700, padding: "11px 20px", borderRadius: 11, textDecoration: "none" }}>Back to admin →</a>
       </div>
     </div>
   );
@@ -6523,10 +6540,10 @@ export default function Onboarding({ embedded = false }) {
               <p style={{ fontSize: 14, fontWeight: 700, color: "#0f172a", margin: "3px 0 0" }}>{approved}/{total} fields approved</p>
             </div>
           </div>
-          <button onClick={async () => { const ok = await doSave(true); if (ok) setScreen("published"); }} disabled={!canPublish || saveState === "saving"}
-            title={!statusComplete ? "Company Status needs: " + _csMissing.join(", ") : (approved === 0 ? "Approve at least one field to publish" : "")}
-            style={{ fontSize: 13.5, fontWeight: 700, padding: "10px 18px", borderRadius: 11, border: "none", cursor: (canPublish && saveState !== "saving") ? "pointer" : "not-allowed", background: canPublish ? "#0f172a" : "#e2e8f0", color: canPublish ? "#fff" : "#94a3b8" }}>
-            {saveState === "saving" ? "Saving…" : "Publish"}
+          <button onClick={async () => { const ok = await doSave("ready"); if (ok) setScreen("published"); }} disabled={!canPublish || saveState === "saving"}
+            title={!statusComplete ? "Company Status needs: " + _csMissing.join(", ") : (approved === 0 ? "Approve at least one field to complete" : "")}
+            style={{ fontSize: 13.5, fontWeight: 700, padding: "10px 18px", borderRadius: 11, border: "none", cursor: (canPublish && saveState !== "saving") ? "pointer" : "not-allowed", background: canPublish ? "#059669" : "#e2e8f0", color: canPublish ? "#fff" : "#94a3b8", display: "inline-flex", alignItems: "center", gap: 6 }}>
+            {saveState === "saving" ? "Saving…" : <><Check size={15} strokeWidth={3} /> Complete</>}
           </button>
         </div>
         <div style={{ flex: 1, minHeight: 0, overflow: "hidden", padding: "28px 26px" }}>
