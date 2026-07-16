@@ -6603,7 +6603,7 @@ export default function Onboarding({ embedded = false }) {
             {saveState === "saving" ? "Saving…" : <><Check size={15} strokeWidth={3} /> Complete</>}
           </button>
         </div>
-        <div style={{ flex: 1, minHeight: 0, overflow: "hidden", padding: "28px 26px" }}>
+        <div style={{ flex: 1, minHeight: 0, overflowY: "auto", overflowX: "hidden", padding: "28px 26px 40px" }}>
           {spot && SECTION_DEFS[spot] ? (
             <SectionEditor spot={spot} def={SECTION_DEFS[spot]} getVal={spotGetVal} getStatus={spotGetStatus} onText={spotText} onIdentity={spotIdentity} onStatus={spotStatus}
               onScenario={spotScenario} onThesis={spotThesis} onNext={nextSpot} onPrev={prevSpot} onGotoSpot={(id) => { setFieldSpot(null); setSpot(id); setTab((SECTION_DEFS[id] && SECTION_DEFS[id].tab) || "projects"); }} first={ordIdx(spot) === 0} idx={ordIdx(spot)} total={SECTION_ORDER.length} last={ordIdx(spot) === SECTION_ORDER.length - 1} onFocusField={setFieldSpot} projects={profile.projects} setProjects={setProjects} timeline={profile.timeline} setTimeline={setTimeline} team={profile.team} setTeam={setTeam} company={profile.company} setCompany={setCompany} capital={profile.capital} setCapital={setCapital} companyStatus={profile.companyStatus} setCompanyStatus={setCompanyStatus} companyStatusReview={profile.companyStatusReview} companyStatusAI={profile.companyStatusAI} companyBrief={profile.companyBrief} setCompanyBrief={setCompanyBrief} companyBriefReview={profile.companyBriefReview} companyBriefAI={profile.companyBriefAI} />
