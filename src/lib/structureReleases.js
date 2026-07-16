@@ -139,6 +139,43 @@ export function synthesizeSuggestions(results) {
   return [...byKey.values()];
 }
 
+// The timeline editor's category dropdown accepts this fixed set; the analyzer's
+// richer CATEGORIES map down to it so an extracted entry is editable as-is.
+const TL_CATS = ["Discovery", "Drilling", "Financing", "Permitting", "Infrastructure", "Acquisition", "Resource Growth", "Exploration", "Corporate"];
+const CAT_MAP = {
+  Resource: "Resource Growth", "Economic Study": "Corporate", Development: "Infrastructure",
+  Construction: "Infrastructure", Production: "Corporate", Leadership: "Corporate",
+  Partnership: "Corporate", Property: "Acquisition", Other: "Corporate",
+};
+const tlCategory = (c) => (TL_CATS.includes(c) ? c : (CAT_MAP[c] || "Exploration"));
+
+// Map assembled entries -> the profile.timeline shape the builder + app read
+// ({ id, title, date, category, summary, url, key }), with the rich extracted
+// fields kept under `ai` for the app's expanded view + "read full release".
+export function toTimelineEntries(assembled) {
+  return (assembled || []).map((e) => ({
+    id: e.id,
+    title: e.headline,
+    date: e.date,
+    category: tlCategory(e.category),
+    summary: e.whyItMatters || e.whatHappened,
+    url: e.sourceUrl,
+    key: e.key,
+    ai: {
+      whatHappened: e.whatHappened,
+      whatHappensNext: e.whatHappensNext,
+      keyNumbers: e.keyNumbers,
+      takeaway: e.takeaway,
+      impact: e.impact,
+      confidence: e.confidence,
+      stageFrom: e.stageFrom,
+      stageTo: e.stageTo,
+      projects: e.projects,
+      fullText: e.fullText,
+    },
+  }));
+}
+
 // Convenience: run the whole pipeline (fan out -> assemble -> group + suggestions).
 export async function extractCorpus(items, opts = {}) {
   const results = await structureReleases(items, opts);
@@ -146,6 +183,7 @@ export async function extractCorpus(items, opts = {}) {
   return {
     results,
     timeline,
+    timelineEntries: toTimelineEntries(timeline), // ready for setTimeline(...)
     grouped: groupByYearQuarter(timeline),
     suggestions: synthesizeSuggestions(results),
     failures: results.filter((r) => r.error).map((r) => ({ name: r.item.name, error: r.error })),
