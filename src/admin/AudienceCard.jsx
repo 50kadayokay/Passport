@@ -15,7 +15,7 @@
 // Pacing targets a sub-15s runtime (where watch-time retention on X holds up).
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { Loader2, Sparkles, Play, Download, Film, AlertTriangle, RefreshCw, ShieldCheck, CheckCircle2, FileText } from "lucide-react";
+import { Loader2, Sparkles, Play, Download, Film, AlertTriangle, RefreshCw, ShieldCheck, CheckCircle2, FileText, ImagePlus } from "lucide-react";
 import { fetchCompanies } from "../lib/supabase.js";
 import { authHeaders } from "../lib/auth.js";
 
@@ -30,15 +30,18 @@ const BRAND = {                           // placeholders — swap for real bran
 const INK = "#0f172a", MUTED = "#94a3b8", ACCENT = "#10b981";
 
 // Mobile-first type: the video is watched ~375px wide, so a 52px point renders at
-// ~18px on a phone. Anything smaller stops being scannable mid-scroll.
-const PT_SIZE = 52, PT_LH = 62, PT_GAP = 34, PT_MAX_LINES = 2;
+// ~18px on a phone. Anything smaller stops being scannable mid-scroll — so we start
+// at 52 and only step down if the block genuinely won't fit (see layoutPoints).
+const PT_SIZES = [52, 48, 44, 40, 36];
+const PT_MAX_LINES = 2;
 const PT_X = 168, PT_MAX_W = (W - 72) - PT_X;      // text column width
-const ptFont = (px = PT_SIZE) => `700 ${px}px Inter, system-ui, -apple-system, sans-serif`;
+const PT_AREA_TOP = 268, PT_AREA_BOT = H - 78;     // vertical room for the points block
+const ptFont = (px = PT_SIZES[0]) => `700 ${px}px Inter, system-ui, -apple-system, sans-serif`;
 
-// Animation beats (seconds) — snappy: quick flip in, kinetic point drops, fast
-// flip to a stamp that holds just long enough to read the CTA.
-const T_FACE1 = 1.25, T_FLIP = 0.36, T_STAGGER = 0.30, T_PT_IN = 0.28,
-      T_POINTS_HOLD = 1.15, T_FACE3 = 2.5;
+// Animation beats (seconds) — snappy in, then hold the points long enough to
+// actually read all of them before flipping to the stamp.
+const T_FACE1 = 1.5, T_FLIP = 0.36, T_STAGGER = 0.30, T_PT_IN = 0.28,
+      T_POINTS_HOLD = 3.2, T_FACE3 = 2.5;
 export const timings = (n) => {
   const face1End = T_FACE1;
   const flip1End = face1End + T_FLIP;
@@ -100,15 +103,94 @@ const loadImg = (src) => new Promise((res) => {
   i.src = src;
 });
 
+// Knock the backdrop out of a logo so it sits cleanly on the photo.
+// Flood-fills inward from the border rather than globally removing one colour —
+// that way white INSIDE the logo (counters, lettering, a white wordmark on a dark
+// badge) survives, and only the connected background is cleared. Already-transparent
+// PNGs are returned untouched.
+export function removeBackground(img, tol = 30) {
+  const c = document.createElement("canvas");
+  c.width = img.width; c.height = img.height;
+  const ctx = c.getContext("2d", { willReadFrequently: true });
+  ctx.drawImage(img, 0, 0);
+  const w = c.width, h = c.height;
+  if (!w || !h) return c;
+  let id;
+  try { id = ctx.getImageData(0, 0, w, h); } catch (_) { return c; }   // tainted — skip
+  const d = id.data;
+  const at = (x, y) => (y * w + x) * 4;
+
+  // If the corners are already transparent, it's a proper cut-out already.
+  const corners = [[0, 0], [w - 1, 0], [0, h - 1], [w - 1, h - 1]];
+  const opaque = corners.filter(([x, y]) => d[at(x, y) + 3] > 8);
+  if (!opaque.length) return c;
+
+  let r = 0, g = 0, b = 0;
+  opaque.forEach(([x, y]) => { const i = at(x, y); r += d[i]; g += d[i + 1]; b += d[i + 2]; });
+  r /= opaque.length; g /= opaque.length; b /= opaque.length;
+  const dist = (i) => Math.abs(d[i] - r) + Math.abs(d[i + 1] - g) + Math.abs(d[i + 2] - b);
+
+  const seen = new Uint8Array(w * h);
+  const stack = [];
+  const tryPush = (x, y) => {
+    if (x < 0 || y < 0 || x >= w || y >= h) return;
+    const p = y * w + x;
+    if (seen[p]) return;
+    seen[p] = 1;
+    if (dist(p * 4) < tol * 3) stack.push(p);
+  };
+  for (let x = 0; x < w; x++) { tryPush(x, 0); tryPush(x, h - 1); }
+  for (let y = 0; y < h; y++) { tryPush(0, y); tryPush(w - 1, y); }
+  while (stack.length) {
+    const p = stack.pop();
+    d[p * 4 + 3] = 0;
+    const x = p % w, y = (p / w) | 0;
+    tryPush(x + 1, y); tryPush(x - 1, y); tryPush(x, y + 1); tryPush(x, y - 1);
+  }
+
+  // Soften the fringe: pixels still opaque but close to the old backdrop and touching
+  // a cleared pixel get partial alpha, which kills the halo you'd otherwise see.
+  const alphaAt = (x, y) => (x < 0 || y < 0 || x >= w || y >= h ? 0 : d[at(x, y) + 3]);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const i = at(x, y);
+    if (!d[i + 3]) continue;
+    const touching = !alphaAt(x + 1, y) || !alphaAt(x - 1, y) || !alphaAt(x, y + 1) || !alphaAt(x, y - 1);
+    if (!touching) continue;
+    const k = dist(i) / (tol * 3);            // 0 = identical to backdrop
+    if (k < 1.6) d[i + 3] = Math.round(255 * clamp01(k / 1.6));
+  }
+  ctx.putImageData(id, 0, 0);
+  return c;
+}
+
 // Offscreen context used to check point fit outside the render loop.
 let _meas = null;
 const measCtx = () => {
   if (!_meas && typeof document !== "undefined") _meas = document.createElement("canvas").getContext("2d");
   return _meas;
 };
-export function pointOverflows(text) {
-  const ctx = measCtx(); if (!ctx) return false;
-  return fitLines(ctx, text, PT_MAX_W, PT_MAX_LINES, ptFont()).truncated;
+// Lay the points out so the block ALWAYS fits the card: start at the most legible
+// size and step down only as far as needed. Returns the chosen metrics plus each
+// point's wrapped lines, so the renderer and the admin warning agree exactly.
+export function layoutPoints(ctx, points) {
+  const avail = PT_AREA_BOT - PT_AREA_TOP;
+  const list = points || [];
+  let out = null;
+  for (const size of PT_SIZES) {
+    const lh = Math.round(size * 1.19), gap = Math.round(size * 0.66);
+    const blocks = list.map((p) => fitLines(ctx, p.text, PT_MAX_W, PT_MAX_LINES, ptFont(size)));
+    const totalH = blocks.reduce((s, b) => s + b.lines.length * lh, 0) + Math.max(0, blocks.length - 1) * gap;
+    out = { blocks, size, lh, gap, totalH, fits: totalH <= avail, startY: PT_AREA_TOP + Math.max(0, (avail - totalH) / 2) };
+    if (out.fits) break;
+  }
+  return out;
+}
+// Which points get ellipsized at the size they'll actually render at.
+export function checkPoints(points) {
+  const ctx = measCtx();
+  if (!ctx || !points?.length) return { truncated: [], size: PT_SIZES[0], fits: true };
+  const L = layoutPoints(ctx, points);
+  return { truncated: L.blocks.map((b) => b.truncated), size: L.size, fits: L.fits };
 }
 
 /* ========================== provenance matching ========================== */
@@ -153,35 +235,68 @@ function cardShell(ctx) {
   ctx.restore();
 }
 
+// Front: full-bleed site photo, company logo centred over it with a drop shadow so
+// it lifts off the image, then the name/ticker and a one-line headline.
 function drawFace1(ctx, d) {
   faceBase(ctx); cardShell(ctx);
   ctx.save(); rr(ctx, 40, 40, W - 80, H - 80, 48); ctx.clip();
 
-  const imgH = 760;
-  if (d.projectImg) cover(ctx, d.projectImg, 40, 40, W - 80, imgH);
-  else { const g = ctx.createLinearGradient(0, 40, 0, imgH); g.addColorStop(0, "#1e293b"); g.addColorStop(1, "#0f172a"); ctx.fillStyle = g; ctx.fillRect(40, 40, W - 80, imgH); }
-  const s = ctx.createLinearGradient(0, imgH - 320, 0, imgH);
-  s.addColorStop(0, "rgba(2,6,23,0)"); s.addColorStop(1, "rgba(2,6,23,0.92)");
-  ctx.fillStyle = s; ctx.fillRect(40, imgH - 320, W - 80, 320);
-
-  const lx = 96, ly = imgH - 190;
-  if (d.logoImg) { ctx.save(); ctx.beginPath(); ctx.arc(lx + 56, ly + 56, 56, 0, Math.PI * 2); ctx.clip(); cover(ctx, d.logoImg, lx, ly, 112, 112); ctx.restore(); }
+  // full-bleed photo
+  if (d.projectImg) cover(ctx, d.projectImg, 40, 40, W - 80, H - 80);
   else {
-    ctx.fillStyle = "#1e293b"; ctx.beginPath(); ctx.arc(lx + 56, ly + 56, 56, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = "#fff"; ctx.font = "700 44px Inter, system-ui, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
-    ctx.fillText((d.name || "?").slice(0, 1).toUpperCase(), lx + 56, ly + 58);
+    const g = ctx.createLinearGradient(0, 40, 0, H - 40);
+    g.addColorStop(0, "#1e293b"); g.addColorStop(1, "#0b1220");
+    ctx.fillStyle = g; ctx.fillRect(40, 40, W - 80, H - 80);
   }
-  ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
-  ctx.fillStyle = "#fff"; ctx.font = "800 52px Inter, system-ui, sans-serif";
-  ctx.fillText(String(d.name || "").slice(0, 26), lx + 138, ly + 56);
-  if (d.ticker) { ctx.fillStyle = ACCENT; ctx.font = "700 30px Inter, system-ui, sans-serif"; ctx.fillText(d.ticker, lx + 140, ly + 100); }
+  // graded scrim — keeps the logo and type legible over any photo
+  const v = ctx.createLinearGradient(0, 40, 0, H - 40);
+  v.addColorStop(0, "rgba(2,6,23,0.62)"); v.addColorStop(0.42, "rgba(2,6,23,0.34)"); v.addColorStop(1, "rgba(2,6,23,0.92)");
+  ctx.fillStyle = v; ctx.fillRect(40, 40, W - 80, H - 80);
 
-  const ty = imgH + 96;
-  ctx.fillStyle = INK; ctx.font = "800 62px Inter, system-ui, sans-serif";
-  const hl = wrap(ctx, d.headline, W - 200).slice(0, 3);
-  hl.forEach((ln, i) => ctx.fillText(ln, 96, ty + i * 72));
-  ctx.fillStyle = MUTED; ctx.font = "500 34px Inter, system-ui, sans-serif";
-  wrap(ctx, d.hook, W - 200).slice(0, 2).forEach((ln, i) => ctx.fillText(ln, 96, ty + hl.length * 72 + 30 + i * 44));
+  const cx = W / 2, cy = H * 0.43;
+
+  // centred logo — the shadow follows the (background-removed) alpha shape, so it
+  // reads as the mark floating off the photo rather than a box with a shadow.
+  if (d.logoImg) {
+    const iw = d.logoImg.width || 1, ih = d.logoImg.height || 1;
+    const s = Math.min(470 / iw, 300 / ih);
+    const lw = iw * s, lh = ih * s;
+    ctx.save();
+    ctx.shadowColor = "rgba(0,0,0,0.8)"; ctx.shadowBlur = 52; ctx.shadowOffsetY = 16;
+    ctx.drawImage(d.logoImg, cx - lw / 2, cy - lh / 2, lw, lh);
+    ctx.shadowBlur = 26; ctx.shadowOffsetY = 6;      // second pass deepens the lift
+    ctx.drawImage(d.logoImg, cx - lw / 2, cy - lh / 2, lw, lh);
+    ctx.restore();
+  } else {
+    ctx.save();
+    ctx.shadowColor = "rgba(0,0,0,0.7)"; ctx.shadowBlur = 44; ctx.shadowOffsetY = 14;
+    ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(cx, cy, 104, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+    ctx.fillStyle = INK; ctx.font = "800 84px Inter, system-ui, sans-serif";
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText((d.name || "?").slice(0, 1).toUpperCase(), cx, cy + 4);
+  }
+
+  // name + ticker
+  ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
+  ctx.save();
+  ctx.shadowColor = "rgba(0,0,0,0.65)"; ctx.shadowBlur = 26; ctx.shadowOffsetY = 6;
+  ctx.fillStyle = "#fff"; ctx.font = "800 62px Inter, system-ui, sans-serif";
+  const nm = wrap(ctx, d.name, W - 220).slice(0, 2);
+  nm.forEach((ln, i) => ctx.fillText(ln, cx, cy + 234 + i * 68));
+  if (d.ticker) {
+    ctx.fillStyle = ACCENT; ctx.font = "700 34px Inter, system-ui, sans-serif";
+    ctx.fillText(d.ticker, cx, cy + 234 + nm.length * 68 + 18);
+  }
+  ctx.restore();
+
+  // headline along the bottom
+  ctx.save();
+  ctx.shadowColor = "rgba(0,0,0,0.6)"; ctx.shadowBlur = 20; ctx.shadowOffsetY = 4;
+  ctx.fillStyle = "rgba(255,255,255,0.94)"; ctx.font = "700 42px Inter, system-ui, sans-serif";
+  const hl = wrap(ctx, d.headline, W - 200).slice(0, 2);
+  hl.forEach((ln, i) => ctx.fillText(ln, cx, H - 132 + i * 52 - (hl.length - 1) * 26));
+  ctx.restore();
   ctx.restore();
 }
 
@@ -193,35 +308,36 @@ function drawFace2(ctx, d, tIn) {
   // header
   ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
   ctx.fillStyle = ACCENT; ctx.font = "800 26px Inter, system-ui, sans-serif";
-  ctx.fillText("WHY INVESTORS ARE WATCHING", 88, 140);
+  ctx.fillText("WHY INVESTORS ARE WATCHING", 88, 130);
   ctx.fillStyle = "#fff"; ctx.font = "800 58px Inter, system-ui, sans-serif";
-  ctx.fillText(String(d.name || "").slice(0, 24), 88, 212);
+  ctx.fillText(String(d.name || "").slice(0, 24), 88, 202);
 
-  // layout pass — measure every point, then centre the block in the space left
+  // Adaptive layout — guarantees the block fits between PT_AREA_TOP/BOT.
   const pts = (d.points || []).slice(0, MAX_POINTS);
-  const blocks = pts.map((p) => fitLines(ctx, p.text, PT_MAX_W, PT_MAX_LINES, ptFont()));
-  const totalH = blocks.reduce((s, b) => s + b.lines.length * PT_LH, 0) + Math.max(0, blocks.length - 1) * PT_GAP;
-  const areaTop = 280, areaBot = H - 110;
-  let y = areaTop + Math.max(0, (areaBot - areaTop - totalH) / 2);
+  const L = layoutPoints(ctx, pts);
+  let y = L.startY;
+  const br = Math.round(L.size * 0.36);        // bullet scales with the chosen type size
 
-  blocks.forEach((b, i) => {
+  L.blocks.forEach((b, i) => {
     const local = (tIn - i * T_STAGGER) / T_PT_IN;
-    const h = b.lines.length * PT_LH;
+    const h = b.lines.length * L.lh;
     if (local > 0) {
       const e = easeOutBack(local);              // snap into place with a slight overshoot
       const dy = (1 - e) * 34;
       ctx.globalAlpha = clamp01(local * 1.6);
       // bullet
-      ctx.strokeStyle = ACCENT; ctx.lineWidth = 5; ctx.lineCap = "round"; ctx.lineJoin = "round";
-      const by = y + dy + 34;
-      ctx.beginPath(); ctx.arc(112, by, 19, 0, Math.PI * 2); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(103, by); ctx.lineTo(110, by + 8); ctx.lineTo(123, by - 9); ctx.stroke();
+      const by = y + dy + Math.round(L.lh * 0.52);
+      ctx.strokeStyle = ACCENT; ctx.lineWidth = Math.max(4, L.size * 0.095); ctx.lineCap = "round"; ctx.lineJoin = "round";
+      ctx.beginPath(); ctx.arc(112, by, br, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(112 - br * 0.46, by); ctx.lineTo(112 - br * 0.08, by + br * 0.44); ctx.lineTo(112 + br * 0.56, by - br * 0.46);
+      ctx.stroke();
       // text — large, bold, scannable
-      ctx.fillStyle = "#eef4fb"; ctx.font = ptFont();
-      b.lines.forEach((ln, j) => ctx.fillText(ln, PT_X, y + dy + 46 + j * PT_LH));
+      ctx.fillStyle = "#eef4fb"; ctx.font = ptFont(L.size);
+      b.lines.forEach((ln, j) => ctx.fillText(ln, PT_X, y + dy + Math.round(L.lh * 0.72) + j * L.lh));
       ctx.globalAlpha = 1;
     }
-    y += h + PT_GAP;
+    y += h + L.gap;
   });
   ctx.restore();
 }
@@ -324,6 +440,33 @@ const MIMES = [
 ];
 const pickMime = () => (typeof MediaRecorder === "undefined" ? "" : MIMES.find((m) => MediaRecorder.isTypeSupported(m)) || "");
 
+/* =============================== uploaders =============================== */
+const thumbSrc = (x) => (!x ? "" : x.toDataURL ? x.toDataURL() : x.src || "");
+const CHECKER = {
+  backgroundColor: "#fff",
+  backgroundImage: "linear-gradient(45deg,#e2e8f0 25%,transparent 25%),linear-gradient(-45deg,#e2e8f0 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#e2e8f0 75%),linear-gradient(-45deg,transparent 75%,#e2e8f0 75%)",
+  backgroundSize: "10px 10px",
+  backgroundPosition: "0 0,0 5px,5px -5px,-5px 0",
+};
+function Uploader({ label, hint, img, checker, onPick }) {
+  const ref = useRef(null);
+  return (
+    <div className="flex items-center gap-2.5 rounded-xl border border-slate-200 bg-white py-2 pl-2 pr-4">
+      <button onClick={() => ref.current?.click()} title={`Upload ${label.toLowerCase()}`}
+        className="grid h-12 w-12 flex-shrink-0 place-items-center overflow-hidden rounded-lg border border-slate-200"
+        style={checker ? CHECKER : { background: "#f1f5f9" }}>
+        {img ? <img src={thumbSrc(img)} alt="" className="h-full w-full object-contain" /> : <ImagePlus size={16} className="text-slate-400" />}
+      </button>
+      <div className="min-w-0">
+        <button onClick={() => ref.current?.click()} className="block text-[13px] font-bold text-slate-800 hover:underline">{label}</button>
+        <p className="text-[11.5px] text-slate-400">{hint}</p>
+      </div>
+      <input ref={ref} type="file" accept="image/*" className="hidden"
+        onChange={(e) => { onPick(e.target.files?.[0]); e.target.value = ""; }} />
+    </div>
+  );
+}
+
 /* ============================ provenance panel ============================ */
 // "Check your work": for each point, show the release it came from and highlight
 // the exact quote inside the original document. A point whose quote can't be found
@@ -405,7 +548,8 @@ export default function AudienceCard() {
   const [companies, setCompanies] = useState([]);
   const [slug, setSlug] = useState("");
   const [card, setCard] = useState(null);
-  const [assets, setAssets] = useState({ projectImg: null, logoImg: null });
+  const [assets, setAssets] = useState({ projectImg: null, logoImg: null, logoRaw: null });
+  const [stripBg, setStripBg] = useState(true);
   const [busy, setBusy] = useState("");
   const [err, setErr] = useState("");
   const [checking, setChecking] = useState(false);   // "Check your work" panel
@@ -427,12 +571,40 @@ export default function AudienceCard() {
     projectImg: assets.projectImg, logoImg: assets.logoImg,
   } : null;
 
-  // Which points will get cut on the card (drives the admin warning).
-  const overflow = useMemo(
-    () => (card?.points || []).slice(0, MAX_POINTS).map((p) => pointOverflows(p.text)),
-    [card]
-  );
+  // Exactly which points get ellipsized at the size they'll actually render at.
+  const fit = useMemo(() => checkPoints((card?.points || []).slice(0, MAX_POINTS)), [card]);
+  const overflow = fit.truncated;
   const overflowCount = overflow.filter(Boolean).length;
+
+  // Pull the company's stored photo/logo as defaults; an upload overrides them.
+  useEffect(() => {
+    let alive = true;
+    if (!company) { setAssets({ projectImg: null, logoImg: null, logoRaw: null }); return; }
+    const p = company.profile || {};
+    (async () => {
+      const [pi, li] = await Promise.all([
+        loadImg(p.companyStatus?.photo || p.projects?.[0]?.photos?.[0] || ""),
+        loadImg(p.company?.logo || p.company?.brand || p.pp?.AVATAR || ""),
+      ]);
+      if (!alive) return;
+      setAssets({ projectImg: pi, logoImg: li ? (stripBg ? removeBackground(li) : li) : null, logoRaw: li });
+    })();
+    return () => { alive = false; };
+  }, [company?.slug]);   // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Re-run (or undo) background removal when the toggle flips.
+  useEffect(() => {
+    setAssets((a) => (a.logoRaw ? { ...a, logoImg: stripBg ? removeBackground(a.logoRaw) : a.logoRaw } : a));
+  }, [stripBg]);
+
+  const onPick = async (file, which) => {
+    if (!file) return;
+    setErr("");
+    const img = await loadImg(URL.createObjectURL(file));
+    if (!img) { setErr("Couldn't read that image file."); return; }
+    if (which === "logo") setAssets((a) => ({ ...a, logoRaw: img, logoImg: stripBg ? removeBackground(img) : img }));
+    else setAssets((a) => ({ ...a, projectImg: img }));
+  };
   const runtime = card ? timings((card.points || []).slice(0, MAX_POINTS).length).total : 0;
 
   const draw = useCallback((t) => {
@@ -456,12 +628,7 @@ export default function AudienceCard() {
       });
       const j = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(j.error || `Failed (${res.status})`);
-      const [projectImg, logoImg] = await Promise.all([
-        loadImg(p.companyStatus?.photo || p.projects?.[0]?.photos?.[0] || ""),
-        loadImg(p.company?.logo || p.company?.brand || p.pp?.AVATAR || ""),
-      ]);
-      setAssets({ projectImg, logoImg });
-      setCard({ ...j.card, points: (j.card.points || []).slice(0, MAX_POINTS) });
+      setCard({ ...j.card, points: (j.card.points || []).slice(0, MAX_POINTS) });   // images are handled by the uploaders
     } catch (e) { setErr(e.message || "Generation failed"); }
     finally { setBusy(""); }
   };
@@ -536,6 +703,18 @@ export default function AudienceCard() {
           </>
         )}
       </div>
+
+      {/* card artwork */}
+      {company && (
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <Uploader label="Front image" hint="the site / project photo" img={assets.projectImg} onPick={(f) => onPick(f, "project")} />
+          <Uploader label="Company logo" hint={stripBg ? "background removed" : "as uploaded"} img={assets.logoImg} checker onPick={(f) => onPick(f, "logo")} />
+          <label className="inline-flex cursor-pointer items-center gap-2 text-[12.5px] font-semibold text-slate-600">
+            <input type="checkbox" checked={stripBg} onChange={(e) => setStripBg(e.target.checked)} className="h-4 w-4 rounded border-slate-300" />
+            Remove logo background
+          </label>
+        </div>
+      )}
 
       {!isMp4 && mime && (
         <p className="mt-3 inline-flex items-center gap-2 rounded-lg bg-amber-50 px-3 py-2 text-[12.5px] font-semibold text-amber-700">
