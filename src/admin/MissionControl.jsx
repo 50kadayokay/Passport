@@ -3,11 +3,12 @@ import {
   LayoutDashboard, Building2, Users as UsersIcon, ClipboardCheck, TrendingUp,
   BarChart3, Sparkles, Radio, Star, Bell, Briefcase, CreditCard, LifeBuoy,
   FolderOpen, Search, Activity, ScrollText, Settings,
-  LogOut, Loader2, Circle, CheckCircle2, ExternalLink, Plus, ArrowRight, RefreshCw, AlertTriangle, Inbox, Link2,
+  LogOut, Loader2, Circle, CheckCircle2, ExternalLink, Plus, ArrowRight, RefreshCw, AlertTriangle, Inbox, Link2, Film,
 } from "lucide-react";
 import { fetchCompanies, updateCompany, SUPABASE_URL } from "../lib/supabase.js";
 import { authHeaders, getUser, signOut } from "../lib/auth.js";
 import Admin from "./Admin.jsx";
+import AudienceCard from "./AudienceCard.jsx";
 
 // Sidebar organized into business areas. `ready` = wired to live data; the rest
 // show honest "not built yet" states (never fabricated numbers).
@@ -16,6 +17,7 @@ const NAV = [
     { id: "home", label: "Home", Icon: LayoutDashboard, ready: true },
     { id: "sales", label: "Sales", Icon: TrendingUp, need: "Stripe billing + CRM" },
     { id: "publish", label: "Ready for Publish", Icon: Inbox, ready: true },
+    { id: "card", label: "Audience Card", Icon: Film, ready: true },
     { id: "companies", label: "Companies", Icon: Building2, ready: true },
     { id: "users", label: "Users", Icon: UsersIcon, ready: true },
     { id: "operations", label: "Operations", Icon: ClipboardCheck, ready: true },
@@ -40,7 +42,7 @@ const NAV = [
     { id: "settings", label: "Settings", Icon: Settings, need: "a platform-config table" },
   ]},
 ];
-const READY = new Set(["home", "publish", "companies", "users", "operations"]);
+const READY = new Set(["home", "publish", "card", "companies", "users", "operations"]);
 const flat = (id) => NAV.flatMap((g) => g.items).find((i) => i.id === id) || {};
 
 const isPublished = (c) => (c.status || "").toLowerCase() === "published";
@@ -119,6 +121,7 @@ export default function MissionControl() {
             <div className="h-full overflow-y-auto px-8 py-7">
               {section === "home" && <Home companies={companies} users={users} loading={loading} go={go} />}
               {section === "publish" && <ReadyForPublish companies={companies} reload={loadData} loading={loading} />}
+              {section === "card" && <AudienceCard />}
               {section === "operations" && <Operations companies={companies} reload={loadData} go={go} />}
               {section === "users" && <UsersSection users={users} loading={loading} />}
               {section === "sales" && <SalesEmpty />}
