@@ -6562,7 +6562,7 @@ export default function Onboarding({ embedded = false }) {
   );
   return (
     <ProfileContext.Provider value={{ profile, setProfile, status, vm }}>
-    <div style={{ minHeight: embedded ? 0 : "100vh", height: _vh, display: "grid", gridTemplateColumns: "minmax(380px, 1fr) minmax(400px, 520px)", background: "#f6f8fb" }}>
+    <div style={{ minHeight: embedded ? 0 : "100vh", height: _vh, display: "grid", gridTemplateColumns: "minmax(380px, 1fr) minmax(400px, 520px)", gridTemplateRows: "minmax(0, 1fr)", background: "#f6f8fb" }}>
       <style>{OB_KEYFRAMES}</style>
       {saveBar}
       {/* exit back to where you came from (admin for the "Onboard a company" flow) */}
@@ -6588,7 +6588,7 @@ export default function Onboarding({ embedded = false }) {
         <p style={{ fontSize: 11.5, color: "#94a3b8", textAlign: "center", maxWidth: 360 }}>This is exactly how the profile will appear in the app. Switch sections with the tabs; edit fields on the right.</p>
       </div>
       {/* RIGHT — editor + gate */}
-      <div style={{ display: "flex", flexDirection: "column", background: "#fff", borderLeft: "1px solid #e9eef5" }}>
+      <div style={{ display: "flex", flexDirection: "column", minHeight: 0, background: "#fff", borderLeft: "1px solid #e9eef5" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "18px 26px", borderBottom: "1px solid #eef2f6" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <button onClick={prevSpot} disabled={ordIdx(spot) <= 0} title="Previous step" style={{ width: 34, height: 34, borderRadius: 10, border: "1px solid #e2e8f0", background: "#fff", cursor: ordIdx(spot) <= 0 ? "default" : "pointer", display: "grid", placeItems: "center", color: ordIdx(spot) <= 0 ? "#cbd5e1" : "#64748b", flexShrink: 0 }}><ArrowLeft size={17} /></button>
