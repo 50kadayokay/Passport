@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from "react";
 import {
   LayoutDashboard, PenSquare, BarChart3, QrCode, Settings as SettingsIcon,
-  LogOut, ExternalLink, Loader2, CheckCircle2, Circle, ArrowRight,
+  LogOut, ExternalLink, Loader2, CheckCircle2, Circle, ArrowRight, ArrowLeft,
 } from "lucide-react";
 import { SUPABASE_URL } from "../lib/supabase.js";
-import { authHeaders, getUser, signOut } from "../lib/auth.js";
+import { authHeaders, getUser, getMyRole, signOut } from "../lib/auth.js";
 import Onboarding from "../Onboarding.jsx";
 
 const NAV = [
@@ -26,6 +26,24 @@ async function loadMyCompany() {
   return rows[0] || null;
 }
 
+// Which company this console session is about:
+//  ?company=<slug>  → that specific company (admin editing any company)
+//  ?new=1           → a brand-new company being built (don't surface an owned one)
+//  otherwise        → the signed-in user's own company
+async function loadConsoleCompany() {
+  const params = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : new URLSearchParams();
+  const slug = params.get("company");
+  if (slug) {
+    const h = await authHeaders();
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/companies?slug=eq.${encodeURIComponent(slug)}&select=slug,name,status,profile&limit=1`, { headers: h });
+    if (!res.ok) return null;
+    const rows = await res.json().catch(() => []);
+    return rows[0] || null;
+  }
+  if (params.get("new") === "1") return null; // building new — no existing company context
+  return loadMyCompany();
+}
+
 export default function CompanyConsole() {
   // New companies (?new=1) land on Build; otherwise on their Dashboard.
   const startNew = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("new") === "1";
@@ -33,11 +51,15 @@ export default function CompanyConsole() {
   // Dashboard (shows Draft/Published status + a Resume/Edit CTA — the "drafts" view).
   const [section, setSection] = useState(startNew ? "build" : "dashboard");
   const [company, setCompany] = useState(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+  // True when this session is building a fresh company (not editing an existing one).
+  const buildingNew = startNew && !(typeof window !== "undefined" && new URLSearchParams(window.location.search).get("company"));
 
-  const refresh = () => loadMyCompany().then(setCompany);
+  const refresh = () => loadConsoleCompany().then(setCompany);
   useEffect(() => { refresh(); }, [section]);
+  useEffect(() => { getMyRole().then((r) => setIsAdmin(r === "admin")).catch(() => {}); }, []);
 
-  const name = company?.name || getUser()?.email?.split("@")[0] || "Your company";
+  const name = company?.name || (buildingNew ? "New company" : (getUser()?.email?.split("@")[0] || "Your company"));
 
   return (
     <div className="flex h-[100dvh] w-full bg-slate-50 text-slate-900">
@@ -47,6 +69,11 @@ export default function CompanyConsole() {
           <div className="grid h-8 w-8 place-items-center rounded-lg bg-slate-900 text-[14px] font-extrabold text-white">P</div>
           <span className="text-[15px] font-extrabold tracking-tight">Passport</span>
         </div>
+        {isAdmin && (
+          <a href="/admin" className="mx-3 mb-2 flex items-center gap-2 rounded-lg border border-slate-200 px-2.5 py-2 text-[13px] font-bold text-slate-600 hover:bg-slate-50 hover:text-slate-900">
+            <ArrowLeft size={15} /> Back to admin
+          </a>
+        )}
         <nav className="flex-1 px-3">
           {NAV.map(({ id, label, Icon, ready }) => {
             const on = section === id;
