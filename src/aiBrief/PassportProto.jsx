@@ -28,6 +28,32 @@ import {
 const EM = "#10b981";       // emerald — active / live states only
 const EM_TEXT = "#0f9b73";  // slightly deeper emerald for small text on white
 
+// ---- Icon registry --------------------------------------------------------
+// Project data arrives from Supabase as JSON, which cannot carry a React
+// component — so data-driven content names its icon as a string ("MapPin") and
+// resolves it here. The hardcoded Kingsmen defaults still pass components
+// directly (Icon: MapPin), so resolveIcon accepts either form.
+const ICON_REG = {
+  MapPin, Gem, ShieldCheck, Pickaxe, Layers, Mountain, Crosshair, Target,
+  Drill, Route, Zap, Droplets, Building2, Plane, Factory, Navigation,
+  Clock, Map: MapIcon, MapIcon, Wallet, TrendingUp, TrendingDown, FlaskConical,
+  Compass, Landmark, Coins, Activity, Telescope, Hammer, Globe, Users, Info,
+};
+// True when a value is worth rendering — used throughout the data-driven blocks
+// to decide whether a company actually supplied a field.
+const has = (v) => v != null && String(v).trim() !== "";
+const hasList = (v) => Array.isArray(v) && v.length > 0;
+
+// Accepts a component, a registry name, or nothing. Never returns undefined —
+// a bad icon name must not blank out the block it labels.
+function resolveIcon(icon, fallback = Info) {
+  if (typeof icon === "function" || (icon && typeof icon === "object")) return icon;
+  if (typeof icon === "string" && ICON_REG[icon]) return ICON_REG[icon];
+  return fallback;
+}
+// Normalizes an entry that may carry either `Icon` (component) or `icon` (name).
+const withIcon = (o, fallback = Info) => ({ ...o, Icon: resolveIcon(o && (o.Icon || o.icon), fallback) });
+
 // ---- Section identity system (subtle accents over white/black) ----
 // Each section reads as a distinct "environment" while emerald stays the brand.
 const THEME = {
@@ -128,6 +154,13 @@ let EXCHANGES = _PP.EXCHANGES ?? [
 ];
 
 let PROJECTS_DATA = _PP.PROJECTS_DATA ?? {"lc": {"key": "lc", "name": "Las Coloradas", "tag": "Active · 2026 Drill Program Underway", "coord": "27.05°N, 105.45°W", "stats": [{"v": "845 ha", "l": "Total Area"}, {"v": "15", "l": "Concessions"}, {"v": "38 km", "l": "from Parral"}], "intro": "Las Coloradas is an 845-hectare silver-gold exploration project located approximately 38 kilometres from Hidalgo del Parral, Chihuahua, Mexico. The property consists of fifteen mining concessions covering a historic brownfield mining district within the northeastern portion of the Central Mexican Silver Belt. It hosts multiple epithermal vein systems as well as recognized skarn and porphyry targets.", "highlights": ["845 hectares across 15 mining concessions", "Located 38 km from Parral", "Historic high-grade silver-gold district", "Multiple epithermal vein systems", "Seven-year option to earn 100% ownership"], "sections": [{"h": "Geology & Mineralization", "body": "Classic silver-gold-lead-zinc epithermal vein mineralization, similar to the nearby Santa Barbara and San Francisco de Oro districts. Two principal NW-trending vein systems — Soledad (~2.0 km strike) and Soledad II (~1.7 km strike) — sit within a corridor roughly 2.5 km long and 1 km wide. Skarn and porphyry mineralization has also been documented by the Mexican Geological Survey."}, {"h": "Historic District", "body": "Historically mined by ASARCO. Kingsmen consolidated the fragmented ownership and is the first junior to evaluate the project as a unified land package. Majors including Coeur Mining and Electrum Group have worked the region, but none previously controlled the entire district."}, {"h": "Exploration Potential", "body": "Analog districts host mineralized veins to 600–1,000 m depth, offering strong potential for additional high-grade epithermal mineralization along Soledad and Soledad II, plus the newly identified skarn and porphyry targets."}], "commodities": "Silver (Ag) · Gold (Au) · Lead (Pb) · Zinc (Zn)", "ownership": "Seven-year option to earn a 100% interest."}, "alm": {"key": "alm", "name": "Almoloya", "tag": "Past-Producing · Strategic Acquisition", "coord": "26.75°N, 105.50°W", "stats": [{"v": "866 ha", "l": "Total Area"}, {"v": "6", "l": "Concessions"}, {"v": "+1.25M t", "l": "Hist. Production"}], "intro": "Almoloya is an 866-hectare silver-gold project in the historic Sierra de Almoloya district of Chihuahua, Mexico, consolidating six mining concessions including the past-producing Cigarrero and Las Juliettas mines. Within the NE Central Mexican Silver Belt, it offers district-scale potential for both high-grade vein mineralization and carbonate replacement deposit (CRD) systems.", "highlights": ["866 hectares across 6 mining concessions", "Historic production exceeding 1.25 million tonnes", "Past-producing Cigarrero & Las Juliettas mines", "District-scale CRD potential", "Eight-year option to earn 100% ownership"], "sections": [{"h": "Historic Production", "body": "The Cigarrero Mine ranks among the highest-grade historic producers in the Parral district — over 1.25 million tonnes grading ~12 g/t gold, 25 oz/t silver, >60% lead and >25% zinc, from a structurally complex high-grade vein system. Modern systematic exploration has never been applied across the consolidated package."}, {"h": "District Consolidation", "body": "The first successful consolidation of the broader Sierra de Almoloya district in decades. Majors including Hemlo, Kennecott, Teck, Frisco and Anglo have operated in the area, but none previously controlled the entire district."}, {"h": "Exploration Potential", "body": "Strong potential for both near-surface oxide mineralization and large CRDs at depth. Modern mapping, geochemistry, geophysics and drilling can test extensions of historic mineralization and identify new discoveries district-wide."}], "commodities": "Gold (Au) · Silver (Ag) · Lead (Pb) · Zinc (Zn)", "ownership": "Eight-year option to earn a 100% interest. Total purchase price USD $8,625,000."}};
+
+// The full per-project content behind the Projects tab. Kept separate from
+// PROJECTS_DATA above, which is the lighter shape the map/peek views read.
+// null means "no company data supplied" — ProjectsView then falls back to the
+// built-in Kingsmen projects, so the demo profile is unchanged. A published
+// company supplies its own (possibly empty) object and gets its own projects.
+let PROJECTS_FULL = _PP.PROJECTS_FULL ?? null;
 
 let THESIS = _PP.THESIS ?? [
   "Controlling a high-grade, historic silver-gold district (Las Coloradas) that has never been tested with modern deep drilling.",
@@ -1809,14 +1842,39 @@ function SheetSection({ title, children, className = "mt-5" }) {
 /* ============================================================
    MAP — zoomable lat/long grid map with both projects pinned
    ============================================================ */
-const MAP_BBOX = { latMin: 26.62, latMax: 27.18, lonMin: -105.82, lonMax: -105.26 };
-const geoX = (lon) => ((lon - MAP_BBOX.lonMin) / (MAP_BBOX.lonMax - MAP_BBOX.lonMin)) * 100;
-const geoY = (lat) => ((MAP_BBOX.latMax - lat) / (MAP_BBOX.latMax - MAP_BBOX.latMin)) * 100;
-const MAP_SITES = [
+// The pinned sites, the frame around them, and the nearby-town reference are all
+// company data — a published company must never inherit Chihuahua. The values
+// below are the Kingsmen defaults; a company supplies its own via __PP__.
+let MAP_SITES = _PP.MAP_SITES ?? [
   { key: "lc", name: "Las Coloradas", lat: 27.05, lon: -105.45, tone: EM, fill: "rgba(16,185,129,0.25)" },
   { key: "alm", name: "Almoloya", lat: 26.75, lon: -105.50, tone: "#f59e0b", fill: "rgba(245,158,11,0.25)" },
 ];
-const PARRAL = { name: "Hidalgo del Parral", lat: 26.934, lon: -105.666 };
+// PARRAL is the "nearby town" reference marker. null = the company gave none.
+let PARRAL = _PP.MAP_TOWN ?? { name: "Hidalgo del Parral", lat: 26.934, lon: -105.666 };
+// Frame the map on whatever is actually pinned, so any jurisdiction works. An
+// explicit __PP__ bbox wins; otherwise it's computed from the sites + town with
+// a margin. Falls back to the Kingsmen window when there's nothing to frame.
+function computeBbox(sites, town) {
+  const pts = [...(sites || []).filter((s) => Number.isFinite(s.lat) && Number.isFinite(s.lon))];
+  if (town && Number.isFinite(town.lat)) pts.push(town);
+  if (!pts.length) return { latMin: 26.62, latMax: 27.18, lonMin: -105.82, lonMax: -105.26 };
+  const lats = pts.map((p) => p.lat), lons = pts.map((p) => p.lon);
+  // Pad by 25% of the span so pins never sit on the edge; a single pin gets a
+  // fixed ±0.28° window rather than a zero-size box.
+  const padLat = Math.max((Math.max(...lats) - Math.min(...lats)) * 0.25, 0.28);
+  const padLon = Math.max((Math.max(...lons) - Math.min(...lons)) * 0.25, 0.28);
+  return {
+    latMin: Math.min(...lats) - padLat, latMax: Math.max(...lats) + padLat,
+    lonMin: Math.min(...lons) - padLon, lonMax: Math.max(...lons) + padLon,
+  };
+}
+// Kingsmen's window is hand-tuned, so it stays the literal — computing it from
+// its own pins would widen the frame and visibly change the demo. Only a company
+// supplying its own sites gets a computed frame.
+const KINGSMEN_BBOX = { latMin: 26.62, latMax: 27.18, lonMin: -105.82, lonMax: -105.26 };
+let MAP_BBOX = _PP.MAP_BBOX ?? (_PP.MAP_SITES ? computeBbox(MAP_SITES, PARRAL) : KINGSMEN_BBOX);
+const geoX = (lon) => ((lon - MAP_BBOX.lonMin) / (MAP_BBOX.lonMax - MAP_BBOX.lonMin)) * 100;
+const geoY = (lat) => ((MAP_BBOX.latMax - lat) / (MAP_BBOX.latMax - MAP_BBOX.latMin)) * 100;
 
 function MapView({ onOpenProjects }) {
   const containerRef = useRef(null);
@@ -1880,19 +1938,29 @@ function MapView({ onOpenProjects }) {
           `<circle cx="12" cy="12" r="4.6" fill="#fff"/></svg>`,
       });
 
-      MAP_SITES.forEach((p) => {
-        const m = L.marker([p.lat, p.lon], { icon: pin(p.tone), title: p.name }).addTo(map);
+      // Only pin sites that actually carry coordinates.
+      const pinned = (MAP_SITES || []).filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lon));
+      pinned.forEach((p) => {
+        const m = L.marker([p.lat, p.lon], { icon: pin(p.tone || EM), title: p.name }).addTo(map);
         m.on("click", () => setPeek(p.key));
       });
 
-      // Parral reference dot
-      L.circleMarker([PARRAL.lat, PARRAL.lon], {
-        radius: 5, color: "#fff", weight: 2, fillColor: "#64748b", fillOpacity: 1,
-      }).addTo(map).bindTooltip(PARRAL.name, { direction: "top", offset: [0, -6] });
+      // Nearby-town reference dot — omitted when the company supplied no town.
+      const townPt = PARRAL && Number.isFinite(PARRAL.lat) && Number.isFinite(PARRAL.lon) ? PARRAL : null;
+      if (townPt) {
+        L.circleMarker([townPt.lat, townPt.lon], {
+          radius: 5, color: "#fff", weight: 2, fillColor: "#64748b", fillOpacity: 1,
+        }).addTo(map).bindTooltip(townPt.name || "", { direction: "top", offset: [0, -6] });
+      }
 
-      const bounds = L.latLngBounds(MAP_SITES.map((p) => [p.lat, p.lon]).concat([[PARRAL.lat, PARRAL.lon]])).pad(0.45);
-      boundsRef.current = bounds;
-      map.fitBounds(bounds);
+      // Nothing to frame → leave the map at its default view rather than throwing
+      // on an empty LatLngBounds.
+      const pts = pinned.map((p) => [p.lat, p.lon]).concat(townPt ? [[townPt.lat, townPt.lon]] : []);
+      if (pts.length) {
+        const bounds = L.latLngBounds(pts).pad(0.45);
+        boundsRef.current = bounds;
+        map.fitBounds(bounds);
+      }
 
       setTimeout(() => { if (!cancelled && mapRef.current) mapRef.current.invalidateSize(); }, 250);
       setStatus("ready");
@@ -1935,8 +2003,8 @@ function MapView({ onOpenProjects }) {
       {/* tabs beneath the map */}
       <div className="flex-shrink-0 px-5 pb-2 pt-2.5">
         <div className="flex gap-2">
-          {MAP_SITES.map((s) => {
-            const pr = PROJECTS_DATA[s.key];
+          {(MAP_SITES || []).map((s) => {
+            const pr = PROJECTS_DATA[s.key] || {};
             return (
               <button
                 key={s.key}
@@ -1960,7 +2028,8 @@ function MapView({ onOpenProjects }) {
 }
 
 function PeekModal({ site, onClose, onOpenProjects }) {
-  const p = PROJECTS_DATA[site];
+  // A pinned site with no matching project entry must not blank the modal out.
+  const p = PROJECTS_DATA[site] || {};
   return (
     <div className="absolute inset-0 z-40 flex flex-col justify-end">
       <div className="absolute inset-0 bg-slate-900/30 pp-fade" onClick={onClose} />
@@ -4037,7 +4106,7 @@ const AM_CARDS = {
 };
 
 function ProjectsView() {
-  const [sel, setSel] = useState("lc");
+  const [sel, setSel] = useState(null);   // null → first available project
   const [showBrief, setShowBrief] = useState(false);
   const [cardSheet, setCardSheet] = useState(null);
   const [showWhy, setShowWhy] = useState(false);
@@ -4053,9 +4122,13 @@ function ProjectsView() {
     return () => clearTimeout(t);
   }, [openCase]);
 
-  const PROJ = {
+  // Built-in Kingsmen projects — the fallback when a company supplies no project
+  // data of its own. Each entry is self-contained (snap / stageInfo / unique /
+  // content folded in) so a company's projects can be swapped in as plain JSON.
+  const KINGSMEN_PROJ = {
     lc: {
       key: "lc", name: "Las Coloradas", tone: "#0f9b73", toneText: "#0f766e", toneSoft: "rgba(16,185,129,0.08)",
+      snap: LC_SNAP, stageInfo: LC_STAGE, unique: LC_UNIQUE, content: LC_CARDS,
       gallery: LC_SITE_GALLERY,
       status: { label: "Active \u00b7 2026 Drill Program", tone: "#0f9b73" },
       locationFull: "Parral District, Chihuahua, Mexico",
@@ -4143,6 +4216,7 @@ function ProjectsView() {
     },
     alm: {
       key: "alm", name: "Almoloya", tone: "#b45309", toneText: "#b45309", toneSoft: "rgba(245,158,11,0.10)",
+      snap: AM_SNAP, stageInfo: AM_STAGE, unique: AM_UNIQUE, content: AM_CARDS,
       gallery: AM_SITE_GALLERY,
       status: { label: "Early Exploration", tone: "#b45309" },
       locationFull: "Sierra de Almoloya, Chihuahua, Mexico",
@@ -4221,11 +4295,16 @@ function ProjectsView() {
     },
   };
 
-  const p = PROJ[sel];
-  const SNAP = sel === "lc" ? LC_SNAP : AM_SNAP;
-  const STAGEINFO = sel === "lc" ? LC_STAGE : AM_STAGE;
-  const UNIQUE = sel === "lc" ? LC_UNIQUE : AM_UNIQUE;
-  const CARDS = sel === "lc" ? LC_CARDS : AM_CARDS;
+  // A company's own projects override the built-ins. Anything absent degrades to
+  // an empty structure rather than crashing or leaking Kingsmen content.
+  const PROJ = PROJECTS_FULL || KINGSMEN_PROJ;
+  const keys = Object.keys(PROJ);
+  const activeKey = PROJ[sel] ? sel : keys[0];
+  const p = PROJ[activeKey] || {};
+  const SNAP = (p.snap || []).map((s) => withIcon(s));
+  const STAGEINFO = p.stageInfo || {};
+  const UNIQUE = p.unique || {};
+  const CARDS = p.content || {};
   // Per-project value-driver scenarios (Bull / Bear / Next Validation).
   const SC = CARDS.scenarios || {};
   const SCENARIOS = [
@@ -4234,7 +4313,7 @@ function ProjectsView() {
     { key: "next", label: "Next Validation Point", short: "Validation", Icon: Crosshair, c: "#1d4ed8", bg: "rgba(37,99,235,0.07)", bd: "rgba(37,99,235,0.2)", text: SC.next && SC.next.text },
   ];
   const activeCase = SCENARIOS.find((s) => s.key === openCase);
-  useEffect(() => { setOpenCase(null); }, [sel]);
+  useEffect(() => { setOpenCase(null); }, [activeKey]);
   const GEO_ORDER = [
     { kind: "map", label: "District Context", sub: "Claims · Structures · Regional Context" },
     { kind: "history", label: "Exploration Strategy", sub: "Programs · Operators · Targets" },
@@ -4244,33 +4323,83 @@ function ProjectsView() {
   // Snapshot: 2×2 of core fundamentals. Development Stage moved out to its own roadmap widget below.
   const snapBy = (lbl) => SNAP.find((s) => s.label === lbl);
   const drillTargets = (p.markers || []).filter((m) => m.type !== "historic");
+  // Each cell only appears if the company actually supplied that fundamental —
+  // a missing one must not render an iconless husk or blow up on <s.Icon />.
+  const snapCell = (lbl, display, fallbackIcon) => {
+    const s = snapBy(lbl);
+    if (!s || !has(s.value)) return null;
+    return { ...s, Icon: resolveIcon(s.Icon || s.icon, fallbackIcon), label: display, onClick: () => setSnapSheet(s) };
+  };
   const SNAP4 = [
-    { ...snapBy("Location & Jurisdiction"), label: "Location", onClick: () => setSnapSheet(snapBy("Location & Jurisdiction")) },
-    { ...snapBy("Primary Commodity"), label: "Commodities", onClick: () => setSnapSheet(snapBy("Primary Commodity")) },
-    { ...snapBy("Land Package"), label: "Land Position", onClick: () => setSnapSheet(snapBy("Land Package")) },
-    { Icon: Crosshair, label: "Drill Targets", value: `${drillTargets.length} Identified`, value2: null, onClick: () => setShowTargets(true) },
-  ];
+    snapCell("Location & Jurisdiction", "Location", MapPin),
+    snapCell("Primary Commodity", "Commodities", Gem),
+    snapCell("Land Package", "Land Position", Layers),
+    drillTargets.length ? { Icon: Crosshair, label: "Drill Targets", value: `${drillTargets.length} Identified`, value2: null, onClick: () => setShowTargets(true) } : null,
+  ].filter(Boolean);
+  // Does this project have anything to show beyond its name?
+  const hasBody = !!(p.gallery || p.markers || p.boundary || CARDS.brief || CARDS.unique ||
+    hasList(SNAP4) || hasList(p.cards) || typeof p.stageIdx === "number" || SCENARIOS.some((s) => has(s.text)));
+
+  if (!keys.length) {
+    return (
+      <div className="px-5 pt-2">
+        <Kicker section="projects" />
+        <h2 className="-mt-0.5 text-xl font-bold tracking-tight text-slate-900">Projects</h2>
+        <div className="flex flex-col items-center justify-center px-6 py-24 text-center">
+          <span className="grid h-16 w-16 place-items-center rounded-2xl bg-slate-100"><Pickaxe size={26} className="text-slate-400" strokeWidth={1.9} /></span>
+          <p className="mt-4 text-[15px] font-bold tracking-tight text-slate-900">No projects yet</p>
+          <p className="mt-1 max-w-[240px] text-[13px] font-medium leading-snug text-slate-500">This company's project portfolio hasn't been added yet.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="px-5 pt-2">
       <div>
         <Kicker section="projects" />
         <h2 className="-mt-0.5 text-xl font-bold tracking-tight text-slate-900">Projects</h2>
-        <div className="mt-3 flex rounded-xl border border-slate-200 p-1" style={{ background: "#f8fafc" }}>
-          {Object.values(PROJ).map((pr) => (
-            <button key={pr.key} onClick={() => setSel(pr.key)}
-              className="flex-1 rounded-lg py-2 text-[12.5px] font-bold tracking-tight transition-all"
-              style={sel === pr.key ? { background: pr.tone, color: "#fff" } : { color: "#64748b" }}>
-              {pr.name}
-            </button>
-          ))}
-        </div>
+        {/* With one project there's nothing to switch between, so it gets a title
+            instead of a tab strip — otherwise its name would never appear. */}
+        {keys.length === 1 && has(p.name) && (
+          <p className="mt-1.5 text-[15px] font-bold tracking-tight" style={{ color: p.toneText || p.tone || "#0f172a" }}>{p.name}</p>
+        )}
+        {/* One tab per project. Scrolls past two so a 4-project company doesn't
+            crush the labels. */}
+        {keys.length > 1 && (
+          <div className={`mt-3 flex rounded-xl border border-slate-200 p-1 ${keys.length > 2 ? "overflow-x-auto pp-noscroll" : ""}`} style={{ background: "#f8fafc" }}>
+            {keys.map((k) => {
+              const pr = PROJ[k] || {};
+              const on = k === activeKey;
+              return (
+                <button key={k} onClick={() => setSel(k)}
+                  className={`rounded-lg py-2 text-[12.5px] font-bold tracking-tight transition-all ${keys.length > 2 ? "flex-shrink-0 px-3.5" : "flex-1"}`}
+                  style={on ? { background: pr.tone || EM, color: "#fff" } : { color: "#64748b" }}>
+                  {pr.name || "Project"}
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
-      <div key={sel} className="pp-view mt-4 space-y-5">
-        {p.gallery ? <ProjectGallery slides={p.gallery} /> : <ProjectMap project={p} />}
+      <div key={activeKey} className="pp-view mt-4 space-y-5">
+        {p.gallery ? <ProjectGallery slides={p.gallery} /> : (p.markers || p.boundary) ? <ProjectMap project={p} /> : null}
 
-        {/* Project Intelligence — 60-second AI brief, opens full sheet */}
+        {/* A project can exist with nothing but a name (e.g. added during
+            onboarding before its detail is filled in). Say so, rather than
+            rendering a title over an empty page. */}
+        {!hasBody && (
+          <div className="flex flex-col items-center justify-center px-6 py-16 text-center">
+            <span className="grid h-14 w-14 place-items-center rounded-2xl bg-slate-100"><Pickaxe size={22} className="text-slate-400" strokeWidth={1.9} /></span>
+            <p className="mt-3.5 text-[14px] font-bold tracking-tight text-slate-900">Details coming soon</p>
+            <p className="mt-1 max-w-[240px] text-[12.5px] font-medium leading-snug text-slate-500">{has(p.name) ? `${p.name} hasn't been detailed yet.` : "This project hasn't been detailed yet."}</p>
+          </div>
+        )}
+
+        {/* Project Intelligence — 60-second AI brief, opens full sheet.
+            Only offered when there's an actual brief behind it. */}
+        {CARDS.brief && (
         <div>
           <span className={`${subLabel} px-0.5`}>Project Intelligence</span>
           <button onClick={() => setShowBrief(true)}
@@ -4283,8 +4412,10 @@ function ProjectsView() {
             <ChevronRight size={17} className="flex-shrink-0 text-white/70" />
           </button>
         </div>
+        )}
 
         {/* Project Snapshot — 2×2 core fundamentals, expandable */}
+        {hasList(SNAP4) && (
         <div>
           <span className={`${subLabel} px-0.5`}>Project Snapshot</span>
           <div className="mt-2.5 grid grid-cols-2 gap-2.5">
@@ -4301,20 +4432,24 @@ function ProjectsView() {
             ))}
           </div>
         </div>
+        )}
 
         {/* Project Stage — interactive dynamic roadmap, styled as a separator between the two grids */}
-        <button onClick={() => setShowStage(true)} className="block w-full text-left transition active:scale-[0.99]">
-          <StageTrack idx={p.stageIdx} tone={p.tone} toneSoft={p.toneSoft} />
-        </button>
+        {typeof p.stageIdx === "number" && (
+          <button onClick={() => setShowStage(true)} className="block w-full text-left transition active:scale-[0.99]">
+            <StageTrack idx={p.stageIdx} tone={p.tone} toneSoft={p.toneSoft} />
+          </button>
+        )}
 
         {/* Technical Intelligence — 2×2 technical library */}
+        {hasList(p.cards) && (
         <div>
           <span className={`${subLabel} px-0.5`}>Technical Intelligence</span>
           <div className="mt-2.5 grid grid-cols-2 gap-2.5">
             {GEO_ORDER.map((o, i) => {
-              const c = p.cards.find((x) => x.kind === o.kind);
+              const c = (p.cards || []).find((x) => x.kind === o.kind);
               if (!c) return null;
-              const CIcon = c.Icon;
+              const CIcon = resolveIcon(c.Icon || c.icon);
               return (
                 <button key={i} onClick={() => setCardSheet({ ...c, label: o.label })}
                   className="relative flex flex-col items-start rounded-2xl border border-slate-100 bg-white p-3 text-left transition active:scale-[0.97]"
@@ -4328,16 +4463,21 @@ function ProjectsView() {
             })}
           </div>
         </div>
+        )}
 
         {/* Why This Project Matters — at the very bottom */}
         {/* How This Project Is Unique — AI insight, expandable */}
+        {CARDS.unique && (
         <button onClick={() => setShowUnique(true)}
           className="flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-4 transition active:scale-[0.99]">
           <Sparkles size={13} strokeWidth={2.4} style={{ color: "#4f86e8" }} />
           <span className="text-[11px] font-extrabold uppercase tracking-[0.16em]" style={{ background: "linear-gradient(90deg, #4f86e8 0%, #9168c0 52%, #d2627b 100%)", WebkitBackgroundClip: "text", backgroundClip: "text", WebkitTextFillColor: "transparent", color: "transparent" }}>What Sets This Project Apart</span>
         </button>
+        )}
 
-        {/* Value Drivers — per-project Bull / Bear / Next Validation (compact) */}
+        {/* Value Drivers — per-project Bull / Bear / Next Validation (compact).
+            Hidden entirely unless at least one case has been written. */}
+        {SCENARIOS.some((s) => has(s.text)) && (
         <div>
           <span className={`${subLabel} px-0.5`}>Value Drivers</span>
           <div className="mx-auto mt-2.5 grid max-w-[248px] grid-cols-3 gap-3">
@@ -4367,16 +4507,17 @@ function ProjectsView() {
             </div>
           </div>
         </div>
+        )}
       </div>
 
-      {showUnique && (
+      {showUnique && CARDS.unique && (
         <BottomSheet onClose={() => setShowUnique(false)}>
           <SheetHeader kicker="Final Synthesis" title="What Sets This Project Apart" accent={p.tone} icon={Sparkles} iconBg={p.toneSoft} />
           <div className="mt-4 space-y-5">
             <ExecLead>{CARDS.unique.summary}</ExecLead>
             <CardSection heading="Key differentiators">
               <div className="space-y-2.5">
-                {CARDS.unique.diffs.map((d, i) => (
+                {(CARDS.unique.diffs || []).map((d, i) => (
                   <div key={i} className="rounded-2xl border border-slate-100 bg-slate-50 p-3.5">
                     <p className="text-[13px] font-bold tracking-tight text-slate-900">{d.h}</p>
                     <p className="mt-1 text-[12px] font-medium leading-snug text-slate-600">{d.t}</p>
@@ -4439,7 +4580,7 @@ function ProjectsView() {
         );
       })()}
 
-      {showStage && (
+      {showStage && CARDS.stage && (
         <BottomSheet onClose={() => setShowStage(false)}>
           <SheetHeader kicker="Project Stage" title={`${CARDS.stage.current} Stage`} accent={p.tone} icon={Mountain} iconBg={p.toneSoft} />
           <div className="mt-4 space-y-5">
@@ -4462,7 +4603,7 @@ function ProjectsView() {
         </BottomSheet>
       )}
 
-      {showTargets && (
+      {showTargets && CARDS.targets && (
         <BottomSheet onClose={() => setShowTargets(false)}>
           <SheetHeader kicker="Exploration Focus" title={`${(CARDS.targets.priority || []).length} Priority Targets`} accent={p.tone} icon={Crosshair} iconBg={p.toneSoft} />
           <div className="mt-4 space-y-5">
@@ -4489,7 +4630,7 @@ function ProjectsView() {
         </BottomSheet>
       )}
 
-      {showBrief && (
+      {showBrief && CARDS.brief && (
         <BottomSheet onClose={() => setShowBrief(false)}>
           <SheetHeader kicker="60-Second Project Brief" title={p.name} accent="#1d4ed8" icon={Zap} iconBg="rgba(37,99,235,0.12)" />
           <div className="mt-4 space-y-6">
@@ -6069,6 +6210,14 @@ export function applyPP(pp) {
   if (pp.CAP !== undefined) CAP = pp.CAP;
   if (pp.EXCHANGES !== undefined) EXCHANGES = pp.EXCHANGES;
   if (pp.PROJECTS_DATA !== undefined) PROJECTS_DATA = pp.PROJECTS_DATA;
+  if (pp.PROJECTS_FULL !== undefined) PROJECTS_FULL = pp.PROJECTS_FULL;
+  if (pp.MAP_SITES !== undefined) {
+    MAP_SITES = pp.MAP_SITES || [];
+    // Reframe on the new pins unless an explicit bbox came with them.
+    if (pp.MAP_BBOX === undefined) MAP_BBOX = computeBbox(MAP_SITES, pp.MAP_TOWN !== undefined ? pp.MAP_TOWN : PARRAL);
+  }
+  if (pp.MAP_TOWN !== undefined) PARRAL = pp.MAP_TOWN;
+  if (pp.MAP_BBOX !== undefined) MAP_BBOX = pp.MAP_BBOX;
   if (pp.THESIS !== undefined) THESIS = pp.THESIS;
   if (pp.WHY !== undefined) WHY_ITEMS = pp.WHY;
   if (pp.STAGES !== undefined) STAGES = pp.STAGES;
