@@ -22,6 +22,7 @@ import {
 import { SUPABASE_URL } from "../lib/supabase.js";
 import { authHeaders, getAccessToken } from "../lib/auth.js";
 import { useFeatures, FEATURES } from "../lib/features.js";
+import { publishPublication, connectorIsLive } from "../lib/publish.js";
 
 // Destination presentation. `feature` mirrors the API's CHANNELS gate so the UI
 // and server agree on what a plan unlocks.
@@ -33,6 +34,19 @@ const DESTS = [
   { id: "x",          label: "X thread",          Icon: Radio,    feature: FEATURES.X_PUBLISH },
   { id: "newsletter", label: "Email newsletter",  Icon: Mail,     feature: FEATURES.NEWSLETTER_PUBLISH },
 ];
+
+// Small status pill for a destination's publish outcome.
+function pubStatusPill(state) {
+  if (!state) return null;
+  const map = {
+    publishing: { t: "Publishing…", c: "bg-blue-50 text-blue-600" },
+    published:  { t: "Published",   c: "bg-emerald-50 text-emerald-600" },
+    pending:    { t: "Queued",      c: "bg-slate-100 text-slate-500" },
+    failed:     { t: "Failed",      c: "bg-rose-50 text-rose-600" },
+  };
+  const m = map[state]; if (!m) return null;
+  return <span className={`rounded-full px-2 py-0.5 text-[10.5px] font-bold ${m.c}`}>{m.t}</span>;
+}
 
 // Render a destination's AI content, whatever shape it takes.
 function DraftBody({ dest, content }) {
@@ -75,6 +89,7 @@ export default function CommsCenter({ company }) {
   const [approved, setApproved] = useState(() => new Set());
   const [err, setErr] = useState("");
   const [savedUpdateId, setSavedUpdateId] = useState(null);
+  const [publishState, setPublishState] = useState({});   // destination -> "publishing" | "published" | "pending" | "failed"
 
   // Only destinations the plan unlocks are selectable.
   const available = useMemo(() => DESTS.filter((d) => d.always || can(d.feature)), [loading]); // eslint-disable-line
@@ -140,9 +155,19 @@ export default function CommsCenter({ company }) {
         content: d.content, status: approved.has(d.destination) ? "approved" : "draft",
       }));
       const pRes = await fetch(`${SUPABASE_URL}/rest/v1/publications`, {
-        method: "POST", headers: { ...h, "content-type": "application/json" }, body: JSON.stringify(rows),
+        method: "POST", headers: { ...h, "content-type": "application/json", Prefer: "return=representation" }, body: JSON.stringify(rows),
       });
       if (!pRes.ok) throw new Error(`Saved the update, but drafts failed (${pRes.status}).`);
+      const savedPubs = await pRes.json().catch(() => []);
+
+      // Push each APPROVED draft through its connector. Only `passport` is live;
+      // the rest report pending, so the UI shows honest per-destination status.
+      for (const pub of savedPubs) {
+        if (pub.status !== "approved") continue;
+        setPublishState((s) => ({ ...s, [pub.destination_id]: "publishing" }));
+        const r = await publishPublication(company, pub, occurredOn);
+        setPublishState((s) => ({ ...s, [pub.destination_id]: r.ok ? "published" : r.pending ? "pending" : "failed" }));
+      }
     } catch (e) { setErr(e.message || "Save failed"); }
   }
 
@@ -214,9 +239,12 @@ export default function CommsCenter({ company }) {
                       <div className="flex items-center gap-2">
                         <Icon size={16} className="text-slate-500" />
                         <span className="text-[13px] font-bold text-slate-900">{meta.label || d.destination}</span>
+                        {!connectorIsLive(d.destination) && <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10.5px] font-bold text-slate-400">connector coming soon</span>}
+                        {pubStatusPill(publishState[d.destination])}
                       </div>
                       <button onClick={() => setApproved((s) => { const n = new Set(s); n.has(d.destination) ? n.delete(d.destination) : n.add(d.destination); return n; })}
-                        className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12.5px] font-bold ${isApproved ? "bg-emerald-500 text-white" : "border border-slate-200 text-slate-600"}`}>
+                        disabled={!!savedUpdateId}
+                        className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12.5px] font-bold disabled:opacity-50 ${isApproved ? "bg-emerald-500 text-white" : "border border-slate-200 text-slate-600"}`}>
                         {isApproved ? <><CheckCircle2 size={13} /> Approved</> : <><Circle size={13} /> Approve</>}
                       </button>
                     </div>
@@ -236,9 +264,9 @@ export default function CommsCenter({ company }) {
             <div className="mt-5 flex items-center gap-3">
               <button onClick={saveDrafts} disabled={!!savedUpdateId}
                 className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 text-[14px] font-bold text-white disabled:opacity-50">
-                {savedUpdateId ? <><Check size={16} /> Saved to review queue</> : <><Send size={16} /> Save {approved.size} approved · {drafts.length - approved.size} draft</>}
+                {savedUpdateId ? <><Check size={16} /> Saved · approved published</> : <><Send size={16} /> Save & publish {approved.size} approved</>}
               </button>
-              <p className="text-[12.5px] text-slate-400">Publishing connectors come next — nothing leaves Passport yet.</p>
+              <p className="text-[12.5px] text-slate-400">Approved Passport-timeline drafts go live now. External connectors are queued until connected.</p>
             </div>
           </>
         )}
