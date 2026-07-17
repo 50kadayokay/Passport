@@ -6233,7 +6233,46 @@ export default function Onboarding({ embedded = false }) {
   }));
   const inputRef = useRef(null);
 
-  const addFiles = (fl) => setFiles((p) => [...p, ...Array.from(fl).map((f) => ({ name: f.name, size: f.size, file: f }))]);
+  // Append files, de-duped by name+size so re-adding an overlapping selection (or
+  // the same folder twice) doesn't create duplicate entries.
+  const addFiles = (fl) => {
+    const incoming = Array.from(fl || []).filter((f) => f && f.name).map((f) => ({ name: f.name, size: f.size, file: f }));
+    if (!incoming.length) return;
+    setFiles((p) => {
+      const seen = new Set(p.map((x) => x.name + "|" + x.size));
+      return [...p, ...incoming.filter((x) => !seen.has(x.name + "|" + x.size))];
+    });
+  };
+
+  // A drop can carry loose files OR whole folders. A plain <input> can't read a
+  // folder — dataTransfer.files comes back empty — so walk the directory tree via
+  // webkitGetAsEntry and collect the real files. This is why "drag a folder"
+  // silently added nothing before.
+  const filesFromDrop = async (dt) => {
+    const items = dt && dt.items ? Array.from(dt.items) : [];
+    const entries = items.map((it) => (it.webkitGetAsEntry ? it.webkitGetAsEntry() : null)).filter(Boolean);
+    if (!entries.some((e) => e && e.isDirectory)) return dt.files;   // no folders → fast path
+    const out = [];
+    const readDir = (dirReader) => new Promise((res) => {
+      const acc = [];
+      const step = () => dirReader.readEntries((batch) => {
+        if (!batch.length) return res(acc);
+        acc.push(...batch); step();   // readEntries returns in chunks; keep going
+      }, () => res(acc));
+      step();
+    });
+    const walk = async (entry) => {
+      if (!entry) return;
+      if (entry.isFile) {
+        await new Promise((res) => entry.file((f) => { out.push(f); res(); }, () => res()));
+      } else if (entry.isDirectory) {
+        const kids = await readDir(entry.createReader());
+        for (const k of kids) await walk(k);
+      }
+    };
+    for (const e of entries) await walk(e);
+    return out;
+  };
 
   // On mount: if this signed-in company already has a saved profile, hydrate it
   // and jump straight into the editor to resume/edit. Otherwise start fresh.
@@ -6480,13 +6519,13 @@ export default function Onboarding({ embedded = false }) {
         <h1 style={{ fontSize: 25, fontWeight: 800, letterSpacing: "-.02em", color: "#0f172a", margin: "8px 0 0" }}>Build your company profile</h1>
         <p style={{ fontSize: 13.5, color: "#64748b", marginTop: 10, lineHeight: 1.5 }}>Drop in your filings, presentations and news releases — or paste text. You&rsquo;ll preview and approve every field before it goes live.</p>
         <div onClick={() => inputRef.current?.click()} onDragOver={(e) => { e.preventDefault(); setDrag(true); }} onDragLeave={() => setDrag(false)}
-          onDrop={(e) => { e.preventDefault(); setDrag(false); if (e.dataTransfer.files?.length) addFiles(e.dataTransfer.files); }}
+          onDrop={async (e) => { e.preventDefault(); setDrag(false); const fs = await filesFromDrop(e.dataTransfer); if (fs && fs.length) addFiles(fs); }}
           style={{ marginTop: 22, borderRadius: 18, cursor: "pointer", padding: "40px 20px", textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
             border: `2px dashed ${drag ? "#10b981" : "#e2e8f0"}`, background: drag ? "rgba(16,185,129,0.05)" : "#fff", transition: "all .16s" }}>
           <div style={{ width: 56, height: 56, borderRadius: 16, background: drag ? "#10b981" : "#f1f5f9", display: "grid", placeItems: "center", marginBottom: 18 }}>
             <Upload size={24} color={drag ? "#fff" : "#10b981"} strokeWidth={2.2} />
           </div>
-          <p style={{ fontSize: 18, fontWeight: 700, margin: 0, color: "#0f172a", letterSpacing: "-.01em" }}>{drag ? "Release to add" : "Drag and drop all your related documents or text here"}</p>
+          <p style={{ fontSize: 18, fontWeight: 700, margin: 0, color: "#0f172a", letterSpacing: "-.01em" }}>{drag ? "Release to add" : "Drag files or a folder here, or click to browse"}</p>
           <p style={{ fontSize: 12.5, color: "#94a3b8", marginTop: 8 }}>PDFs, decks, press releases — everything at once</p>
           <input ref={inputRef} type="file" multiple style={{ display: "none" }} onChange={(e) => { if (e.target.files?.length) addFiles(e.target.files); e.target.value = ""; }} />
         </div>
@@ -6494,7 +6533,10 @@ export default function Onboarding({ embedded = false }) {
           <div style={{ marginTop: 14 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
               <span style={{ fontSize: 12, fontWeight: 700, color: "#0f172a" }}>{files.length} file{files.length === 1 ? "" : "s"} ready</span>
-              <button onClick={() => setFiles([])} style={{ fontSize: 11.5, fontWeight: 700, color: "#94a3b8", background: "none", border: "none", cursor: "pointer" }}>Clear all</button>
+              <div style={{ display: "flex", gap: 14 }}>
+                <button onClick={() => inputRef.current?.click()} style={{ fontSize: 11.5, fontWeight: 700, color: "#10b981", background: "none", border: "none", cursor: "pointer" }}>+ Add more</button>
+                <button onClick={() => setFiles([])} style={{ fontSize: 11.5, fontWeight: 700, color: "#94a3b8", background: "none", border: "none", cursor: "pointer" }}>Clear all</button>
+              </div>
             </div>
             {/* Cap the list so a big upload scrolls inside its own box rather than
                 pushing the Submit button off the page. */}
