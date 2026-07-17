@@ -269,7 +269,8 @@ export function mapProfileToPP(profile = {}) {
   const brief = profile.companyBrief || {};
   const team = Array.isArray(profile.team) ? profile.team : [];
 
-  // ---- Identity -----------------------------------------------------------
+  // ---- Identity + headline money (money mirrors Onboarding buildVM) -------
+  const cap = profile.capital || {};
   const COMPANY = {
     name: str(c.name),
     website: str(c.website),
@@ -278,8 +279,13 @@ export function mapProfileToPP(profile = {}) {
     commodity: str(c.commodity),
     jurisdiction: str(c.jurisdiction),
     status: "",
-    marketCap: "", sharePrice: "", cash: "", workingCapital: "",
-    currentRatio: null, ev: "", debt: "", shares: "", fd: "",
+    marketCap: str(cap.marketCap),
+    sharePrice: str(cap.sharePrice),
+    cash: str(cap.cash),
+    workingCapital: str(cap.cash),   // buildVM reuses cash for workingCapital
+    currentRatio: null, ev: "",
+    debt: has(cap.debt) ? str(cap.debt) : "",
+    shares: str(cap.outstanding), fd: str(cap.fd),
   };
 
   // ---- Company status card ------------------------------------------------
@@ -331,13 +337,51 @@ export function mapProfileToPP(profile = {}) {
   // the key would leave it null and the built-in Kingsmen projects would show.
   const { PROJECTS_FULL, PROJECTS_DATA, MAP_SITES } = mapProjects(profile.projects);
 
-  // ---- Heavy section still to map: capital --------------------------------
-  const CAP = { outstanding: 0, fd: 0, rows: [], insider: 0, institutional: 0, retail: 0, options: 0, warrants: 0 };
-  const EXCHANGES = [];
+  // ---- Capital (mirrors Onboarding buildVM so publish === preview) --------
+  // The app's share-structure math groups CAP.rows by matching row.sec against
+  // /common/i, /option/i, /warrant/i — so the `sec` strings below must contain
+  // those words or a row silently drops out of every group. (`cap` declared above.)
+  const capRows = [];
+  if (has(cap.outstanding)) capRows.push({ sec: "Common Shares Outstanding", det: "", qty: str(cap.outstanding) });
+  if (has(cap.options))     capRows.push({ sec: "Options",  det: "", qty: str(cap.options) });
+  if (has(cap.warrants))    capRows.push({ sec: "Warrants", det: "", qty: str(cap.warrants) });
+  const CAP = {
+    outstanding: str(cap.outstanding),
+    fd: str(cap.fd),
+    debt: has(cap.debt) ? str(cap.debt) : "$0",
+    rows: capRows,
+  };
+  // Exchange listings → tickers with a deterministic mock quote (real quote API
+  // later), matching buildVM's mockQuote so preview and publish show the same.
+  const EXCHANGES = list(c.listings).map((l) => {
+    const sym = str(l.sym).toUpperCase();
+    if (!sym) return { ex: str(l.ex), sym: "", price: "", cur: "" };
+    let h = 0; for (let i = 0; i < sym.length; i++) h = (h * 31 + sym.charCodeAt(i)) & 0xffff;
+    const ex = str(l.ex).toUpperCase();
+    const cur = /OTC|NASDAQ|NYSE|US/.test(ex) ? "US$" : /FSE|XETRA|FRA|EUR/.test(ex) ? "€" : "C$";
+    return { ex: str(l.ex), sym, price: cur + (0.05 + (h % 250) / 100).toFixed(2), cur, yahoo: "" };
+  }).filter((e) => has(e.sym) || has(e.ex));
+
   const FUNDING = { funded: false, label: "", note: "", cautionLabel: "", cautionNote: "" };
-  const CAPSTATUS = { state: "", tone: "#64748b", headline: "", summary: "", runwayStart: "", runwayEnd: "" };
+
+  // Capital status card — only "has data" when the company wrote a headline.
+  const capCur = cap.progressCurrent == null || cap.progressCurrent === "" ? null : Number(cap.progressCurrent);
+  const capTot = cap.progressTotal == null || cap.progressTotal === "" ? null : Number(cap.progressTotal);
+  const capProgressOn = !!cap.progressEnabled && capCur != null && capTot != null && capTot > 0;
+  const CAPSTATUS = has(cap.headline) ? {
+    hasData: true,
+    state: str(cap.state) || "Capital Status",
+    tone: "#64748b",
+    headline: str(cap.headline),
+    summary: str(cap.subtext),
+    showProgress: capProgressOn,
+    runwayPct: capProgressOn ? Math.max(0, Math.min(100, Math.round((capCur / capTot) * 100))) : 0,
+    runwayStart: str(cap.progressLeft),
+    runwayEnd: str(cap.progressRight),
+  } : { hasData: false, state: "", tone: "#64748b", headline: "", summary: "", runwayStart: "", runwayEnd: "" };
+
   const METRIC_DETAIL = {};
-  const OWNERSHIP = [];
+  const OWNERSHIP = has(cap.ownership) ? [["Insider Ownership", str(cap.ownership)]] : [];
   const HEALTH = [];
   const TRACK = [];
 
