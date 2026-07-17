@@ -11,6 +11,8 @@
 //
 // Reads the corpus server-side from Supabase so the caller only sends a slug.
 
+import { requireFeature, companyIdFromSlug } from "./_entitlement.js";
+
 const MODEL = process.env.AI_MODEL || "claude-sonnet-5";
 const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
 
@@ -156,11 +158,19 @@ export default async function handler(req, res) {
 
   let body = req.body;
   if (typeof body === "string") { try { body = JSON.parse(body); } catch { return bad(res, 400, "Invalid JSON body"); } }
-  const { slug = "", company = "", releases = null, part = "discover", project = "" } = body || {};
+  const { slug = "", companyId: bodyCompanyId = "", company = "", releases = null, part = "discover", project = "" } = body || {};
 
   const TOOL = PARTS[part];
   if (!TOOL) return bad(res, 400, `Unknown part '${part}'. One of: ${Object.keys(PARTS).join(", ")}.`);
   if (part !== "discover" && !project) return bad(res, 400, `part '${part}' requires a \`project\` name.`);
+
+  // Gate BEFORE spending money. Each call is ~$0.30-0.60 of Anthropic tokens, so
+  // the check has to happen before the corpus is fetched, not after.
+  const token = /^Bearer\s+(.+)$/i.exec(String(req.headers.authorization || "").trim())?.[1] || "";
+  const companyId = bodyCompanyId || (await companyIdFromSlug(slug, token));
+  if (!companyId) return bad(res, 400, "Provide `companyId`, or a `slug` you can access.");
+  const auth = await requireFeature(req, res, { companyId, feature: "company_memory" });
+  if (!auth) return;   // requireFeature has already answered 401/403
 
   // Either take the corpus inline, or fetch a published company's from Supabase.
   let name = company, docs = [];
