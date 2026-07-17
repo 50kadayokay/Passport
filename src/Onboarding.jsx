@@ -6470,7 +6470,10 @@ export default function Onboarding({ embedded = false }) {
   );
 
   if (screen === "intake") return (
-    <div style={{ minHeight: _vh, background: "radial-gradient(1000px 600px at 50% -10%,#fff,#eef2f7 60%,#e2e8f0)", display: "flex", alignItems: "center", justifyContent: "center", padding: 32 }}>
+    // Scroll from the top, not centered: with many uploaded files the card grows
+    // taller than the viewport, and a centered non-scrolling container pushed the
+    // Submit button off the bottom with no way to reach it.
+    <div style={{ minHeight: _vh, maxHeight: _vh, overflowY: "auto", background: "radial-gradient(1000px 600px at 50% -10%,#fff,#eef2f7 60%,#e2e8f0)", display: "flex", alignItems: "flex-start", justifyContent: "center", padding: 32, boxSizing: "border-box" }}>
       <style>{OB_KEYFRAMES}</style>
       <div style={{ width: "100%", maxWidth: 620, background: "#fff", borderRadius: 24, border: "1px solid #e9eef5", boxShadow: "0 30px 80px -30px rgba(15,23,42,0.3)", padding: "34px 34px 30px" }}>
         <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: ".2em", textTransform: "uppercase", color: "#10b981" }}>Passport onboarding</span>
@@ -6488,10 +6491,21 @@ export default function Onboarding({ embedded = false }) {
           <input ref={inputRef} type="file" multiple style={{ display: "none" }} onChange={(e) => { if (e.target.files?.length) addFiles(e.target.files); e.target.value = ""; }} />
         </div>
         {files.length > 0 && (
-          <div style={{ marginTop: 14, display: "flex", flexWrap: "wrap", gap: 8 }}>
-            {files.map((f, i) => (
-              <span key={i} style={{ fontSize: 12, fontWeight: 600, color: "#334155", background: "#f1f5f9", borderRadius: 8, padding: "6px 10px" }}>{f.name} · {fmt(f.size)}</span>
-            ))}
+          <div style={{ marginTop: 14 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+              <span style={{ fontSize: 12, fontWeight: 700, color: "#0f172a" }}>{files.length} file{files.length === 1 ? "" : "s"} ready</span>
+              <button onClick={() => setFiles([])} style={{ fontSize: 11.5, fontWeight: 700, color: "#94a3b8", background: "none", border: "none", cursor: "pointer" }}>Clear all</button>
+            </div>
+            {/* Cap the list so a big upload scrolls inside its own box rather than
+                pushing the Submit button off the page. */}
+            <div style={{ maxHeight: 132, overflowY: "auto", display: "flex", flexWrap: "wrap", gap: 8, padding: files.length > 8 ? "2px 2px 4px" : 0 }}>
+              {files.map((f, i) => (
+                <span key={i} style={{ fontSize: 12, fontWeight: 600, color: "#334155", background: "#f1f5f9", borderRadius: 8, padding: "6px 10px", display: "inline-flex", alignItems: "center", gap: 6 }}>
+                  {f.name} · {fmt(f.size)}
+                  <button onClick={() => setFiles((p) => p.filter((_, j) => j !== i))} style={{ background: "none", border: "none", color: "#94a3b8", cursor: "pointer", fontSize: 14, lineHeight: 1, padding: 0 }} title="Remove">×</button>
+                </span>
+              ))}
+            </div>
           </div>
         )}
         <div style={{ marginTop: 18 }}>
