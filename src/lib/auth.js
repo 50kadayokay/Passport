@@ -95,6 +95,14 @@ export async function authHeaders() {
   return { apikey: SUPABASE_ANON, Authorization: `Bearer ${token}` };
 }
 
+// The current (refreshed) user access token, for calling our own /api routes that
+// enforce entitlements server-side. Null when signed out — the caller should not
+// fall back to anon here, since these endpoints require a real user.
+export async function getAccessToken() {
+  const s = await getSession();
+  return s?.access_token || null;
+}
+
 // The current user's role from the profiles table ('company' | 'admin'), or null.
 export async function getMyRole() {
   const u = getUser();

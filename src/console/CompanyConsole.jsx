@@ -1,15 +1,17 @@
 import React, { useState, useEffect } from "react";
 import {
   LayoutDashboard, PenSquare, BarChart3, QrCode, Settings as SettingsIcon,
-  LogOut, ExternalLink, Loader2, CheckCircle2, Circle, ArrowRight, ArrowLeft,
+  LogOut, ExternalLink, Loader2, CheckCircle2, Circle, ArrowRight, ArrowLeft, Megaphone,
 } from "lucide-react";
 import { SUPABASE_URL } from "../lib/supabase.js";
 import { authHeaders, getUser, getMyRole, signOut } from "../lib/auth.js";
 import Onboarding from "../Onboarding.jsx";
+import CommsCenter from "./CommsCenter.jsx";
 
 const NAV = [
   { id: "build", label: "Build profile", Icon: PenSquare, ready: true },
   { id: "dashboard", label: "Dashboard", Icon: LayoutDashboard, ready: true },
+  { id: "comms", label: "Communications", Icon: Megaphone, ready: true },
   { id: "analytics", label: "Analytics", Icon: BarChart3, need: "the analytics events pipeline" },
   { id: "qr", label: "QR & booth kit", Icon: QrCode, need: "the QR generator" },
   { id: "settings", label: "Settings", Icon: SettingsIcon, ready: true },
@@ -20,7 +22,7 @@ async function loadMyCompany() {
   const u = getUser();
   if (!u) return null;
   const h = await authHeaders();
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/companies?owner_id=eq.${u.id}&select=slug,name,status,profile&limit=1`, { headers: h });
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/companies?owner_id=eq.${u.id}&select=id,slug,name,status,profile&limit=1`, { headers: h });
   if (!res.ok) return null;
   const rows = await res.json().catch(() => []);
   return rows[0] || null;
@@ -35,7 +37,7 @@ async function loadConsoleCompany() {
   const slug = params.get("company");
   if (slug) {
     const h = await authHeaders();
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/companies?slug=eq.${encodeURIComponent(slug)}&select=slug,name,status,profile&limit=1`, { headers: h });
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/companies?slug=eq.${encodeURIComponent(slug)}&select=id,slug,name,status,profile&limit=1`, { headers: h });
     if (!res.ok) return null;
     const rows = await res.json().catch(() => []);
     return rows[0] || null;
@@ -116,6 +118,7 @@ export default function CompanyConsole() {
         <div className="min-h-0 flex-1 overflow-hidden">
           {section === "build" && <Onboarding embedded />}
           {section === "dashboard" && <DashboardSection company={company} go={setSection} />}
+          {section === "comms" && <CommsCenter company={company} />}
           {section === "settings" && <SettingsSection />}
           {(section === "analytics" || section === "qr") && <Stub id={section} />}
         </div>
