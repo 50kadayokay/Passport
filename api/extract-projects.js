@@ -11,7 +11,7 @@
 //
 // Reads the corpus server-side from Supabase so the caller only sends a slug.
 
-import { requireFeature, companyIdFromSlug } from "./_entitlement.js";
+import { requireFeature, companyIdFromSlug, requireAdmin } from "./_entitlement.js";
 
 const MODEL = process.env.AI_MODEL || "claude-sonnet-5";
 const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
@@ -166,11 +166,27 @@ export default async function handler(req, res) {
 
   // Gate BEFORE spending money. Each call is ~$0.30-0.60 of Anthropic tokens, so
   // the check has to happen before the corpus is fetched, not after.
+  //
+  // Two authorized paths:
+  //  • Normal: a companyId (or slug) + the company_memory feature.
+  //  • Concierge: a platform admin building a profile before the company row
+  //    exists, passing the corpus inline via `releases` and NO companyId. Admins
+  //    resolve to every feature anyway, so this grants nothing extra — it just
+  //    removes the companyId requirement for the admin-driven onboarding flow.
   const token = /^Bearer\s+(.+)$/i.exec(String(req.headers.authorization || "").trim())?.[1] || "";
   const companyId = bodyCompanyId || (await companyIdFromSlug(slug, token));
-  if (!companyId) return bad(res, 400, "Provide `companyId`, or a `slug` you can access.");
-  const auth = await requireFeature(req, res, { companyId, feature: "company_memory" });
-  if (!auth) return;   // requireFeature has already answered 401/403
+  if (!companyId) {
+    // No company yet — only a signed-in admin may run inline extraction, and only
+    // when they actually supplied the corpus.
+    if (!Array.isArray(releases) || !releases.length) {
+      return bad(res, 400, "Provide `companyId`, or a `slug` you can access, or inline `releases` (admin).");
+    }
+    const admin = await requireAdmin(req, res);
+    if (!admin) return;   // 401/403 already sent
+  } else {
+    const auth = await requireFeature(req, res, { companyId, feature: "company_memory" });
+    if (!auth) return;    // 401/403 already sent
+  }
 
   // Either take the corpus inline, or fetch a published company's from Supabase.
   let name = company, docs = [];

@@ -232,6 +232,73 @@ export async function synthesizeProfile({ company = {}, timeline = [], projects 
   }
 }
 
+// ---- Projects extraction --------------------------------------------------
+// Orchestrates /api/extract-projects, which is split into parts because a full
+// project page is more output than the 60s serverless gateway allows in one call.
+// Flow: discover the project list, then for each OPERATED project pull its
+// snapshot / geology / results / narrative and merge into one object shaped for
+// profileToPP's mapProjects (which feeds the app's Projects tab).
+//
+// `releases`: [{ date, text }] — the corpus (in onboarding, the timeline fullText).
+// `token`: the admin's access token (concierge extraction runs before the company
+// row exists, so it's admin-authenticated with an inline corpus).
+
+const PROJECT_PARTS = ["snapshot", "geology", "results", "narrative"];
+
+async function extractPart(releases, part, project, token, attempts = 3) {
+  let lastErr;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      const res = await fetch("/api/extract-projects", {
+        method: "POST",
+        headers: { "content-type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ releases, part, project }),
+      });
+      if (res.ok) return await res.json();
+      const data = await res.json().catch(() => ({}));
+      lastErr = new Error(data.error || `Extract ${part} failed (${res.status})`);
+      // 529/502/503/504/429 are transient; 4xx (bad request / not admin) are not.
+      if (![429, 502, 503, 504, 529].includes(res.status)) throw lastErr;
+    } catch (e) { lastErr = e; if (i === attempts - 1) throw e; }
+    await new Promise((r) => setTimeout(r, 800 * 2 ** i + Math.floor(Math.random() * 400)));
+  }
+  throw lastErr;
+}
+
+// A discovered project is "operated" (gets a full page) unless it's a royalty/NSR
+// interest — the extractor tags those, and there's no site to describe.
+const isOperated = (p) => !/\bNSR\b|royalty/i.test(`${p.name || ""} ${p.tag || ""}`);
+
+export async function extractProjects(releases, { token, onProgress } = {}) {
+  const corpus = (Array.isArray(releases) ? releases : []).filter((r) => r && r.date && r.text);
+  if (!corpus.length) return { projects: [], corpusNotes: [], skipped: [] };
+
+  const disc = await extractPart(corpus, "discover", "", token);
+  const all = Array.isArray(disc.projects) ? disc.projects : [];
+  const operated = all.filter(isOperated);
+  const skipped = all.filter((p) => !isOperated(p)).map((p) => p.name);
+
+  // total steps = discover (done) + PARTS per operated project, for progress.
+  const totalSteps = operated.length * PROJECT_PARTS.length;
+  let step = 0;
+  const projects = [];
+  for (const base of operated) {
+    const entry = { ...base };
+    for (const part of PROJECT_PARTS) {
+      try {
+        const j = await extractPart(corpus, part, base.name, token);
+        const { meta, notFound, ...rest } = j || {};
+        Object.assign(entry, rest);
+        entry.notFound = [...(entry.notFound || []), ...(notFound || [])];
+      } catch (_) { /* one part failing shouldn't lose the whole project */ }
+      step++;
+      if (onProgress) { try { onProgress(step, totalSteps, `${base.name} · ${part}`); } catch (_) {} }
+    }
+    projects.push(entry);
+  }
+  return { projects, corpusNotes: disc.corpusNotes || [], skipped };
+}
+
 // Convenience: run the whole pipeline (fan out -> assemble -> group + suggestions).
 export async function extractCorpus(items, opts = {}) {
   const results = await structureReleases(items, opts);

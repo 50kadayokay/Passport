@@ -16,10 +16,10 @@ import {
 // publish.
 import AppCompanyProfile from "./aiBrief/screens/CompanyProfile.jsx";
 import { StatusBar as AppStatusBar } from "./aiBrief/components.jsx";
-import { authHeaders, getUser } from "./lib/auth.js";
+import { authHeaders, getUser, getAccessToken } from "./lib/auth.js";
 import { uploadCompanyMedia, flushProfileAssets } from "./lib/storage.js";
 import { mapProfileToPP } from "./lib/profileToPP.js";
-import { extractCorpus, synthesizeProfile } from "./lib/structureReleases.js";
+import { extractCorpus, synthesizeProfile, extractProjects } from "./lib/structureReleases.js";
 import { SUPABASE_URL, SUPABASE_ANON } from "./lib/supabase.js";
 
 /* --- stubbed data consts (stripped long lines); blank schema by default --- */
@@ -6378,6 +6378,36 @@ export default function Onboarding({ embedded = false }) {
           }));
         }
         if (out.failures && out.failures.length) setExtractMsg(`${out.failures.length} release(s) couldn't be read — you can add them manually.`);
+
+        // Layer 3 — extract the Projects tab from the SAME corpus. Isolated in its
+        // own try/catch so a projects failure never loses the timeline/overview.
+        // Uses the timeline's text; PDF-sourced entries have no fullText, so fall
+        // back to their structured fields so a PDF corpus still works.
+        if (out.timeline && out.timeline.length) {
+          try {
+            const releases = out.timeline
+              .filter((e) => e && /^\d{4}-\d{2}-\d{2}/.test(String(e.date)))
+              .map((e) => ({
+                date: String(e.date).slice(0, 10),
+                text: (e.fullText && e.fullText.trim())
+                  ? e.fullText
+                  : [e.headline, e.whatHappened, e.whyItMatters, e.whatHappensNext,
+                     (e.keyNumbers || []).join("; "), e.takeaway].filter(Boolean).join("\n"),
+              }))
+              .filter((r) => r.text && r.text.trim().length > 20);
+            if (releases.length) {
+              setExtractMsg("Extracting projects — this takes a few minutes…");
+              const token = await getAccessToken();
+              const pj = await extractProjects(releases, {
+                token,
+                onProgress: (done, total, label) => setExtractMsg(`Building projects: ${label} (${done}/${total})…`),
+              });
+              if (pj.projects && pj.projects.length) {
+                setProjects(pj.projects.map((p, i) => ({ ...p, id: p.key || `project-${i + 1}`, enabled: true })));
+              }
+            }
+          } catch (_) { /* projects extraction failed — builder still opens */ }
+        }
       } catch (_) { /* extraction failed — fall through to the builder */ }
     }
     setScreen("review"); setSpot("co"); setTab("overview");

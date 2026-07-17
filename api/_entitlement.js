@@ -104,6 +104,39 @@ export async function requireFeature(req, res, { companyId, feature }) {
   return { userId: user.id, email: user.email, features, token };
 }
 
+/**
+ * Verify the caller is a signed-in PLATFORM ADMIN. Used for concierge flows where
+ * the admin builds a profile before the company row exists (so there's no
+ * companyId to gate on), e.g. onboarding extraction. Returns the caller or null
+ * after sending the error. This is the highest trust level — an admin already
+ * resolves to every feature — so it's a safe stand-in for a per-company check
+ * ONLY in admin-driven concierge paths, never as a general bypass.
+ */
+export async function requireAdmin(req, res) {
+  if (!SB || !ANON) { res.status(500).json({ error: "Server not configured: Supabase env is missing." }); return null; }
+  const token = bearer(req);
+  if (!token) { res.status(401).json({ error: "Sign in required." }); return null; }
+
+  // Validate the token and read the user's role in one gate. profiles.role is
+  // RLS-protected but a user can always read their OWN profile row.
+  let user = null;
+  try {
+    const r = await fetch(`${SB}/auth/v1/user`, { headers: { apikey: ANON, Authorization: `Bearer ${token}` } });
+    if (!r.ok) { res.status(401).json({ error: "Session expired or invalid. Sign in again." }); return null; }
+    user = await r.json();
+  } catch { res.status(502).json({ error: "Could not verify the session." }); return null; }
+
+  try {
+    const r = await fetch(`${SB}/rest/v1/profiles?id=eq.${user.id}&select=role&limit=1`, {
+      headers: { apikey: ANON, Authorization: `Bearer ${token}` },
+    });
+    const rows = r.ok ? await r.json().catch(() => []) : [];
+    if (!rows[0] || rows[0].role !== "admin") { res.status(403).json({ error: "Admin only." }); return null; }
+  } catch { res.status(502).json({ error: "Could not verify permissions." }); return null; }
+
+  return { userId: user.id, email: user.email, token, isAdmin: true };
+}
+
 /** Resolve a company's uuid from its slug, as the caller. Null if not visible. */
 export async function companyIdFromSlug(slug, token) {
   if (!slug) return null;
