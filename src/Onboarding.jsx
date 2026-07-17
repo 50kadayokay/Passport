@@ -18,6 +18,7 @@ import RealAppPreview from "./RealAppPreview.jsx";
 import { StatusBar as AppStatusBar } from "./aiBrief/components.jsx";
 import { authHeaders, getUser, getAccessToken } from "./lib/auth.js";
 import { uploadCompanyMedia, flushProfileAssets } from "./lib/storage.js";
+import { ensureCompany, storeDocuments } from "./lib/memory.js";
 import { mapProfileToPP } from "./lib/profileToPP.js";
 import { extractCorpus, synthesizeProfile, extractProjects, extractCompany } from "./lib/structureReleases.js";
 import { SUPABASE_URL, SUPABASE_ANON } from "./lib/supabase.js";
@@ -6196,6 +6197,7 @@ export default function Onboarding({ embedded = false }) {
   const FIRST_SECTION = { overview: "co", projects: "pj-header", capital: "cp-fin", team: "tm-roster" };
   const [files, setFiles] = useState([]);
   const [paste, setPaste] = useState("");
+  const [coName, setCoName] = useState("");     // company name entered on intake
   const [drag, setDrag] = useState(false);
   const [extractMsg, setExtractMsg] = useState("");
   const [fields, setFields] = useState(BLANK_FIELDS);
@@ -6345,6 +6347,29 @@ export default function Onboarding({ embedded = false }) {
   // Timeline tab so the extraction is immediately visible.
   const submit = async () => {
     setScreen("loading");
+
+    // --- Company Memory: create the permanent record, file the documents ------
+    // Do this FIRST so the company row exists before extraction, the uploaded
+    // files are saved for good (never only in browser memory), and autosave has
+    // a home. A storage failure must NOT block onboarding — extraction still runs.
+    const companyName = coName.trim() || (profile.company && profile.company.name) || "";
+    if (companyName && !(profile.company && profile.company.name)) setCompany({ name: companyName });
+    try {
+      if (companyName) {
+        setExtractMsg("Creating the company record…");
+        const co = await ensureCompany(companyName);
+        setSavedSlug(co.slug);   // enables autosave + marks this the active company
+        const rawFiles = files.map((f) => f.file).filter(Boolean);
+        if (rawFiles.length) {
+          setExtractMsg("Filing your documents to permanent storage…");
+          const r = await storeDocuments(co.id, rawFiles, {
+            onProgress: (done, total, nm) => setExtractMsg(`Filing documents: ${done} of ${total}…`),
+          });
+          if (r.failed.length) setExtractMsg(`${r.failed.length} file(s) couldn't be stored — extraction will still run.`);
+        }
+      }
+    } catch (_) { /* storage failed — press on with extraction, nothing is lost from memory yet */ }
+
     setExtractMsg("Reading your documents…");
     const items = [];
     for (const f of files) {
@@ -6360,7 +6385,6 @@ export default function Onboarding({ embedded = false }) {
 
     if (items.length) {
       try {
-        const companyName = (profile.company && profile.company.name) || "";
         const out = await extractCorpus(items, {
           context: companyName ? { company: { name: companyName } } : {},
           onProgress: (done, total) => setExtractMsg(`Analyzing release ${done} of ${total}…`),
@@ -6518,6 +6542,22 @@ export default function Onboarding({ embedded = false }) {
       return false;
     }
   };
+  // Autosave: once the company record exists, persist the profile a short beat
+  // after any change. THIS is why a refresh, a crash, or a sleeping laptop can no
+  // longer lose extraction results or edits. Saved WITHOUT a status arg so it
+  // never downgrades a Completed ('ready') or published company back to draft.
+  const autosaveTimer = useRef(null);
+  const [autosavedAt, setAutosavedAt] = useState(null);
+  useEffect(() => {
+    if (!savedSlug || screen !== "review") return;
+    clearTimeout(autosaveTimer.current);
+    autosaveTimer.current = setTimeout(async () => {
+      try { await sbSaveProfile(profile, savedSlug); setAutosavedAt(Date.now()); }
+      catch (_) { /* transient — the next change retries */ }
+    }, 1500);
+    return () => clearTimeout(autosaveTimer.current);
+  }, [profile, savedSlug, screen]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // dev/test seam: lets the verification harness read and patch the live profile.
   useEffect(() => { if (typeof window !== "undefined") { window.__ppProfile = { get: () => profile, set: setProfile, status }; window.__ppStatusAI = { normalizeCompanyStatus, normalizeCompanyStatusReview, buildStatusExtractionContent, extractCompanyStatus, apply: (res) => setProfile((p) => (res && res.status ? { ...p, companyStatus: res.status, companyStatusReview: res.review, companyStatusAI: JSON.parse(JSON.stringify(res.status)) } : p)) }; window.__ppBriefAI = { normalizeCompanyBrief, normalizeCompanyBriefReview, extractCompanyBrief, apply: (res) => setProfile((p) => (res && res.brief ? { ...p, companyBrief: res.brief, companyBriefReview: res.review, companyBriefAI: JSON.parse(JSON.stringify(res.brief)) } : p)) }; } }, [profile, status]);
 
@@ -6575,7 +6615,13 @@ export default function Onboarding({ embedded = false }) {
       <div style={{ width: "100%", maxWidth: 620, background: "#fff", borderRadius: 24, border: "1px solid #e9eef5", boxShadow: "0 30px 80px -30px rgba(15,23,42,0.3)", padding: "34px 34px 30px" }}>
         <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: ".2em", textTransform: "uppercase", color: "#10b981" }}>Passport onboarding</span>
         <h1 style={{ fontSize: 25, fontWeight: 800, letterSpacing: "-.02em", color: "#0f172a", margin: "8px 0 0" }}>Build your company profile</h1>
-        <p style={{ fontSize: 13.5, color: "#64748b", marginTop: 10, lineHeight: 1.5 }}>Drop in your filings, presentations and news releases — or paste text. You&rsquo;ll preview and approve every field before it goes live.</p>
+        <p style={{ fontSize: 13.5, color: "#64748b", marginTop: 10, lineHeight: 1.5 }}>Drop in your filings, presentations and news releases — or paste text. Everything you upload is filed to this company&rsquo;s permanent record, so it&rsquo;s saved for good.</p>
+        <div style={{ marginTop: 18 }}>
+          <label style={{ display: "block", fontSize: 11, fontWeight: 800, letterSpacing: ".18em", textTransform: "uppercase", color: "#94a3b8", marginBottom: 8 }}>Company name</label>
+          <input value={coName} onChange={(e) => setCoName(e.target.value)} placeholder="e.g. Northern Star Mining"
+            style={{ width: "100%", background: "#fff", border: "1px solid #e2e8f0", borderRadius: 12, padding: "12px 14px", color: "#0f172a", fontSize: 14.5, fontWeight: 600, boxSizing: "border-box", fontFamily: "inherit", outline: "none" }} />
+          <p style={{ fontSize: 11.5, color: "#94a3b8", marginTop: 6 }}>Creates the company&rsquo;s permanent record. Documents and extracted data attach to it and are autosaved.</p>
+        </div>
         <div onClick={() => inputRef.current?.click()} onDragOver={(e) => { e.preventDefault(); setDrag(true); }} onDragLeave={() => setDrag(false)}
           onDrop={async (e) => { e.preventDefault(); setDrag(false); const fs = await filesFromDrop(e.dataTransfer); if (fs && fs.length) addFiles(fs); }}
           style={{ marginTop: 22, borderRadius: 18, cursor: "pointer", padding: "40px 20px", textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
@@ -6613,12 +6659,14 @@ export default function Onboarding({ embedded = false }) {
           <textarea value={paste} onChange={(e) => setPaste(e.target.value)} placeholder="Paste a press release, a bio, notes…"
             style={{ width: "100%", minHeight: 90, resize: "vertical", background: "#fff", border: "1px solid #e2e8f0", borderRadius: 12, padding: "12px 14px", color: "#0f172a", fontSize: 13.5, boxSizing: "border-box", fontFamily: "inherit" }} />
         </div>
-        <button onClick={submit} disabled={!files.length && !paste.trim()}
+        {(() => { const ready = coName.trim() && (files.length || paste.trim()); return (
+        <button onClick={submit} disabled={!ready}
           style={{ marginTop: 18, width: "100%", height: 50, borderRadius: 13, border: "none", fontSize: 15, fontWeight: 700,
-            cursor: files.length || paste.trim() ? "pointer" : "not-allowed", transition: "all .16s",
-            background: files.length || paste.trim() ? "#0f172a" : "#e2e8f0", color: files.length || paste.trim() ? "#fff" : "#94a3b8", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 9 }}>
-          Extract &amp; build profile <ArrowRight size={17} />
+            cursor: ready ? "pointer" : "not-allowed", transition: "all .16s",
+            background: ready ? "#0f172a" : "#e2e8f0", color: ready ? "#fff" : "#94a3b8", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 9 }}>
+          {coName.trim() ? <>Extract &amp; build profile <ArrowRight size={17} /></> : "Enter a company name to continue"}
         </button>
+        ); })()}
         <button onClick={() => { setScreen("review"); setSpot("co"); setTab("overview"); }}
           style={{ marginTop: 14, width: "100%", background: "none", border: "none", cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7, fontSize: 13, fontWeight: 700, color: "#64748b", padding: "6px 0" }}>
           Skip — view the blank profile template <ArrowRight size={15} />
@@ -6671,6 +6719,11 @@ export default function Onboarding({ embedded = false }) {
       )}
       {saveState === "error" && (
         <span style={{ fontSize: 12, fontWeight: 600, color: "#e11d48", maxWidth: 280 }}>{saveMsg}</span>
+      )}
+      {saveState !== "saving" && saveState !== "error" && autosavedAt && (
+        <span style={{ fontSize: 11.5, fontWeight: 600, color: "#94a3b8", display: "inline-flex", alignItems: "center", gap: 5 }}>
+          <CheckCircle2 size={12} color="#10b981" /> Autosaved
+        </span>
       )}
     </div>
   );
