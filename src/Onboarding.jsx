@@ -14,7 +14,7 @@ import {
 // The onboarding preview reuses the SAME renderer the live app uses, so the two
 // can never drift. Feeding it the in-progress `profile` shows exactly what will
 // publish.
-import AppCompanyProfile from "./aiBrief/screens/CompanyProfile.jsx";
+import RealAppPreview from "./RealAppPreview.jsx";
 import { StatusBar as AppStatusBar } from "./aiBrief/components.jsx";
 import { authHeaders, getUser, getAccessToken } from "./lib/auth.js";
 import { uploadCompanyMedia, flushProfileAssets } from "./lib/storage.js";
@@ -6691,9 +6691,8 @@ export default function Onboarding({ embedded = false }) {
         <div style={{ width: 392, height: 788, maxHeight: "84vh", background: "#fff", borderRadius: 44, overflow: "hidden", border: "1px solid #e9eef5", boxShadow: "0 40px 90px -30px rgba(15,23,42,0.4)", display: "flex", flexDirection: "column", flexShrink: 0 }}>
           <AppStatusBar />
           <div style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
-            <AppCompanyProfile
+            <RealAppPreview
               profile={profile}
-              showBack={false}
               tab={tab === "media" ? "updates" : tab}
               onTabChange={(t) => gotoTab(t === "updates" ? "media" : t)}
             />
