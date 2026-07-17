@@ -44,6 +44,19 @@ export const CLOUD_THEMES = [
   { name: "Sage",     from: "#3f6152", to: "#a7c4a0", blobs: ["#d9e5d6", "#c3d8bf", "#e8f0e6", "#8fae89"], ink: "#fff" },
   { name: "Ochre",    from: "#78350f", to: "#d97706", blobs: ["#fde68a", "#fcd34d", "#fef3c7", "#f59e0b"], ink: "#fff" },
   { name: "Graphite", from: "#111111", to: "#4b4b4b", blobs: ["#8a8a8a", "#a3a3a3", "#6b6b6b", "#c9c9c9"], ink: "#fff" },
+  // Drawn from the reference decks. `ink` is picked against the DARKEST point of each
+  // ramp (`from`, top-left) AND the lightest (`to`) — the title sits at the left about
+  // two-thirds down, so it crosses most of the gradient.
+  { name: "Periwinkle", from: "#31318f", to: "#b4b8ee", blobs: ["#dcdefa", "#c7cbf3", "#a3a8e0", "#8e94dd"], ink: "#fff" },
+  { name: "Teal",       from: "#0b4a59", to: "#4fc3d9", blobs: ["#a5e4ef", "#7fd6e8", "#c9f0f7", "#2596ac"], ink: "#fff" },
+  { name: "Midnight",   from: "#081824", to: "#2f5f87", blobs: ["#6f9dc4", "#4d7fa8", "#9dc2de", "#16324a"], ink: "#fff" },
+  { name: "Clay",       from: "#4f2830", to: "#b9808a", blobs: ["#e3c3c8", "#d3a7ae", "#f0dcdf", "#a05a63"], ink: "#fff" },
+  { name: "Rust",       from: "#6b2510", to: "#e8734f", blobs: ["#f6b49b", "#f19878", "#fbd5c5", "#d9583a"], ink: "#fff" },
+  { name: "Scarlet",    from: "#7d1811", to: "#f56b5f", blobs: ["#fbaaa1", "#f88d82", "#fdcdc8", "#f0463c"], ink: "#fff" },
+  { name: "Kelly",      from: "#044f22", to: "#2ed06a", blobs: ["#8ce8ad", "#5cdc8b", "#bff2d2", "#00a63e"], ink: "#fff" },
+  // Light ramps — dark ink, or the title vanishes into the blobs.
+  { name: "Taupe",      from: "#a29a8d", to: "#e2ded7", blobs: ["#f2f0eb", "#e6e2db", "#c9c3b8", "#d8d3ca"], ink: "#241f1a" },
+  { name: "Bone",       from: "#c2baa9", to: "#f4f1ea", blobs: ["#fffdf8", "#faf8f3", "#eae5da", "#d8d2c4"], ink: "#2a2622" },
 ];
 
 // The logo is the hero of the front face — it should dominate. Bounds are generous
@@ -101,6 +114,18 @@ function cover(ctx, img, x, y, w, h) {
 }
 // Draw text with a tight dark shadow so it stays legible on ANY photo WITHOUT
 // darkening the whole card. Repeat passes deepen the shadow, not the glyph weight.
+// WCAG relative luminance of a hex colour (#fff or #ffffff) — decides which way a
+// halo should go behind type.
+export function relLum(hex) {
+  let h = String(hex).replace("#", "");
+  if (h.length === 3) h = h.split("").map((c) => c + c).join("");
+  const ch = [0, 2, 4].map((i) => {
+    const v = parseInt(h.slice(i, i + 2), 16) / 255;
+    return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+  });
+  return 0.2126 * ch[0] + 0.7152 * ch[1] + 0.0722 * ch[2];
+}
+
 function shadowText(ctx, text, x, y, passes = 2) {
   ctx.save();
   ctx.shadowColor = "rgba(0,0,0,0.62)";
@@ -420,6 +445,12 @@ function drawCloudBanner(ctx, t, theme, eyebrow, title) {
   ctx.save();
   ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
   const ink = theme.ink || "#fff";
+  // The blobs drift *under* the title and their centres are near-white tints, so on a
+  // pale theme white type momentarily drops to ~1.9:1 as a cloud passes. A shadow tight
+  // to the glyphs holds it — unlike a card-wide scrim, it's invisible until it's needed.
+  // Direction follows the ink: dark type gets a light halo, light type a dark one.
+  ctx.shadowColor = relLum(ink) < 0.5 ? "rgba(255,255,255,0.6)" : "rgba(0,0,0,0.5)";
+  ctx.shadowBlur = 14;
   ctx.globalAlpha = 0.82;
   ctx.fillStyle = ink; ctx.font = "800 25px Inter, system-ui, sans-serif";
   ctx.letterSpacing = "3px";
@@ -427,7 +458,9 @@ function drawCloudBanner(ctx, t, theme, eyebrow, title) {
   ctx.letterSpacing = "0px";
   ctx.globalAlpha = 1;
   ctx.fillStyle = ink; ctx.font = "800 62px Inter, system-ui, sans-serif";
-  wrap(ctx, String(title || ""), w - 96).slice(0, 1).forEach((ln) => ctx.fillText(ln, 88, y + 190));
+  wrap(ctx, String(title || ""), w - 96).slice(0, 1).forEach((ln) => {
+    ctx.fillText(ln, 88, y + 190); ctx.fillText(ln, 88, y + 190);   // 2nd pass deepens the halo
+  });
   ctx.restore();
 }
 
@@ -874,11 +907,11 @@ export default function AudienceCard() {
               <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400">
                 Cloud colour <span className="ml-1 font-semibold normal-case tracking-normal text-slate-300">{CLOUD_THEMES[themeIdx]?.name}</span>
               </label>
-              <div className="mt-1.5 flex items-center gap-1.5">
+              <div className="mt-2 flex w-[318px] flex-wrap items-center gap-2">
                 {CLOUD_THEMES.map((th, i) => (
                   <button key={th.name} type="button" onClick={() => setThemeIdx(i)} title={th.name}
                     aria-label={th.name} aria-pressed={i === themeIdx}
-                    className={`h-6 w-6 rounded-full transition ${i === themeIdx ? "ring-2 ring-slate-900 ring-offset-2" : "hover:scale-110"}`}
+                    className={`h-6 w-6 rounded-full border border-black/10 transition ${i === themeIdx ? "ring-2 ring-slate-900 ring-offset-2" : "hover:scale-110"}`}
                     style={{ background: `linear-gradient(135deg, ${th.from}, ${th.to})` }} />
                 ))}
               </div>
