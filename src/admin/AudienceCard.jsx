@@ -29,6 +29,23 @@ const BRAND = {                           // placeholders — swap for real bran
 };
 const INK = "#0f172a", MUTED = "#94a3b8", ACCENT = "#10b981";
 
+// Cloud-banner palettes, drawn from the reference decks. Each is a base gradient
+// plus the tints the drifting blobs are painted in. Swapping the theme only changes
+// the colour — the animation is identical across all of them.
+export const CLOUD_THEMES = [
+  { name: "Azure",    from: "#1e40af", to: "#38bdf8", blobs: ["#93c5fd", "#7dd3fc", "#bae6fd", "#60a5fa"], ink: "#fff" },
+  { name: "Cobalt",   from: "#0c2a5c", to: "#2e4fd8", blobs: ["#7ea8f8", "#93c5fd", "#c7dbfe", "#5b8def"], ink: "#fff" },
+  { name: "Citrus",   from: "#a16207", to: "#fde047", blobs: ["#fef08a", "#fef9c3", "#fde68a", "#facc15"], ink: "#1a1200" },
+  { name: "Lime",     from: "#4d7c0f", to: "#d9f99d", blobs: ["#ecfccb", "#d9f99d", "#bef264", "#a3e635"], ink: "#14210a" },
+  { name: "Ember",    from: "#9a3412", to: "#fb923c", blobs: ["#fed7aa", "#fdba74", "#ffedd5", "#f97316"], ink: "#fff" },
+  { name: "Coral",    from: "#9f1239", to: "#fb7185", blobs: ["#fecdd3", "#fda4af", "#ffe4e6", "#f43f5e"], ink: "#fff" },
+  { name: "Violet",   from: "#5b21b6", to: "#c4b5fd", blobs: ["#ede9fe", "#ddd6fe", "#c4b5fd", "#a78bfa"], ink: "#fff" },
+  { name: "Forest",   from: "#14532d", to: "#4ade80", blobs: ["#bbf7d0", "#86efac", "#dcfce7", "#22c55e"], ink: "#fff" },
+  { name: "Sage",     from: "#3f6152", to: "#a7c4a0", blobs: ["#d9e5d6", "#c3d8bf", "#e8f0e6", "#8fae89"], ink: "#fff" },
+  { name: "Ochre",    from: "#78350f", to: "#d97706", blobs: ["#fde68a", "#fcd34d", "#fef3c7", "#f59e0b"], ink: "#fff" },
+  { name: "Graphite", from: "#111111", to: "#4b4b4b", blobs: ["#8a8a8a", "#a3a3a3", "#6b6b6b", "#c9c9c9"], ink: "#fff" },
+];
+
 // The logo is the hero of the front face — it should dominate. Bounds are generous
 // (78% of the card's inner width) and the name/ticker flow BELOW whatever height the
 // logo actually lands at, so any aspect ratio composes correctly.
@@ -40,13 +57,16 @@ const LOGO_MAX_W = 780, LOGO_MAX_H = 560;
 const PT_SIZES = [52, 48, 44, 40, 36];
 const PT_MAX_LINES = 2;
 const PT_X = 168, PT_MAX_W = (W - 72) - PT_X;      // text column width
-const PT_AREA_TOP = 384, PT_AREA_BOT = H - 78;     // vertical room below the banner
+// The banner bleeds to the card edges (no inset widget), which buys back vertical
+// room for the points.
+const BANNER_H = 268;
+const PT_AREA_TOP = 40 + BANNER_H + 56, PT_AREA_BOT = H - 78;
 const ptFont = (px = PT_SIZES[0]) => `700 ${px}px Inter, system-ui, -apple-system, sans-serif`;
 
 // Animation beats (seconds) — snappy in, then hold the points long enough to
 // actually read all of them before flipping to the stamp.
-const T_FACE1 = 2.2, T_FLIP = 0.36, T_STAGGER = 0.44, T_PT_IN = 0.36,
-      T_POINTS_HOLD = 3.0, T_FACE3 = 2.5;
+const T_FACE1 = 2.2, T_FLIP = 0.36, T_STAGGER = 0.52, T_PT_IN = 0.42,
+      T_POINTS_HOLD = 4.0, T_FACE3 = 2.5;
 export const timings = (n) => {
   const face1End = T_FACE1;
   const flip1End = face1End + T_FLIP;
@@ -361,42 +381,53 @@ function drawFace1(ctx, d, tIn = 99) {
 
 // Animated cloud banner — soft radial blobs drifting across a blue field, clipped to
 // the banner, so the header feels alive rather than a flat bar.
-function drawCloudBanner(ctx, x, y, w, h, t, eyebrow, title) {
+// Bleeds to the card edges (rounded to match the card's top corners, square along
+// the bottom) rather than floating as an inset widget — which also buys back
+// vertical room for the points.
+function drawCloudBanner(ctx, t, theme, eyebrow, title) {
+  const x = 40, y = 40, w = W - 80, h = BANNER_H, R = 48;
   ctx.save();
-  ctx.shadowColor = "rgba(37,99,235,0.34)"; ctx.shadowBlur = 36; ctx.shadowOffsetY = 14;
-  ctx.fillStyle = "#2563eb"; rr(ctx, x, y, w, h, 34); ctx.fill();
-  ctx.restore();
+  ctx.beginPath();
+  ctx.moveTo(x, y + h);
+  ctx.lineTo(x, y + R); ctx.arcTo(x, y, x + R, y, R);
+  ctx.lineTo(x + w - R, y); ctx.arcTo(x + w, y, x + w, y + R, R);
+  ctx.lineTo(x + w, y + h);
+  ctx.closePath(); ctx.clip();
 
-  ctx.save();
-  rr(ctx, x, y, w, h, 34); ctx.clip();
   const g = ctx.createLinearGradient(x, y, x + w, y + h);
-  g.addColorStop(0, "#1e40af"); g.addColorStop(0.55, "#2563eb"); g.addColorStop(1, "#38bdf8");
+  g.addColorStop(0, theme.from); g.addColorStop(1, theme.to);
   ctx.fillStyle = g; ctx.fillRect(x, y, w, h);
 
-  // drifting clouds — each blob loops across at its own speed
-  [[0.10, 0.30, 250, "#93c5fd", 0.055],
-   [0.45, 0.72, 300, "#7dd3fc", 0.038],
-   [0.78, 0.22, 230, "#bae6fd", 0.047],
-   [0.62, 0.46, 200, "#60a5fa", 0.030]].forEach(([bx, by, r, col, sp], i) => {
-    const px = x + (((bx + t * sp) % 1.5) - 0.25) * w;
-    const py = y + by * h + Math.sin(t * 0.7 + i * 1.3) * 12;
-    const rg = ctx.createRadialGradient(px, py, 0, px, py, r);
-    rg.addColorStop(0, col + "88"); rg.addColorStop(1, col + "00");
-    ctx.fillStyle = rg; ctx.beginPath(); ctx.arc(px, py, r, 0, Math.PI * 2); ctx.fill();
+  // Drifting clouds. Speeds are ~4x what they were — the old ones took ~18s to cross,
+  // so over the few seconds the banner is on screen nothing appeared to move.
+  [[0.05, 0.28, 300, 0.20, 1.0],
+   [0.40, 0.74, 340, 0.15, 1.4],
+   [0.72, 0.20, 270, 0.26, 0.7],
+   [0.58, 0.50, 240, 0.18, 1.9]].forEach(([bx, by, r, sp, ph], i) => {
+    const col = theme.blobs[i % theme.blobs.length];
+    const px = x + (((bx + t * sp) % 1.6) - 0.3) * w;
+    const py = y + by * h + Math.sin(t * 1.1 + ph) * 30;
+    const rad = r * (1 + Math.sin(t * 0.8 + ph) * 0.12);
+    const rg = ctx.createRadialGradient(px, py, 0, px, py, rad);
+    rg.addColorStop(0, col + "99"); rg.addColorStop(0.6, col + "44"); rg.addColorStop(1, col + "00");
+    ctx.fillStyle = rg; ctx.beginPath(); ctx.arc(px, py, rad, 0, Math.PI * 2); ctx.fill();
   });
   const sheen = ctx.createLinearGradient(x, y, x, y + h);
-  sheen.addColorStop(0, "rgba(255,255,255,0.20)"); sheen.addColorStop(0.55, "rgba(255,255,255,0)");
+  sheen.addColorStop(0, "rgba(255,255,255,0.18)"); sheen.addColorStop(0.6, "rgba(255,255,255,0)");
   ctx.fillStyle = sheen; ctx.fillRect(x, y, w, h);
   ctx.restore();
 
   ctx.save();
   ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
-  ctx.fillStyle = "rgba(255,255,255,0.85)"; ctx.font = "800 25px Inter, system-ui, sans-serif";
+  const ink = theme.ink || "#fff";
+  ctx.globalAlpha = 0.82;
+  ctx.fillStyle = ink; ctx.font = "800 25px Inter, system-ui, sans-serif";
   ctx.letterSpacing = "3px";
-  ctx.fillText(eyebrow, x + 46, y + 80);
+  ctx.fillText(eyebrow, 88, y + 112);
   ctx.letterSpacing = "0px";
-  ctx.fillStyle = "#fff"; ctx.font = "800 58px Inter, system-ui, sans-serif";
-  wrap(ctx, String(title || ""), w - 92).slice(0, 1).forEach((ln) => ctx.fillText(ln, x + 46, y + 156));
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = ink; ctx.font = "800 62px Inter, system-ui, sans-serif";
+  wrap(ctx, String(title || ""), w - 96).slice(0, 1).forEach((ln) => ctx.fillText(ln, 88, y + 190));
   ctx.restore();
 }
 
@@ -405,7 +436,7 @@ function drawFace2(ctx, d, tIn) {
   ctx.save(); rr(ctx, 40, 40, W - 80, H - 80, 48); ctx.clip();
   ctx.fillStyle = "#ffffff"; ctx.fillRect(40, 40, W - 80, H - 80);
 
-  drawCloudBanner(ctx, 80, 94, W - 160, 222, tIn, "WHY INVESTORS ARE WATCHING", d.name);
+  drawCloudBanner(ctx, tIn, d.theme || CLOUD_THEMES[0], "WHY INVESTORS ARE WATCHING", d.name);
   ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
 
   // Adaptive layout — guarantees the block fits between PT_AREA_TOP/BOT.
@@ -649,6 +680,7 @@ export default function AudienceCard() {
   const [bgTol, setBgTol] = useState(18);
   const [bgWarn, setBgWarn] = useState("");
   const [tickers, setTickers] = useState("");        // comma-separated, editable
+  const [themeIdx, setThemeIdx] = useState(0);       // cloud-banner colour
   const [busy, setBusy] = useState("");
   const [err, setErr] = useState("");
   const [checking, setChecking] = useState(false);   // "Check your work" panel
@@ -668,6 +700,7 @@ export default function AudienceCard() {
     tickers: tickers.split(",").map((s) => s.trim()).filter(Boolean),
     headline: card.headline, hook: card.hook, points: (card.points || []).slice(0, MAX_POINTS),
     projectImg: assets.projectImg, logoImg: assets.logoImg,
+    theme: CLOUD_THEMES[themeIdx] || CLOUD_THEMES[0],
   } : null;
 
   // Exactly which points get ellipsized at the size they'll actually render at.
@@ -836,6 +869,19 @@ export default function AudienceCard() {
               <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400">Ticker(s)</label>
               <input value={tickers} onChange={(e) => setTickers(e.target.value)} placeholder="TSXV:KNG, OTCQB:KNGRF"
                 className="w-[230px] bg-transparent text-[13.5px] font-semibold text-slate-800 outline-none placeholder:font-normal placeholder:text-slate-300" />
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-white px-3.5 py-2">
+              <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                Cloud colour <span className="ml-1 font-semibold normal-case tracking-normal text-slate-300">{CLOUD_THEMES[themeIdx]?.name}</span>
+              </label>
+              <div className="mt-1.5 flex items-center gap-1.5">
+                {CLOUD_THEMES.map((th, i) => (
+                  <button key={th.name} type="button" onClick={() => setThemeIdx(i)} title={th.name}
+                    aria-label={th.name} aria-pressed={i === themeIdx}
+                    className={`h-6 w-6 rounded-full transition ${i === themeIdx ? "ring-2 ring-slate-900 ring-offset-2" : "hover:scale-110"}`}
+                    style={{ background: `linear-gradient(135deg, ${th.from}, ${th.to})` }} />
+                ))}
+              </div>
             </div>
           </div>
           <div className="mt-3 flex flex-wrap items-center gap-4">
