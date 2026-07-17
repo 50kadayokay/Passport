@@ -13,21 +13,54 @@
 
 const API = "/api/structure-release";
 
+// Errors worth retrying: provider overload (529), rate limit (429), gateway/
+// timeout (502/503/504), and network failures (fetch throws, no status). A 4xx
+// like 400/401/403 is a real rejection — retrying it just wastes calls.
+const RETRYABLE = new Set([429, 502, 503, 504, 529]);
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
 // Analyze a single release. `input` is either a text string, or { text, pdf }
 // where pdf is base64 PDF bytes (no data: prefix) that Claude reads natively.
 // Returns the `analysis` object or throws.
-export async function structureRelease(input, context = {}) {
+//
+// Retries transient failures with exponential backoff + jitter. Over a large
+// corpus (100+ calls) Anthropic overload (529) is near-certain on some calls; a
+// single retry pass turns "silently dropped release" into "arrived a few seconds
+// late". `attempts` total tries (default 4 → up to ~1+2+4s of backoff).
+export async function structureRelease(input, context = {}, { attempts = 4 } = {}) {
   const payload = typeof input === "string"
     ? { text: input }
     : { text: input.text || "", pdf: input.pdf || "" };
-  const res = await fetch(API, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ mode: "extract", ...payload, context }),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || `Structuring failed (${res.status})`);
-  return data.analysis;
+  let lastErr;
+  for (let i = 0; i < attempts; i++) {
+    // `retryable` is decided from the HTTP status (or a thrown network error),
+    // never from the error text — the message is the server's wording and can't
+    // be trusted to encode retryability.
+    let retryable = false;
+    try {
+      const res = await fetch(API, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ mode: "extract", ...payload, context }),
+      });
+      if (res.ok) {
+        const data = await res.json().catch(() => ({}));
+        return data.analysis;
+      }
+      const data = await res.json().catch(() => ({}));
+      lastErr = new Error(data.error || `Structuring failed (${res.status})`);
+      retryable = RETRYABLE.has(res.status);
+    } catch (e) {
+      // fetch threw (network/DNS/abort) — no status, always transient.
+      lastErr = e;
+      retryable = true;
+    }
+    if (!retryable || i === attempts - 1) throw lastErr;
+    // backoff: 0.8s, 1.6s, 3.2s … plus up to 400ms jitter so 4 workers don't
+    // retry in lockstep and re-collide on the same overloaded moment.
+    await sleep(800 * 2 ** i + Math.floor(Math.random() * 400));
+  }
+  throw lastErr || new Error("Structuring failed");
 }
 
 // Fan out over many releases with a small concurrency cap (default 4 — respects
