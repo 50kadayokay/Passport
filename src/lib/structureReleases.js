@@ -299,6 +299,31 @@ export async function extractProjects(releases, { token, onProgress } = {}) {
   return { projects, corpusNotes: disc.corpusNotes || [], skipped };
 }
 
+// ---- Company facts extraction (identity + capital + team) -----------------
+// One call over the whole corpus. Returns { identity, capital, team, notFound }.
+// Retries transient failures; returns null on hard failure so the caller can
+// carry on without these fields rather than aborting onboarding.
+export async function extractCompany(releases, { token, attempts = 3 } = {}) {
+  const corpus = (Array.isArray(releases) ? releases : []).filter((r) => r && r.date && r.text);
+  if (!corpus.length) return null;
+  let lastErr;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      const res = await fetch("/api/extract-company", {
+        method: "POST",
+        headers: { "content-type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ releases: corpus }),
+      });
+      if (res.ok) return await res.json();
+      const data = await res.json().catch(() => ({}));
+      lastErr = new Error(data.error || `Company extraction failed (${res.status})`);
+      if (![429, 502, 503, 504, 529].includes(res.status)) return null;   // hard error → give up quietly
+    } catch (e) { lastErr = e; if (i === attempts - 1) return null; }
+    await new Promise((r) => setTimeout(r, 800 * 2 ** i + Math.floor(Math.random() * 400)));
+  }
+  return null;
+}
+
 // Convenience: run the whole pipeline (fan out -> assemble -> group + suggestions).
 export async function extractCorpus(items, opts = {}) {
   const results = await structureReleases(items, opts);

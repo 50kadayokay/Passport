@@ -19,7 +19,7 @@ import { StatusBar as AppStatusBar } from "./aiBrief/components.jsx";
 import { authHeaders, getUser, getAccessToken } from "./lib/auth.js";
 import { uploadCompanyMedia, flushProfileAssets } from "./lib/storage.js";
 import { mapProfileToPP } from "./lib/profileToPP.js";
-import { extractCorpus, synthesizeProfile, extractProjects } from "./lib/structureReleases.js";
+import { extractCorpus, synthesizeProfile, extractProjects, extractCompany } from "./lib/structureReleases.js";
 import { SUPABASE_URL, SUPABASE_ANON } from "./lib/supabase.js";
 
 /* --- stubbed data consts (stripped long lines); blank schema by default --- */
@@ -6379,32 +6379,60 @@ export default function Onboarding({ embedded = false }) {
         }
         if (out.failures && out.failures.length) setExtractMsg(`${out.failures.length} release(s) couldn't be read — you can add them manually.`);
 
-        // Layer 3 — extract the Projects tab from the SAME corpus. Isolated in its
-        // own try/catch so a projects failure never loses the timeline/overview.
-        // Uses the timeline's text; PDF-sourced entries have no fullText, so fall
-        // back to their structured fields so a PDF corpus still works.
-        if (out.timeline && out.timeline.length) {
+        // Build the corpus once (reused by company-facts + projects extraction).
+        // PDF-sourced entries have no fullText, so fall back to structured fields.
+        const corpus = (out.timeline || [])
+          .filter((e) => e && /^\d{4}-\d{2}-\d{2}/.test(String(e.date)))
+          .map((e) => ({
+            date: String(e.date).slice(0, 10),
+            text: (e.fullText && e.fullText.trim())
+              ? e.fullText
+              : [e.headline, e.whatHappened, e.whyItMatters, e.whatHappensNext,
+                 (e.keyNumbers || []).join("; "), e.takeaway].filter(Boolean).join("\n"),
+          }))
+          .filter((r) => r.text && r.text.trim().length > 20);
+        const token = await getAccessToken();
+
+        // Layer 3a — identity + capital + leadership from the whole corpus (fast,
+        // one call). Isolated so a failure never loses the timeline/overview.
+        if (corpus.length) {
           try {
-            const releases = out.timeline
-              .filter((e) => e && /^\d{4}-\d{2}-\d{2}/.test(String(e.date)))
-              .map((e) => ({
-                date: String(e.date).slice(0, 10),
-                text: (e.fullText && e.fullText.trim())
-                  ? e.fullText
-                  : [e.headline, e.whatHappened, e.whyItMatters, e.whatHappensNext,
-                     (e.keyNumbers || []).join("; "), e.takeaway].filter(Boolean).join("\n"),
-              }))
-              .filter((r) => r.text && r.text.trim().length > 20);
-            if (releases.length) {
-              setExtractMsg("Extracting projects — this takes a few minutes…");
-              const token = await getAccessToken();
-              const pj = await extractProjects(releases, {
-                token,
-                onProgress: (done, total, label) => setExtractMsg(`Building projects: ${label} (${done}/${total})…`),
-              });
-              if (pj.projects && pj.projects.length) {
-                setProjects(pj.projects.map((p, i) => ({ ...p, id: p.key || `project-${i + 1}`, enabled: true })));
+            setExtractMsg("Reading company details, capital and leadership…");
+            const co = await extractCompany(corpus, { token });
+            if (co) {
+              const id = co.identity || {};
+              // Identity → profile.company (drives preview + save) AND the editor
+              // fields, marked pending so they show as extracted-needs-review.
+              const idPatch = {};
+              ["website", "slogan", "ticker", "commodity", "jurisdiction"].forEach((k) => { if (id[k]) idPatch[k] = id[k]; });
+              if (Array.isArray(id.listings) && id.listings.length) idPatch.listings = id.listings.filter((l) => l && (l.ex || l.sym));
+              if (id.name && !(profile.company && profile.company.name)) idPatch.name = id.name;
+              if (Object.keys(idPatch).length) setCompany(idPatch);
+              const idField = { "co-name": idPatch.name, "co-website": id.website, "co-slogan": id.slogan };
+              setFields((p) => ({ ...p, overview: p.overview.map((f) => (idField[f.id] ? { ...f, state: "pending", value: idField[f.id] } : f)) }));
+
+              if (co.capital && Object.keys(co.capital).length) setCapital(co.capital);
+              if (Array.isArray(co.team) && co.team.length) {
+                setTeam(co.team.map((m, i) => ({
+                  id: "member-" + (i + 1), enabled: true,
+                  name: m.name || "", role: m.role || "", short: m.short || "", full: m.full || "",
+                })));
               }
+            }
+          } catch (_) { /* company-facts extraction failed — builder still opens */ }
+        }
+
+        // Layer 3b — extract the Projects tab from the SAME corpus. Isolated in its
+        // own try/catch so a projects failure never loses the timeline/overview.
+        if (corpus.length) {
+          try {
+            setExtractMsg("Extracting projects — this takes a few minutes…");
+            const pj = await extractProjects(corpus, {
+              token,
+              onProgress: (done, total, label) => setExtractMsg(`Building projects: ${label} (${done}/${total})…`),
+            });
+            if (pj.projects && pj.projects.length) {
+              setProjects(pj.projects.map((p, i) => ({ ...p, id: p.key || `project-${i + 1}`, enabled: true })));
             }
           } catch (_) { /* projects extraction failed — builder still opens */ }
         }
