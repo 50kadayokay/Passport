@@ -700,7 +700,8 @@ function PageBar({ tab, setTab, following, setFollowing, onBack }) {
       </button>
       {/* logo · name · Following — roomy row */}
       <div className="mt-1.5 flex items-center gap-2.5">
-        <img src={AVATAR} alt={COMPANY.name} className="h-8 w-8 flex-shrink-0 rounded-full object-cover" style={{ border: "1px solid #e2e8f0" }} />
+        {AVATAR ? <img src={AVATAR} alt={COMPANY.name} className="h-8 w-8 flex-shrink-0 rounded-full object-cover" style={{ border: "1px solid #e2e8f0" }} />
+          : <span className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-full bg-slate-100 text-[12px] font-extrabold text-slate-400" style={{ border: "1px solid #e2e8f0" }}>{(COMPANY.name || "?").trim().slice(0, 1).toUpperCase()}</span>}
         <span className="truncate text-[14px] font-extrabold tracking-tight text-slate-900">{COMPANY.name}</span>
         <BadgeCheck size={15} className="flex-shrink-0" style={{ color: "#0ea5e9" }} fill="rgba(14,165,233,0.15)" />
         <button
@@ -758,7 +759,8 @@ function ProfileHeader({ tab, setTab, following, setFollowing, onBack, onMessage
       {/* profile — circular avatar, name beside it */}
       <div className="flex items-center gap-4">
         <div className="grid h-16 w-16 flex-shrink-0 place-items-center overflow-hidden rounded-full border border-slate-200 bg-white">
-          <img src={AVATAR} alt="Kingsmen Resources" className="h-full w-full object-cover" />
+          {AVATAR ? <img src={AVATAR} alt={COMPANY.name || ""} className="h-full w-full object-cover" />
+            : <span className="text-[18px] font-extrabold text-slate-400">{(COMPANY.name || "?").trim().slice(0, 1).toUpperCase()}</span>}
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
@@ -962,7 +964,8 @@ function Overview({ tab, goto, openBrief, following, setFollowing, bookmarked, s
               className="relative overflow-hidden rounded-2xl border border-slate-200 transition active:scale-[0.97]"
               style={{ width: 96, height: 96, flexShrink: 0, boxShadow: "0 9px 20px -10px rgba(15,23,42,0.5)" }}
             >
-              <img src={STATUS_IMG} alt="Las Coloradas drill site" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+              {STATUS_IMG ? <img src={STATUS_IMG} alt={COMPANY.name || ""} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                : <div style={{ width: "100%", height: "100%", background: "#eef2f7" }} />}
               <span className="absolute top-1.5 right-1.5 grid place-items-center rounded-full" style={{ width: 24, height: 24, background: "rgba(15,23,42,0.55)", backdropFilter: "blur(4px)" }}>
                 <ArrowUpRight size={13} className="text-white" strokeWidth={2.6} />
               </span>
@@ -1029,11 +1032,12 @@ function Overview({ tab, goto, openBrief, following, setFollowing, bookmarked, s
             aria-label="Show status details"
             style={{ position: "absolute", inset: 0, padding: 0, cursor: "pointer", borderRadius: 24, overflow: "hidden", border: "1px solid #e2e8f0", backfaceVisibility: "hidden", WebkitBackfaceVisibility: "hidden", pointerEvents: flipped ? "none" : "auto", opacity: flipped ? 0 : 1, transition: "opacity .45s ease", boxShadow: "0 1px 2px rgba(15,23,42,0.03), 0 30px 60px -26px rgba(15,23,42,0.28)" }}
           >
-            <img src={STATUS_IMG} alt="Las Coloradas mine site" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: imgIn ? 1 : 0, transition: "opacity .7s ease" }} />
+            {STATUS_IMG ? <img src={STATUS_IMG} alt={COMPANY.name || ""} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: imgIn ? 1 : 0, transition: "opacity .7s ease" }} />
+              : <div style={{ position: "absolute", inset: 0, background: "linear-gradient(160deg,#e8edf3,#dfe6ee)" }} />}
             <span style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(0,0,0,0.10) 0%, rgba(0,0,0,0) 38%, rgba(0,0,0,0.30) 100%)" }} />
             {showLogo && (
               <span style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", opacity: logoIn ? 1 : 0, transition: "opacity .7s ease" }}>
-                <img src={STATUS_LOGO} alt="Kingsmen Resources" style={{ width: "85%", filter: "drop-shadow(0 3px 12px rgba(0,0,0,0.8))" }} />
+                {STATUS_LOGO && <img src={STATUS_LOGO} alt={COMPANY.name || ""} style={{ width: "85%", filter: "drop-shadow(0 3px 12px rgba(0,0,0,0.8))" }} />}
               </span>
             )}
             {!showLogo && (
@@ -1158,7 +1162,7 @@ function Overview({ tab, goto, openBrief, following, setFollowing, bookmarked, s
           </button>
           <div className="pp-pop w-full max-w-[340px]" onClick={(e) => e.stopPropagation()}>
             <div className="overflow-hidden rounded-3xl border border-white/15" style={{ boxShadow: "0 30px 60px -20px rgba(0,0,0,0.7)" }}>
-              <img src={SITE_PHOTO} alt="Las Coloradas drill site" className="block w-full" />
+              {SITE_PHOTO && <img src={SITE_PHOTO} alt={COMPANY.name || ""} className="block w-full" />}
             </div>
             <div className="mt-3 flex items-center gap-1.5 px-1 text-white">
               <Pickaxe size={13} className="text-emerald-400" />
@@ -2123,7 +2127,8 @@ function UpdateCard({ post, onOpen }) {
     >
       {/* top row: company avatar + name (left), category pill (right) */}
       <div className="flex items-center gap-2">
-        <img src={AVATAR} alt={COMPANY.name} className="h-7 w-7 flex-shrink-0 rounded-full object-cover" style={{ border: "1px solid #e2e8f0" }} />
+        {AVATAR ? <img src={AVATAR} alt={COMPANY.name} className="h-7 w-7 flex-shrink-0 rounded-full object-cover" style={{ border: "1px solid #e2e8f0" }} />
+          : <span className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-full bg-slate-100 text-[11px] font-extrabold text-slate-400" style={{ border: "1px solid #e2e8f0" }}>{(COMPANY.name || "?").trim().slice(0, 1).toUpperCase()}</span>}
         <span className="truncate text-[12.5px] font-bold tracking-tight text-slate-900">{COMPANY.name}</span>
         <BadgeCheck size={13} className="flex-shrink-0" style={{ color: "#0ea5e9" }} fill="rgba(14,165,233,0.15)" />
         <div className="ml-auto flex-shrink-0"><CategoryPill cat={post.cat} /></div>
@@ -4887,7 +4892,8 @@ function TeamView({ onOpenCompany }) {
                   className="mt-2.5 inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 py-1.5 pl-1.5 pr-2.5 transition active:scale-[0.97]"
                 >
                   <span className="grid h-6 w-6 place-items-center overflow-hidden rounded-full bg-white" style={{ border: "1px solid #e2e8f0" }}>
-                    <img src={AVATAR} alt="Kingsmen Resources" className="h-full w-full object-cover" />
+                    {AVATAR ? <img src={AVATAR} alt={COMPANY.name || ""} className="h-full w-full object-cover" />
+            : <span className="text-[18px] font-extrabold text-slate-400">{(COMPANY.name || "?").trim().slice(0, 1).toUpperCase()}</span>}
                   </span>
                   <span className="text-[11.5px] font-bold tracking-tight text-slate-900">{COMPANY.name}</span>
                   <BadgeCheck size={12} style={{ color: "#0ea5e9" }} fill="rgba(14,165,233,0.15)" />

@@ -394,8 +394,15 @@ export function mapProfileToPP(profile = {}) {
     MAP_TOWN: MAP_SITES.length ? undefined : null,
     PR_YEARS, FULL, CAP, EXCHANGES,
     FUNDING, CAPSTATUS, METRIC_DETAIL, OWNERSHIP, HEALTH, TRACK,
-    // pass image singletons through if the builder supplied them
+    // ALL image singletons must be returned, even when empty. applyPP only
+    // overwrites keys that are present, so any image key we omit keeps the
+    // hardcoded Kingsmen default — which is exactly how Kingsmen photos leaked
+    // into a bare profile's preview (the status-card photo, site photos).
     LOGO: str(c.logo || c.brand),
     AVATAR: str(c.logo || c.brand),
+    STATUS_LOGO: str(c.logo || c.brand),
+    STATUS_IMG: str(s.photo),
+    SITE_PHOTO: str(s.photo || c.sitePhoto),
+    KR_AVATAR: "",
   };
 }
