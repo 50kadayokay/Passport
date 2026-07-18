@@ -385,9 +385,20 @@ export function mapProfileToPP(profile = {}) {
   const HEALTH = [];
   const TRACK = [];
 
+  // Financing history → RAISES (the capital tab's financing section). Built from
+  // the one financing string the extractor captures; [] when none, so a bare
+  // company shows an empty financing state instead of Kingsmen's raises.
+  const RAISES = has(cap.financing)
+    ? [{ d: str(cap.financingDate), v: str(cap.financing), type: str(cap.financingType), price: str(cap.financingPrice), lead: "", purpose: str(cap.financingUse), status: "Completed" }]
+    : [];
+
+  // Media/updates feed → UPDATE_POSTS. The builder doesn't collect these during
+  // onboarding (media is added in-app once live), so [] — never Kingsmen's posts.
+  const UPDATE_POSTS = Array.isArray(profile.media) ? profile.media : [];
+
   return {
     COMPANY, STATUS, ONE_LINER, THESIS, WHY: THESIS, TEAM_MEMBERS,
-    STAGES, STAGE_NOW, STAGE_DESC,
+    STAGES, STAGE_NOW, STAGE_DESC, RAISES, UPDATE_POSTS,
     PROJECTS_FULL, PROJECTS_DATA, MAP_SITES,
     // No pinned sites → no town reference and no Chihuahua frame. Explicit null
     // beats leaving the key out, which would inherit the Kingsmen default.

@@ -241,6 +241,16 @@ let CAPSTATUS = _PP.CAPSTATUS ?? {
 // ===== Capital page: factual + educational template data =====
 const NR = "Not Reported";
 
+// Financing history — swappable so a real company shows ITS raises, not Kingsmen's.
+// A bare/onboarding profile maps this to [] and the financing section shows an
+// empty state instead of Kingsmen's bought deal.
+let RAISES = _PP.RAISES ?? [
+  { d: "February 2026", v: "C$13.0M", type: "Bought Deal", price: "C$0.90", lead: NR, purpose: "2026 Exploration Program", status: "Completed", key: true, nr: null },
+  { d: "November 2025", v: "C$4.15M", type: "Private Placement", price: "C$0.45", lead: NR, purpose: "Discovery follow-up drilling", status: "Completed" },
+  { d: "May 2025", v: "C$1.14M", type: "Private Placement", price: "C$0.20", lead: NR, purpose: "Permitting & drill preparation", status: "Completed" },
+  { d: "November 2024", v: "C$1.0M", type: "Non-Brokered Placement", price: "C$0.15", lead: NR, purpose: "General working capital", status: "Completed" },
+];
+
 // Drill-down figures for the four Financial Snapshot cards (facts only).
 let METRIC_DETAIL = _PP.METRIC_DETAIL ?? {
   "Cash": [
@@ -2259,9 +2269,22 @@ function UpdatesView() {
   const swipe = useRef({ x: 0, y: 0 });
 
   const TABS = ["All", "Updates", "Media"];
-  const listAll = UPDATE_POSTS;
-  const listUpdates = UPDATE_POSTS.filter((p) => ["Drilling", "Lab", "Field", "Corporate", "Conference"].includes(p.cat));
-  const mediaPosts = UPDATE_POSTS.filter((p) => updateImg(p) != null);
+  const posts = Array.isArray(UPDATE_POSTS) ? UPDATE_POSTS : [];
+  const listAll = posts;
+  const listUpdates = posts.filter((p) => ["Drilling", "Lab", "Field", "Corporate", "Conference"].includes(p.cat));
+  const mediaPosts = posts.filter((p) => updateImg(p) != null);
+
+  // A company with no posts yet (every onboarded company) shows an empty state,
+  // never Kingsmen's feed. Media is added in-app once the account is live.
+  if (!posts.length) {
+    return (
+      <div className="flex flex-col items-center justify-center px-6 py-24 text-center">
+        <span className="grid h-16 w-16 place-items-center rounded-2xl bg-slate-100"><Camera size={26} className="text-slate-400" strokeWidth={1.9} /></span>
+        <p className="mt-4 text-[15px] font-bold tracking-tight text-slate-900">No media yet</p>
+        <p className="mt-1 max-w-[240px] text-[13px] font-medium leading-snug text-slate-500">Photos and field updates appear here once the company posts them.</p>
+      </div>
+    );
+  }
 
   const onDown = (e) => { const p = e.touches ? e.touches[0] : e; swipe.current = { x: p.clientX, y: p.clientY }; };
   const onUp = (e) => {
@@ -2639,12 +2662,9 @@ function CapitalView() {
   const runwayW = useTween(runwayTarget, 1100);
   useEffect(() => { const t = setTimeout(() => setRunwayTarget(CAPSTATUS.runwayPct), 200); return () => clearTimeout(t); }, []);
 
-  const raises = [
-    { d: "February 2026", v: "C$13.0M", type: "Bought Deal", price: "C$0.90", lead: NR, purpose: "2026 Exploration Program", status: "Completed", key: true, nr: null },
-    { d: "November 2025", v: "C$4.15M", type: "Private Placement", price: "C$0.45", lead: NR, purpose: "Discovery follow-up drilling", status: "Completed" },
-    { d: "May 2025", v: "C$1.14M", type: "Private Placement", price: "C$0.20", lead: NR, purpose: "Permitting & drill preparation", status: "Completed" },
-    { d: "November 2024", v: "C$1.0M", type: "Non-Brokered Placement", price: "C$0.15", lead: NR, purpose: "General working capital", status: "Completed" },
-  ];
+  const raises = Array.isArray(RAISES) ? RAISES : [];
+  const hasRaise = raises.length > 0;
+  const r0 = raises[0] || {};   // safe: an empty file has no financing, so never index a missing raise
   const debtNum = capNum(COMPANY.debt);
   const equityNum = capNum(COMPANY.equity) || capNum(COMPANY.workingCapital);
   const dte = debtNum === 0 ? "0%" : `${Math.round((debtNum / equityNum) * 100)}%`;
@@ -2656,7 +2676,7 @@ function CapitalView() {
   const CASH_VALUE = COMPANY.cash;            // <-- change this one line
   const CASH_ASOF  = "As of Mar 31, 2026";    // <-- and this stamp
   const snapshot = [
-    { k: "Latest Financing", v: raises[0].v, sub: `${raises[0].type} · Feb 2026` },
+    { k: "Latest Financing", v: hasRaise ? r0.v : "—", sub: hasRaise ? `${r0.type} · ${r0.d}` : "None disclosed" },
     { k: "Cash", v: CASH_VALUE, sub: CASH_ASOF },
     { k: "Basic Shares", v: capShort(capNum(CAP.outstanding)) },
     { k: "Fully Diluted", v: capShort(capNum(CAP.fd)) },
@@ -2698,7 +2718,7 @@ function CapitalView() {
   // ===== Pre-written AI summary of the capital structure =====
   const AI_SUMMARY = [
     { h: "Capital Position", b: `${COMPANY.name} carries no debt and a tight ${capShort(basic)} basic share count, reaching ${capShort(fd)} fully diluted — a ${dilutionPct} potential dilution that is modest for an explorer at this stage.` },
-    { h: "Funding", b: `The ${raises[0].v} ${raises[0].type.toLowerCase()} in ${raises[0].d} is the most recent raise. A bought deal means an underwriter took the financing risk onto its own book before reselling the offering.` },
+    { h: "Funding", b: `The ${r0.v} ${(r0.type||"").toLowerCase()} in ${r0.d} is the most recent raise. A bought deal means an underwriter took the financing risk onto its own book before reselling the offering.` },
     { h: "Ownership", b: `Insider ownership of ≈24% keeps management aligned with shareholders. Institutional ownership is not currently reported.` },
     { h: "Key Considerations", b: `Options and warrants would bring in roughly ${money(totalProceeds)} of cash if exercised, but also account for all of the dilution between basic and fully diluted. Most warrants sit above the current share price.` },
   ];
@@ -2707,10 +2727,10 @@ function CapitalView() {
 
   // ===== Company Context — specific to this company, not finance in general =====
   const CTX = {
-    cash: `${COMPANY.name}'s reported cash balance of ${COMPANY.cash} appears sufficient alongside its recently completed ${raises[0].v} ${raises[0].type.toLowerCase()}. Investors typically compare this figure against the company's planned exploration program to estimate funding runway.`,
+    cash: `${COMPANY.name}'s reported cash balance of ${COMPANY.cash} appears sufficient alongside its recently completed ${r0.v} ${(r0.type||"").toLowerCase()}. Investors typically compare this figure against the company's planned exploration program to estimate funding runway.`,
     basicShares: `At ${capShort(basic)} basic shares, ${COMPANY.name} carries an unusually tight share count for a TSX-V explorer at this stage. Each share therefore represents a larger claim on any future discovery than it would at a company with a heavily issued float.`,
     fullyDiluted: `If every outstanding option and warrant were exercised today, ${COMPANY.name}'s share count would rise from ${capShort(basic)} to ${capShort(fd)} — diluting existing ownership by ${dilutionPct}.${proceedsStr ? ` The company would also receive approximately ${proceedsStr} in new capital.` : ""}`,
-    latestFinancing: `${COMPANY.name} completed a ${raises[0].v} ${raises[0].type.toLowerCase()} in ${raises[0].d} at ${raises[0].price} per share, earmarked for the ${raises[0].purpose.toLowerCase()}. In a bought deal the underwriter purchased the offering onto its own book before reselling it, meaning the financing was fully committed at pricing.`,
+    latestFinancing: `${COMPANY.name} completed a ${r0.v} ${(r0.type||"").toLowerCase()} in ${r0.d} at ${r0.price} per share, earmarked for the ${(r0.purpose||"").toLowerCase()}. In a bought deal the underwriter purchased the offering onto its own book before reselling it, meaning the financing was fully committed at pricing.`,
     balanceSheet: `${COMPANY.name} currently reports no long-term debt alongside a cash balance of ${COMPANY.cash} and working capital of ${COMPANY.workingCapital}. Based on the latest financing and reported exploration plans, the company appears funded through its announced 2026 program.`,
     status: `${CAPSTATUS.summary} This reading reflects ${COMPANY.name}'s own reported cash and its most recent financing — it is a factual comparison, not a rating or forecast.`,
     structure: `${COMPANY.name}'s structure is tight for an explorer at this stage: ${capShort(basic)} basic shares, with options and warrants accounting for the full ${dilutionPct} gap to ${capShort(fd)} fully diluted.${proceedsStr ? ` Exercising them all would bring roughly ${proceedsStr} into treasury.` : ""}`,
@@ -2985,20 +3005,23 @@ function CapitalView() {
     {sheet === "financing" && (
       <BottomSheet onClose={() => setSheet(null)}>
         <SheetHeader kicker="Financing" title="Latest Financing" accent={EM_TEXT} />
+        {!hasRaise ? (
+          <p className="mt-4 text-[13.5px] font-medium leading-relaxed text-slate-500">No financings have been disclosed for this company yet.</p>
+        ) : (<>
         <div className="mt-4 flex items-baseline justify-between">
-          <span className="text-[22px] font-extrabold tabular-nums tracking-tight" style={{ color: EM_TEXT }}>{raises[0].v}</span>
-          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">{raises[0].d}</span>
+          <span className="text-[22px] font-extrabold tabular-nums tracking-tight" style={{ color: EM_TEXT }}>{r0.v}</span>
+          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">{r0.d}</span>
         </div>
-        <p className="text-[12.5px] font-medium text-slate-500">{raises[0].type}</p>
+        <p className="text-[12.5px] font-medium text-slate-500">{r0.type}</p>
         <div className="mt-3">
           {[
-            ["Status", raises[0].status || "Completed"],
-            ["Type", raises[0].type],
-            ["Amount Raised", raises[0].v],
-            ["Date", raises[0].d],
-            ["Price per Share", raises[0].price || NR],
-            ["Lead Broker", raises[0].lead || NR],
-            ["Use of Proceeds", raises[0].purpose || NR],
+            ["Status", r0.status || "Completed"],
+            ["Type", r0.type],
+            ["Amount Raised", r0.v],
+            ["Date", r0.d],
+            ["Price per Share", r0.price || NR],
+            ["Lead Broker", r0.lead || NR],
+            ["Use of Proceeds", r0.purpose || NR],
           ].map((d, i) => (
             <div key={i} className="flex items-start justify-between gap-3 border-t border-slate-100 py-2.5">
               <span className="text-[10.5px] font-semibold uppercase tracking-wider text-slate-400">{d[0]}</span>
@@ -3007,14 +3030,15 @@ function CapitalView() {
           ))}
         </div>
         <CompanyContext>{CTX.latestFinancing}</CompanyContext>
-        {raises[0].nr && (
-          <a href={raises[0].nr} target="_blank" rel="noopener noreferrer" className="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 transition active:scale-[0.98]">
+        {r0.nr && (
+          <a href={r0.nr} target="_blank" rel="noopener noreferrer" className="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 transition active:scale-[0.98]">
             <span className="text-[12.5px] font-semibold tracking-tight text-slate-700">Read the original news release</span>
             <ArrowUpRight size={16} className="flex-shrink-0 text-slate-400" strokeWidth={2.3} />
           </a>
         )}
         <CapitalFooter />
         <p className="mt-3 border-t border-slate-100 pt-3 text-[11.5px] font-medium leading-relaxed text-slate-500">A bought deal means an underwriter purchased the entire offering up front and took on the resale risk — generally read as a sign of confidence in the story.</p>
+        </>)}
       </BottomSheet>
     )}
 
@@ -3044,7 +3068,7 @@ function CapitalView() {
         </div>
         <div className="mt-4">
           {[
-            ["Based On Financing", `${raises[0].v} ${raises[0].type.toLowerCase()} · ${raises[0].d}`],
+            ["Based On Financing", `${r0.v} ${(r0.type||"").toLowerCase()} · ${r0.d}`],
             ["Latest Reported Cash", COMPANY.cash],
             ["Reporting Date", "Mar 31, 2026"],
             ["Last Updated", updated],
@@ -3105,7 +3129,9 @@ const LC_GALLERY = [
 // ===== Updates feed data =====
 // Chronological, newest first. Thumbnails reuse the on-site gallery photos.
 // `video: true` renders a play overlay. Any field except cat/ts/title is optional.
-const UPDATE_POSTS = [
+// The Media/Updates feed — swappable so a company shows ITS posts, not Kingsmen's.
+// A bare/onboarding profile maps this to [] and the Media tab shows an empty state.
+let UPDATE_POSTS = _PP.UPDATE_POSTS ?? [
   { cat: "Drilling", ts: "2 hours ago", title: "Hole 14 completed at Las Coloradas.",
     desc: "Final depth reached on the Soledad structure. Rig moving to the next collar.",
     imgIdx: 11,
@@ -4743,6 +4769,18 @@ function TeamView({ onOpenCompany }) {
   const [profile, setProfile] = useState(false);
   const [pfTab, setPfTab] = useState("updates"); // CEO profile: updates · media · reposts
   const [dm, setDm] = useState(false);           // direct-message thread with the leader
+
+  // A company with no team yet (every fresh onboarding — team is entered by hand)
+  // shows an empty state, never Kingsmen's leadership.
+  if (!Array.isArray(TEAM_MEMBERS) || !TEAM_MEMBERS.length) {
+    return (
+      <div className="flex flex-col items-center justify-center px-6 py-24 text-center">
+        <span className="grid h-16 w-16 place-items-center rounded-2xl bg-slate-100"><Users size={26} className="text-slate-400" strokeWidth={1.9} /></span>
+        <p className="mt-4 text-[15px] font-bold tracking-tight text-slate-900">No team yet</p>
+        <p className="mt-1 max-w-[240px] text-[13px] font-medium leading-snug text-slate-500">Leadership and directors appear here once they're added.</p>
+      </div>
+    );
+  }
   const lead = TEAM_MEMBERS[0];
   const rest = TEAM_MEMBERS.slice(1);
   const active = open != null ? TEAM_MEMBERS[open] : null;
@@ -6217,6 +6255,8 @@ export function applyPP(pp) {
   if (pp.EXCHANGES !== undefined) EXCHANGES = pp.EXCHANGES;
   if (pp.PROJECTS_DATA !== undefined) PROJECTS_DATA = pp.PROJECTS_DATA;
   if (pp.PROJECTS_FULL !== undefined) PROJECTS_FULL = pp.PROJECTS_FULL;
+  if (pp.RAISES !== undefined) RAISES = pp.RAISES;
+  if (pp.UPDATE_POSTS !== undefined) UPDATE_POSTS = pp.UPDATE_POSTS;
   if (pp.MAP_SITES !== undefined) {
     MAP_SITES = pp.MAP_SITES || [];
     // Reframe on the new pins unless an explicit bbox came with them.
