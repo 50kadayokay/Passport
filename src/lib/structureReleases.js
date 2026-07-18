@@ -455,8 +455,13 @@ export async function reanalyzeFromMemory(companyId, { token, onProgress, deps }
     .filter((d) => d.extracted_text && d.extracted_text.trim())
     .map((d) => ({ date: d.doc_date || dateFromName(d.filename), text: d.extracted_text, name: d.filename }));
 
-  // 3) Timeline — only the DATED docs (press releases), via BATCHED structuring.
-  const prItems = corpus.filter((d) => d.date).map((d, i) => ({ id: "m" + i, name: d.name, text: d.text }));
+  // 3) Timeline via BATCHED structuring. Structure EVERY document and let the AI
+  // read each one's date from its content (the dateline) — do NOT pre-filter by
+  // filename, or a press release whose filename lacks a date gets skipped.
+  // assembleTimeline then keeps only entries the AI dated (real press releases);
+  // undated reference docs (decks, website pages) fall out of the timeline and
+  // contribute to the profile instead.
+  const prItems = corpus.map((d, i) => ({ id: "m" + i, name: d.name, text: d.text }));
   let out = { timeline: [], timelineEntries: [] };
   if (prItems.length) {
     if (onProgress) onProgress("Rebuilding the timeline…");
