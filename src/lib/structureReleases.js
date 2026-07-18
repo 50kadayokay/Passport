@@ -63,11 +63,80 @@ export async function structureRelease(input, context = {}, { attempts = 4 } = {
   throw lastErr || new Error("Structuring failed");
 }
 
+// Batched structuring — the cost-efficient path. Groups releases and sends each
+// group to /api/structure-batch in ONE call, cutting ~1 call/doc to ~1 call per
+// `batchSize` docs. Only works on TEXT (the batch endpoint reads text, not PDFs),
+// so callers pass extracted text. Returns the SAME [{item, analysis}] shape as
+// structureReleases so assembleTimeline is unchanged.
+async function callBatch(batch, token, context, attempts = 3) {
+  let lastErr;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      const res = await fetch("/api/structure-batch", {
+        method: "POST",
+        headers: { "content-type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ releases: batch.map((b) => ({ id: b.id, text: b.text })), context }),
+      });
+      if (res.ok) return (await res.json()).entries || [];
+      const data = await res.json().catch(() => ({}));
+      lastErr = new Error(data.error || `Batch failed (${res.status})`);
+      if (![429, 502, 503, 504, 529].includes(res.status)) throw lastErr;
+    } catch (e) { lastErr = e; if (i === attempts - 1) throw e; }
+    await sleep(800 * 2 ** i + Math.floor(Math.random() * 400));
+  }
+  throw lastErr;
+}
+
+// Adapt a slim batch entry into the {card, classification, proposedChanges} shape
+// assembleTimeline reads.
+function entryToAnalysis(e) {
+  return {
+    card: {
+      headline: e.headline, sourceDate: e.sourceDate, category: e.category,
+      whatHappened: e.whatHappened, whyItMatters: e.whyItMatters, whatHappensNext: e.whatHappensNext,
+      keyNumbers: Array.isArray(e.keyNumbers) ? e.keyNumbers : [], stageFrom: e.stageFrom, stageTo: e.stageTo,
+      investorTakeaway: e.investorTakeaway, projectsMentioned: Array.isArray(e.projectsMentioned) ? e.projectsMentioned : [], sourceUrl: "",
+    },
+    classification: { suggestedImpact: e.impact, suggestedKey: !!e.key, confidence: "medium" },
+    proposedChanges: [],
+  };
+}
+
+export async function structureReleasesBatched(items, { token, context = {}, batchSize = 8, concurrency = 3, onProgress } = {}) {
+  const list = (Array.isArray(items) ? items : []).filter((it) => it && String(it.text || "").trim());
+  if (!list.length) return [];
+  // split into batches
+  const batches = [];
+  for (let i = 0; i < list.length; i += batchSize) batches.push(list.slice(i, i + batchSize));
+  const results = [];
+  let doneDocs = 0, cursor = 0;
+  const byId = new Map(list.map((it) => [String(it.id), it]));
+  async function worker() {
+    while (cursor < batches.length) {
+      const b = batches[cursor++];
+      try {
+        const entries = await callBatch(b, token, context);
+        // match each entry back to its item by id; fall back to positional.
+        entries.forEach((e, idx) => {
+          const item = byId.get(String(e.id)) || b[idx];
+          if (item) results.push({ item, analysis: entryToAnalysis(e) });
+        });
+      } catch (_) {
+        b.forEach((item) => results.push({ item, error: "batch failed" }));
+      }
+      doneDocs += b.length;
+      if (onProgress) { try { onProgress(doneDocs, list.length); } catch (_) {} }
+    }
+  }
+  await Promise.all(Array.from({ length: Math.max(1, Math.min(concurrency, batches.length)) }, worker));
+  return results;
+}
+
 // Fan out over many releases with a small concurrency cap (default 4 — respects
 // the API without a batch endpoint). `items`: [{ id, name, text }].
 // `onProgress(done, total, item)` fires after each completes.
 // Returns [{ item, analysis }] on success or [{ item, error }] per failed item —
-// one bad release never sinks the batch.
+// one bad release never sinks the batch. (Legacy per-doc path; batched is cheaper.)
 export async function structureReleases(items, { context = {}, concurrency = 4, onProgress } = {}) {
   const list = Array.isArray(items) ? items.filter((it) => it && (String(it.text || "").trim() || it.pdf)) : [];
   const results = new Array(list.length);
@@ -270,7 +339,7 @@ async function extractPart(releases, part, project, token, attempts = 3) {
 const isOperated = (p) => !/\bNSR\b|royalty/i.test(`${p.name || ""} ${p.tag || ""}`);
 
 export async function extractProjects(releases, { token, onProgress } = {}) {
-  const corpus = (Array.isArray(releases) ? releases : []).filter((r) => r && r.date && r.text);
+  const corpus = (Array.isArray(releases) ? releases : []).filter((r) => r && r.text && String(r.text).trim());
   if (!corpus.length) return { projects: [], corpusNotes: [], skipped: [] };
 
   const disc = await extractPart(corpus, "discover", "", token);
@@ -304,7 +373,7 @@ export async function extractProjects(releases, { token, onProgress } = {}) {
 // Retries transient failures; returns null on hard failure so the caller can
 // carry on without these fields rather than aborting onboarding.
 export async function extractCompany(releases, { token, attempts = 3 } = {}) {
-  const corpus = (Array.isArray(releases) ? releases : []).filter((r) => r && r.date && r.text);
+  const corpus = (Array.isArray(releases) ? releases : []).filter((r) => r && r.text && String(r.text).trim());
   if (!corpus.length) return null;
   let lastErr;
   for (let i = 0; i < attempts; i++) {
@@ -360,7 +429,11 @@ export async function reanalyzeFromMemory(companyId, { token, onProgress, deps }
   const docs = await documentsForExtraction(companyId);
   if (!docs.length) return null;
 
-  // 1) Ensure every document has text. Transcribe PDFs that don't (once), save it.
+  // 1) Ensure every document has text. For PDFs that don't, extract it — FREE via
+  // client-side pdf.js first, falling back to the AI transcription endpoint only
+  // for the rare scanned/image PDF with no text layer.
+  const { pdfToText } = await import("./pdfText.js");
+  const b64ToBuffer = (b64) => { const bin = atob(b64); const u = new Uint8Array(bin.length); for (let k = 0; k < bin.length; k++) u[k] = bin.charCodeAt(k); return u.buffer; };
   let ti = 0;
   for (const d of docs) {
     ti++;
@@ -369,7 +442,9 @@ export async function reanalyzeFromMemory(companyId, { token, onProgress, deps }
     if (isPdfDoc(d) && d.storage_path) {
       const b64 = await downloadDocumentBase64(d.storage_path);
       if (b64) {
-        const txt = await extractDocText(b64, token);
+        let txt = "";
+        try { txt = await pdfToText(b64ToBuffer(b64)); } catch (_) { /* fall through to AI */ }
+        if (!txt || txt.trim().length < 30) txt = await extractDocText(b64, token);   // scanned PDF → AI
         if (txt) { d.extracted_text = txt; if (saveDocumentText) await saveDocumentText(d.id, txt); }
       }
     }
@@ -380,12 +455,12 @@ export async function reanalyzeFromMemory(companyId, { token, onProgress, deps }
     .filter((d) => d.extracted_text && d.extracted_text.trim())
     .map((d) => ({ date: d.doc_date || dateFromName(d.filename), text: d.extracted_text, name: d.filename }));
 
-  // 3) Timeline — only the DATED docs (press releases), via structure-release.
+  // 3) Timeline — only the DATED docs (press releases), via BATCHED structuring.
   const prItems = corpus.filter((d) => d.date).map((d, i) => ({ id: "m" + i, name: d.name, text: d.text }));
   let out = { timeline: [], timelineEntries: [] };
   if (prItems.length) {
     if (onProgress) onProgress("Rebuilding the timeline…");
-    const results = await structureReleases(prItems, { onProgress: (dn, tot) => onProgress && onProgress(`Analyzing release ${dn} of ${tot}…`) });
+    const results = await structureReleasesBatched(prItems, { token, onProgress: (dn, tot) => onProgress && onProgress(`Analyzing release ${dn} of ${tot}…`) });
     const timeline = assembleTimeline(results);
     out = { timeline, timelineEntries: toTimelineEntries(timeline), results };
   }
@@ -400,9 +475,16 @@ export async function reanalyzeFromMemory(companyId, { token, onProgress, deps }
   return { ...out, company, projects, docCount: docs.length, textCount: corpus.length };
 }
 
-// Convenience: run the whole pipeline (fan out -> assemble -> group + suggestions).
+// Convenience: run the whole pipeline (structure -> assemble -> group + suggestions).
+// Uses the BATCHED structuring path when a token is supplied and items are text
+// (the cheap path — ~1 call per 8 docs); falls back to the per-doc path otherwise
+// (e.g. legacy PDF-as-base64 items without client-extracted text).
 export async function extractCorpus(items, opts = {}) {
-  const results = await structureReleases(items, opts);
+  const list = Array.isArray(items) ? items : [];
+  const allText = list.length > 0 && list.every((it) => it && String(it.text || "").trim());
+  const results = (opts.token && allText)
+    ? await structureReleasesBatched(items, opts)
+    : await structureReleases(items, opts);
   const timeline = assembleTimeline(results);
   return {
     results,

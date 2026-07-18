@@ -19,6 +19,7 @@ import { StatusBar as AppStatusBar } from "./aiBrief/components.jsx";
 import { authHeaders, getUser, getAccessToken } from "./lib/auth.js";
 import { uploadCompanyMedia, flushProfileAssets } from "./lib/storage.js";
 import { ensureCompany, storeDocuments, saveDocumentText } from "./lib/memory.js";
+import { pdfToText, isPdf } from "./lib/pdfText.js";
 import { mapProfileToPP } from "./lib/profileToPP.js";
 import { extractCorpus, synthesizeProfile, extractProjects, extractCompany } from "./lib/structureReleases.js";
 import { SUPABASE_URL, SUPABASE_ANON } from "./lib/supabase.js";
@@ -6373,14 +6374,25 @@ export default function Onboarding({ embedded = false }) {
     } catch (_) { /* storage failed — press on with extraction, nothing is lost from memory yet */ }
 
     setExtractMsg("Reading your documents…");
+    const token = await getAccessToken();
+    // Extract each document's TEXT up front — PDFs via client-side pdf.js (free),
+    // text files directly. A PDF with no text layer (scanned) keeps its base64 as a
+    // fallback so structuring can still read it natively. Text-everywhere means the
+    // batched (cheap) structuring path, and gives EVERY doc — including website
+    // pages — text for the company/projects extractors.
     const items = [];
     for (const f of files) {
       const file = f && f.file;
       if (!file) continue;
-      const isPdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name || "");
       try {
-        if (isPdf) items.push({ id: "f" + items.length, name: file.name, pdf: await fileToBase64(file) });
-        else items.push({ id: "f" + items.length, name: file.name, text: (await file.text()).slice(0, 200000) });
+        if (isPdf(file)) {
+          setExtractMsg(`Reading ${file.name}…`);
+          const txt = await pdfToText(file);
+          if (txt && txt.trim().length > 30) items.push({ id: "f" + items.length, name: file.name, text: txt });
+          else items.push({ id: "f" + items.length, name: file.name, pdf: await fileToBase64(file) });   // scanned → native
+        } else {
+          items.push({ id: "f" + items.length, name: file.name, text: (await file.text()).slice(0, 200000) });
+        }
       } catch (_) { /* skip unreadable file */ }
     }
     if (paste.trim()) items.push({ id: "paste", name: "Pasted text", text: paste.trim() });
@@ -6388,8 +6400,9 @@ export default function Onboarding({ embedded = false }) {
     if (items.length) {
       try {
         const out = await extractCorpus(items, {
+          token,
           context: companyName ? { company: { name: companyName } } : {},
-          onProgress: (done, total) => setExtractMsg(`Analyzing release ${done} of ${total}…`),
+          onProgress: (done, total) => setExtractMsg(`Analyzing releases ${done} of ${total}…`),
         });
         if (out.timelineEntries && out.timelineEntries.length) setTimeline(out.timelineEntries);
         if (out.suggestions && out.suggestions.length) setProfile((p) => ({ ...p, aiSuggestions: out.suggestions }));
@@ -6426,19 +6439,14 @@ export default function Onboarding({ embedded = false }) {
         }
         if (out.failures && out.failures.length) setExtractMsg(`${out.failures.length} release(s) couldn't be read — you can add them manually.`);
 
-        // Build the corpus once (reused by company-facts + projects extraction).
-        // PDF-sourced entries have no fullText, so fall back to structured fields.
-        const corpus = (out.timeline || [])
-          .filter((e) => e && /^\d{4}-\d{2}-\d{2}/.test(String(e.date)))
-          .map((e) => ({
-            date: String(e.date).slice(0, 10),
-            text: (e.fullText && e.fullText.trim())
-              ? e.fullText
-              : [e.headline, e.whatHappened, e.whyItMatters, e.whatHappensNext,
-                 (e.keyNumbers || []).join("; "), e.takeaway].filter(Boolean).join("\n"),
-          }))
-          .filter((r) => r.text && r.text.trim().length > 20);
-        const token = await getAccessToken();
+        // The FULL corpus for company + projects extraction — EVERY document's text,
+        // press releases AND website/business pages (Board, Share Structure, project
+        // pages). This is the fix for leadership/projects/capital coming back empty:
+        // those live in the website pages, which are excluded from the dated timeline.
+        const dateOf = (name) => { const m = /(\d{4}-\d{2}-\d{2})/.exec(String(name || "")); return m ? m[1] : ""; };
+        const corpus = items
+          .filter((it) => it.text && it.text.trim().length > 20)
+          .map((it) => ({ date: dateOf(it.name), text: it.text }));
 
         // Layer 3a — identity + capital + leadership from the whole corpus (fast,
         // one call). Isolated so a failure never loses the timeline/overview.
