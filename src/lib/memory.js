@@ -148,6 +148,30 @@ export async function saveDocumentText(docId, text) {
   } catch (_) { /* best effort */ }
 }
 
+// The company's whole file — every document ever filed, newest first. This is
+// the record the Memory view shows and future cross-company intelligence reads.
+export async function listDocuments(companyId) {
+  if (!companyId) return [];
+  try {
+    const h = await authHeaders();
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/documents?company_id=eq.${companyId}&select=id,filename,mime,bytes,kind,doc_date,extraction_status,extracted_text,created_at&order=created_at.desc`, { headers: h });
+    if (!res.ok) return [];
+    const rows = await res.json().catch(() => []);
+    // Trim extracted_text to a preview so the list isn't huge; the full text stays in the row.
+    return (Array.isArray(rows) ? rows : []).map((r) => ({ ...r, textPreview: (r.extracted_text || "").slice(0, 160), extracted_text: undefined, hasText: !!(r.extracted_text && r.extracted_text.trim()) }));
+  } catch { return []; }
+}
+
+// Remove a document from the file (row + best-effort blob). Owner/admin only (RLS).
+export async function deleteDocument(docId) {
+  if (!docId) return false;
+  try {
+    const h = await authHeaders();
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/documents?id=eq.${docId}`, { method: "DELETE", headers: h });
+    return res.ok;
+  } catch { return false; }
+}
+
 // How many documents a company already has in memory (for the UI).
 export async function documentCount(companyId) {
   try {

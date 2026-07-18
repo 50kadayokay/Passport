@@ -1,16 +1,18 @@
 import React, { useState, useEffect } from "react";
 import {
   LayoutDashboard, PenSquare, BarChart3, QrCode, Settings as SettingsIcon,
-  LogOut, ExternalLink, Loader2, CheckCircle2, Circle, ArrowRight, ArrowLeft, Megaphone,
+  LogOut, ExternalLink, Loader2, CheckCircle2, Circle, ArrowRight, ArrowLeft, Megaphone, Database,
 } from "lucide-react";
 import { SUPABASE_URL } from "../lib/supabase.js";
 import { authHeaders, getUser, getMyRole, signOut } from "../lib/auth.js";
 import Onboarding from "../Onboarding.jsx";
 import CommsCenter from "./CommsCenter.jsx";
+import CompanyMemory from "./CompanyMemory.jsx";
 
 const NAV = [
   { id: "build", label: "Build profile", Icon: PenSquare, ready: true },
   { id: "dashboard", label: "Dashboard", Icon: LayoutDashboard, ready: true },
+  { id: "memory", label: "Company memory", Icon: Database, ready: true },
   { id: "comms", label: "Communications", Icon: Megaphone, ready: true },
   { id: "analytics", label: "Analytics", Icon: BarChart3, need: "the analytics events pipeline" },
   { id: "qr", label: "QR & booth kit", Icon: QrCode, need: "the QR generator" },
@@ -118,6 +120,7 @@ export default function CompanyConsole() {
         <div className="min-h-0 flex-1 overflow-hidden">
           {section === "build" && <Onboarding embedded />}
           {section === "dashboard" && <DashboardSection company={company} go={setSection} />}
+          {section === "memory" && <CompanyMemory company={company} />}
           {section === "comms" && <CommsCenter company={company} />}
           {section === "settings" && <SettingsSection />}
           {(section === "analytics" || section === "qr") && <Stub id={section} />}

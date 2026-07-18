@@ -18,7 +18,7 @@ import RealAppPreview from "./RealAppPreview.jsx";
 import { StatusBar as AppStatusBar } from "./aiBrief/components.jsx";
 import { authHeaders, getUser, getAccessToken } from "./lib/auth.js";
 import { uploadCompanyMedia, flushProfileAssets } from "./lib/storage.js";
-import { ensureCompany, storeDocuments } from "./lib/memory.js";
+import { ensureCompany, storeDocuments, saveDocumentText } from "./lib/memory.js";
 import { mapProfileToPP } from "./lib/profileToPP.js";
 import { extractCorpus, synthesizeProfile, extractProjects, extractCompany } from "./lib/structureReleases.js";
 import { SUPABASE_URL, SUPABASE_ANON } from "./lib/supabase.js";
@@ -6347,6 +6347,7 @@ export default function Onboarding({ embedded = false }) {
   // Timeline tab so the extraction is immediately visible.
   const submit = async () => {
     setScreen("loading");
+    let storedDocs = [];   // { file, id } per filed document — for text backfill
 
     // --- Company Memory: create the permanent record, file the documents ------
     // Do this FIRST so the company row exists before extraction, the uploaded
@@ -6365,6 +6366,7 @@ export default function Onboarding({ embedded = false }) {
           const r = await storeDocuments(co.id, rawFiles, {
             onProgress: (done, total, nm) => setExtractMsg(`Filing documents: ${done} of ${total}…`),
           });
+          storedDocs = r.stored;   // kept so extraction can backfill each doc's text
           if (r.failed.length) setExtractMsg(`${r.failed.length} file(s) couldn't be stored — extraction will still run.`);
         }
       }
@@ -6391,6 +6393,27 @@ export default function Onboarding({ embedded = false }) {
         });
         if (out.timelineEntries && out.timelineEntries.length) setTimeline(out.timelineEntries);
         if (out.suggestions && out.suggestions.length) setProfile((p) => ({ ...p, aiSuggestions: out.suggestions }));
+
+        // Backfill each filed document's readable text so the company's memory is
+        // searchable, not just archived. Text files keep their raw text; PDFs (read
+        // natively server-side, no client text) get their structured extraction as
+        // the searchable representation. This is the substrate future cross-company
+        // intelligence reads from.
+        if (storedDocs.length) {
+          const textByName = {};
+          (out.results || []).forEach((r) => {
+            const nm = r && r.item && r.item.name; if (!nm) return;
+            const c = r.analysis && r.analysis.card;
+            const txt = (r.item.text && r.item.text.trim())
+              ? r.item.text
+              : (c ? [c.headline, c.whatHappened, c.whyItMatters, c.whatHappensNext, (c.keyNumbers || []).join("; "), c.investorTakeaway].filter(Boolean).join("\n") : "");
+            if (txt) textByName[nm] = txt;
+          });
+          for (const d of storedDocs) {
+            const nm = d.file && d.file.name;
+            if (nm && textByName[nm] && d.id) { try { await saveDocumentText(d.id, textByName[nm]); } catch (_) {} }
+          }
+        }
         // Layer 2 — synthesize the Overview (status card + brief) from the chronology.
         if (out.timeline && out.timeline.length) {
           setExtractMsg("Writing the company overview…");
