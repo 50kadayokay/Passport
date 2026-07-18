@@ -12,6 +12,32 @@ const str = (v) => (v == null ? "" : String(v));
 const initialsOf = (name) =>
   str(name).trim().split(/\s+/).slice(0, 2).map((w) => w[0] || "").join("").toUpperCase() || "?";
 
+// Merge extraction output (timeline + company facts + projects) into a profile.
+// Shared by onboarding and "re-analyze from memory" so both apply results the
+// SAME way — no drift between the two paths.
+export function mergeExtraction(profile, { timelineEntries, company, projects } = {}) {
+  const next = { ...(profile || {}) };
+  if (Array.isArray(timelineEntries) && timelineEntries.length) next.timeline = timelineEntries;
+
+  const co = company || {};
+  const id = co.identity || {};
+  const idPatch = {};
+  ["website", "slogan", "ticker", "commodity", "jurisdiction"].forEach((k) => { if (has(id[k])) idPatch[k] = str(id[k]); });
+  if (Array.isArray(id.listings) && id.listings.length) idPatch.listings = id.listings.filter((l) => l && (l.ex || l.sym));
+  if (has(id.name) && !(next.company && next.company.name)) idPatch.name = str(id.name);
+  if (Object.keys(idPatch).length) next.company = { ...(next.company || {}), ...idPatch };
+
+  if (co.capital && Object.keys(co.capital).length) next.capital = { ...(next.capital || {}), ...co.capital };
+  if (Array.isArray(co.team) && co.team.length) {
+    next.team = co.team.map((m, i) => ({ id: "member-" + (i + 1), enabled: true, name: str(m.name), role: str(m.role), short: str(m.short), full: str(m.full) }));
+  }
+
+  const pj = (projects && projects.projects) || [];
+  if (pj.length) next.projects = pj.map((p, i) => ({ ...p, id: p.key || `project-${i + 1}`, enabled: true }));
+
+  return next;
+}
+
 // ---- Timeline mapping ------------------------------------------------------
 // The app's TimelineView reads PR_YEARS = [{ year, items: [{ d, headline, why,
 // takeaways, key, id, label }] }] and FULL = { "YYYY-MM-DD": "<verbatim text>" }.

@@ -324,6 +324,82 @@ export async function extractCompany(releases, { token, attempts = 3 } = {}) {
   return null;
 }
 
+// ---- Re-analyze from memory ------------------------------------------------
+// Re-runs extraction over a company's ALREADY-STORED documents — no re-upload.
+// Crucially it feeds the FULL corpus (press releases AND website/business pages)
+// to the company + projects extractors, fixing the bug where those read only the
+// dated timeline and never saw the Board/Share-Structure/project pages.
+//
+// Flow: load the stored docs -> make sure each has text (transcribe any PDF that
+// doesn't, once, and save it) -> timeline from the dated press releases ->
+// company + projects from EVERY document. Cheap on re-runs because transcription
+// is cached (only pending docs are transcribed) and text is reused.
+
+const dateFromName = (name) => { const m = /(\d{4}-\d{2}-\d{2})/.exec(String(name || "")); return m ? m[1] : ""; };
+const isPdfDoc = (d) => /pdf/i.test(d.mime || "") || /\.pdf$/i.test(d.filename || "");
+
+// Transcribe one PDF to text via the endpoint (Haiku). Returns "" on failure.
+async function extractDocText(pdfBase64, token) {
+  try {
+    const res = await fetch("/api/extract-text", {
+      method: "POST",
+      headers: { "content-type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      body: JSON.stringify({ pdf: pdfBase64 }),
+    });
+    if (!res.ok) return "";
+    const j = await res.json().catch(() => ({}));
+    return j.text || "";
+  } catch { return ""; }
+}
+
+// `deps` injects the memory helpers (documentsForExtraction, downloadDocumentBase64,
+// saveDocumentText) so this module stays free of a circular import on memory.js.
+export async function reanalyzeFromMemory(companyId, { token, onProgress, deps } = {}) {
+  const { documentsForExtraction, downloadDocumentBase64, saveDocumentText } = deps || {};
+  if (!documentsForExtraction) throw new Error("memory deps required");
+  const docs = await documentsForExtraction(companyId);
+  if (!docs.length) return null;
+
+  // 1) Ensure every document has text. Transcribe PDFs that don't (once), save it.
+  let ti = 0;
+  for (const d of docs) {
+    ti++;
+    if (d.extracted_text && d.extracted_text.trim()) continue;
+    if (onProgress) onProgress(`Reading document ${ti} of ${docs.length}…`);
+    if (isPdfDoc(d) && d.storage_path) {
+      const b64 = await downloadDocumentBase64(d.storage_path);
+      if (b64) {
+        const txt = await extractDocText(b64, token);
+        if (txt) { d.extracted_text = txt; if (saveDocumentText) await saveDocumentText(d.id, txt); }
+      }
+    }
+  }
+
+  // 2) The full corpus — every document that has text, with its best date.
+  const corpus = docs
+    .filter((d) => d.extracted_text && d.extracted_text.trim())
+    .map((d) => ({ date: d.doc_date || dateFromName(d.filename), text: d.extracted_text, name: d.filename }));
+
+  // 3) Timeline — only the DATED docs (press releases), via structure-release.
+  const prItems = corpus.filter((d) => d.date).map((d, i) => ({ id: "m" + i, name: d.name, text: d.text }));
+  let out = { timeline: [], timelineEntries: [] };
+  if (prItems.length) {
+    if (onProgress) onProgress("Rebuilding the timeline…");
+    const results = await structureReleases(prItems, { onProgress: (dn, tot) => onProgress && onProgress(`Analyzing release ${dn} of ${tot}…`) });
+    const timeline = assembleTimeline(results);
+    out = { timeline, timelineEntries: toTimelineEntries(timeline), results };
+  }
+
+  // 4) Company facts + projects from the WHOLE corpus (this is the fix).
+  const releases = corpus.map((d) => ({ date: d.date || "0000-00-00", text: d.text })).filter((r) => r.text && r.text.trim().length > 20);
+  if (onProgress) onProgress("Reading company details, capital and leadership…");
+  const company = await extractCompany(releases, { token });
+  if (onProgress) onProgress("Extracting projects — this takes a few minutes…");
+  const projects = await extractProjects(releases, { token, onProgress: (dn, tot, label) => onProgress && onProgress(`Building projects: ${label} (${dn}/${tot})…`) });
+
+  return { ...out, company, projects, docCount: docs.length, textCount: corpus.length };
+}
+
 // Convenience: run the whole pipeline (fan out -> assemble -> group + suggestions).
 export async function extractCorpus(items, opts = {}) {
   const results = await structureReleases(items, opts);

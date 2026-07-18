@@ -172,6 +172,35 @@ export async function deleteDocument(docId) {
   } catch { return false; }
 }
 
+// Full document rows for re-extraction: storage path + extracted text + mime, so
+// the "re-analyze from memory" flow can rebuild the corpus without re-uploading.
+export async function documentsForExtraction(companyId) {
+  if (!companyId) return [];
+  try {
+    const h = await authHeaders();
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/documents?company_id=eq.${companyId}&select=id,filename,mime,storage_path,extracted_text,extraction_status,doc_date&order=created_at.desc`, { headers: h });
+    if (!res.ok) return [];
+    return await res.json().catch(() => []);
+  } catch { return []; }
+}
+
+// Download a stored document's bytes and return base64 (no data: prefix). The
+// owner/admin can read company-docs via the pp_auth_read policy. Used to feed a
+// PDF back to the text extractor when its text wasn't captured at ingest.
+export async function downloadDocumentBase64(storagePath) {
+  if (!storagePath) return null;
+  try {
+    const h = await authHeaders();
+    // storage_path is stored as "company-docs/<path>"; the object API wants /object/<bucket>/<path>.
+    const res = await fetch(`${SUPABASE_URL}/storage/v1/object/${storagePath}`, { headers: h });
+    if (!res.ok) return null;
+    const buf = await res.arrayBuffer();
+    let binary = ""; const bytes = new Uint8Array(buf);
+    for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+    return btoa(binary);
+  } catch { return null; }
+}
+
 // How many documents a company already has in memory (for the UI).
 export async function documentCount(companyId) {
   try {

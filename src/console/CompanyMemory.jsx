@@ -9,8 +9,12 @@
 // company's documents and their extracted text, in one place, cross-referenceable.
 
 import React, { useState, useEffect, useCallback } from "react";
-import { Database, FileText, Upload, Loader2, Trash2, Check, AlertTriangle, Search } from "lucide-react";
-import { listDocuments, storeDocuments, deleteDocument } from "../lib/memory.js";
+import { Database, FileText, Upload, Loader2, Trash2, Check, AlertTriangle, Search, Sparkles } from "lucide-react";
+import { listDocuments, storeDocuments, deleteDocument, documentsForExtraction, downloadDocumentBase64, saveDocumentText } from "../lib/memory.js";
+import { reanalyzeFromMemory } from "../lib/structureReleases.js";
+import { mapProfileToPP, mergeExtraction } from "../lib/profileToPP.js";
+import { SUPABASE_URL } from "../lib/supabase.js";
+import { authHeaders, getAccessToken } from "../lib/auth.js";
 
 const KINDS = {
   press_release: { label: "Press release", c: "#0f766e", bg: "#ecfdf5" },
@@ -30,6 +34,8 @@ export default function CompanyMemory({ company }) {
   const [err, setErr] = useState("");
   const [q, setQ] = useState("");
   const [drag, setDrag] = useState(false);
+  const [reMsg, setReMsg] = useState("");    // re-analyze progress
+  const [reDone, setReDone] = useState("");   // re-analyze result summary
   const inputRef = React.useRef(null);
 
   const load = useCallback(() => {
@@ -55,6 +61,44 @@ export default function CompanyMemory({ company }) {
     setDocs((d) => d.filter((x) => x.id !== id));   // optimistic
     const ok = await deleteDocument(id);
     if (!ok) load();
+  };
+
+  // Re-analyze the whole profile from the stored documents — no re-upload. Reads
+  // EVERY document (press releases AND website/business pages), transcribing any
+  // PDF whose text wasn't captured, then re-runs the extractors over the full
+  // corpus and saves the merged profile. This is what fixes leadership/projects/
+  // capital coming from the website pages, and it's cheap to re-run (transcription
+  // is cached; only the AI extraction re-runs).
+  const reanalyze = async () => {
+    setErr(""); setReDone(""); setBusy("reanalyze"); setReMsg("Reading your document memory…");
+    try {
+      const token = await getAccessToken();
+      const results = await reanalyzeFromMemory(companyId, {
+        token, onProgress: setReMsg,
+        deps: { documentsForExtraction, downloadDocumentBase64, saveDocumentText },
+      });
+      if (!results) throw new Error("No documents to analyze.");
+
+      // Merge into the current profile and save (recomputing the render payload).
+      const h = await authHeaders();
+      const cur = await fetch(`${SUPABASE_URL}/rest/v1/companies?slug=eq.${encodeURIComponent(company.slug)}&select=profile&limit=1`, { headers: h });
+      const rows = cur.ok ? await cur.json().catch(() => []) : [];
+      const profile = (rows[0] && rows[0].profile) || {};
+      const next = mergeExtraction(profile, results);
+      next.pp = mapProfileToPP(next);
+      const save = await fetch(`${SUPABASE_URL}/rest/v1/companies?slug=eq.${encodeURIComponent(company.slug)}`, {
+        method: "PATCH", headers: { ...h, "content-type": "application/json", Prefer: "return=minimal" },
+        body: JSON.stringify({ profile: next }),
+      });
+      if (!save.ok) throw new Error(`Analysis ran but saving failed (${save.status}).`);
+
+      const nProj = (results.projects && results.projects.projects || []).length;
+      const nTeam = (results.company && results.company.team || []).length;
+      const nTl = (results.timelineEntries || []).length;
+      setReDone(`Rebuilt from ${results.docCount} documents: ${nTl} timeline entries, ${nProj} projects, ${nTeam} leaders, capital ${results.company && results.company.capital && Object.keys(results.company.capital).length ? "filled" : "none found"}.`);
+      load();
+    } catch (e) { setErr(e.message || "Re-analysis failed"); }
+    finally { setBusy(""); setReMsg(""); }
   };
 
   const filtered = (docs || []).filter((d) => {
@@ -91,6 +135,18 @@ export default function CompanyMemory({ company }) {
           <Stat label="Searchable (text captured)" value={docs === null ? "—" : withText} />
           <Stat label="Status" value="Permanent" accent="#059669" />
         </div>
+
+        {/* re-analyze from memory */}
+        <div className="mt-4 flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4">
+          <button onClick={reanalyze} disabled={!!busy || !docs || !docs.length}
+            className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-[13.5px] font-bold text-white disabled:opacity-40">
+            {busy === "reanalyze" ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />} Re-analyze from memory
+          </button>
+          <p className="flex-1 text-[12.5px] text-slate-500">
+            {reMsg || "Rebuilds the whole profile from every stored document — press releases and website pages both — so leadership, projects and capital fill from the right sources. No re-upload."}
+          </p>
+        </div>
+        {reDone && <p className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-emerald-50 px-3 py-2 text-[12.5px] font-semibold text-emerald-700"><Check size={13} /> {reDone}</p>}
 
         {/* add more — the persistent entry point */}
         <div onClick={() => inputRef.current?.click()}
