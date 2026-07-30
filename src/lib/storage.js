@@ -73,5 +73,11 @@ export async function flushProfileAssets(profile) {
   for (const e of (p.timeline || [])) if (Array.isArray(e.fullImages)) for (let i = 0; i < e.fullImages.length; i++) {
     if (isDataUrl(e.fullImages[i])) e.fullImages[i] = await flush(e.fullImages[i]);
   }
+  // Conference booth per-section images ({ jurisdiction, results, … }).
+  if (p.conference && p.conference.images && typeof p.conference.images === "object") {
+    for (const k of Object.keys(p.conference.images)) {
+      if (isDataUrl(p.conference.images[k])) p.conference.images[k] = await flush(p.conference.images[k]);
+    }
+  }
   return p;
 }

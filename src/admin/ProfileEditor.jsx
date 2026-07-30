@@ -387,7 +387,11 @@ export default function ProfileEditor({ profile, companyName, slug, previewToken
                 <Txt {...P} path="conference.boothQrUtm" label="QR campaign tag" ph="pdac_2026_booth" />
               </div>
               <Txt {...P} path="conference.heroVideo" label="Hero video URL (drone loop, optional)" ph="https://…/loop.mp4" />
-              <p className="text-[11px] leading-snug text-slate-400">The headline stats, macro line and featured drill/economics figures come from the <b>Conference prompt</b> — copy it from the toolbar, run it in ChatGPT on this company's profile, and import the result.</p>
+              <div className="mt-1 grid grid-cols-2 gap-3">
+                <Img {...P} path="conference.images.jurisdiction" label="Jurisdiction image (regional / district map)" maxDim={1400} />
+                <Img {...P} path="conference.images.results" label="Results image (cross-section / resource model)" maxDim={1400} />
+              </div>
+              <p className="text-[11px] leading-snug text-slate-400">The headline stats, macro line and featured drill/economics figures come from the <b>Conference prompt</b> — copy it from the toolbar, run it in ChatGPT on this company's profile, and import the result. The section images above show inline in the booth (drop in the matching slides from the corporate presentation).</p>
             </Section>
 
             <Section id="status" title="Status card" open={open} setOpen={setOpen} hidden={isListing}>

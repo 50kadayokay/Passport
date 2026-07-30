@@ -7552,6 +7552,13 @@ function SceneProjectStory({ project, label, calloutsFor, fallbackImg }) {
             ))}
           </div>
         )}
+        {Array.isArray(project.gallery) && project.gallery.length > 1 && (
+          <div style={{ display: "flex", gap: 12, marginTop: 30, flexWrap: "wrap" }}>
+            {project.gallery.slice(1, 5).map((g, k) => (S(g && g.src) ? (
+              <div key={k} style={{ width: 150, height: 96, borderRadius: 14, overflow: "hidden", border: "1px solid rgba(255,255,255,0.2)", flexShrink: 0 }}><img src={S(g.src)} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /></div>
+            ) : null))}
+          </div>
+        )}
       </div>
     </section>
   );
@@ -7753,6 +7760,7 @@ function ConferenceScenes() {
         {S(regionBody) && <Reveal v="body" order={1}><div style={{ fontSize: "clamp(17px,1.9vw,23px)", fontWeight: 500, lineHeight: 1.5, color: "#dbe2ec", marginTop: 22, maxWidth: 1000 }}>{S(regionBody)}</div></Reveal>}
         {S(conf.districtContext) && <Reveal v="body" order={2}><div style={{ fontSize: 15.5, color: "#93a0b0", marginTop: 18, maxWidth: 980, lineHeight: 1.55 }}><b style={{ color: EM }}>District — </b>{S(conf.districtContext)}</div></Reveal>}
         {S(conf.regionalGeology) && <Reveal v="body" order={3}><div style={{ fontSize: 15.5, color: "#93a0b0", marginTop: 14, maxWidth: 980, lineHeight: 1.55 }}><b style={{ color: EM }}>Regional geology — </b>{S(conf.regionalGeology)}</div></Reveal>}
+        {S((conf.images || {}).jurisdiction) && <Reveal v="media"><div style={{ marginTop: 36, borderRadius: 20, overflow: "hidden", border: "1px solid rgba(255,255,255,0.1)", maxWidth: 1100 }}><img src={S(conf.images.jurisdiction)} alt="Regional / district map" style={{ display: "block", width: "100%", maxHeight: "48vh", objectFit: "cover" }} /></div></Reveal>}
         {infraFacts.length > 0 && (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 16, marginTop: 40 }}>
             {infraFacts.map((f, i) => (
@@ -7817,6 +7825,7 @@ function ConferenceScenes() {
             {(S(g.location) || S(g.context)) && <Reveal v="body" order={2}><div style={{ fontSize: 16, color: "#93a0b0", marginTop: 18, fontWeight: 600 }}>{[S(g.location), S(g.context)].filter(Boolean).join(" · ")}</div></Reveal>}
           </div>
         ))}
+        {S((conf.images || {}).results) && <Reveal v="media"><div style={{ marginTop: 36, borderRadius: 20, overflow: "hidden", border: "1px solid rgba(255,255,255,0.1)", maxWidth: 1100 }}><img src={S(conf.images.results)} alt="Cross-section / resource model" style={{ display: "block", width: "100%", maxHeight: "46vh", objectFit: "cover" }} /></div></Reveal>}
         {S(met.testwork) && <Reveal v="body" order={3}><div style={{ marginTop: 34, fontSize: 15, color: "#8493a8", maxWidth: 940, lineHeight: 1.5 }}><b style={{ color: "#c4cdd9" }}>Metallurgy: </b>{S(met.testwork)}</div></Reveal>}
       </SceneShell>
     );
