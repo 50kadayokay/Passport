@@ -307,6 +307,14 @@ function mapOneProject(p, i) {
     ...(snap.length ? { snap } : {}),
     ...(cards.length ? { cards } : {}),
     ...(content ? { content } : {}),
+    // Conference / master-schema per-project fields — the booth renderer reads these directly.
+    ...(list(p.narrative).length ? { narrative: list(p.narrative).map(str).filter(has) } : {}),
+    ...(p.resource && typeof p.resource === "object" ? { resource: p.resource } : {}),
+    ...(p.economics && typeof p.economics === "object" ? { economics: p.economics } : {}),
+    ...(p.production && typeof p.production === "object" ? { production: p.production } : {}),
+    ...(p.metallurgy && typeof p.metallurgy === "object" ? { metallurgy: p.metallurgy } : {}),
+    ...(p.infrastructure && typeof p.infrastructure === "object" ? { infrastructure: p.infrastructure } : {}),
+    ...(p.royalty && typeof p.royalty === "object" ? { royalty: p.royalty } : {}),
     ...(markers.length ? { markers } : {}),
     // The app's ProjectGallery reads slide.src — normalise plain URL strings (from the
     // editor's bulk upload) into { src } objects so they render.
@@ -652,6 +660,7 @@ export function mapProfileToPP(profile = {}) {
     // Conference "Scene Engine" config (iPad booth 3-act showroom). Passed through verbatim;
     // the engine reads conference.enabled to activate, and falls back cleanly on any missing key.
     CONFERENCE: (profile.conference && typeof profile.conference === "object") ? profile.conference : {},
+    CATALYSTS: Array.isArray(profile.catalysts) ? profile.catalysts : [],
     // "listing" → the app renders the compact single-page basic profile (hero, logo,
     // status card, AI brief) instead of the full tabbed profile. Empty → full profile.
     TIER: str(profile.tier),

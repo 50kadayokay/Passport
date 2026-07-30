@@ -732,134 +732,120 @@ in the attached sources, say so plainly rather than guessing whether it's true.`
 // one like Argenta (just run this). Exported as CONFERENCE_PROMPT so the admin
 // "Conference prompt" button copies it.
 // ─────────────────────────────────────────────────────────────────────────────
-export const CONFERENCE_PROMPT = `You are running PASS 4 — the FEATURED & COMPARE pass — for a junior mining company on PASSPORT, a
-platform whose profiles feed a mobile app AND a premium conference-booth experience.
+export const CONFERENCE_PROMPT = `You are running PASS 4 — the CONFERENCE pass — for a junior mining company on PASSPORT.
 
-INPUT I am giving you:
-  1. The company's EXISTING Passport profile JSON (already extracted in earlier passes).
-  2. The company's public documents (financials, MD&A, technical reports, news releases, website,
-     corporate presentation).
+INPUT: 1) the company's EXISTING Passport profile JSON (already extracted), and optionally 2) its
+public documents. REUSE what the profile already holds; only ADD the conference sections below.
+Return a DELTA that merges into the profile.
 
-YOUR JOB: ADD the master schema's new sections. You are NOT re-extracting the company. You REUSE
-what the profile already holds and only produce the fields below. Return a DELTA — only the new /
-changed sections — that merges into the existing profile.
-
-═══════════════════════════════════════════════════════════════════
-GLOBAL PRINCIPLES
-═══════════════════════════════════════════════════════════════════
-• UNDERSTAND THE COMPANY FIRST — do not summarize documents. Determine what it does, what
-  management is trying to achieve, what differentiates it, what evidence supports that, and what an
-  investor should remember after 90 seconds. Everything you produce reinforces that one story.
-• DOCUMENT AUTHORITY (facts) — in order: 1 Financial Statements, 2 MD&A, 3 Technical Reports,
-  4 Official News Releases, 5 Website, 6 Corporate Presentation. On conflict, the higher one wins.
-• PRESENTATION FOR EMPHASIS (not facts) — the Corporate Presentation shows what management wants
-  featured (key messaging, featured projects, headline stats, competitive advantages). Use it to
-  decide emphasis and ordering, but VERIFY every promoted claim against an authoritative document
-  before using it. Never copy unsupported marketing language.
-• ORGANIZE, DON'T REMOVE — if a fact materially aids understanding, put it in the right section;
-  don't drop important facts just because there are many. Group related facts.
-• ADAPT TO THE COMPANY — explorer / developer / producer / royalty / diversified each lead with
-  different evidence. Never force one template.
-• THINK VISUALLY — prefer facts that become maps, photos, drill tables, cross-sections, timelines,
-  charts and stats over long prose.
+THE HARD RULES
+• Every number/name/grade/date must exist in the profile (or the attached docs). Copy figures
+  EXACTLY. Never invent — missing = null + list its path in notFound.
+• MILESTONES ARE VERBATIM: do NOT output or re-word "timeline". To feature milestones, list their
+  DATES in conference.featuredMilestoneDates — the booth reuses the profile's exact text.
+• Factual, analyst voice. Never promotional, never reference share price.
 
 ═══════════════════════════════════════════════════════════════════
-ACCURACY & REUSE (this is a regulated issuer's public profile)
+THE CONTENT MODEL (this is the important part)
 ═══════════════════════════════════════════════════════════════════
-• Facts come ONLY from the authoritative documents OR from the provided profile. Copy figures
-  EXACTLY (commas, units, currency). A fabricated grade, recovery, or resource is a serious harm.
-• MILESTONES ARE VERBATIM AND SHARED. Do NOT output or re-word 'timeline'. To feature milestones,
-  list their DATES in conference.featuredMilestoneDates — the booth reuses the profile's exact text.
-• REUSE, don't re-derive. Any fact already in the profile is copied, not re-extracted, so the
-  booth can never contradict the app.
-• MISSING = null, never invented. If the documents don't disclose a field (e.g. metallurgy for an
-  early explorer), set it null and add its path to notFound. A null block simply won't render.
-• Write factually, like an analyst — never promotional, never reference share price.
+The booth is a 60–90 second story. Build it as a sequence of sections. TWO rules govern all of it:
+
+1) EVERY SECTION = a short CONTEXT PARAGRAPH first, then its KEY INFORMATION.
+   The paragraph frames why the section matters and what the reader is looking at; the key
+   information is the hard facts/numbers. A section is never just a pile of numbers.
+
+2) SAY EACH FACT ONCE — no redundancy across the whole profile.
+   Each figure has ONE home section. A number may appear in the glance-strip (highlights) AND, at
+   more depth, in its home section — but NEVER a third time, and NEVER with identical wording.
+   Narrative paragraphs (overview, project narrative, section context, investment case) FRAME and
+   EXPLAIN; they do not recite figures that already appear as data. Example: cash lives in Capital
+   only; resource grade lives in Results only — the overview must not restate either.
+
+Understand the company first (what they do, what management is building, what differentiates them,
+what the evidence is, what to remember). Adapt to the archetype — explorer / developer / producer /
+royalty — and lead each section with what actually matters for that stage. Think visually: prefer
+facts that become maps, photos, drill tables, timelines, stats.
 
 ═══════════════════════════════════════════════════════════════════
-OUTPUT — return ONE JSON DELTA, exactly these keys (omit a whole block only if truly N/A)
+OUTPUT — return ONE JSON DELTA, exactly these keys
 ═══════════════════════════════════════════════════════════════════
 {
   "conference": {
-    "hook": "",                         // the ONE thing to remember (<= 8 words)
-    "whyNow": "",                       // the current catalyst / why this moment
-    "macroContext": "",                 // the commodity/market backdrop (1 sentence, fact-based)
-    "differentiators": [""],            // 2-4 real edges over peers
-    "highlights": [                     // 4-6 defining numbers, VERBATIM from the profile/docs
-      { "value": "", "label": "", "note": null }
+    "hook": "",              // ONE line for the hero (<= 8 words)
+
+    "overview": "",          // COMPANY OVERVIEW paragraph: who they are, what they do, and why they
+                             //   exist — in plain language anyone can follow. END by naming the
+                             //   flagship project (and note whether it's a single asset or a
+                             //   portfolio of several) so it segues into the Projects section.
+                             //   NO recited numbers here — this frames, it doesn't list stats.
+
+    "macroContext": "",      // ONE sentence on why the COMMODITY/market matters now (not company facts)
+
+    "highlights": [          // 3–5 glance-strip stats. Each MUST carry a short context line.
+      { "value": "", "label": "", "context": "" }   // context = one clause on what the number means
     ],
-    "featuredMilestoneDates": ["YYYY-MM-DD"],   // which timeline entries to feature (text reused verbatim)
-    "featuredProjectKey": "",           // which project leads the booth
-    "investmentCase": [                 // SECTION 8 — as MANY as the docs genuinely support, no fixed number
+
+    "resultsIntro": "",      // Section-4 CONTEXT paragraph: what the technical evidence proves
+    "timelineIntro": "",     // Section-5 CONTEXT paragraph: the momentum / track record
+    "capitalIntro": "",      // Section-6 CONTEXT paragraph: the funding situation & runway
+    "leadershipIntro": "",   // Section-7 CONTEXT paragraph: why this team is credible
+
+    "investmentCase": [      // Section 8 — as MANY evidence-backed reasons as the docs support (no fixed number)
       { "reason": "", "evidence": "", "standsOutBecause": "" }
     ],
+
+    "featuredMilestoneDates": ["YYYY-MM-DD"],   // which timeline entries to feature (text reused verbatim)
+    "featuredProjectKey": "",
+
     "style": "scene", "enabled": true, "heroVideo": null, "boothQrUtm": null, "kioskIdleTimeout": 45
   },
 
-  "catalysts": [                        // UPCOMING value events (past events stay in timeline)
-    { "label": "", "timing": "", "type": "assay|resource|study|permit|construction|production|financing", "impact": "" }
-  ],
+  "catalysts": [ { "label": "", "timing": "", "type": "assay|resource|study|permit|construction|production|financing", "impact": "" } ],
 
-  "compare": {                          // normalized, cross-company metrics
-    "stageIndex": 0, "primaryCommodity": "", "commodities": [""],
-    "marketCapValue": "", "marketCapCurrency": "", "marketCapTier": "nano|micro|small|mid",
-    "jurisdiction": "", "jurisdictionRisk": "low|moderate|high",
-    "flagshipGradeAgEq": "", "resourceOz": null, "resourceCategory": "",
-    "enterpriseValue": null, "evPerResourceOz": null, "fundedStatus": ""
-  },
-
-  "media": {                            // asset inventory — describe what exists (you can't make images)
-    "heroVideo": null, "heroPhoto": null,
-    "projectAerials": [""], "corePhotos": [""], "crossSections": [""], "maps": [""], "headshots": [""], "other": [""]
-  },
-
-  "citations": {                        // MATERIAL figures only — path -> source (the evidence audit as data)
-    "capital.cash": { "value": "", "quote": "", "doc": "", "date": "", "verification": "QUOTED|DERIVED|SYNTHESIZED|SELECTED" }
-  },
-
-  "capital": { "ownershipSplit": [ { "group": "insider|institutional|retail", "pct": "" } ] },
-
-  "team": [                             // reproduce the FULL team from the profile (copy name/role/short/full VERBATIM)
-    { "name": "", "role": "", "short": "", "full": "", "trackRecord": "" }   // ADD one-line trackRecord to each
-  ],
-
-  "projects": [                         // one entry per project — its KEY + only the NEW technical blocks
+  "projects": [            // one entry per project — its KEY, a 3-paragraph narrative, + new technical blocks
     {
       "key": "",
-      "infrastructure": { "power": "", "road": "", "water": "", "port": "", "notes": "" },
+      "narrative": [       // EXACTLY 2–3 swipeable CONTEXT paragraphs, in this order:
+        "",                //   ¶1 — the asset: what & where, ownership, land position, jurisdiction
+        "",                //   ¶2 — the geology / deposit: what's there and why it's prospective
+        ""                 //   ¶3 — the current campaign: what's being done right now and what's next
+      ],
       "resource":    { "category": "", "tonnes": "", "grade": "", "containedMetal": "", "cutoff": "" },
       "economics":   { "studyType": "PEA|PFS|FS", "npv": "", "irr": "", "capex": "", "payback": "", "mineLife": "", "aisc": "" },
       "production":  { "annualOutput": "", "aisc": "", "freeCashFlow": "", "reserveLife": "" },
       "metallurgy":  { "recovery": "", "method": "", "testwork": "" },
+      "infrastructure": { "power": "", "road": "", "water": "", "port": "", "notes": "" },
       "royalty":     { "assets": [ { "name": "", "type": "NSR|stream", "rate": "", "operator": "", "status": "" } ] }
     }
   ],
 
-  "notFound": [""]                      // paths you could not fill, so gaps are visible
+  "compare": {            // NOT shown on the booth — normalized data for app screening. Fill or null.
+    "stageIndex": 0, "primaryCommodity": "", "commodities": [""],
+    "marketCapTier": "nano|micro|small|mid", "jurisdiction": "", "jurisdictionRisk": "low|moderate|high",
+    "flagshipGradeAgEq": "", "resourceOz": null, "fundedStatus": ""
+  },
+
+  "media": {              // asset inventory — describe what exists (you can't make images)
+    "heroVideo": null, "heroPhoto": null,
+    "projectAerials": [""], "corePhotos": [""], "crossSections": [""], "maps": [""], "headshots": [""], "other": [""]
+  },
+
+  "citations": {          // MATERIAL figures only — path -> { value, quote, doc, date, verification }
+    "capital.cash": { "value": "", "quote": "", "doc": "", "date": "", "verification": "QUOTED|DERIVED|SYNTHESIZED|SELECTED" }
+  },
+
+  "notFound": [""]
 }
 
-FIELD RULES:
-  • conference.highlights: 4-6, VERBATIM values (e.g. treasury, program size, land / % ownership,
-    targets, resource oz, annual production). Short labels. The booth selects and labels — it mints
-    no new numbers.
-  • conference.investmentCase: generate as many evidence-backed reasons as the documents genuinely
-    support — do NOT target a number. Each must be factual, unique (no repetition), concise, and
-    explain why the company stands out from peers. Themes: district scale, high grade, resource
-    size, exploration upside, economics, production growth, financial strength, funded programs,
-    jurisdiction, infrastructure, partnerships, insider ownership, catalysts, team, scarcity, or any
-    material differentiator the docs support. Skip any not supported.
-  • team: the importer REPLACES team wholesale, so you MUST output every person already in the
-    profile — copy their name/role/short/full VERBATIM and add a one-line trackRecord (a prior
-    discovery, mine built, or capital raised). Do not drop anyone.
-  • projects: for EACH project output only its "key" plus the technical block(s) its stage supports;
-    set the others null. Do NOT repeat snapshot/content — the importer merges by key.
-  • compare: normalize for cross-company screening (AgEq/AuEq grade, market-cap tier, jurisdiction
-    risk). Use null where undisclosed.
-  • citations: only material figures (grades, capital, resource, production) — one entry per figure.
+RULES
+• Fill the project technical block(s) the stage supports; set the others null. For each project
+  output only its "key" + narrative + technical — the importer merges by key.
+• Do NOT output "team" or "timeline" — leave both untouched.
+• highlights: pick the 3–5 numbers that define the company at a glance, each with a context clause;
+  do not restate any of them in the paragraphs.
+• investmentCase: as many genuinely-supported reasons as exist; each factual, unique, concise, and
+  explains why the company stands out from peers.
 
-  Return ONLY the JSON. No commentary, no code fences.
-
-FINAL TEST: if an investor viewed this for ~90 seconds at a conference, would they leave with a
-clear understanding of who the company is, what it owns, why it matters, how it is progressing, why
-it stands out, and why to keep following it on Passport? If not, keep refining until the story is
-complete, cohesive and professional.`;
+FINAL TEST: after ~90 seconds, would an investor understand who the company is, what it owns, why it
+matters, how it's progressing, why it stands out, and want to keep following it on Passport — with
+NOTHING said twice? If not, refine.`;
