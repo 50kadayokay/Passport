@@ -778,10 +778,13 @@ OUTPUT — return ONE JSON DELTA, exactly these keys
                              //   flagship project (and note whether it's a single asset or a
                              //   portfolio of several) so it segues into the Projects section.
                              //   NO recited numbers here — this frames, it doesn't list stats.
+    "mission": "",           // ONE sentence: the company's mission / objective, in its own words (optional)
 
     "macroContext": "",      // ONE sentence on why the COMMODITY/market matters now (not company facts)
-    "region": "",            // REGION/DISTRICT paragraph: the mining belt/jurisdiction, nearby producing
+    "region": "",            // JURISDICTION paragraph: the mining belt/jurisdiction, nearby producing
                              //   mines, access & infrastructure, and why the address matters (its own page).
+    "districtContext": "",   // 1–2 sentences: district history, nearby operators, past production, comparison
+    "regionalGeology": "",   // 1–2 sentences: the regional geological setting / belt model
 
     "highlights": [          // 3–5 glance-strip stats. Each MUST carry a short context line.
       { "value": "", "label": "", "context": "" }   // context = one clause on what the number means
@@ -792,9 +795,11 @@ OUTPUT — return ONE JSON DELTA, exactly these keys
     "capitalIntro": "",      // Section-6 CONTEXT paragraph: the funding situation & runway
     "leadershipIntro": "",   // Section-7 CONTEXT paragraph: why this team is credible
 
-    "investmentCase": [      // Section 8 — as MANY evidence-backed reasons as the docs support (no fixed number)
+    "investmentCase": [      // Why Invest — as MANY evidence-backed reasons as the docs support (no fixed number)
       { "reason": "", "evidence": "", "standsOutBecause": "" }
     ],
+    "competitiveAdvantages": [""],   // 2–5 short differentiators shown under Why Invest (district scale,
+                                     //   high grade, funded, jurisdiction, insider ownership, team, etc.)
 
     "featuredMilestoneDates": ["YYYY-MM-DD"],   // which timeline entries to feature (text reused verbatim)
     "featuredProjectKey": "",

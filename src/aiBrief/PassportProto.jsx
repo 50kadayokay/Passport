@@ -7511,7 +7511,7 @@ function SceneTimeline({ years }) {
 
 // Section 3 — the flagship project told as 2–3 swipeable NARRATIVE paragraphs over its image,
 // with callout facts and a "+N assets" pill for portfolio companies.
-function SceneProjectStory({ project, otherCount, calloutsFor, fallbackImg }) {
+function SceneProjectStory({ project, label, calloutsFor, fallbackImg }) {
   const S = (x) => (x == null ? "" : String(x));
   const paras = (Array.isArray(project.narrative) ? project.narrative : []).map(S).filter(Boolean);
   const [i, setI] = useState(0);
@@ -7528,10 +7528,7 @@ function SceneProjectStory({ project, otherCount, calloutsFor, fallbackImg }) {
       {img && <img src={img} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />}
       <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(2,6,23,0.55) 0%, rgba(2,6,23,0.35) 40%, rgba(2,6,23,0.92) 100%)" }} />
       <div style={{ position: "relative", maxWidth: 1240, margin: "0 auto", padding: "clamp(64px,9vh,120px) 56px", color: "#fff", minHeight: "100vh", display: "flex", flexDirection: "column", justifyContent: "center" }}>
-        <Reveal v="eyebrow"><div style={{ ...sceneEyebrow(EM), display: "flex", gap: 14, alignItems: "center" }}>
-          Flagship Project
-          {otherCount > 0 && <span style={{ background: "rgba(255,255,255,0.14)", border: "1px solid rgba(255,255,255,0.24)", borderRadius: 999, padding: "5px 14px", fontSize: 12, letterSpacing: "0.03em", textTransform: "none", fontWeight: 700 }}>+{otherCount} more asset{otherCount > 1 ? "s" : ""}</span>}
-        </div></Reveal>
+        <Reveal v="eyebrow"><div style={sceneEyebrow(EM)}>{label || "Flagship Project"}</div></Reveal>
         <Reveal v="head"><div style={{ fontSize: "clamp(40px,6vw,84px)", fontWeight: 900, letterSpacing: "-0.04em", lineHeight: 1, marginTop: 14 }}>{S(project.name)}</div></Reveal>
         {n > 0 && (
           <div key={i} style={{ marginTop: 28, maxWidth: 780, minHeight: 150 }}>
@@ -7635,11 +7632,12 @@ function ConferenceScenes() {
   const flagship = projects.find((p) => S(p.key) === S(conf.featuredProjectKey)) || projects[0] || {};
   const snapValFor = (pj, needle) => { const s = (Array.isArray(pj.snap) ? pj.snap : []).find((x) => new RegExp(needle, "i").test(S(x.label))); return s ? S(s.value) : ""; };
   const calloutsFor = (pj) => [
-    { k: "Location", v: S(pj.locationFull) || S(co.location) },
-    { k: "Jurisdiction", v: S(snapValFor(pj, "jurisdiction")) || S(co.jurisdiction) },
+    { k: "Stage", v: S(pj.stageName) },
     { k: "Ownership", v: snapValFor(pj, "ownership") },
+    { k: "Deposit", v: snapValFor(pj, "deposit") },
     { k: "Land Package", v: snapValFor(pj, "land") },
-  ].filter((c) => S(c.v));
+    { k: "Location", v: S(pj.locationFull) || S(co.location) },
+  ].filter((c) => S(c.v)).slice(0, 5);
   const years = (Array.isArray(PR_YEARS) ? PR_YEARS : []).filter((y) => y && Array.isArray(y.items) && y.items.length);
   const team = (Array.isArray(TEAM_MEMBERS) ? TEAM_MEMBERS : []).filter((m) => m && S(m.name));
   const investmentCase = (Array.isArray(conf.investmentCase) ? conf.investmentCase : []).filter((r) => r && S(r.reason));
@@ -7692,19 +7690,32 @@ function ConferenceScenes() {
     </div>
   );
 
-  // SECTION 2 — COMPANY OVERVIEW (context paragraph → commodity/jurisdiction/stage chips)
-  if (S(conf.overview) || S(conf.macroContext)) scenes.push(
-    <SceneShell key="overview" bg="#0b1220" color="#fff">
-      <Reveal v="eyebrow"><div style={sceneEyebrow(EM)}>Overview</div></Reveal>
+  // SECTION 1 — COMPANY (who are we: overview → mission → corporate facts)
+  if (S(conf.overview) || S(conf.macroContext) || S(conf.mission)) scenes.push(
+    <SceneShell key="company" bg="#0b1220" color="#fff">
+      <Reveal v="eyebrow"><div style={sceneEyebrow(EM)}>Company</div></Reveal>
       {S(conf.overview) && <Reveal v="head"><div style={{ fontSize: "clamp(24px,3.2vw,42px)", fontWeight: 600, letterSpacing: "-0.02em", lineHeight: 1.32, maxWidth: 1080, marginTop: 20 }}>{S(conf.overview)}</div></Reveal>}
-      {S(conf.macroContext) && <Reveal v="body" order={1}><div style={{ fontSize: 16, color: "#8493a8", marginTop: 22, maxWidth: 920, lineHeight: 1.55 }}>{S(conf.macroContext)}</div></Reveal>}
-      {(S(co.commodity) || S(co.jurisdiction) || S(co.stage)) && (
-        <Reveal v="body" order={2}><div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginTop: 26 }}>
-          {[S(co.commodity), S(co.jurisdiction), S(co.stage)].filter(Boolean).map((t, i) => (
-            <span key={i} style={{ fontSize: 14, fontWeight: 700, color: "#c4cdd9", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 999, padding: "9px 18px", textTransform: t === S(co.stage) ? "capitalize" : "none" }}>{t}</span>
-          ))}
-        </div></Reveal>
-      )}
+      {S(conf.mission) && <Reveal v="body" order={1}><div style={{ fontSize: 17, color: "#c4cdd9", marginTop: 22, maxWidth: 960, lineHeight: 1.55, fontStyle: "italic" }}>{S(conf.mission)}</div></Reveal>}
+      {S(conf.macroContext) && <Reveal v="body" order={2}><div style={{ fontSize: 15.5, color: "#8493a8", marginTop: 18, maxWidth: 920, lineHeight: 1.55 }}>{S(conf.macroContext)}</div></Reveal>}
+      {(() => {
+        const facts = [
+          { k: "Headquarters", v: S(co.headquarters) },
+          { k: "Commodities", v: S(co.commodity) },
+          { k: "Flagship", v: S(flagship.name) },
+          { k: "Portfolio", v: projects.length > 1 ? `${projects.length} projects` : (projects.length === 1 ? "Single asset" : "") },
+          { k: "Stage", v: S(co.stage) },
+        ].filter((f) => S(f.v));
+        return facts.length ? (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 14, marginTop: 40 }}>
+            {facts.map((f, i) => (
+              <Reveal key={i} v="card" order={Math.min(i, 4)}><div style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 16, padding: "16px 18px" }}>
+                <div style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.1em", color: EM }}>{f.k}</div>
+                <div style={{ fontSize: 16, fontWeight: 700, marginTop: 7, color: "#e6ebf2", textTransform: f.k === "Stage" ? "capitalize" : "none" }}>{S(f.v)}</div>
+              </div></Reveal>
+            ))}
+          </div>
+        ) : null;
+      })()}
     </SceneShell>
   );
 
@@ -7725,7 +7736,7 @@ function ConferenceScenes() {
     </SceneShell>
   );
 
-  // SECTION 4 — REGION & DISTRICT (the address: jurisdiction, belt, access & infrastructure)
+  // SECTION 3 — JURISDICTION (why here: location → district context → regional geology → infrastructure)
   {
     const infra = flagship.infrastructure || {};
     const regionBody = S(conf.region) || S(infra.notes) || (Array.isArray(flagship.narrative) ? S(flagship.narrative[0]) : "");
@@ -7735,11 +7746,13 @@ function ConferenceScenes() {
       { k: "Power", v: S(infra.power) },
       { k: "Water", v: S(infra.water) },
     ].filter((f) => S(f.v));
-    if (S(regionBody) || infraFacts.length) scenes.push(
-      <SceneShell key="region" bg="#0b1220" color="#fff">
-        <Reveal v="eyebrow"><div style={sceneEyebrow(EM)}>Region & District</div></Reveal>
+    if (S(regionBody) || S(conf.districtContext) || S(conf.regionalGeology) || infraFacts.length) scenes.push(
+      <SceneShell key="jurisdiction" bg="#0b1220" color="#fff">
+        <Reveal v="eyebrow"><div style={sceneEyebrow(EM)}>Jurisdiction</div></Reveal>
         <Reveal v="head"><div style={{ fontSize: "clamp(30px,4vw,58px)", fontWeight: 800, letterSpacing: "-0.03em", marginTop: 14 }}>{S(co.jurisdiction) || "The District"}</div></Reveal>
         {S(regionBody) && <Reveal v="body" order={1}><div style={{ fontSize: "clamp(17px,1.9vw,23px)", fontWeight: 500, lineHeight: 1.5, color: "#dbe2ec", marginTop: 22, maxWidth: 1000 }}>{S(regionBody)}</div></Reveal>}
+        {S(conf.districtContext) && <Reveal v="body" order={2}><div style={{ fontSize: 15.5, color: "#93a0b0", marginTop: 18, maxWidth: 980, lineHeight: 1.55 }}><b style={{ color: EM }}>District — </b>{S(conf.districtContext)}</div></Reveal>}
+        {S(conf.regionalGeology) && <Reveal v="body" order={3}><div style={{ fontSize: 15.5, color: "#93a0b0", marginTop: 14, maxWidth: 980, lineHeight: 1.55 }}><b style={{ color: EM }}>Regional geology — </b>{S(conf.regionalGeology)}</div></Reveal>}
         {infraFacts.length > 0 && (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 16, marginTop: 40 }}>
             {infraFacts.map((f, i) => (
@@ -7754,16 +7767,19 @@ function ConferenceScenes() {
     );
   }
 
-  // SECTION 3 — PROJECTS (flagship told as swipeable narrative paragraphs + callouts)
-  if (S(flagship.name)) scenes.push(
-    <SceneProjectStory
-      key="projects"
-      project={flagship}
-      otherCount={Math.max(0, projects.length - 1)}
-      calloutsFor={calloutsFor}
-      fallbackImg={hasHero ? STATUS_IMG : ""}
-    />
-  );
+  // SECTION 4 — ASSETS (each project as a swipeable narrative + facts; flagship first, then the rest)
+  {
+    const ordered = [flagship, ...projects.filter((p) => p !== flagship)].filter((p) => p && S(p.name));
+    ordered.forEach((pj, pi) => scenes.push(
+      <SceneProjectStory
+        key={"asset-" + (S(pj.key) || pi)}
+        project={pj}
+        label={pi === 0 ? "Flagship Project" : `Asset · ${pi + 1} of ${ordered.length}`}
+        calloutsFor={calloutsFor}
+        fallbackImg={hasHero ? STATUS_IMG : ""}
+      />
+    ));
+  }
 
   // SECTION 4 — RESULTS & TECHNICAL EVIDENCE (context paragraph → stage-adaptive proof)
   {
@@ -7806,10 +7822,10 @@ function ConferenceScenes() {
     );
   }
 
-  // SECTION 5 — TIMELINE & CATALYSTS (context paragraph → featured milestones + upcoming catalysts)
-  if (featuredMilestones.length || catalysts.length || S(conf.timelineIntro)) scenes.push(
+  // SECTION 6 — TIMELINE (key milestones only; catalysts live in Why Invest)
+  if (featuredMilestones.length || S(conf.timelineIntro)) scenes.push(
     <SceneShell key="timeline" bg="#0b1220" color="#fff">
-      <Reveal v="eyebrow"><div style={sceneEyebrow(EM)}>Timeline & Catalysts</div></Reveal>
+      <Reveal v="eyebrow"><div style={sceneEyebrow(EM)}>Timeline · Key Milestones</div></Reveal>
       {S(conf.timelineIntro) && <Reveal v="head"><div style={{ fontSize: "clamp(22px,2.6vw,34px)", fontWeight: 500, lineHeight: 1.4, maxWidth: 1000, marginTop: 16, color: "#dbe2ec" }}>{S(conf.timelineIntro)}</div></Reveal>}
       {featuredMilestones.length > 0 && (
         <div style={{ marginTop: 40, overflowX: "auto", paddingBottom: 10, WebkitOverflowScrolling: "touch" }}>
@@ -7823,20 +7839,6 @@ function ConferenceScenes() {
                   <div style={{ fontSize: 17, fontWeight: 800, lineHeight: 1.25, marginTop: 7, letterSpacing: "-0.02em" }}>{S(it.headline || it.label)}</div>
                 </div>
               </Reveal>
-            ))}
-          </div>
-        </div>
-      )}
-      {catalysts.length > 0 && (
-        <div style={{ marginTop: 46 }}>
-          <div style={{ fontSize: 12, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.14em", color: "#93a0b0", marginBottom: 18 }}>Upcoming catalysts</div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 16 }}>
-            {catalysts.slice(0, 4).map((c, i) => (
-              <Reveal key={i} v="card" order={Math.min(i, 3)}><div style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 18, padding: 20, height: "100%" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}><Clock size={15} style={{ color: EM }} /><span style={{ fontSize: 12.5, fontWeight: 800, color: EM }}>{S(c.timing)}</span></div>
-                <div style={{ fontSize: 17, fontWeight: 800, marginTop: 8, letterSpacing: "-0.02em" }}>{S(c.label)}</div>
-                {S(c.impact) && <div style={{ fontSize: 13.5, color: "#8493a8", marginTop: 8, lineHeight: 1.45 }}>{S(c.impact)}</div>}
-              </div></Reveal>
             ))}
           </div>
         </div>
@@ -7893,25 +7895,54 @@ function ConferenceScenes() {
     </SceneShell>
   );
 
-  // SECTION 8 — INVESTMENT CASE (evidence-backed reasons — the conclusion)
-  if (investmentCase.length) scenes.push(
-    <SceneShell key="case" bg="#05070d" color="#fff">
-      <Reveal v="eyebrow"><div style={sceneEyebrow(EM)}>The Investment Case</div></Reveal>
-      <Reveal v="head"><div style={{ fontSize: "clamp(28px,3.6vw,50px)", fontWeight: 800, letterSpacing: "-0.03em", marginTop: 14 }}>Why {shortCo(co.name)}</div></Reveal>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 18, marginTop: 40 }}>
-        {investmentCase.map((r, i) => (
-          <Reveal key={i} v="card" order={Math.min(i, 5)}><div style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 22, padding: 24, height: "100%" }}>
-            <div style={{ display: "flex", gap: 12, alignItems: "baseline" }}>
-              <span style={{ fontSize: 15, fontWeight: 900, color: EM, flexShrink: 0 }}>{String(i + 1).padStart(2, "0")}</span>
-              <div style={{ fontSize: 19, fontWeight: 800, letterSpacing: "-0.02em", lineHeight: 1.25 }}>{S(r.reason)}</div>
+  // SECTION 9 — WHY INVEST (synthesis: reasons → competitive advantages → near-term catalysts)
+  {
+    const advantages = (Array.isArray(conf.competitiveAdvantages) ? conf.competitiveAdvantages : []).map(S).filter(Boolean);
+    if (investmentCase.length || advantages.length || catalysts.length) scenes.push(
+      <SceneShell key="whyinvest" bg="#05070d" color="#fff">
+        <Reveal v="eyebrow"><div style={sceneEyebrow(EM)}>Why Invest</div></Reveal>
+        <Reveal v="head"><div style={{ fontSize: "clamp(28px,3.6vw,50px)", fontWeight: 800, letterSpacing: "-0.03em", marginTop: 14 }}>Why {shortCo(co.name)}</div></Reveal>
+        {investmentCase.length > 0 && (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 18, marginTop: 40 }}>
+            {investmentCase.map((r, i) => (
+              <Reveal key={i} v="card" order={Math.min(i, 5)}><div style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 22, padding: 24, height: "100%" }}>
+                <div style={{ display: "flex", gap: 12, alignItems: "baseline" }}>
+                  <span style={{ fontSize: 15, fontWeight: 900, color: EM, flexShrink: 0 }}>{String(i + 1).padStart(2, "0")}</span>
+                  <div style={{ fontSize: 19, fontWeight: 800, letterSpacing: "-0.02em", lineHeight: 1.25 }}>{S(r.reason)}</div>
+                </div>
+                {S(r.evidence) && <div style={{ fontSize: 14, color: "#c4cdd9", marginTop: 12, lineHeight: 1.5 }}>{S(r.evidence)}</div>}
+                {S(r.standsOutBecause) && <div style={{ fontSize: 13.5, color: "#8493a8", marginTop: 10, lineHeight: 1.45, fontStyle: "italic" }}>{S(r.standsOutBecause)}</div>}
+              </div></Reveal>
+            ))}
+          </div>
+        )}
+        {advantages.length > 0 && (
+          <div style={{ marginTop: 44 }}>
+            <div style={{ fontSize: 12, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.14em", color: "#93a0b0", marginBottom: 16 }}>Competitive advantages</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
+              {advantages.map((a, i) => (
+                <Reveal key={i} v="card" order={Math.min(i, 4)}><span style={{ display: "inline-block", fontSize: 15, fontWeight: 600, color: "#dbe2ec", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 14, padding: "12px 18px" }}>{a}</span></Reveal>
+              ))}
             </div>
-            {S(r.evidence) && <div style={{ fontSize: 14, color: "#c4cdd9", marginTop: 12, lineHeight: 1.5 }}>{S(r.evidence)}</div>}
-            {S(r.standsOutBecause) && <div style={{ fontSize: 13.5, color: "#8493a8", marginTop: 10, lineHeight: 1.45, fontStyle: "italic" }}>{S(r.standsOutBecause)}</div>}
-          </div></Reveal>
-        ))}
-      </div>
-    </SceneShell>
-  );
+          </div>
+        )}
+        {catalysts.length > 0 && (
+          <div style={{ marginTop: 44 }}>
+            <div style={{ fontSize: 12, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.14em", color: "#93a0b0", marginBottom: 16 }}>Near-term catalysts</div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 16 }}>
+              {catalysts.slice(0, 4).map((c, i) => (
+                <Reveal key={i} v="card" order={Math.min(i, 3)}><div style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 18, padding: 20, height: "100%" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}><Clock size={15} style={{ color: EM }} /><span style={{ fontSize: 12.5, fontWeight: 800, color: EM }}>{S(c.timing)}</span></div>
+                  <div style={{ fontSize: 17, fontWeight: 800, marginTop: 8, letterSpacing: "-0.02em" }}>{S(c.label)}</div>
+                  {S(c.impact) && <div style={{ fontSize: 13.5, color: "#8493a8", marginTop: 8, lineHeight: 1.45 }}>{S(c.impact)}</div>}
+                </div></Reveal>
+              ))}
+            </div>
+          </div>
+        )}
+      </SceneShell>
+    );
+  }
 
   // SECTION 9 — CONVERSION & PASSPORT QR HANDOFF
   scenes.push(
