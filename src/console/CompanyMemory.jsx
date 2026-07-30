@@ -10,9 +10,9 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import { Database, FileText, Upload, Loader2, Trash2, Check, AlertTriangle, Search, Sparkles } from "lucide-react";
-import { listDocuments, storeDocuments, deleteDocument, documentsForExtraction, downloadDocumentBase64, saveDocumentText } from "../lib/memory.js";
-import { reanalyzeFromMemory } from "../lib/structureReleases.js";
-import { mapProfileToPP, mergeExtraction } from "../lib/profileToPP.js";
+import { listDocuments, storeDocuments, deleteDocument, documentsForExtraction, downloadDocumentBase64, saveDocumentText, unreflectedDocuments, markReflected } from "../lib/memory.js";
+import { reanalyzeFromMemory, analyzeNewDocuments } from "../lib/structureReleases.js";
+import { mapProfileToPP, mergeExtraction, mergeIncremental } from "../lib/profileToPP.js";
 import { SUPABASE_URL } from "../lib/supabase.js";
 import { authHeaders, getAccessToken } from "../lib/auth.js";
 
@@ -38,12 +38,50 @@ export default function CompanyMemory({ company }) {
   const [reDone, setReDone] = useState("");   // re-analyze result summary
   const inputRef = React.useRef(null);
 
+  const [newCount, setNewCount] = useState(0);   // documents not yet folded into the profile
+
   const load = useCallback(() => {
     if (!companyId) { setDocs([]); return; }
     setDocs(null);
     listDocuments(companyId).then(setDocs);
+    unreflectedDocuments(companyId).then((u) => setNewCount(u.length)).catch(() => {});
   }, [companyId]);
   useEffect(() => { load(); }, [load]);
+
+  // Intelligent incremental add: route ONLY the new documents — dated press releases
+  // into the timeline, decks/website pages into the profile — merging conservatively
+  // so nothing already set (including hand edits) is overwritten.
+  const analyzeNew = async () => {
+    setErr(""); setReDone(""); setBusy("analyzeNew"); setReMsg("Reading the new documents…");
+    try {
+      const token = await getAccessToken();
+      const r = await analyzeNewDocuments(companyId, {
+        token, onProgress: setReMsg,
+        deps: { unreflectedDocuments, downloadDocumentBase64, saveDocumentText },
+      });
+      if (!r.routing || !r.routing.newDocs) { setReDone("No new documents to analyze."); setBusy(""); return; }
+
+      const h = await authHeaders();
+      const cur = await fetch(`${SUPABASE_URL}/rest/v1/companies?slug=eq.${encodeURIComponent(company.slug)}&select=profile&limit=1`, { headers: h });
+      const rows = cur.ok ? await cur.json().catch(() => []) : [];
+      const profile = (rows[0] && rows[0].profile) || {};
+      const next = mergeIncremental(profile, r);
+      next.pp = mapProfileToPP(next);
+      const save = await fetch(`${SUPABASE_URL}/rest/v1/companies?slug=eq.${encodeURIComponent(company.slug)}`, {
+        method: "PATCH", headers: { ...h, "content-type": "application/json", Prefer: "return=minimal" },
+        body: JSON.stringify({ profile: next }),
+      });
+      if (!save.ok) throw new Error(`Analysis ran but saving failed (${save.status}).`);
+      await markReflected(r.reflectedIds);
+
+      const parts = [];
+      if (r.routing.timelineAdded) parts.push(`${r.routing.timelineAdded} added to the timeline`);
+      if (r.routing.referenceDocs) parts.push(`${r.routing.referenceDocs} reference doc${r.routing.referenceDocs === 1 ? "" : "s"} used to update the profile`);
+      setReDone(`Routed ${r.routing.newDocs} new document${r.routing.newDocs === 1 ? "" : "s"}: ${parts.join(", ") || "no new content found"}.`);
+      load();
+    } catch (e) { setErr(e.message || "Analysis failed"); }
+    finally { setBusy(""); setReMsg(""); }
+  };
 
   const addFiles = async (fileList) => {
     const files = Array.from(fileList || []).filter(Boolean);
@@ -136,14 +174,27 @@ export default function CompanyMemory({ company }) {
           <Stat label="Status" value="Permanent" accent="#059669" />
         </div>
 
-        {/* re-analyze from memory */}
+        {/* analyze NEW documents — the incremental, edit-preserving path */}
+        {newCount > 0 && (
+          <div className="mt-4 flex flex-wrap items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50/40 p-4">
+            <button onClick={analyzeNew} disabled={!!busy}
+              className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-[13.5px] font-bold text-white disabled:opacity-40">
+              {busy === "analyzeNew" ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />} Analyze {newCount} new document{newCount === 1 ? "" : "s"}
+            </button>
+            <p className="flex-1 text-[12.5px] text-slate-600">
+              {reMsg || "Routes each new document to the right place — dated press releases into the timeline, decks and website pages into the profile — without overwriting anything you've edited."}
+            </p>
+          </div>
+        )}
+
+        {/* re-analyze from memory — the full rebuild */}
         <div className="mt-4 flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4">
           <button onClick={reanalyze} disabled={!!busy || !docs || !docs.length}
             className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-[13.5px] font-bold text-white disabled:opacity-40">
-            {busy === "reanalyze" ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />} Re-analyze from memory
+            {busy === "reanalyze" ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />} Rebuild everything from memory
           </button>
           <p className="flex-1 text-[12.5px] text-slate-500">
-            {reMsg || "Rebuilds the whole profile from every stored document — press releases and website pages both — so leadership, projects and capital fill from the right sources. No re-upload."}
+            {(busy === "reanalyze" && reMsg) || "Full rebuild from every stored document. Use this to re-do the whole profile; it replaces the timeline and re-derives every section."}
           </p>
         </div>
         {reDone && <p className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-emerald-50 px-3 py-2 text-[12.5px] font-semibold text-emerald-700"><Check size={13} /> {reDone}</p>}

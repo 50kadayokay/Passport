@@ -154,7 +154,7 @@ export async function listDocuments(companyId) {
   if (!companyId) return [];
   try {
     const h = await authHeaders();
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/documents?company_id=eq.${companyId}&select=id,filename,mime,bytes,kind,doc_date,extraction_status,extracted_text,created_at&order=created_at.desc`, { headers: h });
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/documents?company_id=eq.${companyId}&select=id,filename,mime,bytes,kind,doc_date,storage_path,extraction_status,extracted_text,created_at&order=created_at.desc`, { headers: h });
     if (!res.ok) return [];
     const rows = await res.json().catch(() => []);
     // Trim extracted_text to a preview so the list isn't huge; the full text stays in the row.
@@ -178,10 +178,32 @@ export async function documentsForExtraction(companyId) {
   if (!companyId) return [];
   try {
     const h = await authHeaders();
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/documents?company_id=eq.${companyId}&select=id,filename,mime,storage_path,extracted_text,extraction_status,doc_date&order=created_at.desc`, { headers: h });
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/documents?company_id=eq.${companyId}&select=id,filename,mime,storage_path,extracted_text,extraction_status,doc_date,kind,meta&order=created_at.desc`, { headers: h });
     if (!res.ok) return [];
     return await res.json().catch(() => []);
   } catch { return []; }
+}
+
+// Documents whose content hasn't been folded into the profile yet — the target of
+// "analyze new documents". A doc is "reflected" once its content has been routed.
+export async function unreflectedDocuments(companyId) {
+  const docs = await documentsForExtraction(companyId);
+  return docs.filter((d) => !(d.meta && d.meta.reflected));
+}
+
+// Mark documents as reflected into the profile (so a later "analyze new" skips
+// them). Best-effort; meta is otherwise unused so a plain set is safe.
+export async function markReflected(docIds) {
+  const ids = (Array.isArray(docIds) ? docIds : []).filter(Boolean);
+  if (!ids.length) return;
+  try {
+    const h = await authHeaders();
+    await fetch(`${SUPABASE_URL}/rest/v1/documents?id=in.(${ids.join(",")})`, {
+      method: "PATCH",
+      headers: { ...h, "content-type": "application/json", Prefer: "return=minimal" },
+      body: JSON.stringify({ meta: { reflected: true } }),
+    });
+  } catch (_) { /* best effort */ }
 }
 
 // Download a stored document's bytes and return base64 (no data: prefix). The
@@ -199,6 +221,32 @@ export async function downloadDocumentBase64(storagePath) {
     for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
     return btoa(binary);
   } catch { return null; }
+}
+
+// A short-lived signed URL to view/download a stored document. The company-docs
+// bucket is private, so we mint a time-limited link the browser can open directly.
+// `download:true` makes the browser save the file instead of rendering it inline.
+export async function signedDocUrl(storagePath, { download = false } = {}) {
+  if (!storagePath) return null;
+  try {
+    const h = await authHeaders();
+    // storage_path is stored as "company-docs/<path>"; the sign endpoint wants the
+    // bucket and object path separately.
+    const clean = String(storagePath).replace(/^company-docs\//, "");
+    const res = await fetch(`${SUPABASE_URL}/storage/v1/object/sign/company-docs/${encodeURI(clean)}`, {
+      method: "POST",
+      headers: { ...h, "content-type": "application/json" },
+      body: JSON.stringify({ expiresIn: 3600 }),
+    });
+    if (!res.ok) return null;
+    const d = await res.json().catch(() => null);
+    if (!d || !d.signedURL) return null;
+    let url = `${SUPABASE_URL}/storage/v1${d.signedURL}`;
+    if (download) url += (url.includes("?") ? "&" : "?") + "download";
+    return url;
+  } catch {
+    return null;
+  }
 }
 
 // How many documents a company already has in memory (for the UI).

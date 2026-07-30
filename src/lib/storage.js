@@ -44,14 +44,34 @@ async function dataUrlToFile(dataUrl) {
 export async function flushProfileAssets(profile) {
   if (!profile) return profile;
   const p = JSON.parse(JSON.stringify(profile));
-  const up = async (d) => uploadToBucket("company-logos", await dataUrlToFile(d));
-  if (p.brand) for (const k of ["avatar", "hero", "logo"]) {
-    if (isDataUrl(p.brand[k])) { try { p.brand[k] = await up(p.brand[k]); } catch { p.brand[k] = ""; } }
+  const up = async (d) => uploadCompanyMedia(await dataUrlToFile(d));
+  const flush = async (d) => { try { return await up(d); } catch { return ""; } };
+
+  // Brand images (circular logo, status hero, featured status logo).
+  if (p.brand) for (const k of ["avatar", "hero", "logo", "statusLogo"]) {
+    if (isDataUrl(p.brand[k])) p.brand[k] = await flush(p.brand[k]);
   }
+  // Status card photo + team headshots.
+  if (p.companyStatus && isDataUrl(p.companyStatus.photo)) p.companyStatus.photo = await flush(p.companyStatus.photo);
+  for (const m of (p.team || [])) if (isDataUrl(m && m.photo)) m.photo = await flush(m.photo);
+  // CEO note headshot.
+  if (p.ceoNote && isDataUrl(p.ceoNote.photo)) p.ceoNote.photo = await flush(p.ceoNote.photo);
+  // Per-card header photos (cardMedia = { "<projectKey>:<cardId>": { src } }).
+  if (p.cardMedia && typeof p.cardMedia === "object") for (const k of Object.keys(p.cardMedia)) {
+    const m = p.cardMedia[k];
+    if (m && isDataUrl(m.src)) m.src = await flush(m.src);
+  }
+  // Project galleries — support both string[] and {src}[] shapes.
   for (const proj of (p.projects || [])) {
-    if (Array.isArray(proj.gallery)) for (const g of proj.gallery) {
-      if (isDataUrl(g.src)) { try { g.src = await uploadCompanyMedia(await dataUrlToFile(g.src)); } catch { g.src = ""; } }
+    if (Array.isArray(proj.gallery)) for (let i = 0; i < proj.gallery.length; i++) {
+      const g = proj.gallery[i];
+      if (isDataUrl(g)) proj.gallery[i] = await flush(g);
+      else if (g && isDataUrl(g.src)) g.src = await flush(g.src);
     }
+  }
+  // Full-release screenshots on timeline entries.
+  for (const e of (p.timeline || [])) if (Array.isArray(e.fullImages)) for (let i = 0; i < e.fullImages.length; i++) {
+    if (isDataUrl(e.fullImages[i])) e.fullImages[i] = await flush(e.fullImages[i]);
   }
   return p;
 }

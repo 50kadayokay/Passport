@@ -20,6 +20,7 @@ import { useState, useEffect, useMemo } from "react";
 // so a typo in can("comunications_center") is greppable — the database is the
 // source of truth.
 export const FEATURES = {
+  PORTAL_ACCESS: "portal_access",
   PASSPORT_PROFILE: "passport_profile",
   COMPANY_MEMORY: "company_memory",
   COMMUNICATIONS_CENTER: "communications_center",

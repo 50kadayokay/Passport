@@ -7,17 +7,38 @@
 // The heavier nested sections (projects, timeline, capital) are provided as safe,
 // non-crashing empty structures for now and will be mapped next.
 
+import { firstMeaningfulLine } from "./pressRelease.js";
+
 const has = (v) => v != null && String(v).trim() !== "";
 const str = (v) => (v == null ? "" : String(v));
+// Darken a #rrggbb by amt (0-1) — used to derive a readable text shade of the brand colour.
+const darken = (hex, amt = 0.16) => {
+  const h = String(hex || "").replace("#", "");
+  if (!/^[0-9a-f]{6}$/i.test(h)) return hex;
+  const n = parseInt(h, 16);
+  const r = Math.round(((n >> 16) & 255) * (1 - amt));
+  const g = Math.round(((n >> 8) & 255) * (1 - amt));
+  const b = Math.round((n & 255) * (1 - amt));
+  return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+};
 const initialsOf = (name) =>
   str(name).trim().split(/\s+/).slice(0, 2).map((w) => w[0] || "").join("").toUpperCase() || "?";
 
 // Merge extraction output (timeline + company facts + projects) into a profile.
 // Shared by onboarding and "re-analyze from memory" so both apply results the
 // SAME way — no drift between the two paths.
-export function mergeExtraction(profile, { timelineEntries, company, projects } = {}) {
+export function mergeExtraction(profile, { timelineEntries, company, projects, companyStatus, companyBrief } = {}) {
   const next = { ...(profile || {}) };
   if (Array.isArray(timelineEntries) && timelineEntries.length) next.timeline = timelineEntries;
+
+  // Synthesized overview (status card + AI brief). Only overwrite when synthesis
+  // actually produced content, so a failed synthesis never wipes an existing one.
+  if (companyStatus && (has(companyStatus.statusHeadline) || has(companyStatus.latestUpdate))) {
+    next.companyStatus = { ...(next.companyStatus || {}), ...companyStatus };
+  }
+  if (companyBrief && (has(companyBrief.shortSummary) || (Array.isArray(companyBrief.keyPoints) && companyBrief.keyPoints.length))) {
+    next.companyBrief = { ...(next.companyBrief || {}), ...companyBrief };
+  }
 
   const co = company || {};
   const id = co.identity || {};
@@ -55,26 +76,47 @@ const shortLabel = (e) => {
   const h = str(e.headline || e.title);
   return h.length <= 48 ? h : h.slice(0, 45).trim() + "…";
 };
-// Handles BOTH AI-extracted entries (headline / whyItMatters / keyNumbers / fullText)
-// and hand-entered ones (title / summary) — they share the same ISO `date`.
+// Handles all three timeline entry shapes: AI-extracted (headline/whyItMatters/
+// keyNumbers/fullText), hand-entered (title/summary), and the toTimelineEntries
+// shape from the batch pipeline where the AI fields are nested under `e.ai`
+// (title/summary + ai.keyNumbers/ai.fullText). Reading `e.ai.*` is what makes key
+// numbers and "read full release" actually populate for onboarded companies.
 function mapTimeline(timeline) {
   const entries = (Array.isArray(timeline) ? timeline : []).filter((e) => e && /^\d{4}-\d{2}-\d{2}/.test(str(e.date)));
   const byYear = new Map();
   const FULL = {};
   entries.forEach((e) => {
+    const ai = e.ai || {};
     const year = Number(str(e.date).slice(0, 4));
     if (!year) return;
     if (!byYear.has(year)) byYear.set(year, []);
+    const nums = Array.isArray(e.keyNumbers) ? e.keyNumbers : Array.isArray(ai.keyNumbers) ? ai.keyNumbers : Array.isArray(e.takeaways) ? e.takeaways : [];
+    const fullText = has(e.fullText) ? e.fullText : (has(ai.fullText) ? ai.fullText : "");
+    const fullImages = Array.isArray(e.fullImages) ? e.fullImages.filter(has) : [];
+    // The verbatim company headline, shown when the entry is opened. If ChatGPT didn't
+    // provide one, derive it from the attached release's first "# " line.
+    const originalTitle = str(e.originalTitle) || firstMeaningfulLine(fullText);
     byYear.get(year).push({
       d: dayLabel(e.date),
+      // The short, plain-language title shown on the timeline card.
       headline: str(e.headline || e.title),
+      // The full original press-release title, shown when the card is opened.
+      originalTitle,
+      // A real description of the release (falls back to the short label if absent).
+      whatHappened: str(e.whatHappened || ai.whatHappened),
       why: str(e.whyItMatters || e.summary || e.why),
-      takeaways: (Array.isArray(e.keyNumbers) ? e.keyNumbers : Array.isArray(e.takeaways) ? e.takeaways : []).map(str).filter(has),
+      // Only the company's disclosed next step — empty means the app hides the section
+      // instead of showing a generic canned phrase.
+      whatHappensNext: str(e.whatHappensNext || ai.whatHappensNext),
+      takeaways: nums.map(str).filter(has),
       key: !!e.key,
       id: str(e.date),
-      label: shortLabel(e),
+      label: shortLabel({ ...e, keyNumbers: nums }),
     });
-    if (has(e.fullText)) FULL[str(e.date)] = str(e.fullText);
+    // Full release: formatted text and/or attached images (screenshots). Stored as an
+    // object so the reader can render both. Absent → the "Read Full Press Release" button
+    // stays hidden.
+    if (has(fullText) || fullImages.length) FULL[str(e.date)] = { text: str(fullText), images: fullImages };
   });
   const PR_YEARS = [...byYear.entries()]
     .sort((a, b) => b[0] - a[0])                                  // newest year first
@@ -192,7 +234,14 @@ function mapOneProject(p, i) {
 
   // --- technical intelligence cards. GEO_ORDER only renders these four kinds.
   const geology = obj(p.geology), history = obj(p.explorationHistory), drills = obj(p.drillResults);
+  const district = obj(p.district);
   const cards = [];
+  // District Context ("map" kind) — the regional/district-scale setting: neighbouring
+  // mines, the belt/trend, land consolidation. Rendered from body + points[{k,v}].
+  if (has(district.body) || list(district.points).length) {
+    cards.push({ icon: "MapPin", label: "District Context", sub: "Claims · Structures · Regional Context", kind: "map",
+      body: str(district.body), points: list(district.points) });
+  }
   if (has(geology.body) || list(geology.points).length) {
     cards.push({ icon: "Layers", label: "Geology", sub: "Structures · Mineralization", kind: "geology",
       body: str(geology.body), points: list(geology.points) });
@@ -212,8 +261,14 @@ function mapOneProject(p, i) {
   }
 
   // --- the sheet content behind the cards
-  const brief = obj(p.brief), unique = obj(p.unique), targets = obj(p.targets), scen = obj(p.scenarios);
+  const brief = obj(p.brief), unique = obj(p.unique), targets = obj(p.targets), scen = obj(p.scenarios), stg = obj(p.stage);
   const content = clean({
+    // Current-stage detail — powers the tappable Project Stage sheet. Absent → the
+    // stage roadmap still shows but isn't tappable (no empty sheet).
+    stage: clean({
+      current: str(stg.current), summary: str(stg.summary), program: str(stg.program),
+      activity: str(stg.activity), completed: list(stg.completed).map(str).filter(has), closing: str(stg.closing),
+    }),
     brief: clean({
       overview: str(brief.overview), thesis: str(brief.thesis), focus: str(brief.focus),
       different: str(brief.different), risks: str(brief.risks), means: str(brief.means),
@@ -253,7 +308,12 @@ function mapOneProject(p, i) {
     ...(cards.length ? { cards } : {}),
     ...(content ? { content } : {}),
     ...(markers.length ? { markers } : {}),
-    ...(list(p.gallery).length ? { gallery: list(p.gallery) } : {}),
+    // The app's ProjectGallery reads slide.src — normalise plain URL strings (from the
+    // editor's bulk upload) into { src } objects so they render.
+    ...((() => {
+      const g = list(p.gallery).map((x) => (typeof x === "string" ? { src: x } : x)).filter((x) => x && has(x.src));
+      return g.length ? { gallery: g } : {};
+    })()),
   };
 
   // The lighter shape the map/peek views read.
@@ -288,8 +348,92 @@ function mapProjects(projects) {
   return { PROJECTS_FULL, PROJECTS_DATA, MAP_SITES };
 }
 
+// Merge NEW timeline entries into an existing timeline: dedup by DATE, prefer the
+// richer/newer entry, and sort newest-first. Keyed on date (not date+headline) because
+// re-running the timeline pass regenerates headlines — a headline-based key let the same
+// release import twice under two wordings. A junior miner issues at most one material
+// release per date, so date is the stable identifier; the richer entry wins on collision.
+// This also self-heals existing duplicates: re-importing collapses same-date rows.
+export function mergeTimelineEntries(existing, incoming) {
+  const key = (e) => str(e.date).slice(0, 10);
+  const map = new Map();
+  (Array.isArray(existing) ? existing : []).forEach((e) => { if (e) map.set(key(e), e); });
+  (Array.isArray(incoming) ? incoming : []).forEach((e) => {
+    if (!e) return;
+    const k = key(e);
+    const prev = map.get(k);
+    // Keep whichever has more content (longer body / more takeaways).
+    if (!prev) map.set(k, e);
+    else {
+      const score = (x) => str(x.whyItMatters || x.why || x.summary).length + (Array.isArray(x.takeaways || x.keyNumbers) ? (x.takeaways || x.keyNumbers).length : 0) * 20 + str(x.fullText).length;
+      map.set(k, score(e) >= score(prev) ? e : prev);
+    }
+  });
+  return [...map.values()].sort((a, b) => str(b.date).localeCompare(str(a.date)));
+}
+
+// Conservative incremental merge — for "add a document later" rather than a full
+// rebuild. It PRESERVES anything already on the profile (including the operator's
+// hand edits): identity/capital fields fill only where currently empty; the
+// timeline is merged (not replaced); team and projects are added-to (new people /
+// new projects appended, existing projects updated by key). Nothing the operator
+// set is clobbered — new documents only ever ADD or fill gaps.
+export function mergeIncremental(profile, { timelineEntries, company, projects } = {}) {
+  const next = { ...(profile || {}) };
+
+  if (Array.isArray(timelineEntries) && timelineEntries.length) {
+    next.timeline = mergeTimelineEntries(next.timeline, timelineEntries);
+  }
+
+  const co = company || {};
+  const id = co.identity || {};
+  const cur = next.company || {};
+  const coPatch = {};
+  ["website", "slogan", "ticker", "commodity", "jurisdiction", "name"].forEach((k) => {
+    if (has(id[k]) && !has(cur[k])) coPatch[k] = str(id[k]);   // fill empties only
+  });
+  if (Array.isArray(id.listings) && id.listings.length && !(Array.isArray(cur.listings) && cur.listings.length)) {
+    coPatch.listings = id.listings.filter((l) => l && (l.ex || l.sym));
+  }
+  if (Object.keys(coPatch).length) next.company = { ...cur, ...coPatch };
+
+  if (co.capital && Object.keys(co.capital).length) {
+    const curCap = next.capital || {};
+    const capPatch = {};
+    Object.entries(co.capital).forEach(([k, v]) => { if (has(v) && !has(curCap[k])) capPatch[k] = v; });   // fill empties only
+    if (Object.keys(capPatch).length) next.capital = { ...curCap, ...capPatch };
+  }
+
+  if (Array.isArray(co.team) && co.team.length) {
+    const curTeam = Array.isArray(next.team) ? next.team.slice() : [];
+    const seen = new Set(curTeam.map((m) => str(m.name).toLowerCase().trim()));
+    co.team.forEach((m) => {
+      const nm = str(m.name).toLowerCase().trim();
+      if (nm && !seen.has(nm)) { seen.add(nm); curTeam.push({ id: "member-" + (curTeam.length + 1), enabled: true, name: str(m.name), role: str(m.role), short: str(m.short), full: str(m.full) }); }
+    });
+    if (curTeam.length) next.team = curTeam;
+  }
+
+  const pj = (projects && projects.projects) || [];
+  if (pj.length) {
+    const curProj = Array.isArray(next.projects) ? next.projects.slice() : [];
+    const byKey = new Map(curProj.map((p, i) => [str(p.key || p.id), i]));
+    pj.forEach((p) => {
+      const k = str(p.key || `project-${curProj.length + 1}`);
+      const at = byKey.get(k);
+      const mapped = { ...p, id: p.key || k, enabled: true };
+      if (at == null) { byKey.set(k, curProj.length); curProj.push(mapped); }
+      else curProj[at] = { ...curProj[at], ...mapped };   // update existing project with new detail
+    });
+    if (curProj.length) next.projects = curProj;
+  }
+
+  return next;
+}
+
 export function mapProfileToPP(profile = {}) {
   const c = profile.company || {};
+  const brandColor = str((c.brand && c.brand.color) || (profile.brand && profile.brand.color)).trim();
   const s = profile.companyStatus || {};
   const pb = s.progressBar || {};
   const brief = profile.companyBrief || {};
@@ -304,14 +448,22 @@ export function mapProfileToPP(profile = {}) {
     ticker: str(c.ticker),
     commodity: str(c.commodity),
     jurisdiction: str(c.jurisdiction),
+    // Basic-listing status-card fields (also harmless on full profiles).
+    stage: str(c.stage),
+    location: str(c.location),
     status: "",
     marketCap: str(cap.marketCap),
     sharePrice: str(cap.sharePrice),
     cash: str(cap.cash),
-    workingCapital: str(cap.cash),   // buildVM reuses cash for workingCapital
+    // Working capital is its OWN disclosed figure — do NOT copy cash (that made the two
+    // rows show the same number). Empty → the row hides.
+    workingCapital: str(cap.workingCapital),
     currentRatio: null, ev: "",
     debt: has(cap.debt) ? str(cap.debt) : "",
     shares: str(cap.outstanding), fd: str(cap.fd),
+    // Balance-sheet provenance — replaces the hardcoded Kingsmen date/filing.
+    reportingDate: str(cap.reportingDate),
+    latestFiling: str(cap.latestFiling),
   };
 
   // ---- Company status card ------------------------------------------------
@@ -330,12 +482,27 @@ export function mapProfileToPP(profile = {}) {
     next: str(s.nextCatalyst),
     nextCatalyst: str(s.nextCatalyst),
     eta: has(s.expected) ? (/^expected/i.test(str(s.expected)) ? str(s.expected) : `Expected ${str(s.expected)}`) : "",
-    photo: str(s.photo),
+    photo: str(s.photo || (profile.brand && profile.brand.hero)),
   };
 
   // ---- AI brief / thesis --------------------------------------------------
   const ONE_LINER = str(brief.shortSummary || brief.oneLiner || brief.summary);
   const THESIS = (Array.isArray(brief.keyPoints) ? brief.keyPoints : []).map(str).filter(has);
+
+  // 60-second AI Brief orientation sections. The app's BriefOverlay used to be
+  // HARDCODED to Kingsmen's brief for every company; it now reads this key. Built
+  // from the company's own analyzed brief when present; [] otherwise so a company
+  // without a brief shows an honest empty sheet instead of Kingsmen's prose.
+  const BRIEF_SECTIONS = (Array.isArray(brief.sections) ? brief.sections : [])
+    .map((s) => {
+      const k = str(s.k || s.title || s.label);
+      if (!has(k)) return null;
+      const bullets = (Array.isArray(s.bullets) ? s.bullets : []).map(str).filter(has);
+      if (bullets.length) return { k, bullets };
+      const v = str(s.v || s.body || s.text);
+      return has(v) ? { k, v } : null;
+    })
+    .filter(Boolean);
 
   // ---- Team ---------------------------------------------------------------
   const TEAM_MEMBERS = team
@@ -385,7 +552,16 @@ export function mapProfileToPP(profile = {}) {
     let h = 0; for (let i = 0; i < sym.length; i++) h = (h * 31 + sym.charCodeAt(i)) & 0xffff;
     const ex = str(l.ex).toUpperCase();
     const cur = /OTC|NASDAQ|NYSE|US/.test(ex) ? "US$" : /FSE|XETRA|FRA|EUR/.test(ex) ? "€" : "C$";
-    return { ex: str(l.ex), sym, price: cur + (0.05 + (h % 250) / 100).toFixed(2), cur, yahoo: "" };
+    // Yahoo Finance symbol suffix by exchange so the "live market data" link resolves
+    // to a real quote (US listings need no suffix). Without this the app's ticker link
+    // fell through to a bare, broken finance.yahoo.com/quote/ URL.
+    const suffix = /TSXV|TSX\.?V|VENTURE/.test(ex) ? ".V"
+      : /(^|[^A-Z])TSX|TORONTO/.test(ex) ? ".TO"
+      : /CSE|CNSX/.test(ex) ? ".CN"
+      : /FSE|XETRA|FRA/.test(ex) ? ".F"
+      : /LSE|LON/.test(ex) ? ".L"
+      : /ASX/.test(ex) ? ".AX" : "";
+    return { ex: str(l.ex), sym, price: cur + (0.05 + (h % 250) / 100).toFixed(2), cur, yahoo: sym + suffix };
   }).filter((e) => has(e.sym) || has(e.ex));
 
   const FUNDING = { funded: false, label: "", note: "", cautionLabel: "", cautionNote: "" };
@@ -414,8 +590,17 @@ export function mapProfileToPP(profile = {}) {
   // Financing history → RAISES (the capital tab's financing section). Built from
   // the one financing string the extractor captures; [] when none, so a bare
   // company shows an empty financing state instead of Kingsmen's raises.
+  //
+  // The card shows `v` as a key number and separately shows type + date, so `v` must be
+  // JUST the amount. If the extractor put a full description in `financing`
+  // ("C$23.0M bought deal, January 2026"), pull the leading currency amount out so the
+  // card doesn't read "C$23.0M bought deal, January 2026 · bought deal · January 2026".
+  const financingAmount = (() => {
+    const m = /((?:US\$|C\$|A\$|€|£|\$)\s?\d[\d,]*(?:\.\d+)?\s*(?:billion|million|thousand|bn|mm?|k)?)/i.exec(str(cap.financing));
+    return m ? m[1].replace(/\s+/g, " ").trim() : str(cap.financing);
+  })();
   const RAISES = has(cap.financing)
-    ? [{ d: str(cap.financingDate), v: str(cap.financing), type: str(cap.financingType), price: str(cap.financingPrice), lead: "", purpose: str(cap.financingUse), status: "Completed" }]
+    ? [{ d: str(cap.financingDate), v: financingAmount, type: str(cap.financingType), price: str(cap.financingPrice), lead: "", purpose: str(cap.financingUse), status: "Completed" }]
     : [];
 
   // Media/updates feed → UPDATE_POSTS. The builder doesn't collect these during
@@ -423,7 +608,7 @@ export function mapProfileToPP(profile = {}) {
   const UPDATE_POSTS = Array.isArray(profile.media) ? profile.media : [];
 
   return {
-    COMPANY, STATUS, ONE_LINER, THESIS, WHY: THESIS, TEAM_MEMBERS,
+    COMPANY, STATUS, ONE_LINER, THESIS, WHY: THESIS, BRIEF_SECTIONS, TEAM_MEMBERS,
     STAGES, STAGE_NOW, STAGE_DESC, RAISES, UPDATE_POSTS,
     PROJECTS_FULL, PROJECTS_DATA, MAP_SITES,
     // No pinned sites → no town reference and no Chihuahua frame. Explicit null
@@ -435,11 +620,42 @@ export function mapProfileToPP(profile = {}) {
     // overwrites keys that are present, so any image key we omit keeps the
     // hardcoded Kingsmen default — which is exactly how Kingsmen photos leaked
     // into a bare profile's preview (the status-card photo, site photos).
-    LOGO: str(c.logo || c.brand),
-    AVATAR: str(c.logo || c.brand),
-    STATUS_LOGO: str(c.logo || c.brand),
-    STATUS_IMG: str(s.photo),
-    SITE_PHOTO: str(s.photo || c.sitePhoto),
+    // Pull the actual image URL from the brand object — NEVER stringify the brand
+    // object itself (that produced the "[object Object]" corruption). `c.brand` and
+    // the top-level `profile.brand` both hold { hero, logo, avatar }.
+    LOGO: str((c.brand && c.brand.logo) || (profile.brand && profile.brand.logo) || c.logo || ""),
+    AVATAR: str((c.brand && c.brand.avatar) || (profile.brand && profile.brand.avatar) || (c.brand && c.brand.logo) || (profile.brand && profile.brand.logo) || c.logo || ""),
+    // The FEATURED status logo (transparent PNG w/ shadow) that fades in over the hero
+    // photo on the status card — a dedicated image, NOT the circular profile icon.
+    STATUS_LOGO: str((c.brand && c.brand.statusLogo) || (profile.brand && profile.brand.statusLogo) || ""),
+    STATUS_IMG: str(s.photo || (c.brand && c.brand.hero) || (profile.brand && profile.brand.hero)),
+    SITE_PHOTO: str(s.photo || (c.brand && c.brand.hero) || (profile.brand && profile.brand.hero) || c.sitePhoto),
     KR_AVATAR: "",
+    // Per-card header photos keyed by card id (e.g. "company:brief", "<pkey>:location").
+    // Each value: { src, x, y, scale }. Rendered as a faded header at the top of the card.
+    CARD_MEDIA: (profile.cardMedia && typeof profile.cardMedia === "object") ? profile.cardMedia : {},
+    // The company's brand accent colour (themes the profile's "live"/accent surfaces).
+    // Empty → the app keeps its default emerald. BRAND_TEXT is a darker, readable shade.
+    BRAND: brandColor,
+    BRAND_TEXT: brandColor ? darken(brandColor, 0.16) : "",
+    // Contact links shown on the profile — each rendered only when present.
+    CONTACT: (() => {
+      const cn = profile.contact || {};
+      return { phone: str(cn.phone), email: str(cn.email), twitter: str(cn.twitter), linkedin: str(cn.linkedin) };
+    })(),
+    // A short CEO note shown near the top of the profile — a human voice from the person
+    // running the company. Empty text → the card is hidden.
+    CEO_NOTE: (() => {
+      const cn = profile.ceoNote || {};
+      return { text: str(cn.text), name: str(cn.name), title: str(cn.title || "CEO"), photo: str(cn.photo) };
+    })(),
+    // Conference "Scene Engine" config (iPad booth 3-act showroom). Passed through verbatim;
+    // the engine reads conference.enabled to activate, and falls back cleanly on any missing key.
+    CONFERENCE: (profile.conference && typeof profile.conference === "object") ? profile.conference : {},
+    // "listing" → the app renders the compact single-page basic profile (hero, logo,
+    // status card, AI brief) instead of the full tabbed profile. Empty → full profile.
+    TIER: str(profile.tier),
+    // The plain-language "what they do" brief shown on a basic listing.
+    LISTING_BRIEF: str(brief.shortSummary || brief.oneLiner || brief.summary),
   };
 }

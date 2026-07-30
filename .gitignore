@@ -11,3 +11,5 @@ dist/
 
 # Large reference artifact (11.8MB compiled HTML design source)
 Passport_ai_brief__1_.html
+.vercel
+.env*

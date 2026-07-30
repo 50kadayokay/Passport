@@ -22,7 +22,8 @@ import {
 import { SUPABASE_URL } from "../lib/supabase.js";
 import { authHeaders, getAccessToken } from "../lib/auth.js";
 import { useFeatures, FEATURES } from "../lib/features.js";
-import { publishPublication, connectorIsLive } from "../lib/publish.js";
+import { connectorIsLive } from "../lib/publish.js";
+import { publishViaApi } from "../lib/publishClient.js";
 
 // Destination presentation. `feature` mirrors the API's CHANNELS gate so the UI
 // and server agree on what a plan unlocks.
@@ -160,13 +161,24 @@ export default function CommsCenter({ company }) {
       if (!pRes.ok) throw new Error(`Saved the update, but drafts failed (${pRes.status}).`);
       const savedPubs = await pRes.json().catch(() => []);
 
-      // Push each APPROVED draft through its connector. Only `passport` is live;
-      // the rest report pending, so the UI shows honest per-destination status.
+      // Publish each APPROVED draft through the server (the ONLY publish path).
+      // Only `passport` has a live connector today; the rest report pending, so the
+      // UI shows honest per-destination status. /api/publish sets the publication
+      // published and emits the outbox event; the dispatcher projects the post.
       for (const pub of savedPubs) {
         if (pub.status !== "approved") continue;
+        if (!connectorIsLive(pub.destination_id)) {
+          setPublishState((s) => ({ ...s, [pub.destination_id]: "pending" }));
+          continue;
+        }
         setPublishState((s) => ({ ...s, [pub.destination_id]: "publishing" }));
-        const r = await publishPublication(company, pub, occurredOn);
-        setPublishState((s) => ({ ...s, [pub.destination_id]: r.ok ? "published" : r.pending ? "pending" : "failed" }));
+        try {
+          await publishViaApi(pub.id);
+          setPublishState((s) => ({ ...s, [pub.destination_id]: "published" }));
+        } catch (e) {
+          setPublishState((s) => ({ ...s, [pub.destination_id]: "failed" }));
+          setErr(e.message || "Publish failed");
+        }
       }
     } catch (e) { setErr(e.message || "Save failed"); }
   }

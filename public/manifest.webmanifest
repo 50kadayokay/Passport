@@ -2,10 +2,12 @@
   "name": "Passport",
   "short_name": "Passport",
   "display": "standalone",
-  "orientation": "portrait",
-  "background_color": "#ffffff",
-  "theme_color": "#ffffff",
+  "orientation": "any",
+  "background_color": "#05070d",
+  "theme_color": "#05070d",
   "start_url": "/app",
   "scope": "/",
-  "icons": []
+  "icons": [
+    { "src": "/booth-icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
 }

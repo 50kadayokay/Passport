@@ -67,3 +67,18 @@ body {
   .pp-ping, .pp-slide-up, .pp-pop, .pp-fade, .pp-view, .pp-backdrop { animation: none !important; }
   .pp-wordfade { animation: none !important; opacity: 1 !important; filter: none !important; transform: none !important; }
 }
+
+/* Fact-check inspect mode — highlight tappable fields in the embedded admin preview. */
+.pp-inspect [data-fc] { cursor: pointer; }
+.pp-inspect [data-fc]:hover {
+  outline: 2px solid #6366f1;
+  outline-offset: 2px;
+  border-radius: 10px;
+  background: rgba(99, 102, 241, 0.06);
+}
+
+/* Thin horizontal scrollbar for the admin action toolbar. */
+.pp-scroll-x { scrollbar-width: thin; }
+.pp-scroll-x::-webkit-scrollbar { height: 6px; }
+.pp-scroll-x::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 999px; }
+.pp-scroll-x::-webkit-scrollbar-track { background: transparent; }

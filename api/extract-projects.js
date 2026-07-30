@@ -23,7 +23,12 @@ const MAX_CORPUS_CHARS = 1_600_000;
 
 const src = { type: "array", items: { type: "string" }, description: "YYYY-MM-DD dates of the releases this came from. Empty if not stated in any release." };
 const kv = { type: "array", items: { type: "array", items: { type: "string" } } };
-const snapBlock = () => ({ type: "object", properties: { value: { type: "string" }, value2: { type: "string" }, detail: kv, note: { type: "string" }, sourceDates: src } });
+const snapBlock = (desc, valDesc) => ({ type: "object", description: desc, properties: {
+  value: { type: "string", description: valDesc || "The concise headline fact for this cell." },
+  value2: { type: "string", description: "Optional second line — a supporting detail (short)." },
+  detail: { type: "array", description: "2-4 supporting [label, value] fact pairs for the tap-through detail sheet, each grounded in the releases, e.g. ['Depth range','125-350 ft below surface'], ['Host formation','Goliad Formation']. Makes the detail card substantive rather than a single line.", items: { type: "array", items: { type: "string" } } },
+  note: { type: "string", description: "1-2 sentences of context for the detail sheet: what this fundamental means and why it matters to an investor — grounded strictly in the releases, never invented." },
+  sourceDates: src } });
 const notFound = { type: "array", items: { type: "string" }, description: "Fields you could NOT fill because the releases never state them. Be exhaustive and honest — an accurate gap list is as valuable as the data." };
 
 // The work is split into parts rather than run as one call. Output tokens, not
@@ -53,9 +58,13 @@ const PARTS = {
     name: "emit_project_snapshot",
     description: "The core fundamentals panel for ONE project.",
     input_schema: { type: "object", properties: {
-      snapshot: { type: "object", description: "Include ONLY sub-objects the releases actually state.", properties: {
-        location: snapBlock(), commodity: snapBlock(), ownership: snapBlock(),
-        landPackage: snapBlock(), depositType: snapBlock(), pastProducer: snapBlock(),
+      snapshot: { type: "object", description: "The core fundamentals grid for this project. Fill EVERY sub-object the releases support — do NOT leave one empty when the fact is stated. Location and commodity are disclosed for essentially every project; extract them. Put the concise headline fact in each `value`. Omit a sub-object only if the releases genuinely never state it (then list it in notFound).", properties: {
+        location: snapBlock("Where the project is. Almost always stated — fill it.", "Concise location, e.g. 'South Texas, USA' or 'Parral District, Chihuahua, Mexico'."),
+        commodity: snapBlock("Primary commodity/commodities. Almost always stated — fill it.", "e.g. 'Uranium (U3O8)' or 'Silver · Gold'."),
+        ownership: snapBlock("Ownership / interest held in the project.", "e.g. '100% owned' or '75% earn-in option'."),
+        landPackage: snapBlock("Size of the land package / claims, if stated.", "e.g. '12,400 acres' or '3 mineral claims'."),
+        depositType: snapBlock("Deposit type / mineralization style, if stated.", "e.g. 'Roll-front sandstone-hosted' or 'High-grade epithermal vein'."),
+        pastProducer: snapBlock("Whether the project or district was previously mined, if stated.", "e.g. 'Historic producer, 1943-1971' or 'Past-producing district'."),
       } },
       markers: { type: "array", description: "Named locations WITH coordinates — only if explicitly stated in a release.", items: {
         type: "object", properties: { name: { type: "string" }, type: { type: "string", enum: ["drill", "target", "explore", "historic"] }, desc: { type: "string" }, lat: { type: "number" }, lon: { type: "number" } } } },
@@ -118,8 +127,16 @@ const PARTS = {
         bear: { type: "object", properties: { text: { type: "string" } } },
         next: { type: "object", properties: { text: { type: "string" } } },
         sourceDates: src } },
+      stage: { type: "object", description: "REQUIRED. The project's CURRENT development stage, in depth — where it sits in its lifecycle and what is happening now. Synthesis of disclosed facts, never invented.", properties: {
+        current: { type: "string", description: "Current stage name, e.g. 'Production', 'Discovery-Stage Drilling', 'Resource Definition'." },
+        summary: { type: "string", description: "1-2 sentences on where the project stands in its lifecycle right now." },
+        program: { type: "string", description: "The current work program, e.g. '26-hole Phase 1 drill campaign' or 'ISR wellfield production'." },
+        activity: { type: "string", description: "What is physically happening on the ground right now." },
+        completed: { type: "array", maxItems: 4, items: { type: "string" }, description: "2-4 recently completed milestones, most recent first." },
+        closing: { type: "string", description: "What must happen next to advance toward the following stage." },
+        sourceDates: src } },
       notFound,
-    }, required: ["brief", "unique", "scenarios"] },
+    }, required: ["brief", "unique", "scenarios", "stage"] },
   },
 };
 
@@ -245,8 +262,22 @@ export default async function handler(req, res) {
     const data = await r.json();
     const block = (data.content || []).find((b) => b.type === "tool_use");
     if (!block || !block.input) return bad(res, 502, "AI returned no content.");
+
+    // Defensive: the model sometimes packs the whole tool output into the
+    // `projects` field as a STRINGIFIED JSON object (e.g. {"corpusNotes":…,
+    // "projects":[…]}) instead of returning a plain array. Unwrap it so callers
+    // always receive `projects` as an array (the app does Array.isArray(projects)).
+    let out = block.input;
+    if (typeof out.projects === "string") {
+      try {
+        const parsed = JSON.parse(out.projects);
+        out = { ...out, ...(parsed && typeof parsed === "object" ? parsed : {}) };
+      } catch { /* leave as-is; caller falls back to [] */ }
+    }
+    if (!Array.isArray(out.projects)) out.projects = [];
+
     return res.status(200).json({
-      ...block.input,
+      ...out,
       meta: { model: MODEL, part, project: project || null, releases: docs.length, truncated, usage: data.usage, stopReason: data.stop_reason },
     });
   } catch (e) {

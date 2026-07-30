@@ -37,8 +37,21 @@ const TOOL = {
         properties: {
           shortSummary: { type: "string", description: "2-3 sentence plain-English summary of the opportunity: commodity, jurisdiction, stage, and what makes it interesting. Factual, not promotional." },
           keyPoints: { type: "array", items: { type: "string" }, description: "3-5 short, concrete value drivers grounded in the releases (each <= 10 words), e.g. 'Active 26-hole drill campaign underway'." },
+          sections: {
+            type: "array",
+            description: "The 60-second AI-brief orientation. EXACTLY these six sections IN THIS ORDER, each grounded in the releases: 'What They Do', 'How They Create Value', 'Why It Matters', 'Competitive Advantages', 'Current Focus', 'What Success Looks Like'. All are prose (`v`) except 'Competitive Advantages', which is 3-5 `bullets`. Context and orientation for a new investor — factual, plain-English, never promotional. Omit a section only if the releases truly can't support it.",
+            items: {
+              type: "object",
+              properties: {
+                k: { type: "string", description: "Section title, verbatim from the list above." },
+                v: { type: "string", description: "2-4 plain sentences. Use for every section EXCEPT 'Competitive Advantages'." },
+                bullets: { type: "array", items: { type: "string" }, description: "3-5 short factual advantages (each <= 12 words). Use ONLY for 'Competitive Advantages'." },
+              },
+              required: ["k"],
+            },
+          },
         },
-        required: ["shortSummary", "keyPoints"],
+        required: ["shortSummary", "keyPoints", "sections"],
       },
       warnings: { type: "array", items: { type: "string" }, description: "e.g. 'limited releases provided', 'jurisdiction inferred', anything the reviewer should double-check." },
     },
@@ -68,6 +81,14 @@ const SYSTEM = [
   "BRIEF is a short, factual description of the whole company — commodity, jurisdiction,",
   "stage, flagship asset(s), and the 3-5 concrete value drivers that make it investable.",
   "Ignore promotional adjectives; keep every key point grounded in a real disclosed fact.",
+  "",
+  "BRIEF.sections is the 60-second orientation a new investor reads to understand the",
+  "company. Produce EXACTLY these six, in order: 'What They Do', 'How They Create Value',",
+  "'Why It Matters', 'Competitive Advantages' (3-5 bullets), 'Current Focus', 'What Success",
+  "Looks Like'. Write plainly and specifically about THIS company from its releases — what",
+  "it actually mines/explores, where, at what stage, and what would move it forward. Never",
+  "reuse another company's framing. If the releases genuinely can't support a section, omit",
+  "it rather than inventing.",
 ].join("\n");
 
 function bad(res, code, msg) { res.status(code).json({ error: msg }); }

@@ -58,6 +58,38 @@ export async function fetchCompanies(reqHeaders = headers) {
   return res.json();
 }
 
+// Delete a company row by slug. Used to clear out draft/test companies from the admin.
+// is_admin() lets an admin delete any row; RLS blocks non-admins. Returns true on success.
+export async function deleteCompany(slug, reqHeaders = headers) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/companies?slug=eq.${encodeURIComponent(slug)}`, {
+    method: "DELETE",
+    headers: { ...reqHeaders, Prefer: "return=representation" },
+  });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    throw new Error(`Delete failed (${res.status})${detail ? `: ${detail}` : ""}`);
+  }
+  const rows = await res.json().catch(() => []);
+  return Array.isArray(rows) && rows.length > 0;   // false = RLS no-op (protected/not found)
+}
+
+// Create a company row. Used by the JSON importer so onboarding a new company is a
+// single paste — the name and ticker come out of the payload rather than being typed
+// first. Starts as a draft; the operator reviews and publishes.
+export async function createCompany(fields, reqHeaders = headers) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/companies`, {
+    method: "POST",
+    headers: { ...reqHeaders, "Content-Type": "application/json", Prefer: "return=representation" },
+    body: JSON.stringify({ status: "draft", ...fields }),
+  });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    throw new Error(`Create failed (${res.status})${detail ? `: ${detail}` : ""}`);
+  }
+  const rows = await res.json();
+  return Array.isArray(rows) && rows.length ? rows[0] : null;
+}
+
 // Patch a company row by slug (e.g. { status: "published" }). Pass the admin's
 // authed headers so is_admin() lets it touch any row. Returns the updated row.
 export async function updateCompany(slug, patch, reqHeaders = headers) {

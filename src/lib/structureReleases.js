@@ -285,20 +285,25 @@ export function toTimelineEntries(assembled) {
 
 // Layer 2 — synthesize the Company Status card + Brief from the assembled timeline.
 // Returns { companyStatus, companyBrief, warnings } or null on failure.
-export async function synthesizeProfile({ company = {}, timeline = [], projects = [] } = {}) {
+export async function synthesizeProfile({ company = {}, timeline = [], projects = [] } = {}, { attempts = 3 } = {}) {
   if (!Array.isArray(timeline) || !timeline.length) return null;
-  try {
-    const res = await fetch("/api/synthesize-profile", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ company, timeline, projects }),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) return null;
-    return data.overview || null;
-  } catch (_) {
-    return null;
+  // The synthesis call intermittently returns a 200 with an empty overview (the model
+  // occasionally emits the forced tool with no content). Retry until we get a usable
+  // status headline, so a one-off empty response doesn't leave the profile blank.
+  for (let i = 0; i < attempts; i++) {
+    try {
+      const res = await fetch("/api/synthesize-profile", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ company, timeline, projects }),
+      });
+      const data = await res.json().catch(() => ({}));
+      const ov = res.ok ? data.overview : null;
+      if (ov && ov.companyStatus && ov.companyStatus.statusHeadline) return ov;
+    } catch (_) { /* transient — retry */ }
+    await new Promise((r) => setTimeout(r, 700 * 2 ** i + Math.floor(Math.random() * 300)));
   }
+  return null;
 }
 
 // ---- Projects extraction --------------------------------------------------
@@ -344,8 +349,14 @@ export async function extractProjects(releases, { token, onProgress } = {}) {
 
   const disc = await extractPart(corpus, "discover", "", token);
   const all = Array.isArray(disc.projects) ? disc.projects : [];
-  const operated = all.filter(isOperated);
-  const skipped = all.filter((p) => !isOperated(p)).map((p) => p.name);
+  // Cap the number of fully-detailed projects: each one costs several sequential AI
+  // calls, so 10+ projects means 50+ calls (slow, costly, and more failure surface).
+  // Keep the first N operated projects; the rest are listed but not deep-detailed.
+  const MAX_DETAILED = 6;
+  const operatedAll = all.filter(isOperated);
+  const operated = operatedAll.slice(0, MAX_DETAILED);
+  const overflow = operatedAll.slice(MAX_DETAILED).map((p) => p.name);
+  const skipped = [...all.filter((p) => !isOperated(p)).map((p) => p.name), ...overflow];
 
   // total steps = discover (done) + PARTS per operated project, for progress.
   const totalSteps = operated.length * PROJECT_PARTS.length;
@@ -463,21 +474,117 @@ export async function reanalyzeFromMemory(companyId, { token, onProgress, deps }
   // contribute to the profile instead.
   const prItems = corpus.map((d, i) => ({ id: "m" + i, name: d.name, text: d.text }));
   let out = { timeline: [], timelineEntries: [] };
+  // RESILIENCE: each extractor is isolated. A failure in one step (e.g. a flaky
+  // network 'Failed to fetch' on one of many project calls) must NOT throw away the
+  // whole run — we save whatever succeeded rather than losing everything.
   if (prItems.length) {
     if (onProgress) onProgress("Rebuilding the timeline…");
-    const results = await structureReleasesBatched(prItems, { token, onProgress: (dn, tot) => onProgress && onProgress(`Analyzing release ${dn} of ${tot}…`) });
-    const timeline = assembleTimeline(results);
-    out = { timeline, timelineEntries: toTimelineEntries(timeline), results };
+    try {
+      const results = await structureReleasesBatched(prItems, { token, onProgress: (dn, tot) => onProgress && onProgress(`Analyzing release ${dn} of ${tot}…`) });
+      const timeline = assembleTimeline(results);
+      out = { timeline, timelineEntries: toTimelineEntries(timeline), results };
+    } catch (_) { if (onProgress) onProgress("Timeline step hit a snag — continuing with the rest…"); }
   }
 
-  // 4) Company facts + projects from the WHOLE corpus (this is the fix).
   const releases = corpus.map((d) => ({ date: d.date || "0000-00-00", text: d.text })).filter((r) => r.text && r.text.trim().length > 20);
   if (onProgress) onProgress("Reading company details, capital and leadership…");
-  const company = await extractCompany(releases, { token });
+  let company = null, projects = null;
+  try { company = await extractCompany(releases, { token }); } catch (_) { /* extractCompany already returns null on failure */ }
   if (onProgress) onProgress("Extracting projects — this takes a few minutes…");
-  const projects = await extractProjects(releases, { token, onProgress: (dn, tot, label) => onProgress && onProgress(`Building projects: ${label} (${dn}/${tot})…`) });
+  try {
+    projects = await extractProjects(releases, { token, onProgress: (dn, tot, label) => onProgress && onProgress(`Building projects: ${label} (${dn}/${tot})…`) });
+  } catch (_) { if (onProgress) onProgress("Projects step hit a snag — saving the rest…"); }
 
-  return { ...out, company, projects, docCount: docs.length, textCount: corpus.length };
+  // 4) Synthesize the investor-facing OVERVIEW (Company Status card + AI Brief) from
+  //    the assembled chronology + company facts. This is what makes a one-pass rebuild
+  //    produce a COMPLETE profile instead of facts with a blank status card / brief.
+  //    Best-effort: a failure here never discards the extracted facts above.
+  let companyStatus = null, companyBrief = null;
+  try {
+    if (onProgress) onProgress("Writing the company status and AI brief…");
+    const id = (company && company.identity) || {};
+    const cap = (company && company.capital) || {};
+    const overview = await synthesizeProfile({
+      company: { name: id.name, ticker: id.ticker, commodity: id.commodity, jurisdiction: id.jurisdiction, ...cap },
+      timeline: out.timelineEntries || [],
+      projects: ((projects && projects.projects) || []).map((p) => ({ name: p.name, tag: p.tag })),
+    });
+    if (overview) { companyStatus = overview.companyStatus || null; companyBrief = overview.companyBrief || null; }
+  } catch (_) { /* overview is best-effort */ }
+
+  return { ...out, company, projects, companyStatus, companyBrief, docCount: docs.length, textCount: corpus.length };
+}
+
+// Ensure a set of stored docs have text (free pdf.js first, AI fallback). Shared
+// by re-analyze and incremental add. Mutates each doc's extracted_text and saves.
+async function ensureDocsText(docs, token, deps, onProgress) {
+  const { downloadDocumentBase64, saveDocumentText } = deps || {};
+  const { pdfToText } = await import("./pdfText.js");
+  const b64ToBuffer = (b64) => { const bin = atob(b64); const u = new Uint8Array(bin.length); for (let k = 0; k < bin.length; k++) u[k] = bin.charCodeAt(k); return u.buffer; };
+  let i = 0;
+  for (const d of docs) {
+    i++;
+    if (d.extracted_text && d.extracted_text.trim()) continue;
+    if (onProgress) onProgress(`Reading document ${i} of ${docs.length}…`);
+    if (isPdfDoc(d) && d.storage_path && downloadDocumentBase64) {
+      const b64 = await downloadDocumentBase64(d.storage_path);
+      if (b64) {
+        let txt = "";
+        try { txt = await pdfToText(b64ToBuffer(b64)); } catch (_) {}
+        if (!txt || txt.trim().length < 30) txt = await extractDocText(b64, token);
+        if (txt) { d.extracted_text = txt; if (saveDocumentText) await saveDocumentText(d.id, txt); }
+      }
+    }
+  }
+}
+
+// Intelligent incremental add: process ONLY the new (unreflected) documents and
+// route each by what it is —
+//   • a dated press release  → new timeline entries (merged, not rebuilt)
+//   • a reference doc (deck / website page / undated) → update the profile
+// Company/projects/identity are re-read from the new docs so a dropped deck fills
+// capital/projects/leadership; the caller merges CONSERVATIVELY (mergeIncremental),
+// so a routine press release never clobbers hand-edited profile fields.
+// Returns { timelineEntries, company, projects, routing, reflectedIds }.
+export async function analyzeNewDocuments(companyId, { token, onProgress, deps } = {}) {
+  const { unreflectedDocuments } = deps || {};
+  if (!unreflectedDocuments) throw new Error("memory deps required");
+  const docs = await unreflectedDocuments(companyId);
+  if (!docs.length) return { routing: { newDocs: 0 }, timelineEntries: [], company: null, projects: null, reflectedIds: [] };
+
+  // 1) Make sure the new docs have text.
+  await ensureDocsText(docs, token, deps, onProgress);
+  const withText = docs.filter((d) => d.extracted_text && d.extracted_text.trim());
+
+  // 2) Structure the new docs → new timeline entries (the AI dates them; undated
+  //    reference docs fall out of the timeline).
+  const items = withText.map((d, i) => ({ id: "n" + i, name: d.filename, text: d.extracted_text }));
+  let timelineEntries = [];
+  if (items.length) {
+    if (onProgress) onProgress("Sorting new documents…");
+    const results = await structureReleasesBatched(items, { token });
+    // Only DATED entries (real press releases) go on the timeline; undated
+    // reference docs (decks, website pages) fall through to the profile.
+    timelineEntries = toTimelineEntries(assembleTimeline(results)).filter((e) => /^\d{4}-\d{2}-\d{2}/.test(str(e.date)));
+  }
+
+  // 3) Update profile facts from the new docs (a deck fills capital/projects/team).
+  const newReleases = withText.map((d) => ({ date: d.doc_date || "", text: d.extracted_text })).filter((r) => r.text.trim().length > 20);
+  let company = null, projects = null;
+  if (newReleases.length) {
+    if (onProgress) onProgress("Updating company details from the new documents…");
+    company = await extractCompany(newReleases, { token });
+    if (onProgress) onProgress("Updating projects…");
+    projects = await extractProjects(newReleases, { token, onProgress: (dn, tot, label) => onProgress && onProgress(`Projects: ${label} (${dn}/${tot})…`) });
+  }
+
+  const datedNew = timelineEntries.length;
+  const refDocs = withText.length - datedNew;
+  return {
+    timelineEntries, company, projects,
+    routing: { newDocs: docs.length, withText: withText.length, timelineAdded: datedNew, referenceDocs: Math.max(0, refDocs) },
+    reflectedIds: docs.map((d) => d.id),
+  };
 }
 
 // Convenience: run the whole pipeline (structure -> assemble -> group + suggestions).
