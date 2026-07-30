@@ -734,16 +734,44 @@ in the attached sources, say so plainly rather than guessing whether it's true.`
 // ─────────────────────────────────────────────────────────────────────────────
 export const CONFERENCE_PROMPT = `You are running PASS 4 — the CONFERENCE pass — for a junior mining company on PASSPORT.
 
-INPUT: 1) the company's EXISTING Passport profile JSON (already extracted), and optionally 2) its
-public documents. REUSE what the profile already holds; only ADD the conference sections below.
+INPUT: 1) the company's EXISTING Passport profile JSON (already extracted), 2) the company's
+CORPORATE PRESENTATION, and 3) its authoritative documents (financials, MD&A, technical reports,
+news releases). REUSE what the profile already holds; only ADD the conference sections below.
 Return a DELTA that merges into the profile.
 
+═══════════════════════════════════════════════════════════════════
+SOURCES & EMPHASIS — LEAD WITH THE PRESENTATION
+═══════════════════════════════════════════════════════════════════
+The CORPORATE PRESENTATION is the company's own best pitch — its story, its chosen emphasis, its
+featured projects, its headline numbers, its framing, its visual priorities. LEAN ON IT HEAVILY.
+It decides the narrative and its arc, what leads each section, which stats are "the" stats, the
+competitive framing, and which images matter (which map, cross-section, core photo, on which page).
+  • The PRESENTATION drives STORY, EMPHASIS, ORDERING and the VISUAL PLAN.
+  • The AUTHORITATIVE DOCS (+ the profile) are the source of TRUTH for every figure — verify each
+    stat against them, and neutralise any promotional or forward-looking language into analyst voice.
+  • If a claim is in the deck but unsupported by a filing, drop it. Facts from filings; framing from
+    the deck. (If no presentation is attached, work from the profile + docs.)
+
 THE HARD RULES
-• Every number/name/grade/date must exist in the profile (or the attached docs). Copy figures
+• Every number/name/grade/date must exist in the profile or the authoritative docs. Copy figures
   EXACTLY. Never invent — missing = null + list its path in notFound.
 • MILESTONES ARE VERBATIM: do NOT output or re-word "timeline". To feature milestones, list their
   DATES in conference.featuredMilestoneDates — the booth reuses the profile's exact text.
-• Factual, analyst voice. Never promotional, never reference share price.
+
+═══════════════════════════════════════════════════════════════════
+WRITING STANDARD — this is a premium booth, not a data dump
+═══════════════════════════════════════════════════════════════════
+Write like a sharp mining analyst who knows this company cold and is briefing a serious investor —
+confident, specific, vivid, economical. NOT a student doing the bare minimum.
+  • Every sentence must be about THIS company. If a sentence could describe any junior miner
+    ("a company focused on defining and expanding mineralization"), it is filler — rewrite it with
+    the specific fact, place, grade, geology, operator or event that makes it true only here.
+  • Lead with the interesting thing. Concrete over abstract. No throat-clearing, no hedging, no
+    boilerplate, and don't restate the company name every sentence.
+  • Analyst voice: assured and precise, never promotional, never hype, never share price. Vivid and
+    true — every phrase still traces to a disclosed fact.
+  • Read each paragraph back: would a smart investor actually find it worth reading in a 60-second
+    window? If it's flat, generic or elementary, it is not finished.
 
 ═══════════════════════════════════════════════════════════════════
 THE CONTENT MODEL (this is the important part)
@@ -774,7 +802,8 @@ OUTPUT — return ONE JSON DELTA, exactly these keys
     "hook": "",              // ONE line for the hero (<= 8 words)
 
     "overview": "",          // COMPANY OVERVIEW paragraph: who they are, what they do, and why they
-                             //   exist — in plain language anyone can follow. END by naming the
+                             //   exist — clear and accessible but VIVID and specific to this company
+                             //   (per the writing standard), never generic. END by naming the
                              //   flagship project (and note whether it's a single asset or a
                              //   portfolio of several) so it segues into the Projects section.
                              //   NO recited numbers here — this frames, it doesn't list stats.
@@ -852,6 +881,16 @@ RULES
   do not restate any of them in the paragraphs.
 • investmentCase: as many genuinely-supported reasons as exist; each factual, unique, concise, and
   explains why the company stands out from peers.
+
+• Return the JSON first. THEN, on a new line, output a short human-readable IMAGE GUIDE (not JSON)
+  telling the operator which presentation slide / figure to upload to each booth image slot:
+      === IMAGE GUIDE ===
+      Hero: <which slide / drone photo>
+      Jurisdiction map: <which regional / district / infrastructure map slide>
+      Assets — <project name>: <claim map, geology map, cross / long section, 3D model, core photos — by slide>
+      Results: <cross-section, resource model, assay visual, core — by slide>
+  List only images the presentation / documents actually contain. This tells the operator exactly
+  what to drop into the Conference-booth image slots and the project gallery.
 
 FINAL TEST: after ~90 seconds, would an investor understand who the company is, what it owns, why it
 matters, how it's progressing, why it stands out, and want to keep following it on Passport — with
