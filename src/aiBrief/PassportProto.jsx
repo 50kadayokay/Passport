@@ -7692,8 +7692,8 @@ function ConferenceScenes() {
     </div>
   );
 
-  // SECTION 2 — COMPANY OVERVIEW (context paragraph → commodity/jurisdiction/stage → key numbers)
-  if (S(conf.overview) || highlights.length || S(conf.macroContext)) scenes.push(
+  // SECTION 2 — COMPANY OVERVIEW (context paragraph → commodity/jurisdiction/stage chips)
+  if (S(conf.overview) || S(conf.macroContext)) scenes.push(
     <SceneShell key="overview" bg="#0b1220" color="#fff">
       <Reveal v="eyebrow"><div style={sceneEyebrow(EM)}>Overview</div></Reveal>
       {S(conf.overview) && <Reveal v="head"><div style={{ fontSize: "clamp(24px,3.2vw,42px)", fontWeight: 600, letterSpacing: "-0.02em", lineHeight: 1.32, maxWidth: 1080, marginTop: 20 }}>{S(conf.overview)}</div></Reveal>}
@@ -7705,19 +7705,54 @@ function ConferenceScenes() {
           ))}
         </div></Reveal>
       )}
-      {highlights.length > 0 && (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))", gap: 18, marginTop: 44 }}>
-          {highlights.map((s, i) => (
-            <Reveal key={i} v="card" order={Math.min(i, 4)}><div style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 22, padding: "24px 22px", height: "100%" }}>
-              <div style={{ fontSize: "clamp(26px,3vw,44px)", fontWeight: 900, letterSpacing: "-0.03em", lineHeight: 1.0, whiteSpace: "nowrap" }}><CountUp value={S(s.value)} /></div>
-              <div style={{ fontSize: 13, fontWeight: 800, color: "#9aa4b2", marginTop: 12, textTransform: "uppercase", letterSpacing: "0.08em" }}>{S(s.label)}</div>
-              {S(s.context) && <div style={{ fontSize: 13.5, color: "#7c8a9c", marginTop: 8, lineHeight: 1.4 }}>{S(s.context)}</div>}
-            </div></Reveal>
-          ))}
-        </div>
-      )}
     </SceneShell>
   );
+
+  // SECTION 3 — AT A GLANCE (bird's-eye highlights across every aspect, before the deep dive)
+  if (highlights.length) scenes.push(
+    <SceneShell key="glance" bg="#000000" color="#fff">
+      <Reveal v="eyebrow"><div style={sceneEyebrow(EM)}>At a Glance</div></Reveal>
+      {S(conf.hook) && <Reveal v="head"><div style={{ fontSize: "clamp(28px,3.6vw,50px)", fontWeight: 800, letterSpacing: "-0.03em", lineHeight: 1.12, marginTop: 14, maxWidth: 1000 }}>{S(conf.hook)}</div></Reveal>}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: 20, marginTop: 44 }}>
+        {highlights.map((s, i) => (
+          <Reveal key={i} v="card" order={Math.min(i, 5)}><div style={{ background: "rgba(255,255,255,0.05)", backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 26, padding: "clamp(26px,2.6vw,38px)", height: "100%" }}>
+            <div style={{ fontSize: "clamp(30px,3.4vw,52px)", fontWeight: 900, letterSpacing: "-0.03em", lineHeight: 1.0, whiteSpace: "nowrap" }}><CountUp value={S(s.value)} /></div>
+            <div style={{ fontSize: 13.5, fontWeight: 800, color: "#9aa4b2", marginTop: 14, textTransform: "uppercase", letterSpacing: "0.08em" }}>{S(s.label)}</div>
+            {S(s.context) && <div style={{ fontSize: 14, color: "#7c8a9c", marginTop: 9, lineHeight: 1.4 }}>{S(s.context)}</div>}
+          </div></Reveal>
+        ))}
+      </div>
+    </SceneShell>
+  );
+
+  // SECTION 4 — REGION & DISTRICT (the address: jurisdiction, belt, access & infrastructure)
+  {
+    const infra = flagship.infrastructure || {};
+    const regionBody = S(conf.region) || S(infra.notes) || (Array.isArray(flagship.narrative) ? S(flagship.narrative[0]) : "");
+    const infraFacts = [
+      { k: "Jurisdiction", v: S(co.jurisdiction) },
+      { k: "Access", v: S(infra.road) },
+      { k: "Power", v: S(infra.power) },
+      { k: "Water", v: S(infra.water) },
+    ].filter((f) => S(f.v));
+    if (S(regionBody) || infraFacts.length) scenes.push(
+      <SceneShell key="region" bg="#0b1220" color="#fff">
+        <Reveal v="eyebrow"><div style={sceneEyebrow(EM)}>Region & District</div></Reveal>
+        <Reveal v="head"><div style={{ fontSize: "clamp(30px,4vw,58px)", fontWeight: 800, letterSpacing: "-0.03em", marginTop: 14 }}>{S(co.jurisdiction) || "The District"}</div></Reveal>
+        {S(regionBody) && <Reveal v="body" order={1}><div style={{ fontSize: "clamp(17px,1.9vw,23px)", fontWeight: 500, lineHeight: 1.5, color: "#dbe2ec", marginTop: 22, maxWidth: 1000 }}>{S(regionBody)}</div></Reveal>}
+        {infraFacts.length > 0 && (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 16, marginTop: 40 }}>
+            {infraFacts.map((f, i) => (
+              <Reveal key={i} v="card" order={Math.min(i, 3)}><div style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 18, padding: "18px 20px", height: "100%" }}>
+                <div style={{ fontSize: 11.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.1em", color: EM }}>{f.k}</div>
+                <div style={{ fontSize: 15, fontWeight: 600, marginTop: 8, color: "#dbe2ec", lineHeight: 1.4 }}>{S(f.v)}</div>
+              </div></Reveal>
+            ))}
+          </div>
+        )}
+      </SceneShell>
+    );
+  }
 
   // SECTION 3 — PROJECTS (flagship told as swipeable narrative paragraphs + callouts)
   if (S(flagship.name)) scenes.push(

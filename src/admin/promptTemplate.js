@@ -780,6 +780,8 @@ OUTPUT — return ONE JSON DELTA, exactly these keys
                              //   NO recited numbers here — this frames, it doesn't list stats.
 
     "macroContext": "",      // ONE sentence on why the COMMODITY/market matters now (not company facts)
+    "region": "",            // REGION/DISTRICT paragraph: the mining belt/jurisdiction, nearby producing
+                             //   mines, access & infrastructure, and why the address matters (its own page).
 
     "highlights": [          // 3–5 glance-strip stats. Each MUST carry a short context line.
       { "value": "", "label": "", "context": "" }   // context = one clause on what the number means
