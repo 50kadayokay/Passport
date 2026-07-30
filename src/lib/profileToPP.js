@@ -314,6 +314,8 @@ function mapOneProject(p, i) {
     ...(p.production && typeof p.production === "object" ? { production: p.production } : {}),
     ...(p.metallurgy && typeof p.metallurgy === "object" ? { metallurgy: p.metallurgy } : {}),
     ...(p.infrastructure && typeof p.infrastructure === "object" ? { infrastructure: p.infrastructure } : {}),
+    ...(p.deposit && typeof p.deposit === "object" ? { deposit: p.deposit } : {}),
+    ...(p.drilling && typeof p.drilling === "object" ? { drilling: p.drilling } : {}),
     ...(p.royalty && typeof p.royalty === "object" ? { royalty: p.royalty } : {}),
     ...(markers.length ? { markers } : {}),
     // The app's ProjectGallery reads slide.src — normalise plain URL strings (from the

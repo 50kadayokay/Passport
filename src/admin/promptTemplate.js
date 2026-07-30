@@ -823,6 +823,11 @@ OUTPUT — return ONE JSON DELTA, exactly these keys
     "timelineIntro": "",     // Section-5 CONTEXT paragraph: the momentum / track record
     "capitalIntro": "",      // Section-6 CONTEXT paragraph: the funding situation & runway
     "leadershipIntro": "",   // Section-7 CONTEXT paragraph: why this team is credible
+    "leadership": [          // TRACK-RECORD flow (NOT bios): what they've built, not where they studied.
+      { "name": "", "role": "", "headline": "",   // headline = the one-line why (e.g. "35 years, built 3 mines")
+        "previousCompanies": [""], "discoveries": [""], "successes": [""] }   // notable exits / capital raised / M&A
+    ],
+    "strategicPartnerships": [""],   // named partners / JV / strategic holders shown under Capital (if any)
 
     "investmentCase": [      // Why Invest — as MANY evidence-backed reasons as the docs support (no fixed number)
       { "reason": "", "evidence": "", "standsOutBecause": "" }
@@ -851,6 +856,8 @@ OUTPUT — return ONE JSON DELTA, exactly these keys
       "production":  { "annualOutput": "", "aisc": "", "freeCashFlow": "", "reserveLife": "" },
       "metallurgy":  { "recovery": "", "method": "", "testwork": "" },
       "infrastructure": { "power": "", "road": "", "water": "", "port": "", "notes": "" },
+      "deposit":     { "type": "", "mineType": "", "brownfields": "", "pastProducer": "", "porphyry": "", "historicalProduction": "" },  // shown as Asset flags
+      "drilling":    { "program": "", "phase": "", "holesCompleted": "", "metresDrilled": "", "assaysPending": "", "hitRate": "" },        // shown in Results
       "royalty":     { "assets": [ { "name": "", "type": "NSR|stream", "rate": "", "operator": "", "status": "" } ] }
     }
   ],

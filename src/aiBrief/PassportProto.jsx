@@ -7552,8 +7552,18 @@ function SceneProjectStory({ project, label, calloutsFor, fallbackImg }) {
             ))}
           </div>
         )}
+        {(() => {
+          const dep = project.deposit || {};
+          const flag = (v, label) => (v === true || /^(yes|true)/i.test(S(v)) ? label : (S(v) && !/^(no|false|n\/a|none)/i.test(S(v)) ? S(v) : ""));
+          const tags = [S(dep.type), S(dep.mineType), flag(dep.pastProducer, "Past producer"), flag(dep.brownfields, "Brownfields"), flag(dep.porphyry, "Porphyry"), S(dep.historicalProduction)].map(S).filter(Boolean);
+          return tags.length ? (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 26 }}>
+              {tags.map((t, k) => (<span key={k} style={{ fontSize: 13, fontWeight: 700, color: "#c4cdd9", background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.16)", borderRadius: 999, padding: "7px 15px" }}>{t}</span>))}
+            </div>
+          ) : null;
+        })()}
         {Array.isArray(project.gallery) && project.gallery.length > 1 && (
-          <div style={{ display: "flex", gap: 12, marginTop: 30, flexWrap: "wrap" }}>
+          <div style={{ display: "flex", gap: 12, marginTop: 26, flexWrap: "wrap" }}>
             {project.gallery.slice(1, 5).map((g, k) => (S(g && g.src) ? (
               <div key={k} style={{ width: 150, height: 96, borderRadius: 14, overflow: "hidden", border: "1px solid rgba(255,255,255,0.2)", flexShrink: 0 }}><img src={S(g.src)} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /></div>
             ) : null))}
@@ -7809,6 +7819,21 @@ function ConferenceScenes() {
       <SceneShell key="results" bg="#05070d" color="#fff">
         <Reveal v="eyebrow"><div style={sceneEyebrow(EM)}>{title}</div></Reveal>
         {S(conf.resultsIntro) && <Reveal v="head"><div style={{ fontSize: "clamp(22px,2.6vw,34px)", fontWeight: 500, letterSpacing: "-0.02em", lineHeight: 1.4, maxWidth: 1000, marginTop: 16, color: "#dbe2ec" }}>{S(conf.resultsIntro)}</div></Reveal>}
+        {(() => {
+          const d = flagship.drilling || {};
+          const ds = [
+            { l: "Program", v: S(d.program) }, { l: "Phase", v: S(d.phase) },
+            { l: "Holes completed", v: S(d.holesCompleted) }, { l: "Metres drilled", v: S(d.metresDrilled) },
+            { l: "Assays pending", v: S(d.assaysPending) }, { l: "Hit rate", v: S(d.hitRate) },
+          ].filter((x) => x.v);
+          return ds.length ? (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "24px 40px", marginTop: 32 }}>
+              {ds.map((x, i) => (
+                <Reveal key={i} v="card" order={Math.min(i, 4)}><div><div style={{ fontSize: "clamp(22px,2.4vw,34px)", fontWeight: 900, letterSpacing: "-0.02em", whiteSpace: "nowrap" }}><CountUp value={x.v} /></div><div style={{ fontSize: 12, fontWeight: 700, color: "#93a0b0", marginTop: 6, textTransform: "uppercase", letterSpacing: "0.08em" }}>{x.l}</div></div></Reveal>
+              ))}
+            </div>
+          ) : null;
+        })()}
         {items.length > 0 ? (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 26, marginTop: 44 }}>
             {items.map((it, i) => (
@@ -7878,31 +7903,78 @@ function ConferenceScenes() {
           </div>
         )}
         {ownershipHas && <Reveal v="body" order={3}><div style={{ marginTop: 46 }}><div style={{ fontSize: 12, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.14em", color: "#93a0b0", marginBottom: 18 }}>Backing & Ownership</div><OwnershipBar rows={OWNERSHIP} dark /></div></Reveal>}
+        {(() => {
+          const parts = (Array.isArray(conf.strategicPartnerships) ? conf.strategicPartnerships : []).map(S).filter(Boolean);
+          return parts.length ? (
+            <div style={{ marginTop: 44 }}>
+              <div style={{ fontSize: 12, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.14em", color: "#93a0b0", marginBottom: 14 }}>Strategic partnerships</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
+                {parts.map((pp, i) => (<Reveal key={i} v="card" order={Math.min(i, 4)}><span style={{ display: "inline-block", fontSize: 15, fontWeight: 600, color: "#dbe2ec", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 14, padding: "12px 18px" }}>{pp}</span></Reveal>))}
+              </div>
+            </div>
+          ) : null;
+        })()}
       </SceneShell>
     );
   }
 
-  // SECTION 7 — LEADERSHIP (context paragraph → team + track records)
-  if (team.length) scenes.push(
-    <SceneShell key="leadership" bg="#0b1220" color="#fff">
-      <Reveal v="eyebrow"><div style={sceneEyebrow(EM)}>Leadership</div></Reveal>
-      <Reveal v="head"><div style={{ fontSize: "clamp(22px,2.6vw,34px)", fontWeight: 500, lineHeight: 1.4, maxWidth: 1000, marginTop: 16, color: "#dbe2ec" }}>{S(conf.leadershipIntro) || "Backed by proven operators."}</div></Reveal>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 20, marginTop: 44 }}>
-        {team.slice(0, 8).map((m, i) => {
-          const initials = S(m.name).split(/\s+/).slice(0, 2).map((w) => w[0]).join("");
-          const line = S(m.trackRecord) || S(m.short);
-          return (
-            <Reveal key={i} v="card" order={Math.min(i, 4)}><div style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 22, padding: 24, height: "100%" }}>
-              <div style={{ height: 76, width: 76, borderRadius: 18, overflow: "hidden", background: "rgba(255,255,255,0.08)", display: "grid", placeItems: "center", fontSize: 25, fontWeight: 800, color: "#c4cdd9" }}>{m.photo ? <img src={m.photo} alt="" style={{ height: "100%", width: "100%", objectFit: "cover" }} /> : initials}</div>
-              <div style={{ fontSize: 20, fontWeight: 900, letterSpacing: "-0.02em", marginTop: 16 }}>{S(m.name)}</div>
-              <div style={{ fontSize: 13.5, fontWeight: 700, color: EM, marginTop: 4 }}>{S(m.role)}</div>
-              {line && <div style={{ fontSize: 14, color: "#93a0b0", marginTop: 11, lineHeight: 1.5 }}>{line}</div>}
-            </div></Reveal>
-          );
-        })}
-      </div>
-    </SceneShell>
-  );
+  // SECTION 8 — LEADERSHIP (track-record FLOW, not bios: headline → previously → discoveries → wins)
+  {
+    const leaders = (Array.isArray(conf.leadership) ? conf.leadership : []).filter((l) => l && S(l.name));
+    const photoFor = (name) => { const m = team.find((t) => S(t.name).toLowerCase() === S(name).toLowerCase()); return m ? S(m.photo) : ""; };
+    if (leaders.length || team.length) scenes.push(
+      <SceneShell key="leadership" bg="#0b1220" color="#fff">
+        <Reveal v="eyebrow"><div style={sceneEyebrow(EM)}>Leadership</div></Reveal>
+        <Reveal v="head"><div style={{ fontSize: "clamp(22px,2.6vw,34px)", fontWeight: 500, lineHeight: 1.4, maxWidth: 1000, marginTop: 16, color: "#dbe2ec" }}>{S(conf.leadershipIntro) || "Backed by proven operators."}</div></Reveal>
+        {leaders.length ? (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 22, marginTop: 44 }}>
+            {leaders.slice(0, 6).map((l, i) => {
+              const photo = photoFor(l.name);
+              const initials = S(l.name).split(/\s+/).slice(0, 2).map((w) => w[0]).join("");
+              const rows = [
+                { k: "Previously", items: (Array.isArray(l.previousCompanies) ? l.previousCompanies : []).map(S).filter(Boolean) },
+                { k: "Discoveries", items: (Array.isArray(l.discoveries) ? l.discoveries : []).map(S).filter(Boolean) },
+                { k: "Track record", items: (Array.isArray(l.successes) ? l.successes : []).map(S).filter(Boolean) },
+              ].filter((r) => r.items.length);
+              return (
+                <Reveal key={i} v="card" order={Math.min(i, 4)}><div style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 22, padding: 26, height: "100%" }}>
+                  <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
+                    <div style={{ height: 60, width: 60, borderRadius: 16, overflow: "hidden", background: "rgba(255,255,255,0.08)", display: "grid", placeItems: "center", fontSize: 20, fontWeight: 800, color: "#c4cdd9", flexShrink: 0 }}>{photo ? <img src={photo} alt="" style={{ height: "100%", width: "100%", objectFit: "cover" }} /> : initials}</div>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: 19, fontWeight: 900, letterSpacing: "-0.02em" }}>{S(l.name)}</div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: EM, marginTop: 2 }}>{S(l.role)}</div>
+                    </div>
+                  </div>
+                  {S(l.headline) && <div style={{ fontSize: 17, fontWeight: 700, marginTop: 16, color: "#e6ebf2", lineHeight: 1.3 }}>{S(l.headline)}</div>}
+                  {rows.map((r, ri) => (
+                    <div key={ri} style={{ marginTop: 14, paddingLeft: 14, borderLeft: `2px solid ${EM}44` }}>
+                      <div style={{ fontSize: 10.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.12em", color: "#7c8a9c" }}>{r.k}</div>
+                      <div style={{ fontSize: 14, color: "#c4cdd9", marginTop: 4, lineHeight: 1.5 }}>{r.items.join(" · ")}</div>
+                    </div>
+                  ))}
+                </div></Reveal>
+              );
+            })}
+          </div>
+        ) : (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 20, marginTop: 44 }}>
+            {team.slice(0, 8).map((m, i) => {
+              const initials = S(m.name).split(/\s+/).slice(0, 2).map((w) => w[0]).join("");
+              const line = S(m.trackRecord) || S(m.short);
+              return (
+                <Reveal key={i} v="card" order={Math.min(i, 4)}><div style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 22, padding: 24, height: "100%" }}>
+                  <div style={{ height: 76, width: 76, borderRadius: 18, overflow: "hidden", background: "rgba(255,255,255,0.08)", display: "grid", placeItems: "center", fontSize: 25, fontWeight: 800, color: "#c4cdd9" }}>{m.photo ? <img src={m.photo} alt="" style={{ height: "100%", width: "100%", objectFit: "cover" }} /> : initials}</div>
+                  <div style={{ fontSize: 20, fontWeight: 900, letterSpacing: "-0.02em", marginTop: 16 }}>{S(m.name)}</div>
+                  <div style={{ fontSize: 13.5, fontWeight: 700, color: EM, marginTop: 4 }}>{S(m.role)}</div>
+                  {line && <div style={{ fontSize: 14, color: "#93a0b0", marginTop: 11, lineHeight: 1.5 }}>{line}</div>}
+                </div></Reveal>
+              );
+            })}
+          </div>
+        )}
+      </SceneShell>
+    );
+  }
 
   // SECTION 9 — WHY INVEST (synthesis: reasons → competitive advantages → near-term catalysts)
   {
