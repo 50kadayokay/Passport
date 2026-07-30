@@ -8025,7 +8025,29 @@ function ConferenceScenes() {
     );
   }
 
-  // SECTION 9 — CONVERSION & PASSPORT QR HANDOFF
+  // CUSTOM SECTIONS (Pass 4 — up to 2 standalone sections when a standard module can't carry it)
+  (Array.isArray(conf.customSections) ? conf.customSections : []).filter((c) => c && (S(c.title) || S(c.context))).slice(0, 2).forEach((c, ci) => {
+    const ki = (Array.isArray(c.keyInformation) ? c.keyInformation : []).filter((x) => x && (S(x.value) || S(x.label)));
+    scenes.push(
+      <SceneShell key={"custom-" + (S(c.key) || ci)} bg={ci % 2 ? "#0b1220" : "#05070d"} color="#fff">
+        <Reveal v="eyebrow"><div style={sceneEyebrow(EM)}>{S(c.title) || "More"}</div></Reveal>
+        {S(c.context) && <Reveal v="head"><div style={{ fontSize: "clamp(22px,2.6vw,34px)", fontWeight: 500, lineHeight: 1.4, maxWidth: 1000, marginTop: 16, color: "#dbe2ec" }}>{S(c.context)}</div></Reveal>}
+        {ki.length > 0 && (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 18, marginTop: 40 }}>
+            {ki.map((x, i) => (
+              <Reveal key={i} v="card" order={Math.min(i, 4)}><div style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 20, padding: 22, height: "100%" }}>
+                {S(x.value) && <div style={{ fontSize: "clamp(22px,2.4vw,34px)", fontWeight: 900, letterSpacing: "-0.02em" }}>{S(x.value)}</div>}
+                {S(x.label) && <div style={{ fontSize: 13, fontWeight: 800, color: "#9aa4b2", marginTop: S(x.value) ? 10 : 0, textTransform: "uppercase", letterSpacing: "0.08em" }}>{S(x.label)}</div>}
+                {S(x.context) && <div style={{ fontSize: 13.5, color: "#7c8a9c", marginTop: 8, lineHeight: 1.4 }}>{S(x.context)}</div>}
+              </div></Reveal>
+            ))}
+          </div>
+        )}
+      </SceneShell>
+    );
+  });
+
+  // SECTION 10 — CONVERSION & PASSPORT QR HANDOFF
   scenes.push(
     <SceneShell key="cta" bg={`radial-gradient(1200px 520px at 80% -10%, ${EM}26, transparent), #05070d`} color="#fff">
       <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 64, alignItems: "center" }}>

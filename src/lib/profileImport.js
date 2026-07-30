@@ -77,6 +77,11 @@ export function parseImport(text) {
   const auditMatch = raw.match(/===\s*(?:EVIDENCE\s*AUDIT|BLOCK\s*2)[^=\n]*===([\s\S]*)$/i);
   const auditText = auditMatch ? auditMatch[1].replace(/```/g, "").trim() : "";
 
+  // Pass 4 outputs an IMAGE GUIDE after the JSON — capture it for admin review; it is NOT
+  // imported into the profile (there is no storage model for it beyond this note).
+  const guideMatch = raw.match(/===\s*IMAGE\s*GUIDE\s*===([\s\S]*?)(?:===\s*(?:EVIDENCE\s*AUDIT|BLOCK\s*2)|$)/i);
+  const imageGuide = guideMatch ? guideMatch[1].replace(/```/g, "").trim() : "";
+
   // Tolerate the whole ChatGPT reply being pasted: strip the header before the JSON and
   // everything from the audit section onward, plus any code fence. Both the current markers
   // (PROFILE JSON / EVIDENCE AUDIT) and the older BLOCK 1 / BLOCK 2 names are accepted, so
@@ -84,6 +89,7 @@ export function parseImport(text) {
   let body = raw
     .replace(/^[\s\S]*?===\s*(?:PROFILE\s*JSON|BLOCK\s*1)[^=]*===/i, "")
     .replace(/===\s*(?:EVIDENCE\s*AUDIT|BLOCK\s*2)[\s\S]*$/i, "")
+    .replace(/===\s*IMAGE\s*GUIDE\s*===[\s\S]*$/i, "")
     .replace(/^```(?:json)?/i, "")
     .replace(/```$/i, "")
     .trim();
@@ -117,14 +123,14 @@ export function parseImport(text) {
         (unknown.length ? ` Found instead: ${unknown.join(", ")}.` : ""),
     };
   }
-  return { ok: true, payload, known, meta, unknown, auditText };
+  return { ok: true, payload, known, meta, unknown, auditText, imageGuide };
 }
 
 // Merge a validated payload over the existing profile. Returns { next, report }.
 // `auditText` (the evidence table from the same paste) is logged alongside the profile.
-export function applyImport(existingProfile, payload, auditText = "") {
+export function applyImport(existingProfile, payload, auditText = "", imageGuide = "") {
   const next = { ...(existingProfile || {}) };
-  const report = { sections: [], filled: 0, empty: [], unknown: [], notes: [] };
+  const report = { sections: [], filled: 0, empty: [], unknown: [], notes: [], warnings: [] };
 
   PROFILE_KEYS.forEach((key) => {
     if (!(key in payload)) return;
@@ -141,8 +147,12 @@ export function applyImport(existingProfile, payload, auditText = "") {
       const cur = Array.isArray(next.projects) ? next.projects.slice() : [];
       const idx = new Map(cur.map((p, i) => [String(p.key || p.id || p.name), i]));
       let added = 0, updated = 0;
+      const seenIncoming = new Set();
       (Array.isArray(incoming) ? incoming : []).forEach((p) => {
         const k = String(p.key || p.id || p.name || "");
+        if (!k) { report.warnings.push("projects[] — an entry has no key; skipped."); return; }
+        if (seenIncoming.has(k)) { report.warnings.push(`projects[].key "${k}" — duplicate key in the delta; only the first was applied.`); return; }
+        seenIncoming.add(k);
         const at = idx.get(k);
         if (at == null) { idx.set(k, cur.length); cur.push({ ...p, enabled: true }); added++; }
         else { cur[at] = { ...cur[at], ...p }; updated++; }
@@ -163,12 +173,22 @@ export function applyImport(existingProfile, payload, auditText = "") {
     if (isObj(incoming)) report.empty.push(...emptyPaths(incoming, key));
   });
 
+  // Validation warnings the operator should see before publishing.
+  const projKeys = new Set((Array.isArray(next.projects) ? next.projects : []).map((p) => String(p.key || p.id || p.name || "")));
+  const fpk = payload.conference && payload.conference.featuredProjectKey;
+  if (fpk && !projKeys.has(String(fpk))) report.warnings.push(`conference.featuredProjectKey "${fpk}" — does not match any project key.`);
+  const tlDates = new Set((Array.isArray(next.timeline) ? next.timeline : []).map((t) => String(t.id || t.date || t.d)));
+  const fmd = (payload.conference && Array.isArray(payload.conference.featuredMilestoneDates)) ? payload.conference.featuredMilestoneDates : [];
+  fmd.forEach((d) => { if (!tlDates.has(String(d))) report.warnings.push(`conference.featuredMilestoneDates "${d}" — no matching timeline entry (milestone won't render).`); });
+  if (Array.isArray(payload.notFound)) payload.notFound.filter((x) => /^CONFLICT:/i.test(String(x))).forEach((x) => report.warnings.push(String(x)));
+
   // Stash extraction metadata (archetype, as-of, confidence, notFound) next to the profile.
   const meta = {};
   META_KEYS.forEach((k) => { if (k in payload) meta[k] = payload[k]; });
   const at = new Date().toISOString();
-  if (Object.keys(meta).length || (auditText && auditText.trim())) {
+  if (Object.keys(meta).length || (auditText && auditText.trim()) || (imageGuide && imageGuide.trim())) {
     next.importMeta = { ...(next.importMeta || {}), ...meta, importedAt: at };
+    if (imageGuide && imageGuide.trim()) next.importMeta.imageGuide = imageGuide.trim();
   }
 
   // Append this import's evidence table to a running log, tagged with the sections it
