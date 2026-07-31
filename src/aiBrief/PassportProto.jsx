@@ -7387,9 +7387,9 @@ function ConferenceFixa() {
 const sceneEyebrow = (col) => ({ fontSize: 13, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.24em", color: col });
 
 // A full-viewport scene: vertically centred content, snap-aligned for a showroom feel.
-function SceneShell({ children, bg = "#f7f9fc", color = "#0f172a", minVh = 100, pad = "clamp(80px,11vh,150px) 56px", style }) {
+function SceneShell({ children, bg = "#f7f9fc", color = "#0f172a", minVh = 100, pad = "clamp(80px,11vh,150px) 56px", style, id }) {
   return (
-    <section style={{ minHeight: `${minVh}vh`, background: bg, color, display: "flex", flexDirection: "column", justifyContent: "center", padding: pad, scrollSnapAlign: "start", ...style }}>
+    <section data-sec={id} style={{ minHeight: `${minVh}vh`, background: bg, color, display: "flex", flexDirection: "column", justifyContent: "center", padding: pad, scrollSnapAlign: "start", ...style }}>
       <div style={{ maxWidth: 1240, margin: "0 auto", width: "100%" }}>{children}</div>
     </section>
   );
@@ -7511,7 +7511,7 @@ function SceneTimeline({ years }) {
 
 // Section 3 — the flagship project told as 2–3 swipeable NARRATIVE paragraphs over its image,
 // with callout facts and a "+N assets" pill for portfolio companies.
-function SceneProjectStory({ project, label, calloutsFor, fallbackImg }) {
+function SceneProjectStory({ project, label, calloutsFor, fallbackImg, id }) {
   const S = (x) => (x == null ? "" : String(x));
   const paras = (Array.isArray(project.narrative) ? project.narrative : []).map(S).filter(Boolean);
   const [i, setI] = useState(0);
@@ -7524,7 +7524,7 @@ function SceneProjectStory({ project, label, calloutsFor, fallbackImg }) {
   const onStart = (e) => { touch.current = e.touches ? e.touches[0].clientX : e.clientX; };
   const onEnd = (e) => { if (touch.current == null) return; const x = e.changedTouches ? e.changedTouches[0].clientX : e.clientX; const dx = x - touch.current; if (n > 1 && Math.abs(dx) > 48) go(dx < 0 ? 1 : -1); touch.current = null; };
   return (
-    <section onTouchStart={onStart} onTouchEnd={onEnd} style={{ position: "relative", minHeight: "100vh", overflow: "hidden", background: "#05070d", scrollSnapAlign: "start" }}>
+    <section data-sec={id} onTouchStart={onStart} onTouchEnd={onEnd} style={{ position: "relative", minHeight: "100vh", overflow: "hidden", background: "#05070d", scrollSnapAlign: "start" }}>
       {img && <img src={img} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />}
       <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(2,6,23,0.55) 0%, rgba(2,6,23,0.35) 40%, rgba(2,6,23,0.92) 100%)" }} />
       <div style={{ position: "relative", maxWidth: 1240, margin: "0 auto", padding: "clamp(64px,9vh,120px) 56px", color: "#fff", minHeight: "100vh", display: "flex", flexDirection: "column", justifyContent: "center" }}>
@@ -7680,12 +7680,50 @@ function ConferenceScenes() {
     return null;
   };
 
-  // ---- SCENES — the 9-section conference storyboard (each null when data missing → skipped) ----
+  // ---- Sticky section nav (ported from the editorial board): centered scroll-spy bar with a
+  // smooth manual scroll. Only sections with data become nav targets (tagged via data-sec). ----
+  const NAV_H = 60;
+  const capHasData = S(co.cash) || S(cap.outstanding) || S(cap.fd) || S(co.marketCap || cap.marketCap) || ownershipHas;
+  const leadHasData = team.length || (Array.isArray(conf.leadership) && conf.leadership.length);
+  const NAV = [
+    { id: "overview", label: "Overview" },
+    projects.length > 0 && { id: "projects", label: "Projects" },
+    years.length > 0 && { id: "timeline", label: "Timeline" },
+    capHasData && { id: "capital", label: "Capital" },
+    leadHasData && { id: "leadership", label: "Leadership" },
+    { id: "follow", label: "Follow" },
+  ].filter(Boolean);
+  const [active, setActive] = useState("overview");
+  const animateTo = (target) => {
+    const root = scrollRef.current; if (!root) return;
+    target = Math.max(0, Math.min(target, root.scrollHeight - root.clientHeight));
+    const start = root.scrollTop, dist = target - start; if (Math.abs(dist) < 2) return;
+    const dur = 480; let t0 = null, done = false; const ease = (p) => 1 - Math.pow(1 - p, 3);
+    const step = (ts) => { if (done) return; if (t0 == null) t0 = ts; const p = Math.min(1, (ts - t0) / dur); root.scrollTop = start + dist * ease(p); if (p < 1) requestAnimationFrame(step); else done = true; };
+    requestAnimationFrame(step);
+    setTimeout(() => { if (!done) { done = true; root.scrollTop = target; } }, dur + 90);
+  };
+  const go = (id) => { const root = scrollRef.current; if (!root) return; if (id === "overview") return animateTo(0); const el = root.querySelector(`[data-sec="${id}"]`); if (el) animateTo(el.offsetTop - NAV_H); };
+  const scrollToEl = (el, pad = 14) => { const root = scrollRef.current; if (!root || !el) return; const ct = root.getBoundingClientRect().top, et = el.getBoundingClientRect().top; animateTo(root.scrollTop + (et - ct) - NAV_H - pad); };
+  useEffect(() => {
+    const root = scrollRef.current; if (!root) return;
+    const onScroll = () => {
+      const y = root.scrollTop + NAV_H + 40; let cur = NAV[0] && NAV[0].id;
+      for (const nn of NAV) { const el = root.querySelector(`[data-sec="${nn.id}"]`); if (el && el.offsetTop <= y) cur = nn.id; }
+      if (root.scrollTop + root.clientHeight >= root.scrollHeight - 4) cur = NAV[NAV.length - 1].id;
+      setActive(cur);
+    };
+    root.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll); onScroll();
+    return () => { root.removeEventListener("scroll", onScroll); window.removeEventListener("resize", onScroll); };
+  }, [NAV.length]);
+
+  // ---- SCENES — the storyboard (each null when data missing → skipped) ----
   const scenes = [];
 
   // ACT I · Scene 1 — HERO
   scenes.push(
-    <div key="hero" style={{ position: "relative", height: "100vh", minHeight: 640, overflow: "hidden", background: "#05070d", scrollSnapAlign: "start" }}>
+    <div key="hero" data-sec="overview" style={{ position: "relative", height: "100vh", minHeight: 640, overflow: "hidden", background: "#05070d", scrollSnapAlign: "start" }}>
       {S(conf.heroVideo)
         ? <video ref={heroRef} src={S(conf.heroVideo)} autoPlay muted loop playsInline style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", transform: "scale(1.12)" }} />
         : hasHero
@@ -7795,6 +7833,7 @@ function ConferenceScenes() {
         label={pi === 0 ? "Flagship Project" : `Asset · ${pi + 1} of ${ordered.length}`}
         calloutsFor={calloutsFor}
         fallbackImg={hasHero ? STATUS_IMG : ""}
+        id={pi === 0 ? "projects" : undefined}
       />
     ));
   }
@@ -7856,27 +7895,15 @@ function ConferenceScenes() {
     );
   }
 
-  // SECTION 6 — TIMELINE (key milestones only; catalysts live in Why Invest)
-  if (featuredMilestones.length || S(conf.timelineIntro)) scenes.push(
-    <SceneShell key="timeline" bg="#0b1220" color="#fff">
-      <Reveal v="eyebrow"><div style={sceneEyebrow(EM)}>Timeline · Key Milestones</div></Reveal>
-      {S(conf.timelineIntro) && <Reveal v="head"><div style={{ fontSize: "clamp(22px,2.6vw,34px)", fontWeight: 500, lineHeight: 1.4, maxWidth: 1000, marginTop: 16, color: "#dbe2ec" }}>{S(conf.timelineIntro)}</div></Reveal>}
-      {featuredMilestones.length > 0 && (
-        <div style={{ marginTop: 40, overflowX: "auto", paddingBottom: 10, WebkitOverflowScrolling: "touch" }}>
-          <div style={{ position: "relative", display: "flex", minWidth: "min-content" }}>
-            <div style={{ position: "absolute", left: 8, right: 24, top: 7, height: 2, background: "rgba(255,255,255,0.16)" }} />
-            {featuredMilestones.map((it, i) => (
-              <Reveal key={i} v="card" order={Math.min(i, 4)}>
-                <div style={{ position: "relative", width: "clamp(190px,20vw,250px)", paddingRight: 28, flexShrink: 0 }}>
-                  <span style={{ position: "relative", zIndex: 1, display: "block", height: 16, width: 16, borderRadius: 99, background: EM, boxShadow: "0 0 0 5px #0b1220" }} />
-                  <div style={{ fontSize: 12, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.1em", color: EM, marginTop: 16 }}>{S(it.d)}{it.year ? `, ${it.year}` : ""}</div>
-                  <div style={{ fontSize: 17, fontWeight: 800, lineHeight: 1.25, marginTop: 7, letterSpacing: "-0.02em" }}>{S(it.headline || it.label)}</div>
-                </div>
-              </Reveal>
-            ))}
-          </div>
-        </div>
-      )}
+  // SECTION 6 — TIMELINE (board-style: chapter mark + "A company that keeps moving" + the
+  // accordion BoothTimeline. Not snap-aligned + top-justified so the accordion can grow and
+  // scroll naturally within the section.)
+  if (years.length) scenes.push(
+    <SceneShell key="timeline" id="timeline" bg="#0a0f1c" color="#fff" style={{ justifyContent: "flex-start", scrollSnapAlign: "none" }}>
+      <Reveal><ChapterMark n="05" label="How it has progressed" dark /></Reveal>
+      <Reveal v="head"><div style={{ fontSize: "clamp(34px,4.6vw,56px)", fontWeight: 900, letterSpacing: "-0.035em", lineHeight: 1.04, marginTop: 22, maxWidth: 820 }}>A company that keeps moving</div></Reveal>
+      <Reveal v="body" order={1}><div style={{ fontSize: "clamp(17px,2vw,21px)", color: "#93a0b0", marginTop: 18, maxWidth: 660, lineHeight: 1.5 }}>{S(conf.timelineIntro) || "Every milestone below moved the story forward — not just another release."}</div></Reveal>
+      <BoothTimeline years={years} scrollToEl={scrollToEl} dark />
     </SceneShell>
   );
 
@@ -7889,7 +7916,7 @@ function ConferenceScenes() {
       S(co.marketCap || cap.marketCap) && { v: S(co.marketCap || cap.marketCap), l: "Market Cap" },
     ].filter(Boolean);
     if (capCells.length || ownershipHas || S(conf.capitalIntro)) scenes.push(
-      <SceneShell key="capital" bg="#05070d" color="#fff">
+      <SceneShell key="capital" id="capital" bg="#05070d" color="#fff">
         <Reveal v="eyebrow"><div style={sceneEyebrow(EM)}>Capital</div></Reveal>
         {S(conf.capitalIntro) && <Reveal v="head"><div style={{ fontSize: "clamp(22px,2.6vw,34px)", fontWeight: 500, lineHeight: 1.4, maxWidth: 1000, marginTop: 16, color: "#dbe2ec" }}>{S(conf.capitalIntro)}</div></Reveal>}
         {capCells.length > 0 && (
@@ -7918,60 +7945,88 @@ function ConferenceScenes() {
     );
   }
 
-  // SECTION 8 — LEADERSHIP (track-record FLOW, not bios: headline → previously → discoveries → wins)
+  // SECTION 8 — LEADERSHIP (board-style: warm light section, CEO featured card + team grid).
+  // Falls back to the dark track-record cards for companies with conference.leadership but no
+  // team headshots/bios. Top-justified + non-snap so the grid can grow.
   {
     const leaders = (Array.isArray(conf.leadership) ? conf.leadership : []).filter((l) => l && S(l.name));
     const photoFor = (name) => { const m = team.find((t) => S(t.name).toLowerCase() === S(name).toLowerCase()); return m ? S(m.photo) : ""; };
-    if (leaders.length || team.length) scenes.push(
-      <SceneShell key="leadership" bg="#0b1220" color="#fff">
-        <Reveal v="eyebrow"><div style={sceneEyebrow(EM)}>Leadership</div></Reveal>
-        <Reveal v="head"><div style={{ fontSize: "clamp(22px,2.6vw,34px)", fontWeight: 500, lineHeight: 1.4, maxWidth: 1000, marginTop: 16, color: "#dbe2ec" }}>{S(conf.leadershipIntro) || "Backed by proven operators."}</div></Reveal>
-        {leaders.length ? (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 22, marginTop: 44 }}>
-            {leaders.slice(0, 6).map((l, i) => {
-              const photo = photoFor(l.name);
-              const initials = S(l.name).split(/\s+/).slice(0, 2).map((w) => w[0]).join("");
-              const rows = [
-                { k: "Previously", items: (Array.isArray(l.previousCompanies) ? l.previousCompanies : []).map(S).filter(Boolean) },
-                { k: "Discoveries", items: (Array.isArray(l.discoveries) ? l.discoveries : []).map(S).filter(Boolean) },
-                { k: "Track record", items: (Array.isArray(l.successes) ? l.successes : []).map(S).filter(Boolean) },
-              ].filter((r) => r.items.length);
+    if (team.length) scenes.push(
+      <SceneShell key="leadership" id="leadership" bg="#faf7f3" color="#0f172a" style={{ justifyContent: "flex-start", scrollSnapAlign: "none" }}>
+        <Reveal><ChapterMark n="06" label="Who is behind it" /></Reveal>
+        <Reveal><div style={{ fontSize: "clamp(34px,4.6vw,48px)", fontWeight: 900, letterSpacing: "-0.038em", marginTop: 22, maxWidth: 760, lineHeight: 1.06 }}>Meet the people creating value</div></Reveal>
+        {(() => {
+          const ceo = team[0]; if (!ceo) return null;
+          const mono = S(ceo.initials || (ceo.name || "").split(/\s+/).slice(0, 2).map((w) => w[0]).join(""));
+          const cli = ceo.linkedin && (/^https?:/.test(ceo.linkedin) ? ceo.linkedin : `https://www.linkedin.com/${S(ceo.linkedin).replace(/^\//, "")}`);
+          const bio = S(ceo.full) || S(ceo.short);
+          return (
+            <Reveal v="card"><div style={{ display: "grid", gridTemplateColumns: "300px 1fr", gap: 48, alignItems: "start", marginTop: 48, background: "#fff", borderRadius: 30, padding: 40, boxShadow: "0 1px 2px rgba(15,23,42,0.04), 0 46px 84px -52px rgba(15,23,42,0.5)" }}>
+              <div style={{ height: 300, width: 300, borderRadius: 24, overflow: "hidden", background: `linear-gradient(150deg, ${EM}2e, ${EM}0a)`, display: "grid", placeItems: "center", color: EM_TEXT, fontWeight: 900, fontSize: 88 }}>{ceo.photo ? <img src={ceo.photo} alt="" style={{ height: "100%", width: "100%", objectFit: "cover" }} /> : mono}</div>
+              <div>
+                <div style={{ fontSize: 12.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.16em", color: EM_TEXT }}>Leading the company</div>
+                <div style={{ fontSize: 40, fontWeight: 900, letterSpacing: "-0.03em", marginTop: 10, lineHeight: 1.02 }}>{S(ceo.name)}</div>
+                <div style={{ fontSize: 17, fontWeight: 800, color: EM_TEXT, marginTop: 5 }}>{S(ceo.role)}</div>
+                {bio && <div style={{ fontSize: 17, color: "#475569", marginTop: 20, lineHeight: 1.7, maxWidth: 720 }}>{bio}</div>}
+                {cli && <a href={cli} target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 8, marginTop: 22, fontSize: 14, fontWeight: 800, color: "#0f172a", textDecoration: "none" }}><Linkedin size={16} style={{ color: EM_TEXT }} /> LinkedIn</a>}
+              </div>
+            </div></Reveal>
+          );
+        })()}
+        {team.length > 1 && (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(400px, 1fr))", gap: 30, marginTop: 30 }}>
+            {team.slice(1).map((m, i) => {
+              const mono = S(m.initials || (m.name || "").split(/\s+/).slice(0, 2).map((w) => w[0]).join(""));
+              const mli = m.linkedin && (/^https?:/.test(m.linkedin) ? m.linkedin : `https://www.linkedin.com/${S(m.linkedin).replace(/^\//, "")}`);
               return (
-                <Reveal key={i} v="card" order={Math.min(i, 4)}><div style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 22, padding: 26, height: "100%" }}>
-                  <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
-                    <div style={{ height: 60, width: 60, borderRadius: 16, overflow: "hidden", background: "rgba(255,255,255,0.08)", display: "grid", placeItems: "center", fontSize: 20, fontWeight: 800, color: "#c4cdd9", flexShrink: 0 }}>{photo ? <img src={photo} alt="" style={{ height: "100%", width: "100%", objectFit: "cover" }} /> : initials}</div>
-                    <div style={{ minWidth: 0 }}>
-                      <div style={{ fontSize: 19, fontWeight: 900, letterSpacing: "-0.02em" }}>{S(l.name)}</div>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: EM, marginTop: 2 }}>{S(l.role)}</div>
-                    </div>
+                <Reveal key={i} v="card"><div style={{ display: "flex", gap: 22, background: "#fff", borderRadius: 24, padding: 24, height: "100%", boxShadow: "0 1px 2px rgba(15,23,42,0.04), 0 30px 60px -46px rgba(15,23,42,0.4)" }}>
+                  <div style={{ height: 108, width: 108, flexShrink: 0, borderRadius: 20, overflow: "hidden", background: `linear-gradient(150deg, ${EM}22, ${EM}08)`, display: "grid", placeItems: "center", color: EM_TEXT, fontWeight: 900, fontSize: 34 }}>{m.photo ? <img src={m.photo} alt="" style={{ height: "100%", width: "100%", objectFit: "cover" }} /> : mono}</div>
+                  <div style={{ minWidth: 0, flex: 1, display: "flex", flexDirection: "column" }}>
+                    <div style={{ fontSize: 20, fontWeight: 900, letterSpacing: "-0.02em" }}>{S(m.name)}</div>
+                    <div style={{ fontSize: 14, fontWeight: 800, color: EM_TEXT, marginTop: 3 }}>{S(m.role)}</div>
+                    {S(m.short) && <div style={{ fontSize: 14.5, color: "#5b6675", marginTop: 11, lineHeight: 1.55 }}>{S(m.short)}</div>}
+                    {mli && <a href={mli} target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 8, marginTop: "auto", paddingTop: 14, fontSize: 13, fontWeight: 800, color: "#0f172a", textDecoration: "none" }}><Linkedin size={15} style={{ color: EM_TEXT }} /> LinkedIn</a>}
                   </div>
-                  {S(l.headline) && <div style={{ fontSize: 17, fontWeight: 700, marginTop: 16, color: "#e6ebf2", lineHeight: 1.3 }}>{S(l.headline)}</div>}
-                  {rows.map((r, ri) => (
-                    <div key={ri} style={{ marginTop: 14, paddingLeft: 14, borderLeft: `2px solid ${EM}44` }}>
-                      <div style={{ fontSize: 10.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.12em", color: "#7c8a9c" }}>{r.k}</div>
-                      <div style={{ fontSize: 14, color: "#c4cdd9", marginTop: 4, lineHeight: 1.5 }}>{r.items.join(" · ")}</div>
-                    </div>
-                  ))}
-                </div></Reveal>
-              );
-            })}
-          </div>
-        ) : (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 20, marginTop: 44 }}>
-            {team.slice(0, 8).map((m, i) => {
-              const initials = S(m.name).split(/\s+/).slice(0, 2).map((w) => w[0]).join("");
-              const line = S(m.trackRecord) || S(m.short);
-              return (
-                <Reveal key={i} v="card" order={Math.min(i, 4)}><div style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 22, padding: 24, height: "100%" }}>
-                  <div style={{ height: 76, width: 76, borderRadius: 18, overflow: "hidden", background: "rgba(255,255,255,0.08)", display: "grid", placeItems: "center", fontSize: 25, fontWeight: 800, color: "#c4cdd9" }}>{m.photo ? <img src={m.photo} alt="" style={{ height: "100%", width: "100%", objectFit: "cover" }} /> : initials}</div>
-                  <div style={{ fontSize: 20, fontWeight: 900, letterSpacing: "-0.02em", marginTop: 16 }}>{S(m.name)}</div>
-                  <div style={{ fontSize: 13.5, fontWeight: 700, color: EM, marginTop: 4 }}>{S(m.role)}</div>
-                  {line && <div style={{ fontSize: 14, color: "#93a0b0", marginTop: 11, lineHeight: 1.5 }}>{line}</div>}
                 </div></Reveal>
               );
             })}
           </div>
         )}
+      </SceneShell>
+    );
+    else if (leaders.length) scenes.push(
+      <SceneShell key="leadership" id="leadership" bg="#0b1220" color="#fff" style={{ justifyContent: "flex-start", scrollSnapAlign: "none" }}>
+        <Reveal v="eyebrow"><div style={sceneEyebrow(EM)}>Leadership</div></Reveal>
+        <Reveal v="head"><div style={{ fontSize: "clamp(22px,2.6vw,34px)", fontWeight: 500, lineHeight: 1.4, maxWidth: 1000, marginTop: 16, color: "#dbe2ec" }}>{S(conf.leadershipIntro) || "Backed by proven operators."}</div></Reveal>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 22, marginTop: 44 }}>
+          {leaders.slice(0, 6).map((l, i) => {
+            const photo = photoFor(l.name);
+            const initials = S(l.name).split(/\s+/).slice(0, 2).map((w) => w[0]).join("");
+            const rows = [
+              { k: "Previously", items: (Array.isArray(l.previousCompanies) ? l.previousCompanies : []).map(S).filter(Boolean) },
+              { k: "Discoveries", items: (Array.isArray(l.discoveries) ? l.discoveries : []).map(S).filter(Boolean) },
+              { k: "Track record", items: (Array.isArray(l.successes) ? l.successes : []).map(S).filter(Boolean) },
+            ].filter((r) => r.items.length);
+            return (
+              <Reveal key={i} v="card" order={Math.min(i, 4)}><div style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 22, padding: 26, height: "100%" }}>
+                <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
+                  <div style={{ height: 60, width: 60, borderRadius: 16, overflow: "hidden", background: "rgba(255,255,255,0.08)", display: "grid", placeItems: "center", fontSize: 20, fontWeight: 800, color: "#c4cdd9", flexShrink: 0 }}>{photo ? <img src={photo} alt="" style={{ height: "100%", width: "100%", objectFit: "cover" }} /> : initials}</div>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: 19, fontWeight: 900, letterSpacing: "-0.02em" }}>{S(l.name)}</div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: EM, marginTop: 2 }}>{S(l.role)}</div>
+                  </div>
+                </div>
+                {S(l.headline) && <div style={{ fontSize: 17, fontWeight: 700, marginTop: 16, color: "#e6ebf2", lineHeight: 1.3 }}>{S(l.headline)}</div>}
+                {rows.map((r, ri) => (
+                  <div key={ri} style={{ marginTop: 14, paddingLeft: 14, borderLeft: `2px solid ${EM}44` }}>
+                    <div style={{ fontSize: 10.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.12em", color: "#7c8a9c" }}>{r.k}</div>
+                    <div style={{ fontSize: 14, color: "#c4cdd9", marginTop: 4, lineHeight: 1.5 }}>{r.items.join(" · ")}</div>
+                  </div>
+                ))}
+              </div></Reveal>
+            );
+          })}
+        </div>
       </SceneShell>
     );
   }
@@ -8049,7 +8104,7 @@ function ConferenceScenes() {
 
   // SECTION 10 — CONVERSION & PASSPORT QR HANDOFF
   scenes.push(
-    <SceneShell key="cta" bg={`radial-gradient(1200px 520px at 80% -10%, ${EM}26, transparent), #05070d`} color="#fff">
+    <SceneShell key="cta" id="follow" bg={`radial-gradient(1200px 520px at 80% -10%, ${EM}26, transparent), #05070d`} color="#fff">
       <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 64, alignItems: "center" }}>
         <div>
           <Reveal v="eyebrow"><div style={sceneEyebrow(EM)}>Continue the Story</div></Reveal>
@@ -8062,8 +8117,19 @@ function ConferenceScenes() {
   );
 
   return (
-    <div ref={scrollRef} style={{ position: "fixed", inset: 0, overflowY: "auto", overflowX: "hidden", background: "#05070d", color: "#0f172a", fontFamily: "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif", scrollSnapType: "y mandatory", WebkitOverflowScrolling: "touch" }}>
+    <div ref={scrollRef} style={{ position: "fixed", inset: 0, overflowY: "auto", overflowX: "hidden", background: "#05070d", color: "#0f172a", fontFamily: "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif", scrollSnapType: "y proximity", WebkitOverflowScrolling: "touch" }}>
       <style>{`@keyframes ppScenePulse{0%,100%{transform:scale(1);box-shadow:0 0 0 0 ${EM}55}50%{transform:scale(1.03);box-shadow:0 0 0 22px ${EM}00}} .pp-scene-pulse{animation:ppScenePulse 2.6s ease-in-out infinite} @media (prefers-reduced-motion: reduce){.pp-scene-pulse{animation:none}}`}</style>
+      {/* Sticky section nav (fixed overlay; light bar per the editorial board) */}
+      <div style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 50, background: "rgba(245,247,251,0.9)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", borderBottom: "1px solid #e2e8f0" }}>
+        <div style={{ maxWidth: 1180, margin: "0 auto", padding: "0 40px", display: "flex", gap: 6, height: NAV_H, alignItems: "center", justifyContent: "center", flexWrap: "wrap" }}>
+          {NAV.map((n) => (
+            <button key={n.id} onClick={() => go(n.id)} style={{ position: "relative", background: "none", border: "none", cursor: "pointer", padding: "8px 18px", fontSize: 15, fontWeight: active === n.id ? 900 : 700, letterSpacing: "-0.01em", color: active === n.id ? "#0b1220" : "#9aa6b4", transition: "color .2s, font-weight .2s" }}>
+              {n.label}
+              {active === n.id && <span style={{ position: "absolute", left: 18, right: 18, bottom: -1, height: 3, borderRadius: 3, background: EM }} />}
+            </button>
+          ))}
+        </div>
+      </div>
       {scenes}
     </div>
   );
@@ -8504,11 +8570,12 @@ export default function App({ guest = false } = {}) {
     if (boothParam("scene")) return <ConferenceScenes />;
     const style = (() => { try { return String((window.__PP__ && window.__PP__.CONFERENCE && window.__PP__.CONFERENCE.style) || "").toLowerCase(); } catch (_) { return ""; } })();
     if (confEnabled && style === "fixa") return <ConferenceFixa />;
-    // The editorial board (sticky section nav, accordion timeline, CEO-led leadership) is THE
-    // booth experience for every company. The scroll-snap storyboard is available only for
-    // manual A/B comparison via ?scene=1 — a stale stored conference.style ("scene") no longer
-    // pins a company to it. ?board=1 forces the board explicitly.
-    return <ConferenceProfile />;
+    if (confEnabled && style === "board") return <ConferenceProfile />;
+    // The storyboard scene engine is the default booth. It carries the board's accordion
+    // timeline, CEO-led leadership, and a sticky section nav (ported in), while keeping its own
+    // At-a-Glance / Results scenes. ?board=1 or conference.style:"board" forces the full editorial
+    // board; ?scene=1 forces the storyboard for A/B comparison.
+    return <ConferenceScenes />;
   }
   const [nav, setNav] = useState("today");   // today · explore · following · profile (· scan via header)
   const [bannerOff, setBannerOff] = useState(false);   // guest "Open in app" banner dismissed
