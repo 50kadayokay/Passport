@@ -8504,10 +8504,11 @@ export default function App({ guest = false } = {}) {
     if (boothParam("scene")) return <ConferenceScenes />;
     const style = (() => { try { return String((window.__PP__ && window.__PP__.CONFERENCE && window.__PP__.CONFERENCE.style) || "").toLowerCase(); } catch (_) { return ""; } })();
     if (confEnabled && style === "fixa") return <ConferenceFixa />;
-    if (confEnabled && style === "board") return <ConferenceProfile />;
-    // The 8-section storyboard scene engine is the default booth experience; ?board=1
-    // forces the editorial scroll for A/B comparison on identical data.
-    return <ConferenceScenes />;
+    // The editorial board (sticky section nav, accordion timeline, CEO-led leadership) is the
+    // default booth experience. Opt into the scroll-snap storyboard with ?scene=1 or
+    // conference.style === "scene"/"storyboard"; ?board=1 also forces the board explicitly.
+    if (style === "scene" || style === "storyboard") return <ConferenceScenes />;
+    return <ConferenceProfile />;
   }
   const [nav, setNav] = useState("today");   // today · explore · following · profile (· scan via header)
   const [bannerOff, setBannerOff] = useState(false);   // guest "Open in app" banner dismissed
