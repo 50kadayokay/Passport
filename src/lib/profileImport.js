@@ -201,3 +201,39 @@ export function applyImport(existingProfile, payload, auditText = "", imageGuide
 
   return { next, report };
 }
+
+// Categorize a validated payload against the existing profile WITHOUT applying it, so the
+// operator can review Added / Updated / Unchanged / Rejected before confirming the import.
+// One row per top-level section, plus one level deep for `conference`, and one per project key.
+export function diffImport(existingProfile, payload, unknown = []) {
+  const ex = existingProfile || {};
+  const added = [], updated = [], unchanged = [];
+  const stable = (v) => { try { return JSON.stringify(v); } catch { return String(v); } };
+  const isBlank = (v) => v == null || (typeof v === "string" && v.trim() === "") || (Array.isArray(v) && !v.length) || (isObj(v) && !Object.keys(v).length);
+  const consider = (path, oldV, newV) => {
+    if (!nonEmpty(newV)) return;                        // delta didn't supply anything here
+    if (isBlank(oldV)) added.push(path);
+    else if (stable(oldV) !== stable(newV)) updated.push(path);
+    else unchanged.push(path);
+  };
+  PROFILE_KEYS.forEach((k) => {
+    if (!(k in payload)) return;
+    if (k === "conference" && isObj(payload.conference)) {
+      Object.keys(payload.conference).forEach((sk) => consider(`conference.${sk}`, ex.conference && ex.conference[sk], payload.conference[sk]));
+    } else if (k === "projects" && Array.isArray(payload.projects)) {
+      const byKey = new Map((Array.isArray(ex.projects) ? ex.projects : []).map((p) => [String(p.key || p.id || p.name), p]));
+      payload.projects.forEach((p) => {
+        const key = String(p.key || p.id || p.name || "");
+        if (byKey.has(key)) updated.push(`projects.${key}`);
+        else added.push(`projects.${key}`);
+      });
+    } else if (k === "timeline" && Array.isArray(payload.timeline)) {
+      const have = new Set((Array.isArray(ex.timeline) ? ex.timeline : []).map((t) => String(t.id || t.date || t.d)));
+      const fresh = payload.timeline.filter((t) => !have.has(String(t.id || t.date || t.d))).length;
+      (fresh ? added : unchanged).push(`timeline (${fresh} new of ${payload.timeline.length})`);
+    } else {
+      consider(k, ex[k], payload[k]);
+    }
+  });
+  return { added, updated, unchanged, rejected: Array.isArray(unknown) ? unknown.slice() : [] };
+}

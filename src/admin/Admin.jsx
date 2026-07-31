@@ -6,7 +6,7 @@ import { authHeaders, signOut, getUser } from "../lib/auth.js";
 import { portalReadiness, createInvitation } from "../lib/portal.js";
 import { Avatar, StatusBar } from "../aiBrief/components.jsx";
 import CompanyProfile from "../aiBrief/screens/CompanyProfile.jsx";
-import { parseImport, applyImport } from "../lib/profileImport.js";
+import { parseImport, applyImport, diffImport } from "../lib/profileImport.js";
 import { mapProfileToPP } from "../lib/profileToPP.js";
 import { flushProfileAssets } from "../lib/storage.js";
 import { UPDATE_PROMPT, PASSES, promptForPass, QA_PROMPT, CONFERENCE_PROMPT } from "./promptTemplate.js";
@@ -352,14 +352,15 @@ function ImportProfile({ company, companies = [], onImported }) {
   const [slug, setSlug] = useState("");          // editable, derived from the payload's name
   const [mergeSlug, setMergeSlug] = useState(""); // when the paste has no company name (Pass 2/3)
   const [busy, setBusy] = useState(false);
+  const [preview, setPreview] = useState(null);  // { next, report, diff, willCreate, companyName } — reviewed but not yet saved
   const [done, setDone] = useState(null);        // post-import report
   const [err, setErr] = useState("");
 
-  const reset = () => { setText(""); setCheck(null); setSlug(""); setMergeSlug(""); setDone(null); setErr(""); };
+  const reset = () => { setText(""); setCheck(null); setSlug(""); setMergeSlug(""); setPreview(null); setDone(null); setErr(""); };
   const close = () => { setOpen(false); reset(); };
 
   const validate = (val) => {
-    setText(val); setDone(null); setErr("");
+    setText(val); setPreview(null); setDone(null); setErr("");
     const r = val.trim() ? parseImport(val) : null;
     setCheck(r);
     if (isNew && r && r.ok) setSlug(slugify(r.payload.company && r.payload.company.name));
@@ -367,42 +368,58 @@ function ImportProfile({ company, companies = [], onImported }) {
 
   const newName = check && check.ok && check.payload.company ? check.payload.company.name : "";
 
-  const run = async () => {
+  // Resolve which company/profile this import targets (without mutating anything).
+  const resolveTarget = () => {
+    if (!isNew) return { company, profile: (company && company.profile) || {}, willCreate: false };
+    if (newName) {
+      const existing = companies.find((c) => c.slug === slug);
+      if (existing) return { company: existing, profile: existing.profile || {}, willCreate: false };
+      return { company: null, profile: {}, willCreate: true };
+    }
+    const t = companies.find((c) => c.slug === mergeSlug);
+    return { company: t || null, profile: (t && t.profile) || {}, willCreate: false };
+  };
+
+  // Step 1: build the review — diff + merge result + warnings, WITHOUT saving.
+  const buildPreview = () => {
     if (!check || !check.ok) return;
+    setErr("");
+    try {
+      if (isNew && newName && !slug) throw new Error("Enter a slug.");
+      if (isNew && newName && slug === RESERVED) throw new Error("That slug is reserved for the template company.");
+      if (isNew && !newName && !mergeSlug) throw new Error("Choose a company to import into.");
+      const t = resolveTarget();
+      const { next, report } = applyImport(t.profile, check.payload, check.auditText, check.imageGuide);
+      const diff = diffImport(t.profile, check.payload, check.unknown);
+      setPreview({ next, report, diff, willCreate: t.willCreate, companyName: (t.company && (t.company.name || t.company.slug)) || newName || slug });
+    } catch (e) { setErr(e.message || "Could not build the review."); }
+  };
+
+  // Step 2: confirm — create the company if needed, then save the reviewed profile.
+  const confirmImport = async () => {
+    if (!preview || !check || !check.ok) return;
     setBusy(true); setErr("");
     try {
-      let target = company;
-      let created = false;
+      let target = company, created = false;
       if (isNew) {
         if (newName) {
-          if (!slug) throw new Error("Enter a slug.");
-          if (slug === RESERVED) throw new Error("That slug is reserved for the template company.");
-          // If a company with this slug already exists (e.g. re-running Pass 1), merge into
-          // it rather than failing on the duplicate-slug constraint.
           const existing = companies.find((c) => c.slug === slug);
-          if (existing) {
-            target = existing;
-          } else {
-            target = await createCompany({
-              slug,
-              name: newName,
-              primary_ticker: (check.payload.company && check.payload.company.ticker) || null,
-            }, await authHeaders());
+          if (existing) target = existing;
+          else {
+            target = await createCompany({ slug, name: newName, primary_ticker: (check.payload.company && check.payload.company.ticker) || null }, await authHeaders());
             if (!target) throw new Error("Company was not created.");
             created = true;
           }
         } else {
-          // Pass 2/3 (no name) → merge into a chosen existing company.
-          if (!mergeSlug) throw new Error("Choose a company to import into.");
           target = companies.find((c) => c.slug === mergeSlug);
           if (!target) throw new Error("Selected company not found.");
         }
       }
-      const { next, report } = applyImport(target.profile || {}, check.payload, check.auditText);
+      const next = { ...preview.next };
       next.pp = mapProfileToPP(next);
       const updated = await updateCompany(target.slug, { profile: next }, await authHeaders());
       if (!updated) throw new Error("Save returned no rows — this may be the protected template company.");
-      setDone({ ...report, createdSlug: created ? target.slug : null, mergedInto: (!created && isNew) ? (target.name || target.slug) : null });
+      setDone({ ...preview.report, createdSlug: created ? target.slug : null, mergedInto: (!created && isNew) ? (target.name || target.slug) : null });
       if (onImported) onImported();
     } catch (e) {
       setErr(e.message || "Import failed");
@@ -434,6 +451,63 @@ function ImportProfile({ company, companies = [], onImported }) {
 
         <div className="min-h-0 flex-1 overflow-auto px-6 py-5">
           {!done ? (
+            preview ? (
+              <div className="space-y-3">
+                <p className="text-[13px] font-semibold text-slate-700">{preview.willCreate ? "Will create" : "Merging into"} <span className="font-extrabold text-slate-900">{preview.companyName}</span> — review, then confirm.</p>
+                {(() => {
+                  const d = preview.diff;
+                  const block = (label, items, cls) => items.length ? (
+                    <div className={`rounded-2xl border p-4 ${cls}`}>
+                      <p className="text-[13px] font-bold">{label} — {items.length}</p>
+                      <p className="mt-1 break-words font-mono text-[11.5px] leading-relaxed">{items.join(" · ")}</p>
+                    </div>
+                  ) : null;
+                  return (
+                    <div className="space-y-2">
+                      {block("Added", d.added, "border-emerald-200 bg-emerald-50 text-emerald-800")}
+                      {block("Updated", d.updated, "border-sky-200 bg-sky-50 text-sky-800")}
+                      {block("Unchanged", d.unchanged, "border-slate-200 bg-slate-50 text-slate-500")}
+                      {block("Rejected (ignored)", d.rejected, "border-amber-200 bg-amber-50 text-amber-800")}
+                    </div>
+                  );
+                })()}
+                {preview.report.warnings.length > 0 && (
+                  <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                    <p className="text-[13px] font-bold text-amber-800">{preview.report.warnings.length} warning{preview.report.warnings.length === 1 ? "" : "s"}</p>
+                    <ul className="mt-1.5 space-y-1">{preview.report.warnings.map((w, i) => <li key={i} className="text-[12px] leading-relaxed text-amber-700">• {w}</li>)}</ul>
+                  </div>
+                )}
+                {(() => {
+                  const p = check.payload;
+                  const nf = Array.isArray(p.notFound) ? p.notFound : [];
+                  const cites = (p.citations && typeof p.citations === "object") ? Object.keys(p.citations) : [];
+                  const guide = check.imageGuide;
+                  return (nf.length || cites.length || guide) ? (
+                    <div className="space-y-2">
+                      {nf.length > 0 && (
+                        <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                          <p className="text-[13px] font-bold text-slate-700">notFound — {nf.length}</p>
+                          <p className="mt-1 break-words font-mono text-[11.5px] leading-relaxed text-slate-500">{nf.join(" · ")}</p>
+                        </div>
+                      )}
+                      {cites.length > 0 && (
+                        <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                          <p className="text-[13px] font-bold text-slate-700">Citations — {cites.length} figure{cites.length === 1 ? "" : "s"} sourced</p>
+                          <p className="mt-1 break-words font-mono text-[11.5px] leading-relaxed text-slate-500">{cites.slice(0, 14).join(" · ")}{cites.length > 14 ? ` … +${cites.length - 14}` : ""}</p>
+                        </div>
+                      )}
+                      {guide && (
+                        <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                          <p className="text-[13px] font-bold text-slate-700">Image guide</p>
+                          <pre className="mt-1.5 whitespace-pre-wrap font-mono text-[11.5px] leading-relaxed text-slate-500">{guide}</pre>
+                        </div>
+                      )}
+                    </div>
+                  ) : null;
+                })()}
+                {err && <p className="text-[13px] font-semibold text-rose-600">{err}</p>}
+              </div>
+            ) : (
             <>
               <textarea
                 value={text}
@@ -515,6 +589,7 @@ function ImportProfile({ company, companies = [], onImported }) {
 
               {err && <p className="mt-3 text-[13px] font-semibold text-rose-600">{err}</p>}
             </>
+            )
           ) : (
             <div className="space-y-3">
               <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
@@ -549,6 +624,14 @@ function ImportProfile({ company, companies = [], onImported }) {
               <button onClick={reset} className="rounded-xl border border-slate-200 px-4 py-2.5 text-[14px] font-bold text-slate-600 hover:text-slate-900">Import another section</button>
               <button onClick={close} className="rounded-xl bg-slate-900 px-5 py-2.5 text-[14px] font-bold text-white">Done</button>
             </>
+          ) : preview ? (
+            <>
+              <button onClick={() => { setPreview(null); setErr(""); }} className="rounded-xl border border-slate-200 px-4 py-2.5 text-[14px] font-bold text-slate-600 hover:text-slate-900">Back</button>
+              <button onClick={confirmImport} disabled={busy}
+                className={`inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-[14px] font-bold text-white ${busy ? "opacity-50" : "hover:bg-emerald-700"}`}>
+                {busy ? <Loader2 size={15} className="animate-spin" /> : <CheckCircle2 size={15} />} Confirm import
+              </button>
+            </>
           ) : (
             (() => {
               // Ready when: valid, and either updating a selected company, creating (has a
@@ -557,9 +640,9 @@ function ImportProfile({ company, companies = [], onImported }) {
               return (
                 <>
                   <button onClick={close} className="rounded-xl border border-slate-200 px-4 py-2.5 text-[14px] font-bold text-slate-600 hover:text-slate-900">Cancel</button>
-                  <button onClick={run} disabled={!ready || busy}
+                  <button onClick={buildPreview} disabled={!ready || busy}
                     className={`inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-[14px] font-bold text-white ${!ready || busy ? "opacity-50" : "hover:bg-emerald-700"}`}>
-                    {busy ? <Loader2 size={15} className="animate-spin" /> : <CheckCircle2 size={15} />} {isNew && !newName ? "Merge in" : "Import"}
+                    <CheckCircle2 size={15} /> Review changes
                   </button>
                 </>
               );
