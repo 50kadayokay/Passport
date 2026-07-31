@@ -7744,7 +7744,7 @@ function ConferenceScenes() {
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: 20, marginTop: 44 }}>
         {highlights.map((s, i) => (
           <Reveal key={i} v="card" order={Math.min(i, 5)}><div style={{ background: "rgba(255,255,255,0.05)", backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 26, padding: "clamp(26px,2.6vw,38px)", height: "100%" }}>
-            <div style={{ fontSize: "clamp(30px,3.4vw,52px)", fontWeight: 900, letterSpacing: "-0.03em", lineHeight: 1.0, whiteSpace: "nowrap" }}><CountUp value={S(s.value)} /></div>
+            <div style={{ fontSize: "clamp(26px,2.8vw,42px)", fontWeight: 900, letterSpacing: "-0.03em", lineHeight: 1.06, overflowWrap: "break-word", wordBreak: "normal" }}><CountUp value={S(s.value)} /></div>
             <div style={{ fontSize: 13.5, fontWeight: 800, color: "#9aa4b2", marginTop: 14, textTransform: "uppercase", letterSpacing: "0.08em" }}>{S(s.label)}</div>
             {S(s.context) && <div style={{ fontSize: 14, color: "#7c8a9c", marginTop: 9, lineHeight: 1.4 }}>{S(s.context)}</div>}
           </div></Reveal>
@@ -7829,16 +7829,16 @@ function ConferenceScenes() {
           return ds.length ? (
             <div style={{ display: "flex", flexWrap: "wrap", gap: "24px 40px", marginTop: 32 }}>
               {ds.map((x, i) => (
-                <Reveal key={i} v="card" order={Math.min(i, 4)}><div><div style={{ fontSize: "clamp(22px,2.4vw,34px)", fontWeight: 900, letterSpacing: "-0.02em", whiteSpace: "nowrap" }}><CountUp value={x.v} /></div><div style={{ fontSize: 12, fontWeight: 700, color: "#93a0b0", marginTop: 6, textTransform: "uppercase", letterSpacing: "0.08em" }}>{x.l}</div></div></Reveal>
+                <Reveal key={i} v="card" order={Math.min(i, 4)} style={{ minWidth: 0 }}><div style={{ minWidth: 0 }}><div style={{ fontSize: "clamp(22px,2.4vw,34px)", fontWeight: 900, letterSpacing: "-0.02em", overflowWrap: "break-word", wordBreak: "normal" }}><CountUp value={x.v} /></div><div style={{ fontSize: 12, fontWeight: 700, color: "#93a0b0", marginTop: 6, textTransform: "uppercase", letterSpacing: "0.08em" }}>{x.l}</div></div></Reveal>
               ))}
             </div>
           ) : null;
         })()}
         {items.length > 0 ? (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 26, marginTop: 44 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 26, marginTop: 44 }}>
             {items.map((it, i) => (
-              <Reveal key={i} v="card" order={Math.min(i, 4)}><div>
-                <div style={{ fontSize: "clamp(28px,3.4vw,50px)", fontWeight: 900, letterSpacing: "-0.03em", lineHeight: 1.02, whiteSpace: "nowrap" }}><CountUp value={it.v} /></div>
+              <Reveal key={i} v="card" order={Math.min(i, 4)} style={{ minWidth: 0 }}><div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: "clamp(26px,3vw,44px)", fontWeight: 900, letterSpacing: "-0.03em", lineHeight: 1.05, overflowWrap: "break-word", wordBreak: "normal" }}><CountUp value={it.v} /></div>
                 <div style={{ fontSize: 13.5, fontWeight: 700, color: "#93a0b0", marginTop: 12, textTransform: "uppercase", letterSpacing: "0.08em" }}>{it.l}</div>
               </div></Reveal>
             ))}
