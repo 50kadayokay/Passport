@@ -6,7 +6,7 @@
 //                     Supabase Storage images), revalidating in the background
 //   • API GETs      → cached too, so the company's data renders offline as a frozen snapshot
 // Bump CACHE_VERSION on a breaking change to evict old caches.
-const CACHE_VERSION = "passport-booth-v1";
+const CACHE_VERSION = "passport-booth-v2";
 const SHELL = ["/app", "/manifest.webmanifest", "/booth-icon.svg"];
 
 self.addEventListener("install", (e) => {

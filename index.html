@@ -25,8 +25,18 @@
     <script>
       if ("serviceWorker" in navigator &&
           location.hostname !== "localhost" && location.hostname !== "127.0.0.1") {
+        // A device that already had a controlling worker reloads ONCE when a new
+        // version activates (skipWaiting + clients.claim), so an unattended booth
+        // iPad self-updates to the latest deploy. Guarded against reload loops and
+        // against the first-ever visit (no prior controller → nothing to refresh).
+        var hadController = !!navigator.serviceWorker.controller, refreshing = false;
+        navigator.serviceWorker.addEventListener("controllerchange", function () {
+          if (refreshing || !hadController) return;
+          refreshing = true;
+          location.reload();
+        });
         window.addEventListener("load", function () {
-          navigator.serviceWorker.register("/sw.js").catch(function () {});
+          navigator.serviceWorker.register("/sw.js").then(function (reg) { reg.update().catch(function () {}); }).catch(function () {});
         });
       }
     </script>
