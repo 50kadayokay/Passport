@@ -8504,10 +8504,10 @@ export default function App({ guest = false } = {}) {
     if (boothParam("scene")) return <ConferenceScenes />;
     const style = (() => { try { return String((window.__PP__ && window.__PP__.CONFERENCE && window.__PP__.CONFERENCE.style) || "").toLowerCase(); } catch (_) { return ""; } })();
     if (confEnabled && style === "fixa") return <ConferenceFixa />;
-    // The editorial board (sticky section nav, accordion timeline, CEO-led leadership) is the
-    // default booth experience. Opt into the scroll-snap storyboard with ?scene=1 or
-    // conference.style === "scene"/"storyboard"; ?board=1 also forces the board explicitly.
-    if (style === "scene" || style === "storyboard") return <ConferenceScenes />;
+    // The editorial board (sticky section nav, accordion timeline, CEO-led leadership) is THE
+    // booth experience for every company. The scroll-snap storyboard is available only for
+    // manual A/B comparison via ?scene=1 — a stale stored conference.style ("scene") no longer
+    // pins a company to it. ?board=1 forces the board explicitly.
     return <ConferenceProfile />;
   }
   const [nav, setNav] = useState("today");   // today · explore · following · profile (· scan via header)
