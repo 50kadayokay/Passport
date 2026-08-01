@@ -123,8 +123,15 @@ CONFLICT RESOLUTION — when two documents disagree:
   1. Name both documents in the audit.
   2. State which you used, and why.
   3. Apply the precedence above — do NOT default to the newer document.
+  4. ALSO add one entry to the top-level "notFound" array, beginning with "CONFLICT:", so the
+     reviewer sees it immediately without reading the audit. Format:
+       "CONFLICT: <field or subject> — <Doc A> says <X> (<date>), <Doc B> says <Y> (<date>); used <value> because <authority reason>."
+     Every genuine disagreement between two documents on a fact you populated gets one such line.
+     This is not optional — an unsurfaced conflict is the failure that breaks trust on review.
   Example: a presentation reports C$18M cash; the latest quarterly financial statements report
-  C$16.7M. Use C$16.7M — filed financials are authoritative for capital data.
+  C$16.7M. Use C$16.7M — filed financials are authoritative for capital data. And add to notFound:
+  "CONFLICT: capital.cash — Corporate presentation says C$18M (2026-03), Q1 financials say C$16.7M
+  (2026-05); used C$16.7M because filed financials outrank a presentation for capital data."
 
 ═══════════════════════════════════════════════════════════════════
 WRITING STANDARD
@@ -190,7 +197,10 @@ THE SCHEMA
   "asOfDate": "YYYY-MM-DD",          // most recent disclosure you reviewed
   "confidence": "high|medium|low",
   "reviewRequired": false,           // true if sources conflicted or coverage was incomplete
-  "notFound": [],                    // what you honestly could not fill
+  "notFound": [],                    // two kinds of entry: (1) plain strings for what you honestly
+                                     //   could not fill; (2) "CONFLICT: ..." lines for every genuine
+                                     //   disagreement between documents (see CONFLICT RESOLUTION).
+                                     //   Both surface to the reviewer before publish.
 
   "company": {
     "name": "Kingsmen Resources",
