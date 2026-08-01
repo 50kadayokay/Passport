@@ -12,6 +12,7 @@ const Admin = React.lazy(() => import("./admin/MissionControl.jsx"));         //
 const Portal = React.lazy(() => import("./portal/Portal.jsx"));               // Company Portal (desktop, paying companies)
 const PortalGate = React.lazy(() => import("./portal/PortalGate.jsx"));       // resolves company + entitlement
 const PostDetailRoute = React.lazy(() => import("./aiBrief/Feed.jsx").then((m) => ({ default: m.PostDetailRoute }))); // /p/<id> deep link
+const BlueprintDemo = React.lazy(() => import("./admin/blueprints/BlueprintDemo.jsx")); // /bpdemo — dev harness (no auth/DB), removable
 import AuthGate from "./auth/AuthGate.jsx";
 
 // Surfaces are split by URL path:
@@ -46,6 +47,11 @@ const isPortal = path.startsWith("/portal");
 const isPost = /^\/p\/[^/]+/.test(path);
 const postId = isPost ? decodeURIComponent(path.replace(/^\/p\//, "").split(/[/?#]/)[0]) : null;
 const isApp = path === "/app" || path.startsWith("/app/") || path.startsWith("/app?");
+// Blueprint workspace dev harness — LOCALHOST ONLY. In production /bpdemo falls through
+// to the normal app (never renders sample Blueprint content publicly).
+const isBpDemo = path.startsWith("/bpdemo") && (() => {
+  try { const h = window.location.hostname; return h === "localhost" || h === "127.0.0.1"; } catch (_) { return false; }
+})();
 // The marketing homepage is no longer the front door (that's the login-gated app now);
 // it stays reachable at /site for linking from ads, decks, etc.
 const isMarketing = path === "/site" || path.startsWith("/site/");
@@ -285,7 +291,10 @@ function ProfileUnavailable() {
   );
 }
 
-if (isPost) {
+if (isBpDemo) {
+  // Dev-only Blueprint workspace harness (no auth, no DB). Additive; safe to remove.
+  root.render(<React.Suspense fallback={lazyFallback("app")}><BlueprintDemo /></React.Suspense>);
+} else if (isPost) {
   // Public deep link to a single release (shared links, notification taps).
   root.render(<React.Suspense fallback={lazyFallback("release")}><PostDetailRoute postId={postId} /></React.Suspense>);
 } else if (isApp) {

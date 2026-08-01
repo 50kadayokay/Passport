@@ -9,6 +9,7 @@ import { fetchCompanies, updateCompany, SUPABASE_URL } from "../lib/supabase.js"
 import { authHeaders, getUser, signOut } from "../lib/auth.js";
 import Admin from "./Admin.jsx";
 import AudienceCard from "./AudienceCard.jsx";
+import Blueprints from "./blueprints/Blueprints.jsx";
 
 // Sidebar organized into business areas. `ready` = wired to live data; the rest
 // show honest "not built yet" states (never fabricated numbers).
@@ -19,6 +20,7 @@ const NAV = [
     { id: "publish", label: "Ready for Publish", Icon: Inbox, ready: true },
     { id: "card", label: "Audience Card", Icon: Film, ready: true },
     { id: "companies", label: "Companies", Icon: Building2, ready: true },
+    { id: "blueprints", label: "Blueprints", Icon: ClipboardCheck, ready: true },
     { id: "users", label: "Users", Icon: UsersIcon, ready: true },
     { id: "operations", label: "Operations", Icon: ClipboardCheck, ready: true },
   ]},
@@ -42,7 +44,7 @@ const NAV = [
     { id: "settings", label: "Settings", Icon: Settings, need: "a platform-config table" },
   ]},
 ];
-const READY = new Set(["home", "publish", "card", "companies", "users", "operations"]);
+const READY = new Set(["home", "publish", "card", "companies", "blueprints", "users", "operations"]);
 const flat = (id) => NAV.flatMap((g) => g.items).find((i) => i.id === id) || {};
 
 const isPublished = (c) => (c.status || "").toLowerCase() === "published";
@@ -51,7 +53,9 @@ const isToday = (iso) => { if (!iso) return false; const d = new Date(iso); retu
 const timeAgo = (iso) => { if (!iso) return ""; const s = (Date.now() - new Date(iso).getTime()) / 1000; if (s < 60) return "just now"; if (s < 3600) return `${Math.floor(s / 60)}m ago`; if (s < 86400) return `${Math.floor(s / 3600)}h ago`; return `${Math.floor(s / 86400)}d ago`; };
 
 export default function MissionControl() {
-  const [section, setSection] = useState("home");
+  const [section, setSection] = useState(() => {
+    try { return (window.location.pathname || "").startsWith("/admin/blueprints") ? "blueprints" : "home"; } catch (_) { return "home"; }
+  });
   const [companies, setCompanies] = useState([]);
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -117,7 +121,9 @@ export default function MissionControl() {
         </header>
 
         <div className="min-h-0 flex-1 overflow-hidden">
-          {section === "companies" ? <Admin /> : (
+          {section === "companies" ? <Admin /> : section === "blueprints" ? (
+            <div className="h-full overflow-y-auto"><Blueprints companies={companies} /></div>
+          ) : (
             <div className="h-full overflow-y-auto px-8 py-7">
               {section === "home" && <Home companies={companies} users={users} loading={loading} go={go} />}
               {section === "publish" && <ReadyForPublish companies={companies} reload={loadData} loading={loading} />}
