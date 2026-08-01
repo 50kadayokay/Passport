@@ -173,6 +173,89 @@ function CopyPrompt({ variant = "full", className = "" }) {
   );
 }
 
+// The full onboarding runbook in ONE place: every pass in order, each with the exact documents
+// to attach and a one-click download of its prompt. Replaces the old single-pass tab picker so
+// the operator never has to remember which tab feeds which pass or which files go where.
+const GUIDE_STEPS = [
+  {
+    id: "p1", n: 1, title: "Company",
+    extracts: "Identity · status · brief · capital · team",
+    docs: "Financial statements, MD&A, information circular / proxy, governance, capital structure, financing / offering docs, corporate presentation, company website — PLUS your 3–4 most recent press releases (keeps the status card current).",
+  },
+  {
+    id: "p2", n: 2, title: "Projects",
+    extracts: "Every project — geology · drill results · targets · stage",
+    docs: "NI 43-101 technical report(s), PEA / PFS / FS, resource estimates, project & property pages, area history, and the corporate presentation.",
+  },
+  {
+    id: "p3", n: 3, title: "Timeline",
+    extracts: "One entry per material press release",
+    docs: "Your press releases — about 19 per ChatGPT chat (batch them). Add one line to ChatGPT: “This is batch 2 of 3 — extract only the attached releases.” Import each batch; entries merge by date.",
+    batch: true,
+  },
+];
+
+function downloadPromptFile(text, filename) {
+  const url = URL.createObjectURL(new Blob([text], { type: "text/markdown" }));
+  const a = document.createElement("a");
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+// Always-visible onboarding guide. Every pass, its documents, its prompt download — one card.
+function OnboardingGuide() {
+  const [open, setOpen] = useState(true);
+  return (
+    <div className="mt-3 overflow-hidden rounded-2xl border border-slate-200 bg-white">
+      <button onClick={() => setOpen((o) => !o)} className="flex w-full items-center justify-between px-4 py-3 hover:bg-slate-50">
+        <span className="text-[14px] font-extrabold tracking-tight text-slate-900">How to onboard a company</span>
+        <span className="text-[12px] font-bold text-slate-400">{open ? "Hide" : "Show"}</span>
+      </button>
+      {open && (
+        <div className="border-t border-slate-100 px-4 py-4">
+          <p className="text-[12.5px] leading-relaxed text-slate-500">
+            Do each pass in a <b className="text-slate-700">new ChatGPT chat</b>: attach the <b className="text-slate-700">downloaded prompt</b> + the documents listed,
+            send <span className="rounded bg-slate-100 px-1 py-0.5 font-mono text-[11px] text-slate-600">Follow the attached prompt using the attached documents.</span>,
+            then copy the reply into <b className="text-slate-700">Import a company from JSON</b> below. Sections merge — nothing is overwritten.
+          </p>
+          <div className="mt-3 space-y-2.5">
+            {GUIDE_STEPS.map((s) => (
+              <div key={s.id} className="rounded-xl border border-slate-200 p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="grid h-6 w-6 flex-shrink-0 place-items-center rounded-full bg-slate-900 text-[12px] font-bold text-white">{s.n}</span>
+                    <span className="text-[14px] font-extrabold text-slate-900">{s.title}</span>
+                    {s.batch && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-700">batch</span>}
+                  </div>
+                  <button onClick={() => downloadPromptFile(promptForPass(s.id), `passport-prompt-${s.id}.md`)}
+                    className="inline-flex flex-shrink-0 items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-[12.5px] font-bold text-slate-700 hover:border-slate-400">
+                    <Download size={14} /> Prompt
+                  </button>
+                </div>
+                <p className="mt-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400">{s.extracts}</p>
+                <p className="mt-1 text-[12px] leading-relaxed text-slate-600"><span className="font-bold text-slate-700">Attach:</span> {s.docs}</p>
+              </div>
+            ))}
+            {/* Pass 4 lives on the selected company (it needs the finished profile JSON), so it's a
+                pointer here rather than a download. */}
+            <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-3">
+              <div className="flex items-center gap-2">
+                <span className="grid h-6 w-6 flex-shrink-0 place-items-center rounded-full bg-slate-400 text-[12px] font-bold text-white">4</span>
+                <span className="text-[14px] font-extrabold text-slate-900">Conference</span>
+              </div>
+              <p className="mt-1.5 text-[12px] leading-relaxed text-slate-600">
+                After 1–3 are imported, <b>select the company</b> → in its toolbar use <b>Copy JSON</b> + <b>Conference prompt</b>, paste both into a fresh
+                ChatGPT chat, attach the technical docs + presentation, then <b>Import JSON</b>. Finish with <b>QA audit</b> → <b>Publish</b>.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Strip a profile down to the words and numbers a fact-check cares about: drop the derived `pp`
 // render payload and every image (logos, hero, status photo, project galleries) — they're noise
 // in a text audit and bloat the paste. Keep brand.color and everything factual.
@@ -1109,12 +1192,9 @@ export default function Admin() {
           {/* The two-step onboarding loop, in order: copy the prompt → paste the result.
               Single-paste: the JSON carries the company name, so there's no reason to make
               the operator create the record first. */}
-          <CopyPrompt />
+          <OnboardingGuide />
           <ImportProfile company={null} companies={companies} onImported={load} />
           <BulkListImport companies={companies} onImported={load} />
-          <p className="mt-2 text-center text-[11.5px] leading-relaxed text-slate-400">
-            Run one pass at a time → paste each result back here. Sections merge; nothing is overwritten.
-          </p>
 
           <div className="mt-4 grid grid-cols-3 gap-3">
             <StatTile value={stats.total} label="Total" />
