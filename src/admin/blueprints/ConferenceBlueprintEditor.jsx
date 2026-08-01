@@ -261,7 +261,7 @@ export default function ConferenceBlueprintEditor({ row, onBack, onSaved, compan
 // Renders the ACTUAL booth in an iframe and seeds it with the compiled pp via the
 // existing pp-seed channel — a true preview of the finished Conference render. Writes
 // nothing to the database.
-function PreviewModal({ pp, slug, onClose }) {
+export function PreviewModal({ pp, slug, onClose, booth = true }) {
   const ref = useRef(null);
   const send = () => { try { ref.current && ref.current.contentWindow && ref.current.contentWindow.postMessage({ type: "pp-seed", pp }, "*"); } catch (_) {} };
   useEffect(() => {
@@ -270,14 +270,15 @@ function PreviewModal({ pp, slug, onClose }) {
     const t = setTimeout(send, 1400);
     return () => { window.removeEventListener("message", onMsg); clearTimeout(t); };
   }, [pp]);
+  const maxW = booth ? "max-w-[1240px]" : "max-w-[440px]";
   return (
     <div className="fixed inset-0 z-[70] flex flex-col bg-slate-900/80 p-4" onClick={onClose}>
-      <div className="mx-auto flex h-full w-full max-w-[1240px] flex-col overflow-hidden rounded-2xl bg-black" onClick={(e) => e.stopPropagation()}>
+      <div className={`mx-auto flex h-full w-full ${maxW} flex-col overflow-hidden rounded-2xl bg-black`} onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between bg-slate-900 px-4 py-2 text-white">
-          <div className="text-[13px] font-bold">iPad preview · reviewed content · <span className="font-normal text-slate-400">not published — writes nothing</span></div>
+          <div className="text-[13px] font-bold">{booth ? "iPad" : "App"} preview · reviewed content · <span className="font-normal text-slate-400">not published — writes nothing</span></div>
           <button onClick={onClose} className="text-slate-300 hover:text-white">✕ close</button>
         </div>
-        <iframe ref={ref} title="iPad preview" src={`/app?c=${encodeURIComponent(slug || "")}&ipad=1`} onLoad={send} className="h-full w-full border-0 bg-black" />
+        <iframe ref={ref} title="preview" src={`/app?c=${encodeURIComponent(slug || "")}${booth ? "&ipad=1" : ""}`} onLoad={send} className="h-full w-full border-0 bg-black" />
       </div>
     </div>
   );

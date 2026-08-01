@@ -10,7 +10,7 @@
 // data (company, projects, timeline, capital) is left exactly as-is.
 
 import { mapProfileToPP } from "../profileToPP.js";
-import { CONFERENCE_COMPILE_MAP } from "./compileMap.js";
+import { CONFERENCE_COMPILE_MAP, PASSPORT_COMPILE_MAP } from "./compileMap.js";
 
 const S = (x) => (x == null ? "" : String(x));
 const isApproved = (f) => f && f.approvalStatus === "approved";
@@ -71,4 +71,72 @@ export function conferenceCompileDiff(data, profile, opts) {
   const sharedChanged = Object.keys(nextProfile).filter((k) => k !== "conference" && k !== "pp")
     .filter((k) => JSON.stringify(nextProfile[k]) !== JSON.stringify(p[k]));
   return { nextProfile, written, changes, sharedChanged };
+}
+
+// ============================================================================
+// PASSPORT (app) compile — overlays approved Blueprint edits onto the existing
+// profile, writing only shared profile fields. NEVER writes `conference` (readOnly
+// in the compile-map), so publishing the app can't move the booth. Deep-clones the
+// input; nothing here persists.
+// ============================================================================
+const PASSPORT_POOL_COLS = {
+  projects: ["name", "stageName", "tag", "locationFull", "enabled"],
+  timeline: ["date", "headline", "whyItMatters", "key"],
+  team: ["name", "role", "short", "full", "enabled"],
+};
+const idOfFor = {
+  projects: (x) => S(x.key || x.id || x.name),
+  timeline: (x) => S(x.id || x.date || x.d),
+  team: (x) => S(x.id || (x.name || "").toLowerCase().replace(/[^a-z0-9]+/g, "-")),
+};
+function setDeep(obj, path, value) {
+  const ks = String(path).split(".");
+  let cur = obj;
+  for (let i = 0; i < ks.length - 1; i++) { if (!cur[ks[i]] || typeof cur[ks[i]] !== "object" || Array.isArray(cur[ks[i]])) cur[ks[i]] = {}; cur = cur[ks[i]]; }
+  cur[ks[ks.length - 1]] = value;
+}
+
+export function compilePassportBlueprint(data, profile, { requireApproval = true } = {}) {
+  const p = JSON.parse(JSON.stringify(profile || {}));   // deep clone — safe to write nested
+  const written = [];
+  const fields = data && data.fields ? data.fields : {};
+
+  Object.values(PASSPORT_COMPILE_MAP).forEach((entry) => {
+    if (entry.pool || !entry.eligible || entry.readOnly || entry.target !== "profile") return;
+    const f = fields[entry.fieldKey];
+    if (!f) return;
+    if (requireApproval && f.approvalStatus !== "approved") return;
+    const v = (f.rawValue != null && typeof f.rawValue === "object") ? f.rawValue : f.displayValue;
+    if (!nonEmpty(v)) return;
+    setDeep(p, entry.profilePath, v);
+    written.push(entry.profilePath);
+  });
+
+  // Pools — overlay editable scalar columns onto matching existing items (by stable id).
+  // Never adds/removes items (the profile owns structure); preserves rich object data.
+  ["projects", "timeline", "team"].forEach((pool) => {
+    const recs = ((data && data.pools && data.pools[pool]) || []).filter((r) => !requireApproval || r.approvalStatus === "approved");
+    if (!recs.length || !Array.isArray(p[pool])) return;
+    const idx = new Map(p[pool].map((x, i) => [idOfFor[pool](x), i]));
+    let n = 0;
+    recs.forEach((r) => {
+      const at = idx.get(S(r.id)); if (at == null) return;
+      PASSPORT_POOL_COLS[pool].forEach((c) => { const val = (r.values || {})[c]; if (val !== undefined && val !== "") p[pool][at][c] = val; });
+      n++;
+    });
+    if (n) written.push(`${pool} (${n})`);
+  });
+
+  p.pp = mapProfileToPP(p);
+  return { nextProfile: p, written };
+}
+
+export function passportCompileDiff(data, profile, opts) {
+  const p = profile || {};
+  const { nextProfile, written } = compilePassportBlueprint(data, p, opts);
+  const changes = [];
+  const keys = Array.from(new Set([...Object.keys(p), ...Object.keys(nextProfile)]));
+  keys.forEach((k) => { if (k === "pp") return; if (JSON.stringify(p[k] ?? null) !== JSON.stringify(nextProfile[k] ?? null)) changes.push(k); });
+  const conferenceChanged = JSON.stringify(p.conference ?? null) !== JSON.stringify(nextProfile.conference ?? null);
+  return { nextProfile, written, changes, conferenceChanged };
 }

@@ -12,7 +12,7 @@
 import projectPassport from "../src/lib/blueprints/projectProfileToPassportBlueprint.js";
 import projectConference from "../src/lib/blueprints/projectProfileToConferenceBlueprint.js";
 import { parseBlueprintImport, diffBlueprintImport, applyBlueprintImport } from "../src/lib/blueprints/blueprintImport.js";
-import { conferenceCompileDiff } from "../src/lib/blueprints/compile.js";
+import { conferenceCompileDiff, passportCompileDiff } from "../src/lib/blueprints/compile.js";
 
 let pass = 0, fail = 0;
 const ok = (cond, msg) => { if (cond) { pass++; } else { fail++; console.error("  ✗ " + msg); } };
@@ -133,6 +133,18 @@ ok(cDiff.sharedChanged.length === 0, "compile changed ZERO shared profile fields
 ok(cDiff.changes.length > 0, "compile produced conference changes");
 ok(cDiff.changes.every((c) => c.key.startsWith("conference.")), "every compiled change is under conference.*");
 ok(cDiff.nextProfile.pp && cDiff.nextProfile.pp.CONFERENCE, "recompiled pp carries CONFERENCE");
+
+// ---------------------------------------------------------------- 6. passport compile isolation
+section("6. Passport compile writes ONLY shared profile (booth can't move)");
+const frozen3 = deepFreeze(JSON.parse(before));
+const pData = JSON.parse(JSON.stringify(passportData));
+Object.values(pData.fields).forEach((f) => { f.approvalStatus = "approved"; });
+Object.values(pData.pools).forEach((list) => list.forEach((r) => { r.approvalStatus = "approved"; }));
+const pDiff = passportCompileDiff(pData, frozen3, { requireApproval: true });
+ok(JSON.stringify(frozen3) === before, "passport compile did not mutate the source profile");
+ok(pDiff.conferenceChanged === false, "passport compile left conference UNCHANGED (booth stays identical)");
+ok(!pDiff.changes.includes("conference"), "conference not among changed profile keys");
+ok(pDiff.nextProfile.pp && pDiff.nextProfile.pp.COMPANY, "recompiled pp carries COMPANY");
 
 // ---------------------------------------------------------------- summary
 console.log(`\n${fail === 0 ? "✓ ALL PASS" : "✗ FAILURES"} — ${pass} passed, ${fail} failed`);

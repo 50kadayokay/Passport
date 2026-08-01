@@ -88,7 +88,7 @@ export default function BlueprintDemo() {
   const passportRow = useMemo(() => ({ id: "demo-passport", company_id: "argenta-silver-corp", template_version: "0.1", status: "draft", data: projectProfileToPassportBlueprint(SAMPLE) }), []);
   const conferenceRow = useMemo(() => ({ id: "demo-conference", company_id: "argenta-silver-corp", template_version: "0.1", status: "draft", data: projectProfileToConferenceBlueprint(SAMPLE) }), []);
 
-  if (view === "passport") return <div className="h-screen"><PassportBlueprintEditor row={passportRow} onBack={() => setView("list")} /></div>;
+  if (view === "passport") return <div className="h-screen"><PassportBlueprintEditor row={passportRow} onBack={() => setView("list")} companySlug="argenta-silver-corp" companyProfile={SAMPLE} canPublish={false} /></div>;
   if (view === "conference") return <div className="h-screen"><ConferenceBlueprintEditor row={conferenceRow} onBack={() => setView("list")} companySlug="argenta-silver-corp" companyProfile={SAMPLE} canPublish={false} /></div>;
 
   return (
