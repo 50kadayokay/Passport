@@ -1175,8 +1175,8 @@ export default function Admin() {
   return (
     <div className="flex h-full w-full bg-slate-50 text-slate-900">
       {/* LEFT — list */}
-      <div className="flex w-full max-w-[620px] flex-col border-r border-slate-200 bg-slate-50">
-        <div className="flex-shrink-0 px-7 pt-7">
+      <div className="flex w-full max-w-[620px] flex-col overflow-y-auto border-r border-slate-200 bg-slate-50">
+        <div className="px-7 pt-7">
           <div className="flex items-start justify-between">
             <div>
               <h1 className="text-[28px] font-extrabold tracking-tight text-slate-900">Companies</h1>
@@ -1208,7 +1208,7 @@ export default function Admin() {
           </div>
         </div>
 
-        <div className="mt-4 min-h-0 flex-1 overflow-y-auto px-7 pb-7">
+        <div className="mt-4 px-7 pb-7">
           {data.loading ? (
             <div className="flex flex-col items-center gap-3 py-20 text-slate-400"><Loader2 size={26} className="animate-spin text-emerald-500" /><p className="text-[14px]">Loading companies…</p></div>
           ) : data.error ? (
