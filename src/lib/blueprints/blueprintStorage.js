@@ -2,7 +2,7 @@
 // code path here that writes to `companies` / `companies.profile`. RLS (can_touch_company)
 // scopes every read/write to the owner/admin; anon is denied.
 
-import { SUPABASE_URL } from "../supabase.js";
+import { SUPABASE_URL, updateCompany } from "../supabase.js";
 import { authHeaders, getUser } from "../auth.js";
 import { TEMPLATE_VERSION } from "./types.js";
 import { projectProfileToPassportBlueprint } from "./projectProfileToPassportBlueprint.js";
@@ -89,6 +89,38 @@ export async function setBlueprintStatus(id, status) {
     body: JSON.stringify({ status }),
   });
   return Array.isArray(rows) && rows[0] ? rows[0] : null;
+}
+
+// PUBLISH a compiled profile — Phase 2. Snapshots the CURRENT live profile into the
+// blueprint (for one-click revert), then writes the compiled profile. `nextProfile` is
+// the output of compileConferenceBlueprint (only conference + pp changed). Reads the
+// current profile fresh so the snapshot is authoritative.
+export async function publishCompiledProfile(companySlug, blueprintRow, nextProfile) {
+  const h = await authHeaders();
+  const readRes = await fetch(`${SUPABASE_URL}/rest/v1/companies?slug=eq.${encodeURIComponent(companySlug)}&select=profile&limit=1`, { headers: h });
+  if (!readRes.ok) throw new Error(`Could not read current profile (${readRes.status}).`);
+  const rows = await readRes.json().catch(() => []);
+  const current = (rows[0] && rows[0].profile) || {};
+
+  // Save the pre-publish snapshot into the blueprint's own data.meta (revert source).
+  const at = new Date().toISOString();
+  const snapData = { ...(blueprintRow.data || {}) };
+  snapData.meta = { ...(snapData.meta || {}), preCompileSnapshot: current, publishedAt: at };
+  await saveBlueprintData(blueprintRow.id, snapData);
+
+  const updated = await updateCompany(companySlug, { profile: nextProfile }, h);
+  if (!updated) throw new Error("Publish returned no rows — RLS may have blocked the write (owner/admin only), or it's the protected template company.");
+  return { ok: true, publishedAt: at };
+}
+
+// REVERT the last publish: restore the snapshot stored in the blueprint.
+export async function revertPublishedProfile(companySlug, blueprintRow) {
+  const snap = blueprintRow && blueprintRow.data && blueprintRow.data.meta && blueprintRow.data.meta.preCompileSnapshot;
+  if (!snap) throw new Error("No pre-publish snapshot found to revert to.");
+  const h = await authHeaders();
+  const updated = await updateCompany(companySlug, { profile: snap }, h);
+  if (!updated) throw new Error("Revert returned no rows — RLS blocked the write, or protected template.");
+  return { ok: true };
 }
 
 // Duplicate a blueprint into a NEW template_version (older version untouched).

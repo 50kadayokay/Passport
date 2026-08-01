@@ -12,6 +12,7 @@
 import projectPassport from "../src/lib/blueprints/projectProfileToPassportBlueprint.js";
 import projectConference from "../src/lib/blueprints/projectProfileToConferenceBlueprint.js";
 import { parseBlueprintImport, diffBlueprintImport, applyBlueprintImport } from "../src/lib/blueprints/blueprintImport.js";
+import { conferenceCompileDiff } from "../src/lib/blueprints/compile.js";
 
 let pass = 0, fail = 0;
 const ok = (cond, msg) => { if (cond) { pass++; } else { fail++; console.error("  ✗ " + msg); } };
@@ -118,6 +119,20 @@ ok(JSON.stringify(conferenceData) === exported, "apply did not mutate the origin
 // unknown-key + null-overwrite safety
 const badDiff = diffBlueprintImport(conferenceData, { blueprintType: "conference", fields: { "not.a.real.key": { displayValue: "x" } }, pools: {} }, { expectedType: "conference" });
 ok(badDiff.unknownFieldKeys.includes("not.a.real.key"), "unknown field key reported, not written");
+
+// ---------------------------------------------------------------- 5. compile isolation
+section("5. Conference compile writes ONLY conference (app can't move)");
+const frozen2 = deepFreeze(JSON.parse(before));
+// Approve every conference field + select pools so compile has something to write.
+const cData = JSON.parse(JSON.stringify(conferenceData));
+Object.values(cData.fields).forEach((f) => { f.approvalStatus = "approved"; });
+Object.values(cData.pools).forEach((list) => list.forEach((r) => { r.approvalStatus = "approved"; r.selected = true; }));
+const cDiff = conferenceCompileDiff(cData, frozen2, { requireApproval: true });
+ok(JSON.stringify(frozen2) === before, "compile did not mutate the source profile");
+ok(cDiff.sharedChanged.length === 0, "compile changed ZERO shared profile fields (app stays identical)");
+ok(cDiff.changes.length > 0, "compile produced conference changes");
+ok(cDiff.changes.every((c) => c.key.startsWith("conference.")), "every compiled change is under conference.*");
+ok(cDiff.nextProfile.pp && cDiff.nextProfile.pp.CONFERENCE, "recompiled pp carries CONFERENCE");
 
 // ---------------------------------------------------------------- summary
 console.log(`\n${fail === 0 ? "✓ ALL PASS" : "✗ FAILURES"} — ${pass} passed, ${fail} failed`);

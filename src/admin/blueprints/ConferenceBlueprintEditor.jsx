@@ -7,7 +7,8 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { CONFERENCE_TEMPLATE, CONFERENCE_FIELD_COUNT, CONFERENCE_POOL_COUNT } from "../../lib/blueprints/conferenceTemplate.js";
 import { tally, IS_MISSING } from "../../lib/blueprints/types.js";
-import { saveBlueprintData, setBlueprintStatus } from "../../lib/blueprints/blueprintStorage.js";
+import { saveBlueprintData, setBlueprintStatus, publishCompiledProfile, revertPublishedProfile } from "../../lib/blueprints/blueprintStorage.js";
+import { compileConferenceBlueprint, conferenceCompileDiff } from "../../lib/blueprints/compile.js";
 import {
   FieldEditor, RecordCard, EvidencePanel, CompletionBar, GroupHeader,
   patchField, patchRecord, moveRecord, bulkApproveFields, bulkApproveRecords,
@@ -18,7 +19,7 @@ import LayoutPreview from "./LayoutPreview.jsx";
 const MODES = [["layout", "Layout"], ["content", "Content"], ["evidence", "Evidence"]];
 const S = (x) => (x == null ? "" : String(x));
 
-export default function ConferenceBlueprintEditor({ row, onBack, onSaved }) {
+export default function ConferenceBlueprintEditor({ row, onBack, onSaved, companySlug, companyProfile, canPublish = false }) {
   const [data, setData] = useState(row.data || { fields: {}, pools: {}, pageOrder: CONFERENCE_TEMPLATE.pageOrder.slice() });
   const [status, setStatus] = useState(row.status || "draft");
   const [mode, setMode] = useState("content");
@@ -30,7 +31,30 @@ export default function ConferenceBlueprintEditor({ row, onBack, onSaved }) {
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState("");
   const [showImport, setShowImport] = useState(false);
+  const [preview, setPreview] = useState(null);      // { pp } → iPad preview modal (writes nothing)
+  const [pubDiff, setPubDiff] = useState(null);      // dry-run diff before publish
+  const [publishing, setPublishing] = useState(false);
+  const [pubMsg, setPubMsg] = useState("");
   const searchRef = useRef(null);
+  const hasSnapshot = !!(row.data && row.data.meta && row.data.meta.preCompileSnapshot);
+
+  const openPreview = () => {
+    const { nextProfile } = compileConferenceBlueprint(data, companyProfile || {}, { requireApproval: false });
+    setPreview({ pp: nextProfile.pp });
+  };
+  const openPublish = () => setPubDiff(conferenceCompileDiff(data, companyProfile || {}, { requireApproval: true }));
+  const doPublish = async () => {
+    setPublishing(true); setPubMsg("");
+    try { await publishCompiledProfile(companySlug, row, pubDiff.nextProfile); setPubMsg("Published to the iPad view."); setPubDiff(null); }
+    catch (e) { setPubMsg(e.message || "Publish failed"); }
+    finally { setPublishing(false); }
+  };
+  const doRevert = async () => {
+    setPublishing(true); setPubMsg("");
+    try { await revertPublishedProfile(companySlug, row); setPubMsg("Reverted to the pre-publish profile."); }
+    catch (e) { setPubMsg(e.message || "Revert failed"); }
+    finally { setPublishing(false); }
+  };
 
   const pageOrder = (Array.isArray(data.pageOrder) && data.pageOrder.length) ? data.pageOrder : CONFERENCE_TEMPLATE.pageOrder;
   const pageByKey = useMemo(() => Object.fromEntries(CONFERENCE_TEMPLATE.pages.map((p) => [p.key, p])), []);
@@ -116,7 +140,11 @@ export default function ConferenceBlueprintEditor({ row, onBack, onSaved }) {
             </div>
           </div>
           <button onClick={save} disabled={saving || !dirty} className={`rounded-lg px-4 py-1.5 text-[13px] font-bold text-white ${saving || !dirty ? "bg-slate-300" : "bg-emerald-600 hover:bg-emerald-700"}`}>{saving ? "Saving…" : "Save"}</button>
+          <button onClick={openPreview} disabled={!companySlug} className="rounded-lg border border-slate-900 px-3 py-1.5 text-[13px] font-bold text-slate-900 hover:bg-slate-900 hover:text-white disabled:opacity-40">Preview iPad</button>
+          {canPublish && <button onClick={openPublish} className="rounded-lg bg-slate-900 px-3 py-1.5 text-[13px] font-bold text-white hover:bg-black">Publish to iPad</button>}
+          {canPublish && hasSnapshot && <button onClick={doRevert} disabled={publishing} className="rounded-lg border border-rose-200 px-3 py-1.5 text-[13px] font-bold text-rose-600 hover:bg-rose-50">Revert</button>}
           {msg && <span className="text-[12px] font-semibold text-slate-500">{msg}</span>}
+          {pubMsg && <span className="text-[12px] font-semibold text-emerald-700">{pubMsg}</span>}
         </div>
       </div>
 
@@ -203,6 +231,54 @@ export default function ConferenceBlueprintEditor({ row, onBack, onSaved }) {
       </div>
 
       {showImport && <BlueprintImportModal row={row} data={data} expectedType="conference" onApply={(next) => { setData(next); setDirty(true); setShowImport(false); }} onClose={() => setShowImport(false)} />}
+      {preview && <PreviewModal pp={preview.pp} slug={companySlug} onClose={() => setPreview(null)} />}
+      {pubDiff && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/50 p-6" onClick={() => !publishing && setPubDiff(null)}>
+          <div className="w-full max-w-[640px] rounded-3xl bg-white p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="text-[16px] font-extrabold text-slate-900">Publish Conference to the iPad view?</div>
+            <div className="mt-1 text-[13px] text-slate-500">Writes only <b>profile.conference</b> (+ recompiles pp). The app profile is not touched. A one-click revert snapshot is saved first.</div>
+            <div className="mt-3 rounded-xl border border-slate-200 p-3 text-[12.5px]">
+              {pubDiff.sharedChanged.length === 0
+                ? <div className="font-bold text-emerald-700">✓ 0 shared profile fields change — the app stays byte-identical.</div>
+                : <div className="font-bold text-rose-700">⚠ {pubDiff.sharedChanged.length} shared fields would change: {pubDiff.sharedChanged.join(", ")} (blocked)</div>}
+              <div className="mt-2 font-semibold text-slate-700">{pubDiff.changes.length} approved conference field(s) will change:</div>
+              <div className="mt-1 max-h-52 overflow-auto font-mono text-[11.5px] text-slate-500">{pubDiff.changes.map((c, i) => <div key={i}>{c.key}</div>)}</div>
+              {pubDiff.changes.length === 0 && <div className="text-slate-400">No approved conference changes yet — approve fields first.</div>}
+            </div>
+            {pubMsg && <div className="mt-2 text-[13px] font-semibold text-rose-600">{pubMsg}</div>}
+            <div className="mt-4 flex justify-end gap-2">
+              <button onClick={() => setPubDiff(null)} className="rounded-xl border border-slate-200 px-4 py-2.5 text-[14px] font-bold text-slate-600">Cancel</button>
+              <button onClick={doPublish} disabled={publishing || pubDiff.changes.length === 0 || pubDiff.sharedChanged.length > 0}
+                className={`rounded-xl px-5 py-2.5 text-[14px] font-bold text-white ${publishing || pubDiff.changes.length === 0 || pubDiff.sharedChanged.length > 0 ? "bg-slate-300" : "bg-emerald-600 hover:bg-emerald-700"}`}>{publishing ? "Publishing…" : "Publish"}</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Renders the ACTUAL booth in an iframe and seeds it with the compiled pp via the
+// existing pp-seed channel — a true preview of the finished Conference render. Writes
+// nothing to the database.
+function PreviewModal({ pp, slug, onClose }) {
+  const ref = useRef(null);
+  const send = () => { try { ref.current && ref.current.contentWindow && ref.current.contentWindow.postMessage({ type: "pp-seed", pp }, "*"); } catch (_) {} };
+  useEffect(() => {
+    const onMsg = (e) => { if (e && e.data && e.data.type === "pp-ready") send(); };
+    window.addEventListener("message", onMsg);
+    const t = setTimeout(send, 1400);
+    return () => { window.removeEventListener("message", onMsg); clearTimeout(t); };
+  }, [pp]);
+  return (
+    <div className="fixed inset-0 z-[70] flex flex-col bg-slate-900/80 p-4" onClick={onClose}>
+      <div className="mx-auto flex h-full w-full max-w-[1240px] flex-col overflow-hidden rounded-2xl bg-black" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between bg-slate-900 px-4 py-2 text-white">
+          <div className="text-[13px] font-bold">iPad preview · reviewed content · <span className="font-normal text-slate-400">not published — writes nothing</span></div>
+          <button onClick={onClose} className="text-slate-300 hover:text-white">✕ close</button>
+        </div>
+        <iframe ref={ref} title="iPad preview" src={`/app?c=${encodeURIComponent(slug || "")}&ipad=1`} onLoad={send} className="h-full w-full border-0 bg-black" />
+      </div>
     </div>
   );
 }

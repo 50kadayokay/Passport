@@ -55,7 +55,7 @@ export default function Blueprints({ companies = [] }) {
     try {
       const row = await ensureBlueprint(company, type);
       if (!row) throw new Error("Could not open blueprint.");
-      setOpen({ row, type });
+      setOpen({ row, type, company });
       setPath(`/admin/blueprints/${encodeURIComponent(company.slug)}/${type}`);
       setRows((prev) => { const others = prev.filter((r) => r.id !== row.id); return [row, ...others]; });
     } catch (e) { setErr(e.message || "Open failed"); }
@@ -82,7 +82,9 @@ export default function Blueprints({ companies = [] }) {
 
   if (open) {
     const Editor = open.type === "conference" ? ConferenceBlueprintEditor : PassportBlueprintEditor;
-    return <div className="h-[calc(100vh-0px)]"><Editor row={open.row} onBack={back} onSaved={(saved) => saved && setOpen((o) => ({ ...o, row: saved }))} /></div>;
+    return <div className="h-[calc(100vh-0px)]"><Editor row={open.row} onBack={back}
+      onSaved={(saved) => saved && setOpen((o) => ({ ...o, row: saved }))}
+      companySlug={open.company && open.company.slug} companyProfile={open.company && open.company.profile} canPublish={true} /></div>;
   }
 
   return (
