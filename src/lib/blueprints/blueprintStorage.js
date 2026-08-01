@@ -74,6 +74,19 @@ export async function createBothFromProfile(company) {
   return { passport, conference };
 }
 
+// Re-project a Blueprint from the company's CURRENT profile (after the profile was
+// updated by a new import). Overwrites the Blueprint's projected data with a fresh
+// projection — discards prior review edits/approvals (caller should confirm).
+export async function reprojectBlueprint(companySlug, type, row) {
+  const h = await authHeaders();
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/companies?slug=eq.${encodeURIComponent(companySlug)}&select=profile&limit=1`, { headers: h });
+  if (!res.ok) throw new Error(`Could not read profile (${res.status}).`);
+  const rows = await res.json().catch(() => []);
+  const profile = (rows[0] && rows[0].profile) || {};
+  const data = projectFor(type, profile);
+  return saveBlueprintData(row.id, data);
+}
+
 export async function saveBlueprintData(id, data) {
   const uid = getUser()?.id || null;
   const rows = await req(`${TABLE}?id=eq.${encodeURIComponent(id)}`, {

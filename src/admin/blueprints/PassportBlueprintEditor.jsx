@@ -6,7 +6,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { PASSPORT_TEMPLATE } from "../../lib/blueprints/passportTemplate.js";
 import { tally } from "../../lib/blueprints/types.js";
-import { saveBlueprintData, setBlueprintStatus, publishCompiledProfile, revertPublishedProfile } from "../../lib/blueprints/blueprintStorage.js";
+import { saveBlueprintData, setBlueprintStatus, publishCompiledProfile, revertPublishedProfile, reprojectBlueprint } from "../../lib/blueprints/blueprintStorage.js";
 import { compilePassportBlueprint, passportCompileDiff } from "../../lib/blueprints/compile.js";
 import { PreviewModal } from "./ConferenceBlueprintEditor.jsx";
 import {
@@ -77,6 +77,13 @@ export default function PassportBlueprintEditor({ row, onBack, onSaved, companyS
 
   const save = async () => { setSaving(true); setMsg(""); try { const saved = await saveBlueprintData(row.id, data); setDirty(false); setMsg("Saved."); onSaved && onSaved(saved); } catch (e) { setMsg(e.message || "Save failed"); } finally { setSaving(false); } };
   const changeStatus = async (s) => { setStatus(s); try { await setBlueprintStatus(row.id, s); } catch (_) {} };
+  const resync = async () => {
+    if (!companySlug) return;
+    if (!window.confirm("Re-project this Blueprint from the company's current profile?\nThis rebuilds it with the latest imported data and DISCARDS current Blueprint edits/approvals.")) return;
+    setSaving(true); setMsg("");
+    try { const fresh = await reprojectBlueprint(companySlug, "passport", row); if (fresh) { setData(fresh.data); setDirty(false); onSaved && onSaved(fresh); setMsg("Re-synced from profile."); } }
+    catch (e) { setMsg(e.message || "Re-sync failed"); } finally { setSaving(false); }
+  };
 
   const nq = q.trim().toLowerCase();
   const passes = (def) => { const f = (data.fields || {})[def.key]; if (reviewOnly && f && f.approvalStatus === "approved") return false; if (!nq) return true; return (def.label + " " + def.key + " " + S(f && f.displayValue)).toLowerCase().includes(nq); };
@@ -101,6 +108,7 @@ export default function PassportBlueprintEditor({ row, onBack, onSaved, companyS
           <select value={status} onChange={(e) => changeStatus(e.target.value)} className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[12.5px] font-semibold text-slate-600">
             <option value="draft">draft</option><option value="in_review">in review</option><option value="approved">approved</option><option value="archived">archived</option>
           </select>
+          <button onClick={resync} disabled={!companySlug || saving} className="rounded-lg border border-slate-200 px-3 py-1.5 text-[13px] font-bold text-slate-600 hover:text-slate-900 disabled:opacity-40">Re-sync</button>
           <button onClick={() => setShowImport(true)} className="rounded-lg border border-slate-200 px-3 py-1.5 text-[13px] font-bold text-slate-600 hover:text-slate-900">Import</button>
           <div className="relative group">
             <button className="rounded-lg border border-slate-200 px-3 py-1.5 text-[13px] font-bold text-slate-600 hover:text-slate-900">Export ▾</button>
