@@ -6,7 +6,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { PASSPORT_TEMPLATE } from "../../lib/blueprints/passportTemplate.js";
 import { tally } from "../../lib/blueprints/types.js";
-import { saveBlueprintData, setBlueprintStatus, publishCompiledProfile, revertPublishedProfile, reprojectBlueprint } from "../../lib/blueprints/blueprintStorage.js";
+import { saveBlueprintData, setBlueprintStatus, publishCompiledProfile, revertPublishedProfile, reprojectBlueprint, fetchCompanyProfile } from "../../lib/blueprints/blueprintStorage.js";
 import { compilePassportBlueprint, passportCompileDiff } from "../../lib/blueprints/compile.js";
 import { PreviewModal } from "./ConferenceBlueprintEditor.jsx";
 import {
@@ -40,8 +40,8 @@ export default function PassportBlueprintEditor({ row, onBack, onSaved, companyS
   const searchRef = useRef(null);
   const hasSnapshot = !!(row.data && row.data.meta && row.data.meta.preCompileSnapshot);
 
-  const openPreview = () => { const { nextProfile } = compilePassportBlueprint(data, companyProfile || {}, { requireApproval: false }); setPreview({ pp: nextProfile.pp }); };
-  const openPublish = () => setPubDiff(passportCompileDiff(data, companyProfile || {}, { requireApproval: true }));
+  const openPreview = async () => { const prof = (companySlug ? await fetchCompanyProfile(companySlug) : null) || companyProfile || {}; const { nextProfile } = compilePassportBlueprint(data, prof, { requireApproval: false }); setPreview({ pp: nextProfile.pp }); };
+  const openPublish = async () => { const prof = (companySlug ? await fetchCompanyProfile(companySlug) : null) || companyProfile || {}; setPubDiff(passportCompileDiff(data, prof, { requireApproval: true })); };
   const doPublish = async () => {
     setPublishing(true); setPubMsg("");
     try { await publishCompiledProfile(companySlug, row, pubDiff.nextProfile); setPubMsg("Published to the app profile."); setPubDiff(null); }

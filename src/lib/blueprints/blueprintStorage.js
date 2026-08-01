@@ -32,6 +32,17 @@ export async function fetchAllBlueprints() {
   return req(`${TABLE}?select=${COLS}&order=updated_at.desc.nullslast`);
 }
 
+// Fresh read of a company's CURRENT profile (so preview/publish/compile never use a
+// stale prop after a new import).
+export async function fetchCompanyProfile(slug) {
+  if (!slug) return null;
+  const h = await authHeaders();
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/companies?slug=eq.${encodeURIComponent(slug)}&select=profile&limit=1`, { headers: h });
+  if (!res.ok) return null;
+  const rows = await res.json().catch(() => []);
+  return (rows[0] && rows[0].profile) || null;
+}
+
 export async function fetchBlueprintsForCompany(companyId) {
   return req(`${TABLE}?company_id=eq.${encodeURIComponent(companyId)}&select=${COLS}&order=updated_at.desc.nullslast`);
 }

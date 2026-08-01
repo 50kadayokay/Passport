@@ -7,7 +7,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { CONFERENCE_TEMPLATE, CONFERENCE_FIELD_COUNT, CONFERENCE_POOL_COUNT } from "../../lib/blueprints/conferenceTemplate.js";
 import { tally, IS_MISSING } from "../../lib/blueprints/types.js";
-import { saveBlueprintData, setBlueprintStatus, publishCompiledProfile, revertPublishedProfile, reprojectBlueprint } from "../../lib/blueprints/blueprintStorage.js";
+import { saveBlueprintData, setBlueprintStatus, publishCompiledProfile, revertPublishedProfile, reprojectBlueprint, fetchCompanyProfile } from "../../lib/blueprints/blueprintStorage.js";
 import { compileConferenceBlueprint, conferenceCompileDiff } from "../../lib/blueprints/compile.js";
 import {
   FieldEditor, RecordCard, EvidencePanel, CompletionBar, GroupHeader,
@@ -38,11 +38,15 @@ export default function ConferenceBlueprintEditor({ row, onBack, onSaved, compan
   const searchRef = useRef(null);
   const hasSnapshot = !!(row.data && row.data.meta && row.data.meta.preCompileSnapshot);
 
-  const openPreview = () => {
-    const { nextProfile } = compileConferenceBlueprint(data, companyProfile || {}, { requireApproval: false });
+  const openPreview = async () => {
+    const prof = (companySlug ? await fetchCompanyProfile(companySlug) : null) || companyProfile || {};
+    const { nextProfile } = compileConferenceBlueprint(data, prof, { requireApproval: false });
     setPreview({ pp: nextProfile.pp });
   };
-  const openPublish = () => setPubDiff(conferenceCompileDiff(data, companyProfile || {}, { requireApproval: true }));
+  const openPublish = async () => {
+    const prof = (companySlug ? await fetchCompanyProfile(companySlug) : null) || companyProfile || {};
+    setPubDiff(conferenceCompileDiff(data, prof, { requireApproval: true }));
+  };
   const doPublish = async () => {
     setPublishing(true); setPubMsg("");
     try { await publishCompiledProfile(companySlug, row, pubDiff.nextProfile); setPubMsg("Published to the iPad view."); setPubDiff(null); }
