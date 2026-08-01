@@ -53,8 +53,12 @@ export const SOURCE_VERIFICATION = ["unreviewed", "verified", "disputed", "rejec
 // versions remain valid (the DB unique key is per version).
 export const PASSPORT_TEMPLATE_KEY = "passport.v1";
 export const CONFERENCE_TEMPLATE_KEY = "conference.v1";
-export const TEMPLATE_VERSION = "0.1";
-export const ADAPTER_VERSION = "phase1-0.1";
+// LOCKED at 1.0. Do not silently mutate the template field sets after this — any
+// change to passportTemplate.js / conferenceTemplate.js must bump TEMPLATE_VERSION
+// to a new value so existing v1.0 blueprints (one row per (company,type,version))
+// are never rewritten.
+export const TEMPLATE_VERSION = "1.0";
+export const ADAPTER_VERSION = "phase1-1.0";
 
 const S = (x) => (x == null ? "" : String(x));
 export const isObj = (v) => v && typeof v === "object" && !Array.isArray(v);
