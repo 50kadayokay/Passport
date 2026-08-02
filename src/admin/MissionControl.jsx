@@ -11,6 +11,7 @@ import Admin from "./Admin.jsx";
 import AudienceCard from "./AudienceCard.jsx";
 import Blueprints from "./blueprints/Blueprints.jsx";
 import OnboardingEngine from "./onboarding/OnboardingEngine.jsx";
+import BlueprintReview from "./BlueprintReview.jsx";
 
 // Sidebar organized into business areas. `ready` = wired to live data; the rest
 // show honest "not built yet" states (never fabricated numbers).
@@ -22,6 +23,7 @@ const NAV = [
     { id: "card", label: "Audience Card", Icon: Film, ready: true },
     { id: "companies", label: "Companies", Icon: Building2, ready: true },
     { id: "blueprints", label: "Blueprints", Icon: ClipboardCheck, ready: true },
+    { id: "review", label: "Blueprint Review", Icon: Sparkles, ready: true },
     { id: "onboarding", label: "Onboarding Engine", Icon: FolderOpen, ready: true },
     { id: "users", label: "Users", Icon: UsersIcon, ready: true },
     { id: "operations", label: "Operations", Icon: ClipboardCheck, ready: true },
@@ -46,7 +48,7 @@ const NAV = [
     { id: "settings", label: "Settings", Icon: Settings, need: "a platform-config table" },
   ]},
 ];
-const READY = new Set(["home", "publish", "card", "companies", "blueprints", "onboarding", "users", "operations"]);
+const READY = new Set(["home", "publish", "card", "companies", "blueprints", "review", "onboarding", "users", "operations"]);
 const flat = (id) => NAV.flatMap((g) => g.items).find((i) => i.id === id) || {};
 
 const isPublished = (c) => (c.status || "").toLowerCase() === "published";
@@ -127,6 +129,8 @@ export default function MissionControl() {
             <div className="h-full overflow-y-auto"><Blueprints companies={companies} /></div>
           ) : section === "onboarding" ? (
             <div className="h-full"><OnboardingEngine companies={companies} /></div>
+          ) : section === "review" ? (
+            <div className="h-full"><BlueprintReview companies={companies} /></div>
           ) : (
             <div className="h-full overflow-y-auto px-8 py-7">
               {section === "home" && <Home companies={companies} users={users} loading={loading} go={go} />}
