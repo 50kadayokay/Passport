@@ -153,16 +153,31 @@ function DocPanel({ companyId }) {
   const [busy, setBusy] = useState("");
   const [copied, setCopied] = useState("");
   const [drag, setDrag] = useState(false);
+  const [err, setErr] = useState("");
+  const [result, setResult] = useState("");
   const inputRef = useRef(null);
 
-  const load = async () => { if (!companyId) return; try { const inv = await listInventory(companyId); setDocs(inv.docs || []); } catch (_) {} };
-  useEffect(() => { setDocs([]); load(); /* eslint-disable-next-line */ }, [companyId]);
+  const load = async () => {
+    if (!companyId) { setDocs([]); return; }
+    try { const inv = await listInventory(companyId); setDocs(inv.docs || []); setErr(""); }
+    catch (e) { setErr(e.message || "Couldn't load documents"); }
+  };
+  useEffect(() => { setDocs([]); setErr(""); setResult(""); load(); /* eslint-disable-next-line */ }, [companyId]);
 
   const onFiles = async (fl) => {
     const files = Array.from(fl || []); if (!files.length) return;
-    setBusy(`Uploading 0/${files.length}…`);
-    try { await ingestFiles(companyId, files, { onProgress: (d, t) => setBusy(`Reading ${d}/${t}…`) }); await load(); }
-    catch (_) {} finally { setBusy(""); if (inputRef.current) inputRef.current.value = ""; }
+    if (!companyId) { setErr("No company selected — pick one from the dropdown above first."); return; }
+    setBusy(`Reading 0/${files.length}…`); setErr(""); setResult("");
+    try {
+      const res = await ingestFiles(companyId, files, { onProgress: (d, t) => setBusy(`Reading ${d}/${t}…`) });
+      await load();
+      const ok = res.filter((r) => r.id).length;
+      const dup = res.filter((r) => r.status === "duplicate").length;
+      const failed = res.filter((r) => r.status === "failed");
+      setResult(`${ok} read${dup ? ` · ${dup} duplicate` : ""}${failed.length ? ` · ${failed.length} failed` : ""}`);
+      if (failed.length) setErr(`${failed.length} failed — ${failed.slice(0, 2).map((f) => `${f.name}: ${f.error || "unknown error"}`).join("; ")}${failed.length > 2 ? " …" : ""}`);
+    } catch (e) { setErr(e.message || "Upload failed"); }
+    finally { setBusy(""); if (inputRef.current) inputRef.current.value = ""; }
   };
 
   const groups = useMemo(() => {
@@ -194,10 +209,13 @@ function DocPanel({ companyId }) {
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-[11.5px] font-bold uppercase tracking-wide text-slate-400">Documents</span>
         <span className="text-[12px] font-semibold text-slate-500">{busy ? busy : drag ? "Drop to upload…" : docs.length ? `${docs.length} uploaded` : "Drag & drop the company's PDFs here, or"}</span>
+        {result && !busy && <span className="text-[11.5px] text-slate-400">· {result}</span>}
+        <button onClick={load} disabled={!!busy} className="ml-auto rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[12.5px] font-bold text-slate-500 hover:text-slate-800 disabled:opacity-50">Refresh</button>
         <button onClick={() => inputRef.current && inputRef.current.click()} disabled={!!busy}
-          className="ml-auto rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-[12.5px] font-bold text-slate-700 hover:border-slate-400 disabled:opacity-50">Choose files</button>
+          className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-[12.5px] font-bold text-slate-700 hover:border-slate-400 disabled:opacity-50">Choose files</button>
         <input ref={inputRef} type="file" multiple className="hidden" onChange={(e) => onFiles(e.target.files)} />
       </div>
+      {err && <p className="mt-2 text-[12px] font-semibold text-rose-600">{err}</p>}
       {docs.length > 0 && (
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <span className="text-[11.5px] font-bold uppercase tracking-wide text-slate-400">Copy text:</span>
