@@ -307,13 +307,20 @@ export default function BlueprintReview({ companies = [] }) {
     setPromptCopied(label); setTimeout(() => setPromptCopied(""), 2500);
   };
 
-  const loadPaste = () => {
-    const parsed = parseImport(paste);
+  const loadText = (text) => {
+    const parsed = parseImport(text || "");
     if (!parsed.ok) { setLoadMsg({ ok: false, text: parsed.error }); return; }
     const { next, report } = applyImport(profile, parsed.payload, parsed.auditText || "", parsed.imageGuide || "");
     setProfile(next); setDirty(true); setTouched(true); setPaste("");
     const known = parsed.known || [];
     setLoadMsg({ ok: true, text: `Loaded ${known.length} section${known.length === 1 ? "" : "s"}${known.length ? ": " + known.join(", ") : ""}. Review below, then Save.`, warnings: (report && report.warnings) || [] });
+  };
+  const loadPaste = () => loadText(paste);
+  const jsonFileRef = useRef(null);
+  const onJsonFile = async (fl) => {
+    const f = Array.from(fl || [])[0]; if (!f) return;
+    try { loadText(await f.text()); } catch (e) { setLoadMsg({ ok: false, text: e.message || "Couldn't read that file" }); }
+    if (jsonFileRef.current) jsonFileRef.current.value = "";
   };
   const save = async () => {
     if (!company) return;
@@ -385,6 +392,8 @@ export default function BlueprintReview({ companies = [] }) {
                 </div>
                 <div className="flex items-center gap-2">
                   <button onClick={loadPaste} disabled={!paste.trim()} className="rounded-xl bg-slate-900 px-4 py-2.5 text-[14px] font-bold text-white hover:bg-slate-700 disabled:opacity-40">Load into template</button>
+                  <button onClick={() => jsonFileRef.current && jsonFileRef.current.click()} title="Load a JSON file ChatGPT generated (for big passes)" className="rounded-xl border border-slate-200 px-4 py-2.5 text-[14px] font-bold text-slate-600 hover:border-slate-400">Load JSON file</button>
+                  <input ref={jsonFileRef} type="file" accept=".json,.txt,application/json,text/plain" className="hidden" onChange={(e) => onJsonFile(e.target.files)} />
                   <button onClick={save} disabled={!dirty || saving} className="rounded-xl border border-slate-200 px-4 py-2.5 text-[14px] font-bold text-slate-600 hover:border-slate-400 disabled:opacity-40">{saving ? "Saving…" : dirty ? "Save" : "Saved"}</button>
                   {touched && <button onClick={undo} className="rounded-xl border border-rose-200 px-4 py-2.5 text-[14px] font-bold text-rose-600 hover:bg-rose-50">Undo</button>}
                 </div>
