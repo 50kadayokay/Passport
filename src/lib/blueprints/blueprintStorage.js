@@ -4,6 +4,8 @@
 
 import { SUPABASE_URL, updateCompany } from "../supabase.js";
 import { authHeaders, getUser } from "../auth.js";
+import { isProtectedSlug } from "../profileSafety.js";
+import { snapshotProfile } from "../profileVersions.js";
 import { TEMPLATE_VERSION } from "./types.js";
 import { projectProfileToPassportBlueprint } from "./projectProfileToPassportBlueprint.js";
 import { projectProfileToConferenceBlueprint } from "./projectProfileToConferenceBlueprint.js";
@@ -120,17 +122,27 @@ export async function setBlueprintStatus(id, status) {
 // the output of compileConferenceBlueprint (only conference + pp changed). Reads the
 // current profile fresh so the snapshot is authoritative.
 export async function publishCompiledProfile(companySlug, blueprintRow, nextProfile) {
+  // HARD LOCK: the protected flagship (Kingsmen) renders from the app's built-in prototype
+  // (no `pp`); publishing ANY compiled profile to its live row breaks the app. Conference
+  // work for a protected company must be done on a DRAFT CLONE, never the live row.
+  if (isProtectedSlug(companySlug)) {
+    throw new Error(`"${companySlug}" is the protected flagship profile — conference work can't be published to its live row. Duplicate it to a draft company and publish that.`);
+  }
   const h = await authHeaders();
-  const readRes = await fetch(`${SUPABASE_URL}/rest/v1/companies?slug=eq.${encodeURIComponent(companySlug)}&select=profile&limit=1`, { headers: h });
+  const readRes = await fetch(`${SUPABASE_URL}/rest/v1/companies?slug=eq.${encodeURIComponent(companySlug)}&select=id,profile&limit=1`, { headers: h });
   if (!readRes.ok) throw new Error(`Could not read current profile (${readRes.status}).`);
   const rows = await readRes.json().catch(() => []);
   const current = (rows[0] && rows[0].profile) || {};
+  const companyId = rows[0] && rows[0].id;
 
   // Save the pre-publish snapshot into the blueprint's own data.meta (revert source).
   const at = new Date().toISOString();
   const snapData = { ...(blueprintRow.data || {}) };
   snapData.meta = { ...(snapData.meta || {}), preCompileSnapshot: current, publishedAt: at };
   await saveBlueprintData(blueprintRow.id, snapData);
+
+  // Also record it in durable per-company version history (best-effort).
+  await snapshotProfile({ id: companyId, slug: companySlug }, current, "before conference publish");
 
   const updated = await updateCompany(companySlug, { profile: nextProfile }, h);
   if (!updated) throw new Error("Publish returned no rows — RLS may have blocked the write (owner/admin only), or it's the protected template company.");

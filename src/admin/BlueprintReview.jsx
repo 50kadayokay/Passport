@@ -16,6 +16,8 @@ import { promptForPass } from "./promptTemplate.js";
 import { updateCompany } from "../lib/supabase.js";
 import { mapProfileToPP } from "../lib/profileToPP.js";
 import { authHeaders } from "../lib/auth.js";
+import { saveProfileSafely, isProtectedSlug } from "../lib/profileSafety.js";
+import { listVersions, restoreVersion } from "../lib/profileVersions.js";
 import { ingestFiles, listInventory, fetchDocsText, buildTextBundle } from "../lib/onboarding/documentStore.js";
 import { DOC_TYPE_LABELS } from "../lib/onboarding/classify.js";
 
@@ -294,7 +296,20 @@ export default function BlueprintReview({ companies = [] }) {
   const [showInfo, setShowInfo] = useState(false);
   const [baseline, setBaseline] = useState(null);   // the company's saved profile at selection — for Undo
   const [touched, setTouched] = useState(false);
-  useEffect(() => { setProfile(company?.profile || {}); setBaseline(company?.profile || {}); setTouched(false); setPaste(""); setLoadMsg(null); setDirty(false); /* eslint-disable-next-line */ }, [slug]);
+  const [versions, setVersions] = useState([]);     // profile version-history snapshots (newest first)
+  const [histMsg, setHistMsg] = useState(null);
+  const loadVersions = async (c) => { try { setVersions(c?.id ? await listVersions(c.id) : []); } catch { setVersions([]); } };
+  useEffect(() => { setProfile(company?.profile || {}); setBaseline(company?.profile || {}); setTouched(false); setPaste(""); setLoadMsg(null); setDirty(false); setHistMsg(null); loadVersions(company); /* eslint-disable-next-line */ }, [slug]);
+  const doRestoreVersion = async (v) => {
+    if (!company) return;
+    if (!window.confirm(`Restore ${company.name || company.slug} to the snapshot from ${new Date(v.created_at).toLocaleString()}? Your current profile is snapshotted first, so this is undoable.`)) return;
+    setHistMsg({ ok: null, text: "Restoring…" });
+    try {
+      await restoreVersion(company, v.id);
+      setHistMsg({ ok: true, text: "Restored. Refresh the app to confirm." });
+      await loadVersions(company);
+    } catch (e) { setHistMsg({ ok: false, text: e.message || "Restore failed" }); }
+  };
   const p = profile;
 
   // Download the prompt as a .md file (don't copy) — the prompt is ~33k chars and pasting it
@@ -336,9 +351,11 @@ export default function BlueprintReview({ companies = [] }) {
       if (!prof || typeof prof !== "object" || Array.isArray(prof)) { setLoadMsg({ ok: false, text: "That file isn't a profile object." }); return; }
       if (!window.confirm(`REPLACE ${company.name || company.slug}'s ENTIRE profile with this file? This overwrites everything currently on this record — use only to restore a backup.`)) return;
       const withPp = { ...prof, pp: mapProfileToPP(prof) };
-      await updateCompany(company.slug, { profile: withPp }, await authHeaders());
+      // Restoring a backup is a sanctioned full replace; snapshot current first (undoable)
+      // and allow it even on a protected flagship (this IS the recovery path).
+      await saveProfileSafely(company, withPp, { note: "before restore-from-file", allowProtected: true });
       setProfile(withPp); setBaseline(withPp); setDirty(false); setTouched(false);
-      setLoadMsg({ ok: true, text: "Profile fully replaced from file — restore complete." });
+      setLoadMsg({ ok: true, text: "Profile fully replaced from file — restore complete (previous state snapshotted)." });
     } catch (e) { setLoadMsg({ ok: false, text: e.message || "Restore failed" }); }
     finally { if (restoreRef.current) restoreRef.current.value = ""; }
   };
@@ -359,20 +376,31 @@ export default function BlueprintReview({ companies = [] }) {
       // overflowing core-value drivers, thin AI brief, swapped projects). Restore WITHOUT
       // any pp so the app falls back to the pristine prototype exactly as before.
       const { pp: _dropPp, ...clean } = prof;
-      await updateCompany("kingsmen-resources", { profile: clean }, await authHeaders());
+      // Sanctioned recovery of the protected flagship: snapshot current first, then write.
+      await saveProfileSafely(
+        { slug: "kingsmen-resources", id: company?.id, profile: company?.profile, name: "Kingsmen Resources" },
+        clean,
+        { note: "before emergency Kingsmen restore", allowProtected: true }
+      );
       setRestoreState("done");
     } catch (e) { setRestoreState("err:" + (e.message || "restore failed")); }
   };
   const save = async () => {
     if (!company) return;
+    // HARD LOCK: the protected flagship (Kingsmen) is never overwritten by this tooling.
+    if (isProtectedSlug(company.slug)) {
+      setLoadMsg({ ok: false, text: `"${company.slug}" is the protected flagship profile — it can't be overwritten here. Duplicate it to a draft and work on that.` });
+      return;
+    }
     // Guard: never let conference/extraction work silently overwrite a LIVE published profile.
     if (company.status === "published" && !window.confirm(`⚠️ ${company.name || company.slug} is LIVE on the app. Saving OVERWRITES the public profile investors currently see — this is exactly what must NOT happen during conference/extraction work. Build on a draft instead. Only continue if you truly intend to change the live profile. Continue?`)) return;
     setSaving(true);
     try {
       const withPp = { ...profile, pp: mapProfileToPP(profile) };
-      await updateCompany(company.slug, { profile: withPp }, await authHeaders());
+      // Snapshot-before-write: any save is one-click recoverable from version history.
+      const { snapshot } = await saveProfileSafely(company, withPp, { note: "before Blueprint Review save" });
       setProfile(withPp); setDirty(false);
-      setLoadMsg({ ok: true, text: "Saved to company — the app and Conference Mode now use this data." });
+      setLoadMsg({ ok: true, text: `Saved to company — the app and Conference Mode now use this data.${snapshot && !snapshot.ok ? " (⚠️ version history not captured: apply migration 0013)" : ""}` });
     } catch (e) { setLoadMsg({ ok: false, text: e.message || "Save failed" }); } finally { setSaving(false); }
   };
   // Undo everything loaded this session — restore the company's saved state (and persist it, in
@@ -381,7 +409,13 @@ export default function BlueprintReview({ companies = [] }) {
     const b = baseline || {};
     const restored = { ...b, pp: mapProfileToPP(b) };
     setProfile(restored); setDirty(false); setTouched(false);
-    try { if (company) await updateCompany(company.slug, { profile: restored }, await authHeaders()); } catch (_) {}
+    try {
+      if (company && isProtectedSlug(company.slug)) {
+        setLoadMsg({ ok: true, text: "Reverted in-view. (The protected flagship isn't written from here — nothing was persisted.)" });
+        return;
+      }
+      if (company) await saveProfileSafely(company, restored, { note: "before Blueprint Review undo" });
+    } catch (e) { setLoadMsg({ ok: false, text: e.message || "Revert failed" }); return; }
     setLoadMsg({ ok: true, text: "Reverted — this company is back to its saved state from before you loaded." });
   };
 
@@ -445,6 +479,34 @@ export default function BlueprintReview({ companies = [] }) {
       {restoreState === "done" && (
         <div className="border-b border-emerald-200 bg-emerald-50 px-8 py-3">
           <div className="mx-auto max-w-[1080px] text-[13px] font-bold text-emerald-800">✓ Live Kingsmen app profile restored from the July-18 backup. Refresh the app to confirm.</div>
+        </div>
+      )}
+
+      {company && (
+        <div className="border-b border-slate-200 bg-slate-50 px-8 py-3">
+          <div className="mx-auto max-w-[1080px]">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[12px] font-bold uppercase tracking-wide text-slate-500">Version history</span>
+              {isProtectedSlug(company.slug) && (
+                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-700">Protected flagship — can't be overwritten by tooling</span>
+              )}
+              <button onClick={() => loadVersions(company)} className="ml-auto text-[12px] font-semibold text-slate-500 hover:text-slate-800">Refresh</button>
+            </div>
+            {histMsg && <div className={`mt-1 text-[12px] font-semibold ${histMsg.ok === false ? "text-rose-700" : histMsg.ok ? "text-emerald-700" : "text-slate-500"}`}>{histMsg.text}</div>}
+            {versions.length === 0 ? (
+              <p className="mt-1 text-[12px] text-slate-400">No snapshots yet. One is saved automatically before every save/publish/restore. (If none ever appear, apply migration 0013.)</p>
+            ) : (
+              <ul className="mt-2 flex flex-col gap-1">
+                {versions.slice(0, 8).map((v) => (
+                  <li key={v.id} className="flex items-center gap-3 rounded-lg bg-white px-3 py-1.5 text-[12.5px] ring-1 ring-slate-200">
+                    <span className="font-mono text-slate-500">{new Date(v.created_at).toLocaleString()}</span>
+                    <span className="truncate text-slate-600">{v.note || "snapshot"}</span>
+                    <button onClick={() => doRestoreVersion(v)} className="ml-auto rounded-md bg-slate-800 px-2.5 py-1 text-[11.5px] font-bold text-white hover:bg-slate-900">Restore</button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </div>
       )}
 
