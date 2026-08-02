@@ -57,7 +57,7 @@ const timeAgo = (iso) => { if (!iso) return ""; const s = (Date.now() - new Date
 
 export default function MissionControl() {
   const [section, setSection] = useState(() => {
-    try { return (window.location.pathname || "").startsWith("/admin/blueprints") ? "blueprints" : "home"; } catch (_) { return "home"; }
+    try { return (window.location.pathname || "").startsWith("/admin/blueprints") ? "review" : "home"; } catch (_) { return "home"; }
   });
   const [companies, setCompanies] = useState([]);
   const [users, setUsers] = useState([]);
