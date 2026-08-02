@@ -494,6 +494,13 @@ THE SCHEMA
 OUTPUT — return these TWO sections, in this order
 ═══════════════════════════════════════════════════════════════════
 
+LENGTH RULE (read first): The === PROFILE JSON === is MANDATORY and must be COMPLETE and valid.
+The === EVIDENCE AUDIT === is secondary. If returning BOTH would exceed your maximum response
+length, OMIT the evidence audit entirely and return ONLY a complete PROFILE JSON. NEVER truncate
+the JSON to make room for the audit, and never split the JSON across multiple messages — a single
+complete JSON with no audit is far more useful than a JSON cut off mid-object. Do not ask; just
+drop the audit if you must.
+
 === PROFILE JSON ===
 Valid JSON only, matching the schema above. No commentary. This is what I paste into the app.
 
@@ -525,7 +532,8 @@ your approach, list the rules back to me, or describe what you are about to do. 
 clarifying questions unless a document is unreadable.
 
 Your entire reply must begin with "=== PROFILE JSON ===" and contain only the populated JSON
-and the evidence table.`;
+(followed by the evidence table only if it fits in one response — otherwise the complete JSON
+alone, per the LENGTH RULE above).`;
 
 // Scope lines appended to the template to run one section at a time.
 //
