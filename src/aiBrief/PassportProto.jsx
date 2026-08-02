@@ -19,8 +19,9 @@ import {
   Compass, ScanLine, CircleUserRound, Search, Bell, Settings, ChevronDown, Plus as PlusIcon, Sparkles, Flame, Send, PenSquare,
   Star, Scan, User, Newspaper, Globe, QrCode, Focus, TrendingDown,
   Droplets, Plane, Building2, Factory, Hammer, GalleryHorizontal, Play, Mic,
-  Heart, Telescope, ArrowDownUp, Quote, Phone, Mail, Twitter, Linkedin
+  Heart, Telescope, ArrowDownUp, Quote, Phone, Mail, Twitter, Linkedin, LogOut
 } from "lucide-react";
+import { signOut, getUser } from "../lib/auth.js";
 
 /* ============================================================
    PASSPORT — Light FinTech Aesthetic
@@ -6352,8 +6353,23 @@ function NewsScreen({ onOpenCompany, onScan }) {
 /* ---------- PROFILE ---------- */
 function ProfileScreen({ onScan }) {
   const [toast, setToast] = useState("");
+  const [signingOut, setSigningOut] = useState(false);
   const toastT = useRef(null);
   const soon = (label) => { haptic(); setToast(`${label} — coming soon`); clearTimeout(toastT.current); toastT.current = setTimeout(() => setToast(""), 1700); };
+  const user = (() => { try { return getUser(); } catch { return null; } })();
+  const email = user?.email || "";
+  const initials = (email ? email.trim()[0] : "?").toUpperCase();
+  const doSignOut = async () => {
+    if (signingOut) return;
+    // Guest (viewing a shared/QR profile without an account) → send to sign-in.
+    if (!user) { haptic(); window.location.assign("/app?signin=1"); return; }
+    if (!window.confirm("Sign out of Passport?")) return;
+    haptic();
+    setSigningOut(true);
+    try { await signOut(); } catch {}
+    // Return to the app's front door — logged out, this shows the sign-in screen.
+    window.location.assign("/app");
+  };
   const ROWS = [
     [{ Icon: Bell, label: "Notifications", hint: "Catalyst & company alerts" }, { Icon: TrendingUp, label: "Price Alerts", hint: "Target prices & moves" }],
     [{ Icon: Wallet, label: "Holdings" }, { Icon: Search, label: "Saved Searches" }, { Icon: Telescope, label: "Watchlists" }],
@@ -6364,9 +6380,9 @@ function ProfileScreen({ onScan }) {
       <ScreenHead eyebrow="Account" title="Profile" onScan={onScan} />
       <div className="pp-scroll flex-1 overflow-y-auto px-5 pb-28 pt-1">
         <div className="flex items-center gap-3.5 rounded-2xl border border-slate-100 bg-white p-4" style={{ boxShadow: "0 1px 2px rgba(15,23,42,0.04), 0 12px 26px -20px rgba(15,23,42,0.4)" }}>
-          <div className="grid h-14 w-14 place-items-center rounded-full text-[18px] font-extrabold text-white" style={{ background: "linear-gradient(158deg,#0f172a,#334155)" }}>JJ</div>
+          <div className="grid h-14 w-14 place-items-center rounded-full text-[18px] font-extrabold text-white" style={{ background: "linear-gradient(158deg,#0f172a,#334155)" }}>{initials}</div>
           <div className="min-w-0 flex-1">
-            <p className="text-[16px] font-extrabold tracking-tight text-slate-900">Retail Investor</p>
+            <p className="truncate text-[16px] font-extrabold tracking-tight text-slate-900">{email || "Retail Investor"}</p>
             <p className="mt-0.5 text-[12px] font-semibold text-slate-400">Passport member · Junior mining</p>
           </div>
           <button onClick={() => soon("Edit profile")} className="rounded-full border border-slate-200 px-3 py-1.5 text-[11.5px] font-bold text-slate-600 transition active:scale-95">Edit</button>
@@ -6394,6 +6410,19 @@ function ProfileScreen({ onScan }) {
             ))}
           </div>
         ))}
+        {/* Sign out — real: clears the session and returns to the sign-in screen. */}
+        <button
+          onClick={doSignOut}
+          disabled={signingOut}
+          className="mt-3 flex w-full items-center gap-3 rounded-2xl border border-slate-100 bg-white px-4 py-3.5 text-left transition active:bg-slate-50 disabled:opacity-60"
+          style={{ boxShadow: "0 1px 2px rgba(15,23,42,0.04)" }}
+        >
+          <LogOut size={18} className={`flex-shrink-0 ${user ? "text-rose-500" : "text-emerald-500"}`} />
+          <div className="min-w-0 flex-1">
+            <p className={`text-[13.5px] font-bold tracking-tight ${user ? "text-rose-600" : "text-emerald-600"}`}>{signingOut ? "Signing out…" : user ? "Sign out" : "Sign in"}</p>
+            {email && <p className="truncate text-[11px] font-medium text-slate-400">{email}</p>}
+          </div>
+        </button>
       </div>
       {/* transient toast for not-yet-built settings */}
       {toast && (
