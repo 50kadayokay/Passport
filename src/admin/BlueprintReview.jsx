@@ -12,6 +12,7 @@
 import React, { useMemo, useState, useEffect } from "react";
 import { Image as ImageIcon, QrCode, UploadCloud, Sparkles } from "lucide-react";
 import { parseImport, applyImport } from "../lib/profileImport.js";
+import { promptForPass } from "./promptTemplate.js";
 import { updateCompany } from "../lib/supabase.js";
 import { mapProfileToPP } from "../lib/profileToPP.js";
 import { authHeaders } from "../lib/auth.js";
@@ -160,8 +161,23 @@ export default function BlueprintReview({ companies = [] }) {
   const [loadMsg, setLoadMsg] = useState(null);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const [promptCopied, setPromptCopied] = useState("");
+  const [showInfo, setShowInfo] = useState(false);
   useEffect(() => { setProfile(company?.profile || {}); setPaste(""); setLoadMsg(null); setDirty(false); /* eslint-disable-next-line */ }, [slug]);
   const p = profile;
+
+  const copyPrompt = async (id, label) => {
+    const text = promptForPass(id);
+    try { await navigator.clipboard.writeText(text); }
+    catch (_) {
+      const ta = document.createElement("textarea");
+      ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.appendChild(ta); ta.select();
+      try { document.execCommand("copy"); } catch (__) {}
+      document.body.removeChild(ta);
+    }
+    setPromptCopied(label); setTimeout(() => setPromptCopied(""), 2500);
+  };
 
   const loadPaste = () => {
     const parsed = parseImport(paste);
@@ -235,6 +251,33 @@ export default function BlueprintReview({ companies = [] }) {
                   <button onClick={save} disabled={!dirty || saving} className="rounded-xl border border-slate-200 px-4 py-2.5 text-[14px] font-bold text-slate-600 hover:border-slate-400 disabled:opacity-40">{saving ? "Saving…" : dirty ? "Save" : "Saved"}</button>
                 </div>
               </div>
+              {/* Prompts to give ChatGPT — copy the pass you're running, plus an info button. */}
+              <div className="mt-4 flex flex-wrap items-center gap-2">
+                <span className="text-[11.5px] font-bold uppercase tracking-wide text-slate-400">ChatGPT prompts:</span>
+                {[{ id: "p1", label: "Company" }, { id: "p2", label: "Projects" }, { id: "p3", label: "Timeline" }].map((pp) => (
+                  <button key={pp.id} onClick={() => copyPrompt(pp.id, pp.label)}
+                    className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[12.5px] font-bold text-slate-600 hover:border-slate-400">
+                    {promptCopied === pp.label ? "Copied ✓" : `Copy ${pp.label}`}
+                  </button>
+                ))}
+                <button onClick={() => setShowInfo((v) => !v)} title="How to use this"
+                  className={`grid h-7 w-7 place-items-center rounded-full border text-[13px] font-bold italic ${showInfo ? "border-slate-900 bg-slate-900 text-white" : "border-slate-300 text-slate-500 hover:border-slate-500 hover:text-slate-700"}`}>i</button>
+              </div>
+
+              {showInfo && (
+                <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-[13px] leading-relaxed text-slate-600">
+                  <div className="mb-1.5 text-[13.5px] font-bold text-slate-800">How to populate this page</div>
+                  <ol className="list-decimal space-y-1.5 pl-5">
+                    <li><b>Onboarding Engine → Documents:</b> upload the company's PDFs, then click <b>Copy text</b> (per group, or "Copy all text").</li>
+                    <li>Back here, click <b>Copy Company</b> (then Projects, then Timeline) to copy that pass's prompt.</li>
+                    <li>Open a <b>new ChatGPT chat</b> → paste the prompt, then paste the document text → send.</li>
+                    <li>Copy ChatGPT's reply → paste it in the box below → <b>Load into template</b>.</li>
+                    <li>Repeat for each pass; sections merge. When it looks right, press <b>Save</b>.</li>
+                  </ol>
+                  <p className="mt-2 text-[12.5px] text-slate-500"><b>Why text, not PDFs:</b> ChatGPT only samples snippets from attached PDFs — pasting the extracted <i>text</i> gives it the whole document, so it stops refusing or inventing.</p>
+                </div>
+              )}
+
               <textarea value={paste} onChange={(e) => setPaste(e.target.value)}
                 placeholder="Paste the entire ChatGPT reply here (=== PROFILE JSON === … ). Partial passes are fine — Company, then Projects, then Timeline."
                 className="mt-4 h-36 w-full resize-y rounded-2xl border border-slate-200 bg-slate-50 p-4 font-mono text-[12.5px] leading-relaxed text-slate-800 outline-none focus:border-slate-400" />
