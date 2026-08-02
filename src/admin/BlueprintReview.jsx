@@ -152,6 +152,7 @@ function DocPanel({ companyId }) {
   const [docs, setDocs] = useState([]);
   const [busy, setBusy] = useState("");
   const [copied, setCopied] = useState("");
+  const [drag, setDrag] = useState(false);
   const inputRef = useRef(null);
 
   const load = async () => { if (!companyId) return; try { const inv = await listInventory(companyId); setDocs(inv.docs || []); } catch (_) {} };
@@ -185,12 +186,16 @@ function DocPanel({ companyId }) {
   };
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
+    <div
+      onDragOver={(e) => { e.preventDefault(); if (!drag) setDrag(true); }}
+      onDragLeave={(e) => { e.preventDefault(); setDrag(false); }}
+      onDrop={(e) => { e.preventDefault(); setDrag(false); onFiles(e.dataTransfer.files); }}
+      className={`rounded-2xl border-2 border-dashed p-4 transition ${drag ? "border-slate-500 bg-slate-100" : "border-slate-200 bg-slate-50/60"}`}>
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-[11.5px] font-bold uppercase tracking-wide text-slate-400">Documents</span>
-        <span className="text-[12px] text-slate-500">{docs.length ? `${docs.length} uploaded` : "none yet — upload the company's PDFs"}</span>
+        <span className="text-[12px] font-semibold text-slate-500">{busy ? busy : drag ? "Drop to upload…" : docs.length ? `${docs.length} uploaded` : "Drag & drop the company's PDFs here, or"}</span>
         <button onClick={() => inputRef.current && inputRef.current.click()} disabled={!!busy}
-          className="ml-auto rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-[12.5px] font-bold text-slate-700 hover:border-slate-400 disabled:opacity-50">{busy || "Upload PDFs"}</button>
+          className="ml-auto rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-[12.5px] font-bold text-slate-700 hover:border-slate-400 disabled:opacity-50">Choose files</button>
         <input ref={inputRef} type="file" multiple className="hidden" onChange={(e) => onFiles(e.target.files)} />
       </div>
       {docs.length > 0 && (
