@@ -1118,8 +1118,8 @@ function Overview({ tab, goto, openBrief, following, setFollowing, bookmarked, s
         <div style={{ position: "relative", height: "100%", transformStyle: "preserve-3d", WebkitTransformStyle: "preserve-3d", transition: "transform .85s cubic-bezier(.2,.75,.2,1)", transform: flipped ? "rotateY(180deg)" : "rotateY(0deg)" }}>
           {/* BACK FACE — status details */}
           <div style={{ height: "100%", backfaceVisibility: "hidden", WebkitBackfaceVisibility: "hidden", transform: "rotateY(180deg)", opacity: flipped ? 1 : 0, transition: "opacity .45s ease" }}>
-      <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white" style={{ height: "100%", display: "flex", flexDirection: "column", paddingBottom: 7 }}>
-        <div className="p-5" style={{ flex: "1 1 auto", display: "flex", flexDirection: "column", justifyContent: "center" }}>
+      <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white" style={{ height: "100%", display: "flex", flexDirection: "column", paddingBottom: 4 }}>
+        <div style={{ flex: "1 1 auto", minHeight: 0, display: "flex", flexDirection: "column", justifyContent: "center", overflow: "hidden", padding: "14px 20px 6px" }}>
           {/* Row 1 — status details (left) + image (right) */}
           <div style={{ display: "flex", flexDirection: "row-reverse", alignItems: "center", gap: 14 }}>
             {/* site photo — tap to flip to the full image */}
@@ -1127,7 +1127,7 @@ function Overview({ tab, goto, openBrief, following, setFollowing, bookmarked, s
               onClick={() => { haptic(); setShowLogo(true); setLogoIn(false); setFlipped(false); setTimeout(() => setLogoIn(true), 380); }}
               aria-label="Show site photo"
               className="relative overflow-hidden rounded-2xl border border-slate-200 transition active:scale-[0.97]"
-              style={{ width: 96, height: 96, flexShrink: 0, boxShadow: "0 9px 20px -10px rgba(15,23,42,0.5)" }}
+              style={{ width: 78, height: 78, flexShrink: 0, boxShadow: "0 9px 20px -10px rgba(15,23,42,0.5)" }}
             >
               {STATUS_IMG ? <img src={STATUS_IMG} alt={COMPANY.name || ""} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
                 : <div style={{ width: "100%", height: "100%", background: "#eef2f7" }} />}
@@ -1153,7 +1153,7 @@ function Overview({ tab, goto, openBrief, following, setFollowing, bookmarked, s
           {/* progress — only when the company reported a milestone total; an
               empty 0% bar reads as broken rather than "nothing to report". */}
           {STATUS.progressTotal > 0 && (
-          <div className="mt-7">
+          <div className="mt-4">
             <div className="relative flex h-4 items-center">
               <div className="relative h-2 w-full overflow-hidden rounded-full bg-slate-200">
                 <div className="absolute inset-y-0 left-0 rounded-full" style={{ width: `${progressW}%`, background: `linear-gradient(90deg, ${EM}, ${EM})` }} />
