@@ -155,14 +155,17 @@ function DocPanel({ companyId }) {
   const [drag, setDrag] = useState(false);
   const [err, setErr] = useState("");
   const [result, setResult] = useState("");
+  const [selected, setSelected] = useState(() => new Set());
+  const [showList, setShowList] = useState(false);
   const inputRef = useRef(null);
+  const kfmt = (n) => (n >= 1000 ? `${Math.round(n / 1000)}k` : String(n || 0));
 
   const load = async () => {
     if (!companyId) { setDocs([]); return; }
     try { const inv = await listInventory(companyId); setDocs(inv.docs || []); setErr(""); }
     catch (e) { setErr(e.message || "Couldn't load documents"); }
   };
-  useEffect(() => { setDocs([]); setErr(""); setResult(""); load(); /* eslint-disable-next-line */ }, [companyId]);
+  useEffect(() => { setDocs([]); setErr(""); setResult(""); setSelected(new Set()); setShowList(false); load(); /* eslint-disable-next-line */ }, [companyId]);
 
   const onFiles = async (fl) => {
     const files = Array.from(fl || []); if (!files.length) return;
@@ -180,10 +183,14 @@ function DocPanel({ companyId }) {
     finally { setBusy(""); if (inputRef.current) inputRef.current.value = ""; }
   };
 
+  const dchars = (d) => (d.meta && d.meta.charCount) || 0;
   const groups = useMemo(() => {
     const g = {}; docs.forEach((d) => { const k = d.kind || "unknown"; (g[k] = g[k] || []).push(d); });
-    return Object.keys(g).sort().map((k) => ({ type: k, ids: g[k].map((d) => d.id) }));
+    return Object.keys(g).sort().map((k) => ({ type: k, ids: g[k].map((d) => d.id), chars: g[k].reduce((n, d) => n + dchars(d), 0) }));
   }, [docs]);
+  const totalChars = useMemo(() => docs.reduce((n, d) => n + dchars(d), 0), [docs]);
+  const selChars = useMemo(() => docs.filter((d) => selected.has(d.id)).reduce((n, d) => n + dchars(d), 0), [docs, selected]);
+  const toggle = (id) => setSelected((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
 
   const copy = async (ids, label) => {
     setBusy("Preparing text…"); setCopied("");
@@ -217,14 +224,41 @@ function DocPanel({ companyId }) {
       </div>
       {err && <p className="mt-2 text-[12px] font-semibold text-rose-600">{err}</p>}
       {docs.length > 0 && (
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <span className="text-[11.5px] font-bold uppercase tracking-wide text-slate-400">Copy text:</span>
-          <button onClick={() => copy(null, "All documents")} disabled={!!busy} className="rounded-lg bg-slate-900 px-3 py-1.5 text-[12.5px] font-bold text-white hover:bg-slate-700 disabled:opacity-50">All</button>
-          {groups.map((g) => (
-            <button key={g.type} onClick={() => copy(g.ids, DOC_TYPE_LABELS[g.type] || g.type)} disabled={!!busy}
-              className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[12.5px] font-bold text-slate-600 hover:border-slate-400 disabled:opacity-50">{DOC_TYPE_LABELS[g.type] || g.type}</button>
-          ))}
-        </div>
+        <>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <span className="text-[11.5px] font-bold uppercase tracking-wide text-slate-400">Copy text:</span>
+            <button onClick={() => copy(null, "All documents")} disabled={!!busy}
+              className={`rounded-lg px-3 py-1.5 text-[12.5px] font-bold text-white disabled:opacity-50 ${totalChars > 250000 ? "bg-rose-500 hover:bg-rose-600" : "bg-slate-900 hover:bg-slate-700"}`}>
+              All · {kfmt(totalChars)}
+            </button>
+            {groups.map((g) => (
+              <button key={g.type} onClick={() => copy(g.ids, DOC_TYPE_LABELS[g.type] || g.type)} disabled={!!busy}
+                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[12.5px] font-bold text-slate-600 hover:border-slate-400 disabled:opacity-50">{DOC_TYPE_LABELS[g.type] || g.type} · {kfmt(g.chars)}</button>
+            ))}
+            <button onClick={() => setShowList((v) => !v)} className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-[12.5px] font-bold text-slate-700 hover:border-slate-400">{showList ? "Hide list" : "Pick documents…"}</button>
+          </div>
+          {totalChars > 250000 && <p className="mt-1 text-[11.5px] font-semibold text-rose-500">"All" is {kfmt(totalChars)} chars — too big for one ChatGPT paste (~250k max). Pick the documents each pass needs below.</p>}
+
+          {showList && (
+            <div className="mt-2 rounded-xl border border-slate-200 bg-white">
+              <div className="flex items-center gap-2 border-b border-slate-100 px-3 py-2">
+                <span className="text-[11.5px] font-bold text-slate-500">{selected.size} selected · {kfmt(selChars)} chars {selChars > 250000 && <span className="text-rose-500">(too big — trim)</span>}</span>
+                <button onClick={() => setSelected(new Set())} className="text-[11.5px] font-bold text-slate-400 hover:text-slate-700">Clear</button>
+                <button onClick={() => copy(Array.from(selected), "Selected documents")} disabled={!!busy || !selected.size}
+                  className="ml-auto rounded-lg bg-slate-900 px-3 py-1.5 text-[12px] font-bold text-white hover:bg-slate-700 disabled:opacity-40">Copy selected</button>
+              </div>
+              <div className="max-h-60 overflow-auto p-1.5">
+                {docs.map((d) => (
+                  <label key={d.id} className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-slate-50">
+                    <input type="checkbox" checked={selected.has(d.id)} onChange={() => toggle(d.id)} className="h-4 w-4" />
+                    <span className="min-w-0 flex-1 truncate text-[12.5px] text-slate-700">{d.title || d.filename}</span>
+                    <span className="flex-shrink-0 text-[10.5px] text-slate-400">{DOC_TYPE_LABELS[d.kind] || d.kind || "?"} · {kfmt(dchars(d))}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
       )}
       {copied && <p className="mt-2 text-[12px] font-semibold text-emerald-600">{copied} — now paste it into ChatGPT with the prompt.</p>}
     </div>
