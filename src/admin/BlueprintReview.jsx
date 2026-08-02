@@ -57,7 +57,7 @@ function Slide({ n, kicker, title, purpose, children }) {
 function Field({ title, help, value, big }) {
   const empty = isEmpty(value);
   return (
-    <div className="rounded-2xl border border-slate-200/70 bg-white p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+    <div className={`rounded-2xl border bg-white p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)] ${empty ? "border-slate-200/70" : "border-emerald-300 ring-1 ring-emerald-100"}`}>
       <div className="flex items-baseline justify-between gap-3">
         <h3 className="text-[15px] font-bold text-slate-900">{title}</h3>
         {empty && <span className="flex items-center gap-1 text-[11px] font-semibold text-amber-500"><Sparkles size={12} /> pending</span>}
@@ -74,8 +74,9 @@ function Field({ title, help, value, big }) {
 
 // A grid of compact stat widgets. Each item: { label, value }.
 function Widgets({ title, help, items }) {
+  const anyFilled = (items || []).some((it) => !isEmpty(it.value));
   return (
-    <div className="rounded-2xl border border-slate-200/70 bg-white p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+    <div className={`rounded-2xl border bg-white p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)] ${anyFilled ? "border-emerald-300 ring-1 ring-emerald-100" : "border-slate-200/70"}`}>
       {title && <h3 className="text-[15px] font-bold text-slate-900">{title}</h3>}
       {help && <p className="mt-0.5 text-[12.5px] leading-relaxed text-slate-400">{help}</p>}
       <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
@@ -97,7 +98,7 @@ function Widgets({ title, help, items }) {
 function Pool({ title, help, items, empty, renderItem }) {
   const list = Array.isArray(items) ? items.filter(Boolean) : [];
   return (
-    <div className="rounded-2xl border border-slate-200/70 bg-white p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+    <div className={`rounded-2xl border bg-white p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)] ${list.length ? "border-emerald-300 ring-1 ring-emerald-100" : "border-slate-200/70"}`}>
       <div className="flex items-baseline justify-between gap-3">
         <h3 className="text-[15px] font-bold text-slate-900">{title}</h3>
         <span className="text-[11px] font-semibold text-slate-400">{list.length || 0}</span>
@@ -130,7 +131,7 @@ function ImageSlot({ title, help, tall, gallery }) {
 function Pills({ title, help, items }) {
   const list = (Array.isArray(items) ? items : []).filter(Boolean);
   return (
-    <div className="rounded-2xl border border-slate-200/70 bg-white p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+    <div className={`rounded-2xl border bg-white p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)] ${list.length ? "border-emerald-300 ring-1 ring-emerald-100" : "border-slate-200/70"}`}>
       <h3 className="text-[15px] font-bold text-slate-900">{title}</h3>
       {help && <p className="mt-0.5 text-[12.5px] leading-relaxed text-slate-400">{help}</p>}
       {list.length === 0 ? (
@@ -289,7 +290,9 @@ export default function BlueprintReview({ companies = [] }) {
   const [dirty, setDirty] = useState(false);
   const [promptCopied, setPromptCopied] = useState("");
   const [showInfo, setShowInfo] = useState(false);
-  useEffect(() => { setProfile(company?.profile || {}); setPaste(""); setLoadMsg(null); setDirty(false); /* eslint-disable-next-line */ }, [slug]);
+  const [baseline, setBaseline] = useState(null);   // the company's saved profile at selection — for Undo
+  const [touched, setTouched] = useState(false);
+  useEffect(() => { setProfile(company?.profile || {}); setBaseline(company?.profile || {}); setTouched(false); setPaste(""); setLoadMsg(null); setDirty(false); /* eslint-disable-next-line */ }, [slug]);
   const p = profile;
 
   // Download the prompt as a .md file (don't copy) — the prompt is ~33k chars and pasting it
@@ -308,7 +311,7 @@ export default function BlueprintReview({ companies = [] }) {
     const parsed = parseImport(paste);
     if (!parsed.ok) { setLoadMsg({ ok: false, text: parsed.error }); return; }
     const { next, report } = applyImport(profile, parsed.payload, parsed.auditText || "", parsed.imageGuide || "");
-    setProfile(next); setDirty(true); setPaste("");
+    setProfile(next); setDirty(true); setTouched(true); setPaste("");
     const known = parsed.known || [];
     setLoadMsg({ ok: true, text: `Loaded ${known.length} section${known.length === 1 ? "" : "s"}${known.length ? ": " + known.join(", ") : ""}. Review below, then Save.`, warnings: (report && report.warnings) || [] });
   };
@@ -321,6 +324,15 @@ export default function BlueprintReview({ companies = [] }) {
       setProfile(withPp); setDirty(false);
       setLoadMsg({ ok: true, text: "Saved to company — the app and Conference Mode now use this data." });
     } catch (e) { setLoadMsg({ ok: false, text: e.message || "Save failed" }); } finally { setSaving(false); }
+  };
+  // Undo everything loaded this session — restore the company's saved state (and persist it, in
+  // case you already hit Save on the wrong company).
+  const undo = async () => {
+    const b = baseline || {};
+    const restored = { ...b, pp: mapProfileToPP(b) };
+    setProfile(restored); setDirty(false); setTouched(false);
+    try { if (company) await updateCompany(company.slug, { profile: restored }, await authHeaders()); } catch (_) {}
+    setLoadMsg({ ok: true, text: "Reverted — this company is back to its saved state from before you loaded." });
   };
 
   const tickers = useMemo(() => {
@@ -374,6 +386,7 @@ export default function BlueprintReview({ companies = [] }) {
                 <div className="flex items-center gap-2">
                   <button onClick={loadPaste} disabled={!paste.trim()} className="rounded-xl bg-slate-900 px-4 py-2.5 text-[14px] font-bold text-white hover:bg-slate-700 disabled:opacity-40">Load into template</button>
                   <button onClick={save} disabled={!dirty || saving} className="rounded-xl border border-slate-200 px-4 py-2.5 text-[14px] font-bold text-slate-600 hover:border-slate-400 disabled:opacity-40">{saving ? "Saving…" : dirty ? "Save" : "Saved"}</button>
+                  {touched && <button onClick={undo} className="rounded-xl border border-rose-200 px-4 py-2.5 text-[14px] font-bold text-rose-600 hover:bg-rose-50">Undo</button>}
                 </div>
               </div>
               {/* Documents — upload + copy text, right here. */}
@@ -575,12 +588,17 @@ export default function BlueprintReview({ companies = [] }) {
                 </div>
               </div>
             </div>
-            <Pool title="Team" help="Each team member as a profile card." items={others}
+            <Pool title="Team" help="Each team member as a profile card, with a headshot slot. Names & roles are auto-filled; drop in photos." items={others}
               renderItem={(m) => (
-                <div className="rounded-xl bg-slate-50 px-4 py-3.5">
-                  <div className="text-[15px] font-bold text-slate-900">{m.name}</div>
-                  <div className="text-[12.5px] font-semibold text-slate-500">{m.role}</div>
-                  {(m.short || m.full) && <div className="mt-1 text-[13px] leading-relaxed text-slate-500">{m.short || m.full}</div>}
+                <div className="flex items-start gap-4 rounded-xl bg-slate-50 px-4 py-3.5">
+                  <button title="Upload headshot" className="grid h-16 w-16 flex-shrink-0 place-items-center rounded-full border-2 border-dashed border-slate-200 bg-white text-slate-300 hover:border-slate-400">
+                    <UploadCloud size={18} strokeWidth={1.5} />
+                  </button>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[15px] font-bold text-slate-900">{m.name}</div>
+                    <div className="text-[12.5px] font-semibold text-slate-500">{m.role}</div>
+                    {(m.short || m.full) && <div className="mt-1 text-[13px] leading-relaxed text-slate-500">{m.short || m.full}</div>}
+                  </div>
                 </div>
               )}
             />
