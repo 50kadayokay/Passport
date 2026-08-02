@@ -612,7 +612,23 @@ The evidence audit covers only the entries you populate in this pass.`,
 
 export function promptForPass(passId) {
   const pass = PASSES.find((p) => p.id === passId) || PASSES[0];
-  return pass.scope ? `${PROMPT_TEMPLATE}\n${pass.scope}\n` : PROMPT_TEMPLATE;
+  if (!pass.scope) return PROMPT_TEMPLATE;
+  // Scope FIRST (before the schema) so the model anchors on the narrow pass, then again at the
+  // end. Without the leading banner the model reads the full schema and tries to output every
+  // section (projects, timeline, …) and declares the result too large.
+  const banner = `${pass.scope}
+
+⚠️ CRITICAL — READ THIS BEFORE THE SCHEMA BELOW:
+You are running ONE NARROW PASS. Output ONLY the top-level keys listed directly above. IGNORE
+every other part of the schema that follows — those sections (e.g. projects, timeline) belong to
+OTHER passes and MUST NOT appear in your output. This pass's JSON is SMALL and MUST fit in a
+single response: do not say it is too large, do not split it across messages, do not add sections
+that aren't in the allowed-keys list. The full schema and rules below are reference for the few
+keys you ARE producing.
+
+═══════════════════════════════════════════════════════════════════
+`;
+  return `${banner}\n${PROMPT_TEMPLATE}\n${pass.scope}\n`;
 }
 
 // A SINGLE new press release for a company that's already live. Self-contained (no need to
