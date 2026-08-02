@@ -253,16 +253,15 @@ export default function BlueprintReview({ companies = [] }) {
   useEffect(() => { setProfile(company?.profile || {}); setPaste(""); setLoadMsg(null); setDirty(false); /* eslint-disable-next-line */ }, [slug]);
   const p = profile;
 
-  const copyPrompt = async (id, label) => {
+  // Download the prompt as a .md file (don't copy) — the prompt is ~33k chars and pasting it
+  // into ChatGPT truncates the schema. Attaching the file makes ChatGPT read it completely.
+  const downloadPrompt = (id, label) => {
     const text = promptForPass(id);
-    try { await navigator.clipboard.writeText(text); }
-    catch (_) {
-      const ta = document.createElement("textarea");
-      ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
-      document.body.appendChild(ta); ta.select();
-      try { document.execCommand("copy"); } catch (__) {}
-      document.body.removeChild(ta);
-    }
+    const url = URL.createObjectURL(new Blob([text], { type: "text/markdown" }));
+    const a = document.createElement("a");
+    a.href = url; a.download = `passport-${id}-prompt.md`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
     setPromptCopied(label); setTimeout(() => setPromptCopied(""), 2500);
   };
 
@@ -345,11 +344,11 @@ export default function BlueprintReview({ companies = [] }) {
 
               {/* Prompts to give ChatGPT — copy the pass you're running, plus an info button. */}
               <div className="mt-4 flex flex-wrap items-center gap-2">
-                <span className="text-[11.5px] font-bold uppercase tracking-wide text-slate-400">ChatGPT prompts:</span>
+                <span className="text-[11.5px] font-bold uppercase tracking-wide text-slate-400">Prompt file (attach to ChatGPT):</span>
                 {[{ id: "p1", label: "Company" }, { id: "p2", label: "Projects" }, { id: "p3", label: "Timeline" }].map((pp) => (
-                  <button key={pp.id} onClick={() => copyPrompt(pp.id, pp.label)}
+                  <button key={pp.id} onClick={() => downloadPrompt(pp.id, pp.label)}
                     className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[12.5px] font-bold text-slate-600 hover:border-slate-400">
-                    {promptCopied === pp.label ? "Copied ✓" : `Copy ${pp.label}`}
+                    {promptCopied === pp.label ? "Downloaded ✓" : `${pp.label} prompt`}
                   </button>
                 ))}
                 <button onClick={() => setShowInfo((v) => !v)} title="How to use this"
@@ -360,13 +359,13 @@ export default function BlueprintReview({ companies = [] }) {
                 <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-[13px] leading-relaxed text-slate-600">
                   <div className="mb-1.5 text-[13.5px] font-bold text-slate-800">How to populate this page</div>
                   <ol className="list-decimal space-y-1.5 pl-5">
-                    <li><b>Onboarding Engine → Documents:</b> upload the company's PDFs, then click <b>Copy text</b> (per group, or "Copy all text").</li>
-                    <li>Back here, click <b>Copy Company</b> (then Projects, then Timeline) to copy that pass's prompt.</li>
-                    <li>Open a <b>new ChatGPT chat</b> → paste the prompt, then paste the document text → send.</li>
+                    <li>In <b>Documents</b> above: upload the company's PDFs (it reads out the text).</li>
+                    <li>Download the pass prompt — click <b>Company prompt</b> (then Projects, then Timeline). It saves a small <code>.md</code> file.</li>
+                    <li>Open a <b>new ChatGPT chat</b> → <b>attach the prompt file</b> (don't paste it — it's too long and truncates) → then click <b>Copy text</b> above and <b>paste the document text</b> into the chat → send.</li>
                     <li>Copy ChatGPT's reply → paste it in the box below → <b>Load into template</b>.</li>
                     <li>Repeat for each pass; sections merge. When it looks right, press <b>Save</b>.</li>
                   </ol>
-                  <p className="mt-2 text-[12.5px] text-slate-500"><b>Why text, not PDFs:</b> ChatGPT only samples snippets from attached PDFs — pasting the extracted <i>text</i> gives it the whole document, so it stops refusing or inventing.</p>
+                  <p className="mt-2 text-[12.5px] text-slate-500"><b>Attach the prompt, paste the text.</b> The prompt is long — attaching it keeps ChatGPT from truncating it. The document text is what ChatGPT reads to fill the fields.</p>
                 </div>
               )}
 
