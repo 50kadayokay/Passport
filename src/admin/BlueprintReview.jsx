@@ -9,13 +9,15 @@
 // and Conference Mode render from, and what the importer populates). Inline editing and image
 // uploads land in a follow-up; the placeholders here are exactly the spec's empty state.
 
-import React, { useMemo, useState, useEffect } from "react";
+import React, { useMemo, useState, useEffect, useRef } from "react";
 import { Image as ImageIcon, QrCode, UploadCloud, Sparkles } from "lucide-react";
 import { parseImport, applyImport } from "../lib/profileImport.js";
 import { promptForPass } from "./promptTemplate.js";
 import { updateCompany } from "../lib/supabase.js";
 import { mapProfileToPP } from "../lib/profileToPP.js";
 import { authHeaders } from "../lib/auth.js";
+import { ingestFiles, listInventory, fetchDocsText, buildTextBundle } from "../lib/onboarding/documentStore.js";
+import { DOC_TYPE_LABELS } from "../lib/onboarding/classify.js";
 
 /* ---------- data helpers ---------- */
 const get = (obj, path) => {
@@ -144,6 +146,68 @@ function Pills({ title, help, items }) {
   );
 }
 
+// Documents: upload the company's PDFs (extracts text) and copy that text for ChatGPT —
+// all here, so the operator never has to leave this screen.
+function DocPanel({ companyId }) {
+  const [docs, setDocs] = useState([]);
+  const [busy, setBusy] = useState("");
+  const [copied, setCopied] = useState("");
+  const inputRef = useRef(null);
+
+  const load = async () => { if (!companyId) return; try { const inv = await listInventory(companyId); setDocs(inv.docs || []); } catch (_) {} };
+  useEffect(() => { setDocs([]); load(); /* eslint-disable-next-line */ }, [companyId]);
+
+  const onFiles = async (fl) => {
+    const files = Array.from(fl || []); if (!files.length) return;
+    setBusy(`Uploading 0/${files.length}…`);
+    try { await ingestFiles(companyId, files, { onProgress: (d, t) => setBusy(`Reading ${d}/${t}…`) }); await load(); }
+    catch (_) {} finally { setBusy(""); if (inputRef.current) inputRef.current.value = ""; }
+  };
+
+  const groups = useMemo(() => {
+    const g = {}; docs.forEach((d) => { const k = d.kind || "unknown"; (g[k] = g[k] || []).push(d); });
+    return Object.keys(g).sort().map((k) => ({ type: k, ids: g[k].map((d) => d.id) }));
+  }, [docs]);
+
+  const copy = async (ids, label) => {
+    setBusy("Preparing text…"); setCopied("");
+    try {
+      const rows = await fetchDocsText(companyId, ids);
+      const bundle = buildTextBundle(rows);
+      if (!bundle.trim()) { setCopied("No readable text — those docs are image-only"); setTimeout(() => setCopied(""), 3500); return; }
+      try { await navigator.clipboard.writeText(bundle); }
+      catch (_) {
+        const ta = document.createElement("textarea"); ta.value = bundle; ta.style.position = "fixed"; ta.style.opacity = "0";
+        document.body.appendChild(ta); ta.select(); try { document.execCommand("copy"); } catch (__) {} document.body.removeChild(ta);
+      }
+      setCopied(`${label} copied · ${Math.round(bundle.length / 1000)}k chars`); setTimeout(() => setCopied(""), 4000);
+    } finally { setBusy(""); }
+  };
+
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-[11.5px] font-bold uppercase tracking-wide text-slate-400">Documents</span>
+        <span className="text-[12px] text-slate-500">{docs.length ? `${docs.length} uploaded` : "none yet — upload the company's PDFs"}</span>
+        <button onClick={() => inputRef.current && inputRef.current.click()} disabled={!!busy}
+          className="ml-auto rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-[12.5px] font-bold text-slate-700 hover:border-slate-400 disabled:opacity-50">{busy || "Upload PDFs"}</button>
+        <input ref={inputRef} type="file" multiple className="hidden" onChange={(e) => onFiles(e.target.files)} />
+      </div>
+      {docs.length > 0 && (
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <span className="text-[11.5px] font-bold uppercase tracking-wide text-slate-400">Copy text:</span>
+          <button onClick={() => copy(null, "All documents")} disabled={!!busy} className="rounded-lg bg-slate-900 px-3 py-1.5 text-[12.5px] font-bold text-white hover:bg-slate-700 disabled:opacity-50">All</button>
+          {groups.map((g) => (
+            <button key={g.type} onClick={() => copy(g.ids, DOC_TYPE_LABELS[g.type] || g.type)} disabled={!!busy}
+              className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[12.5px] font-bold text-slate-600 hover:border-slate-400 disabled:opacity-50">{DOC_TYPE_LABELS[g.type] || g.type}</button>
+          ))}
+        </div>
+      )}
+      {copied && <p className="mt-2 text-[12px] font-semibold text-emerald-600">{copied} — now paste it into ChatGPT with the prompt.</p>}
+    </div>
+  );
+}
+
 /* ---------- the page ---------- */
 
 export default function BlueprintReview({ companies = [] }) {
@@ -251,6 +315,11 @@ export default function BlueprintReview({ companies = [] }) {
                   <button onClick={save} disabled={!dirty || saving} className="rounded-xl border border-slate-200 px-4 py-2.5 text-[14px] font-bold text-slate-600 hover:border-slate-400 disabled:opacity-40">{saving ? "Saving…" : dirty ? "Save" : "Saved"}</button>
                 </div>
               </div>
+              {/* Documents — upload + copy text, right here. */}
+              <div className="mt-4">
+                <DocPanel companyId={company.id} />
+              </div>
+
               {/* Prompts to give ChatGPT — copy the pass you're running, plus an info button. */}
               <div className="mt-4 flex flex-wrap items-center gap-2">
                 <span className="text-[11.5px] font-bold uppercase tracking-wide text-slate-400">ChatGPT prompts:</span>
