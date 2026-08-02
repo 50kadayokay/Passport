@@ -356,6 +356,10 @@ export default function BlueprintReview({ companies = [] }) {
   const conf = p.conference || {};
   const cap = p.capital || {};
   const cmp = p.compare || {};
+  // The company description comes from the Pass-1 companyBrief ("What They Do" section) until the
+  // conference pass writes a dedicated overview.
+  const briefSections = Array.isArray(get(p, "companyBrief.sections")) ? get(p, "companyBrief.sections") : [];
+  const briefSection = (re) => (briefSections.find((s) => new RegExp(re, "i").test(s?.k || "")) || {}).v;
 
   return (
     <div className="h-full overflow-y-auto bg-slate-50/60">
@@ -459,7 +463,7 @@ export default function BlueprintReview({ companies = [] }) {
           {/* PAGE 2 — COMPANY OVERVIEW */}
           <Slide n={2} kicker="Page 2" title="Company Overview" purpose="Explain who the company is.">
             <Field title="Headline" help="Company positioning statement." value={firstOf(conf.hook, get(p, "companyStatus.statusHeadline"))} big />
-            <Field title="Company Overview" help="One editorial paragraph describing what the company does, where it operates, and what sets it apart." value={firstOf(conf.overview, get(p, "companyBrief.keyPoints[0]"))} big />
+            <Field title="Company Overview" help="One editorial paragraph describing what the company does, where it operates, and what sets it apart." value={firstOf(conf.overview, briefSection("what they do"), get(p, "companyBrief.sections[0].v"), get(p, "companyBrief.keyPoints[0]"))} big />
             <Widgets title="Company Information" help="Key facts, each as its own widget."
               items={[
                 { label: "Headquarters", value: firstOf(cmp.headquarters, get(p, "company.location")) },
@@ -518,7 +522,7 @@ export default function BlueprintReview({ companies = [] }) {
                   <div className="mb-4 text-[12px] font-bold uppercase tracking-[0.14em] text-slate-400">Project {i + 1}</div>
                   <div className="space-y-4">
                     <Field title="Project Name" help="Property / project name." value={pr.name} big />
-                    <Field title="Project Summary" help="One paragraph on what this project is and why it matters." value={firstOf(pr.short, get(pr, "brief.overview"), Array.isArray(pr.narrative) ? pr.narrative.join("\n\n") : pr.narrative)} big />
+                    <Field title="Project Summary" help="One paragraph on what this project is and why it matters." value={firstOf(get(pr, "brief.overview"), Array.isArray(pr.narrative) ? pr.narrative.join("\n\n") : pr.narrative, pr.short)} big />
                     <Widgets title="Key Details"
                       items={[
                         { label: "Ownership", value: get(pr, "snapshot.ownership.value") },
