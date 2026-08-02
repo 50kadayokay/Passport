@@ -13,7 +13,7 @@ import React, { useMemo, useState, useEffect, useRef } from "react";
 import { Image as ImageIcon, QrCode, UploadCloud, Sparkles } from "lucide-react";
 import { parseImport, applyImport } from "../lib/profileImport.js";
 import { promptForPass } from "./promptTemplate.js";
-import { updateCompany } from "../lib/supabase.js";
+import { updateCompany, createCompany } from "../lib/supabase.js";
 import { mapProfileToPP } from "../lib/profileToPP.js";
 import { authHeaders } from "../lib/auth.js";
 import { saveProfileSafely, isProtectedSlug } from "../lib/profileSafety.js";
@@ -277,7 +277,7 @@ function DocPanel({ companyId }) {
 
 /* ---------- the page ---------- */
 
-export default function BlueprintReview({ companies = [] }) {
+export default function BlueprintReview({ companies = [], onReload }) {
   const sorted = useMemo(
     () => companies.slice().sort((a, b) => String(a.name || a.slug).localeCompare(String(b.name || b.slug))),
     [companies]
@@ -419,6 +419,45 @@ export default function BlueprintReview({ companies = [] }) {
     setLoadMsg({ ok: true, text: "Reverted — this company is back to its saved state from before you loaded." });
   };
 
+  // DUPLICATE TO DRAFT — the sanctioned way to build Conference Mode for a protected/live
+  // company. Clones the current profile into a NEW draft company (never published, so it's
+  // not public and never touches the live app profile). All conference work then happens on
+  // the draft, and the booth is previewed from it.
+  const [dupState, setDupState] = useState("");
+  const duplicateToDraft = async () => {
+    if (!company) return;
+    setDupState("busy");
+    try {
+      const base = String(company.slug).replace(/-(conf|conference|draft)(-\d+)?$/i, "");
+      const draftSlug = `${base}-conference`;
+      // Clone the live source profile; generate a fresh pp so the DRAFT renders fully. (The
+      // draft is a normal company — only the live flagship must stay pp-less.)
+      const src = company.profile || {};
+      const cloneProfile = { ...src, pp: mapProfileToPP(src) };
+      let created;
+      try {
+        created = await createCompany(
+          { slug: draftSlug, name: `${company.name || base} (Conference Draft)`, primary_ticker: company.primary_ticker || null, profile: cloneProfile },
+          await authHeaders()
+        );
+      } catch (e) {
+        // Slug already taken → the draft exists; just select it.
+        if (/409|duplicate|unique/i.test(e.message || "")) {
+          if (onReload) await onReload();
+          setSlug(draftSlug);
+          setDupState("");
+          setLoadMsg({ ok: true, text: `A conference draft "${draftSlug}" already exists — selected it. Do your conference work here.` });
+          return;
+        }
+        throw e;
+      }
+      if (onReload) await onReload();
+      setSlug(created?.slug || draftSlug);
+      setDupState("done");
+      setLoadMsg({ ok: true, text: `Created draft "${created?.slug || draftSlug}". Populate Conference Mode here — the live ${base} app profile is untouched.` });
+    } catch (e) { setDupState(""); setLoadMsg({ ok: false, text: e.message || "Duplicate failed" }); }
+  };
+
   const tickers = useMemo(() => {
     const list = get(p, "company.listings");
     if (Array.isArray(list) && list.length) return list.map((l) => (l.ex && l.sym ? `${l.ex}: ${l.sym}` : l.sym || l.ex)).filter(Boolean);
@@ -453,6 +492,12 @@ export default function BlueprintReview({ companies = [] }) {
               <option value="">Select a company…</option>
               {sorted.map((c) => <option key={c.slug} value={c.slug}>{c.name || c.slug} — {c.slug}{c.status === "published" ? " · LIVE" : " · draft"}</option>)}
             </select>
+            {company && (company.status === "published" || isProtectedSlug(company.slug)) && (
+              <button onClick={duplicateToDraft} disabled={dupState === "busy"}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-2 text-[13.5px] font-bold text-indigo-700 hover:bg-indigo-100 disabled:opacity-50">
+                {dupState === "busy" ? "Duplicating…" : "Duplicate to draft"}
+              </button>
+            )}
             {company && (
               <a href={`${PASSPORT_BASE}/app?c=${encodeURIComponent(slug)}&ipad=1${company.preview_token ? `&preview=${company.preview_token}` : ""}`}
                 target="_blank" rel="noreferrer"
@@ -463,6 +508,15 @@ export default function BlueprintReview({ companies = [] }) {
           </div>
         </div>
       </div>
+
+      {company && isProtectedSlug(company.slug) && (
+        <div className="border-b border-amber-200 bg-amber-50 px-8 py-3">
+          <div className="mx-auto max-w-[1080px] text-[13px] font-semibold text-amber-800">
+            <b>{company.slug}</b> is the protected live flagship — Conference/extraction work can’t be saved onto it (that’s what broke the app before).
+            Click <b>Duplicate to draft</b> above to make a safe copy, then build and preview Conference Mode there. The live app profile stays untouched.
+          </div>
+        </div>
+      )}
 
       {restoreState !== "done" && (
         <div className="border-b border-rose-200 bg-rose-50 px-8 py-3">

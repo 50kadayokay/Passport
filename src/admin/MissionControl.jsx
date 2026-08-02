@@ -127,7 +127,7 @@ export default function MissionControl() {
           {section === "companies" ? <Admin /> : section === "onboarding" ? (
             <div className="h-full"><OnboardingEngine companies={companies} /></div>
           ) : section === "review" ? (
-            <div className="h-full"><BlueprintReview companies={companies} /></div>
+            <div className="h-full"><BlueprintReview companies={companies} onReload={loadData} /></div>
           ) : (
             <div className="h-full overflow-y-auto px-8 py-7">
               {section === "home" && <Home companies={companies} users={users} loading={loading} go={go} />}
