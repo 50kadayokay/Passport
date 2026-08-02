@@ -351,8 +351,15 @@ export default function BlueprintReview({ companies = [] }) {
       const res = await fetch("/kingsmen-resources-backup.json", { cache: "no-store" });
       if (!res.ok) throw new Error("Backup asset not found yet — the deploy may still be finishing; wait a minute and retry.");
       const prof = await res.json();
-      const withPp = { ...prof, pp: mapProfileToPP(prof) };
-      await updateCompany("kingsmen-resources", { profile: withPp }, await authHeaders());
+      // CRITICAL: the pristine live Kingsmen profile has NO `pp` object — the investor
+      // app renders Kingsmen from its built-in prototype (the original, richly-authored
+      // profile) whenever `pp` is absent. The previous version generated a pp here via
+      // mapProfileToPP(), which injected a THIN pp that OVERRODE the prototype and caused
+      // the regressions (wrong hero/avatar, no logo fade, missing project widgets,
+      // overflowing core-value drivers, thin AI brief, swapped projects). Restore WITHOUT
+      // any pp so the app falls back to the pristine prototype exactly as before.
+      const { pp: _dropPp, ...clean } = prof;
+      await updateCompany("kingsmen-resources", { profile: clean }, await authHeaders());
       setRestoreState("done");
     } catch (e) { setRestoreState("err:" + (e.message || "restore failed")); }
   };
