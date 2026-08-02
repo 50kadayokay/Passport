@@ -9,8 +9,12 @@
 // and Conference Mode render from, and what the importer populates). Inline editing and image
 // uploads land in a follow-up; the placeholders here are exactly the spec's empty state.
 
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import { Image as ImageIcon, QrCode, UploadCloud, Sparkles } from "lucide-react";
+import { parseImport, applyImport } from "../lib/profileImport.js";
+import { updateCompany } from "../lib/supabase.js";
+import { mapProfileToPP } from "../lib/profileToPP.js";
+import { authHeaders } from "../lib/auth.js";
 
 /* ---------- data helpers ---------- */
 const get = (obj, path) => {
@@ -148,14 +152,42 @@ export default function BlueprintReview({ companies = [] }) {
   );
   const [slug, setSlug] = useState(sorted[0] ? sorted[0].slug : "");
   const company = sorted.find((c) => c.slug === slug);
-  const p = company?.profile || {};
+
+  // Local working profile — starts from the company's saved profile, updates live as you paste
+  // extraction results into the box above, and persists on Save.
+  const [profile, setProfile] = useState({});
+  const [paste, setPaste] = useState("");
+  const [loadMsg, setLoadMsg] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  useEffect(() => { setProfile(company?.profile || {}); setPaste(""); setLoadMsg(null); setDirty(false); /* eslint-disable-next-line */ }, [slug]);
+  const p = profile;
+
+  const loadPaste = () => {
+    const parsed = parseImport(paste);
+    if (!parsed.ok) { setLoadMsg({ ok: false, text: parsed.error }); return; }
+    const { next, report } = applyImport(profile, parsed.payload, parsed.auditText || "", parsed.imageGuide || "");
+    setProfile(next); setDirty(true); setPaste("");
+    const known = parsed.known || [];
+    setLoadMsg({ ok: true, text: `Loaded ${known.length} section${known.length === 1 ? "" : "s"}${known.length ? ": " + known.join(", ") : ""}. Review below, then Save.`, warnings: (report && report.warnings) || [] });
+  };
+  const save = async () => {
+    if (!company) return;
+    setSaving(true);
+    try {
+      const withPp = { ...profile, pp: mapProfileToPP(profile) };
+      await updateCompany(company.slug, { profile: withPp }, await authHeaders());
+      setProfile(withPp); setDirty(false);
+      setLoadMsg({ ok: true, text: "Saved to company — the app and Conference Mode now use this data." });
+    } catch (e) { setLoadMsg({ ok: false, text: e.message || "Save failed" }); } finally { setSaving(false); }
+  };
 
   const tickers = useMemo(() => {
     const list = get(p, "company.listings");
     if (Array.isArray(list) && list.length) return list.map((l) => (l.ex && l.sym ? `${l.ex}: ${l.sym}` : l.sym || l.ex)).filter(Boolean);
     const t = get(p, "company.ticker");
     return t ? [t] : [];
-  }, [p]);
+  }, [profile]);
 
   const projects = Array.isArray(p.projects) ? p.projects : [];
   const team = Array.isArray(p.team) ? p.team : [];
@@ -189,6 +221,34 @@ export default function BlueprintReview({ companies = [] }) {
         </div>
       ) : (
         <div className="space-y-10 px-8 py-10">
+
+          {/* PASTE & LOAD — the extraction lands here and fills the template below, live. */}
+          <section className="mx-auto w-full max-w-[1080px]">
+            <div className="rounded-[28px] border border-slate-200/70 bg-white p-6 shadow-[0_2px_20px_-6px_rgba(15,23,42,0.10)] sm:p-7">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h2 className="text-[19px] font-extrabold tracking-tight text-slate-900">Paste extracted data</h2>
+                  <p className="mt-0.5 text-[13px] text-slate-400">Paste the JSON ChatGPT returned — it loads into the template below, live. Paste each pass as you run it; sections merge, nothing is overwritten.</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button onClick={loadPaste} disabled={!paste.trim()} className="rounded-xl bg-slate-900 px-4 py-2.5 text-[14px] font-bold text-white hover:bg-slate-700 disabled:opacity-40">Load into template</button>
+                  <button onClick={save} disabled={!dirty || saving} className="rounded-xl border border-slate-200 px-4 py-2.5 text-[14px] font-bold text-slate-600 hover:border-slate-400 disabled:opacity-40">{saving ? "Saving…" : dirty ? "Save" : "Saved"}</button>
+                </div>
+              </div>
+              <textarea value={paste} onChange={(e) => setPaste(e.target.value)}
+                placeholder="Paste the entire ChatGPT reply here (=== PROFILE JSON === … ). Partial passes are fine — Company, then Projects, then Timeline."
+                className="mt-4 h-36 w-full resize-y rounded-2xl border border-slate-200 bg-slate-50 p-4 font-mono text-[12.5px] leading-relaxed text-slate-800 outline-none focus:border-slate-400" />
+              {loadMsg && (
+                <div className={`mt-3 rounded-2xl border p-3.5 text-[13px] font-semibold ${loadMsg.ok ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-rose-200 bg-rose-50 text-rose-700"}`}>
+                  {loadMsg.text}
+                  {loadMsg.warnings && loadMsg.warnings.length > 0 && (
+                    <ul className="mt-2 space-y-1 font-normal text-amber-700">{loadMsg.warnings.map((w, i) => <li key={i}>• {w}</li>)}</ul>
+                  )}
+                </div>
+              )}
+              {dirty && <p className="mt-2 text-[12px] font-semibold text-amber-600">Unsaved — press Save to keep this and feed the app + Conference Mode.</p>}
+            </div>
+          </section>
 
           {/* PAGE 1 — HERO */}
           <Slide n={1} kicker="Page 1" title="Company Hero" purpose="Introduce the company.">
