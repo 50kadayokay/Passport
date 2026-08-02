@@ -3,7 +3,7 @@
 // grouped by type, sorted by disclosed date, with a processing gate.
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { ingestFiles, listInventory, updateDocument, previewUrl } from "../../lib/onboarding/documentStore.js";
+import { ingestFiles, listInventory, updateDocument, previewUrl, fetchDocsText, buildTextBundle } from "../../lib/onboarding/documentStore.js";
 import { DOC_TYPES, DOC_TYPE_LABELS } from "../../lib/onboarding/classify.js";
 
 const STATE_META = {
@@ -33,7 +33,30 @@ export default function DocumentsInventory({ companyId, companyName }) {
   const [busy, setBusy] = useState("");
   const [err, setErr] = useState("");
   const [open, setOpen] = useState({});
+  const [copied, setCopied] = useState("");
   const inputRef = useRef(null);
+
+  // Copy the FULL extracted text of the given documents to the clipboard — paste into ChatGPT
+  // as text (which it reads completely, unlike attached PDFs it only samples).
+  const copyText = async (docIds, label) => {
+    setBusy(`Preparing ${label} text…`); setErr("");
+    try {
+      const rows = await fetchDocsText(companyId, docIds);
+      const bundle = buildTextBundle(rows);
+      if (!bundle.trim()) { setErr("No readable text for those documents — they may be image-only."); return; }
+      try { await navigator.clipboard.writeText(bundle); }
+      catch (_) {
+        const ta = document.createElement("textarea");
+        ta.value = bundle; ta.style.position = "fixed"; ta.style.opacity = "0";
+        document.body.appendChild(ta); ta.select();
+        try { document.execCommand("copy"); } catch (__) {}
+        document.body.removeChild(ta);
+      }
+      const chars = bundle.length;
+      setCopied(`${label} · ${rows.filter((d) => d.extracted_text && d.extracted_text.trim()).length} docs · ${Math.round(chars / 1000)}k chars`);
+      setTimeout(() => setCopied(""), 4000);
+    } catch (e) { setErr(e.message || "Copy failed"); } finally { setBusy(""); }
+  };
 
   const load = async () => {
     setLoading(true); setErr("");
@@ -69,8 +92,21 @@ export default function DocumentsInventory({ companyId, companyName }) {
           <h2 className="text-[19px] font-extrabold tracking-tight text-slate-900">Documents · {companyName}</h2>
           <p className="text-[12.5px] text-slate-500">Pass 0 — every file is analyzed page-by-page. "Uploaded" ≠ "read": image-only and partial extractions are flagged before the pipeline continues.</p>
         </div>
-        <button onClick={load} className="rounded-lg border border-slate-200 px-3 py-1.5 text-[13px] font-bold text-slate-600 hover:text-slate-900">Refresh</button>
+        <div className="flex items-center gap-2">
+          {docs.length > 0 && (
+            <button onClick={() => copyText(null, "All documents")} disabled={!!busy}
+              className="rounded-lg bg-slate-900 px-3 py-1.5 text-[13px] font-bold text-white hover:bg-slate-700 disabled:opacity-50">Copy all text</button>
+          )}
+          <button onClick={load} className="rounded-lg border border-slate-200 px-3 py-1.5 text-[13px] font-bold text-slate-600 hover:text-slate-900">Refresh</button>
+        </div>
       </div>
+
+      {copied && <div className="mb-3 rounded-xl border border-emerald-200 bg-emerald-50 p-2.5 text-[12.5px] font-semibold text-emerald-800">Copied to clipboard — {copied}. Paste it into ChatGPT (with the pass prompt) instead of attaching PDFs.</div>}
+      {docs.length > 0 && (
+        <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50 p-3 text-[12px] leading-relaxed text-slate-600">
+          <b className="text-slate-800">Why "Copy text":</b> ChatGPT only samples snippets from attached PDFs, so it refuses or invents. Pasting the extracted <i>text</i> gives it the full document. Use the group buttons below to copy just the documents a pass needs — corporate docs for Company, technical docs for Projects, press releases for Timeline.
+        </div>
+      )}
 
       {/* upload */}
       <div onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); onFiles(e.dataTransfer.files); }}
@@ -111,7 +147,11 @@ export default function DocumentsInventory({ companyId, companyName }) {
         <div className="rounded-2xl border border-dashed border-slate-200 py-12 text-center text-[13px] text-slate-400">No documents yet — drop the technical report, MD&A and news releases above.</div>
       ) : groups.map((grp) => (
         <div key={grp.type} className="mb-5">
-          <div className="mb-2 flex items-center gap-2 text-[12px] font-extrabold uppercase tracking-wide text-slate-500">{DOC_TYPE_LABELS[grp.type] || grp.type} <span className="text-slate-300">· {grp.items.length}</span></div>
+          <div className="mb-2 flex items-center gap-2">
+            <span className="text-[12px] font-extrabold uppercase tracking-wide text-slate-500">{DOC_TYPE_LABELS[grp.type] || grp.type} <span className="text-slate-300">· {grp.items.length}</span></span>
+            <button onClick={() => copyText(grp.items.map((d) => d.id), DOC_TYPE_LABELS[grp.type] || grp.type)} disabled={!!busy}
+              className="rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-bold text-slate-600 hover:border-slate-400 disabled:opacity-50">Copy text</button>
+          </div>
           <div className="space-y-2">
             {grp.items.map((d) => {
               const m = d.meta || {}; const st = stMeta(d.extraction_status);

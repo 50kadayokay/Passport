@@ -122,4 +122,25 @@ async function sha256Hex(file) {
   } catch { return ""; }
 }
 
+// Fetch the FULL extracted text for a company's documents (optionally a subset by id),
+// so it can be pasted into ChatGPT as text. This is the reliable extraction path: ChatGPT
+// reads pasted text fully, whereas attached PDFs are retrieved as truncated snippets.
+export async function fetchDocsText(companyId, docIds) {
+  const rows = await inventoryRows(companyId, "id,filename,kind,doc_date,meta,extracted_text");
+  let docs = Array.isArray(rows) ? rows : [];
+  if (Array.isArray(docIds) && docIds.length) {
+    const want = new Set(docIds.map(String));
+    docs = docs.filter((d) => want.has(String(d.id)));
+  }
+  return docs.filter((d) => !(d.meta && d.meta.manually_excluded));
+}
+
+// Format documents' extracted text into one paste-ready block with clear per-file headers.
+export function buildTextBundle(docs = []) {
+  return docs
+    .filter((d) => d.extracted_text && d.extracted_text.trim())
+    .map((d) => `━━━━━ DOCUMENT: ${d.filename}${d.doc_date ? `  (disclosed ${d.doc_date})` : ""} ━━━━━\n\n${d.extracted_text.trim()}`)
+    .join("\n\n\n");
+}
+
 export { DOC_TYPES };
