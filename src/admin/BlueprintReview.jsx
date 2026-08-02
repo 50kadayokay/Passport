@@ -157,6 +157,7 @@ function DocPanel({ companyId }) {
   const [result, setResult] = useState("");
   const [selected, setSelected] = useState(() => new Set());
   const [showList, setShowList] = useState(false);
+  const [filter, setFilter] = useState("");
   const inputRef = useRef(null);
   const kfmt = (n) => (n >= 1000 ? `${Math.round(n / 1000)}k` : String(n || 0));
 
@@ -241,20 +242,24 @@ function DocPanel({ companyId }) {
 
           {showList && (
             <div className="mt-2 rounded-xl border border-slate-200 bg-white">
-              <div className="flex items-center gap-2 border-b border-slate-100 px-3 py-2">
+              <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 px-3 py-2">
+                <input value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Search filenames…"
+                  className="w-44 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-[12px] text-slate-700 outline-none focus:border-slate-400" />
                 <span className="text-[11.5px] font-bold text-slate-500">{selected.size} selected · {kfmt(selChars)} chars {selChars > 250000 && <span className="text-rose-500">(too big — trim)</span>}</span>
                 <button onClick={() => setSelected(new Set())} className="text-[11.5px] font-bold text-slate-400 hover:text-slate-700">Clear</button>
                 <button onClick={() => copy(Array.from(selected), "Selected documents")} disabled={!!busy || !selected.size}
                   className="ml-auto rounded-lg bg-slate-900 px-3 py-1.5 text-[12px] font-bold text-white hover:bg-slate-700 disabled:opacity-40">Copy selected</button>
               </div>
               <div className="max-h-60 overflow-auto p-1.5">
-                {docs.map((d) => (
-                  <label key={d.id} className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-slate-50">
-                    <input type="checkbox" checked={selected.has(d.id)} onChange={() => toggle(d.id)} className="h-4 w-4" />
-                    <span className="min-w-0 flex-1 truncate text-[12.5px] text-slate-700">{d.title || d.filename}</span>
-                    <span className="flex-shrink-0 text-[10.5px] text-slate-400">{DOC_TYPE_LABELS[d.kind] || d.kind || "?"} · {kfmt(dchars(d))}</span>
-                  </label>
-                ))}
+                {docs
+                  .filter((d) => { const q = filter.trim().toLowerCase(); return !q || (d.filename || "").toLowerCase().includes(q) || (d.title || "").toLowerCase().includes(q); })
+                  .map((d) => (
+                    <label key={d.id} className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-slate-50">
+                      <input type="checkbox" checked={selected.has(d.id)} onChange={() => toggle(d.id)} className="h-4 w-4 flex-shrink-0" />
+                      <span className="min-w-0 flex-1 truncate text-[12.5px] text-slate-700" title={d.filename}>{d.filename}</span>
+                      <span className="flex-shrink-0 text-[10.5px] text-slate-400">{DOC_TYPE_LABELS[d.kind] || d.kind || "?"} · {kfmt(dchars(d))}</span>
+                    </label>
+                  ))}
               </div>
             </div>
           )}
