@@ -199,7 +199,16 @@ function AppRoot() {
             { headers: base }
           );
           const rows = await res.json().catch(() => []);
-          if (rows && rows[0] && rows[0].pp) { window.__PP__ = rows[0].pp; ok = true; }
+          if (rows && rows[0] && rows[0].pp) {
+            window.__PP__ = rows[0].pp; ok = true;
+          } else if (rows && rows[0] && slug === "kingsmen-resources") {
+            // The published Kingsmen row exists but carries no `pp`. Kingsmen is the app's
+            // built-in flagship: PassportProto ships the full original profile as its
+            // prototype and renders it whenever window.__PP__ is unset. So leave __PP__
+            // unset and mark the load OK — the pristine prototype renders. (Any OTHER
+            // company still requires its own pp, so it correctly shows "unavailable".)
+            ok = true;
+          }
         }
       } catch (_) { /* handled below */ }
 
