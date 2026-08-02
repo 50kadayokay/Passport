@@ -324,8 +324,28 @@ export default function BlueprintReview({ companies = [] }) {
     try { loadText(await f.text()); } catch (e) { setLoadMsg({ ok: false, text: e.message || "Couldn't read that file" }); }
     if (jsonFileRef.current) jsonFileRef.current.value = "";
   };
+
+  // FULL REPLACE of this company's profile from a JSON file (for restoring a backup). Unlike Load
+  // (which merges), this overwrites the entire profile column.
+  const restoreRef = useRef(null);
+  const restoreFromFile = async (fl) => {
+    const f = Array.from(fl || [])[0]; if (!f || !company) return;
+    try {
+      const obj = JSON.parse(await f.text());
+      const prof = (obj && typeof obj === "object" && obj.profile && typeof obj.profile === "object") ? obj.profile : obj;
+      if (!prof || typeof prof !== "object" || Array.isArray(prof)) { setLoadMsg({ ok: false, text: "That file isn't a profile object." }); return; }
+      if (!window.confirm(`REPLACE ${company.name || company.slug}'s ENTIRE profile with this file? This overwrites everything currently on this record — use only to restore a backup.`)) return;
+      const withPp = { ...prof, pp: mapProfileToPP(prof) };
+      await updateCompany(company.slug, { profile: withPp }, await authHeaders());
+      setProfile(withPp); setBaseline(withPp); setDirty(false); setTouched(false);
+      setLoadMsg({ ok: true, text: "Profile fully replaced from file — restore complete." });
+    } catch (e) { setLoadMsg({ ok: false, text: e.message || "Restore failed" }); }
+    finally { if (restoreRef.current) restoreRef.current.value = ""; }
+  };
   const save = async () => {
     if (!company) return;
+    // Guard: never let conference/extraction work silently overwrite a LIVE published profile.
+    if (company.status === "published" && !window.confirm(`⚠️ ${company.name || company.slug} is LIVE on the app. Saving OVERWRITES the public profile investors currently see — this is exactly what must NOT happen during conference/extraction work. Build on a draft instead. Only continue if you truly intend to change the live profile. Continue?`)) return;
     setSaving(true);
     try {
       const withPp = { ...profile, pp: mapProfileToPP(profile) };
@@ -376,7 +396,7 @@ export default function BlueprintReview({ companies = [] }) {
             <select value={slug} onChange={(e) => setSlug(e.target.value)}
               className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-[13.5px] font-bold text-slate-700">
               <option value="">Select a company…</option>
-              {sorted.map((c) => <option key={c.slug} value={c.slug}>{c.name || c.slug}</option>)}
+              {sorted.map((c) => <option key={c.slug} value={c.slug}>{c.name || c.slug} — {c.slug}{c.status === "published" ? " · LIVE" : " · draft"}</option>)}
             </select>
             {company && (
               <a href={`${PASSPORT_BASE}/app?c=${encodeURIComponent(slug)}&ipad=1${company.preview_token ? `&preview=${company.preview_token}` : ""}`}
@@ -411,6 +431,8 @@ export default function BlueprintReview({ companies = [] }) {
                   <input ref={jsonFileRef} type="file" accept=".json,.txt,application/json,text/plain" className="hidden" onChange={(e) => onJsonFile(e.target.files)} />
                   <button onClick={save} disabled={!dirty || saving} className="rounded-xl border border-slate-200 px-4 py-2.5 text-[14px] font-bold text-slate-600 hover:border-slate-400 disabled:opacity-40">{saving ? "Saving…" : dirty ? "Save" : "Saved"}</button>
                   {touched && <button onClick={undo} className="rounded-xl border border-rose-200 px-4 py-2.5 text-[14px] font-bold text-rose-600 hover:bg-rose-50">Undo</button>}
+                  <button onClick={() => restoreRef.current && restoreRef.current.click()} title="Replace this company's ENTIRE profile from a backup JSON file (full restore)" className="rounded-xl border border-amber-200 px-4 py-2.5 text-[14px] font-bold text-amber-700 hover:bg-amber-50">Restore from file</button>
+                  <input ref={restoreRef} type="file" accept=".json,application/json" className="hidden" onChange={(e) => restoreFromFile(e.target.files)} />
                 </div>
               </div>
               {/* Documents — upload + copy text, right here. */}
