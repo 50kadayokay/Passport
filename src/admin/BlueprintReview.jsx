@@ -518,24 +518,6 @@ export default function BlueprintReview({ companies = [], onReload }) {
         </div>
       )}
 
-      {restoreState !== "done" && (
-        <div className="border-b border-rose-200 bg-rose-50 px-8 py-3">
-          <div className="mx-auto flex max-w-[1080px] flex-wrap items-center gap-3">
-            <span className="text-[13px] font-bold text-rose-700">One-time fix — restore the LIVE Kingsmen app profile to the July-18 backup (undoes the accidental overwrite):</span>
-            <button onClick={restoreLiveKingsmen} disabled={restoreState === "busy"}
-              className="rounded-lg bg-rose-600 px-4 py-1.5 text-[13px] font-bold text-white hover:bg-rose-700 disabled:opacity-50">
-              {restoreState === "busy" ? "Restoring…" : "Restore live Kingsmen"}
-            </button>
-            {restoreState.startsWith("err:") && <span className="text-[12px] font-semibold text-rose-700">{restoreState.slice(4)}</span>}
-          </div>
-        </div>
-      )}
-      {restoreState === "done" && (
-        <div className="border-b border-emerald-200 bg-emerald-50 px-8 py-3">
-          <div className="mx-auto max-w-[1080px] text-[13px] font-bold text-emerald-800">✓ Live Kingsmen app profile restored from the July-18 backup. Refresh the app to confirm.</div>
-        </div>
-      )}
-
       {company && (
         <div className="border-b border-slate-200 bg-slate-50 px-8 py-3">
           <div className="mx-auto max-w-[1080px]">
