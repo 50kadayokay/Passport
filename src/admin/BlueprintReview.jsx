@@ -18,6 +18,41 @@ import { mapProfileToPP } from "../lib/profileToPP.js";
 import { authHeaders } from "../lib/auth.js";
 import { saveProfileSafely, isProtectedSlug } from "../lib/profileSafety.js";
 import { listVersions, restoreVersion } from "../lib/profileVersions.js";
+import { flushProfileAssets } from "../lib/storage.js";
+
+// Scale an uploaded image down and return a data URL (persisted to Storage on Save via
+// flushProfileAssets). Mirrors ProfileEditor's helper so booth assets upload the same way.
+function fileToScaledDataUrl(file, maxDim = 900, quality = 0.85) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        let w = img.width, h = img.height;
+        if (Math.max(w, h) > maxDim) { const s = maxDim / Math.max(w, h); w = Math.round(w * s); h = Math.round(h * s); }
+        const c = document.createElement("canvas");
+        c.width = w; c.height = h;
+        c.getContext("2d").drawImage(img, 0, 0, w, h);
+        resolve(c.toDataURL(/png/i.test(file.type) ? "image/png" : "image/jpeg", quality));
+      };
+      img.onerror = reject; img.src = r.result;
+    };
+    r.onerror = reject; r.readAsDataURL(file);
+  });
+}
+// Immutably set a dotted path (e.g. "brand.logo") on a profile object, returning a new object.
+function setProfilePath(obj, path, value) {
+  const keys = path.split(".");
+  const next = Array.isArray(obj) ? obj.slice() : { ...(obj || {}) };
+  let o = next;
+  for (let i = 0; i < keys.length - 1; i++) {
+    const k = keys[i];
+    o[k] = (o[k] == null || typeof o[k] !== "object") ? {} : (Array.isArray(o[k]) ? o[k].slice() : { ...o[k] });
+    o = o[k];
+  }
+  o[keys[keys.length - 1]] = value;
+  return next;
+}
 import { ingestFiles, listInventory, fetchDocsText, buildTextBundle } from "../lib/onboarding/documentStore.js";
 import { DOC_TYPE_LABELS } from "../lib/onboarding/classify.js";
 
@@ -118,16 +153,47 @@ function Pool({ title, help, items, empty, renderItem }) {
 }
 
 // An elegant image / gallery drop placeholder (upload wiring is a follow-up).
-function ImageSlot({ title, help, tall, gallery }) {
+// Real image uploader for the booth. Pass `value` (a URL/data-URL) and `onChange(dataUrl)`
+// to wire it to a profile field; without onChange it stays a passive placeholder.
+// `round` renders the preview as a circle (logos). Images persist to Storage on Save.
+function ImageSlot({ title, help, tall, gallery, round, value, onChange, maxDim = 1200 }) {
+  const [busy, setBusy] = useState(false);
+  const [drag, setDrag] = useState(false);
+  const inputRef = useRef(null);
+  const wired = typeof onChange === "function";
+  const take = async (file) => {
+    if (!file || !wired) return;
+    setBusy(true);
+    try { onChange(await fileToScaledDataUrl(file, maxDim)); } finally { setBusy(false); }
+  };
   return (
     <div className="rounded-2xl border border-slate-200/70 bg-white p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
-      <h3 className="text-[15px] font-bold text-slate-900">{title}</h3>
-      {help && <p className="mt-0.5 text-[12.5px] leading-relaxed text-slate-400">{help}</p>}
-      <div className={`mt-4 flex flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50/60 text-slate-400 ${tall ? "h-56" : "h-40"}`}>
-        {gallery ? <ImageIcon size={26} strokeWidth={1.5} /> : <UploadCloud size={26} strokeWidth={1.5} />}
-        <p className="text-[13px] font-semibold text-slate-400">{gallery ? "Drag & drop images, or click to upload" : "Drag & drop an image, or click to upload"}</p>
-        <p className="text-[11.5px] text-slate-300">Uploaded manually — not AI-extracted</p>
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <h3 className="text-[15px] font-bold text-slate-900">{title}</h3>
+          {help && <p className="mt-0.5 text-[12.5px] leading-relaxed text-slate-400">{help}</p>}
+        </div>
+        {wired && value && <button onClick={() => onChange("")} className="text-[11.5px] font-bold text-slate-400 hover:text-rose-600">Remove</button>}
       </div>
+      <div
+        onClick={() => wired && inputRef.current && inputRef.current.click()}
+        onDragOver={(e) => { if (wired) { e.preventDefault(); setDrag(true); } }}
+        onDragLeave={() => setDrag(false)}
+        onDrop={(e) => { if (!wired) return; e.preventDefault(); setDrag(false); take(e.dataTransfer.files && e.dataTransfer.files[0]); }}
+        className={`relative mt-4 flex flex-col items-center justify-center gap-2 overflow-hidden rounded-2xl border-2 border-dashed bg-slate-50/60 text-slate-400 ${tall ? "h-56" : "h-40"} ${drag ? "border-indigo-400 bg-indigo-50/60" : "border-slate-200"} ${wired ? "cursor-pointer hover:border-slate-300" : ""}`}
+      >
+        {value ? (
+          <img src={value} alt="" className={round ? "h-24 w-24 rounded-full object-cover" : "h-full w-full object-contain"} />
+        ) : (
+          <>
+            {gallery ? <ImageIcon size={26} strokeWidth={1.5} /> : <UploadCloud size={26} strokeWidth={1.5} />}
+            <p className="text-[13px] font-semibold text-slate-400">{busy ? "Uploading…" : "Drag & drop an image, or click to upload"}</p>
+            <p className="text-[11.5px] text-slate-300">{wired ? "Saved to this company on Save" : "Uploaded manually — not AI-extracted"}</p>
+          </>
+        )}
+        {busy && value && <div className="absolute inset-0 grid place-items-center bg-white/60 text-[12px] font-bold text-slate-500">Uploading…</div>}
+      </div>
+      {wired && <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={(e) => { take(e.target.files && e.target.files[0]); e.target.value = ""; }} />}
     </div>
   );
 }
@@ -296,6 +362,10 @@ export default function BlueprintReview({ companies = [], onReload }) {
   const [showInfo, setShowInfo] = useState(false);
   const [baseline, setBaseline] = useState(null);   // the company's saved profile at selection — for Undo
   const [touched, setTouched] = useState(false);
+  // Set an image (or any) field on the working profile, live. Persisted to Storage on Save.
+  const setImg = (path, val) => { setProfile((pr) => setProfilePath(pr, path, val)); setDirty(true); setTouched(true); };
+  // The booth logo doubles as the circular avatar — set both from one upload.
+  const setLogo = (val) => { setProfile((pr) => setProfilePath(setProfilePath(pr, "brand.logo", val), "brand.avatar", val)); setDirty(true); setTouched(true); };
   const [versions, setVersions] = useState([]);     // profile version-history snapshots (newest first)
   const [histMsg, setHistMsg] = useState(null);
   const loadVersions = async (c) => { try { setVersions(c?.id ? await listVersions(c.id) : []); } catch { setVersions([]); } };
@@ -396,7 +466,10 @@ export default function BlueprintReview({ companies = [], onReload }) {
     if (company.status === "published" && !window.confirm(`⚠️ ${company.name || company.slug} is LIVE on the app. Saving OVERWRITES the public profile investors currently see — this is exactly what must NOT happen during conference/extraction work. Build on a draft instead. Only continue if you truly intend to change the live profile. Continue?`)) return;
     setSaving(true);
     try {
-      const withPp = { ...profile, pp: mapProfileToPP(profile) };
+      // Push any freshly-uploaded images (data URLs) to Storage → URLs, so the row stays
+      // small (base64 images previously bloated it to a timeout).
+      const flushed = await flushProfileAssets(profile);
+      const withPp = { ...flushed, pp: mapProfileToPP(flushed) };
       // Snapshot-before-write: any save is one-click recoverable from version history.
       const { snapshot } = await saveProfileSafely(company, withPp, { note: "before Blueprint Review save" });
       setProfile(withPp); setDirty(false);
@@ -622,8 +695,8 @@ export default function BlueprintReview({ companies = [], onReload }) {
           {/* PAGE 1 — HERO */}
           <Slide n={1} kicker="Page 1" title="Company Hero" purpose="Introduce the company.">
             <div className="grid gap-5 sm:grid-cols-2">
-              <ImageSlot title="Company Logo" help="Primary company logo." />
-              <ImageSlot title="Hero Image" help="Main conference hero image." tall />
+              <ImageSlot title="Company Logo" help="Circular logo shown on the booth + app." round value={firstOf(get(p, "brand.logo"), get(p, "brand.avatar"))} onChange={setLogo} maxDim={640} />
+              <ImageSlot title="Hero Image" help="Full-bleed image behind the booth hero + status card." tall value={firstOf(get(p, "brand.hero"), get(p, "companyStatus.photo"))} onChange={(v) => setImg("brand.hero", v)} maxDim={1600} />
             </div>
             <Field title="Company Name" help="Official legal company name." value={get(p, "company.name")} big />
             <Field title="Slogan" help="Primary marketing slogan, in the company's own words." value={get(p, "company.slogan")} />
