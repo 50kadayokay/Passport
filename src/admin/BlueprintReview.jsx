@@ -12,7 +12,7 @@
 import React, { useMemo, useState, useEffect, useRef } from "react";
 import { Image as ImageIcon, QrCode, UploadCloud, Sparkles } from "lucide-react";
 import { parseImport, applyImport } from "../lib/profileImport.js";
-import { promptForPass } from "./promptTemplate.js";
+import { promptForPass, CONFERENCE_PROMPT } from "./promptTemplate.js";
 import { updateCompany, createCompany } from "../lib/supabase.js";
 import { mapProfileToPP } from "../lib/profileToPP.js";
 import { authHeaders } from "../lib/auth.js";
@@ -385,7 +385,9 @@ export default function BlueprintReview({ companies = [], onReload }) {
   // Download the prompt as a .md file (don't copy) — the prompt is ~33k chars and pasting it
   // into ChatGPT truncates the schema. Attaching the file makes ChatGPT read it completely.
   const downloadPrompt = (id, label) => {
-    const text = promptForPass(id);
+    // The Conference pass (booth narrative: hook, highlights, investment case, section intros)
+    // is its own standalone prompt, not one of the app-profile passes.
+    const text = id === "conference" ? CONFERENCE_PROMPT : promptForPass(id);
     const url = URL.createObjectURL(new Blob([text], { type: "text/markdown" }));
     const a = document.createElement("a");
     a.href = url; a.download = `passport-${id}-prompt.md`;
@@ -653,7 +655,7 @@ export default function BlueprintReview({ companies = [], onReload }) {
               {/* Prompts to give ChatGPT — copy the pass you're running, plus an info button. */}
               <div className="mt-4 flex flex-wrap items-center gap-2">
                 <span className="text-[11.5px] font-bold uppercase tracking-wide text-slate-400">Prompt file (attach to ChatGPT):</span>
-                {[{ id: "p1", label: "Company" }, { id: "p2", label: "Projects" }, { id: "p3", label: "Timeline" }].map((pp) => (
+                {[{ id: "p1", label: "Company" }, { id: "p2", label: "Projects" }, { id: "p3", label: "Timeline" }, { id: "conference", label: "Conference" }].map((pp) => (
                   <button key={pp.id} onClick={() => downloadPrompt(pp.id, pp.label)}
                     className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[12.5px] font-bold text-slate-600 hover:border-slate-400">
                     {promptCopied === pp.label ? "Downloaded ✓" : `${pp.label} prompt`}
