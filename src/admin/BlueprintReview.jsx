@@ -93,6 +93,22 @@ function Slide({ n, kicker, title, purpose, children }) {
 }
 
 // A field card: title, helper text, and the extracted value (or the waiting placeholder).
+// Coerce any value to a renderable string. Extraction can return an object/array where a
+// scalar was expected (e.g. capital.financing as [{amount,type,date}]); rendering that
+// object as a React child throws "Objects are not valid as a React child" and whites out
+// the page. This makes every field render-safe.
+function toText(v) {
+  if (v == null) return "";
+  if (typeof v === "string" || typeof v === "number") return String(v);
+  if (Array.isArray(v)) return v.map(toText).filter(Boolean).join(" · ");
+  if (typeof v === "object") {
+    const pick = [v.amount, v.v, v.value, v.type, v.date, v.d, v.label, v.name].filter((x) => x != null && x !== "");
+    if (pick.length) return pick.map(toText).join(" · ");
+    return Object.values(v).map(toText).filter(Boolean).join(" · ");
+  }
+  return String(v);
+}
+
 function Field({ title, help, value, big }) {
   const empty = isEmpty(value);
   return (
@@ -105,7 +121,7 @@ function Field({ title, help, value, big }) {
       {empty ? (
         <p className="mt-3 text-[14px] italic text-slate-300">Waiting for AI extraction…</p>
       ) : (
-        <p className={`mt-3 whitespace-pre-line text-slate-800 ${big ? "text-[16px] leading-relaxed" : "text-[15px] leading-relaxed"}`}>{value}</p>
+        <p className={`mt-3 whitespace-pre-line text-slate-800 ${big ? "text-[16px] leading-relaxed" : "text-[15px] leading-relaxed"}`}>{toText(value)}</p>
       )}
     </div>
   );
@@ -124,7 +140,7 @@ function Widgets({ title, help, items }) {
           return (
             <div key={i} className="rounded-xl bg-slate-50 px-4 py-3.5">
               <div className="text-[11px] font-bold uppercase tracking-wide text-slate-400">{it.label}</div>
-              <div className={`mt-1 text-[16px] font-extrabold ${empty ? "italic text-slate-300" : "text-slate-900"}`}>{empty ? "—" : it.value}</div>
+              <div className={`mt-1 text-[16px] font-extrabold ${empty ? "italic text-slate-300" : "text-slate-900"}`}>{empty ? "—" : toText(it.value)}</div>
             </div>
           );
         })}

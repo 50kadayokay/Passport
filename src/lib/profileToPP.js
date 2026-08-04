@@ -606,13 +606,20 @@ export function mapProfileToPP(profile = {}) {
   // JUST the amount. If the extractor put a full description in `financing`
   // ("C$23.0M bought deal, January 2026"), pull the leading currency amount out so the
   // card doesn't read "C$23.0M bought deal, January 2026 · bought deal · January 2026".
-  const financingAmount = (() => {
-    const m = /((?:US\$|C\$|A\$|€|£|\$)\s?\d[\d,]*(?:\.\d+)?\s*(?:billion|million|thousand|bn|mm?|k)?)/i.exec(str(cap.financing));
-    return m ? m[1].replace(/\s+/g, " ").trim() : str(cap.financing);
-  })();
-  const RAISES = has(cap.financing)
-    ? [{ d: str(cap.financingDate), v: financingAmount, type: str(cap.financingType), price: str(cap.financingPrice), lead: "", purpose: str(cap.financingUse), status: "Completed" }]
-    : [];
+  const financingAmount = (raw) => {
+    const m = /((?:US\$|C\$|A\$|€|£|\$)\s?\d[\d,]*(?:\.\d+)?\s*(?:billion|million|thousand|bn|mm?|k)?)/i.exec(str(raw));
+    return m ? m[1].replace(/\s+/g, " ").trim() : str(raw);
+  };
+  // Financing history → RAISES. Supports both shapes: a single financing described by
+  // scalar cap.financing* fields, OR an array of { amount, date, type, ... } entries
+  // (the conference Capital section produces the array — one card per raise).
+  const RAISES = Array.isArray(cap.financing)
+    ? cap.financing
+        .filter((f) => f && (has(f.amount) || has(f.v) || has(f.value)))
+        .map((f) => ({ d: str(f.date || f.d), v: financingAmount(f.amount || f.v || f.value), type: str(f.type), price: str(f.price), lead: "", purpose: str(f.purpose || f.use), status: "Completed" }))
+    : has(cap.financing)
+      ? [{ d: str(cap.financingDate), v: financingAmount(cap.financing), type: str(cap.financingType), price: str(cap.financingPrice), lead: "", purpose: str(cap.financingUse), status: "Completed" }]
+      : [];
 
   // Media/updates feed → UPDATE_POSTS. The builder doesn't collect these during
   // onboarding (media is added in-app once live), so [] — never Kingsmen's posts.
