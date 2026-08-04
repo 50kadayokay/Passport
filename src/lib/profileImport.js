@@ -155,7 +155,13 @@ export function applyImport(existingProfile, payload, auditText = "", imageGuide
         seenIncoming.add(k);
         const at = idx.get(k);
         if (at == null) { idx.set(k, cur.length); cur.push({ ...p, enabled: true }); added++; }
-        else { cur[at] = { ...cur[at], ...p }; updated++; }
+        else {
+          // Update only with NON-EMPTY fields so a later pass never wipes existing project
+          // data with a null (e.g. a re-run that couldn't find a field it found before).
+          const m = { ...cur[at] };
+          Object.entries(p).forEach(([fk, fv]) => { if (nonEmpty(fv)) m[fk] = fv; });
+          cur[at] = m; updated++;
+        }
       });
       next.projects = cur;
       report.sections.push({ key, detail: `${added} added, ${updated} updated (${cur.length} total)` });
@@ -163,8 +169,14 @@ export function applyImport(existingProfile, payload, auditText = "", imageGuide
       next.team = incoming;
       report.sections.push({ key, detail: `${incoming.length} people` });
     } else if (isObj(incoming) && isObj(next[key])) {
-      next[key] = { ...next[key], ...incoming };   // fill/overwrite only supplied fields
-      report.sections.push({ key, detail: `${Object.keys(incoming).length} fields` });
+      // Merge only NON-EMPTY incoming fields. A pass that reports a field as null (no data
+      // found) must never erase a value an earlier pass already populated. To intentionally
+      // clear a field, edit it directly — a pass can add or correct, never blank.
+      const merged = { ...next[key] };
+      let n = 0;
+      Object.entries(incoming).forEach(([k, v]) => { if (nonEmpty(v)) { merged[k] = v; n++; } });
+      next[key] = merged;
+      report.sections.push({ key, detail: `${n} field${n === 1 ? "" : "s"} updated` });
     } else {
       next[key] = incoming;
       report.sections.push({ key, detail: Array.isArray(incoming) ? `${incoming.length} items` : "set" });
