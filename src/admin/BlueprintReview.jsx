@@ -724,20 +724,45 @@ export default function BlueprintReview({ companies = [], onReload }) {
 
               <div className="mt-3">
                 <button onClick={() => setShowInfo((v) => !v)}
-                  className="text-[11.5px] font-bold text-slate-400 hover:text-slate-700">{showInfo ? "Hide detailed help" : "Detailed help / troubleshooting"}</button>
+                  className="rounded-lg border border-slate-300 px-3 py-1.5 text-[12px] font-bold text-slate-600 hover:border-slate-500 hover:text-slate-900">{showInfo ? "Hide the steps" : "📋 How to onboard a company — full steps"}</button>
               </div>
 
               {showInfo && (
-                <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-[13px] leading-relaxed text-slate-600">
-                  <div className="mb-1.5 text-[13.5px] font-bold text-slate-800">How to populate this page</div>
-                  <ol className="list-decimal space-y-1.5 pl-5">
-                    <li>In <b>Documents</b> above: upload the company's PDFs (it reads out the text).</li>
-                    <li>Download the pass prompt — click <b>Company prompt</b> (then Projects, then Timeline). It saves a small <code>.md</code> file.</li>
-                    <li>Open a <b>new ChatGPT chat</b> → <b>attach the prompt file</b> (don't paste it — it's too long and truncates) → then click <b>Copy text</b> above and <b>paste the document text</b> into the chat → send.</li>
-                    <li>Copy ChatGPT's reply → paste it in the box below → <b>Load into template</b>.</li>
-                    <li>Repeat for each pass; sections merge. When it looks right, press <b>Save</b>.</li>
+                <div className="mt-3 rounded-2xl border border-slate-200 bg-white p-5 text-[13px] leading-relaxed text-slate-600">
+                  <div className="mb-2 text-[15px] font-extrabold text-slate-900">Onboard a company — the full playbook</div>
+
+                  <div className="mt-3 text-[12px] font-extrabold uppercase tracking-wide text-slate-500">Step 1 · Set up</div>
+                  <ol className="mt-1 list-decimal space-y-1 pl-5">
+                    <li>Pick the company in the dropdown. <b>For a live/flagship company, click "Duplicate to draft" first</b> and work on the draft — never the live profile.</li>
+                    <li>In <b>Documents</b>, drag in <b>all</b> the company's PDFs (deck, technical report, financials, news releases, circular).</li>
                   </ol>
-                  <p className="mt-2 text-[12.5px] text-slate-500"><b>Attach the prompt, paste the text.</b> The prompt is long — attaching it keeps ChatGPT from truncating it. The document text is what ChatGPT reads to fill the fields.</p>
+
+                  <div className="mt-3 text-[12px] font-extrabold uppercase tracking-wide text-slate-500">Step 2 · Run the 4 passes in order (the checklist above)</div>
+                  <p className="mt-1">For each pass: click <b>Get prompt</b> → new ChatGPT chat → <b>attach that .md file</b> (don't paste it) → click <b>Copy text</b> on the document(s) that pass needs → paste the text → send → copy ChatGPT's JSON reply → paste it in the box below → <b>Load into template</b>.</p>
+                  <div className="mt-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                    <div className="grid gap-1 text-[12.5px]">
+                      <div><b>1 · Company + Team</b> — attach: <b>Financing doc + Management circular</b></div>
+                      <div><b>2 · Projects</b> — attach: <b>Technical report</b> (one project per run if large)</div>
+                      <div><b>3 · Timeline</b> — attach: <b>Press releases</b> (in batches)</div>
+                      <div><b>4 · Conference</b> — <b>no documents</b>: click <b>Copy profile JSON</b>, paste it with the Conference prompt</div>
+                    </div>
+                  </div>
+                  <p className="mt-1.5 text-[12px] text-slate-500">If a pass is too big to print, tell ChatGPT "write it to a downloadable JSON file," then use <b>Load JSON file</b>. Right document → right fields; the wrong doc makes a pass refuse or come back thin.</p>
+
+                  <div className="mt-3 text-[12px] font-extrabold uppercase tracking-wide text-slate-500">Step 3 · Fill the manual pieces</div>
+                  <ol className="mt-1 list-decimal space-y-1 pl-5">
+                    <li><b>Team bios</b> → run a team-only pass from the <b>website team page or deck</b> (a circular gives names only). Paste the resulting <code>{'{"team":[…]}'}</code>.</li>
+                    <li><b>Logo + Hero</b> → Page 1 below, upload both.</li>
+                    <li><b>Market cap</b> (optional) → it's a live figure, add by hand if you want the stat.</li>
+                  </ol>
+
+                  <div className="mt-3 text-[12px] font-extrabold uppercase tracking-wide text-slate-500">Step 4 · Save, preview, launch</div>
+                  <ol className="mt-1 list-decimal space-y-1 pl-5">
+                    <li>Press <b>Save</b> after each load. Watch the checklist hit <b>4/4</b> and "Also needed" clear to green.</li>
+                    <li>Click <b>Preview Conference Mode</b> — check every section reads well.</li>
+                    <li>When it's right, <b>publish</b> to make it live.</li>
+                  </ol>
+                  <p className="mt-2 text-[12px] text-slate-500">Everything merges — paste passes in any order, re-run any pass. The one exception: <b>team replaces team</b>, so load your final team last.</p>
                 </div>
               )}
 
