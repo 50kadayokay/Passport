@@ -279,6 +279,22 @@ function DocPanel({ companyId }) {
     } finally { setBusy(""); }
   };
 
+  // Download the text as a .txt FILE to ATTACH to ChatGPT — bypasses the paste-size limit,
+  // so the full corpus (every doc, no stone unturned) can feed any section prompt.
+  const download = async (ids, label) => {
+    setBusy("Preparing file…"); setCopied("");
+    try {
+      const rows = await fetchDocsText(companyId, ids);
+      const bundle = buildTextBundle(rows);
+      if (!bundle.trim()) { setCopied("No readable text — those docs are image-only"); setTimeout(() => setCopied(""), 3500); return; }
+      const url = URL.createObjectURL(new Blob([bundle], { type: "text/plain" }));
+      const a = document.createElement("a"); a.href = url; a.download = "company-documents.txt";
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      setCopied(`${label} downloaded · ${Math.round(bundle.length / 1000)}k chars — attach this file to ChatGPT`); setTimeout(() => setCopied(""), 5000);
+    } finally { setBusy(""); }
+  };
+
   return (
     <div
       onDragOver={(e) => { e.preventDefault(); if (!drag) setDrag(true); }}
@@ -301,7 +317,12 @@ function DocPanel({ companyId }) {
             <span className="text-[11.5px] font-bold uppercase tracking-wide text-slate-400">Copy text:</span>
             <button onClick={() => copy(null, "All documents")} disabled={!!busy}
               className={`rounded-lg px-3 py-1.5 text-[12.5px] font-bold text-white disabled:opacity-50 ${totalChars > 250000 ? "bg-rose-500 hover:bg-rose-600" : "bg-slate-900 hover:bg-slate-700"}`}>
-              All · {kfmt(totalChars)}
+              Copy all · {kfmt(totalChars)}
+            </button>
+            <button onClick={() => download(null, "All documents")} disabled={!!busy}
+              title="Download the full corpus as a .txt file to ATTACH to ChatGPT (no paste-size limit)"
+              className="rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-[12.5px] font-bold text-emerald-700 hover:bg-emerald-100 disabled:opacity-50">
+              ⬇ All as file (attach)
             </button>
             {groups.map((g) => (
               <button key={g.type} onClick={() => copy(g.ids, DOC_TYPE_LABELS[g.type] || g.type)} disabled={!!busy}
@@ -309,7 +330,7 @@ function DocPanel({ companyId }) {
             ))}
             <button onClick={() => setShowList((v) => !v)} className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-[12.5px] font-bold text-slate-700 hover:border-slate-400">{showList ? "Hide list" : "Pick documents…"}</button>
           </div>
-          {totalChars > 250000 && <p className="mt-1 text-[11.5px] font-semibold text-rose-500">"All" is {kfmt(totalChars)} chars — too big for one ChatGPT paste (~250k max). Pick the documents each pass needs below.</p>}
+          {totalChars > 250000 && <p className="mt-1 text-[11.5px] font-semibold text-rose-500">"All" is {kfmt(totalChars)} chars — too big to <b>paste</b> (~250k max). Use <b>⬇ All as file (attach)</b> to feed every doc, or pick the specific docs a page needs.</p>}
 
           {showList && (
             <div className="mt-2 rounded-xl border border-slate-200 bg-white">
