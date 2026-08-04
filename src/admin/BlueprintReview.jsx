@@ -573,7 +573,7 @@ export default function BlueprintReview({ companies = [], onReload }) {
   // with the right prompt, and turns green once its data lands. Run top to bottom.
   const timelineFilled = Array.isArray(p.timeline) && p.timeline.length > 0;
   const extractionSteps = [
-    { id: "p1", label: "Company", title: "1 · Company + Team", docs: "Attach: Financing doc + Management circular. Team bios → website team page or deck.", done: !!get(p, "company.name") },
+    { id: "p1", label: "Company", title: "1 · Company + Team", docs: "Attach: Financing doc + Management circular. Team bios → website team page or deck.", done: !!get(p, "company.name") && team.length > 0 },
     { id: "p2", label: "Projects", title: "2 · Projects", docs: "Attach: Technical report(s). One project per run if they're large.", done: projects.length > 0 },
     { id: "p3", label: "Timeline", title: "3 · Timeline", docs: "Attach: Press releases, in batches. Entries merge + dedupe.", done: timelineFilled },
     { id: "conference", label: "Conference", title: "4 · Conference narrative", docs: "No documents — click Copy profile JSON, paste it with the Conference prompt.", done: !!(conf.hook || conf.overview) },
