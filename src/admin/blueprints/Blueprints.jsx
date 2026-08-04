@@ -16,7 +16,8 @@ import ConferenceBlueprintEditor from "./ConferenceBlueprintEditor.jsx";
 const pct = (data) => { const t = computeCompletion(data); return t.total ? Math.round((t.approved / t.total) * 100) : 0; };
 const setPath = (p) => { try { window.history.pushState(null, "", p); } catch (_) {} };
 
-export default function Blueprints({ companies = [] }) {
+export default function Blueprints({ companies = [], focus }) {
+  const confOnly = focus === "conference";
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState("");
@@ -103,7 +104,7 @@ export default function Blueprints({ companies = [] }) {
           <thead className="bg-slate-50 text-[11px] font-bold uppercase tracking-wide text-slate-400">
             <tr>
               <th className="px-4 py-2.5">Company</th>
-              <th className="px-4 py-2.5">Passport</th>
+              {!confOnly && <th className="px-4 py-2.5">Passport</th>}
               <th className="px-4 py-2.5">Conference</th>
               <th className="px-4 py-2.5">Versions</th>
               <th className="px-4 py-2.5">Updated</th>
@@ -123,16 +124,18 @@ export default function Blueprints({ companies = [] }) {
               return (
                 <tr key={c.id} className="hover:bg-slate-50">
                   <td className="px-4 py-2.5"><div className="font-bold text-slate-800">{c.name || c.slug}</div><div className="font-mono text-[11px] text-slate-400">{c.slug}</div></td>
-                  <td className="px-4 py-2.5">{cell(p)}</td>
+                  {!confOnly && <td className="px-4 py-2.5">{cell(p)}</td>}
                   <td className="px-4 py-2.5">{cell(cf)}</td>
                   <td className="px-4 py-2.5 font-mono text-[11px] text-slate-400">{[p && `P:${p.template_version}`, cf && `C:${cf.template_version}`].filter(Boolean).join(" ") || "—"}</td>
                   <td className="px-4 py-2.5 text-[11.5px] text-slate-400">{updated ? new Date(updated).toLocaleDateString() : "—"}</td>
                   <td className="px-4 py-2.5">
                     <div className="flex flex-wrap items-center justify-end gap-1.5">
-                      {!(p && cf) && <button onClick={() => createBoth(c)} disabled={busy === c.id + "both"} className="rounded-lg border border-slate-200 px-2.5 py-1 text-[12px] font-bold text-slate-600 hover:text-slate-900">{busy === c.id + "both" ? "…" : "Create from profile"}</button>}
-                      <button onClick={() => openEditor(c, "passport")} disabled={busy === c.id + "passport"} className="rounded-lg bg-slate-900 px-2.5 py-1 text-[12px] font-bold text-white">Passport</button>
-                      <button onClick={() => openEditor(c, "conference")} disabled={busy === c.id + "conference"} className="rounded-lg bg-slate-900 px-2.5 py-1 text-[12px] font-bold text-white">Conference</button>
-                      {p && <button onClick={() => downloadJson(`${c.slug}-passport-blueprint.json`, p.data)} className="rounded-lg border border-slate-200 px-2 py-1 text-[12px] text-slate-500 hover:text-slate-900" title="Export Passport JSON">⭳P</button>}
+                      {confOnly
+                        ? (!cf && <button onClick={() => openEditor(c, "conference")} disabled={busy === c.id + "conference"} className="rounded-lg border border-slate-200 px-2.5 py-1 text-[12px] font-bold text-slate-600 hover:text-slate-900">Create from profile</button>)
+                        : (!(p && cf) && <button onClick={() => createBoth(c)} disabled={busy === c.id + "both"} className="rounded-lg border border-slate-200 px-2.5 py-1 text-[12px] font-bold text-slate-600 hover:text-slate-900">{busy === c.id + "both" ? "…" : "Create from profile"}</button>)}
+                      {!confOnly && <button onClick={() => openEditor(c, "passport")} disabled={busy === c.id + "passport"} className="rounded-lg bg-slate-900 px-2.5 py-1 text-[12px] font-bold text-white">Passport</button>}
+                      <button onClick={() => openEditor(c, "conference")} disabled={busy === c.id + "conference"} className="rounded-lg bg-slate-900 px-2.5 py-1 text-[12px] font-bold text-white">{cf ? "Open Conference" : "Conference"}</button>
+                      {!confOnly && p && <button onClick={() => downloadJson(`${c.slug}-passport-blueprint.json`, p.data)} className="rounded-lg border border-slate-200 px-2 py-1 text-[12px] text-slate-500 hover:text-slate-900" title="Export Passport JSON">⭳P</button>}
                       {cf && <button onClick={() => downloadJson(`${c.slug}-conference-blueprint.json`, cf.data)} className="rounded-lg border border-slate-200 px-2 py-1 text-[12px] text-slate-500 hover:text-slate-900" title="Export Conference JSON">⭳C</button>}
                       {(p || cf) && <button onClick={() => dupVersion(p || cf)} className="rounded-lg border border-slate-200 px-2 py-1 text-[12px] text-slate-500 hover:text-slate-900" title="Duplicate to a new version">Dup</button>}
                     </div>

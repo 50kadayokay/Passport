@@ -12,7 +12,7 @@ import Admin from "./Admin.jsx";
 import AudienceCard from "./AudienceCard.jsx";
 import OnboardingEngine from "./onboarding/OnboardingEngine.jsx";
 import BlueprintReview from "./BlueprintReview.jsx";
-// (Old Blueprints editor removed — Blueprint Review replaces it.)
+import Blueprints from "./blueprints/Blueprints.jsx";  // full Conference Blueprint workbench (pools/evidence/approval)
 
 // Sidebar organized into business areas. `ready` = wired to live data; the rest
 // show honest "not built yet" states (never fabricated numbers).
@@ -129,7 +129,7 @@ export default function MissionControl() {
           {section === "companies" ? <Admin /> : section === "onboarding" ? (
             <div className="h-full"><OnboardingEngine companies={companies} /></div>
           ) : section === "review-conference" ? (
-            <div className="h-full"><BlueprintReview key="conf" mode="conference" companies={companies} onReload={loadData} /></div>
+            <div className="h-full overflow-y-auto"><Blueprints companies={companies} focus="conference" /></div>
           ) : section === "review-app" ? (
             <div className="h-full"><BlueprintReview key="app" mode="app" companies={companies} onReload={loadData} /></div>
           ) : (
