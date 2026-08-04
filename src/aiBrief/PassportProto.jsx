@@ -7915,7 +7915,7 @@ function ConferenceScenes() {
               </div></Reveal>
             ))}
           </div>
-        ) : (g && (
+        ) : (g && !drillRows.length && (
           <div style={{ marginTop: 30 }}>
             <Reveal v="head"><div style={{ fontSize: "clamp(48px,9vw,130px)", fontWeight: 900, letterSpacing: "-0.05em", lineHeight: 0.92 }}><CountUp value={S(g.grade)} /></div></Reveal>
             {S(g.width) && <Reveal v="body" order={1}><div style={{ fontSize: "clamp(22px,2.6vw,36px)", fontWeight: 700, color: "#c4cdd9", marginTop: 10 }}>{S(g.width)}</div></Reveal>}
