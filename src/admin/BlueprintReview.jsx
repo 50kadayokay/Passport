@@ -93,6 +93,29 @@ function Slide({ n, kicker, title, purpose, children }) {
 }
 
 // A field card: title, helper text, and the extracted value (or the waiting placeholder).
+// Catches any render crash in the template (e.g. an unexpected extraction shape) and shows
+// a message instead of whiting out the whole admin page. Resets when a new company/profile
+// is loaded (via the `resetKey` prop → key remount).
+class TemplateBoundary extends React.Component {
+  constructor(props) { super(props); this.state = { err: null }; }
+  static getDerivedStateFromError(err) { return { err }; }
+  componentDidUpdate(prev) { if (prev.resetKey !== this.props.resetKey && this.state.err) this.setState({ err: null }); }
+  render() {
+    if (this.state.err) {
+      return (
+        <div className="mx-auto max-w-[1080px] px-8 py-10">
+          <div className="rounded-2xl border border-rose-200 bg-rose-50 p-6 text-[14px] text-rose-800">
+            <div className="text-[16px] font-extrabold">This page couldn’t render the last data you loaded.</div>
+            <p className="mt-2">One of the fields came back in an unexpected shape. Your data isn’t lost — press <b>Undo</b> (top of the page) to revert that load, or reload the page to get back to your saved state, then re-run that section.</p>
+            <p className="mt-2 font-mono text-[12px] text-rose-600">{String(this.state.err && this.state.err.message || this.state.err)}</p>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 // Coerce any value to a renderable string. Extraction can return an object/array where a
 // scalar was expected (e.g. capital.financing as [{amount,type,date}]); rendering that
 // object as a React child throws "Objects are not valid as a React child" and whites out
@@ -225,7 +248,7 @@ function Pills({ title, help, items }) {
       ) : (
         <div className="mt-4 flex flex-wrap gap-2">
           {list.map((t, i) => (
-            <span key={i} className="rounded-full bg-slate-900 px-4 py-2 text-[13px] font-bold text-white">{t}</span>
+            <span key={i} className="rounded-full bg-slate-900 px-4 py-2 text-[13px] font-bold text-white">{toText(t)}</span>
           ))}
         </div>
       )}
@@ -891,6 +914,7 @@ export default function BlueprintReview({ companies = [], onReload, mode = "conf
             </div>
           </section>
 
+          <TemplateBoundary resetKey={profile}>
           {/* PAGE 1 — HERO */}
           <Slide n={1} kicker="Page 1" title="Company Hero" purpose="Introduce the company.">
             <div className="grid gap-5 sm:grid-cols-2">
@@ -1085,6 +1109,7 @@ export default function BlueprintReview({ companies = [], onReload, mode = "conf
               </div>
             </div>
           </Slide>
+          </TemplateBoundary>
 
           <div className="h-6" />
         </div>
