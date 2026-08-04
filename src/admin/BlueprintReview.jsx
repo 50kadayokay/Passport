@@ -12,7 +12,7 @@
 import React, { useMemo, useState, useEffect, useRef } from "react";
 import { Image as ImageIcon, QrCode, UploadCloud, Sparkles } from "lucide-react";
 import { parseImport, applyImport } from "../lib/profileImport.js";
-import { promptForPass, CONFERENCE_PROMPT } from "./promptTemplate.js";
+import { promptForPass, CONFERENCE_PROMPT, CONFERENCE_SECTIONS, conferenceSectionPrompt } from "./promptTemplate.js";
 import { updateCompany, createCompany } from "../lib/supabase.js";
 import { mapProfileToPP } from "../lib/profileToPP.js";
 import { authHeaders } from "../lib/auth.js";
@@ -418,6 +418,17 @@ export default function BlueprintReview({ companies = [], onReload, mode = "conf
     } catch (e) { setLoadMsg({ ok: false, text: "Couldn't copy — your browser blocked clipboard access." }); }
   };
 
+  // Download a small, focused prompt for ONE conference booth section.
+  const downloadSectionPrompt = (id, label) => {
+    const text = conferenceSectionPrompt(id);
+    const url = URL.createObjectURL(new Blob([text], { type: "text/markdown" }));
+    const a = document.createElement("a");
+    a.href = url; a.download = `conference-${id}-prompt.md`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    setPromptCopied(label); setTimeout(() => setPromptCopied(""), 2500);
+  };
+
   const loadText = (text) => {
     const parsed = parseImport(text || "");
     if (!parsed.ok) { setLoadMsg({ ok: false, text: parsed.error }); return; }
@@ -586,6 +597,20 @@ export default function BlueprintReview({ companies = [], onReload, mode = "conf
     { id: "conference", label: "Conference", title: "4 · Conference narrative", docs: "No documents — click Copy profile JSON, paste it with the Conference prompt.", done: !!(conf.hook || conf.overview) },
   ];
   const stepsDone = extractionSteps.filter((s) => s.done).length;
+  // Per-booth-section status for the Conference "build page by page" checklist.
+  const anyProj = (fn) => projects.some((pr) => fn(pr));
+  const confSectionDone = {
+    overview: !!(conf.hook || conf.overview),
+    highlights: Array.isArray(conf.highlights) && conf.highlights.length > 0,
+    jurisdiction: !!(get(p, "company.jurisdiction") || conf.region || conf.districtContext),
+    projects: anyProj((pr) => (Array.isArray(pr.narrative) && pr.narrative.length) || get(pr, "snapshot.depositType.value") || get(pr, "snapshot.depositType") || pr.geology),
+    results: anyProj((pr) => { const r = get(pr, "drillResults.rows"); return Array.isArray(r) && r.length; }) || !!conf.resultsIntro,
+    milestones: (Array.isArray(conf.featuredMilestoneDates) && conf.featuredMilestoneDates.length > 0) || timelineFilled,
+    capital: !!(conf.capitalIntro || get(p, "capital.cash")),
+    leadership: team.length > 0,
+    why: Array.isArray(conf.investmentCase) && conf.investmentCase.length > 0,
+  };
+  const confDoneCount = CONFERENCE_SECTIONS.filter((s) => confSectionDone[s.id]).length;
   const boothGaps = [
     team.length === 0 && "Team / Leadership",
     !firstOf(get(p, "brand.logo"), get(p, "brand.avatar")) && "Logo",
@@ -699,7 +724,8 @@ export default function BlueprintReview({ companies = [], onReload, mode = "conf
                 </div>
               </div>
 
-              {/* GUIDED STEPS — the repeatable flow: run each pass in order; green = its data landed. */}
+              {/* APP mode: the 4 broad passes. */}
+              {isApp && (
               <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
                 <div className="flex items-center justify-between">
                   <span className="text-[12px] font-extrabold uppercase tracking-wide text-slate-500">Extraction steps — run in order</span>
@@ -730,6 +756,36 @@ export default function BlueprintReview({ companies = [], onReload, mode = "conf
                 </div>
                 <p className="mt-2 text-[11.5px] text-slate-400">For each pass: <b>Get prompt</b> (downloads the .md) → new ChatGPT chat → attach it → paste the document text → send → paste the JSON reply below → <b>Load into template</b> → <b>Save</b>.</p>
               </div>
+              )}
+
+              {/* CONFERENCE mode: build the booth page by page. Upload docs once (below), then work
+                  down this list — each is a small prompt that fills one page. */}
+              {!isApp && (
+              <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-[12px] font-extrabold uppercase tracking-wide text-slate-500">Build the booth — one page at a time</span>
+                  <span className={`text-[11.5px] font-bold ${confDoneCount === CONFERENCE_SECTIONS.length ? "text-emerald-600" : "text-slate-400"}`}>{confDoneCount}/{CONFERENCE_SECTIONS.length} pages done</span>
+                </div>
+                <div className="mt-3 grid gap-2">
+                  {CONFERENCE_SECTIONS.map((s) => {
+                    const done = confSectionDone[s.id];
+                    return (
+                      <div key={s.id} className={`flex flex-wrap items-center gap-3 rounded-xl border px-3.5 py-2.5 ${done ? "border-emerald-200 bg-emerald-50/60" : "border-slate-200 bg-white"}`}>
+                        <span className={`grid h-6 w-6 flex-shrink-0 place-items-center rounded-full text-[12px] font-extrabold ${done ? "bg-emerald-500 text-white" : "bg-slate-200 text-slate-500"}`}>{done ? "✓" : s.n}</span>
+                        <div className="min-w-0 flex-1">
+                          <div className="text-[13.5px] font-bold text-slate-800">{s.label}</div>
+                          <div className="text-[11.5px] leading-snug text-slate-500">{s.docs}</div>
+                        </div>
+                        <button onClick={() => downloadSectionPrompt(s.id, s.label)} className="rounded-lg bg-slate-900 px-3 py-1.5 text-[12px] font-bold text-white hover:bg-slate-700">
+                          {promptCopied === s.label ? "Downloaded ✓" : "Get prompt"}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+                <p className="mt-3 text-[11.5px] text-slate-400 border-t border-slate-200 pt-3">Per page: <b>Get prompt</b> → new ChatGPT chat → attach it → attach/paste the document text (Copy text below) → send → paste the JSON reply into the box below → <b>Load into template</b> → <b>Save</b>. Work down the list, then <b>Preview Conference Mode</b>.</p>
+              </div>
+              )}
 
               {/* Documents — upload + copy text, right here. */}
               <div className="mt-4">

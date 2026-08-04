@@ -2350,3 +2350,105 @@ After approximately 90 seconds, the investor must understand: the company, the a
 Return the JSON first.
 Then return the Image Guide.
 Return nothing else.`;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CONFERENCE — SECTION-BY-SECTION BUILD
+// The repeatable booth workflow: bulk-upload the company's docs once, then work
+// through this list. Each section is a small, self-contained prompt that outputs
+// ONLY that section's JSON. Paste the doc text + the section prompt into ChatGPT,
+// load the JSON back, and that page fills. Work down the list until it's done.
+// ─────────────────────────────────────────────────────────────────────────────
+const CONF_SECTION_RULES = `RULES
+- Use ONLY the supplied documents. If a field is not supported by the documents, set it to null (or [] for a list). Never invent, never use outside knowledge, never guess.
+- Quote technical figures VERBATIM — grades, intervals, dollar amounts, dates, share counts. Do not round, convert, or rephrase them.
+- Neutralize promotional language. No superlatives unless a document states them as fact.
+- Output ONLY the JSON shape shown below — nothing else. No other keys, no commentary before or after, no markdown code fences. It must be valid JSON.`;
+
+export const CONFERENCE_SECTIONS = [
+  {
+    id: "overview", label: "Company Overview", n: 1,
+    docs: "Corporate presentation + website 'About' page.",
+    guide: `conference.hook — the central story in 8 words or fewer, specific, no slogan-speak.
+conference.overview — ONE paragraph: who the company is, what management is building or proving, the business model, and the flagship asset (end by naming it).
+conference.mission — the company's own disclosed mission/objective in one sentence, or null.
+conference.macroContext — one sentence on why the commodity/market is relevant, or null.
+company.slogan — the company's own tagline, verbatim, if it has one.`,
+    skeleton: { company: { slogan: "" }, conference: { hook: "", overview: "", mission: null, macroContext: null } },
+  },
+  {
+    id: "highlights", label: "Highlights", n: 2,
+    docs: "Corporate presentation + the most material recent news releases.",
+    guide: `conference.highlights — 3 to 5 items. Each: value (a SHORT punchy stat, e.g. "1,742 g/t AgEq" — keep qualifiers OUT of value), label (2-4 words), context (one sentence on why it matters). Order by materiality.
+conference.highlightsIntro — one short paragraph framing what the highlights add up to.`,
+    skeleton: { conference: { highlights: [{ value: "", label: "", context: "" }], highlightsIntro: "" } },
+  },
+  {
+    id: "jurisdiction", label: "Jurisdiction & District", n: 3,
+    docs: "Technical report (location/geology sections) + corporate presentation.",
+    guide: `company.jurisdiction — the specific district/region name (e.g. "Parral Mining District, Chihuahua, Mexico"). This is the bold header of the page.
+conference.region — a company-specific paragraph on the operating footprint (assets, size, why here).
+conference.districtContext — district history, nearby operators, historical production, or null.
+conference.regionalGeology — the regional geological setting in 1-2 sentences, or null.`,
+    skeleton: { company: { jurisdiction: "" }, conference: { region: "", districtContext: null, regionalGeology: null } },
+  },
+  {
+    id: "projects", label: "Projects / Assets", n: 4,
+    docs: "Technical report(s) — one project per run if they are large.",
+    guide: `One entry per project. key — a stable slug (e.g. "las-coloradas"). snapshot — the quick facts. narrative — 2-3 short paragraphs. geology, targets — from the technical report. Set conference.featuredProjectKey to the flagship's key.`,
+    skeleton: { projects: [{ key: "", name: "", tag: "", snapshot: { location: "", commodity: "", ownership: "", landPackage: "", depositType: "" }, narrative: ["", "", ""], geology: "", targets: { priority: "", closing: "" } }], conference: { featuredProjectKey: "" } },
+  },
+  {
+    id: "results", label: "Drill Results & Technical Evidence", n: 5,
+    docs: "Technical report + drill-result news releases.",
+    guide: `projects[].drillResults.rows — the best intercepts, one row each: hole, interval (e.g. "15.7 m"), grade (e.g. "74 g/t AgEq"). VERBATIM.
+projects[].resource / economics — only if a resource estimate or economic study (PEA/PFS/FS) exists; else null.
+conference.resultsIntro — one paragraph framing the technical evidence and what it's testing.`,
+    skeleton: { projects: [{ key: "", drillResults: { rows: [{ hole: "", interval: "", grade: "" }] }, resource: null, economics: null }], conference: { resultsIntro: "" } },
+  },
+  {
+    id: "milestones", label: "Milestones", n: 6,
+    docs: "All news releases, in batches.",
+    guide: `timeline — one entry per release: date (YYYY-MM-DD), headline (verbatim), why (why it mattered), takeaways (2-3 bullets). Entries merge + dedupe across batches.
+conference.featuredMilestoneDates — the 4-6 most important dates (must exactly match timeline entry dates).
+conference.timelineIntro — one paragraph on the company's momentum/trajectory.`,
+    skeleton: { timeline: [{ date: "", headline: "", why: "", takeaways: [""], key: false }], conference: { featuredMilestoneDates: ["YYYY-MM-DD"], timelineIntro: "" } },
+  },
+  {
+    id: "capital", label: "Capital", n: 7,
+    docs: "Financial statements + MD&A + financing news releases.",
+    guide: `capital — cash, debt, shares outstanding, fully diluted, market cap (if stated), and financing history. Verbatim figures with the reporting date.
+conference.capitalIntro — one paragraph on the funding position and what it enables.`,
+    skeleton: { capital: { cash: "", debt: "", outstanding: "", fd: "", marketCap: "", reportingDate: "", financing: [{ amount: "", date: "", type: "" }] }, conference: { capitalIntro: "" } },
+  },
+  {
+    id: "leadership", label: "Leadership", n: 8,
+    docs: "Website team page or corporate deck (for bios). Management circular gives names/titles only.",
+    guide: `team — one entry per person, officers first then directors: name, role (real title — CEO, CFO, VP Exploration, Director), short (1-sentence), full (2-3 sentence bio).
+conference.leadershipIntro — one sentence on why the team fits the company's stage, or null.`,
+    skeleton: { team: [{ name: "", role: "", short: "", full: "" }], conference: { leadershipIntro: null } },
+  },
+  {
+    id: "why", label: "Why Invest", n: 9,
+    docs: "Synthesis — use all documents + everything already extracted.",
+    guide: `conference.investmentCase — 3-5 items, each: reason, evidence (specific, from the docs), standsOutBecause. conference.competitiveAdvantages — 3-5 short phrases. conference.companySpecificInsights — any material fact that didn't fit elsewhere.`,
+    skeleton: { conference: { investmentCase: [{ reason: "", evidence: "", standsOutBecause: "" }], competitiveAdvantages: [""], companySpecificInsights: [{ title: "", context: "", evidence: "", materiality: "high|medium" }] } },
+  },
+];
+
+// A small, focused, self-contained prompt for ONE booth section.
+export function conferenceSectionPrompt(id) {
+  const s = CONFERENCE_SECTIONS.find((x) => x.id === id) || CONFERENCE_SECTIONS[0];
+  return `You are populating ONE section of a PASSPORT Conference Mode booth for a mining or resource company.
+
+SECTION: ${s.label}
+DOCUMENTS TO USE: ${s.docs}
+
+${CONF_SECTION_RULES}
+
+FIELD GUIDANCE
+${s.guide}
+
+OUTPUT — fill this exact JSON shape from the documents (null / [] where unsupported), and output NOTHING else:
+${JSON.stringify(s.skeleton, null, 2)}
+`;
+}
