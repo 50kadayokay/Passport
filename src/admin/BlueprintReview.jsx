@@ -797,6 +797,9 @@ export default function BlueprintReview({ companies = [], onReload, mode = "conf
                           <div className="text-[13.5px] font-bold text-slate-800">{s.label}</div>
                           <div className="text-[11.5px] leading-snug text-slate-500">{s.docs}</div>
                         </div>
+                        {s.useProfile && (
+                          <button onClick={copyProfileJson} className="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-[12px] font-bold text-indigo-700 hover:bg-indigo-100">Copy profile JSON</button>
+                        )}
                         <button onClick={() => downloadSectionPrompt(s.id, s.label)} className="rounded-lg bg-slate-900 px-3 py-1.5 text-[12px] font-bold text-white hover:bg-slate-700">
                           {promptCopied === s.label ? "Downloaded ✓" : "Get prompt"}
                         </button>

@@ -2406,12 +2406,13 @@ conference.resultsIntro — one paragraph framing the technical evidence and wha
     skeleton: { projects: [{ key: "", drillResults: { rows: [{ hole: "", interval: "", grade: "" }] }, resource: null, economics: null }], conference: { resultsIntro: "" } },
   },
   {
-    id: "milestones", label: "Milestones", n: 6,
-    docs: "All news releases, in batches.",
-    guide: `timeline — one entry per release: date (YYYY-MM-DD), headline (verbatim), why (why it mattered), takeaways (2-3 bullets). Entries merge + dedupe across batches.
-conference.featuredMilestoneDates — the 4-6 most important dates (must exactly match timeline entry dates).
-conference.timelineIntro — one paragraph on the company's momentum/trajectory.`,
-    skeleton: { timeline: [{ date: "", headline: "", why: "", takeaways: [""], key: false }], conference: { featuredMilestoneDates: ["YYYY-MM-DD"], timelineIntro: "" } },
+    id: "milestones", label: "Milestones (feature + intro)", n: 6, useProfile: true,
+    docs: "Uses your EXISTING timeline — NO documents. Click 'Copy profile JSON' and paste it with this prompt. (If the timeline isn't populated yet, run Timeline in the App Blueprint first — it batches the releases.)",
+    guide: `You are given the company's EXISTING Passport profile, which ALREADY contains a full timeline array. DO NOT re-extract, re-list, or rewrite the timeline. Output ONLY these two small fields:
+conference.featuredMilestoneDates — the 4 to 6 MOST important milestone dates. Each MUST EXACTLY match a date/id already present in the profile's timeline (verbatim, YYYY-MM-DD). Never invent a date.
+conference.timelineIntro — ONE short paragraph on the company's momentum and trajectory. Do not rewrite any milestone text.
+This output is tiny — print it directly in your reply. Do NOT write it to a file.`,
+    skeleton: { conference: { featuredMilestoneDates: ["YYYY-MM-DD"], timelineIntro: "" } },
   },
   {
     id: "capital", label: "Capital", n: 7,
@@ -2428,9 +2429,9 @@ conference.leadershipIntro — one sentence on why the team fits the company's s
     skeleton: { team: [{ name: "", role: "", short: "", full: "" }], conference: { leadershipIntro: null } },
   },
   {
-    id: "why", label: "Why Invest", n: 9,
-    docs: "Synthesis — use all documents + everything already extracted.",
-    guide: `conference.investmentCase — 3-5 items, each: reason, evidence (specific, from the docs), standsOutBecause. conference.competitiveAdvantages — 3-5 short phrases. conference.companySpecificInsights — any material fact that didn't fit elsewhere.`,
+    id: "why", label: "Why Invest", n: 9, useProfile: true,
+    docs: "Synthesis — best from your EXISTING profile (Copy profile JSON). You may also attach the corporate deck.",
+    guide: `conference.investmentCase — 3-5 items, each: reason, evidence (specific, from the profile/docs), standsOutBecause. conference.competitiveAdvantages — 3-5 short phrases. conference.companySpecificInsights — any material fact that didn't fit elsewhere.`,
     skeleton: { conference: { investmentCase: [{ reason: "", evidence: "", standsOutBecause: "" }], competitiveAdvantages: [""], companySpecificInsights: [{ title: "", context: "", evidence: "", materiality: "high|medium" }] } },
   },
 ];
@@ -2438,17 +2439,21 @@ conference.leadershipIntro — one sentence on why the team fits the company's s
 // A small, focused, self-contained prompt for ONE booth section.
 export function conferenceSectionPrompt(id) {
   const s = CONFERENCE_SECTIONS.find((x) => x.id === id) || CONFERENCE_SECTIONS[0];
+  const source = s.useProfile
+    ? `SOURCE: You are given the company's EXISTING Passport profile JSON (pasted with this prompt). Use it as your source — do not re-extract data that already exists. ${s.docs}`
+    : `DOCUMENTS TO USE: ${s.docs}`;
+  const fillFrom = s.useProfile ? "from the profile provided" : "from the documents";
   return `You are populating ONE section of a PASSPORT Conference Mode booth for a mining or resource company.
 
 SECTION: ${s.label}
-DOCUMENTS TO USE: ${s.docs}
+${source}
 
 ${CONF_SECTION_RULES}
 
 FIELD GUIDANCE
 ${s.guide}
 
-OUTPUT — fill this exact JSON shape from the documents (null / [] where unsupported), and output NOTHING else:
+OUTPUT — fill this exact JSON shape ${fillFrom} (null / [] where unsupported). This output is SMALL — print it directly in your reply, do not write it to a file. Output NOTHING else:
 ${JSON.stringify(s.skeleton, null, 2)}
 `;
 }
