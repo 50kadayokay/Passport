@@ -7778,7 +7778,8 @@ function ConferenceScenes() {
   if (S(conf.overview) || S(conf.macroContext) || S(conf.mission)) scenes.push(
     <SceneShell key="company" bg="#0b1220" color="#fff">
       <Reveal v="eyebrow"><div style={sceneEyebrow(EM)}>Company</div></Reveal>
-      {S(conf.overview) && <Reveal v="head"><div style={{ fontSize: "clamp(24px,3.2vw,42px)", fontWeight: 600, letterSpacing: "-0.02em", lineHeight: 1.32, maxWidth: 1080, marginTop: 20 }}>{S(conf.overview)}</div></Reveal>}
+      {S(co.slogan) && <Reveal v="head"><div style={{ fontSize: "clamp(26px,3.4vw,46px)", fontWeight: 900, letterSpacing: "-0.03em", lineHeight: 1.1, marginTop: 12, color: "#fff" }}>{S(co.slogan)}</div></Reveal>}
+      {S(conf.overview) && <Reveal v="body" order={1}><div style={{ fontSize: "clamp(19px,2.2vw,28px)", fontWeight: 500, letterSpacing: "-0.01em", lineHeight: 1.5, maxWidth: 1080, marginTop: 20, color: "#dbe2ec" }}>{S(conf.overview)}</div></Reveal>}
       {S(conf.mission) && <Reveal v="body" order={1}><div style={{ fontSize: 17, color: "#c4cdd9", marginTop: 22, maxWidth: 960, lineHeight: 1.55, fontStyle: "italic" }}>{S(conf.mission)}</div></Reveal>}
       {S(conf.macroContext) && <Reveal v="body" order={2}><div style={{ fontSize: 15.5, color: "#8493a8", marginTop: 18, maxWidth: 920, lineHeight: 1.55 }}>{S(conf.macroContext)}</div></Reveal>}
       {(() => {
@@ -7870,6 +7871,9 @@ function ConferenceScenes() {
   // SECTION 4 — RESULTS & TECHNICAL EVIDENCE (context paragraph → stage-adaptive proof)
   {
     const res = flagship.resource || {}, eco = flagship.economics || {}, prod = flagship.production || {}, met = flagship.metallurgy || {};
+    // Selected drill intercepts (hole · interval · grade) — the core proof for a driller.
+    const drillRows = (flagship.drillResults && Array.isArray(flagship.drillResults.rows) ? flagship.drillResults.rows : [])
+      .filter((r) => r && (S(r.grade) || S(r.interval) || S(r.hole))).slice(0, 8);
     let items = [], title = "Results & Evidence";
     if (evType === "economics" && (S(eco.npv) || S(eco.irr))) {
       title = "Project Economics";
@@ -7883,9 +7887,9 @@ function ConferenceScenes() {
     }
     items = items.map(([l, v]) => ({ l, v: S(v) })).filter((x) => x.v);
     const g = (!items.length && conf.featuredGrade && S(conf.featuredGrade.grade)) ? conf.featuredGrade : (!items.length ? deriveGrade() : null);
-    if (items.length || (g && S(g.grade))) scenes.push(
+    if (items.length || (g && S(g.grade)) || drillRows.length) scenes.push(
       <SceneShell key="results" bg="#05070d" color="#fff">
-        <Reveal v="eyebrow"><div style={sceneEyebrow(EM)}>{title}</div></Reveal>
+        <Reveal v="eyebrow"><div style={sceneEyebrow(EM)}>{drillRows.length && !items.length ? "Drill Results" : title}</div></Reveal>
         {S(conf.resultsIntro) && <Reveal v="head"><div style={{ fontSize: "clamp(22px,2.6vw,34px)", fontWeight: 500, letterSpacing: "-0.02em", lineHeight: 1.4, maxWidth: 1000, marginTop: 16, color: "#dbe2ec" }}>{S(conf.resultsIntro)}</div></Reveal>}
         {(() => {
           const d = flagship.drilling || {};
@@ -7918,6 +7922,20 @@ function ConferenceScenes() {
             {(S(g.location) || S(g.context)) && <Reveal v="body" order={2}><div style={{ fontSize: 16, color: "#93a0b0", marginTop: 18, fontWeight: 600 }}>{[S(g.location), S(g.context)].filter(Boolean).join(" · ")}</div></Reveal>}
           </div>
         ))}
+        {drillRows.length > 0 && (
+          <div style={{ marginTop: 44 }}>
+            <Reveal v="eyebrow"><div style={{ fontSize: 12.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.1em", color: EM, marginBottom: 16 }}>Selected drill intercepts</div></Reveal>
+            <div style={{ display: "grid", gap: 10, maxWidth: 1040 }}>
+              {drillRows.map((r, i) => (
+                <Reveal key={i} v="card" order={Math.min(i, 4)}><div style={{ display: "flex", flexWrap: "wrap", alignItems: "baseline", gap: "6px 22px", padding: "15px 20px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 16 }}>
+                  {S(r.hole) && <span style={{ fontFamily: "ui-monospace,monospace", fontSize: 15, fontWeight: 800, color: "#dbe2ec", minWidth: 110 }}>{S(r.hole)}</span>}
+                  {S(r.interval) && <span style={{ fontSize: 15.5, color: "#93a0b0" }}>{S(r.interval)}</span>}
+                  {S(r.grade) && <span style={{ fontSize: 18, fontWeight: 900, color: "#fff", marginLeft: "auto" }}>{S(r.grade)}</span>}
+                </div></Reveal>
+              ))}
+            </div>
+          </div>
+        )}
         {S((conf.images || {}).results) && <Reveal v="media"><div style={{ marginTop: 36, borderRadius: 20, overflow: "hidden", border: "1px solid rgba(255,255,255,0.1)", maxWidth: 1100 }}><img src={S(conf.images.results)} alt="Cross-section / resource model" style={{ display: "block", width: "100%", maxHeight: "46vh", objectFit: "cover" }} /></div></Reveal>}
         {S(met.testwork) && <Reveal v="body" order={3}><div style={{ marginTop: 34, fontSize: 15, color: "#8493a8", maxWidth: 940, lineHeight: 1.5 }}><b style={{ color: "#c4cdd9" }}>Metallurgy: </b>{S(met.testwork)}</div></Reveal>}
       </SceneShell>

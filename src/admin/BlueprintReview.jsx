@@ -573,9 +573,15 @@ export default function BlueprintReview({ companies = [], onReload, mode = "conf
   // GUIDED EXTRACTION — the repeatable per-company flow. Each pass pairs the right documents
   // with the right prompt, and turns green once its data lands. Run top to bottom.
   const timelineFilled = Array.isArray(p.timeline) && p.timeline.length > 0;
+  // "Done" means the pass actually produced its detail — not just that a name/clone exists.
+  const companyExtracted = !!get(p, "company.name") && !!get(p, "company.commodity") && !!get(p, "company.jurisdiction");
+  const projectsExtracted = projects.some((pr) => {
+    const rows = get(pr, "drillResults.rows");
+    return (Array.isArray(rows) && rows.length) || get(pr, "snapshot.depositType.value") || get(pr, "geology");
+  });
   const extractionSteps = [
-    { id: "p1", label: "Company", title: "1 · Company + Team", docs: "Attach: Financing doc + Management circular. Team bios → website team page or deck.", done: !!get(p, "company.name") && team.length > 0 },
-    { id: "p2", label: "Projects", title: "2 · Projects", docs: "Attach: Technical report(s). One project per run if they're large.", done: projects.length > 0 },
+    { id: "p1", label: "Company", title: "1 · Company + Team", docs: "Attach: Financing doc + Management circular. Team bios → website team page or deck.", done: companyExtracted && team.length > 0 },
+    { id: "p2", label: "Projects", title: "2 · Projects", docs: "Attach: Technical report(s). Needs deposit type / geology / drill results per project.", done: projectsExtracted },
     { id: "p3", label: "Timeline", title: "3 · Timeline", docs: "Attach: Press releases, in batches. Entries merge + dedupe.", done: timelineFilled },
     { id: "conference", label: "Conference", title: "4 · Conference narrative", docs: "No documents — click Copy profile JSON, paste it with the Conference prompt.", done: !!(conf.hook || conf.overview) },
   ];
