@@ -568,6 +568,22 @@ export default function BlueprintReview({ companies = [], onReload }) {
   const conf = p.conference || {};
   const cap = p.capital || {};
   const cmp = p.compare || {};
+
+  // GUIDED EXTRACTION — the repeatable per-company flow. Each pass pairs the right documents
+  // with the right prompt, and turns green once its data lands. Run top to bottom.
+  const timelineFilled = Array.isArray(p.timeline) && p.timeline.length > 0;
+  const extractionSteps = [
+    { id: "p1", label: "Company", title: "1 · Company + Team", docs: "Attach: Financing doc + Management circular. Team bios → website team page or deck.", done: !!get(p, "company.name") },
+    { id: "p2", label: "Projects", title: "2 · Projects", docs: "Attach: Technical report(s). One project per run if they're large.", done: projects.length > 0 },
+    { id: "p3", label: "Timeline", title: "3 · Timeline", docs: "Attach: Press releases, in batches. Entries merge + dedupe.", done: timelineFilled },
+    { id: "conference", label: "Conference", title: "4 · Conference narrative", docs: "No documents — click Copy profile JSON, paste it with the Conference prompt.", done: !!(conf.hook || conf.overview) },
+  ];
+  const stepsDone = extractionSteps.filter((s) => s.done).length;
+  const boothGaps = [
+    team.length === 0 && "Team / Leadership",
+    !firstOf(get(p, "brand.logo"), get(p, "brand.avatar")) && "Logo",
+    !firstOf(get(p, "brand.hero"), get(p, "companyStatus.photo")) && "Hero image",
+  ].filter(Boolean);
   // The company description comes from the Pass-1 companyBrief ("What They Do" section) until the
   // conference pass writes a dedicated overview.
   const briefSections = Array.isArray(get(p, "companyBrief.sections")) ? get(p, "companyBrief.sections") : [];
@@ -668,31 +684,47 @@ export default function BlueprintReview({ companies = [], onReload }) {
                   <input ref={restoreRef} type="file" accept=".json,application/json" className="hidden" onChange={(e) => restoreFromFile(e.target.files)} />
                 </div>
               </div>
+
+              {/* GUIDED STEPS — the repeatable flow: run each pass in order; green = its data landed. */}
+              <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-[12px] font-extrabold uppercase tracking-wide text-slate-500">Extraction steps — run in order</span>
+                  <span className={`text-[11.5px] font-bold ${stepsDone === 4 ? "text-emerald-600" : "text-slate-400"}`}>{stepsDone}/4 passes loaded</span>
+                </div>
+                <div className="mt-3 grid gap-2">
+                  {extractionSteps.map((s, i) => (
+                    <div key={s.id} className={`flex flex-wrap items-center gap-3 rounded-xl border px-3.5 py-2.5 ${s.done ? "border-emerald-200 bg-emerald-50/60" : "border-slate-200 bg-white"}`}>
+                      <span className={`grid h-6 w-6 flex-shrink-0 place-items-center rounded-full text-[12px] font-extrabold ${s.done ? "bg-emerald-500 text-white" : "bg-slate-200 text-slate-500"}`}>{s.done ? "✓" : i + 1}</span>
+                      <div className="min-w-0 flex-1">
+                        <div className="text-[13.5px] font-bold text-slate-800">{s.title}</div>
+                        <div className="text-[11.5px] leading-snug text-slate-500">{s.docs}</div>
+                      </div>
+                      {s.id === "conference" && (
+                        <button onClick={copyProfileJson} className="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-[12px] font-bold text-indigo-700 hover:bg-indigo-100">Copy profile JSON</button>
+                      )}
+                      <button onClick={() => downloadPrompt(s.id, s.label)} className="rounded-lg bg-slate-900 px-3 py-1.5 text-[12px] font-bold text-white hover:bg-slate-700">
+                        {promptCopied === s.label ? "Downloaded ✓" : "Get prompt"}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-200 pt-3 text-[11.5px]">
+                  <span className="font-bold uppercase tracking-wide text-slate-500">Also needed for a full booth:</span>
+                  {boothGaps.length === 0
+                    ? <span className="font-semibold text-emerald-600">✓ Team, logo & hero all present</span>
+                    : boothGaps.map((g) => <span key={g} className="rounded-full bg-amber-100 px-2 py-0.5 font-bold text-amber-700">{g} — missing</span>)}
+                </div>
+                <p className="mt-2 text-[11.5px] text-slate-400">For each pass: <b>Get prompt</b> (downloads the .md) → new ChatGPT chat → attach it → paste the document text → send → paste the JSON reply below → <b>Load into template</b> → <b>Save</b>.</p>
+              </div>
+
               {/* Documents — upload + copy text, right here. */}
               <div className="mt-4">
                 <DocPanel companyId={company.id} />
               </div>
 
-              {/* Prompts to give ChatGPT — copy the pass you're running, plus an info button. */}
-              <div className="mt-4 flex flex-wrap items-center gap-2">
-                <span className="text-[11.5px] font-bold uppercase tracking-wide text-slate-400">Prompt file (attach to ChatGPT):</span>
-                {[{ id: "p1", label: "Company" }, { id: "p2", label: "Projects" }, { id: "p3", label: "Timeline" }, { id: "conference", label: "Conference" }].map((pp) => (
-                  <button key={pp.id} onClick={() => downloadPrompt(pp.id, pp.label)}
-                    className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[12.5px] font-bold text-slate-600 hover:border-slate-400">
-                    {promptCopied === pp.label ? "Downloaded ✓" : `${pp.label} prompt`}
-                  </button>
-                ))}
-                <button onClick={() => setShowInfo((v) => !v)} title="How to use this"
-                  className={`grid h-7 w-7 place-items-center rounded-full border text-[13px] font-bold italic ${showInfo ? "border-slate-900 bg-slate-900 text-white" : "border-slate-300 text-slate-500 hover:border-slate-500 hover:text-slate-700"}`}>i</button>
-              </div>
-              {/* Conference pass reuses the existing profile — feed it the profile JSON, not the giant docs. */}
-              <div className="mt-2 flex flex-wrap items-center gap-2">
-                <span className="text-[11.5px] font-bold uppercase tracking-wide text-indigo-400">For the Conference pass:</span>
-                <button onClick={copyProfileJson}
-                  className="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-[12.5px] font-bold text-indigo-700 hover:bg-indigo-100">
-                  Copy profile JSON
-                </button>
-                <span className="text-[11.5px] text-slate-400">Paste this + the Conference prompt into ChatGPT (no documents needed).</span>
+              <div className="mt-3">
+                <button onClick={() => setShowInfo((v) => !v)}
+                  className="text-[11.5px] font-bold text-slate-400 hover:text-slate-700">{showInfo ? "Hide detailed help" : "Detailed help / troubleshooting"}</button>
               </div>
 
               {showInfo && (
