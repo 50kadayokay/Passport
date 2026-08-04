@@ -4,6 +4,7 @@ import {
   BarChart3, Sparkles, Radio, Star, Bell, Briefcase, CreditCard, LifeBuoy,
   FolderOpen, Search, Activity, ScrollText, Settings,
   LogOut, Loader2, Circle, CheckCircle2, ExternalLink, Plus, ArrowRight, RefreshCw, AlertTriangle, Inbox, Link2, Film,
+  Presentation, Smartphone,
 } from "lucide-react";
 import { fetchCompanies, updateCompany, SUPABASE_URL } from "../lib/supabase.js";
 import { authHeaders, getUser, signOut } from "../lib/auth.js";
@@ -22,7 +23,8 @@ const NAV = [
     { id: "publish", label: "Ready for Publish", Icon: Inbox, ready: true },
     { id: "card", label: "Audience Card", Icon: Film, ready: true },
     { id: "companies", label: "Companies", Icon: Building2, ready: true },
-    { id: "review", label: "Blueprint Review", Icon: Sparkles, ready: true },
+    { id: "review-conference", label: "Conference Blueprint", Icon: Presentation, ready: true },
+    { id: "review-app", label: "App Blueprint", Icon: Smartphone, ready: true },
     { id: "onboarding", label: "Onboarding Engine", Icon: FolderOpen, ready: true },
     { id: "users", label: "Users", Icon: UsersIcon, ready: true },
     { id: "operations", label: "Operations", Icon: ClipboardCheck, ready: true },
@@ -47,7 +49,7 @@ const NAV = [
     { id: "settings", label: "Settings", Icon: Settings, need: "a platform-config table" },
   ]},
 ];
-const READY = new Set(["home", "publish", "card", "companies", "review", "onboarding", "users", "operations"]);
+const READY = new Set(["home", "publish", "card", "companies", "review-conference", "review-app", "onboarding", "users", "operations"]);
 const flat = (id) => NAV.flatMap((g) => g.items).find((i) => i.id === id) || {};
 
 const isPublished = (c) => (c.status || "").toLowerCase() === "published";
@@ -57,7 +59,7 @@ const timeAgo = (iso) => { if (!iso) return ""; const s = (Date.now() - new Date
 
 export default function MissionControl() {
   const [section, setSection] = useState(() => {
-    try { return (window.location.pathname || "").startsWith("/admin/blueprints") ? "review" : "home"; } catch (_) { return "home"; }
+    try { return (window.location.pathname || "").startsWith("/admin/blueprints") ? "review-conference" : "home"; } catch (_) { return "home"; }
   });
   const [companies, setCompanies] = useState([]);
   const [users, setUsers] = useState([]);
@@ -126,8 +128,10 @@ export default function MissionControl() {
         <div className="min-h-0 flex-1 overflow-hidden">
           {section === "companies" ? <Admin /> : section === "onboarding" ? (
             <div className="h-full"><OnboardingEngine companies={companies} /></div>
-          ) : section === "review" ? (
-            <div className="h-full"><BlueprintReview companies={companies} onReload={loadData} /></div>
+          ) : section === "review-conference" ? (
+            <div className="h-full"><BlueprintReview key="conf" mode="conference" companies={companies} onReload={loadData} /></div>
+          ) : section === "review-app" ? (
+            <div className="h-full"><BlueprintReview key="app" mode="app" companies={companies} onReload={loadData} /></div>
           ) : (
             <div className="h-full overflow-y-auto px-8 py-7">
               {section === "home" && <Home companies={companies} users={users} loading={loading} go={go} />}

@@ -343,7 +343,8 @@ function DocPanel({ companyId }) {
 
 /* ---------- the page ---------- */
 
-export default function BlueprintReview({ companies = [], onReload }) {
+export default function BlueprintReview({ companies = [], onReload, mode = "conference" }) {
+  const isApp = mode === "app";
   const sorted = useMemo(
     () => companies.slice().sort((a, b) => String(a.name || a.slug).localeCompare(String(b.name || b.slug))),
     [companies]
@@ -595,8 +596,8 @@ export default function BlueprintReview({ companies = [], onReload }) {
       <div className="sticky top-0 z-10 border-b border-slate-200/70 bg-white/85 px-8 py-4 backdrop-blur">
         <div className="mx-auto flex max-w-[1080px] flex-wrap items-center gap-4">
           <div>
-            <div className="text-[17px] font-extrabold tracking-tight text-slate-900">Blueprint Review</div>
-            <div className="text-[12px] text-slate-400">Review every extracted field before publishing — this is what the company will see.</div>
+            <div className="text-[17px] font-extrabold tracking-tight text-slate-900">{isApp ? "App Blueprint" : "Conference Blueprint"}</div>
+            <div className="text-[12px] text-slate-400">{isApp ? "The investor-app profile — review every field, then preview App Mode." : "The conference booth — review the narrative + data, then preview Conference Mode."}</div>
           </div>
           <div className="ml-auto flex items-center gap-2">
             <select value={slug} onChange={(e) => setSlug(e.target.value)}
@@ -613,14 +614,14 @@ export default function BlueprintReview({ companies = [], onReload }) {
             {company && (
               <a href={`${PASSPORT_BASE}/app?c=${encodeURIComponent(slug)}${company.preview_token ? `&preview=${company.preview_token}` : ""}`}
                 target="_blank" rel="noreferrer"
-                className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-4 py-2 text-[13.5px] font-bold text-slate-700 hover:border-slate-500">
+                className={`inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-[13.5px] font-bold ${isApp ? "bg-indigo-600 text-white hover:bg-indigo-700" : "border border-slate-300 bg-white text-slate-700 hover:border-slate-500"}`}>
                 Preview App Mode ↗
               </a>
             )}
             {company && (
               <a href={`${PASSPORT_BASE}/app?c=${encodeURIComponent(slug)}&ipad=1&scene=1${company.preview_token ? `&preview=${company.preview_token}` : ""}`}
                 target="_blank" rel="noreferrer"
-                className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-[13.5px] font-bold text-white hover:bg-indigo-700">
+                className={`inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-[13.5px] font-bold ${isApp ? "border border-slate-300 bg-white text-slate-700 hover:border-slate-500" : "bg-indigo-600 text-white hover:bg-indigo-700"}`}>
                 Preview Conference Mode ↗
               </a>
             )}
