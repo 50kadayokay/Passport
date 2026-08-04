@@ -611,6 +611,13 @@ export default function BlueprintReview({ companies = [], onReload }) {
               </button>
             )}
             {company && (
+              <a href={`${PASSPORT_BASE}/app?c=${encodeURIComponent(slug)}${company.preview_token ? `&preview=${company.preview_token}` : ""}`}
+                target="_blank" rel="noreferrer"
+                className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-4 py-2 text-[13.5px] font-bold text-slate-700 hover:border-slate-500">
+                Preview App Mode ↗
+              </a>
+            )}
+            {company && (
               <a href={`${PASSPORT_BASE}/app?c=${encodeURIComponent(slug)}&ipad=1&scene=1${company.preview_token ? `&preview=${company.preview_token}` : ""}`}
                 target="_blank" rel="noreferrer"
                 className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-[13.5px] font-bold text-white hover:bg-indigo-700">
