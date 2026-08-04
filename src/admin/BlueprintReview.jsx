@@ -396,6 +396,27 @@ export default function BlueprintReview({ companies = [], onReload }) {
     setPromptCopied(label); setTimeout(() => setPromptCopied(""), 2500);
   };
 
+  // Copy the current profile as compact JSON — the ideal input for the Conference pass
+  // (which reuses the existing profile) and for re-running any pass. Strips the derived
+  // `pp` and any base64 image data URLs so it's small and textual (well under the paste limit).
+  const copyProfileJson = async () => {
+    const clean = JSON.parse(JSON.stringify(profile || {}));
+    delete clean.pp;
+    const strip = (o) => {
+      if (Array.isArray(o)) o.forEach(strip);
+      else if (o && typeof o === "object") for (const k of Object.keys(o)) {
+        if (typeof o[k] === "string" && o[k].startsWith("data:")) o[k] = "";
+        else strip(o[k]);
+      }
+    };
+    strip(clean);
+    const text = JSON.stringify(clean);
+    try {
+      await navigator.clipboard.writeText(text);
+      setLoadMsg({ ok: true, text: `Profile JSON copied (${Math.round(text.length / 1000)}k chars). Paste it into ChatGPT with the Conference prompt — no documents needed.` });
+    } catch (e) { setLoadMsg({ ok: false, text: "Couldn't copy — your browser blocked clipboard access." }); }
+  };
+
   const loadText = (text) => {
     const parsed = parseImport(text || "");
     if (!parsed.ok) { setLoadMsg({ ok: false, text: parsed.error }); return; }
@@ -663,6 +684,15 @@ export default function BlueprintReview({ companies = [], onReload }) {
                 ))}
                 <button onClick={() => setShowInfo((v) => !v)} title="How to use this"
                   className={`grid h-7 w-7 place-items-center rounded-full border text-[13px] font-bold italic ${showInfo ? "border-slate-900 bg-slate-900 text-white" : "border-slate-300 text-slate-500 hover:border-slate-500 hover:text-slate-700"}`}>i</button>
+              </div>
+              {/* Conference pass reuses the existing profile — feed it the profile JSON, not the giant docs. */}
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <span className="text-[11.5px] font-bold uppercase tracking-wide text-indigo-400">For the Conference pass:</span>
+                <button onClick={copyProfileJson}
+                  className="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-[12.5px] font-bold text-indigo-700 hover:bg-indigo-100">
+                  Copy profile JSON
+                </button>
+                <span className="text-[11.5px] text-slate-400">Paste this + the Conference prompt into ChatGPT (no documents needed).</span>
               </div>
 
               {showInfo && (
