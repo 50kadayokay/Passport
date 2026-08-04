@@ -611,17 +611,17 @@ export default function BlueprintReview({ companies = [], onReload, mode = "conf
                 {dupState === "busy" ? "Duplicating…" : "Duplicate to draft"}
               </button>
             )}
-            {company && (
+            {company && isApp && (
               <a href={`${PASSPORT_BASE}/app?c=${encodeURIComponent(slug)}${company.preview_token ? `&preview=${company.preview_token}` : ""}`}
                 target="_blank" rel="noreferrer"
-                className={`inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-[13.5px] font-bold ${isApp ? "bg-indigo-600 text-white hover:bg-indigo-700" : "border border-slate-300 bg-white text-slate-700 hover:border-slate-500"}`}>
+                className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-[13.5px] font-bold text-white hover:bg-indigo-700">
                 Preview App Mode ↗
               </a>
             )}
-            {company && (
+            {company && !isApp && (
               <a href={`${PASSPORT_BASE}/app?c=${encodeURIComponent(slug)}&ipad=1&scene=1${company.preview_token ? `&preview=${company.preview_token}` : ""}`}
                 target="_blank" rel="noreferrer"
-                className={`inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-[13.5px] font-bold ${isApp ? "border border-slate-300 bg-white text-slate-700 hover:border-slate-500" : "bg-indigo-600 text-white hover:bg-indigo-700"}`}>
+                className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-[13.5px] font-bold text-white hover:bg-indigo-700">
                 Preview Conference Mode ↗
               </a>
             )}
