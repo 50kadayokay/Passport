@@ -79,5 +79,21 @@ export async function flushProfileAssets(profile) {
       if (isDataUrl(p.conference.images[k])) p.conference.images[k] = await flush(p.conference.images[k]);
     }
   }
+  // Safety net — flush ANY remaining data: URL anywhere in the profile (covers newer conference
+  // per-section / per-project galleries and any future image field) so the jsonb never keeps base64.
+  const walk = async (node) => {
+    if (Array.isArray(node)) {
+      for (let i = 0; i < node.length; i++) {
+        if (isDataUrl(node[i])) node[i] = await flush(node[i]);
+        else if (node[i] && typeof node[i] === "object") await walk(node[i]);
+      }
+    } else if (node && typeof node === "object") {
+      for (const k of Object.keys(node)) {
+        if (isDataUrl(node[k])) node[k] = await flush(node[k]);
+        else if (node[k] && typeof node[k] === "object") await walk(node[k]);
+      }
+    }
+  };
+  await walk(p);
   return p;
 }

@@ -7548,11 +7548,16 @@ function SceneProjectStory({ project, label, calloutsFor, fallbackImg, id, conf 
   const n = paras.length;
   const touch = useRef(null);
   const go = (d) => setI((x) => Math.max(0, Math.min(n - 1, x + d)));
-  const img = (Array.isArray(project.gallery) && project.gallery[0] && S(project.gallery[0].src)) || fallbackImg || "";
   // Per-project widget curation (Blueprint: conference.projectWidgets/projectWidgetKeys[key]).
   // When this project has been curated, its selected badges become the callouts; otherwise the
   // auto callouts stand. `conf.projectTakeaways[key]` adds an optional one-line investor takeaway.
   const pjk = S(project.key) || S(project.name).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  // Per-project images: prefer the conference gallery (conference.projectGallery[key]) over the
+  // shared project gallery. First image is the scene background; the rest become thumbnails.
+  const gsrc = (g) => S(typeof g === "string" ? g : g && g.src);
+  const pjGallery = (conf && conf.projectGallery && Array.isArray(conf.projectGallery[pjk]) && conf.projectGallery[pjk].length)
+    ? conf.projectGallery[pjk] : (Array.isArray(project.gallery) ? project.gallery : []);
+  const img = (pjGallery[0] && gsrc(pjGallery[0])) || fallbackImg || "";
   const snapVal = (needle) => { const s = (Array.isArray(project.snap) ? project.snap : []).find((x) => new RegExp(needle, "i").test(S(x.label))); return s ? S(s.value) : ""; };
   const curated = conf && conf.projectWidgetKeys && conf.projectWidgetKeys[pjk];
   const projWidgets = curated ? resolveProjectWidgets(pjk, {
@@ -7605,10 +7610,10 @@ function SceneProjectStory({ project, label, calloutsFor, fallbackImg, id, conf 
             </div>
           ) : null;
         })()}
-        {Array.isArray(project.gallery) && project.gallery.length > 1 && (
+        {pjGallery.length > 1 && (
           <div style={{ display: "flex", gap: 12, marginTop: 26, flexWrap: "wrap" }}>
-            {project.gallery.slice(1, 5).map((g, k) => (S(g && g.src) ? (
-              <div key={k} style={{ width: 150, height: 96, borderRadius: 14, overflow: "hidden", border: "1px solid rgba(255,255,255,0.2)", flexShrink: 0 }}><img src={S(g.src)} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /></div>
+            {pjGallery.slice(1, 5).map((g, k) => (gsrc(g) ? (
+              <div key={k} style={{ width: 150, height: 96, borderRadius: 14, overflow: "hidden", border: "1px solid rgba(255,255,255,0.2)", flexShrink: 0 }}><img src={gsrc(g)} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /></div>
             ) : null))}
           </div>
         )}
@@ -7732,6 +7737,25 @@ function ConferenceScenes() {
   const heroStat = (text, dark = true) => (!S(text) ? null : (
     <Reveal v="head"><div style={{ marginTop: 14, fontSize: "clamp(22px,2.8vw,40px)", fontWeight: 900, letterSpacing: "-0.02em", lineHeight: 1.08, color: dark ? "#fff" : "#0f172a", borderLeft: `3px solid ${dark ? EM : EM_TEXT}`, paddingLeft: 16, maxWidth: 940 }}>{S(text)}</div></Reveal>
   ));
+  // Per-section images (Blueprint: conference.gallery[section] arrays, + legacy conference.images[section]).
+  // A responsive grid rendered at the foot of a scene. Optional; renders only when images exist.
+  const boothGallery = (sections, dark = true) => {
+    const keys = Array.isArray(sections) ? sections : [sections];
+    const imgs = [];
+    keys.forEach((sec) => {
+      const legacy = conf.images && conf.images[sec]; if (S(legacy)) imgs.push(S(legacy));
+      const arr = conf.gallery && Array.isArray(conf.gallery[sec]) ? conf.gallery[sec] : [];
+      arr.forEach((g) => { const s = S(typeof g === "string" ? g : g && g.src); if (s) imgs.push(s); });
+    });
+    const uniq = [...new Set(imgs)].slice(0, 6);
+    if (!uniq.length) return null;
+    const border = dark ? "1px solid rgba(255,255,255,0.1)" : "1px solid rgba(15,23,42,0.1)";
+    return (
+      <div style={{ display: "grid", gridTemplateColumns: uniq.length === 1 ? "1fr" : "repeat(auto-fit, minmax(280px, 1fr))", gap: 16, marginTop: 40, maxWidth: 1200 }}>
+        {uniq.map((src, i) => (<Reveal key={i} v="card" order={Math.min(i, 3)}><div style={{ borderRadius: 18, overflow: "hidden", border }}><img src={src} alt="" style={{ display: "block", width: "100%", maxHeight: uniq.length === 1 ? "52vh" : "34vh", objectFit: "cover" }} /></div></Reveal>))}
+      </div>
+    );
+  };
 
   // Featured milestones — look up the profile's timeline entries by date (text reused VERBATIM).
   const featuredMilestones = (() => {
@@ -7870,6 +7894,7 @@ function ConferenceScenes() {
           </div>
         ) : null;
       })()}
+      {boothGallery(["overview", "company"])}
     </SceneShell>
   );
 
@@ -7888,6 +7913,7 @@ function ConferenceScenes() {
           </div></Reveal>
         ))}
       </div>
+      {boothGallery("highlights")}
     </SceneShell>
   );
 
@@ -7915,7 +7941,7 @@ function ConferenceScenes() {
         {S(regionBody) && <Reveal v="body" order={1}><div style={{ fontSize: "clamp(17px,1.9vw,23px)", fontWeight: 500, lineHeight: 1.5, color: "#dbe2ec", marginTop: 22, maxWidth: 1000 }}>{S(regionBody)}</div></Reveal>}
         {S(conf.districtContext) && <Reveal v="body" order={2}><div style={{ fontSize: 15.5, color: "#93a0b0", marginTop: 18, maxWidth: 980, lineHeight: 1.55 }}><b style={{ color: EM }}>District — </b>{S(conf.districtContext)}</div></Reveal>}
         {S(conf.regionalGeology) && <Reveal v="body" order={3}><div style={{ fontSize: 15.5, color: "#93a0b0", marginTop: 14, maxWidth: 980, lineHeight: 1.55 }}><b style={{ color: EM }}>Regional geology — </b>{S(conf.regionalGeology)}</div></Reveal>}
-        {S((conf.images || {}).jurisdiction) && <Reveal v="media"><div style={{ marginTop: 36, borderRadius: 20, overflow: "hidden", border: "1px solid rgba(255,255,255,0.1)", maxWidth: 1100 }}><img src={S(conf.images.jurisdiction)} alt="Regional / district map" style={{ display: "block", width: "100%", maxHeight: "48vh", objectFit: "cover" }} /></div></Reveal>}
+        {boothGallery("jurisdiction")}
         {infraFacts.length > 0 && (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 16, marginTop: 40 }}>
             {infraFacts.map((f, i) => (
@@ -8087,7 +8113,7 @@ function ConferenceScenes() {
             </div>
           </div>
         )}
-        {S((conf.images || {}).results) && <Reveal v="media"><div style={{ marginTop: 36, borderRadius: 20, overflow: "hidden", border: "1px solid rgba(255,255,255,0.1)", maxWidth: 1100 }}><img src={S(conf.images.results)} alt="Cross-section / resource model" style={{ display: "block", width: "100%", maxHeight: "46vh", objectFit: "cover" }} /></div></Reveal>}
+        {boothGallery("results")}
         {S(met.testwork) && <Reveal v="body" order={3}><div style={{ marginTop: 34, fontSize: 15, color: "#8493a8", maxWidth: 940, lineHeight: 1.5 }}><b style={{ color: "#c4cdd9" }}>Metallurgy: </b>{S(met.testwork)}</div></Reveal>}
       </SceneShell>
     );
@@ -8176,6 +8202,7 @@ function ConferenceScenes() {
             </div>
           ) : null;
         })()}
+        {boothGallery("capital")}
       </SceneShell>
     );
   }
@@ -8224,6 +8251,7 @@ function ConferenceScenes() {
             })}
           </div>
         )}
+        {boothGallery("leadership", false)}
       </SceneShell>
     );
     else if (leaders.length) scenes.push(
@@ -8310,6 +8338,7 @@ function ConferenceScenes() {
             </div>
           </div>
         )}
+        {boothGallery("why")}
       </SceneShell>
     );
   }
@@ -8338,7 +8367,11 @@ function ConferenceScenes() {
 
   // SECTION 10 — CONVERSION & PASSPORT QR HANDOFF
   scenes.push(
-    <SceneShell key="cta" id="follow" bg={`radial-gradient(1200px 520px at 80% -10%, ${EM}26, transparent), #05070d`} color="#fff">
+    <SceneShell key="cta" id="follow" color="#fff" bg={(() => {
+      const g = conf.gallery && Array.isArray(conf.gallery.follow) && conf.gallery.follow[0];
+      const src = g ? (typeof g === "string" ? g : S(g.src)) : "";
+      return src ? `linear-gradient(rgba(5,7,13,0.72), rgba(5,7,13,0.9)), url("${src}") center/cover` : `radial-gradient(1200px 520px at 80% -10%, ${EM}26, transparent), #05070d`;
+    })()}>
       <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 64, alignItems: "center" }}>
         <div>
           <Reveal v="eyebrow"><div style={sceneEyebrow(EM)}>Continue the Story</div></Reveal>

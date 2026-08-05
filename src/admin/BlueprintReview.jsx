@@ -530,6 +530,65 @@ function ImageSlot({ title, help, tall, gallery, round, value, onChange, maxDim 
   );
 }
 
+// Multi-image gallery uploader — drag & drop (or click) one or MANY images. Stores an array of
+// { src } (data URLs until Save, then flushed to Storage). Add / remove / reorder. Wire with
+// `images` (the array) + `onChange(nextArray)`.
+function GallerySlot({ title, help, images, onChange, max = 12 }) {
+  const [busy, setBusy] = useState(false);
+  const [drag, setDrag] = useState(false);
+  const inputRef = useRef(null);
+  const list = (Array.isArray(images) ? images : []).map((g) => (typeof g === "string" ? { src: g } : g)).filter((g) => g && g.src);
+  const addFiles = async (files) => {
+    const arr = Array.from(files || []).filter((f) => f && f.type && f.type.startsWith("image/"));
+    if (!arr.length) return;
+    setBusy(true);
+    try {
+      const next = list.slice();
+      for (const f of arr) { if (next.length >= max) break; next.push({ src: await fileToScaledDataUrl(f, 1400) }); }
+      onChange(next);
+    } finally { setBusy(false); }
+  };
+  const remove = (i) => onChange(list.filter((_, idx) => idx !== i));
+  const move = (i, dir) => { const j = i + dir; if (j < 0 || j >= list.length) return; const c = list.slice(); const t = c[i]; c[i] = c[j]; c[j] = t; onChange(c); };
+  return (
+    <div className={`rounded-2xl border bg-white p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)] ${list.length ? "border-emerald-300 ring-1 ring-emerald-100" : "border-slate-200/70"}`}>
+      <div className="flex items-baseline justify-between gap-3">
+        <h3 className="text-[15px] font-bold text-slate-900">{title}</h3>
+        <span className="text-[11px] font-semibold text-slate-400">{list.length}{max ? ` / ${max}` : ""}</span>
+      </div>
+      {help && <p className="mt-0.5 text-[12.5px] leading-relaxed text-slate-400">{help}</p>}
+      {list.length > 0 && (
+        <div className="mt-4 grid grid-cols-3 gap-2.5 sm:grid-cols-4">
+          {list.map((g, i) => (
+            <div key={i} className="group relative aspect-[4/3] overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+              <img src={g.src} alt="" className="h-full w-full object-cover" />
+              <div className="absolute inset-x-0 bottom-0 flex items-center justify-between gap-1 bg-gradient-to-t from-black/60 to-transparent p-1.5 opacity-0 transition-opacity group-hover:opacity-100">
+                <div className="flex gap-1">
+                  <button type="button" onClick={() => move(i, -1)} disabled={i === 0} title="Move left" className="grid h-6 w-6 place-items-center rounded bg-white/90 text-slate-600 disabled:opacity-30"><ChevronUp size={13} style={{ transform: "rotate(-90deg)" }} /></button>
+                  <button type="button" onClick={() => move(i, 1)} disabled={i === list.length - 1} title="Move right" className="grid h-6 w-6 place-items-center rounded bg-white/90 text-slate-600 disabled:opacity-30"><ChevronDown size={13} style={{ transform: "rotate(-90deg)" }} /></button>
+                </div>
+                <button type="button" onClick={() => remove(i)} title="Remove" className="grid h-6 w-6 place-items-center rounded bg-white/90 text-rose-500 hover:bg-white"><X size={13} /></button>
+              </div>
+              {i === 0 && <span className="absolute left-1.5 top-1.5 rounded bg-emerald-500 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white">Lead</span>}
+            </div>
+          ))}
+        </div>
+      )}
+      <div
+        onClick={() => inputRef.current && inputRef.current.click()}
+        onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
+        onDragLeave={() => setDrag(false)}
+        onDrop={(e) => { e.preventDefault(); setDrag(false); addFiles(e.dataTransfer.files); }}
+        className={`mt-3 flex h-24 cursor-pointer flex-col items-center justify-center gap-1.5 rounded-2xl border-2 border-dashed bg-slate-50/60 text-slate-400 ${drag ? "border-indigo-400 bg-indigo-50/60" : "border-slate-200 hover:border-slate-300"}`}
+      >
+        <UploadCloud size={22} strokeWidth={1.5} />
+        <p className="text-[12.5px] font-semibold text-slate-400">{busy ? "Uploading…" : "Drag & drop images, or click to add"}</p>
+      </div>
+      <input ref={inputRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => { addFiles(e.target.files); e.target.value = ""; }} />
+    </div>
+  );
+}
+
 function Pills({ title, help, items }) {
   const list = (Array.isArray(items) ? items : []).filter(Boolean);
   return (
@@ -1225,6 +1284,7 @@ export default function BlueprintReview({ companies = [], onReload, mode = "conf
                 { label: "Label", value: get(p, "conference.heroStatistic.label") },
                 { label: "Context", value: get(p, "conference.heroStatistic.context") },
               ]} />
+            <GallerySlot title="Additional Images" help="Optional extra hero / brand images beyond the logo and hero above." images={get(conf, "gallery.company")} onChange={(v) => setVal("conference.gallery.company", v)} />
           </Slide>
 
           {/* PAGE 2 — COMPANY OVERVIEW */}
@@ -1244,7 +1304,7 @@ export default function BlueprintReview({ companies = [], onReload, mode = "conf
                 landPackage: get(p, "projects[0].snapshot.landPackage.value"),
                 headquarters: firstOf(cmp.headquarters, get(p, "company.location")),
               }} />
-            <ImageSlot title="Hero Image" help="Large supporting image for this page." tall />
+            <GallerySlot title="Images" help="Supporting company / project images for this page — drag & drop one or many. First image is the lead." images={get(conf, "gallery.overview")} onChange={(v) => setVal("conference.gallery.overview", v)} />
           </Slide>
 
           {/* PAGE 3 — HIGHLIGHTS */}
@@ -1253,13 +1313,14 @@ export default function BlueprintReview({ companies = [], onReload, mode = "conf
               path="conference.highlights" records={conf.highlights} setVal={setVal} featureLabel="hero stat" addLabel="Add highlight"
               fields={[{ name: "value", label: "Stat (short)", strong: true }, { name: "label", label: "Label" }, { name: "context", label: "Context — why it matters", kind: "area" }]} />
             <Field title="Highlights Summary" help="A short editorial paragraph explaining why these highlights matter." value={conf.highlightsIntro} big />
+            <GallerySlot title="Images" help="Optional supporting images for the highlights page." images={get(conf, "gallery.highlights")} onChange={(v) => setVal("conference.gallery.highlights", v)} />
           </Slide>
 
           {/* PAGE 4 — JURISDICTION */}
           <Slide n={4} kicker="Page 4" title="Jurisdiction" purpose="Explain why the jurisdiction matters.">
             <EditField title="Hero Statistic" help="The page's defining phrase — the strongest geographic identity (mining district, mineral belt, or a major regional production figure). e.g. “Heart of the Parral Silver District”." value={conf.jurisdictionHeroStat} onChange={(v) => setVal("conference.jurisdictionHeroStat", v)} placeholder="e.g. Tier-1 mining district" />
             <Field title="Jurisdiction Overview" help="Editorial paragraph on the region and why it's favorable." value={firstOf(conf.region, conf.districtContext)} big />
-            <ImageSlot title="Jurisdiction Image" help="Map or regional photo." tall />
+            <GallerySlot title="Maps & Images" help="Regional / district / infrastructure maps and photos — drag & drop one or many." images={get(conf, "gallery.jurisdiction")} onChange={(v) => setVal("conference.gallery.jurisdiction", v)} />
             <WidgetPool page="jurisdiction" conf={conf} setVal={setVal}
               auto={{
                 country: get(p, "company.country"),
@@ -1315,7 +1376,7 @@ export default function BlueprintReview({ companies = [], onReload, mode = "conf
                         targets: get(pr, "targets.priority"),
                       }} />
                     <EditField title="Investor Takeaway" help="One line — the single strongest thing about this project (optional)." value={get(conf, `projectTakeaways.${pjk}`)} onChange={(v) => setVal(`conference.projectTakeaways.${pjk}`, v)} placeholder="e.g. Bonanza-grade discovery, open in all directions" />
-                    <ImageSlot title="Project Images" help="Gallery — drag & drop, carousel preview." gallery tall />
+                    <GallerySlot title="Project Images" help="Property / geology / core / drone photos for this project — drag & drop one or many. First is the scene background." images={get(conf, `projectGallery.${pjk}`)} onChange={(v) => setVal(`conference.projectGallery.${pjk}`, v)} />
                   </div>
                 </div>
                 );
@@ -1334,7 +1395,7 @@ export default function BlueprintReview({ companies = [], onReload, mode = "conf
                 currentProgram: conf.currentActivity,
                 resourceStatus: get(p, "projects[0].resource.category"),
               }} />
-            <ImageSlot title="Core Images" help="Core / drill photo gallery." gallery tall />
+            <GallerySlot title="Technical Images" help="Assay tables, drill plans, cross-sections, core photos, resource models — drag & drop one or many." images={get(conf, "gallery.results")} onChange={(v) => setVal("conference.gallery.results", v)} />
           </Slide>
 
           {/* PAGE 7 — TIMELINE */}
@@ -1371,13 +1432,14 @@ export default function BlueprintReview({ companies = [], onReload, mode = "conf
                 debt: cap.debt,
                 balanceSheetDate: cap.reportingDate,
               }} />
-            <ImageSlot title="Ownership Visualization" help="Ownership breakdown bar (rendered from ownership data)." />
+            <GallerySlot title="Images" help="Optional capital-structure / ownership charts or images." images={get(conf, "gallery.capital")} onChange={(v) => setVal("conference.gallery.capital", v)} />
           </Slide>
 
           {/* PAGE 9 — LEADERSHIP */}
           <Slide n={9} kicker="Page 9" title="Leadership" purpose="Introduce management.">
             <EditField title="Credibility Line" help="Optional hero phrase for the page — e.g. “150+ Years Combined Experience”. Only if supportable; never fabricated." value={firstOf(get(p, "conference.leadership.heroStatistic"), get(p, "conference.leadership.headline"))} onChange={(v) => setVal("conference.leadership.heroStatistic", v)} placeholder="e.g. 150+ years combined experience" />
             <LeadershipPool team={team} conf={conf} setVal={setVal} />
+            <GallerySlot title="Images" help="Optional team / office / site photos for the leadership page." images={get(conf, "gallery.leadership")} onChange={(v) => setVal("conference.gallery.leadership", v)} />
           </Slide>
 
           {/* PAGE 10 — WHY INVEST */}
@@ -1387,6 +1449,7 @@ export default function BlueprintReview({ companies = [], onReload, mode = "conf
             <RecordPool title="Reasons to Invest" help="Every extracted reason is a card. Check the strongest to show, ★ the lead reason, reorder, or add your own. Established reasons — not forward-looking promises."
               path="conference.investmentCase" records={conf.investmentCase} setVal={setVal} featureLabel="lead reason" addLabel="Add reason"
               fields={[{ name: "reason", label: "Reason", strong: true }, { name: "evidence", label: "Evidence", kind: "area" }, { name: "standsOutBecause", label: "Stands out because…", kind: "area" }]} />
+            <GallerySlot title="Images" help="Optional closing / summary images for the Why Invest page." images={get(conf, "gallery.why")} onChange={(v) => setVal("conference.gallery.why", v)} />
           </Slide>
 
           {/* PAGE 11 — FOLLOW */}
@@ -1400,6 +1463,7 @@ export default function BlueprintReview({ companies = [], onReload, mode = "conf
                 <p className="text-[12px] font-semibold">Generated at publish</p>
               </div>
             </div>
+            <GallerySlot title="Background Image" help="Optional full-bleed background behind the closing follow screen." images={get(conf, "gallery.follow")} onChange={(v) => setVal("conference.gallery.follow", v)} max={1} />
           </Slide>
           </TemplateBoundary>
 
