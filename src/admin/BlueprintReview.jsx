@@ -200,32 +200,39 @@ function WidgetPool({ page, conf, auto = {}, setVal }) {
     else base.push(k); // append → new picks land at the end of the render order
     setVal(`conference.${page}WidgetKeys`, base);
   };
+  const anyFilled = pool.some((w) => !isEmpty(valueOf(w.key)));
   return (
-    <div className="rounded-2xl border border-slate-200/70 bg-white p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+    <div className={`rounded-2xl border bg-white p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)] ${anyFilled ? "border-emerald-300 ring-1 ring-emerald-100" : "border-slate-200/70"}`}>
       <div className="flex items-baseline justify-between gap-3">
         <h3 className="text-[15px] font-bold text-slate-900">Widgets</h3>
         <span className="text-[11px] font-semibold text-slate-400">{shownCount} shown · {pool.length} options</span>
       </div>
       <p className="mt-0.5 text-[12.5px] leading-relaxed text-slate-400">
-        Toggle which badges appear on this page. Every option is extracted; check the ones to show, or type a value where AI found nothing.
+        Each stat is its own widget. Check the ones to show on the booth; type a value where AI found nothing.
       </p>
-      <div className="mt-4 space-y-2">
+      {/* Same compact stat-card grid as the rest of the Blueprint — each card just gains a show
+          toggle and an inline-editable value (borderless so it reads like the value until focused). */}
+      <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
         {pool.map((w) => {
           const val = valueOf(w.key);
           const empty = isEmpty(val);
           const on = isOn(w.key);
           const overridden = !isEmpty(store[w.key]);
           return (
-            <div key={w.key} className={`flex items-center gap-3 rounded-xl border px-3 py-2 ${on ? "border-emerald-300 bg-emerald-50/40" : "border-slate-200 bg-slate-50"}`}>
-              <input type="checkbox" checked={on} onChange={() => toggle(w.key)} className="h-4 w-4 flex-shrink-0 accent-emerald-600" title={on ? "Shown on the booth" : "Hidden"} />
-              <div className="w-40 flex-shrink-0 text-[11.5px] font-bold uppercase tracking-wide text-slate-500">{w.label}</div>
+            <div key={w.key} className={`rounded-xl px-4 py-3.5 transition-opacity ${on ? "bg-slate-50" : "bg-slate-50/50 opacity-55"}`}>
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0 truncate text-[11px] font-bold uppercase tracking-wide text-slate-400" title={w.label}>{w.label}</div>
+                <div className="flex flex-shrink-0 items-center gap-1.5">
+                  {overridden && <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" title="Manually entered / overrides the auto value" />}
+                  <input type="checkbox" checked={on} onChange={() => toggle(w.key)} className="h-3.5 w-3.5 accent-emerald-600" title={on ? "Shown on the booth" : "Hidden"} />
+                </div>
+              </div>
               <input
                 value={toText(val)}
                 onChange={(e) => setVal(`conference.${page}Widgets.${w.key}`, e.target.value)}
-                placeholder={empty ? "Not found — enter manually" : ""}
-                className={`min-w-0 flex-1 rounded-lg border bg-white px-3 py-1.5 text-[14px] font-semibold outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-200 ${empty ? "border-amber-200 text-slate-900 placeholder:font-normal placeholder:italic placeholder:text-amber-500" : "border-slate-200 text-slate-900"}`}
+                placeholder={empty ? "—" : ""}
+                className={`mt-1 w-full rounded-md bg-transparent text-[16px] font-extrabold text-slate-900 outline-none focus:bg-white focus:px-2 focus:py-1 focus:ring-1 focus:ring-emerald-200 ${empty ? "placeholder:font-extrabold placeholder:text-slate-300" : ""}`}
               />
-              {overridden && <span className="flex-shrink-0 text-[10px] font-bold uppercase tracking-wide text-emerald-500" title="Manually entered / overrides the auto value">edited</span>}
             </div>
           );
         })}
