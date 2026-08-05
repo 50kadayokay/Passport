@@ -22,6 +22,7 @@ import {
   Heart, Telescope, ArrowDownUp, Quote, Phone, Mail, Twitter, Linkedin, LogOut
 } from "lucide-react";
 import { signOut, getUser } from "../lib/auth.js";
+import { resolveWidgets, widgetText } from "../lib/conferenceWidgets.js";
 
 /* ============================================================
    PASSPORT — Light FinTech Aesthetic
@@ -7789,13 +7790,32 @@ function ConferenceScenes() {
       {S(conf.mission) && <Reveal v="body" order={1}><div style={{ fontSize: 17, color: "#c4cdd9", marginTop: 22, maxWidth: 960, lineHeight: 1.55, fontStyle: "italic" }}>{S(conf.mission)}</div></Reveal>}
       {S(conf.macroContext) && <Reveal v="body" order={2}><div style={{ fontSize: 15.5, color: "#8493a8", marginTop: 18, maxWidth: 920, lineHeight: 1.55 }}>{S(conf.macroContext)}</div></Reveal>}
       {(() => {
-        const facts = [
+        // Widget pool (Blueprint-curated): show the reviewer's selected badges, or — when
+        // uncurated — every candidate that resolves to a value, capped at 8. Falls back to the
+        // original hand-picked facts if the pool is empty (e.g. a company with no conference data).
+        const auto = {
+          commodity: S(co.commodity),
+          flagship: S(flagship.name),
+          stage: S(co.stage),
+          operationsLocation: S(flagship.locationFull) || S(co.location),
+          jurisdiction: S(co.jurisdiction),
+          currentActivity: S(conf.currentActivity),
+          assets: projects.length ? String(projects.length) : "",
+          ownership: snapValFor(flagship, "ownership") || S(cap.ownership),
+          landPackage: snapValFor(flagship, "land"),
+          headquarters: S(co.headquarters),
+        };
+        // Opt-in: the pool only drives the grid once this page has been extracted/curated in the
+        // Blueprint (conf.overviewWidgets / overviewWidgetKeys). Otherwise the original facts stand.
+        const curated = !!(conf.overviewWidgets || conf.overviewWidgetKeys);
+        const pool = curated ? resolveWidgets("overview", auto, conf).slice(0, 8) : [];
+        const facts = (pool.length ? pool.map((w) => ({ k: w.label, v: widgetText(w.value) })) : [
           { k: "Headquarters", v: S(co.headquarters) },
           { k: "Commodities", v: S(co.commodity) },
           { k: "Flagship", v: S(flagship.name) },
           { k: "Portfolio", v: projects.length > 1 ? `${projects.length} projects` : (projects.length === 1 ? "Single asset" : "") },
           { k: "Stage", v: S(co.stage) },
-        ].filter((f) => S(f.v));
+        ]).filter((f) => S(f.v));
         return facts.length ? (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 14, marginTop: 40 }}>
             {facts.map((f, i) => (
@@ -7832,12 +7852,18 @@ function ConferenceScenes() {
   {
     const infra = flagship.infrastructure || {};
     const regionBody = S(conf.region) || S(infra.notes) || (Array.isArray(flagship.narrative) ? S(flagship.narrative[0]) : "");
-    const infraFacts = [
+    const jurAuto = {
+      provinceState: S(co.jurisdiction),
+      infrastructure: [S(infra.road) && "Road", S(infra.power) && "Power", S(infra.water) && "Water"].filter(Boolean).join(" · "),
+    };
+    const jurCurated = !!(conf.jurisdictionWidgets || conf.jurisdictionWidgetKeys);
+    const jurPool = jurCurated ? resolveWidgets("jurisdiction", jurAuto, conf).slice(0, 8) : [];
+    const infraFacts = (jurPool.length ? jurPool.map((w) => ({ k: w.label, v: widgetText(w.value) })) : [
       { k: "Jurisdiction", v: S(co.jurisdiction) },
       { k: "Access", v: S(infra.road) },
       { k: "Power", v: S(infra.power) },
       { k: "Water", v: S(infra.water) },
-    ].filter((f) => S(f.v));
+    ]).filter((f) => S(f.v));
     if (S(regionBody) || S(conf.districtContext) || S(conf.regionalGeology) || infraFacts.length) scenes.push(
       <SceneShell key="jurisdiction" bg="#0b1220" color="#fff">
         <Reveal v="eyebrow"><div style={sceneEyebrow(EM)}>Jurisdiction</div></Reveal>
@@ -7871,6 +7897,24 @@ function ConferenceScenes() {
         <Reveal v="eyebrow"><div style={sceneEyebrow(EM)}>Portfolio</div></Reveal>
         <Reveal v="head"><div style={{ fontSize: "clamp(30px,4vw,58px)", fontWeight: 800, letterSpacing: "-0.03em", marginTop: 14 }}>{S(conf.portfolioTitle) || `${ordered.length} Projects`}</div></Reveal>
         {S(conf.portfolioOverview) && <Reveal v="body" order={1}><div style={{ fontSize: "clamp(17px,1.9vw,23px)", fontWeight: 500, lineHeight: 1.5, color: "#dbe2ec", marginTop: 22, maxWidth: 1000 }}>{S(conf.portfolioOverview)}</div></Reveal>}
+        {(() => {
+          const pfAuto = {
+            flagship: S(flagship.name), numProjects: String(ordered.length), commodity: S(co.commodity),
+            stage: S(co.stage), ownership: snapValFor(flagship, "ownership"), landPackage: snapValFor(flagship, "land"),
+            jurisdiction: S(co.jurisdiction), activePrograms: S(conf.currentActivity),
+          };
+          const pf = (conf.portfolioWidgets || conf.portfolioWidgetKeys) ? resolveWidgets("portfolio", pfAuto, conf).slice(0, 8) : [];
+          return pf.length ? (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 14, marginTop: 36 }}>
+              {pf.map((w, i) => (
+                <Reveal key={w.key} v="card" order={Math.min(i, 4)}><div style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 16, padding: "14px 16px" }}>
+                  <div style={{ fontSize: 10.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.1em", color: EM }}>{w.label}</div>
+                  <div style={{ fontSize: 15, fontWeight: 700, marginTop: 6, color: "#e6ebf2", lineHeight: 1.35 }}>{widgetText(w.value)}</div>
+                </div></Reveal>
+              ))}
+            </div>
+          ) : null;
+        })()}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 18, marginTop: 40 }}>
           {ordered.map((pj, pi) => {
             const cs = calloutsFor(pj);
@@ -7927,6 +7971,30 @@ function ConferenceScenes() {
       <SceneShell key="results" bg="#05070d" color="#fff">
         <Reveal v="eyebrow"><div style={sceneEyebrow(EM)}>{drillRows.length && !items.length ? "Drill Results" : title}</div></Reveal>
         {S(conf.resultsIntro) && <Reveal v="head"><div style={{ fontSize: "clamp(22px,2.6vw,34px)", fontWeight: 500, letterSpacing: "-0.02em", lineHeight: 1.4, maxWidth: 1000, marginTop: 16, color: "#dbe2ec" }}>{S(conf.resultsIntro)}</div></Reveal>}
+        {Array.isArray(conf.resultsWidgetKeys) && conf.resultsWidgetKeys.length > 0 && (() => {
+          // Curated results badges — only when the reviewer explicitly picked widgets (the scene
+          // below already carries the technical proof, so this stays opt-in to avoid duplication).
+          const rAuto = {
+            bestResult: drillRows[0] ? [S(drillRows[0].hole), S(drillRows[0].interval), S(drillRows[0].grade)].filter(Boolean).join(" · ") : "",
+            widestInterval: S(drillRows[0] && drillRows[0].interval),
+            currentProgram: S((flagship.drilling || {}).program) || S(conf.currentActivity),
+            drillingStatus: S((flagship.drilling || {}).phase),
+            holesCompleted: S((flagship.drilling || {}).holesCompleted),
+            assaysPending: S((flagship.drilling || {}).assaysPending),
+            resourceStatus: S(res.category),
+          };
+          const rp = resolveWidgets("results", rAuto, conf).slice(0, 6);
+          return rp.length ? (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))", gap: 14, marginTop: 32 }}>
+              {rp.map((w, i) => (
+                <Reveal key={w.key} v="card" order={Math.min(i, 4)}><div style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 16, padding: "14px 16px" }}>
+                  <div style={{ fontSize: 10.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.1em", color: EM }}>{w.label}</div>
+                  <div style={{ fontSize: 15, fontWeight: 700, marginTop: 6, color: "#e6ebf2", lineHeight: 1.35 }}>{widgetText(w.value)}</div>
+                </div></Reveal>
+              ))}
+            </div>
+          ) : null;
+        })()}
         {(() => {
           const d = flagship.drilling || {};
           const ds = [
@@ -7995,13 +8063,36 @@ function ConferenceScenes() {
 
   // SECTION 6 — CAPITAL DETAILS & FINANCIAL STRENGTH
   {
-    const capCells = [
+    // Capital widget pool (Blueprint-curated). Short numeric values become the big hero-number
+    // cells; longer text values (funding status, latest financing) render as a compact badge row
+    // so the giant nowrap number style never overflows. Falls back to the legacy cells when the
+    // company has no conference capital data yet.
+    const capAuto = {
+      fundingStatus: fundedLine || S(capStatus.label),
+      cash: S(co.cash),
+      workingCapital: S(cap.workingCapital),
+      latestFinancing: Array.isArray(cap.financing) ? "" : S(cap.financing),
+      shares: S(cap.outstanding),
+      fd: S(cap.fd),
+      ownership: S(cap.ownership),
+      warrants: S(cap.warrants),
+      options: S(cap.options),
+      debt: S(cap.debt),
+      balanceSheetDate: S(cap.reportingDate),
+    };
+    const capCurated = !!(conf.capitalWidgets || conf.capitalWidgetKeys);
+    const capPool = capCurated ? resolveWidgets("capital", capAuto, conf) : [];
+    const capShort = (v) => { const s = widgetText(v); return s.length <= 16 && /\d/.test(s); };
+    const legacyCells = [
       S(co.cash) && { v: S(co.cash), l: fundedLine || "Treasury" },
       S(cap.outstanding) && { v: S(cap.outstanding), l: "Shares Outstanding" },
       S(cap.fd) && { v: S(cap.fd), l: "Fully Diluted" },
       S(co.marketCap || cap.marketCap) && { v: S(co.marketCap || cap.marketCap), l: "Market Cap" },
     ].filter(Boolean);
-    if (capCells.length || ownershipHas || S(conf.capitalIntro)) scenes.push(
+    const capCells = (capPool.length ? capPool.filter((w) => capShort(w.value)).map((w) => ({ v: widgetText(w.value), l: w.label })) : legacyCells).slice(0, 4);
+    // Longer text badges — skip strategicInvestors (rendered by the partnerships block below).
+    const capBadges = capPool.filter((w) => !capShort(w.value) && w.key !== "strategicInvestors").map((w) => ({ k: w.label, v: widgetText(w.value) })).slice(0, 6);
+    if (capCells.length || capBadges.length || ownershipHas || S(conf.capitalIntro)) scenes.push(
       <SceneShell key="capital" id="capital" bg="#05070d" color="#fff">
         <Reveal v="eyebrow"><div style={sceneEyebrow(EM)}>Capital</div></Reveal>
         {S(conf.capitalIntro) && <Reveal v="head"><div style={{ fontSize: "clamp(22px,2.6vw,34px)", fontWeight: 500, lineHeight: 1.4, maxWidth: 1000, marginTop: 16, color: "#dbe2ec" }}>{S(conf.capitalIntro)}</div></Reveal>}
@@ -8011,6 +8102,16 @@ function ConferenceScenes() {
               <Reveal key={i} v="card" order={Math.min(i, 3)}><div>
                 <div style={{ fontSize: "clamp(30px,3.6vw,52px)", fontWeight: 900, letterSpacing: "-0.03em", lineHeight: 1.02, whiteSpace: "nowrap" }}><CountUp value={it.v} /></div>
                 <div style={{ fontSize: 14, fontWeight: 700, color: "#93a0b0", marginTop: 12, textTransform: "uppercase", letterSpacing: "0.08em" }}>{it.l}</div>
+              </div></Reveal>
+            ))}
+          </div>
+        )}
+        {capBadges.length > 0 && (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 16, marginTop: capCells.length ? 28 : 44 }}>
+            {capBadges.map((f, i) => (
+              <Reveal key={i} v="card" order={Math.min(i, 3)}><div style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 16, padding: "16px 18px", height: "100%" }}>
+                <div style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.1em", color: EM }}>{f.k}</div>
+                <div style={{ fontSize: 15.5, fontWeight: 700, marginTop: 7, color: "#e6ebf2", lineHeight: 1.4 }}>{f.v}</div>
               </div></Reveal>
             ))}
           </div>

@@ -19,6 +19,7 @@ import { authHeaders } from "../lib/auth.js";
 import { saveProfileSafely, isProtectedSlug } from "../lib/profileSafety.js";
 import { listVersions, restoreVersion } from "../lib/profileVersions.js";
 import { flushProfileAssets } from "../lib/storage.js";
+import { CONF_WIDGET_POOLS } from "../lib/conferenceWidgets.js";
 
 // Scale an uploaded image down and return a data URL (persisted to Storage on Save via
 // flushProfileAssets). Mirrors ProfileEditor's helper so booth assets upload the same way.
@@ -164,6 +165,67 @@ function Widgets({ title, help, items }) {
             <div key={i} className="rounded-xl bg-slate-50 px-4 py-3.5">
               <div className="text-[11px] font-bold uppercase tracking-wide text-slate-400">{it.label}</div>
               <div className={`mt-1 text-[16px] font-extrabold ${empty ? "italic text-slate-300" : "text-slate-900"}`}>{empty ? "—" : toText(it.value)}</div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// The widget candidate pool for a conference page. Renders the FULL ordered pool from the
+// shared catalog (CONF_WIDGET_POOLS[page]). Each candidate shows:
+//   • an include checkbox → writes conference.<page>.selectedWidgetKeys (which widgets the
+//     booth renders, and in what order). Deselecting NEVER deletes the value.
+//   • an inline value input → writes conference.<page>.widgets[key] (manual entry / override).
+// `auto` is a { key: value } map the caller resolves from the shared profile; it's shown as the
+// live fallback so the reviewer can see what the booth would auto-derive, and enter a value only
+// where extraction came up empty. When no selection is stored yet, everything with a value is
+// treated as "on" (matching the renderer's un-curated fallback).
+function WidgetPool({ page, conf, auto = {}, setVal }) {
+  const pool = CONF_WIDGET_POOLS[page] || [];
+  const store = (conf && conf[`${page}Widgets`]) || {};
+  const valueOf = (k) => (isEmpty(store[k]) ? auto[k] : store[k]);
+  const rawSel = conf && conf[`${page}WidgetKeys`];
+  const storedSel = Array.isArray(rawSel) ? rawSel : null;
+  const isOn = (k) => (storedSel ? storedSel.includes(k) : !isEmpty(valueOf(k)));
+  const shownCount = pool.filter((w) => isOn(w.key)).length;
+  const toggle = (k) => {
+    // Materialize the current effective selection, then flip this key. Once the reviewer
+    // touches selection it becomes explicit (stored), so future auto-values don't silently
+    // reappear on the booth.
+    const base = storedSel ? storedSel.slice() : pool.filter((w) => !isEmpty(valueOf(w.key))).map((w) => w.key);
+    const i = base.indexOf(k);
+    if (i >= 0) base.splice(i, 1);
+    else base.push(k); // append → new picks land at the end of the render order
+    setVal(`conference.${page}WidgetKeys`, base);
+  };
+  return (
+    <div className="rounded-2xl border border-slate-200/70 bg-white p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+      <div className="flex items-baseline justify-between gap-3">
+        <h3 className="text-[15px] font-bold text-slate-900">Widgets</h3>
+        <span className="text-[11px] font-semibold text-slate-400">{shownCount} shown · {pool.length} options</span>
+      </div>
+      <p className="mt-0.5 text-[12.5px] leading-relaxed text-slate-400">
+        Toggle which badges appear on this page. Every option is extracted; check the ones to show, or type a value where AI found nothing.
+      </p>
+      <div className="mt-4 space-y-2">
+        {pool.map((w) => {
+          const val = valueOf(w.key);
+          const empty = isEmpty(val);
+          const on = isOn(w.key);
+          const overridden = !isEmpty(store[w.key]);
+          return (
+            <div key={w.key} className={`flex items-center gap-3 rounded-xl border px-3 py-2 ${on ? "border-emerald-300 bg-emerald-50/40" : "border-slate-200 bg-slate-50"}`}>
+              <input type="checkbox" checked={on} onChange={() => toggle(w.key)} className="h-4 w-4 flex-shrink-0 accent-emerald-600" title={on ? "Shown on the booth" : "Hidden"} />
+              <div className="w-40 flex-shrink-0 text-[11.5px] font-bold uppercase tracking-wide text-slate-500">{w.label}</div>
+              <input
+                value={toText(val)}
+                onChange={(e) => setVal(`conference.${page}Widgets.${w.key}`, e.target.value)}
+                placeholder={empty ? "Not found — enter manually" : ""}
+                className={`min-w-0 flex-1 rounded-lg border bg-white px-3 py-1.5 text-[14px] font-semibold outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-200 ${empty ? "border-amber-200 text-slate-900 placeholder:font-normal placeholder:italic placeholder:text-amber-500" : "border-slate-200 text-slate-900"}`}
+              />
+              {overridden && <span className="flex-shrink-0 text-[10px] font-bold uppercase tracking-wide text-emerald-500" title="Manually entered / overrides the auto value">edited</span>}
             </div>
           );
         })}
@@ -425,6 +487,8 @@ export default function BlueprintReview({ companies = [], onReload, mode = "conf
   const [touched, setTouched] = useState(false);
   // Set an image (or any) field on the working profile, live. Persisted to Storage on Save.
   const setImg = (path, val) => { setProfile((pr) => setProfilePath(pr, path, val)); setDirty(true); setTouched(true); };
+  // Generic field setter (widget values, selection arrays) — same live-and-persist path as setImg.
+  const setVal = (path, val) => { setProfile((pr) => setProfilePath(pr, path, val)); setDirty(true); setTouched(true); };
   // The booth logo doubles as the circular avatar — set both from one upload.
   const setLogo = (val) => { setProfile((pr) => setProfilePath(setProfilePath(pr, "brand.logo", val), "brand.avatar", val)); setDirty(true); setTouched(true); };
   const [versions, setVersions] = useState([]);     // profile version-history snapshots (newest first)
@@ -936,19 +1000,19 @@ export default function BlueprintReview({ companies = [], onReload, mode = "conf
           <Slide n={2} kicker="Page 2" title="Company Overview" purpose="Explain who the company is.">
             <Field title="Headline" help="Company positioning statement." value={firstOf(conf.hook, get(p, "companyStatus.statusHeadline"))} big />
             <Field title="Company Overview" help="One editorial paragraph describing what the company does, where it operates, and what sets it apart." value={firstOf(conf.overview, briefSection("what they do"), get(p, "companyBrief.sections[0].v"), get(p, "companyBrief.keyPoints[0]"))} big />
-            <Widgets title="Company Information" help="Key facts, each as its own widget."
-              items={[
-                { label: "Headquarters", value: firstOf(cmp.headquarters, get(p, "company.location")) },
-                { label: "Jurisdiction", value: firstOf(cmp.jurisdiction, get(p, "company.jurisdiction")) },
-                { label: "Commodity", value: get(p, "company.commodity") },
-                { label: "Primary Metal", value: firstOf(cmp.primaryCommodity, get(p, "company.commodity")) },
-                { label: "Stage", value: firstOf(get(p, "company.stage"), cmp.marketCapTier) },
-                { label: "Deposit Type", value: get(p, "projects[0].snapshot.depositType.value") },
-                { label: "Flagship Project", value: firstOf(conf.featuredProjectKey, get(p, "projects[0].name")) },
-                { label: "Secondary Project", value: get(p, "projects[1].name") },
-                { label: "Ownership", value: firstOf(cap.ownership, cmp.fundedStatus) },
-              ]}
-            />
+            <WidgetPool page="overview" conf={conf} setVal={setVal}
+              auto={{
+                commodity: firstOf(cmp.primaryCommodity, get(p, "company.commodity")),
+                flagship: firstOf(get(p, "projects[0].name"), conf.featuredProjectKey),
+                stage: firstOf(get(p, "company.stage"), cmp.marketCapTier),
+                operationsLocation: firstOf(get(p, "projects[0].locationFull"), get(p, "projects[0].snapshot.location.value"), get(p, "company.location")),
+                jurisdiction: firstOf(cmp.jurisdiction, get(p, "company.jurisdiction")),
+                currentActivity: firstOf(conf.currentActivity, get(p, "companyStatus.statusHeadline")),
+                assets: projects.length ? String(projects.length) : undefined,
+                ownership: firstOf(cap.ownership, get(p, "projects[0].snapshot.ownership.value")),
+                landPackage: get(p, "projects[0].snapshot.landPackage.value"),
+                headquarters: firstOf(cmp.headquarters, get(p, "company.location")),
+              }} />
             <ImageSlot title="Hero Image" help="Large supporting image for this page." tall />
           </Slide>
 
@@ -970,25 +1034,33 @@ export default function BlueprintReview({ companies = [], onReload, mode = "conf
           <Slide n={4} kicker="Page 4" title="Jurisdiction" purpose="Explain why the jurisdiction matters.">
             <Field title="Jurisdiction Overview" help="Editorial paragraph on the region and why it's favorable." value={firstOf(conf.region, conf.districtContext)} big />
             <ImageSlot title="Jurisdiction Image" help="Map or regional photo." tall />
-            <Widgets title="Jurisdiction Facts" help="Each fact as its own card."
-              items={[
-                { label: "Mining Friendly", value: cmp.jurisdictionRisk ? (cmp.jurisdictionRisk === "low" ? "Yes" : cmp.jurisdictionRisk) : undefined },
-                { label: "Road Access", value: undefined },
-                { label: "Power", value: undefined },
-                { label: "Infrastructure", value: undefined },
-                { label: "Permitting", value: undefined },
-                { label: "Political Stability", value: undefined },
-                { label: "Mining History", value: undefined },
-                { label: "Nearby Operators", value: undefined },
-              ]}
-            />
+            <WidgetPool page="jurisdiction" conf={conf} setVal={setVal}
+              auto={{
+                country: get(p, "company.country"),
+                district: conf.districtContext,
+                infrastructure: get(p, "projects[0].infrastructure.notes"),
+                permitting: get(p, "projects[0].snapshot.permitting.value"),
+                regionalGeology: conf.regionalGeology,
+                provinceState: firstOf(cmp.jurisdiction, get(p, "company.jurisdiction")),
+              }} />
           </Slide>
 
           {/* PAGE 5 — PROJECTS (repeats) */}
           <Slide n={5} kicker="Page 5" title="Projects" purpose="Every project becomes its own section.">
             {projects.length > 1 && (
-              <div className="mb-5">
+              <div className="mb-5 space-y-4">
                 <Field title="Portfolio Overview" help="One paragraph framing the whole portfolio — shown on a 'Portfolio' page before the individual projects (multi-asset companies only)." value={firstOf(conf.portfolioTitle && conf.portfolioOverview ? `${conf.portfolioTitle}\n\n${conf.portfolioOverview}` : undefined, conf.portfolioOverview, conf.portfolioTitle)} big />
+                <WidgetPool page="portfolio" conf={conf} setVal={setVal}
+                  auto={{
+                    flagship: firstOf(get(p, "projects[0].name"), conf.featuredProjectKey),
+                    numProjects: String(projects.length),
+                    commodity: firstOf(cmp.primaryCommodity, get(p, "company.commodity")),
+                    stage: firstOf(get(p, "company.stage"), cmp.marketCapTier),
+                    ownership: firstOf(cap.ownership, get(p, "projects[0].snapshot.ownership.value")),
+                    landPackage: get(p, "projects[0].snapshot.landPackage.value"),
+                    jurisdiction: firstOf(cmp.jurisdiction, get(p, "company.jurisdiction")),
+                    activePrograms: conf.currentActivity,
+                  }} />
               </div>
             )}
             {projects.length === 0 ? (
@@ -1020,15 +1092,13 @@ export default function BlueprintReview({ companies = [], onReload, mode = "conf
           {/* PAGE 6 — DRILL RESULTS */}
           <Slide n={6} kicker="Page 6" title="Drill Results" purpose="Display the best technical results.">
             <Field title="Featured Drill Result" help="The single most important hole, summarized." value={firstOf(conf.resultsIntro, get(p, "projects[0].drillResults.rows[0].hole"))} big />
-            <Widgets title="Key Results" help="Each headline result as its own card."
-              items={[
-                { label: "Best Hole", value: get(p, "projects[0].drillResults.rows[0].hole") },
-                { label: "Top Interval", value: get(p, "projects[0].drillResults.rows[0].interval") },
-                { label: "Top Grade", value: get(p, "projects[0].drillResults.rows[0].grade") },
-                { label: "Discovery Hole", value: undefined },
-                { label: "Latest Result", value: undefined },
-              ]}
-            />
+            <WidgetPool page="results" conf={conf} setVal={setVal}
+              auto={{
+                bestResult: (() => { const r = get(p, "projects[0].drillResults.rows[0]"); return r ? [r.hole, r.interval, r.grade].filter(Boolean).join(" · ") : undefined; })(),
+                widestInterval: get(p, "projects[0].drillResults.rows[0].interval"),
+                currentProgram: conf.currentActivity,
+                resourceStatus: get(p, "projects[0].resource.category"),
+              }} />
             <ImageSlot title="Core Images" help="Core / drill photo gallery." gallery tall />
           </Slide>
 
@@ -1050,18 +1120,21 @@ export default function BlueprintReview({ companies = [], onReload, mode = "conf
           {/* PAGE 8 — CAPITAL */}
           <Slide n={8} kicker="Page 8" title="Capital" purpose="Summarize company finances.">
             <Field title="Capital Overview" help="Editorial paragraph on the company's financial position." value={firstOf(conf.capitalIntro, cap.headline, cap.subtext)} big />
-            <Widgets title="Capital" help="Every statistic as its own card — verbatim from filings."
-              items={[
-                { label: "Cash", value: cap.cash },
-                { label: "Debt", value: cap.debt },
-                { label: "Shares Outstanding", value: cap.outstanding },
-                { label: "Fully Diluted", value: cap.fd },
-                { label: "Market Cap", value: cap.marketCap },
-                { label: "Working Capital", value: cap.workingCapital },
-                { label: "Share Price", value: cap.sharePrice },
-                { label: "Last Financing", value: firstOf(cap.financing, cap.financingType) },
-              ]}
-            />
+            <WidgetPool page="capital" conf={conf} setVal={setVal}
+              auto={{
+                fundingStatus: firstOf(cmp.fundedStatus, cap.state),
+                cash: cap.cash,
+                workingCapital: cap.workingCapital,
+                latestFinancing: firstOf(cap.financing, cap.financingType),
+                shares: cap.outstanding,
+                fd: cap.fd,
+                ownership: cap.ownership,
+                strategicInvestors: conf.strategicPartnerships,
+                warrants: cap.warrants,
+                options: cap.options,
+                debt: cap.debt,
+                balanceSheetDate: cap.reportingDate,
+              }} />
             <ImageSlot title="Ownership Visualization" help="Ownership breakdown bar (rendered from ownership data)." />
           </Slide>
 
