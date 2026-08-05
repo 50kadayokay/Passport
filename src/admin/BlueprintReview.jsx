@@ -12,7 +12,7 @@
 import React, { useMemo, useState, useEffect, useRef } from "react";
 import { Image as ImageIcon, QrCode, UploadCloud, Sparkles, Plus, X, Star, ChevronUp, ChevronDown } from "lucide-react";
 import { parseImport, applyImport } from "../lib/profileImport.js";
-import { promptForPass, CONFERENCE_PROMPT, CONFERENCE_SECTIONS, conferenceSectionPrompt } from "./promptTemplate.js";
+import { promptForPass, CONFERENCE_PROMPT, CONFERENCE_SECTIONS, conferenceSectionPrompt, conferenceFullPrompt } from "./promptTemplate.js";
 import { updateCompany, createCompany } from "../lib/supabase.js";
 import { mapProfileToPP } from "../lib/profileToPP.js";
 import { authHeaders } from "../lib/auth.js";
@@ -842,6 +842,16 @@ export default function BlueprintReview({ companies = [], onReload, mode = "conf
     setTimeout(() => URL.revokeObjectURL(url), 1000);
     setPromptCopied(label); setTimeout(() => setPromptCopied(""), 2500);
   };
+  // One prompt for the WHOLE booth — attach it + ALL documents to a single ChatGPT chat and it
+  // returns one conference.json covering every section (no per-section round-trips).
+  const downloadFullPrompt = () => {
+    const url = URL.createObjectURL(new Blob([conferenceFullPrompt()], { type: "text/markdown" }));
+    const a = document.createElement("a");
+    a.href = url; a.download = `conference-FULL-prompt.md`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    setPromptCopied("Full prompt"); setTimeout(() => setPromptCopied(""), 2500);
+  };
 
   const loadText = (text) => {
     const parsed = parseImport(text || "");
@@ -1230,8 +1240,20 @@ export default function BlueprintReview({ companies = [], onReload, mode = "conf
                   down this list — each is a small prompt that fills one page. */}
               {!isApp && (
               <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+                {/* One-shot path: a single prompt + all docs → one conference.json. */}
+                <div className="mb-4 rounded-xl border border-indigo-200 bg-indigo-50/70 p-3.5">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="text-[13px] font-extrabold text-indigo-800">Fastest: do it all in one pass</div>
+                      <div className="text-[12px] leading-snug text-indigo-700/80">Download this one prompt, attach it + <b>all</b> the company's documents to a single ChatGPT chat, and it returns one <code>conference.json</code> covering every section. Then <b>Load JSON file</b> once — no per-section round-trips.</div>
+                    </div>
+                    <button onClick={downloadFullPrompt} className="flex-shrink-0 rounded-lg bg-indigo-600 px-3.5 py-2 text-[12.5px] font-bold text-white hover:bg-indigo-700">
+                      {promptCopied === "Full prompt" ? "Downloaded ✓" : "Get FULL prompt"}
+                    </button>
+                  </div>
+                </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-[12px] font-extrabold uppercase tracking-wide text-slate-500">Build the booth — one page at a time</span>
+                  <span className="text-[12px] font-extrabold uppercase tracking-wide text-slate-500">…or build the booth one page at a time</span>
                   <span className={`text-[11.5px] font-bold ${confDoneCount === CONFERENCE_SECTIONS.length ? "text-emerald-600" : "text-slate-400"}`}>{confDoneCount}/{CONFERENCE_SECTIONS.length} pages done</span>
                 </div>
                 <div className="mt-3 grid gap-2">

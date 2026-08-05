@@ -2473,3 +2473,47 @@ OUTPUT — fill this exact JSON shape ${fillFrom} (null / [] where unsupported).
 ${JSON.stringify(s.skeleton, null, 2)}
 `;
 }
+
+// Deep-merge two skeleton shapes (objects recurse; arrays merge their first example element).
+function mergeSkeleton(a, b) {
+  if (Array.isArray(a) && Array.isArray(b)) {
+    if (!a.length) return b.slice();
+    const out = a.slice();
+    if (a[0] && b[0] && typeof a[0] === "object" && typeof b[0] === "object") out[0] = mergeSkeleton(a[0], b[0]);
+    return out;
+  }
+  if (a && b && typeof a === "object" && typeof b === "object" && !Array.isArray(a) && !Array.isArray(b)) {
+    const out = { ...a };
+    for (const k of Object.keys(b)) out[k] = k in a ? mergeSkeleton(a[k], b[k]) : b[k];
+    return out;
+  }
+  // Both are placeholders — keep a non-empty example over an empty one.
+  return (a === "" || a === null || a === undefined) ? b : a;
+}
+
+// ONE prompt for the WHOLE booth: attach this + ALL the company's documents to a single ChatGPT
+// chat and it returns one complete JSON covering every section — no per-section round-trips.
+export function conferenceFullPrompt() {
+  const docSections = CONFERENCE_SECTIONS.filter((s) => !s.useProfile);
+  const profileSections = CONFERENCE_SECTIONS.filter((s) => s.useProfile);
+  const fullSkeleton = docSections.reduce((acc, s) => mergeSkeleton(acc, s.skeleton), {});
+  const guides = docSections.map((s) => `### ${s.n}. ${s.label}\n(best source: ${s.docs})\n${s.guide}`).join("\n\n");
+  const profileNote = profileSections.length
+    ? `\nNOTE — these sections are NOT covered here because they read the company's EXISTING Passport timeline, which a fresh extraction doesn't have yet: ${profileSections.map((s) => s.label).join(", ")}. Build the Timeline in the App Blueprint first, then run that one small pass separately.\n`
+    : "";
+  return `You are building an ENTIRE PASSPORT Conference Mode booth for a mining or resource company, in ONE pass.
+
+Attached to this chat are ALL of the company's documents (technical reports, corporate presentation, financial statements / MD&A, and news releases). Read across ALL of them and produce ONE JSON object that fills the complete shape at the bottom.
+
+${CONF_SECTION_RULES}
+- Each document type is authoritative for different fields: technical reports → geology / resources / grades / economics; financials & MD&A → cash / shares / financings; news releases → recent drill results / programs / financings / appointments; corporate presentation → the intended story, ordering, and which numbers management features.
+- Merge everything into the SINGLE object below. Keep a project's data together under one entry in "projects" (match by "key").
+${profileNote}
+FIELD GUIDANCE (by section)
+${guides}
+
+OUTPUT
+Because this is large, WRITE THE RESULT TO A DOWNLOADABLE JSON FILE named "conference.json" (do not paste it inline unless the file tool is unavailable). It must be ONE valid JSON object of exactly this shape — every field present, null / "" / [] where the documents don't support a value. No commentary, no markdown fences inside the file:
+${JSON.stringify(fullSkeleton, null, 2)}
+`;
+}
