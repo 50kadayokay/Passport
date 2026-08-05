@@ -12,7 +12,7 @@
 import React, { useMemo, useState, useEffect, useRef } from "react";
 import { Image as ImageIcon, QrCode, UploadCloud, Sparkles, Plus, X, Star, ChevronUp, ChevronDown } from "lucide-react";
 import { parseImport, applyImport } from "../lib/profileImport.js";
-import { promptForPass, CONFERENCE_PROMPT, CONFERENCE_SECTIONS, conferenceSectionPrompt, conferenceFullPrompt, CONFERENCE_BUNDLES, conferenceBundlePrompt } from "./promptTemplate.js";
+import { promptForPass, CONFERENCE_PROMPT, CONFERENCE_SECTIONS, conferenceSectionPrompt, conferenceFullPrompt } from "./promptTemplate.js";
 import { updateCompany, createCompany } from "../lib/supabase.js";
 import { mapProfileToPP } from "../lib/profileToPP.js";
 import { authHeaders } from "../lib/auth.js";
@@ -852,15 +852,6 @@ export default function BlueprintReview({ companies = [], onReload, mode = "conf
     setTimeout(() => URL.revokeObjectURL(url), 1000);
     setPromptCopied("Full prompt"); setTimeout(() => setPromptCopied(""), 2500);
   };
-  // One focused prompt per document-type bundle (technical / capital / story).
-  const downloadBundlePrompt = (bundle) => {
-    const url = URL.createObjectURL(new Blob([conferenceBundlePrompt(bundle.id)], { type: "text/markdown" }));
-    const a = document.createElement("a");
-    a.href = url; a.download = `conference-bundle-${bundle.id}-prompt.md`;
-    document.body.appendChild(a); a.click(); document.body.removeChild(a);
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-    setPromptCopied(bundle.label); setTimeout(() => setPromptCopied(""), 2500);
-  };
 
   const loadText = (text) => {
     const parsed = parseImport(text || "");
@@ -1249,21 +1240,17 @@ export default function BlueprintReview({ companies = [], onReload, mode = "conf
                   down this list — each is a small prompt that fills one page. */}
               {!isApp && (
               <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
-                {/* Recommended: a few bundles grouped by document type, so no single ChatGPT chat
-                    is overloaded with a full technical report + presentation + financials at once. */}
+                {/* One-shot path: a single prompt + all docs → one conference.json. */}
                 <div className="mb-4 rounded-xl border border-indigo-200 bg-indigo-50/70 p-3.5">
-                  <div className="text-[13px] font-extrabold text-indigo-800">Recommended: extract in 3 passes, grouped by document</div>
-                  <div className="mt-0.5 text-[12px] leading-snug text-indigo-700/80">ChatGPT can't absorb every document at once, so each pass takes only the documents it needs. Download a prompt → new ChatGPT chat → attach it + just those docs → Load the JSON. Three chats instead of nine.</div>
-                  <div className="mt-3 grid gap-2 sm:grid-cols-3">
-                    {CONFERENCE_BUNDLES.map((b) => (
-                      <button key={b.id} onClick={() => downloadBundlePrompt(b)} title={b.docs}
-                        className="rounded-xl border border-indigo-200 bg-white px-3 py-2.5 text-left hover:border-indigo-400 hover:bg-indigo-50">
-                        <div className="flex items-center gap-2 text-[12.5px] font-bold text-indigo-800"><span className="grid h-5 w-5 flex-shrink-0 place-items-center rounded-full bg-indigo-600 text-[11px] text-white">{b.n}</span>{promptCopied === b.label ? "Downloaded ✓" : b.label}</div>
-                        <div className="mt-1 text-[11px] leading-snug text-slate-500">{b.docs}</div>
-                      </button>
-                    ))}
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="text-[13px] font-extrabold text-indigo-800">Fastest: do it all in one pass</div>
+                      <div className="text-[12px] leading-snug text-indigo-700/80">Download this one prompt, attach it + <b>all</b> the company's documents to a single ChatGPT chat, and it returns one <code>conference.json</code> covering every section. Then <b>Load JSON file</b> once — no per-section round-trips.</div>
+                    </div>
+                    <button onClick={downloadFullPrompt} className="flex-shrink-0 rounded-lg bg-indigo-600 px-3.5 py-2 text-[12.5px] font-bold text-white hover:bg-indigo-700">
+                      {promptCopied === "Full prompt" ? "Downloaded ✓" : "Get FULL prompt"}
+                    </button>
                   </div>
-                  <div className="mt-2.5 text-[11px] text-indigo-700/70">Then run <b>Milestones</b> (below) once your timeline exists. · Prefer a single file? <button onClick={downloadFullPrompt} className="font-bold underline hover:text-indigo-900">Get one FULL prompt</button> (only if ChatGPT can read all docs at once).</div>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-[12px] font-extrabold uppercase tracking-wide text-slate-500">…or build the booth one page at a time</span>
