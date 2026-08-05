@@ -13,5 +13,3 @@ dist/
 Passport_ai_brief__1_.html
 .vercel
 .env*
-/imports/
-tools/conference-runner/.env
