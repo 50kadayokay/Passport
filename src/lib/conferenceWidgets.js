@@ -25,6 +25,15 @@
 // every candidate that has a value" so nothing breaks for un-curated companies.
 export const widgetsKey = (page) => `${page}Widgets`;
 export const widgetKeysKey = (page) => `${page}WidgetKeys`;
+// Reviewer-authored custom widgets (beyond the fixed pool): conference.<page>CustomWidgets is an
+// array of { key, label }. Their values live in the same <page>Widgets map and they select/order
+// through <page>WidgetKeys just like catalog widgets.
+export const customWidgetsKey = (page) => `${page}CustomWidgets`;
+// The effective candidate pool for a page = fixed catalog + any reviewer-added custom widgets.
+export function widgetPool(pageKey, conf = {}) {
+  const custom = conf && Array.isArray(conf[customWidgetsKey(pageKey)]) ? conf[customWidgetsKey(pageKey)] : [];
+  return [...(CONF_WIDGET_POOLS[pageKey] || []), ...custom.filter((w) => w && w.key)];
+}
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Ordered candidate pools, verbatim from the spec's widget-priority lists.
@@ -118,7 +127,7 @@ export function widgetText(v) {
 // Returns [{ key, label, value }] — already filtered to the selection (or, when no
 // selection is stored, to every candidate that has a value) and ordered.
 export function resolveWidgets(pageKey, auto = {}, conf = {}) {
-  const pool = CONF_WIDGET_POOLS[pageKey] || [];
+  const pool = widgetPool(pageKey, conf);
   const store = (conf && conf[widgetsKey(pageKey)]) || {};
   const valueOf = (k) => {
     const explicit = store[k];

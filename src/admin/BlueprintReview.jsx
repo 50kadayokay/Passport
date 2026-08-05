@@ -10,7 +10,7 @@
 // uploads land in a follow-up; the placeholders here are exactly the spec's empty state.
 
 import React, { useMemo, useState, useEffect, useRef } from "react";
-import { Image as ImageIcon, QrCode, UploadCloud, Sparkles } from "lucide-react";
+import { Image as ImageIcon, QrCode, UploadCloud, Sparkles, Plus, X } from "lucide-react";
 import { parseImport, applyImport } from "../lib/profileImport.js";
 import { promptForPass, CONFERENCE_PROMPT, CONFERENCE_SECTIONS, conferenceSectionPrompt } from "./promptTemplate.js";
 import { updateCompany, createCompany } from "../lib/supabase.js";
@@ -19,7 +19,7 @@ import { authHeaders } from "../lib/auth.js";
 import { saveProfileSafely, isProtectedSlug } from "../lib/profileSafety.js";
 import { listVersions, restoreVersion } from "../lib/profileVersions.js";
 import { flushProfileAssets } from "../lib/storage.js";
-import { CONF_WIDGET_POOLS } from "../lib/conferenceWidgets.js";
+import { widgetPool } from "../lib/conferenceWidgets.js";
 
 // Scale an uploaded image down and return a data URL (persisted to Storage on Save via
 // flushProfileAssets). Mirrors ProfileEditor's helper so booth assets upload the same way.
@@ -183,13 +183,16 @@ function Widgets({ title, help, items }) {
 // where extraction came up empty. When no selection is stored yet, everything with a value is
 // treated as "on" (matching the renderer's un-curated fallback).
 function WidgetPool({ page, conf, auto = {}, setVal }) {
-  const pool = CONF_WIDGET_POOLS[page] || [];
+  const custom = Array.isArray(conf && conf[`${page}CustomWidgets`]) ? conf[`${page}CustomWidgets`] : [];
+  const pool = widgetPool(page, conf);           // fixed catalog + reviewer-added custom widgets
+  const customKeys = new Set(custom.map((w) => w && w.key));
   const store = (conf && conf[`${page}Widgets`]) || {};
   const valueOf = (k) => (isEmpty(store[k]) ? auto[k] : store[k]);
   const rawSel = conf && conf[`${page}WidgetKeys`];
   const storedSel = Array.isArray(rawSel) ? rawSel : null;
   const isOn = (k) => (storedSel ? storedSel.includes(k) : !isEmpty(valueOf(k)));
   const shownCount = pool.filter((w) => isOn(w.key)).length;
+  const setSel = (keys) => setVal(`conference.${page}WidgetKeys`, keys);
   const toggle = (k) => {
     // Materialize the current effective selection, then flip this key. Once the reviewer
     // touches selection it becomes explicit (stored), so future auto-values don't silently
@@ -198,7 +201,20 @@ function WidgetPool({ page, conf, auto = {}, setVal }) {
     const i = base.indexOf(k);
     if (i >= 0) base.splice(i, 1);
     else base.push(k); // append → new picks land at the end of the render order
-    setVal(`conference.${page}WidgetKeys`, base);
+    setSel(base);
+  };
+  // Add a blank custom widget (its own header + subtext), shown on the booth by default.
+  const addWidget = () => {
+    const nextId = `custom-${(custom.reduce((m, w) => Math.max(m, Number(String(w.key).replace(/\D/g, "")) || 0), 0)) + 1}`;
+    setVal(`conference.${page}CustomWidgets`, [...custom, { key: nextId, label: "" }]);
+    const base = storedSel ? storedSel.slice() : pool.filter((w) => !isEmpty(valueOf(w.key))).map((w) => w.key);
+    setSel([...base, nextId]);
+  };
+  const setCustomLabel = (key, label) => setVal(`conference.${page}CustomWidgets`, custom.map((w) => (w.key === key ? { ...w, label } : w)));
+  const removeWidget = (key) => {
+    setVal(`conference.${page}CustomWidgets`, custom.filter((w) => w.key !== key));
+    if (storedSel) setSel(storedSel.filter((k) => k !== key));
+    if (!isEmpty(store[key])) setVal(`conference.${page}Widgets.${key}`, "");
   };
   const anyFilled = pool.some((w) => !isEmpty(valueOf(w.key)));
   return (
@@ -218,24 +234,40 @@ function WidgetPool({ page, conf, auto = {}, setVal }) {
           const empty = isEmpty(val);
           const on = isOn(w.key);
           const overridden = !isEmpty(store[w.key]);
+          const isCustom = customKeys.has(w.key);
           return (
-            <div key={w.key} className={`rounded-xl px-4 py-3.5 transition-opacity ${on ? "bg-slate-50" : "bg-slate-50/50 opacity-55"}`}>
+            <div key={w.key} className={`rounded-xl px-4 py-3.5 transition-opacity ${on ? "bg-slate-50" : "bg-slate-50/50 opacity-55"} ${isCustom ? "ring-1 ring-inset ring-slate-200" : ""}`}>
               <div className="flex items-center justify-between gap-2">
-                <div className="min-w-0 truncate text-[11px] font-bold uppercase tracking-wide text-slate-400" title={w.label}>{w.label}</div>
+                {isCustom ? (
+                  <input
+                    value={toText(w.label)}
+                    onChange={(e) => setCustomLabel(w.key, e.target.value)}
+                    placeholder="HEADER"
+                    className="min-w-0 flex-1 rounded bg-transparent text-[11px] font-bold uppercase tracking-wide text-slate-500 outline-none focus:bg-white focus:px-1.5 focus:py-0.5 focus:ring-1 focus:ring-emerald-200 placeholder:text-slate-300"
+                  />
+                ) : (
+                  <div className="min-w-0 truncate text-[11px] font-bold uppercase tracking-wide text-slate-400" title={w.label}>{w.label}</div>
+                )}
                 <div className="flex flex-shrink-0 items-center gap-1.5">
-                  {overridden && <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" title="Manually entered / overrides the auto value" />}
+                  {overridden && !isCustom && <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" title="Manually entered / overrides the auto value" />}
+                  {isCustom && <button type="button" onClick={() => removeWidget(w.key)} className="text-slate-300 hover:text-rose-500" title="Remove this widget"><X size={13} /></button>}
                   <input type="checkbox" checked={on} onChange={() => toggle(w.key)} className="h-3.5 w-3.5 accent-emerald-600" title={on ? "Shown on the booth" : "Hidden"} />
                 </div>
               </div>
               <input
                 value={toText(val)}
                 onChange={(e) => setVal(`conference.${page}Widgets.${w.key}`, e.target.value)}
-                placeholder={empty ? "—" : ""}
+                placeholder={empty ? (isCustom ? "Subtext…" : "—") : ""}
                 className={`mt-1 w-full rounded-md bg-transparent text-[16px] font-extrabold text-slate-900 outline-none focus:bg-white focus:px-2 focus:py-1 focus:ring-1 focus:ring-emerald-200 ${empty ? "placeholder:font-extrabold placeholder:text-slate-300" : ""}`}
               />
             </div>
           );
         })}
+        {/* Add a reviewer-authored widget with its own header + subtext. */}
+        <button type="button" onClick={addWidget}
+          className="flex min-h-[64px] items-center justify-center gap-1.5 rounded-xl border border-dashed border-slate-300 px-4 py-3.5 text-[13px] font-bold text-slate-400 transition-colors hover:border-emerald-400 hover:bg-emerald-50/40 hover:text-emerald-600">
+          <Plus size={15} /> Add widget
+        </button>
       </div>
     </div>
   );
