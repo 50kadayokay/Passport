@@ -2517,3 +2517,39 @@ Because this is large, WRITE THE RESULT TO A DOWNLOADABLE JSON FILE named "confe
 ${JSON.stringify(fullSkeleton, null, 2)}
 `;
 }
+
+// Middle path — a handful of BUNDLES grouped by document type, so each ChatGPT chat only gets the
+// documents it needs (a full technical report + presentation + financials + every release at once
+// exceeds what ChatGPT can actually read). Collapses the 9 sections into ~3 focused passes.
+export const CONFERENCE_BUNDLES = [
+  { id: "technical", label: "Geology, Projects & Results", n: "A",
+    docs: "The technical report(s) + drill-result news releases. If you have several big reports, run this bundle once per report.",
+    sections: ["jurisdiction", "projects", "results"] },
+  { id: "capital", label: "Capital", n: "B",
+    docs: "Financial statements + MD&A + financing news releases only.",
+    sections: ["capital"] },
+  { id: "story", label: "Story, Team & Thesis", n: "C",
+    docs: "Corporate presentation + website team/about page. Also paste the company's profile JSON if it already exists (Copy profile JSON).",
+    sections: ["overview", "highlights", "leadership", "why"] },
+];
+
+// One prompt for a bundle: only its sections' guidance + a merged JSON shape for just those keys.
+export function conferenceBundlePrompt(bundleId) {
+  const b = CONFERENCE_BUNDLES.find((x) => x.id === bundleId) || CONFERENCE_BUNDLES[0];
+  const secs = b.sections.map((id) => CONFERENCE_SECTIONS.find((s) => s.id === id)).filter(Boolean);
+  const skeleton = secs.reduce((acc, s) => mergeSkeleton(acc, s.skeleton), {});
+  const guides = secs.map((s) => `### ${s.label}\n${s.guide}`).join("\n\n");
+  return `You are populating PART of a PASSPORT Conference Mode booth for a mining or resource company — the "${b.label}" group.
+
+DOCUMENTS TO USE (attach ONLY these to this chat): ${b.docs}
+
+${CONF_SECTION_RULES}
+- Keep each project's data together under one entry in "projects" (match by "key").
+
+FIELD GUIDANCE
+${guides}
+
+OUTPUT — fill this exact JSON shape from the documents (null / "" / [] where unsupported). If it's short, print it directly; if long, write it to a downloadable JSON file. ONE valid JSON object, no commentary, no markdown fences:
+${JSON.stringify(skeleton, null, 2)}
+`;
+}
