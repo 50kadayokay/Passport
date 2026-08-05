@@ -129,7 +129,7 @@ export default function MissionControl() {
           {section === "companies" ? <Admin /> : section === "onboarding" ? (
             <div className="h-full"><OnboardingEngine companies={companies} /></div>
           ) : section === "review-conference" ? (
-            <div className="h-full overflow-y-auto"><Blueprints companies={companies} focus="conference" /></div>
+            <div className="h-full min-h-0"><Blueprints companies={companies} focus="conference" /></div>
           ) : section === "review-app" ? (
             <div className="h-full"><BlueprintReview key="app" mode="app" companies={companies} onReload={loadData} /></div>
           ) : (

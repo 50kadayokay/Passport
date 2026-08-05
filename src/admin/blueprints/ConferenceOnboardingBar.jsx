@@ -20,7 +20,7 @@ function downloadPrompt(id) {
 }
 
 export default function ConferenceOnboardingBar({ company, onLoaded }) {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
   const [paste, setPaste] = useState("");
   const [msg, setMsg] = useState(null);
   const [busy, setBusy] = useState(false);

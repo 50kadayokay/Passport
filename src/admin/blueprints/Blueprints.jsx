@@ -83,13 +83,13 @@ export default function Blueprints({ companies = [], focus }) {
 
   if (open) {
     const Editor = open.type === "conference" ? ConferenceBlueprintEditor : PassportBlueprintEditor;
-    return <div className="h-[calc(100vh-0px)]"><Editor row={open.row} onBack={back}
+    return <div className="h-full min-h-0"><Editor row={open.row} onBack={back}
       onSaved={(saved) => saved && setOpen((o) => ({ ...o, row: saved }))}
       companySlug={open.company && open.company.slug} companyProfile={open.company && open.company.profile} canPublish={true} /></div>;
   }
 
   return (
-    <div className="p-6">
+    <div className="h-full overflow-y-auto p-6">
       <div className="mb-4 flex items-center justify-between">
         <div>
           <h2 className="text-[20px] font-extrabold tracking-tight text-slate-900">Conference Blueprints</h2>

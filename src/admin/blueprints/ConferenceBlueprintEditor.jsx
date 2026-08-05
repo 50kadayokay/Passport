@@ -162,8 +162,11 @@ export default function ConferenceBlueprintEditor({ row, onBack, onSaved, compan
       </div>
 
       {/* Onboarding steps — upload docs, run section prompts, load JSON into the profile,
-          then Re-sync into the blueprint. Same flow as the App Blueprint, at the top. */}
-      <ConferenceOnboardingBar company={{ id: row.company_id, slug: companySlug, profile: companyProfile }} onLoaded={() => setMsg("Loaded into profile — click Re-sync to pull it in.")} />
+          then Re-sync into the blueprint. Same flow as the App Blueprint, at the top.
+          flex-shrink-0 + capped height so it never squeezes out the workbench body. */}
+      <div className="flex-shrink-0 overflow-y-auto" style={{ maxHeight: "50vh" }}>
+        <ConferenceOnboardingBar company={{ id: row.company_id, slug: companySlug, profile: companyProfile }} onLoaded={() => setMsg("Loaded into profile — click Re-sync to pull it in.")} />
+      </div>
 
       <div className="flex min-h-0 flex-1">
         {/* page nav */}
