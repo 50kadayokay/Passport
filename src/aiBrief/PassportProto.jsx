@@ -22,7 +22,7 @@ import {
   Heart, Telescope, ArrowDownUp, Quote, Phone, Mail, Twitter, Linkedin, LogOut
 } from "lucide-react";
 import { signOut, getUser } from "../lib/auth.js";
-import { resolveWidgets, widgetText } from "../lib/conferenceWidgets.js";
+import { resolveWidgets, resolveProjectWidgets, widgetText } from "../lib/conferenceWidgets.js";
 
 /* ============================================================
    PASSPORT — Light FinTech Aesthetic
@@ -7541,7 +7541,7 @@ function SceneTimeline({ years }) {
 
 // Section 3 — the flagship project told as 2–3 swipeable NARRATIVE paragraphs over its image,
 // with callout facts and a "+N assets" pill for portfolio companies.
-function SceneProjectStory({ project, label, calloutsFor, fallbackImg, id }) {
+function SceneProjectStory({ project, label, calloutsFor, fallbackImg, id, conf = {} }) {
   const S = (x) => (x == null ? "" : String(x));
   const paras = (Array.isArray(project.narrative) ? project.narrative : []).map(S).filter(Boolean);
   const [i, setI] = useState(0);
@@ -7549,7 +7549,19 @@ function SceneProjectStory({ project, label, calloutsFor, fallbackImg, id }) {
   const touch = useRef(null);
   const go = (d) => setI((x) => Math.max(0, Math.min(n - 1, x + d)));
   const img = (Array.isArray(project.gallery) && project.gallery[0] && S(project.gallery[0].src)) || fallbackImg || "";
-  const callouts = calloutsFor(project);
+  // Per-project widget curation (Blueprint: conference.projectWidgets/projectWidgetKeys[key]).
+  // When this project has been curated, its selected badges become the callouts; otherwise the
+  // auto callouts stand. `conf.projectTakeaways[key]` adds an optional one-line investor takeaway.
+  const pjk = S(project.key) || S(project.name).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  const snapVal = (needle) => { const s = (Array.isArray(project.snap) ? project.snap : []).find((x) => new RegExp(needle, "i").test(S(x.label))); return s ? S(s.value) : ""; };
+  const curated = conf && conf.projectWidgetKeys && conf.projectWidgetKeys[pjk];
+  const projWidgets = curated ? resolveProjectWidgets(pjk, {
+    stage: S(project.stageName), commodity: snapVal("commodity"), ownership: snapVal("ownership"),
+    location: S(project.locationFull), landPackage: snapVal("land"), depositType: snapVal("deposit") || S((project.deposit || {}).type),
+    geologicalModel: S(project.geology),
+  }, conf) : [];
+  const callouts = projWidgets.length ? projWidgets.map((w) => ({ k: w.label, v: w.value })).slice(0, 6) : calloutsFor(project);
+  const takeaway = (conf && conf.projectTakeaways && S(conf.projectTakeaways[pjk])) || "";
   const navBtn = { height: 44, width: 44, borderRadius: 99, display: "grid", placeItems: "center", background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.22)", color: "#fff", cursor: "pointer" };
   const onStart = (e) => { touch.current = e.touches ? e.touches[0].clientX : e.clientX; };
   const onEnd = (e) => { if (touch.current == null) return; const x = e.changedTouches ? e.changedTouches[0].clientX : e.clientX; const dx = x - touch.current; if (n > 1 && Math.abs(dx) > 48) go(dx < 0 ? 1 : -1); touch.current = null; };
@@ -7560,6 +7572,7 @@ function SceneProjectStory({ project, label, calloutsFor, fallbackImg, id }) {
       <div style={{ position: "relative", maxWidth: 1240, margin: "0 auto", padding: "clamp(64px,9vh,120px) 56px", color: "#fff", minHeight: "100vh", display: "flex", flexDirection: "column", justifyContent: "center" }}>
         <Reveal v="eyebrow"><div style={sceneEyebrow(EM)}>{label || "Flagship Project"}</div></Reveal>
         <Reveal v="head"><div style={{ fontSize: "clamp(40px,6vw,84px)", fontWeight: 900, letterSpacing: "-0.04em", lineHeight: 1, marginTop: 14 }}>{S(project.name)}</div></Reveal>
+        {takeaway && <Reveal v="body" order={1}><div style={{ marginTop: 18, fontSize: "clamp(16px,1.8vw,21px)", fontWeight: 700, color: "#fff", borderLeft: `3px solid ${EM}`, paddingLeft: 14, maxWidth: 780, lineHeight: 1.4 }}>{takeaway}</div></Reveal>}
         {n > 0 && (
           <div key={i} style={{ marginTop: 28, maxWidth: 780, minHeight: 150 }}>
             <div style={{ fontSize: "clamp(18px,2vw,25px)", fontWeight: 500, lineHeight: 1.5, color: "#e6ebf2" }}>{paras[i]}</div>
@@ -7976,6 +7989,7 @@ function ConferenceScenes() {
         calloutsFor={calloutsFor}
         fallbackImg={hasHero ? STATUS_IMG : ""}
         id={(!multi && pi === 0) ? "projects" : undefined}
+        conf={conf}
       />
     ));
   }

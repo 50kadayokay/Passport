@@ -19,7 +19,7 @@ import { authHeaders } from "../lib/auth.js";
 import { saveProfileSafely, isProtectedSlug } from "../lib/profileSafety.js";
 import { listVersions, restoreVersion } from "../lib/profileVersions.js";
 import { flushProfileAssets } from "../lib/storage.js";
-import { widgetPool } from "../lib/conferenceWidgets.js";
+import { CONF_WIDGET_POOLS, widgetPool } from "../lib/conferenceWidgets.js";
 
 // Scale an uploaded image down and return a data URL (persisted to Storage on Save via
 // flushProfileAssets). Mirrors ProfileEditor's helper so booth assets upload the same way.
@@ -287,6 +287,50 @@ function WidgetPool({ page, conf, auto = {}, setVal }) {
           className="flex min-h-[64px] items-center justify-center gap-1.5 rounded-xl border border-dashed border-slate-300 px-4 py-3.5 text-[13px] font-bold text-slate-400 transition-colors hover:border-emerald-400 hover:bg-emerald-50/40 hover:text-emerald-600">
           <Plus size={15} /> Add widget
         </button>
+      </div>
+    </div>
+  );
+}
+
+// Per-project widget pool. Same select/manual-enter model as WidgetPool, but the fixed project
+// candidate pool and storage are scoped to one stable project key, in a conference-isolated
+// layer: conference.projectWidgets[projectKey] / projectWidgetKeys[projectKey]. Written only by
+// reviewer edits (never by pasted passes), so extracting projects one-at-a-time never clobbers.
+function ProjectWidgetPool({ projectKey, auto = {}, conf, setVal }) {
+  const pool = CONF_WIDGET_POOLS.project || [];
+  const store = (conf && conf.projectWidgets && conf.projectWidgets[projectKey]) || {};
+  const valueOf = (k) => (isEmpty(store[k]) ? auto[k] : store[k]);
+  const rawSel = conf && conf.projectWidgetKeys && conf.projectWidgetKeys[projectKey];
+  const storedSel = Array.isArray(rawSel) ? rawSel : null;
+  const isOn = (k) => (storedSel ? storedSel.includes(k) : !isEmpty(valueOf(k)));
+  const shownCount = pool.filter((w) => isOn(w.key)).length;
+  const toggle = (k) => {
+    const base = storedSel ? storedSel.slice() : pool.filter((w) => !isEmpty(valueOf(w.key))).map((w) => w.key);
+    const i = base.indexOf(k); if (i >= 0) base.splice(i, 1); else base.push(k);
+    setVal(`conference.projectWidgetKeys.${projectKey}`, base);
+  };
+  const anyFilled = pool.some((w) => !isEmpty(valueOf(w.key)));
+  return (
+    <div className={`rounded-2xl border bg-white p-4 shadow-[0_1px_2px_rgba(15,23,42,0.04)] ${anyFilled ? "border-emerald-300 ring-1 ring-emerald-100" : "border-slate-200/70"}`}>
+      <div className="flex items-baseline justify-between gap-3">
+        <h4 className="text-[13px] font-bold text-slate-900">Project Widgets</h4>
+        <span className="text-[11px] font-semibold text-slate-400">{shownCount} shown · {pool.length} options</span>
+      </div>
+      <p className="mt-0.5 text-[12px] leading-relaxed text-slate-400">Check the badges to show on this project's scene; type a value where AI found nothing.</p>
+      <div className="mt-3 grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+        {pool.map((w) => {
+          const val = valueOf(w.key); const empty = isEmpty(val); const on = isOn(w.key);
+          return (
+            <div key={w.key} className={`rounded-xl px-3 py-2.5 transition-opacity ${on ? "bg-slate-50" : "bg-slate-50/50 opacity-55"}`}>
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0 truncate text-[10.5px] font-bold uppercase tracking-wide text-slate-400" title={w.label}>{w.label}</div>
+                <input type="checkbox" checked={on} onChange={() => toggle(w.key)} className="h-3.5 w-3.5 accent-emerald-600" title={on ? "Shown on the booth" : "Hidden"} />
+              </div>
+              <input value={toText(val)} onChange={(e) => setVal(`conference.projectWidgets.${projectKey}.${w.key}`, e.target.value)} placeholder={empty ? "—" : ""}
+                className={`mt-1 w-full rounded-md bg-transparent text-[14px] font-extrabold text-slate-900 outline-none focus:bg-white focus:px-2 focus:py-1 focus:ring-1 focus:ring-emerald-200 ${empty ? "placeholder:font-extrabold placeholder:text-slate-300" : ""}`} />
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -1249,26 +1293,33 @@ export default function BlueprintReview({ companies = [], onReload, mode = "conf
             {projects.length === 0 ? (
               <Field title="Projects" help="Each project gets a name, summary, key details and an image gallery." value={undefined} />
             ) : (
-              projects.map((pr, i) => (
-                <div key={pr.key || i} className="rounded-2xl border border-slate-200/70 bg-slate-50/50 p-5">
-                  <div className="mb-4 text-[12px] font-bold uppercase tracking-[0.14em] text-slate-400">Project {i + 1}</div>
+              projects.map((pr, i) => {
+                const pjk = pr.key || String(pr.name || i).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+                return (
+                <div key={pjk} className="rounded-2xl border border-slate-200/70 bg-slate-50/50 p-5">
+                  <div className="mb-4 flex items-center justify-between">
+                    <span className="text-[12px] font-bold uppercase tracking-[0.14em] text-slate-400">Project {i + 1}{i === 0 ? " · Flagship" : ""}</span>
+                  </div>
                   <div className="space-y-4">
                     <Field title="Project Name" help="Property / project name." value={pr.name} big />
                     <Field title="Project Summary" help="One paragraph on what this project is and why it matters." value={firstOf(get(pr, "brief.overview"), Array.isArray(pr.narrative) ? pr.narrative.join("\n\n") : pr.narrative, pr.short)} big />
-                    <Widgets title="Key Details"
-                      items={[
-                        { label: "Ownership", value: get(pr, "snapshot.ownership.value") },
-                        { label: "Commodity", value: get(pr, "snapshot.commodity.value") },
-                        { label: "Stage", value: pr.stageName },
-                        { label: "Deposit Type", value: get(pr, "snapshot.depositType.value") },
-                        { label: "Location", value: firstOf(pr.locationFull, get(pr, "snapshot.location.value")) },
-                        { label: "Land Package", value: get(pr, "snapshot.landPackage.value") },
-                      ]}
-                    />
+                    <ProjectWidgetPool projectKey={pjk} conf={conf} setVal={setVal}
+                      auto={{
+                        stage: pr.stageName,
+                        commodity: get(pr, "snapshot.commodity.value"),
+                        ownership: get(pr, "snapshot.ownership.value"),
+                        location: firstOf(pr.locationFull, get(pr, "snapshot.location.value")),
+                        landPackage: get(pr, "snapshot.landPackage.value"),
+                        depositType: get(pr, "snapshot.depositType.value"),
+                        geologicalModel: get(pr, "geology"),
+                        targets: get(pr, "targets.priority"),
+                      }} />
+                    <EditField title="Investor Takeaway" help="One line — the single strongest thing about this project (optional)." value={get(conf, `projectTakeaways.${pjk}`)} onChange={(v) => setVal(`conference.projectTakeaways.${pjk}`, v)} placeholder="e.g. Bonanza-grade discovery, open in all directions" />
                     <ImageSlot title="Project Images" help="Gallery — drag & drop, carousel preview." gallery tall />
                   </div>
                 </div>
-              ))
+                );
+              })
             )}
           </Slide>
 

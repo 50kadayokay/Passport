@@ -88,6 +88,24 @@ export const CONF_WIDGET_POOLS = {
     { key: "resourceStatus", label: "Resource Status" },
     { key: "nextProgram", label: "Next Work Program" },
   ],
+  // INDIVIDUAL PROJECT — badges for one project's scene (curated per project, flagship first).
+  // Stored per stable project key in conference.projectWidgets / projectWidgetKeys.
+  project: [
+    { key: "stage", label: "Stage" },
+    { key: "status", label: "Active / Inactive" },
+    { key: "commodity", label: "Commodity" },
+    { key: "ownership", label: "Ownership" },
+    { key: "location", label: "Location" },
+    { key: "landPackage", label: "Land Package" },
+    { key: "depositType", label: "Deposit Type" },
+    { key: "brownfieldGreenfield", label: "Brownfield / Greenfield" },
+    { key: "pastProducer", label: "Past Producer" },
+    { key: "geologicalModel", label: "Geological Model" },
+    { key: "currentProgram", label: "Current Program" },
+    { key: "targets", label: "Targets" },
+    { key: "latestUpdate", label: "Latest Update" },
+    { key: "historicProduction", label: "Historic Production" },
+  ],
   // CAPITAL — "Can they fund the plan?" (12 candidates).
   capital: [
     { key: "fundingStatus", label: "Funding Status" },
@@ -126,25 +144,25 @@ export function widgetText(v) {
 //   conf     — the whole conference object (reads conf.<pageKey>Widgets / <pageKey>WidgetKeys)
 // Returns [{ key, label, value }] — already filtered to the selection (or, when no
 // selection is stored, to every candidate that has a value) and ordered.
-export function resolveWidgets(pageKey, auto = {}, conf = {}) {
-  const pool = widgetPool(pageKey, conf);
-  const store = (conf && conf[widgetsKey(pageKey)]) || {};
-  const valueOf = (k) => {
-    const explicit = store[k];
-    return _isEmpty(explicit) ? auto[k] : explicit;
-  };
-  const selRaw = conf && conf[widgetKeysKey(pageKey)];
+// Core: given a pool + a value store + a selection array, return the ordered display list.
+function pickWidgets(pool, auto, store, selRaw) {
+  const valueOf = (k) => { const explicit = store[k]; return _isEmpty(explicit) ? auto[k] : explicit; };
   const sel = Array.isArray(selRaw) ? selRaw : null;
   const byKey = Object.fromEntries(pool.map((w) => [w.key, w]));
-  let ordered;
-  if (sel) {
-    // Curated: honor the reviewer's chosen set + order (keys not in the pool are ignored).
-    ordered = sel.map((k) => byKey[k]).filter(Boolean);
-  } else {
-    // Un-curated fallback: every candidate that resolves to a value, in pool order.
-    ordered = pool.filter((w) => !_isEmpty(valueOf(w.key)));
-  }
-  return ordered
-    .map((w) => ({ key: w.key, label: w.label, value: valueOf(w.key) }))
-    .filter((w) => !_isEmpty(w.value));
+  // Curated: honor the reviewer's chosen set + order. Un-curated: every candidate with a value.
+  const ordered = sel ? sel.map((k) => byKey[k]).filter(Boolean) : pool.filter((w) => !_isEmpty(valueOf(w.key)));
+  return ordered.map((w) => ({ key: w.key, label: w.label, value: valueOf(w.key) })).filter((w) => !_isEmpty(w.value));
+}
+
+export function resolveWidgets(pageKey, auto = {}, conf = {}) {
+  return pickWidgets(widgetPool(pageKey, conf), auto, (conf && conf[widgetsKey(pageKey)]) || {}, conf && conf[widgetKeysKey(pageKey)]);
+}
+
+// Per-project widget resolution. Selections live in a conference-isolated layer keyed by the
+// stable project key: conference.projectWidgets[projKey] (values) + projectWidgetKeys[projKey]
+// (selection/order). Un-curated projects fall back to every project candidate that has a value.
+export function resolveProjectWidgets(projKey, auto = {}, conf = {}) {
+  const store = (conf && conf.projectWidgets && conf.projectWidgets[projKey]) || {};
+  const sel = conf && conf.projectWidgetKeys && conf.projectWidgetKeys[projKey];
+  return pickWidgets(CONF_WIDGET_POOLS.project || [], auto, store, sel);
 }
