@@ -22,7 +22,7 @@ const S = (x) => (x == null ? "" : String(x));
 export default function ConferenceBlueprintEditor({ row, onBack, onSaved, companySlug, companyProfile, canPublish = false }) {
   const [data, setData] = useState(row.data || { fields: {}, pools: {}, pageOrder: CONFERENCE_TEMPLATE.pageOrder.slice() });
   const [status, setStatus] = useState(row.status || "draft");
-  const [mode, setMode] = useState("content");
+  const [mode, setMode] = useState("layout");   // default to the booth-mirroring visual (helps read the layout at a glance)
   const [evidence, setEvidence] = useState(null); // { kind:'field'|'record', key?, poolKey?, id? }
   const [q, setQ] = useState("");
   const [reviewOnly, setReviewOnly] = useState(false);

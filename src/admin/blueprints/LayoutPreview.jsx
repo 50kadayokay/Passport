@@ -19,6 +19,21 @@ const Placeholder = ({ h = 120, label }) => (
 const Glass = ({ children, style }) => <div style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 18, padding: 16, ...style }}>{children}</div>;
 const Dim = ({ children }) => <span style={{ color: "#93a0b0" }}>{children}</span>;
 
+// One hero statistic per page (updated-spec) — the defining number/phrase, from
+// <pageKey>.heroStatValue / heroStatLabel / heroStatContext.
+const HeroStat = ({ data, k, dark }) => {
+  const val = fv(data, `${k}.heroStatValue`), label = fv(data, `${k}.heroStatLabel`), ctx = fv(data, `${k}.heroStatContext`);
+  if (!S(val).trim() && !S(label).trim()) return null;
+  return (
+    <div style={{ marginTop: 12 }}>
+      {S(val) && <div style={{ fontSize: 46, fontWeight: 900, letterSpacing: "-0.04em", lineHeight: 1, color: dark ? "#0f172a" : "#fff" }}>{S(val)}</div>}
+      {S(label) && <div style={{ color: dark ? "#0f9b73" : EM, fontSize: 12, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.12em", marginTop: 8 }}>{S(label)}</div>}
+      {S(ctx) && <div style={{ color: dark ? "#5b6675" : "#93a0b0", fontSize: 13.5, marginTop: 8, maxWidth: 640, lineHeight: 1.45 }}>{S(ctx)}</div>}
+    </div>
+  );
+};
+const Takeaway = ({ data, k }) => { const t = fv(data, `${k}.investorTakeaway`); return t ? <div style={{ marginTop: 18, color: "#c4cdd9", fontSize: 14.5, lineHeight: 1.55, maxWidth: 820, borderLeft: `3px solid ${EM}`, paddingLeft: 14 }}>{t}</div> : null; };
+
 function Widgets({ pairs }) {
   const shown = pairs.filter(([, val]) => S(val).trim());
   if (!shown.length) return null;
@@ -56,6 +71,7 @@ export default function LayoutPreview({ page, data }) {
       return (
         <div style={wrap}>
           <Eyebrow>Company</Eyebrow>
+          <HeroStat data={data} k="overview" />
           <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 24, marginTop: 14, alignItems: "start" }}>
             <div>
               <H size={30}>{fv(data, "overview.definition") || fv(data, "overview.overview") || <Dim>Company definition / overview</Dim>}</H>
@@ -72,7 +88,9 @@ export default function LayoutPreview({ page, data }) {
       return (
         <div style={wrap}>
           <Eyebrow>At a Glance</Eyebrow>
+          <HeroStat data={data} k="highlights" />
           <H size={36} >{fv(data, "highlights.summary") || <Dim>Highlight summary</Dim>}</H>
+          <Takeaway data={data} k="highlights" />
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 14, marginTop: 22 }}>
             {(recs.length ? recs : [0, 1, 2, 3]).slice(0, 6).map((r, i) => (
               <Glass key={i}>
@@ -90,6 +108,7 @@ export default function LayoutPreview({ page, data }) {
       return (
         <div style={wrap}>
           <Eyebrow>Jurisdiction</Eyebrow>
+          <HeroStat data={data} k="jurisdiction" />
           <H size={34}>{fv(data, "juris.district") || fv(data, "juris.country") || <Dim>The District</Dim>}</H>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 22, marginTop: 18 }}>
             <div style={{ color: "#dbe2ec", fontSize: 15, lineHeight: 1.5 }}>{fv(data, "juris.region") || fv(data, "juris.districtOverview") || <Dim>Regional / district narrative</Dim>}</div>
@@ -123,6 +142,7 @@ export default function LayoutPreview({ page, data }) {
       return (
         <div style={wrap}>
           <Eyebrow>Results & Evidence</Eyebrow>
+          <HeroStat data={data} k="results" />
           <div style={{ color: "#dbe2ec", fontSize: 18, marginTop: 12, maxWidth: 720 }}>{fv(data, "results.intro") || <Dim>Results framing</Dim>}</div>
           {fv(data, "results.featuredGrade") && <div style={{ fontSize: 52, fontWeight: 900, letterSpacing: "-0.03em", marginTop: 18 }}>{fv(data, "results.featuredGrade")}</div>}
           <div style={{ marginTop: 18, border: "1px solid rgba(255,255,255,0.1)", borderRadius: 14, overflow: "hidden" }}>
@@ -162,6 +182,7 @@ export default function LayoutPreview({ page, data }) {
       return (
         <div style={wrap}>
           <Eyebrow>Capital</Eyebrow>
+          <HeroStat data={data} k="capital" />
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 20, marginTop: 22 }}>
             {[["Cash", fv(data, "capital.cash")], ["Basic shares", fv(data, "capital.basicShares")], ["Fully diluted", fv(data, "capital.fullyDiluted")], ["Market cap", fv(data, "capital.marketCap")]].map(([k, val], i) => (
               <div key={i}>
@@ -202,7 +223,9 @@ export default function LayoutPreview({ page, data }) {
       return (
         <div style={wrap}>
           <Eyebrow>Why Invest</Eyebrow>
+          <HeroStat data={data} k="why" />
           <H size={34}>{fv(data, "why.thesis") ? "Why invest" : <Dim>Why invest</Dim>}</H>
+          <Takeaway data={data} k="why" />
           <div style={{ marginTop: 20, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 14 }}>
             {(recs.length ? recs : [0, 1, 2]).slice(0, 6).map((r, i) => (
               <Glass key={i}>
@@ -224,9 +247,9 @@ export default function LayoutPreview({ page, data }) {
           <div>
             <Eyebrow>Continue the Story</Eyebrow>
             <H size={44}>{fv(data, "follow.ctaHeadline") || "Never miss another drill result."}</H>
-            <div style={{ color: "#93a0b0", fontSize: 18, marginTop: 16, maxWidth: 460 }}>{fv(data, "follow.supportingText") || <Dim>Follow on Passport for every release.</Dim>}</div>
+            <div style={{ color: "#93a0b0", fontSize: 18, marginTop: 16, maxWidth: 460 }}>{fv(data, "follow.supportingText") || <Dim>Follow on MineEx for every release.</Dim>}</div>
           </div>
-          <div style={{ background: "#fff", borderRadius: 24, padding: 20 }}><Placeholder h={180} label="QR" /></div>
+          <div style={{ background: "#fff", borderRadius: 24, padding: 20, textAlign: "center" }}><Placeholder h={180} label="QR" /><div style={{ color: "#0f172a", fontSize: 12, fontWeight: 800, marginTop: 8 }}>{fv(data, "follow.qrLabel") || fv(data, "follow.followLabel") || "Follow on MineEx"}</div></div>
         </div>
       );
 
