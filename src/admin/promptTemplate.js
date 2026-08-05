@@ -2533,6 +2533,14 @@ export const CONFERENCE_BUNDLES = [
     sections: ["overview", "highlights", "leadership", "why"] },
 ];
 
+// The merged JSON shape a bundle is expected to produce — used by the extraction runner to
+// validate a pass's output against exactly what its prompt asked for.
+export function conferenceBundleShape(bundleId) {
+  const b = CONFERENCE_BUNDLES.find((x) => x.id === bundleId) || CONFERENCE_BUNDLES[0];
+  const secs = b.sections.map((id) => CONFERENCE_SECTIONS.find((s) => s.id === id)).filter(Boolean);
+  return secs.reduce((acc, s) => mergeSkeleton(acc, s.skeleton), {});
+}
+
 // One prompt for a bundle: only its sections' guidance + a merged JSON shape for just those keys.
 export function conferenceBundlePrompt(bundleId) {
   const b = CONFERENCE_BUNDLES.find((x) => x.id === bundleId) || CONFERENCE_BUNDLES[0];
