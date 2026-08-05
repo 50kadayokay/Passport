@@ -23,7 +23,7 @@ const S = (x) => (x == null ? "" : String(x));
 export default function ConferenceBlueprintEditor({ row, onBack, onSaved, companySlug, companyProfile, canPublish = false }) {
   const [data, setData] = useState(row.data || { fields: {}, pools: {}, pageOrder: CONFERENCE_TEMPLATE.pageOrder.slice() });
   const [status, setStatus] = useState(row.status || "draft");
-  const [mode, setMode] = useState("layout");   // default to the booth-mirroring visual (helps read the layout at a glance)
+  const [mode, setMode] = useState("content");   // Slide-styled content view (the designed Blueprint layout) is the default
   const [evidence, setEvidence] = useState(null); // { kind:'field'|'record', key?, poolKey?, id? }
   const [q, setQ] = useState("");
   const [reviewOnly, setReviewOnly] = useState(false);
@@ -204,7 +204,16 @@ export default function ConferenceBlueprintEditor({ row, onBack, onSaved, compan
                 <LayoutPreview page={page} data={data} />
               </div>
             ) : (
-              <div className="rounded-2xl border border-slate-200 bg-white p-4">
+              <div className="rounded-[28px] border border-slate-200/70 bg-white p-6 shadow-[0_2px_20px_-6px_rgba(15,23,42,0.10)] sm:p-8">
+                {/* Slide-style page header (matches the designed Blueprint layout) */}
+                <div className="mb-5">
+                  <div className="mb-2 flex items-center gap-3">
+                    <span className="grid h-7 w-7 place-items-center rounded-full bg-slate-900 text-[12px] font-bold text-white">{page.index}</span>
+                    <span className="text-[12px] font-bold uppercase tracking-[0.14em] text-slate-400">Page {page.index}</span>
+                  </div>
+                  <h2 className="text-[24px] font-extrabold tracking-tight text-slate-900">{page.label}</h2>
+                  {page.layout && <p className="mt-1 text-[13.5px] leading-relaxed text-slate-400">{page.layout}</p>}
+                </div>
                 {Object.entries(groups).map(([group, defs]) => {
                   const visible = defs.filter(passes);
                   if (!visible.length) return null;
