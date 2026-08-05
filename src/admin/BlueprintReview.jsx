@@ -10,7 +10,7 @@
 // uploads land in a follow-up; the placeholders here are exactly the spec's empty state.
 
 import React, { useMemo, useState, useEffect, useRef } from "react";
-import { Image as ImageIcon, QrCode, UploadCloud, Sparkles, Plus, X } from "lucide-react";
+import { Image as ImageIcon, QrCode, UploadCloud, Sparkles, Plus, X, Star, ChevronUp, ChevronDown } from "lucide-react";
 import { parseImport, applyImport } from "../lib/profileImport.js";
 import { promptForPass, CONFERENCE_PROMPT, CONFERENCE_SECTIONS, conferenceSectionPrompt } from "./promptTemplate.js";
 import { updateCompany, createCompany } from "../lib/supabase.js";
@@ -288,6 +288,135 @@ function Pool({ title, help, items, empty, renderItem }) {
       ) : (
         <div className="mt-4 space-y-2.5">{list.map((it, i) => <div key={i}>{renderItem(it, i)}</div>)}</div>
       )}
+    </div>
+  );
+}
+
+// A curated pool of editable records for a CONFERENCE-OWNED array (highlights, investment
+// reasons). Selection state travels ON each record — `selected` (default true) drives whether
+// the booth shows it, `featured` marks the one hero item — so reordering never breaks it. Fields
+// are edited in place; up/down reorder; ✕ removes; "+ Add" appends a blank. Writes the whole
+// array back via setVal(path, next). Booth reads the same array and honors selected/featured.
+function RecordPool({ title, help, path, records, fields, featureLabel, addLabel, setVal }) {
+  const list = Array.isArray(records) ? records : [];
+  const update = (next) => setVal(path, next);
+  const setField = (i, name, v) => update(list.map((r, idx) => (idx === i ? { ...r, [name]: v } : r)));
+  const toggle = (i) => update(list.map((r, idx) => (idx === i ? { ...r, selected: r.selected === false ? true : false } : r)));
+  const feature = (i) => update(list.map((r, idx) => ({ ...r, featured: idx === i ? !r.featured : false })));
+  const move = (i, dir) => { const j = i + dir; if (j < 0 || j >= list.length) return; const c = list.slice(); const t = c[i]; c[i] = c[j]; c[j] = t; update(c); };
+  const remove = (i) => update(list.filter((_, idx) => idx !== i));
+  const add = () => update([...list, { selected: true }]);
+  const shown = list.filter((r) => r.selected !== false).length;
+  return (
+    <div className={`rounded-2xl border bg-white p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)] ${list.length ? "border-emerald-300 ring-1 ring-emerald-100" : "border-slate-200/70"}`}>
+      <div className="flex items-baseline justify-between gap-3">
+        <h3 className="text-[15px] font-bold text-slate-900">{title}</h3>
+        <span className="text-[11px] font-semibold text-slate-400">{shown} shown · {list.length}</span>
+      </div>
+      {help && <p className="mt-0.5 text-[12.5px] leading-relaxed text-slate-400">{help}</p>}
+      <div className="mt-4 space-y-2.5">
+        {list.map((r, i) => {
+          const on = r.selected !== false;
+          return (
+            <div key={i} className={`rounded-xl border px-4 py-3 transition-opacity ${on ? "border-slate-200 bg-slate-50" : "border-slate-200 bg-slate-50/50 opacity-55"}`}>
+              <div className="flex items-start gap-3">
+                <div className="min-w-0 flex-1 space-y-1.5">
+                  {fields.map((f) => (f.kind === "area" ? (
+                    <textarea key={f.name} value={toText(r[f.name])} onChange={(e) => setField(i, f.name, e.target.value)} rows={2} placeholder={f.label}
+                      className="w-full resize-y rounded-md bg-transparent text-[13px] leading-relaxed text-slate-600 outline-none focus:bg-white focus:px-2 focus:py-1 focus:ring-1 focus:ring-emerald-200 placeholder:text-slate-300" />
+                  ) : (
+                    <input key={f.name} value={toText(r[f.name])} onChange={(e) => setField(i, f.name, e.target.value)} placeholder={f.label}
+                      className={`w-full rounded-md bg-transparent outline-none focus:bg-white focus:px-2 focus:py-1 focus:ring-1 focus:ring-emerald-200 ${f.strong ? "text-[15px] font-bold text-slate-900 placeholder:font-bold" : "text-[12.5px] font-semibold text-slate-500"} placeholder:text-slate-300`} />
+                  )))}
+                </div>
+                <div className="flex flex-shrink-0 items-center gap-1">
+                  <button type="button" onClick={() => feature(i)} title={r.featured ? `Featured — ${featureLabel || "hero"}` : `Make ${featureLabel || "hero"}`} className={r.featured ? "text-amber-400" : "text-slate-300 hover:text-amber-400"}><Star size={15} fill={r.featured ? "currentColor" : "none"} /></button>
+                  <div className="flex flex-col">
+                    <button type="button" onClick={() => move(i, -1)} disabled={i === 0} title="Move up" className="text-slate-300 hover:text-slate-600 disabled:opacity-30"><ChevronUp size={14} /></button>
+                    <button type="button" onClick={() => move(i, 1)} disabled={i === list.length - 1} title="Move down" className="text-slate-300 hover:text-slate-600 disabled:opacity-30"><ChevronDown size={14} /></button>
+                  </div>
+                  <button type="button" onClick={() => remove(i)} title="Remove" className="text-slate-300 hover:text-rose-500"><X size={14} /></button>
+                  <input type="checkbox" checked={on} onChange={() => toggle(i)} className="h-3.5 w-3.5 accent-emerald-600" title={on ? "Shown on the booth" : "Hidden"} />
+                </div>
+              </div>
+            </div>
+          );
+        })}
+        <button type="button" onClick={add} className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-slate-300 px-4 py-2.5 text-[13px] font-bold text-slate-400 transition-colors hover:border-emerald-400 hover:bg-emerald-50/40 hover:text-emerald-600"><Plus size={15} /> {addLabel || "Add"}</button>
+      </div>
+    </div>
+  );
+}
+
+// Conference leadership selection over the SHARED team array. Never mutates `team` (that would
+// change the app) — instead stores a conference-isolated layer: conference.leadership
+// { featuredPersonId, selectedPersonIds, custom:[{key,name,role,short}] }. Team members are
+// read-only cards you include/feature; "+ Add" creates a conference-only leader. No LinkedIn.
+const personKey = (m, i) => (m && (m.id || m.key)) || `t-${String((m && m.name) || i).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`;
+function LeadershipPool({ team, conf, setVal }) {
+  const lead = (conf && conf.leadership) || {};
+  const custom = Array.isArray(lead.custom) ? lead.custom : [];
+  const storedSel = Array.isArray(lead.selectedPersonIds) ? lead.selectedPersonIds : null;
+  const teamRows = (Array.isArray(team) ? team : []).map((m, i) => ({ key: personKey(m, i), name: m.name, role: m.role, bio: m.short || m.full, custom: false }));
+  const customRows = custom.map((m) => ({ key: m.key, name: m.name, role: m.role, bio: m.short, custom: true }));
+  const rows = [...teamRows, ...customRows];
+  const isOn = (k) => (storedSel ? storedSel.includes(k) : true); // uncurated → show all
+  const shown = rows.filter((r) => isOn(r.key)).length;
+  const toggle = (k) => {
+    const base = storedSel ? storedSel.slice() : rows.map((r) => r.key);
+    const i = base.indexOf(k);
+    if (i >= 0) base.splice(i, 1); else base.push(k);
+    setVal("conference.leadership.selectedPersonIds", base);
+  };
+  const feature = (k) => setVal("conference.leadership.featuredPersonId", lead.featuredPersonId === k ? "" : k);
+  const addLeader = () => {
+    const nextId = `lead-${custom.reduce((m, w) => Math.max(m, Number(String(w.key).replace(/\D/g, "")) || 0), 0) + 1}`;
+    setVal("conference.leadership.custom", [...custom, { key: nextId, name: "", role: "", short: "" }]);
+    if (storedSel) setVal("conference.leadership.selectedPersonIds", [...storedSel, nextId]);
+  };
+  const setCustom = (key, patch) => setVal("conference.leadership.custom", custom.map((w) => (w.key === key ? { ...w, ...patch } : w)));
+  const removeCustom = (key) => {
+    setVal("conference.leadership.custom", custom.filter((w) => w.key !== key));
+    if (storedSel) setVal("conference.leadership.selectedPersonIds", storedSel.filter((k) => k !== key));
+  };
+  return (
+    <div className={`rounded-2xl border bg-white p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)] ${rows.length ? "border-emerald-300 ring-1 ring-emerald-100" : "border-slate-200/70"}`}>
+      <div className="flex items-baseline justify-between gap-3">
+        <h3 className="text-[15px] font-bold text-slate-900">Team</h3>
+        <span className="text-[11px] font-semibold text-slate-400">{shown} shown · {rows.length}</span>
+      </div>
+      <p className="mt-0.5 text-[12.5px] leading-relaxed text-slate-400">Check who appears on the booth; star the featured leader. Team bios come from the shared profile (edit those in the App Blueprint); add a conference-only person below.</p>
+      <div className="mt-4 space-y-2.5">
+        {rows.map((r) => {
+          const on = isOn(r.key);
+          const feat = lead.featuredPersonId === r.key;
+          return (
+            <div key={r.key} className={`flex items-start gap-3 rounded-xl border px-4 py-3 transition-opacity ${on ? "border-slate-200 bg-slate-50" : "border-slate-200 bg-slate-50/50 opacity-55"}`}>
+              <div className="min-w-0 flex-1">
+                {r.custom ? (
+                  <div className="space-y-1.5">
+                    <input value={toText(r.name)} onChange={(e) => setCustom(r.key, { name: e.target.value })} placeholder="Full name" className="w-full rounded-md bg-transparent text-[15px] font-bold text-slate-900 outline-none focus:bg-white focus:px-2 focus:py-1 focus:ring-1 focus:ring-emerald-200 placeholder:font-bold placeholder:text-slate-300" />
+                    <input value={toText(r.role)} onChange={(e) => setCustom(r.key, { role: e.target.value })} placeholder="Role / title" className="w-full rounded-md bg-transparent text-[12.5px] font-semibold text-slate-500 outline-none focus:bg-white focus:px-2 focus:py-1 focus:ring-1 focus:ring-emerald-200 placeholder:text-slate-300" />
+                    <textarea value={toText(r.bio)} onChange={(e) => setCustom(r.key, { short: e.target.value })} rows={2} placeholder="Short bio / relevant experience" className="w-full resize-y rounded-md bg-transparent text-[13px] leading-relaxed text-slate-600 outline-none focus:bg-white focus:px-2 focus:py-1 focus:ring-1 focus:ring-emerald-200 placeholder:text-slate-300" />
+                  </div>
+                ) : (
+                  <>
+                    <div className="text-[15px] font-bold text-slate-900">{r.name || "—"}</div>
+                    <div className="text-[12.5px] font-semibold text-slate-500">{r.role}</div>
+                    {r.bio && <div className="mt-1 text-[13px] leading-relaxed text-slate-500">{r.bio}</div>}
+                  </>
+                )}
+              </div>
+              <div className="flex flex-shrink-0 items-center gap-1">
+                <button type="button" onClick={() => feature(r.key)} title={feat ? "Featured leader" : "Make featured"} className={feat ? "text-amber-400" : "text-slate-300 hover:text-amber-400"}><Star size={15} fill={feat ? "currentColor" : "none"} /></button>
+                {r.custom && <button type="button" onClick={() => removeCustom(r.key)} title="Remove" className="text-slate-300 hover:text-rose-500"><X size={14} /></button>}
+                <input type="checkbox" checked={on} onChange={() => toggle(r.key)} className="h-3.5 w-3.5 accent-emerald-600" title={on ? "Shown on the booth" : "Hidden"} />
+              </div>
+            </div>
+          );
+        })}
+        <button type="button" onClick={addLeader} className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-slate-300 px-4 py-2.5 text-[13px] font-bold text-slate-400 transition-colors hover:border-emerald-400 hover:bg-emerald-50/40 hover:text-emerald-600"><Plus size={15} /> Add leader</button>
+      </div>
     </div>
   );
 }
@@ -1057,15 +1186,9 @@ export default function BlueprintReview({ companies = [], onReload, mode = "conf
 
           {/* PAGE 3 — HIGHLIGHTS */}
           <Slide n={3} kicker="Page 3" title="Company Highlights" purpose="Quick investor summary.">
-            <Pool title="Highlights" help="Every highlight is its own card — not a bullet list." items={conf.highlights}
-              renderItem={(h) => (
-                <div className="rounded-xl bg-slate-50 px-4 py-3.5">
-                  <div className="text-[15px] font-bold text-slate-900">{h.value || h.label}</div>
-                  {h.label && h.value && <div className="text-[12.5px] text-slate-500">{h.label}</div>}
-                  {h.context && <div className="mt-0.5 text-[13px] text-slate-500">{h.context}</div>}
-                </div>
-              )}
-            />
+            <RecordPool title="Highlights" help="Every extracted highlight is a card. Check the 3–6 to show, ★ the strongest as the page's hero stat, drag order with the arrows, or add your own."
+              path="conference.highlights" records={conf.highlights} setVal={setVal} featureLabel="hero stat" addLabel="Add highlight"
+              fields={[{ name: "value", label: "Stat (short)", strong: true }, { name: "label", label: "Label" }, { name: "context", label: "Context — why it matters", kind: "area" }]} />
             <Field title="Highlights Summary" help="A short editorial paragraph explaining why these highlights matter." value={conf.highlightsIntro} big />
           </Slide>
 
@@ -1179,46 +1302,17 @@ export default function BlueprintReview({ companies = [], onReload, mode = "conf
 
           {/* PAGE 9 — LEADERSHIP */}
           <Slide n={9} kicker="Page 9" title="Leadership" purpose="Introduce management.">
-            <div className="rounded-2xl border border-slate-200/70 bg-slate-50/50 p-5">
-              <div className="mb-4 text-[12px] font-bold uppercase tracking-[0.14em] text-slate-400">Chief Executive</div>
-              <div className="grid gap-4 sm:grid-cols-[160px_1fr]">
-                <ImageSlot title="Photo" help="CEO headshot." />
-                <div className="space-y-3">
-                  <Field title="Name" help="Full name." value={ceo?.name} />
-                  <Field title="Role" help="Title." value={ceo?.role} />
-                  <Field title="Biography" help="Short professional biography." value={firstOf(ceo?.full, ceo?.short)} big />
-                </div>
-              </div>
-            </div>
-            <Pool title="Team" help="Each team member as a profile card, with a headshot slot. Names & roles are auto-filled; drop in photos." items={others}
-              renderItem={(m) => (
-                <div className="flex items-start gap-4 rounded-xl bg-slate-50 px-4 py-3.5">
-                  <button title="Upload headshot" className="grid h-16 w-16 flex-shrink-0 place-items-center rounded-full border-2 border-dashed border-slate-200 bg-white text-slate-300 hover:border-slate-400">
-                    <UploadCloud size={18} strokeWidth={1.5} />
-                  </button>
-                  <div className="min-w-0 flex-1">
-                    <div className="text-[15px] font-bold text-slate-900">{m.name}</div>
-                    <div className="text-[12.5px] font-semibold text-slate-500">{m.role}</div>
-                    {(m.short || m.full) && <div className="mt-1 text-[13px] leading-relaxed text-slate-500">{m.short || m.full}</div>}
-                  </div>
-                </div>
-              )}
-            />
+            <Field title="Credibility Line" help="Optional hero phrase for the page — e.g. “150+ Years Combined Experience”. Only if supportable; never fabricated." value={firstOf(get(p, "conference.leadership.heroStatistic"), get(p, "conference.leadership.headline"))} />
+            <LeadershipPool team={team} conf={conf} setVal={setVal} />
           </Slide>
 
           {/* PAGE 10 — WHY INVEST */}
           <Slide n={10} kicker="Page 10" title="Why Invest" purpose="Summarize the investment thesis.">
             <Field title="Investment Summary" help="Editorial paragraph — synthesizes the strongest established reasons (not a repeat of every card)." value={firstOf(conf.investmentSummary, conf.mission, get(p, "conference.investmentCase[0].reason"))} big />
             <Field title="Investor Takeaway" help="The single strongest overall takeaway, one line." value={conf.investorTakeaway} />
-            <Pool title="Reasons to Invest" help="Every reason as its own card — not one paragraph." items={firstOf(conf.investmentCase, (conf.competitiveAdvantages || []).map((r) => ({ reason: r })))}
-              renderItem={(r) => (
-                <div className="rounded-xl bg-slate-50 px-4 py-3.5">
-                  <div className="text-[15px] font-bold text-slate-900">{r.reason || r}</div>
-                  {r.evidence && <div className="mt-1 text-[13px] leading-relaxed text-slate-500">{r.evidence}</div>}
-                  {r.standsOutBecause && <div className="mt-0.5 text-[13px] italic text-slate-400">{r.standsOutBecause}</div>}
-                </div>
-              )}
-            />
+            <RecordPool title="Reasons to Invest" help="Every extracted reason is a card. Check the strongest to show, ★ the lead reason, reorder, or add your own. Established reasons — not forward-looking promises."
+              path="conference.investmentCase" records={conf.investmentCase} setVal={setVal} featureLabel="lead reason" addLabel="Add reason"
+              fields={[{ name: "reason", label: "Reason", strong: true }, { name: "evidence", label: "Evidence", kind: "area" }, { name: "standsOutBecause", label: "Stands out because…", kind: "area" }]} />
           </Slide>
 
           {/* PAGE 11 — FOLLOW */}

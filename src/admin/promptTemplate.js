@@ -2381,9 +2381,9 @@ conference.overviewWidgetKeys — the 6–8 strongest of those keys, best first.
   {
     id: "highlights", label: "Highlights", n: 2,
     docs: "Corporate presentation + the most material recent news releases.",
-    guide: `conference.highlights — 3 to 5 items. Each: value (a SHORT punchy stat, e.g. "1,742 g/t AgEq" — keep qualifiers OUT of value), label (2-4 words), context (one sentence on why it matters). Order by materiality.
+    guide: `conference.highlights — extract a BROADER pool of 5 to 8 candidates (the reviewer trims to 3–6 in the Blueprint). Each: value (a SHORT punchy stat, e.g. "1,742 g/t AgEq" — keep qualifiers OUT of value), label (2-4 words), context (one sentence on why it matters). Order by materiality. Set selected:true on the ~5 strongest, selected:false on the rest; set featured:true on the SINGLE strongest (the page's hero stat), featured:false on the others. Avoid duplicate grade cards (one "Highest Grade" only) and distinguish Highest Grade vs Widest Interval.
 conference.highlightsIntro — one short paragraph framing what the highlights add up to.`,
-    skeleton: { conference: { highlights: [{ value: "", label: "", context: "" }], highlightsIntro: "" } },
+    skeleton: { conference: { highlights: [{ value: "", label: "", context: "", selected: true, featured: false }], highlightsIntro: "" } },
   },
   {
     id: "jurisdiction", label: "Jurisdiction & District", n: 3,
@@ -2433,17 +2433,18 @@ conference.capitalWidgets — a SHORT value for each candidate the filings suppo
   {
     id: "leadership", label: "Leadership", n: 8,
     docs: "Website team page or corporate deck (for bios). Management circular gives names/titles only.",
-    guide: `team — one entry per person, officers first then directors: name, role (real title — CEO, CFO, VP Exploration, Director), short (1-sentence), full (2-3 sentence bio).
-conference.leadershipIntro — one sentence on why the team fits the company's stage, or null.`,
-    skeleton: { team: [{ name: "", role: "", short: "", full: "" }], conference: { leadershipIntro: null } },
+    guide: `team — one entry per person, officers first then directors: name, role (real title — CEO, CFO, VP Exploration, Director), short (1-sentence), full (2-3 sentence bio). NO LinkedIn.
+conference.leadershipIntro — one sentence on why the team fits the company's stage, or null.
+conference.leadership.headline / conference.leadership.heroStatistic — an OPTIONAL credibility phrase for the page (e.g. "150+ Years Combined Experience", "Previously Built and Operated X Mine"). Only if genuinely supportable — never fabricate combined experience. Leave "" if nothing qualifies. (The reviewer chooses which people appear in the Blueprint.)`,
+    skeleton: { team: [{ name: "", role: "", short: "", full: "" }], conference: { leadershipIntro: null, leadership: { headline: "", heroStatistic: "" } } },
   },
   {
     id: "why", label: "Why Invest", n: 9, useProfile: true,
     docs: "Synthesis — best from your EXISTING profile (Copy profile JSON). You may also attach the corporate deck.",
-    guide: `conference.investmentCase — 3-5 items, each: reason, evidence (specific, from the profile/docs), standsOutBecause. conference.competitiveAdvantages — 3-5 short phrases. conference.companySpecificInsights — any material fact that didn't fit elsewhere.
+    guide: `conference.investmentCase — extract a pool of 4-7 candidates (the reviewer trims in the Blueprint). Each: reason, evidence (specific, from the profile/docs), standsOutBecause. Set selected:true on the strongest, selected:false on weaker ones; featured:true on the SINGLE lead reason, featured:false on the rest. Prioritize ESTABLISHED reasons (district position, proven results, funding, ownership) over forward-looking catalysts. conference.competitiveAdvantages — 3-5 short phrases. conference.companySpecificInsights — any material fact that didn't fit elsewhere.
 conference.investmentSummary — ONE paragraph synthesizing the strongest established reasons to keep researching this company (not a repeat of every card, non-promotional).
 conference.investorTakeaway — ONE short line: the single strongest overall takeaway, already supported elsewhere.`,
-    skeleton: { conference: { investmentCase: [{ reason: "", evidence: "", standsOutBecause: "" }], competitiveAdvantages: [""], companySpecificInsights: [{ title: "", context: "", evidence: "", materiality: "high|medium" }], investmentSummary: "", investorTakeaway: "" } },
+    skeleton: { conference: { investmentCase: [{ reason: "", evidence: "", standsOutBecause: "", selected: true, featured: false }], competitiveAdvantages: [""], companySpecificInsights: [{ title: "", context: "", evidence: "", materiality: "high|medium" }], investmentSummary: "", investorTakeaway: "" } },
   },
 ];
 

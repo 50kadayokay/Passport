@@ -7667,9 +7667,15 @@ function ConferenceScenes() {
   ].filter((c) => S(c.v));
 
   // Highlights — new master-schema glance strip {value,label,context}; fallback to legacy stats.
-  const highlights = (Array.isArray(conf.highlights) && conf.highlights.length ? conf.highlights
-    : Array.isArray(conf.heroHighlightStats) ? conf.heroHighlightStats : [])
-    .filter((s) => s && S(s.value)).slice(0, 6);
+  // Honors Blueprint curation: drop deselected (selected === false), and float the ★featured one
+  // to the front. Un-curated records have no `selected`, so everything shows as before.
+  const highlights = (() => {
+    const all = (Array.isArray(conf.highlights) && conf.highlights.length ? conf.highlights
+      : Array.isArray(conf.heroHighlightStats) ? conf.heroHighlightStats : [])
+      .filter((s) => s && S(s.value) && s.selected !== false);
+    const feat = all.find((s) => s.featured);
+    return (feat ? [feat, ...all.filter((s) => s !== feat)] : all).slice(0, 6);
+  })();
 
   const ownershipHas = Array.isArray(OWNERSHIP) && OWNERSHIP.length && S(OWNERSHIP[0][1]);
   const fundedLine = S(capStatus.headline);
@@ -7686,8 +7692,27 @@ function ConferenceScenes() {
     { k: "Location", v: S(pj.locationFull) || S(co.location) },
   ].filter((c) => S(c.v)).slice(0, 5);
   const years = (Array.isArray(PR_YEARS) ? PR_YEARS : []).filter((y) => y && Array.isArray(y.items) && y.items.length);
-  const team = (Array.isArray(TEAM_MEMBERS) ? TEAM_MEMBERS : []).filter((m) => m && S(m.name));
-  const investmentCase = (Array.isArray(conf.investmentCase) ? conf.investmentCase : []).filter((r) => r && S(r.reason));
+  // Team, with Blueprint leadership curation applied: conference.leadership
+  // { selectedPersonIds, featuredPersonId, custom[] } picks who shows, floats the featured leader
+  // first, and appends conference-only leaders. Keyed by a name slug (matches the Blueprint).
+  // Un-curated companies (no conference.leadership) show the full shared team, as before.
+  const team = (() => {
+    const raw = (Array.isArray(TEAM_MEMBERS) ? TEAM_MEMBERS : []).filter((m) => m && S(m.name));
+    const lead = (conf.leadership && typeof conf.leadership === "object" && !Array.isArray(conf.leadership)) ? conf.leadership : {};
+    const keyOf = (m, i) => (m && (m.id || m.key)) || `t-${String((m && m.name) || i).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`;
+    const customLeaders = (Array.isArray(lead.custom) ? lead.custom : []).filter((m) => m && S(m.name)).map((m) => ({ ...m, __key: m.key }));
+    let list = raw.map((m, i) => ({ ...m, __key: keyOf(m, i) })).concat(customLeaders);
+    const sel = Array.isArray(lead.selectedPersonIds) ? lead.selectedPersonIds : null;
+    if (sel) { const byKey = Object.fromEntries(list.map((m) => [m.__key, m])); list = sel.map((k) => byKey[k]).filter(Boolean); }
+    const featKey = S(lead.featuredPersonId);
+    if (featKey) { const fi = list.findIndex((m) => m.__key === featKey); if (fi > 0) { const [f] = list.splice(fi, 1); list.unshift(f); } }
+    return list;
+  })();
+  const investmentCase = (() => {
+    const all = (Array.isArray(conf.investmentCase) ? conf.investmentCase : []).filter((r) => r && S(r.reason) && r.selected !== false);
+    const feat = all.find((r) => r.featured);
+    return feat ? [feat, ...all.filter((r) => r !== feat)] : all;
+  })();
   const catalysts = (() => { try { return (window.__PP__ && Array.isArray(window.__PP__.CATALYSTS)) ? window.__PP__.CATALYSTS.filter((c) => c && S(c.label)) : []; } catch (_) { return []; } })();
 
   // Featured milestones — look up the profile's timeline entries by date (text reused VERBATIM).
@@ -8145,7 +8170,6 @@ function ConferenceScenes() {
         {(() => {
           const ceo = team[0]; if (!ceo) return null;
           const mono = S(ceo.initials || (ceo.name || "").split(/\s+/).slice(0, 2).map((w) => w[0]).join(""));
-          const cli = ceo.linkedin && (/^https?:/.test(ceo.linkedin) ? ceo.linkedin : `https://www.linkedin.com/${S(ceo.linkedin).replace(/^\//, "")}`);
           const bio = S(ceo.full) || S(ceo.short);
           return (
             <Reveal v="card"><div style={{ display: "grid", gridTemplateColumns: "300px 1fr", gap: 48, alignItems: "start", marginTop: 48, background: "#fff", borderRadius: 30, padding: 40, boxShadow: "0 1px 2px rgba(15,23,42,0.04), 0 46px 84px -52px rgba(15,23,42,0.5)" }}>
@@ -8155,7 +8179,6 @@ function ConferenceScenes() {
                 <div style={{ fontSize: 40, fontWeight: 900, letterSpacing: "-0.03em", marginTop: 10, lineHeight: 1.02 }}>{S(ceo.name)}</div>
                 <div style={{ fontSize: 17, fontWeight: 800, color: EM_TEXT, marginTop: 5 }}>{S(ceo.role)}</div>
                 {bio && <div style={{ fontSize: 17, color: "#475569", marginTop: 20, lineHeight: 1.7, maxWidth: 720 }}>{bio}</div>}
-                {cli && <a href={cli} target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 8, marginTop: 22, fontSize: 14, fontWeight: 800, color: "#0f172a", textDecoration: "none" }}><Linkedin size={16} style={{ color: EM_TEXT }} /> LinkedIn</a>}
               </div>
             </div></Reveal>
           );
@@ -8164,7 +8187,6 @@ function ConferenceScenes() {
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(400px, 1fr))", gap: 30, marginTop: 30 }}>
             {team.slice(1).map((m, i) => {
               const mono = S(m.initials || (m.name || "").split(/\s+/).slice(0, 2).map((w) => w[0]).join(""));
-              const mli = m.linkedin && (/^https?:/.test(m.linkedin) ? m.linkedin : `https://www.linkedin.com/${S(m.linkedin).replace(/^\//, "")}`);
               return (
                 <Reveal key={i} v="card"><div style={{ display: "flex", gap: 22, background: "#fff", borderRadius: 24, padding: 24, height: "100%", boxShadow: "0 1px 2px rgba(15,23,42,0.04), 0 30px 60px -46px rgba(15,23,42,0.4)" }}>
                   <div style={{ height: 108, width: 108, flexShrink: 0, borderRadius: 20, overflow: "hidden", background: `linear-gradient(150deg, ${EM}22, ${EM}08)`, display: "grid", placeItems: "center", color: EM_TEXT, fontWeight: 900, fontSize: 34 }}>{m.photo ? <img src={m.photo} alt="" style={{ height: "100%", width: "100%", objectFit: "cover" }} /> : mono}</div>
@@ -8172,7 +8194,6 @@ function ConferenceScenes() {
                     <div style={{ fontSize: 20, fontWeight: 900, letterSpacing: "-0.02em" }}>{S(m.name)}</div>
                     <div style={{ fontSize: 14, fontWeight: 800, color: EM_TEXT, marginTop: 3 }}>{S(m.role)}</div>
                     {S(m.short) && <div style={{ fontSize: 14.5, color: "#5b6675", marginTop: 11, lineHeight: 1.55 }}>{S(m.short)}</div>}
-                    {mli && <a href={mli} target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 8, marginTop: "auto", paddingTop: 14, fontSize: 13, fontWeight: 800, color: "#0f172a", textDecoration: "none" }}><Linkedin size={15} style={{ color: EM_TEXT }} /> LinkedIn</a>}
                   </div>
                 </div></Reveal>
               );
