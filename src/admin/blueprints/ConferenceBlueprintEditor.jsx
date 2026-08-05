@@ -15,6 +15,7 @@ import {
   computeCompletion, downloadJson, evidenceReport, missingReport, BlueprintImportModal,
 } from "./BlueprintShared.jsx";
 import LayoutPreview from "./LayoutPreview.jsx";
+import ConferenceOnboardingBar from "./ConferenceOnboardingBar.jsx";
 
 const MODES = [["layout", "Layout"], ["content", "Content"], ["evidence", "Evidence"]];
 const S = (x) => (x == null ? "" : String(x));
@@ -159,6 +160,10 @@ export default function ConferenceBlueprintEditor({ row, onBack, onSaved, compan
           {pubMsg && <span className="text-[12px] font-semibold text-emerald-700">{pubMsg}</span>}
         </div>
       </div>
+
+      {/* Onboarding steps — upload docs, run section prompts, load JSON into the profile,
+          then Re-sync into the blueprint. Same flow as the App Blueprint, at the top. */}
+      <ConferenceOnboardingBar company={{ id: row.company_id, slug: companySlug, profile: companyProfile }} onLoaded={() => setMsg("Loaded into profile — click Re-sync to pull it in.")} />
 
       <div className="flex min-h-0 flex-1">
         {/* page nav */}

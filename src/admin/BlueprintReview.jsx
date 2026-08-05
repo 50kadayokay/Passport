@@ -258,7 +258,7 @@ function Pills({ title, help, items }) {
 
 // Documents: upload the company's PDFs (extracts text) and copy that text for ChatGPT —
 // all here, so the operator never has to leave this screen.
-function DocPanel({ companyId }) {
+export function DocPanel({ companyId }) {
   const [docs, setDocs] = useState([]);
   const [busy, setBusy] = useState("");
   const [copied, setCopied] = useState("");
