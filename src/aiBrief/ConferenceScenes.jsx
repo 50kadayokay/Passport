@@ -6,6 +6,7 @@
 // from PassportProto; this file adds nothing to the investor app itself.
 // ─────────────────────────────────────────────────────────────────────────────
 import React, { useState, useEffect, useRef } from "react";
+import QRCode from "qrcode";
 import { ChevronRight, ChevronDown, Clock } from "lucide-react";
 import { resolveWidgets, resolveProjectWidgets, widgetText } from "../lib/conferenceWidgets.js";
 import {
