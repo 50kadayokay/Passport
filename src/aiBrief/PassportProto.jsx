@@ -7714,6 +7714,11 @@ function ConferenceScenes() {
     return feat ? [feat, ...all.filter((r) => r !== feat)] : all;
   })();
   const catalysts = (() => { try { return (window.__PP__ && Array.isArray(window.__PP__.CATALYSTS)) ? window.__PP__.CATALYSTS.filter((c) => c && S(c.label)) : []; } catch (_) { return []; } })();
+  // Per-page hero statistic — the one defining phrase for a page (Blueprint: conference.<page>HeroStat).
+  // An accent-bar banner rendered just under the section eyebrow. Optional; renders only when set.
+  const heroStat = (text, dark = true) => (!S(text) ? null : (
+    <Reveal v="head"><div style={{ marginTop: 14, fontSize: "clamp(22px,2.8vw,40px)", fontWeight: 900, letterSpacing: "-0.02em", lineHeight: 1.08, color: dark ? "#fff" : "#0f172a", borderLeft: `3px solid ${dark ? EM : EM_TEXT}`, paddingLeft: 16, maxWidth: 940 }}>{S(text)}</div></Reveal>
+  ));
 
   // Featured milestones — look up the profile's timeline entries by date (text reused VERBATIM).
   const featuredMilestones = (() => {
@@ -7892,6 +7897,7 @@ function ConferenceScenes() {
     if (S(regionBody) || S(conf.districtContext) || S(conf.regionalGeology) || infraFacts.length) scenes.push(
       <SceneShell key="jurisdiction" bg="#0b1220" color="#fff">
         <Reveal v="eyebrow"><div style={sceneEyebrow(EM)}>Jurisdiction</div></Reveal>
+        {heroStat(conf.jurisdictionHeroStat)}
         <Reveal v="head"><div style={{ fontSize: "clamp(30px,4vw,58px)", fontWeight: 800, letterSpacing: "-0.03em", marginTop: 14 }}>{S(co.jurisdiction) || "The District"}</div></Reveal>
         {S(regionBody) && <Reveal v="body" order={1}><div style={{ fontSize: "clamp(17px,1.9vw,23px)", fontWeight: 500, lineHeight: 1.5, color: "#dbe2ec", marginTop: 22, maxWidth: 1000 }}>{S(regionBody)}</div></Reveal>}
         {S(conf.districtContext) && <Reveal v="body" order={2}><div style={{ fontSize: 15.5, color: "#93a0b0", marginTop: 18, maxWidth: 980, lineHeight: 1.55 }}><b style={{ color: EM }}>District — </b>{S(conf.districtContext)}</div></Reveal>}
@@ -7920,6 +7926,7 @@ function ConferenceScenes() {
     if (multi) scenes.push(
       <SceneShell key="portfolio" bg="#0b1220" color="#fff" id="projects">
         <Reveal v="eyebrow"><div style={sceneEyebrow(EM)}>Portfolio</div></Reveal>
+        {heroStat(conf.portfolioHeroStat)}
         <Reveal v="head"><div style={{ fontSize: "clamp(30px,4vw,58px)", fontWeight: 800, letterSpacing: "-0.03em", marginTop: 14 }}>{S(conf.portfolioTitle) || `${ordered.length} Projects`}</div></Reveal>
         {S(conf.portfolioOverview) && <Reveal v="body" order={1}><div style={{ fontSize: "clamp(17px,1.9vw,23px)", fontWeight: 500, lineHeight: 1.5, color: "#dbe2ec", marginTop: 22, maxWidth: 1000 }}>{S(conf.portfolioOverview)}</div></Reveal>}
         {(() => {
@@ -7995,6 +8002,7 @@ function ConferenceScenes() {
     if (items.length || (g && S(g.grade)) || drillRows.length) scenes.push(
       <SceneShell key="results" bg="#05070d" color="#fff">
         <Reveal v="eyebrow"><div style={sceneEyebrow(EM)}>{drillRows.length && !items.length ? "Drill Results" : title}</div></Reveal>
+        {heroStat(conf.resultsHeroStat)}
         {S(conf.resultsIntro) && <Reveal v="head"><div style={{ fontSize: "clamp(22px,2.6vw,34px)", fontWeight: 500, letterSpacing: "-0.02em", lineHeight: 1.4, maxWidth: 1000, marginTop: 16, color: "#dbe2ec" }}>{S(conf.resultsIntro)}</div></Reveal>}
         {Array.isArray(conf.resultsWidgetKeys) && conf.resultsWidgetKeys.length > 0 && (() => {
           // Curated results badges — only when the reviewer explicitly picked widgets (the scene
@@ -8120,6 +8128,7 @@ function ConferenceScenes() {
     if (capCells.length || capBadges.length || ownershipHas || S(conf.capitalIntro)) scenes.push(
       <SceneShell key="capital" id="capital" bg="#05070d" color="#fff">
         <Reveal v="eyebrow"><div style={sceneEyebrow(EM)}>Capital</div></Reveal>
+        {heroStat(conf.capitalHeroStat)}
         {S(conf.capitalIntro) && <Reveal v="head"><div style={{ fontSize: "clamp(22px,2.6vw,34px)", fontWeight: 500, lineHeight: 1.4, maxWidth: 1000, marginTop: 16, color: "#dbe2ec" }}>{S(conf.capitalIntro)}</div></Reveal>}
         {capCells.length > 0 && (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 28, marginTop: 44 }}>
@@ -8167,6 +8176,7 @@ function ConferenceScenes() {
       <SceneShell key="leadership" id="leadership" bg="#faf7f3" color="#0f172a" style={{ justifyContent: "flex-start", scrollSnapAlign: "none" }}>
         <Reveal><ChapterMark n="06" label="Who is behind it" /></Reveal>
         <Reveal><div style={{ fontSize: "clamp(34px,4.6vw,48px)", fontWeight: 900, letterSpacing: "-0.038em", marginTop: 22, maxWidth: 760, lineHeight: 1.06 }}>Meet the people creating value</div></Reveal>
+        {heroStat((conf.leadership && (S(conf.leadership.heroStatistic) || S(conf.leadership.headline))) || "", false)}
         {(() => {
           const ceo = team[0]; if (!ceo) return null;
           const mono = S(ceo.initials || (ceo.name || "").split(/\s+/).slice(0, 2).map((w) => w[0]).join(""));

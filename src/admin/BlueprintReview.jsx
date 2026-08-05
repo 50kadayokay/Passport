@@ -151,6 +151,25 @@ function Field({ title, help, value, big }) {
   );
 }
 
+// Editable single-value field (hero phrases, takeaways). Same card look as Field, but the value
+// is an input/textarea wired to onChange. Shows the auto/current value; type to override.
+function EditField({ title, help, value, onChange, big, placeholder }) {
+  const empty = isEmpty(value);
+  return (
+    <div className={`rounded-2xl border bg-white p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)] ${empty ? "border-slate-200/70" : "border-emerald-300 ring-1 ring-emerald-100"}`}>
+      <h3 className="text-[15px] font-bold text-slate-900">{title}</h3>
+      {help && <p className="mt-0.5 text-[12.5px] leading-relaxed text-slate-400">{help}</p>}
+      {big ? (
+        <textarea value={toText(value)} onChange={(e) => onChange(e.target.value)} rows={2} placeholder={placeholder || "Enter…"}
+          className="mt-3 w-full resize-y rounded-lg border border-slate-200 bg-white px-3 py-2 text-[15px] leading-relaxed text-slate-900 outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-200 placeholder:italic placeholder:text-slate-300" />
+      ) : (
+        <input value={toText(value)} onChange={(e) => onChange(e.target.value)} placeholder={placeholder || "Enter…"}
+          className="mt-3 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-[16px] font-bold text-slate-900 outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-200 placeholder:font-normal placeholder:italic placeholder:text-slate-300" />
+      )}
+    </div>
+  );
+}
+
 // A grid of compact stat widgets. Each item: { label, value }.
 function Widgets({ title, help, items }) {
   const anyFilled = (items || []).some((it) => !isEmpty(it.value));
@@ -1194,6 +1213,7 @@ export default function BlueprintReview({ companies = [], onReload, mode = "conf
 
           {/* PAGE 4 — JURISDICTION */}
           <Slide n={4} kicker="Page 4" title="Jurisdiction" purpose="Explain why the jurisdiction matters.">
+            <EditField title="Hero Statistic" help="The page's defining phrase — the strongest geographic identity (mining district, mineral belt, or a major regional production figure). e.g. “Heart of the Parral Silver District”." value={conf.jurisdictionHeroStat} onChange={(v) => setVal("conference.jurisdictionHeroStat", v)} placeholder="e.g. Tier-1 mining district" />
             <Field title="Jurisdiction Overview" help="Editorial paragraph on the region and why it's favorable." value={firstOf(conf.region, conf.districtContext)} big />
             <ImageSlot title="Jurisdiction Image" help="Map or regional photo." tall />
             <WidgetPool page="jurisdiction" conf={conf} setVal={setVal}
@@ -1211,6 +1231,7 @@ export default function BlueprintReview({ companies = [], onReload, mode = "conf
           <Slide n={5} kicker="Page 5" title="Projects" purpose="Every project becomes its own section.">
             {projects.length > 1 && (
               <div className="mb-5 space-y-4">
+                <EditField title="Hero Statistic" help="The portfolio's defining phrase — project count, total land package, active projects, or flagship ownership. e.g. “3 district-scale projects”." value={conf.portfolioHeroStat} onChange={(v) => setVal("conference.portfolioHeroStat", v)} placeholder="e.g. 3 projects · 42,000 ha" />
                 <Field title="Portfolio Overview" help="One paragraph framing the whole portfolio — shown on a 'Portfolio' page before the individual projects (multi-asset companies only)." value={firstOf(conf.portfolioTitle && conf.portfolioOverview ? `${conf.portfolioTitle}\n\n${conf.portfolioOverview}` : undefined, conf.portfolioOverview, conf.portfolioTitle)} big />
                 <WidgetPool page="portfolio" conf={conf} setVal={setVal}
                   auto={{
@@ -1253,6 +1274,7 @@ export default function BlueprintReview({ companies = [], onReload, mode = "conf
 
           {/* PAGE 6 — DRILL RESULTS */}
           <Slide n={6} kicker="Page 6" title="Drill Results" purpose="Display the best technical results.">
+            <EditField title="Hero Statistic" help="The best material result — the single strongest hole/interval/grade as a defining phrase. e.g. “641 g/t AgEq over 15.7 m”." value={conf.resultsHeroStat} onChange={(v) => setVal("conference.resultsHeroStat", v)} placeholder="e.g. 641 g/t AgEq / 15.7 m" />
             <Field title="Featured Drill Result" help="The single most important hole, summarized." value={firstOf(conf.resultsIntro, get(p, "projects[0].drillResults.rows[0].hole"))} big />
             <WidgetPool page="results" conf={conf} setVal={setVal}
               auto={{
@@ -1281,6 +1303,7 @@ export default function BlueprintReview({ companies = [], onReload, mode = "conf
 
           {/* PAGE 8 — CAPITAL */}
           <Slide n={8} kicker="Page 8" title="Capital" purpose="Summarize company finances.">
+            <EditField title="Hero Statistic" help="The defining funding phrase — funding status, cash position, or latest financing. e.g. “Fully Funded”, “C$13M Cash”, “C$13M Bought Deal Closed”." value={conf.capitalHeroStat} onChange={(v) => setVal("conference.capitalHeroStat", v)} placeholder="e.g. Fully funded through 2026" />
             <Field title="Capital Overview" help="Editorial paragraph on the company's financial position." value={firstOf(conf.capitalIntro, cap.headline, cap.subtext)} big />
             <WidgetPool page="capital" conf={conf} setVal={setVal}
               auto={{
@@ -1302,7 +1325,7 @@ export default function BlueprintReview({ companies = [], onReload, mode = "conf
 
           {/* PAGE 9 — LEADERSHIP */}
           <Slide n={9} kicker="Page 9" title="Leadership" purpose="Introduce management.">
-            <Field title="Credibility Line" help="Optional hero phrase for the page — e.g. “150+ Years Combined Experience”. Only if supportable; never fabricated." value={firstOf(get(p, "conference.leadership.heroStatistic"), get(p, "conference.leadership.headline"))} />
+            <EditField title="Credibility Line" help="Optional hero phrase for the page — e.g. “150+ Years Combined Experience”. Only if supportable; never fabricated." value={firstOf(get(p, "conference.leadership.heroStatistic"), get(p, "conference.leadership.headline"))} onChange={(v) => setVal("conference.leadership.heroStatistic", v)} placeholder="e.g. 150+ years combined experience" />
             <LeadershipPool team={team} conf={conf} setVal={setVal} />
           </Slide>
 

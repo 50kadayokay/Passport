@@ -2393,16 +2393,18 @@ conference.region — a company-specific paragraph on the operating footprint (a
 conference.districtContext — district history, nearby operators, historical production, or null.
 conference.regionalGeology — the regional geological setting in 1-2 sentences, or null.
 conference.jurisdictionWidgets — a SHORT value for every candidate the documents support (omit/"" if not disclosed; never invent). Keys: country, district, mineralBelt, nearbyMines, nearbyOperators, infrastructure, permitting, historicProduction, regionalGeology, provinceState. Omit municipality entirely.
-conference.jurisdictionWidgetKeys — the 5–8 strongest, best first (prefer a single "Established Infrastructure" over separate road/power/water badges).`,
-    skeleton: { company: { jurisdiction: "" }, conference: { region: "", districtContext: null, regionalGeology: null, jurisdictionWidgets: { country: "", district: "", mineralBelt: "", nearbyMines: "", nearbyOperators: "", infrastructure: "", permitting: "", historicProduction: "", regionalGeology: "", provinceState: "" }, jurisdictionWidgetKeys: [] } },
+conference.jurisdictionWidgetKeys — the 5–8 strongest, best first (prefer a single "Established Infrastructure" over separate road/power/water badges).
+conference.jurisdictionHeroStat — the page's ONE defining phrase: the strongest geographic identity (mining district, mineral belt, or a major regional production figure). Short. "" if nothing strong.`,
+    skeleton: { company: { jurisdiction: "" }, conference: { region: "", districtContext: null, regionalGeology: null, jurisdictionHeroStat: "", jurisdictionWidgets: { country: "", district: "", mineralBelt: "", nearbyMines: "", nearbyOperators: "", infrastructure: "", permitting: "", historicProduction: "", regionalGeology: "", provinceState: "" }, jurisdictionWidgetKeys: [] } },
   },
   {
     id: "projects", label: "Projects / Assets", n: 4,
     docs: "Technical report(s) — one project per run if they are large.",
     guide: `One entry per project. key — a stable slug (e.g. "las-coloradas"). snapshot — the quick facts. narrative — 2-3 short paragraphs. geology, targets — from the technical report. Set conference.featuredProjectKey to the flagship's key.
 conference.portfolioOverview — ONE short paragraph framing the whole portfolio (only meaningful if there are 2+ projects; else null). conference.portfolioTitle — an optional short headline for the portfolio page (e.g. "Three district-scale assets"), else null.
-conference.portfolioWidgets — for MULTI-project companies only, a SHORT value for each candidate: flagship, numProjects, commodity, stage, ownership, landPackage (total), jurisdiction, activePrograms. Omit/"" if not disclosed. conference.portfolioWidgetKeys — the strongest ~6, best first.`,
-    skeleton: { projects: [{ key: "", name: "", tag: "", snapshot: { location: "", commodity: "", ownership: "", landPackage: "", depositType: "" }, narrative: ["", "", ""], geology: "", targets: { priority: "", closing: "" } }], conference: { featuredProjectKey: "", portfolioOverview: null, portfolioTitle: null, portfolioWidgets: { flagship: "", numProjects: "", commodity: "", stage: "", ownership: "", landPackage: "", jurisdiction: "", activePrograms: "" }, portfolioWidgetKeys: [] } },
+conference.portfolioWidgets — for MULTI-project companies only, a SHORT value for each candidate: flagship, numProjects, commodity, stage, ownership, landPackage (total), jurisdiction, activePrograms. Omit/"" if not disclosed. conference.portfolioWidgetKeys — the strongest ~6, best first.
+conference.portfolioHeroStat — for MULTI-project companies, the portfolio's ONE defining phrase (project count, total land package, active projects, or flagship ownership). Short. "" otherwise.`,
+    skeleton: { projects: [{ key: "", name: "", tag: "", snapshot: { location: "", commodity: "", ownership: "", landPackage: "", depositType: "" }, narrative: ["", "", ""], geology: "", targets: { priority: "", closing: "" } }], conference: { featuredProjectKey: "", portfolioOverview: null, portfolioTitle: null, portfolioHeroStat: "", portfolioWidgets: { flagship: "", numProjects: "", commodity: "", stage: "", ownership: "", landPackage: "", jurisdiction: "", activePrograms: "" }, portfolioWidgetKeys: [] } },
   },
   {
     id: "results", label: "Drill Results & Technical Evidence", n: 5,
@@ -2410,8 +2412,9 @@ conference.portfolioWidgets — for MULTI-project companies only, a SHORT value 
     guide: `projects[].drillResults.rows — the best intercepts, one row each: hole, interval (e.g. "15.7 m"), grade (e.g. "74 g/t AgEq"). VERBATIM.
 projects[].resource / economics — only if a resource estimate or economic study (PEA/PFS/FS) exists; else null.
 conference.resultsIntro — one paragraph framing the technical evidence and what it's testing.
-conference.resultsWidgets — a SHORT value for each candidate the disclosure supports: bestResult (e.g. "SGR-24-01 · 15.7 m · 74 g/t AgEq"), latestResult, widestInterval, currentProgram, drillingStatus, holesCompleted, assaysPending, openDirections, resourceStatus, nextProgram. Omit/"" if not disclosed; VERBATIM; never combine intervals. conference.resultsWidgetKeys — the strongest ~6, best first.`,
-    skeleton: { projects: [{ key: "", drillResults: { rows: [{ hole: "", interval: "", grade: "" }] }, resource: null, economics: null }], conference: { resultsIntro: "", resultsWidgets: { bestResult: "", latestResult: "", widestInterval: "", currentProgram: "", drillingStatus: "", holesCompleted: "", assaysPending: "", openDirections: "", resourceStatus: "", nextProgram: "" }, resultsWidgetKeys: [] } },
+conference.resultsWidgets — a SHORT value for each candidate the disclosure supports: bestResult (e.g. "SGR-24-01 · 15.7 m · 74 g/t AgEq"), latestResult, widestInterval, currentProgram, drillingStatus, holesCompleted, assaysPending, openDirections, resourceStatus, nextProgram. Omit/"" if not disclosed; VERBATIM; never combine intervals. conference.resultsWidgetKeys — the strongest ~6, best first.
+conference.resultsHeroStat — the page's ONE defining phrase: the best material result (strongest hole/interval/grade), verbatim. Short. "" if none.`,
+    skeleton: { projects: [{ key: "", drillResults: { rows: [{ hole: "", interval: "", grade: "" }] }, resource: null, economics: null }], conference: { resultsIntro: "", resultsHeroStat: "", resultsWidgets: { bestResult: "", latestResult: "", widestInterval: "", currentProgram: "", drillingStatus: "", holesCompleted: "", assaysPending: "", openDirections: "", resourceStatus: "", nextProgram: "" }, resultsWidgetKeys: [] } },
   },
   {
     id: "milestones", label: "Milestones (feature + intro)", n: 6, useProfile: true,
@@ -2427,8 +2430,9 @@ This output is tiny — print it directly in your reply. Do NOT write it to a fi
     docs: "Financial statements + MD&A + financing news releases.",
     guide: `capital — cash, debt, shares outstanding, fully diluted, market cap (if stated), and financing history. Verbatim figures with the reporting date.
 conference.capitalIntro — one paragraph on the funding position and what it enables.
-conference.capitalWidgets — a SHORT value for each candidate the filings support: fundingStatus (e.g. "Fully funded through 2026"), cash, workingCapital, latestFinancing, shares (outstanding), fd (fully diluted), ownership, strategicInvestors, warrants, options, debt, balanceSheetDate. Omit/"" if not disclosed; verbatim with as-of date. conference.capitalWidgetKeys — the strongest ~6, funding/cash/latest-financing first (market cap should not displace them).`,
-    skeleton: { capital: { cash: "", debt: "", outstanding: "", fd: "", marketCap: "", reportingDate: "", financing: [{ amount: "", date: "", type: "" }] }, conference: { capitalIntro: "", capitalWidgets: { fundingStatus: "", cash: "", workingCapital: "", latestFinancing: "", shares: "", fd: "", ownership: "", strategicInvestors: "", warrants: "", options: "", debt: "", balanceSheetDate: "" }, capitalWidgetKeys: [] } },
+conference.capitalWidgets — a SHORT value for each candidate the filings support: fundingStatus (e.g. "Fully funded through 2026"), cash, workingCapital, latestFinancing, shares (outstanding), fd (fully diluted), ownership, strategicInvestors, warrants, options, debt, balanceSheetDate. Omit/"" if not disclosed; verbatim with as-of date. conference.capitalWidgetKeys — the strongest ~6, funding/cash/latest-financing first (market cap should not displace them).
+conference.capitalHeroStat — the page's ONE defining funding phrase (funding status, cash position, or latest financing). e.g. "Fully Funded", "C$13M Cash". Short. "" if none.`,
+    skeleton: { capital: { cash: "", debt: "", outstanding: "", fd: "", marketCap: "", reportingDate: "", financing: [{ amount: "", date: "", type: "" }] }, conference: { capitalIntro: "", capitalHeroStat: "", capitalWidgets: { fundingStatus: "", cash: "", workingCapital: "", latestFinancing: "", shares: "", fd: "", ownership: "", strategicInvestors: "", warrants: "", options: "", debt: "", balanceSheetDate: "" }, capitalWidgetKeys: [] } },
   },
   {
     id: "leadership", label: "Leadership", n: 8,
