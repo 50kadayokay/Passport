@@ -321,15 +321,17 @@ export const CONFERENCE_PAGES = [
   },
   // -------------------------------------------------------------- 11. FOLLOW
   {
-    key: "follow", index: 11, label: "Follow on Passport",
-    layout: "CTA headline + QR + follow labels + contact/social + disclaimer.",
+    key: "follow", index: 11, label: "Follow on MineEx",
+    layout: "CTA headline + QR + follow labels + benefit list + contact/social + disclaimer.",
     fields: [
       cf("follow.ctaHeadline", "CTA headline", "none", null, { group: "CTA", layout: line }),
       cf("follow.supportingText", "Supporting text", "none", null, { group: "CTA", layout: para }),
-      cf("follow.followLabel", "Follow label", "none", null, { group: "CTA", layout: short }),
+      cf("follow.followLabel", "Follow label (e.g. \"Follow on MineEx\")", "none", null, { group: "CTA", layout: short }),
+      cf("follow.qrLabel", "QR label", "none", null, { group: "CTA", layout: short }),
+      cf("follow.benefitLabels", "Benefit labels (follow, notifications, full timeline, media, project detail)", "none", null, { group: "CTA", layout: para }),
       cf("follow.fullProfileLabel", "Full-profile label", "none", null, { group: "CTA", layout: short }),
       cf("follow.qrInstruction", "QR instruction", "none", null, { group: "CTA", layout: line }),
-      cf("follow.passportUrl", "Passport URL", "none", null, { group: "CTA", layout: short }),
+      cf("follow.mineexUrl", "MineEx profile URL", "none", null, { group: "CTA", layout: short }),
       cf("follow.campaignId", "Campaign ID (boothQrUtm)", "conference", "boothQrUtm", { group: "CTA", layout: short }),
       cf("follow.conferenceId", "Conference ID", "none", null, { group: "CTA", layout: short }),
       cf("follow.logo", "Company logo", "profile", "brand.logo", { group: "Media" }),
@@ -347,6 +349,21 @@ export const CONFERENCE_PAGES = [
   },
 ];
 
+// Updated-spec injection: every major content page gets ONE hero statistic (value / label /
+// context — the defining number or phrase) and ONE investor takeaway paragraph, at the top of
+// the page. These are Conference-only authored fields (src 'none'). Isolated to conference.*.
+const HERO_STAT_PAGES = ["hero", "overview", "highlights", "jurisdiction", "assets", "results", "capital", "leadership", "why"];
+CONFERENCE_PAGES.forEach((pg) => {
+  if (!HERO_STAT_PAGES.includes(pg.key)) return;
+  const inject = [
+    cf(`${pg.key}.heroStatValue`, "Hero statistic — value", "none", null, { group: "Hero statistic", layout: short }),
+    cf(`${pg.key}.heroStatLabel`, "Hero statistic — label", "none", null, { group: "Hero statistic", layout: short }),
+    cf(`${pg.key}.heroStatContext`, "Hero statistic — context", "none", null, { group: "Hero statistic", layout: line }),
+  ];
+  if (pg.key !== "hero") inject.push(cf(`${pg.key}.investorTakeaway`, "Investor takeaway", "none", null, { group: "Takeaway", layout: para }));
+  pg.fields = [...inject, ...(pg.fields || [])];
+});
+
 // Repeatable pool definitions. `from` = how the projector seeds records; `columns` =
 // per-record value fields. Visual pools carry full evidence/presentation metadata.
 export const CONFERENCE_POOLS = {
@@ -362,7 +379,8 @@ export const CONFERENCE_POOLS = {
   milestones:         { label: "Milestones", from: "profile.timeline", columns: ["date", "originalTitle", "wording", "whyItMatters", "category", "project", "sourceRelease", "url", "displayOrder"] },
   financings:         { label: "Financings", from: "profile.capital.financing", columns: ["announcementDate", "closingDate", "type", "grossProceeds", "netProceeds", "sharePrice", "unitPrice", "shares", "warrants", "flowThrough", "strategicPlacement", "leadInvestor", "agents", "useOfProceeds", "restrictions", "status", "supportedProgram"] },
   capitalVisuals:     { label: "Capital visuals (charts)", from: "none", columns: VISUAL_COLS },
-  leaders:            { label: "Leaders", from: "profile.team", columns: ["name", "role", "category", "short", "full", "priorCompanies", "priorProjects", "discoveries", "minesBuilt", "capitalRaised", "transactions", "technicalExperience", "corporateExperience", "education", "designation", "boards", "ownership", "linkedin"] },
+  // NOTE: no `linkedin` column — LinkedIn is intentionally excluded from Conference leadership.
+  leaders:            { label: "Leaders", from: "profile.team", columns: ["name", "role", "category", "short", "full", "keyAccomplishment", "relevantExperience", "priorCompanies", "priorProjects", "discoveries", "minesBuilt", "capitalRaised", "transactions", "technicalExperience", "corporateExperience", "education", "designation", "boards", "ownership"] },
   reasons:            { label: "Why-invest reasons", from: "conference.investmentCase", columns: ["headline", "supportingFact", "number", "project", "whyItMatters", "evidence", "qualification", "confidence", "priority"] },
 };
 
