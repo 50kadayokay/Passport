@@ -946,29 +946,34 @@ export default function BlueprintReview({ companies = [], onReload, mode = "conf
   // not public and never touches the live app profile). All conference work then happens on
   // the draft, and the booth is previewed from it.
   const [dupState, setDupState] = useState("");
-  const duplicateToDraft = async () => {
+  // Clone the selected company into a draft. `blank` wipes conference.* (hooks, widgets, hero
+  // stats, galleries, selection — every booth-only layer) so you can run the new extraction into
+  // an empty slate and judge the Blueprint's output. Shared app data (projects/capital/team) is
+  // kept as scaffolding. Blank drafts land at <base>-conference-blank so they never collide with
+  // a full clone at <base>-conference.
+  const duplicateToDraft = async (blank = false) => {
     if (!company) return;
     setDupState("busy");
     try {
-      const base = String(company.slug).replace(/-(conf|conference|draft)(-\d+)?$/i, "");
-      const draftSlug = `${base}-conference`;
-      // Clone the live source profile; generate a fresh pp so the DRAFT renders fully. (The
-      // draft is a normal company — only the live flagship must stay pp-less.)
+      const base = String(company.slug).replace(/-(conf|conference|draft|blank)(-\d+)?$/gi, "");
+      const draftSlug = blank ? `${base}-conference-blank` : `${base}-conference`;
       const src = company.profile || {};
-      const cloneProfile = { ...src, pp: mapProfileToPP(src) };
+      // For a blank draft, reset the conference block to just { enabled } — this clears the old
+      // schema AND all the new conference-namespaced layers in one move.
+      const baseProfile = blank ? { ...src, conference: { enabled: true } } : { ...src };
+      const cloneProfile = { ...baseProfile, pp: mapProfileToPP(baseProfile) };
       let created;
       try {
         created = await createCompany(
-          { slug: draftSlug, name: `${company.name || base} (Conference Draft)`, primary_ticker: company.primary_ticker || null, profile: cloneProfile },
+          { slug: draftSlug, name: `${company.name || base} (${blank ? "Conference Test — blank" : "Conference Draft"})`, primary_ticker: company.primary_ticker || null, profile: cloneProfile },
           await authHeaders()
         );
       } catch (e) {
-        // Slug already taken → the draft exists; just select it.
         if (/409|duplicate|unique/i.test(e.message || "")) {
           if (onReload) await onReload();
           setSlug(draftSlug);
           setDupState("");
-          setLoadMsg({ ok: true, text: `A conference draft "${draftSlug}" already exists — selected it. Do your conference work here.` });
+          setLoadMsg({ ok: true, text: `Draft "${draftSlug}" already exists — selected it.${blank ? " Click \"Reset conference\" to re-blank it before extracting." : ""}` });
           return;
         }
         throw e;
@@ -976,8 +981,17 @@ export default function BlueprintReview({ companies = [], onReload, mode = "conf
       if (onReload) await onReload();
       setSlug(created?.slug || draftSlug);
       setDupState("done");
-      setLoadMsg({ ok: true, text: `Created draft "${created?.slug || draftSlug}". Populate Conference Mode here — the live ${base} app profile is untouched.` });
+      setLoadMsg({ ok: true, text: `Created ${blank ? "BLANK test draft" : "draft"} "${created?.slug || draftSlug}"${blank ? " with an empty conference block — run the section passes to fill it" : ""}. Live ${base} app profile is untouched.` });
     } catch (e) { setDupState(""); setLoadMsg({ ok: false, text: e.message || "Duplicate failed" }); }
+  };
+  // Wipe conference.* on the working profile back to a clean slate (keeps shared app data). Not
+  // persisted until Save. Use to re-blank a draft before re-testing extraction.
+  const resetConference = () => {
+    if (!company) return;
+    if (!window.confirm("Clear ALL conference data on this profile (hooks, widgets, hero stats, galleries, highlights, selections) back to empty? Shared app data (projects/capital/team) is kept. Save afterwards to persist.")) return;
+    setProfile((pr) => ({ ...pr, conference: { enabled: true } }));
+    setDirty(true); setTouched(true);
+    setLoadMsg({ ok: true, text: "Conference block cleared to empty. Run the section passes to repopulate, then Save." });
   };
 
   const tickers = useMemo(() => {
@@ -1051,9 +1065,21 @@ export default function BlueprintReview({ companies = [], onReload, mode = "conf
               {sorted.map((c) => <option key={c.slug} value={c.slug}>{c.name || c.slug} — {c.slug}{c.status === "published" ? " · LIVE" : " · draft"}</option>)}
             </select>
             {company && (company.status === "published" || isProtectedSlug(company.slug)) && (
-              <button onClick={duplicateToDraft} disabled={dupState === "busy"}
-                className="inline-flex items-center gap-1.5 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-2 text-[13.5px] font-bold text-indigo-700 hover:bg-indigo-100 disabled:opacity-50">
-                {dupState === "busy" ? "Duplicating…" : "Duplicate to draft"}
+              <>
+                <button onClick={() => duplicateToDraft(false)} disabled={dupState === "busy"}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-2 text-[13.5px] font-bold text-indigo-700 hover:bg-indigo-100 disabled:opacity-50">
+                  {dupState === "busy" ? "Duplicating…" : "Duplicate to draft"}
+                </button>
+                <button onClick={() => duplicateToDraft(true)} disabled={dupState === "busy"} title="Clone to a draft with an EMPTY conference block — to test the Blueprint extraction from scratch."
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-[13.5px] font-bold text-emerald-700 hover:bg-emerald-100 disabled:opacity-50">
+                  {dupState === "busy" ? "Duplicating…" : "Blank test draft"}
+                </button>
+              </>
+            )}
+            {company && !isApp && company.status !== "published" && !isProtectedSlug(company.slug) && (
+              <button onClick={resetConference} title="Wipe conference.* on this draft back to empty (keeps shared app data)."
+                className="inline-flex items-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50 px-4 py-2 text-[13.5px] font-bold text-rose-600 hover:bg-rose-100">
+                Reset conference
               </button>
             )}
             {company && isApp && (
