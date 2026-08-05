@@ -924,6 +924,12 @@ export default function BlueprintReview({ companies = [], onReload, mode = "conf
             <Field title="Company Name" help="Official legal company name." value={get(p, "company.name")} big />
             <Field title="Slogan" help="Primary marketing slogan, in the company's own words." value={get(p, "company.slogan")} />
             <Pills title="Tickers" help="Every exchange listing, one pill each." items={tickers} />
+            <Widgets title="Hero Statistic" help="The one defining number or phrase (shown big on the booth hero)."
+              items={[
+                { label: "Value", value: get(p, "conference.heroStatistic.value") },
+                { label: "Label", value: get(p, "conference.heroStatistic.label") },
+                { label: "Context", value: get(p, "conference.heroStatistic.context") },
+              ]} />
           </Slide>
 
           {/* PAGE 2 — COMPANY OVERVIEW */}
@@ -1085,7 +1091,8 @@ export default function BlueprintReview({ companies = [], onReload, mode = "conf
 
           {/* PAGE 10 — WHY INVEST */}
           <Slide n={10} kicker="Page 10" title="Why Invest" purpose="Summarize the investment thesis.">
-            <Field title="Investment Summary" help="Editorial paragraph — the thesis in one breath." value={firstOf(conf.mission, get(p, "conference.investmentCase[0].reason"))} big />
+            <Field title="Investment Summary" help="Editorial paragraph — synthesizes the strongest established reasons (not a repeat of every card)." value={firstOf(conf.investmentSummary, conf.mission, get(p, "conference.investmentCase[0].reason"))} big />
+            <Field title="Investor Takeaway" help="The single strongest overall takeaway, one line." value={conf.investorTakeaway} />
             <Pool title="Reasons to Invest" help="Every reason as its own card — not one paragraph." items={firstOf(conf.investmentCase, (conf.competitiveAdvantages || []).map((r) => ({ reason: r })))}
               renderItem={(r) => (
                 <div className="rounded-xl bg-slate-50 px-4 py-3.5">
@@ -1098,8 +1105,8 @@ export default function BlueprintReview({ companies = [], onReload, mode = "conf
           </Slide>
 
           {/* PAGE 11 — FOLLOW */}
-          <Slide n={11} kicker="Page 11" title="Follow" purpose="Final call-to-action.">
-            <Field title="Follow PASSPORT" help="Closing editorial line inviting the reader to follow the company on PASSPORT." value={`Follow ${get(p, "company.name") || "this company"} on PASSPORT to get every update the moment it's disclosed.`} big />
+          <Slide n={11} kicker="Page 11" title="Follow on MineEx" purpose="Final call-to-action.">
+            <Field title="Follow on MineEx" help="Closing editorial line inviting the reader to follow the company on MineEx." value={`Follow ${get(p, "company.name") || "this company"} on MineEx to get every update the moment it's disclosed.`} big />
             <div className="rounded-2xl border border-slate-200/70 bg-white p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
               <h3 className="text-[15px] font-bold text-slate-900">QR Code</h3>
               <p className="mt-0.5 text-[12.5px] text-slate-400">Auto-generated on publish — links directly to this company's profile.</p>

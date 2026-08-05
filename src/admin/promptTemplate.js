@@ -2372,8 +2372,9 @@ export const CONFERENCE_SECTIONS = [
 conference.overview — ONE paragraph: who the company is, what management is building or proving, the business model, and the flagship asset (end by naming it).
 conference.mission — the company's own disclosed mission/objective in one sentence, or null.
 conference.macroContext — one sentence on why the commodity/market is relevant, or null.
+conference.heroStatistic — the ONE defining number or phrase for the company (e.g. { value: "641 g/t AgEq", label: "Bonanza grade", context: "maiden hole" } or { value: "C$13M", label: "Funded drill campaign", context: "" }). value = short. Set null if nothing strong enough.
 company.slogan — the company's own tagline, verbatim, if it has one.`,
-    skeleton: { company: { slogan: "" }, conference: { hook: "", overview: "", mission: null, macroContext: null } },
+    skeleton: { company: { slogan: "" }, conference: { hook: "", overview: "", mission: null, macroContext: null, heroStatistic: { value: "", label: "", context: "" } } },
   },
   {
     id: "highlights", label: "Highlights", n: 2,
@@ -2431,8 +2432,10 @@ conference.leadershipIntro — one sentence on why the team fits the company's s
   {
     id: "why", label: "Why Invest", n: 9, useProfile: true,
     docs: "Synthesis — best from your EXISTING profile (Copy profile JSON). You may also attach the corporate deck.",
-    guide: `conference.investmentCase — 3-5 items, each: reason, evidence (specific, from the profile/docs), standsOutBecause. conference.competitiveAdvantages — 3-5 short phrases. conference.companySpecificInsights — any material fact that didn't fit elsewhere.`,
-    skeleton: { conference: { investmentCase: [{ reason: "", evidence: "", standsOutBecause: "" }], competitiveAdvantages: [""], companySpecificInsights: [{ title: "", context: "", evidence: "", materiality: "high|medium" }] } },
+    guide: `conference.investmentCase — 3-5 items, each: reason, evidence (specific, from the profile/docs), standsOutBecause. conference.competitiveAdvantages — 3-5 short phrases. conference.companySpecificInsights — any material fact that didn't fit elsewhere.
+conference.investmentSummary — ONE paragraph synthesizing the strongest established reasons to keep researching this company (not a repeat of every card, non-promotional).
+conference.investorTakeaway — ONE short line: the single strongest overall takeaway, already supported elsewhere.`,
+    skeleton: { conference: { investmentCase: [{ reason: "", evidence: "", standsOutBecause: "" }], competitiveAdvantages: [""], companySpecificInsights: [{ title: "", context: "", evidence: "", materiality: "high|medium" }], investmentSummary: "", investorTakeaway: "" } },
   },
 ];
 
