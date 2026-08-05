@@ -946,6 +946,30 @@ export default function BlueprintReview({ companies = [], onReload, mode = "conf
   // not public and never touches the live app profile). All conference work then happens on
   // the draft, and the booth is previewed from it.
   const [dupState, setDupState] = useState("");
+  // Create a brand-new blank company (not cloned) to build a Conference Mode from scratch. Prompts
+  // for a name, derives the slug, and stores a minimal draft profile — everything empty, ready for
+  // the section passes. Selects it so you can start building immediately.
+  const [newState, setNewState] = useState("");
+  const createNewCompany = async () => {
+    const name = (window.prompt('New company name (e.g. "Acme Silver Corp"):') || "").trim();
+    if (!name) return;
+    const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+    if (!slug) { setLoadMsg({ ok: false, text: "Couldn't derive a URL slug from that name — try letters/numbers." }); return; }
+    setNewState("busy");
+    try {
+      const baseProfile = { company: { name }, conference: { enabled: true } };
+      let pp; try { pp = mapProfileToPP(baseProfile); } catch { pp = undefined; }
+      const created = await createCompany({ slug, name, profile: { ...baseProfile, ...(pp ? { pp } : {}) } }, await authHeaders());
+      if (onReload) await onReload();
+      setSlug(created?.slug || slug);
+      setNewState("");
+      setLoadMsg({ ok: true, text: `Created blank company "${created?.slug || slug}" (draft). Build its Conference Mode from scratch with the section passes below.` });
+    } catch (e) {
+      setNewState("");
+      if (/409|duplicate|unique/i.test(e.message || "")) { setLoadMsg({ ok: false, text: `A company with slug "${slug}" already exists — pick a different name, or select it in the dropdown.` }); return; }
+      setLoadMsg({ ok: false, text: e.message || "Create failed" });
+    }
+  };
   // Clone the selected company into a draft. `blank` wipes conference.* (hooks, widgets, hero
   // stats, galleries, selection — every booth-only layer) so you can run the new extraction into
   // an empty slate and judge the Blueprint's output. Shared app data (projects/capital/team) is
@@ -1064,6 +1088,10 @@ export default function BlueprintReview({ companies = [], onReload, mode = "conf
               <option value="">Select a company…</option>
               {sorted.map((c) => <option key={c.slug} value={c.slug}>{c.name || c.slug} — {c.slug}{c.status === "published" ? " · LIVE" : " · draft"}</option>)}
             </select>
+            <button onClick={createNewCompany} disabled={newState === "busy"} title="Create a brand-new blank company and build its Conference Mode from scratch."
+              className="inline-flex items-center gap-1.5 rounded-xl bg-slate-900 px-4 py-2 text-[13.5px] font-bold text-white hover:bg-slate-700 disabled:opacity-50">
+              {newState === "busy" ? "Creating…" : "+ Create new"}
+            </button>
             {company && (company.status === "published" || isProtectedSlug(company.slug)) && (
               <>
                 <button onClick={() => duplicateToDraft(false)} disabled={dupState === "busy"}
