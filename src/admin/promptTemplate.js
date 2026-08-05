@@ -2395,8 +2395,9 @@ conference.regionalGeology — the regional geological setting in 1-2 sentences,
   {
     id: "projects", label: "Projects / Assets", n: 4,
     docs: "Technical report(s) — one project per run if they are large.",
-    guide: `One entry per project. key — a stable slug (e.g. "las-coloradas"). snapshot — the quick facts. narrative — 2-3 short paragraphs. geology, targets — from the technical report. Set conference.featuredProjectKey to the flagship's key.`,
-    skeleton: { projects: [{ key: "", name: "", tag: "", snapshot: { location: "", commodity: "", ownership: "", landPackage: "", depositType: "" }, narrative: ["", "", ""], geology: "", targets: { priority: "", closing: "" } }], conference: { featuredProjectKey: "" } },
+    guide: `One entry per project. key — a stable slug (e.g. "las-coloradas"). snapshot — the quick facts. narrative — 2-3 short paragraphs. geology, targets — from the technical report. Set conference.featuredProjectKey to the flagship's key.
+conference.portfolioOverview — ONE short paragraph framing the whole portfolio (only meaningful if there are 2+ projects; else null). conference.portfolioTitle — an optional short headline for the portfolio page (e.g. "Three district-scale assets"), else null.`,
+    skeleton: { projects: [{ key: "", name: "", tag: "", snapshot: { location: "", commodity: "", ownership: "", landPackage: "", depositType: "" }, narrative: ["", "", ""], geology: "", targets: { priority: "", closing: "" } }], conference: { featuredProjectKey: "", portfolioOverview: null, portfolioTitle: null } },
   },
   {
     id: "results", label: "Drill Results & Technical Evidence", n: 5,

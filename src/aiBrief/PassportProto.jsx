@@ -7717,7 +7717,7 @@ function ConferenceScenes() {
   const NAV = [
     { id: "overview", label: "Overview" },
     projects.length > 0 && { id: "projects", label: "Projects" },
-    years.length > 0 && { id: "timeline", label: "Timeline" },
+    false && { id: "timeline", label: "Timeline" },   // Timeline removed from Conference Mode (app-only)
     capHasData && { id: "capital", label: "Capital" },
     leadHasData && { id: "leadership", label: "Leadership" },
     { id: "follow", label: "Follow" },
@@ -7766,6 +7766,12 @@ function ConferenceScenes() {
           <div style={{ fontSize: "clamp(56px,8vw,104px)", fontWeight: 900, letterSpacing: "-0.04em", lineHeight: 0.96, marginTop: 14 }}>{S(co.name)}</div>
           {S(co.slogan) && <div style={{ fontSize: "clamp(20px,2.4vw,30px)", fontWeight: 600, opacity: 0.92, marginTop: 16 }}>{S(co.slogan)}</div>}
           {S(st.state) && <div style={{ marginTop: 24, display: "inline-flex", alignItems: "center", gap: 12, background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.22)", borderRadius: 999, padding: "11px 22px", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)" }}><span style={{ height: 9, width: 9, borderRadius: 99, background: EM, boxShadow: `0 0 0 4px ${EM}44` }} /><span style={{ fontSize: 16, fontWeight: 700 }}>{S(st.state)}</span></div>}
+          {conf.heroStatistic && S(conf.heroStatistic.value) && (
+            <div style={{ marginTop: 26 }}>
+              <div style={{ fontSize: "clamp(30px,4.2vw,54px)", fontWeight: 900, letterSpacing: "-0.04em", lineHeight: 1 }}>{S(conf.heroStatistic.value)}</div>
+              {(S(conf.heroStatistic.label) || S(conf.heroStatistic.context)) && <div style={{ fontSize: 14.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.12em", opacity: 0.82, marginTop: 9 }}>{[S(conf.heroStatistic.label), S(conf.heroStatistic.context)].filter(Boolean).join("  ·  ")}</div>}
+            </div>
+          )}
         </div>
       </div>
       <div style={{ position: "absolute", left: "50%", bottom: 28, transform: "translateX(-50%)", color: "rgba(255,255,255,0.6)", display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
@@ -7809,6 +7815,7 @@ function ConferenceScenes() {
     <SceneShell key="glance" bg="#000000" color="#fff">
       <Reveal v="eyebrow"><div style={sceneEyebrow(EM)}>At a Glance</div></Reveal>
       {S(conf.hook) && <Reveal v="head"><div style={{ fontSize: "clamp(28px,3.6vw,50px)", fontWeight: 800, letterSpacing: "-0.03em", lineHeight: 1.12, marginTop: 14, maxWidth: 1000 }}>{S(conf.hook)}</div></Reveal>}
+      {S(conf.highlightsIntro) && <Reveal v="body" order={1}><div style={{ fontSize: "clamp(16px,1.9vw,22px)", color: "#93a0b0", marginTop: 16, maxWidth: 920, lineHeight: 1.5 }}>{S(conf.highlightsIntro)}</div></Reveal>}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: 20, marginTop: 44 }}>
         {highlights.map((s, i) => (
           <Reveal key={i} v="card" order={Math.min(i, 5)}><div style={{ background: "rgba(255,255,255,0.05)", backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 26, padding: "clamp(26px,2.6vw,38px)", height: "100%" }}>
@@ -7856,6 +7863,35 @@ function ConferenceScenes() {
   // SECTION 4 — ASSETS (each project as a swipeable narrative + facts; flagship first, then the rest)
   {
     const ordered = [flagship, ...projects.filter((p) => p !== flagship)].filter((p) => p && S(p.name));
+    // Portfolio Overview — a single "at a glance" page for multi-asset companies, so investors
+    // see the whole portfolio before the per-project narratives. Carries the "projects" nav anchor.
+    const multi = ordered.length > 1;
+    if (multi) scenes.push(
+      <SceneShell key="portfolio" bg="#0b1220" color="#fff" id="projects">
+        <Reveal v="eyebrow"><div style={sceneEyebrow(EM)}>Portfolio</div></Reveal>
+        <Reveal v="head"><div style={{ fontSize: "clamp(30px,4vw,58px)", fontWeight: 800, letterSpacing: "-0.03em", marginTop: 14 }}>{S(conf.portfolioTitle) || `${ordered.length} Projects`}</div></Reveal>
+        {S(conf.portfolioOverview) && <Reveal v="body" order={1}><div style={{ fontSize: "clamp(17px,1.9vw,23px)", fontWeight: 500, lineHeight: 1.5, color: "#dbe2ec", marginTop: 22, maxWidth: 1000 }}>{S(conf.portfolioOverview)}</div></Reveal>}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 18, marginTop: 40 }}>
+          {ordered.map((pj, pi) => {
+            const cs = calloutsFor(pj);
+            const stage = cs.find((c) => c.k === "Stage");
+            const loc = cs.find((c) => c.k === "Location");
+            const stat = cs.find((c) => c.k === "Deposit" || c.k === "Land Package" || c.k === "Ownership");
+            return (
+              <Reveal key={S(pj.key) || pi} v="card" order={Math.min(pi, 3)}>
+                <div style={{ background: "rgba(255,255,255,0.04)", border: `1px solid ${pi === 0 ? EM + "66" : "rgba(255,255,255,0.1)"}`, borderRadius: 20, padding: "22px 24px", height: "100%" }}>
+                  {pi === 0 && <div style={{ fontSize: 10.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.12em", color: EM, marginBottom: 8 }}>Flagship</div>}
+                  <div style={{ fontSize: 24, fontWeight: 900, letterSpacing: "-0.02em", lineHeight: 1.1 }}>{S(pj.name)}</div>
+                  {stage && <div style={{ fontSize: 14, fontWeight: 700, color: EM, marginTop: 8 }}>{S(stage.v)}</div>}
+                  {loc && <div style={{ fontSize: 14, color: "#93a0b0", marginTop: 6 }}>{S(loc.v)}</div>}
+                  {stat && <div style={{ fontSize: 13.5, color: "#c4cdd9", marginTop: 12, lineHeight: 1.4 }}><b style={{ color: "#dbe2ec" }}>{stat.k}: </b>{S(stat.v)}</div>}
+                </div>
+              </Reveal>
+            );
+          })}
+        </div>
+      </SceneShell>
+    );
     ordered.forEach((pj, pi) => scenes.push(
       <SceneProjectStory
         key={"asset-" + (S(pj.key) || pi)}
@@ -7863,7 +7899,7 @@ function ConferenceScenes() {
         label={pi === 0 ? "Flagship Project" : `Asset · ${pi + 1} of ${ordered.length}`}
         calloutsFor={calloutsFor}
         fallbackImg={hasHero ? STATUS_IMG : ""}
-        id={pi === 0 ? "projects" : undefined}
+        id={(!multi && pi === 0) ? "projects" : undefined}
       />
     ));
   }
@@ -7945,7 +7981,10 @@ function ConferenceScenes() {
   // SECTION 6 — TIMELINE (board-style: chapter mark + "A company that keeps moving" + the
   // accordion BoothTimeline. Not snap-aligned + top-justified so the accordion can grow and
   // scroll naturally within the section.)
-  if (years.length) scenes.push(
+  // Timeline is intentionally REMOVED from Conference Mode (spec) — the full timeline is
+  // exclusive to the Passport app. Data (PR_YEARS / timeline[]) + the app's timeline tab are
+  // untouched; only this booth scene is suppressed. `false &&` keeps the code for reference.
+  if (false && years.length) scenes.push(
     <SceneShell key="timeline" id="timeline" bg="#0a0f1c" color="#fff" style={{ justifyContent: "flex-start", scrollSnapAlign: "none" }}>
       <Reveal><ChapterMark n="05" label="How it has progressed" dark /></Reveal>
       <Reveal v="head"><div style={{ fontSize: "clamp(34px,4.6vw,56px)", fontWeight: 900, letterSpacing: "-0.035em", lineHeight: 1.04, marginTop: 22, maxWidth: 820 }}>A company that keeps moving</div></Reveal>
@@ -8085,6 +8124,8 @@ function ConferenceScenes() {
       <SceneShell key="whyinvest" bg="#05070d" color="#fff">
         <Reveal v="eyebrow"><div style={sceneEyebrow(EM)}>Why Invest</div></Reveal>
         <Reveal v="head"><div style={{ fontSize: "clamp(28px,3.6vw,50px)", fontWeight: 800, letterSpacing: "-0.03em", marginTop: 14 }}>Why {shortCo(co.name)}</div></Reveal>
+        {S(conf.investmentSummary) && <Reveal v="body" order={1}><div style={{ fontSize: "clamp(17px,2vw,24px)", color: "#dbe2ec", marginTop: 20, maxWidth: 1000, lineHeight: 1.5 }}>{S(conf.investmentSummary)}</div></Reveal>}
+        {S(conf.investorTakeaway) && <Reveal v="body" order={2}><div style={{ fontSize: 15.5, color: "#93a0b0", marginTop: 16, maxWidth: 900, lineHeight: 1.5, borderLeft: `3px solid ${EM}`, paddingLeft: 14 }}>{S(conf.investorTakeaway)}</div></Reveal>}
         {investmentCase.length > 0 && (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 18, marginTop: 40 }}>
             {investmentCase.map((r, i) => (
@@ -8156,9 +8197,19 @@ function ConferenceScenes() {
         <div>
           <Reveal v="eyebrow"><div style={sceneEyebrow(EM)}>Continue the Story</div></Reveal>
           <Reveal v="head"><div style={{ fontSize: "clamp(40px,5vw,76px)", fontWeight: 900, letterSpacing: "-0.04em", lineHeight: 1.02, marginTop: 20 }}>Never miss another drill result.</div></Reveal>
-          <Reveal v="body" order={1}><div style={{ fontSize: "clamp(18px,2.2vw,26px)", color: "#93a0b0", marginTop: 20, maxWidth: 620, lineHeight: 1.4 }}>Follow {ticker ? `$${ticker}` : shortCo(co.name)} on Passport and get every release delivered instantly.</div></Reveal>
+          <Reveal v="body" order={1}><div style={{ fontSize: "clamp(18px,2.2vw,26px)", color: "#93a0b0", marginTop: 20, maxWidth: 620, lineHeight: 1.4 }}>Follow {ticker ? `$${ticker}` : shortCo(co.name)} on MineEx and get every release delivered instantly.</div></Reveal>
+          {(() => {
+            const benefits = (conf.follow && Array.isArray(conf.follow.benefitLabels) && conf.follow.benefitLabels.length)
+              ? conf.follow.benefitLabels.map(S).filter(Boolean)
+              : ["Follow the company", "Press-release alerts", "The complete timeline", "CEO interviews & media", "Full project detail"];
+            return (
+              <Reveal v="body" order={2}><div style={{ marginTop: 26, display: "flex", flexWrap: "wrap", gap: 10, maxWidth: 620 }}>
+                {benefits.slice(0, 6).map((b, i) => (<span key={i} style={{ fontSize: 14, fontWeight: 700, color: "#dbe2ec", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 999, padding: "9px 16px" }}>{S(b)}</span>))}
+              </div></Reveal>
+            );
+          })()}
         </div>
-        <Reveal v="card"><div className="pp-scene-pulse" style={{ background: "#fff", borderRadius: 32, padding: 24 }}><div style={{ height: 280, width: 280 }} dangerouslySetInnerHTML={{ __html: qr || "" }} /></div></Reveal>
+        <Reveal v="card"><div style={{ textAlign: "center" }}><div className="pp-scene-pulse" style={{ background: "#fff", borderRadius: 32, padding: 24 }}><div style={{ height: 280, width: 280 }} dangerouslySetInnerHTML={{ __html: qr || "" }} /></div><div style={{ marginTop: 14, fontSize: 15, fontWeight: 800, color: "#fff", letterSpacing: "0.02em" }}>{S(conf.follow && conf.follow.qrLabel) || "Follow on MineEx"}</div></div></Reveal>
       </div>
     </SceneShell>
   );
@@ -8166,6 +8217,14 @@ function ConferenceScenes() {
   return (
     <div ref={scrollRef} style={{ position: "fixed", inset: 0, overflowY: "auto", overflowX: "hidden", background: "#05070d", color: "#0f172a", fontFamily: "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif", scrollSnapType: "y proximity", WebkitOverflowScrolling: "touch" }}>
       <style>{`@keyframes ppScenePulse{0%,100%{transform:scale(1);box-shadow:0 0 0 0 ${EM}55}50%{transform:scale(1.03);box-shadow:0 0 0 22px ${EM}00}} .pp-scene-pulse{animation:ppScenePulse 2.6s ease-in-out infinite} @media (prefers-reduced-motion: reduce){.pp-scene-pulse{animation:none}}`}</style>
+      {/* Persistent, subtle "Follow on MineEx" QR — locally generated, always available; hidden on
+          the final Follow scene (which has the full-size QR). Does not obstruct scene content. */}
+      {qr && active !== "follow" && (
+        <div style={{ position: "fixed", right: 18, bottom: 18, zIndex: 55, display: "flex", alignItems: "center", gap: 10, background: "rgba(11,18,32,0.82)", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)", border: "1px solid rgba(255,255,255,0.14)", borderRadius: 16, padding: "9px 14px 9px 9px", boxShadow: "0 12px 30px -12px rgba(0,0,0,0.6)" }}>
+          <div style={{ height: 50, width: 50, background: "#fff", borderRadius: 9, padding: 4 }} dangerouslySetInnerHTML={{ __html: qr }} />
+          <div style={{ color: "#fff", fontSize: 12, fontWeight: 800, lineHeight: 1.15, letterSpacing: "0.01em" }}>Follow on<br />MineEx</div>
+        </div>
+      )}
       {/* Sticky section nav (fixed overlay; light bar per the editorial board) */}
       <div style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 50, background: "rgba(245,247,251,0.9)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", borderBottom: "1px solid #e2e8f0" }}>
         <div style={{ maxWidth: 1180, margin: "0 auto", padding: "0 40px", display: "flex", gap: 6, height: NAV_H, alignItems: "center", justifyContent: "center", flexWrap: "wrap" }}>

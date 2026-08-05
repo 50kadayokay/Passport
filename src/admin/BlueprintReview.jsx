@@ -986,6 +986,11 @@ export default function BlueprintReview({ companies = [], onReload, mode = "conf
 
           {/* PAGE 5 — PROJECTS (repeats) */}
           <Slide n={5} kicker="Page 5" title="Projects" purpose="Every project becomes its own section.">
+            {projects.length > 1 && (
+              <div className="mb-5">
+                <Field title="Portfolio Overview" help="One paragraph framing the whole portfolio — shown on a 'Portfolio' page before the individual projects (multi-asset companies only)." value={firstOf(conf.portfolioTitle && conf.portfolioOverview ? `${conf.portfolioTitle}\n\n${conf.portfolioOverview}` : undefined, conf.portfolioOverview, conf.portfolioTitle)} big />
+              </div>
+            )}
             {projects.length === 0 ? (
               <Field title="Projects" help="Each project gets a name, summary, key details and an image gallery." value={undefined} />
             ) : (
