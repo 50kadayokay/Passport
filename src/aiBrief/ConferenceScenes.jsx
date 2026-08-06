@@ -295,35 +295,63 @@ export function ConferenceScenes() {
   // ---- SCENES — the storyboard (each null when data missing → skipped) ----
   const scenes = [];
 
-  // ACT I · Scene 1 — HERO
-  scenes.push(
-    <div key="hero" data-sec="overview" style={{ position: "relative", height: "100vh", minHeight: 640, overflow: "hidden", background: "#05070d", scrollSnapAlign: "start" }}>
-      {S(conf.heroVideo)
-        ? <video ref={heroRef} src={S(conf.heroVideo)} autoPlay muted loop playsInline style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", transform: "scale(1.12)" }} />
-        : hasHero
-          ? <img ref={heroRef} src={STATUS_IMG} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", transform: "scale(1.12)" }} />
-          : <div ref={heroRef} style={{ position: "absolute", inset: 0, background: `linear-gradient(135deg, ${EM}, #05070d)`, transform: "scale(1.12)" }} />}
-      <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(2,6,23,0.34) 0%, rgba(2,6,23,0.04) 34%, rgba(2,6,23,0.88) 100%)" }} />
-      <div style={{ position: "absolute", left: 0, right: 0, bottom: "12vh" }}>
-        <div style={{ maxWidth: 1240, margin: "0 auto", padding: "0 56px", color: "#fff" }}>
-          {hasLogo && <img src={AVATAR} alt="" style={{ height: 96, width: 96, borderRadius: 22, objectFit: "cover", boxShadow: "0 18px 50px rgba(0,0,0,0.5)" }} />}
-          {ex.length > 0 && <div style={{ marginTop: 22, fontSize: 15, fontWeight: 800, letterSpacing: "0.08em", opacity: 0.9, textTransform: "uppercase" }}>{ex.map((e) => `${e.ex}: ${e.sym}`).join("   ·   ")}</div>}
-          <div style={{ fontSize: "clamp(56px,8vw,104px)", fontWeight: 900, letterSpacing: "-0.04em", lineHeight: 0.96, marginTop: 14 }}>{S(co.name)}</div>
-          {S(co.slogan) && <div style={{ fontSize: "clamp(20px,2.4vw,30px)", fontWeight: 600, opacity: 0.92, marginTop: 16 }}>{S(co.slogan)}</div>}
-          {S(st.state) && <div style={{ marginTop: 24, display: "inline-flex", alignItems: "center", gap: 12, background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.22)", borderRadius: 999, padding: "11px 22px", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)" }}><span style={{ height: 9, width: 9, borderRadius: 99, background: EM, boxShadow: `0 0 0 4px ${EM}44` }} /><span style={{ fontSize: 16, fontWeight: 700 }}>{S(st.state)}</span></div>}
-          {conf.heroStatistic && S(conf.heroStatistic.value) && (
-            <div style={{ marginTop: 26 }}>
-              <div style={{ fontSize: "clamp(30px,4.2vw,54px)", fontWeight: 900, letterSpacing: "-0.04em", lineHeight: 1 }}>{S(conf.heroStatistic.value)}</div>
-              {(S(conf.heroStatistic.label) || S(conf.heroStatistic.context)) && <div style={{ fontSize: 14.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.12em", opacity: 0.82, marginTop: 9 }}>{[S(conf.heroStatistic.label), S(conf.heroStatistic.context)].filter(Boolean).join("  ·  ")}</div>}
-            </div>
-          )}
+  // ACT I · Scene 1 — HERO. Premium sequenced entrance: the hero image fades in, then the
+  // logo → name → slogan → tickers (each individually) blur-and-rise into place. Fully
+  // data-driven — drops back to a brand-gradient when no hero image/logo is set yet, and
+  // hydrates the moment you upload them (brand.hero / brand.logo). Reduced-motion → static.
+  {
+    const tEnd = 1.2 + ex.length * 0.16;             // when the last ticker has landed
+    const rise = (delay) => ({ animationName: "confHeroRise", animationDuration: "0.95s", animationTimingFunction: "cubic-bezier(.2,.65,.25,1)", animationFillMode: "both", animationDelay: `${delay}s`, willChange: "opacity, filter, transform" });
+    scenes.push(
+      <div key="hero" data-sec="overview" style={{ position: "relative", height: "100vh", minHeight: 640, overflow: "hidden", background: "#05070d", scrollSnapAlign: "start" }}>
+        <style>{`
+          @keyframes confHeroRise { from { opacity: 0; filter: blur(16px); transform: translateY(24px); } to { opacity: 1; filter: blur(0); transform: translateY(0); } }
+          @keyframes confHeroBg { from { opacity: 0; transform: scale(1.06); } to { opacity: 1; transform: scale(1); } }
+          .conf-hero-bg { animation: confHeroBg 2.4s cubic-bezier(.2,.6,.2,1) both; }
+          @media (prefers-reduced-motion: reduce) {
+            .conf-hero-bg { animation: none; opacity: 1; transform: none; }
+            [data-hero-rise] { animation: none !important; opacity: 1 !important; filter: none !important; transform: none !important; }
+          }
+        `}</style>
+        {/* Entrance fade + settle lives on this wrapper so it never fights the scroll parallax,
+            which drives the inner element's own transform. */}
+        <div className="conf-hero-bg" style={{ position: "absolute", inset: 0, overflow: "hidden" }}>
+          {S(conf.heroVideo)
+            ? <video ref={heroRef} src={S(conf.heroVideo)} autoPlay muted loop playsInline style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", transform: "scale(1.12)" }} />
+            : hasHero
+              ? <img ref={heroRef} src={STATUS_IMG} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", transform: "scale(1.12)" }} />
+              : <div ref={heroRef} style={{ position: "absolute", inset: 0, background: `radial-gradient(1200px 700px at 70% -10%, ${EM}44, transparent), linear-gradient(135deg, ${EM}, #05070d)`, transform: "scale(1.12)" }} />}
+        </div>
+        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(2,6,23,0.34) 0%, rgba(2,6,23,0.04) 34%, rgba(2,6,23,0.88) 100%)" }} />
+        <div style={{ position: "absolute", left: 0, right: 0, bottom: "12vh" }}>
+          <div style={{ maxWidth: 1240, margin: "0 auto", padding: "0 56px", color: "#fff" }}>
+            {hasLogo && <img data-hero-rise src={AVATAR} alt="" style={{ height: 96, width: 96, borderRadius: 22, objectFit: "cover", boxShadow: "0 18px 50px rgba(0,0,0,0.5)", ...rise(0.4) }} />}
+            <div data-hero-rise style={{ fontSize: "clamp(56px,8vw,104px)", fontWeight: 900, letterSpacing: "-0.04em", lineHeight: 0.96, marginTop: 16, ...rise(0.62) }}>{S(co.name) || "Company Name"}</div>
+            {S(co.slogan) && <div data-hero-rise style={{ fontSize: "clamp(20px,2.4vw,30px)", fontWeight: 600, opacity: 0.92, marginTop: 16, ...rise(0.92) }}>{S(co.slogan)}</div>}
+            {ex.length > 0 && (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 22 }}>
+                {ex.map((e, i) => (
+                  <span key={i} data-hero-rise style={{ display: "inline-flex", alignItems: "center", fontSize: 13.5, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", color: "#fff", background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: 999, padding: "7px 15px", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)", ...rise(1.2 + i * 0.16) }}>{e.ex}: {e.sym}</span>
+                ))}
+              </div>
+            )}
+            {S(st.state) && <div data-hero-rise style={{ marginTop: 24, display: "inline-flex", alignItems: "center", gap: 12, background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.22)", borderRadius: 999, padding: "11px 22px", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)", ...rise(tEnd + 0.15) }}><span style={{ height: 9, width: 9, borderRadius: 99, background: EM, boxShadow: `0 0 0 4px ${EM}44` }} /><span style={{ fontSize: 16, fontWeight: 700 }}>{S(st.state)}</span></div>}
+            {conf.heroStatistic && S(conf.heroStatistic.value) && (
+              <div data-hero-rise style={{ marginTop: 26, ...rise(tEnd + 0.32) }}>
+                <div style={{ fontSize: "clamp(30px,4.2vw,54px)", fontWeight: 900, letterSpacing: "-0.04em", lineHeight: 1 }}>{S(conf.heroStatistic.value)}</div>
+                {(S(conf.heroStatistic.label) || S(conf.heroStatistic.context)) && <div style={{ fontSize: 14.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.12em", opacity: 0.82, marginTop: 9 }}>{[S(conf.heroStatistic.label), S(conf.heroStatistic.context)].filter(Boolean).join("  ·  ")}</div>}
+              </div>
+            )}
+          </div>
+        </div>
+        <div style={{ position: "absolute", left: 0, right: 0, bottom: 28, display: "flex", justifyContent: "center" }}>
+          <div data-hero-rise style={{ color: "rgba(255,255,255,0.6)", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, ...rise(2.3) }}>
+            <span style={{ fontSize: 10.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.2em" }}>Scroll</span><ChevronDown size={18} />
+          </div>
         </div>
       </div>
-      <div style={{ position: "absolute", left: "50%", bottom: 28, transform: "translateX(-50%)", color: "rgba(255,255,255,0.6)", display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
-        <span style={{ fontSize: 10.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.2em" }}>Scroll</span><ChevronDown size={18} />
-      </div>
-    </div>
-  );
+    );
+  }
 
   // SECTION 1 — COMPANY (who are we: overview → mission → corporate facts)
   if (S(conf.overview) || S(conf.macroContext) || S(conf.mission)) scenes.push(
