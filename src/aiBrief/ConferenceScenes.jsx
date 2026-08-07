@@ -10,11 +10,74 @@ import QRCode from "qrcode";
 import { ChevronRight, ChevronDown, Clock } from "lucide-react";
 import { resolveWidgets, resolveProjectWidgets, widgetText } from "../lib/conferenceWidgets.js";
 import {
-  SceneShell, Reveal, CountUp, OwnershipBar, ChapterMark, BoothTimeline,
+  SceneShell, CountUp, OwnershipBar, ChapterMark, BoothTimeline,
   EM, EM_TEXT, sceneEyebrow, prefersReduce, shortCo, has,
   AVATAR, CAP, CAPSTATUS, COMPANY, EXCHANGES, OWNERSHIP, PROJECTS_FULL, PR_YEARS,
   STATUS, STATUS_IMG, TEAM_MEMBERS,
 } from "./PassportProto.jsx";
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Conference Mode entrance motion — the Midu-studio reveal, applied universally.
+// A one-shot, editorial entrance: a heading emerges UPWARD from behind a clip mask;
+// its supporting copy rises gently a beat later; cards/stats/badges follow with a
+// restrained stagger. Clear hierarchy — HEADING → SUBTEXT → SUPPORTING CONTENT —
+// never everything at once. Understated, decelerating, premium; not a slide-up.
+//
+// This replaces the shared scroll-linked Reveal for the booth only: it triggers ONCE
+// when a section is ~20% in view (no replay on scroll-back) and honors reduced-motion.
+// Drop-in compatible with the existing <Reveal v="eyebrow|head|body|card|media" order=.. />.
+const CONF_EASE = "cubic-bezier(0.22, 1, 0.36, 1)"; // quick out, gentle settle — the Midu curve
+const CONF_MOTION = {
+  //          delay  dur   y   blur  clip   scale   stagger(per order)
+  eyebrow: { delay: 0,   dur: 620, y: 14, blur: 0, clip: false, scale: 1,     stagger: 0 },
+  head:    { delay: 120, dur: 860, y: 0,  blur: 4, clip: true,  scale: 1,     stagger: 55 },
+  body:    { delay: 300, dur: 720, y: 20, blur: 0, clip: false, scale: 1,     stagger: 0 },
+  media:   { delay: 340, dur: 780, y: 24, blur: 0, clip: false, scale: 1,     stagger: 0 },
+  card:    { delay: 420, dur: 660, y: 22, blur: 0, clip: false, scale: 0.985, stagger: 70 },
+};
+function Reveal({ children, v = "body", order = 0, style, className }) {
+  const cfg = CONF_MOTION[v] || CONF_MOTION.body;
+  const reduce = prefersReduce();
+  const ref = useRef(null);
+  const [shown, setShown] = useState(reduce);
+  useEffect(() => {
+    if (reduce) return;
+    const el = ref.current; if (!el) return;
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach((e) => { if (e.isIntersecting) { setShown(true); io.disconnect(); } });
+    }, { threshold: 0.2 });   // fire once the section meaningfully enters, not at dead-center
+    io.observe(el);
+    return () => io.disconnect();
+  }, [reduce]);
+  const delay = (cfg.delay || 0) + (cfg.stagger ? order * cfg.stagger : 0);
+  const T = `transform ${cfg.dur}ms ${CONF_EASE} ${delay}ms, opacity ${cfg.dur}ms ${CONF_EASE} ${delay}ms, filter ${cfg.dur}ms ${CONF_EASE} ${delay}ms`;
+  // Headings: emerge from behind an overflow-hidden mask (paddingBottom/negative margin gives
+  // descenders room without shifting layout). Text starts fully below its baseline and rises in.
+  if (cfg.clip) {
+    return (
+      <div ref={ref} className={className} style={{ ...style, overflow: "hidden", paddingBottom: "0.14em", marginBottom: "-0.14em" }}>
+        <div style={{
+          transform: shown ? "translateY(0)" : "translateY(115%)",
+          opacity: shown ? 1 : 0,
+          filter: shown ? "blur(0px)" : `blur(${cfg.blur}px)`,
+          transition: reduce ? "none" : T,
+          willChange: shown ? "auto" : "transform, opacity, filter",
+        }}>{children}</div>
+      </div>
+    );
+  }
+  // Everything else: a smaller, softer rise — movement scales down the hierarchy.
+  return (
+    <div ref={ref} className={className} style={{
+      ...style,
+      transform: shown ? "translateY(0) scale(1)" : `translateY(${cfg.y}px)${cfg.scale !== 1 ? ` scale(${cfg.scale})` : ""}`,
+      opacity: shown ? 1 : 0,
+      filter: cfg.blur ? (shown ? "blur(0px)" : `blur(${cfg.blur}px)`) : undefined,
+      transition: reduce ? "none" : T,
+      willChange: shown ? "auto" : "transform, opacity",
+    }}>{children}</div>
+  );
+}
 
 // Section 3 — the flagship project told as 2–3 swipeable NARRATIVE paragraphs over its image,
 // with callout facts and a "+N assets" pill for portfolio companies.
@@ -301,7 +364,7 @@ export function ConferenceScenes() {
   // hydrates the moment you upload them (brand.hero / brand.logo). Reduced-motion → static.
   {
     const tEnd = 1.2 + ex.length * 0.16;             // when the last ticker has landed
-    const rise = (delay) => ({ animationName: "confHeroRise", animationDuration: "0.95s", animationTimingFunction: "cubic-bezier(.2,.65,.25,1)", animationFillMode: "both", animationDelay: `${delay}s`, willChange: "opacity, filter, transform" });
+    const rise = (delay) => ({ animationName: "confHeroRise", animationDuration: "0.9s", animationTimingFunction: CONF_EASE, animationFillMode: "both", animationDelay: `${delay}s`, willChange: "opacity, filter, transform" });
     scenes.push(
       <div key="hero" data-sec="overview" style={{ position: "relative", height: "100vh", minHeight: 640, overflow: "hidden", background: "#05070d", scrollSnapAlign: "start" }}>
         <style>{`
