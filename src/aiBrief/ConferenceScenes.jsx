@@ -416,11 +416,10 @@ export function ConferenceScenes() {
     );
   }
 
-  // SECTION 1 — COMPANY OVERVIEW. Left: short headline (clip-mask reveal) → overview paragraph
-  // (rise). Right: the key facts as black/white widget cards. Empty facts are dropped.
+  // SECTION 1 — COMPANY OVERVIEW. Black scene. Top: headline (clip reveal) + overview paragraph
+  // on the left, a supporting image on the right. Bottom: the key facts as a row of widgets.
   if (S(conf.overview) || S(conf.hook) || S(conf.macroContext) || S(conf.mission)) {
     const headline = S(conf.hook) || S(co.name);   // the slogan field can be a full paragraph — use the short hook
-    // Fact values honor a Blueprint manual override (conference.overviewWidgets[key]) over auto.
     const ovW = conf.overviewWidgets || {};
     const ov = (k, auto) => S(ovW[k]) || auto;
     const facts = [
@@ -432,21 +431,33 @@ export function ConferenceScenes() {
       { k: "Company Stage", v: ov("stage", S(co.stage)) },
       { k: "Current Activity", v: ov("currentActivity", S(conf.currentActivity)) },
     ].filter((f) => S(f.v));
+    const ovImg = (() => {
+      const g = (conf.gallery && (conf.gallery.overview || conf.gallery.company)) || [];
+      const first = Array.isArray(g) && g[0];
+      return (first ? S(typeof first === "string" ? first : first && first.src) : "") || S(STATUS_IMG);
+    })();
     scenes.push(
-      <SceneShell key="company" bg="#0b1220" color="#fff">
-        <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1.05fr) minmax(0,0.95fr)", gap: "clamp(32px,5vw,72px)", alignItems: "center" }}>
-          <div>
-            <Reveal v="eyebrow"><div style={sceneEyebrow(EM)}>Company</div></Reveal>
-            {S(headline) && <Reveal v="head"><div style={{ fontSize: "clamp(32px,4.4vw,62px)", fontWeight: 900, letterSpacing: "-0.03em", lineHeight: 1.04, marginTop: 14 }}>{headline}</div></Reveal>}
-            {S(conf.overview) && <Reveal v="body" order={1}><div style={{ fontSize: "clamp(17px,1.9vw,23px)", fontWeight: 500, letterSpacing: "-0.01em", lineHeight: 1.6, marginTop: 22, color: "#c9d3df", maxWidth: 620 }}>{S(conf.overview)}</div></Reveal>}
+      <SceneShell key="company" bg="#000000" color="#fff">
+        <div style={{ display: "flex", flexDirection: "column", gap: "clamp(30px,4vw,52px)" }}>
+          <div style={{ display: "grid", gridTemplateColumns: ovImg ? "minmax(0,1.08fr) minmax(0,0.92fr)" : "1fr", gap: "clamp(32px,5vw,64px)", alignItems: "center" }}>
+            <div>
+              <Reveal v="eyebrow"><div style={sceneEyebrow(EM)}>Company</div></Reveal>
+              {S(headline) && <Reveal v="head"><div style={{ fontSize: "clamp(32px,4.4vw,62px)", fontWeight: 900, letterSpacing: "-0.03em", lineHeight: 1.04, marginTop: 14 }}>{headline}</div></Reveal>}
+              {S(conf.overview) && <Reveal v="body" order={1}><div style={{ fontSize: "clamp(17px,1.9vw,23px)", fontWeight: 500, letterSpacing: "-0.01em", lineHeight: 1.6, marginTop: 22, color: "#c9d3df", maxWidth: 620 }}>{S(conf.overview)}</div></Reveal>}
+            </div>
+            {ovImg && (
+              <Reveal v="media"><div style={{ borderRadius: 22, overflow: "hidden", border: "1px solid rgba(255,255,255,0.1)", boxShadow: "0 30px 70px -44px rgba(0,0,0,0.8)" }}>
+                <img src={ovImg} alt="" style={{ display: "block", width: "100%", height: "auto", maxHeight: "48vh", objectFit: "cover" }} />
+              </div></Reveal>
+            )}
           </div>
           {facts.length > 0 && (
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 14 }}>
               {facts.map((f, i) => (
-                <Reveal key={i} v="card" order={i} style={facts.length % 2 === 1 && i === facts.length - 1 ? { gridColumn: "1 / -1" } : undefined}>
-                  <div style={{ background: "#000", borderRadius: 16, padding: "18px 20px", height: "100%" }}>
-                    <div style={{ fontSize: 10.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.12em", color: "rgba(255,255,255,0.5)" }}>{f.k}</div>
-                    <div style={{ fontSize: "clamp(16px,1.5vw,20px)", fontWeight: 800, marginTop: 8, color: "#fff", lineHeight: 1.25, textTransform: f.k === "Company Stage" ? "capitalize" : "none" }}>{S(f.v)}</div>
+                <Reveal key={i} v="card" order={i}>
+                  <div style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 14, padding: "15px 17px", height: "100%" }}>
+                    <div style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.12em", color: "rgba(255,255,255,0.5)" }}>{f.k}</div>
+                    <div style={{ fontSize: "clamp(15px,1.4vw,19px)", fontWeight: 800, marginTop: 7, color: "#fff", lineHeight: 1.25, textTransform: f.k === "Company Stage" ? "capitalize" : "none" }}>{S(f.v)}</div>
                   </div>
                 </Reveal>
               ))}
