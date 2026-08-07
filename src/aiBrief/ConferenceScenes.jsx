@@ -416,55 +416,59 @@ export function ConferenceScenes() {
     );
   }
 
-  // SECTION 1 — COMPANY (who are we: overview → mission → corporate facts)
-  if (S(conf.overview) || S(conf.macroContext) || S(conf.mission)) scenes.push(
-    <SceneShell key="company" bg="#0b1220" color="#fff">
-      <Reveal v="eyebrow"><div style={sceneEyebrow(EM)}>Company</div></Reveal>
-      {S(co.slogan) && <Reveal v="head"><div style={{ fontSize: "clamp(26px,3.4vw,46px)", fontWeight: 900, letterSpacing: "-0.03em", lineHeight: 1.1, marginTop: 12, color: "#fff" }}>{S(co.slogan)}</div></Reveal>}
-      {S(conf.overview) && <Reveal v="body" order={1}><div style={{ fontSize: "clamp(19px,2.2vw,28px)", fontWeight: 500, letterSpacing: "-0.01em", lineHeight: 1.5, maxWidth: 1080, marginTop: 20, color: "#dbe2ec" }}>{S(conf.overview)}</div></Reveal>}
-      {S(conf.mission) && <Reveal v="body" order={1}><div style={{ fontSize: 17, color: "#c4cdd9", marginTop: 22, maxWidth: 960, lineHeight: 1.55, fontStyle: "italic" }}>{S(conf.mission)}</div></Reveal>}
-      {S(conf.macroContext) && <Reveal v="body" order={2}><div style={{ fontSize: 15.5, color: "#8493a8", marginTop: 18, maxWidth: 920, lineHeight: 1.55 }}>{S(conf.macroContext)}</div></Reveal>}
-      {(() => {
-        // Widget pool (Blueprint-curated): show the reviewer's selected badges, or — when
-        // uncurated — every candidate that resolves to a value, capped at 8. Falls back to the
-        // original hand-picked facts if the pool is empty (e.g. a company with no conference data).
-        const auto = {
-          commodity: S(co.commodity),
-          flagship: S(flagship.name),
-          stage: S(co.stage),
-          operationsLocation: S(flagship.locationFull) || S(co.location),
-          jurisdiction: S(co.jurisdiction),
-          currentActivity: S(conf.currentActivity),
-          assets: projects.length ? String(projects.length) : "",
-          ownership: snapValFor(flagship, "ownership") || S(cap.ownership),
-          landPackage: snapValFor(flagship, "land"),
-          headquarters: S(co.headquarters),
-        };
-        // Opt-in: the pool only drives the grid once this page has been extracted/curated in the
-        // Blueprint (conf.overviewWidgets / overviewWidgetKeys). Otherwise the original facts stand.
-        const curated = !!(conf.overviewWidgets || conf.overviewWidgetKeys);
-        const pool = curated ? resolveWidgets("overview", auto, conf).slice(0, 8) : [];
-        const facts = (pool.length ? pool.map((w) => ({ k: w.label, v: widgetText(w.value) })) : [
-          { k: "Headquarters", v: S(co.headquarters) },
-          { k: "Commodities", v: S(co.commodity) },
-          { k: "Flagship", v: S(flagship.name) },
-          { k: "Portfolio", v: projects.length > 1 ? `${projects.length} projects` : (projects.length === 1 ? "Single asset" : "") },
-          { k: "Stage", v: S(co.stage) },
-        ]).filter((f) => S(f.v));
-        return facts.length ? (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 14, marginTop: 40 }}>
-            {facts.map((f, i) => (
-              <Reveal key={i} v="card" order={Math.min(i, 4)}><div style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 16, padding: "16px 18px" }}>
-                <div style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.1em", color: EM }}>{f.k}</div>
-                <div style={{ fontSize: 16, fontWeight: 700, marginTop: 7, color: "#e6ebf2", textTransform: f.k === "Stage" ? "capitalize" : "none" }}>{S(f.v)}</div>
-              </div></Reveal>
-            ))}
+  // SECTION 1 — COMPANY OVERVIEW. Left column: headline (clip-mask reveal) → paragraph (rise)
+  // → a borderless "lattice" of the key corporate facts. Optional supporting image on the right.
+  if (S(conf.overview) || S(conf.macroContext) || S(conf.mission) || S(co.slogan)) {
+    const headline = S(co.slogan) || S(conf.hook);
+    // Fact values honor a Blueprint manual override (conference.overviewWidgets[key]) over the
+    // auto-derived value. Fixed set + arrangement per the page design.
+    const ovW = conf.overviewWidgets || {};
+    const ov = (k, auto) => S(ovW[k]) || auto;
+    const row1 = [
+      { k: "Headquarters", v: ov("headquarters", S(co.headquarters) || S(co.location)) },
+      { k: "Jurisdiction", v: ov("jurisdiction", S(co.jurisdiction)) },
+      { k: "Assets", v: ov("assets", projects.length ? String(projects.length) : "") },
+    ].filter((f) => S(f.v));
+    const row2 = [
+      { k: "Flagship Project", v: ov("flagship", S(flagship.name)) },
+      { k: "Commodity", v: ov("commodity", S(co.commodity)) },
+      { k: "Company Stage", v: ov("stage", S(co.stage)) },
+      { k: "Current Activity", v: ov("currentActivity", S(conf.currentActivity)) },
+    ].filter((f) => S(f.v));
+    const ovImg = (() => {
+      const g = (conf.gallery && (conf.gallery.overview || conf.gallery.company)) || [];
+      const first = Array.isArray(g) && g[0];
+      return first ? S(typeof first === "string" ? first : first && first.src) : "";
+    })();
+    const cell = (f) => (
+      <>
+        <div style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.14em", color: EM }}>{f.k}</div>
+        <div style={{ fontSize: "clamp(16px,1.5vw,21px)", fontWeight: 700, marginTop: 8, color: "#eef2f7", lineHeight: 1.3, textTransform: f.k === "Company Stage" ? "capitalize" : "none" }}>{S(f.v)}</div>
+      </>
+    );
+    scenes.push(
+      <SceneShell key="company" bg="#0b1220" color="#fff">
+        <div style={{ display: "grid", gridTemplateColumns: ovImg ? "minmax(0,1fr) minmax(0,0.82fr)" : "1fr", gap: "clamp(32px,5vw,72px)", alignItems: "center" }}>
+          <div style={{ maxWidth: ovImg ? "100%" : 800 }}>
+            <Reveal v="eyebrow"><div style={sceneEyebrow(EM)}>Company</div></Reveal>
+            {S(headline) && <Reveal v="head"><div style={{ fontSize: "clamp(30px,4vw,58px)", fontWeight: 900, letterSpacing: "-0.03em", lineHeight: 1.06, marginTop: 14 }}>{headline}</div></Reveal>}
+            {S(conf.overview) && <Reveal v="body" order={1}><div style={{ fontSize: "clamp(17px,1.9vw,23px)", fontWeight: 500, letterSpacing: "-0.01em", lineHeight: 1.55, marginTop: 20, color: "#c9d3df", maxWidth: 660 }}>{S(conf.overview)}</div></Reveal>}
+            {(row1.length > 0 || row2.length > 0) && (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(12,1fr)", gap: "clamp(24px,2.6vw,34px) clamp(24px,2.4vw,36px)", marginTop: "clamp(30px,3.6vw,48px)" }}>
+                {row1.map((f, i) => <Reveal key={"r1" + i} v="card" order={i} style={{ gridColumn: "span 4" }}>{cell(f)}</Reveal>)}
+                {row2.map((f, i) => <Reveal key={"r2" + i} v="card" order={row1.length + i} style={{ gridColumn: "span 3" }}>{cell(f)}</Reveal>)}
+              </div>
+            )}
           </div>
-        ) : null;
-      })()}
-      {boothGallery(["overview", "company"])}
-    </SceneShell>
-  );
+          {ovImg && (
+            <Reveal v="media"><div style={{ borderRadius: 24, overflow: "hidden", border: "1px solid rgba(255,255,255,0.1)", boxShadow: "0 34px 80px -44px rgba(0,0,0,0.75)" }}>
+              <img src={ovImg} alt="" style={{ display: "block", width: "100%", height: "auto", maxHeight: "66vh", objectFit: "cover" }} />
+            </div></Reveal>
+          )}
+        </div>
+      </SceneShell>
+    );
+  }
 
   // SECTION 3 — AT A GLANCE (bird's-eye highlights across every aspect, before the deep dive)
   if (highlights.length) scenes.push(
