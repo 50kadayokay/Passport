@@ -8,7 +8,7 @@
 //   • assets/images → cache-first (same- AND cross-origin: JS/CSS, Fontshare/Google fonts,
 //                     Supabase Storage images), revalidating in the background
 // Bump CACHE_VERSION on a breaking change to evict old caches.
-const CACHE_VERSION = "passport-booth-v5";
+const CACHE_VERSION = "passport-booth-v6";
 const SHELL = ["/app", "/manifest.webmanifest", "/booth-icon.svg"];
 
 self.addEventListener("install", (e) => {

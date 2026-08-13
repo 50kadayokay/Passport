@@ -1,11 +1,11 @@
 {
-  "name": "Passport",
-  "short_name": "Passport",
+  "name": "Argenta Silver — Conference",
+  "short_name": "Argenta Booth",
   "display": "standalone",
   "orientation": "any",
   "background_color": "#05070d",
   "theme_color": "#05070d",
-  "start_url": "/app",
+  "start_url": "/app?c=argenta-silver-corp&ipad=1&scene=1&kiosk=1",
   "scope": "/",
   "icons": [
     { "src": "/booth-icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
