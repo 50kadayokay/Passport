@@ -337,18 +337,6 @@ export function ConferenceScenes() {
   const NAV = SECTIONS.map((s, si) => ({ ...s, si })).filter((s) => s.label && s.id !== "endcap" && !/^project-/.test(s.id));
   const progress = total > 1 ? index / (total - 1) : 0;
 
-  // KIOSK MODE — a clean conference swipe surface with no top section menu. Auto-on when the
-  // booth is launched full-screen from the iPad Home Screen (standalone PWA); `&kiosk=1` forces
-  // it on in any browser (and `&kiosk=0` forces the menu back for desk review/editing).
-  const kioskMode = (() => {
-    try {
-      const p = new URLSearchParams(window.location.search);
-      if (p.get("kiosk") === "1") return true;
-      if (p.get("kiosk") === "0") return false;
-      return window.navigator.standalone === true || window.matchMedia("(display-mode: standalone)").matches;
-    } catch (_) { return false; }
-  })();
-
   return (
     <div ref={rootRef} className="cm-root" style={{ position: "fixed", inset: 0, overflow: "hidden", background: activeTone.bg, color: activeTone.fg, fontFamily: "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif", touchAction: "none", transition: reduce ? "none" : `background 520ms ${EASE}`, WebkitUserSelect: "none", userSelect: "none" }}>
       <CMStyles />
@@ -376,8 +364,8 @@ export function ConferenceScenes() {
         <div style={{ height: "100%", width: `${progress * 100}%`, background: activeTone.accent, transition: reduce ? "none" : `width 640ms ${EASE}` }} />
       </div>
 
-      {/* Color-inheriting top nav — hidden in kiosk mode (pure swipe, no menu). */}
-      {!kioskMode && (
+      {/* Color-inheriting top nav — always shown (progress indicator + jump-to-section). */}
+      {(
         <div style={{ position: "fixed", top: 2, left: 0, right: 0, zIndex: 55, background: activeTone.nav, backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", borderBottom: `1px solid ${activeTone.navHair}`, transition: reduce ? "none" : `background 320ms ${EASE}, border-color 320ms ${EASE}` }}>
           <div style={{ maxWidth: 1280, margin: "0 auto", padding: "0 clamp(16px,4vw,44px)", height: 58, display: "flex", alignItems: "center", justifyContent: "center", gap: 4, flexWrap: "wrap" }}>
             {NAV.map((n) => {
