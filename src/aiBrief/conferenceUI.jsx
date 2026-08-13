@@ -263,6 +263,47 @@ function FactRail({ facts, on, tone, big = false }) {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
+// CHAPTER TRANSITION (Type A) — dramatic punctuation between major topics.
+// A full-viewport reset: an image "takes over" (scales/reveals in) with a giant
+// section number watermark, section name, and one evocative line resolving over it.
+// `variant`: "image" (landscape/portrait takeover) · "data" (accent-led, no photo,
+// for Capital / Investment Case). Used as beat 0 of a major section so entering the
+// topic feels like turning to a new chapter, not loading another content page.
+// ════════════════════════════════════════════════════════════════════════════
+export function CMChapter({ number, kicker, title, subtitle, image, tone, variant = "image", active }) {
+  const t = tone || TONES.ink;
+  const reduce = prefersReduce();
+  const shown = reduce || active;
+  const isData = variant === "data" || !image;
+  return (
+    <div style={{ position: "absolute", inset: 0, background: isData ? t.bg : "#05070d", color: "#fff", fontFamily: FONT, overflow: "hidden" }}>
+      {/* Backdrop — image takeover, or an accent field for data chapters */}
+      {isData ? (
+        <div aria-hidden style={{ position: "absolute", inset: 0, background: `radial-gradient(120% 100% at 82% -10%, ${t.accent}26, transparent 58%), ${t.bg}`, opacity: shown ? 1 : 0, transition: reduce ? "none" : `opacity 700ms ${EASE_MEDIA}` }} />
+      ) : (
+        <div aria-hidden style={{ position: "absolute", inset: 0, overflow: "hidden" }}>
+          <img src={image} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", objectPosition: "center 32%", transform: shown ? "scale(1)" : "scale(1.14)", opacity: shown ? 1 : 0, transition: reduce ? "none" : `transform 1200ms ${EASE_MEDIA}, opacity 760ms ${EASE_MEDIA}` }} />
+          <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(4,6,12,0.52) 0%, rgba(4,6,12,0.12) 42%, rgba(4,6,12,0.86) 100%)" }} />
+        </div>
+      )}
+      {/* Giant section-number watermark */}
+      {number && (
+        <div aria-hidden style={{ position: "absolute", top: "clamp(44px,9vh,132px)", right: "clamp(16px,4vw,72px)", fontSize: "clamp(150px,27vw,440px)", fontWeight: 700, letterSpacing: "-0.06em", lineHeight: 0.8, color: isData ? t.accent : "#fff", pointerEvents: "none", fontVariantNumeric: "tabular-nums", transform: shown ? "none" : "translateY(28px)", opacity: shown ? (isData ? 0.2 : 0.16) : 0, transition: reduce ? "none" : `transform 1000ms ${EASE} 80ms, opacity 900ms ${EASE} 80ms` }}>{number}</div>
+      )}
+      {/* Foreground — lower-left editorial block */}
+      <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", justifyContent: "flex-end", padding: "clamp(52px,9vh,124px) clamp(28px,5vw,84px)", boxSizing: "border-box" }}>
+        <div style={{ maxWidth: 1120 }}>
+          {kicker && <Rise on={active} kind="copy"><div style={{ ...T.label, fontSize: 13, color: t.accent, marginBottom: "clamp(12px,1.8vh,20px)" }}>{kicker}</div></Rise>}
+          {title && <Rise on={active} kind="heading"><div style={{ fontSize: "clamp(52px,10.5vw,158px)", fontWeight: 700, letterSpacing: "-0.045em", lineHeight: 0.92, color: "#fff" }}>{title}</div></Rise>}
+          {subtitle && <Rise on={active} kind="copy" order={1}><div style={{ fontSize: "clamp(18px,2.2vw,32px)", fontWeight: 500, color: "rgba(255,255,255,0.82)", marginTop: "clamp(16px,2.2vh,26px)", maxWidth: "36ch", lineHeight: 1.3 }}>{subtitle}</div></Rise>}
+        </div>
+      </div>
+    </div>
+  );
+}
+CMChapter.tone = TONES.ink;
+
+// ════════════════════════════════════════════════════════════════════════════
 // SECTION — OVERVIEW  (Cover · Positioning · Facts)
 // ════════════════════════════════════════════════════════════════════════════
 function overviewBeats({ hero, company }) {

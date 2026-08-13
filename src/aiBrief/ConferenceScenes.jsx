@@ -19,7 +19,7 @@ import QRCode from "qrcode";
 import { resolveWidgets, resolveProjectWidgets, widgetText } from "../lib/conferenceWidgets.js";
 import { buildConferenceModel } from "./conferenceModel.js";
 import {
-  CMStyles, TONES, BeatDots,
+  CMStyles, TONES, BeatDots, CMChapter,
   CMOverview, CMHighlights, CMJurisdiction, CMProject, CMCapital, CMLeadership, CMWhyInvest, CMFollow, CMEndCap,
 } from "./conferenceUI.jsx";
 import {
@@ -29,9 +29,9 @@ import {
 } from "./PassportProto.jsx";
 
 const EASE = "cubic-bezier(0.22, 1, 0.36, 1)";
-const TRANS_MS = 620;          // section/beat transition duration = the lock window
-const WHEEL_TH = 46;           // trackpad/mouse-wheel accumulation threshold (one gesture → one step)
-const TOUCH_TH = 56;           // finger swipe distance threshold (px)
+const TRANS_MS = 500;          // section/beat transition duration = the lock window (fast, decisive)
+const WHEEL_TH = 28;           // trackpad/mouse-wheel accumulation threshold (light)
+const TOUCH_TH = 24;           // finger travel to trigger — a small, deliberate flick is enough
 
 export function ConferenceScenes() {
   const S = (x) => (x == null ? "" : String(x));
@@ -240,19 +240,56 @@ export function ConferenceScenes() {
   };
 
   // ── SECTION MANIFEST ─────────────────────────────────────────────────────────────
+  // Each major topic is preceded by a dramatic Chapter transition (its own dark 1-beat section),
+  // giving the deck a chapter cadence (running section number). Chapters carry `navFor` so the top
+  // nav highlights the upcoming topic while its chapter is on screen. Everything stays data-driven.
   const SECTIONS = [];
+  let sectionNo = 0;
+  const pad2 = (n) => String(n).padStart(2, "0");
+  const pushChapter = (navFor, opts) => SECTIONS.push({ id: `chapter-${navFor}`, chapter: true, navFor, label: "", tone: TONES.ink, count: 1, render: (l, a) => <CMChapter {...opts} active={a} /> });
+
+  sectionNo++; // 01 · Overview (the opening — no chapter card, it IS the intro)
   SECTIONS.push({ id: "overview", label: "Overview", tone: CMOverview.tone, count: CMOverview.beats({ hero: cmModel.hero, company: cmModel.company }).length, render: (l, a) => <CMOverview hero={cmModel.hero} company={cmModel.company} local={l} active={a} reduce={reduce} /> });
-  if (cmModel.highlights.cards.length) SECTIONS.push({ id: "highlights", label: "Highlights", tone: CMHighlights.tone, count: CMHighlights.beats({ highlights: cmModel.highlights }).length, render: (l, a) => <CMHighlights highlights={cmModel.highlights} local={l} active={a} reduce={reduce} /> });
-  if (cmModel.jurisdiction.hasContent) SECTIONS.push({ id: "jurisdiction", label: "Jurisdiction", tone: CMJurisdiction.tone, count: CMJurisdiction.beats({ jurisdiction: cmModel.jurisdiction }).length, render: (l, a) => <CMJurisdiction jurisdiction={cmModel.jurisdiction} local={l} active={a} reduce={reduce} /> });
+
+  if (cmModel.highlights.cards.length) { sectionNo++; SECTIONS.push({ id: "highlights", label: "Highlights", tone: CMHighlights.tone, count: CMHighlights.beats({ highlights: cmModel.highlights }).length, render: (l, a) => <CMHighlights highlights={cmModel.highlights} local={l} active={a} reduce={reduce} /> }); }
+
+  if (cmModel.jurisdiction.hasContent) {
+    sectionNo++;
+    pushChapter("jurisdiction", { number: pad2(sectionNo), kicker: "Jurisdiction", title: S(cmModel.jurisdiction.title) || S(co.jurisdiction) || "The District", subtitle: S(cmModel.jurisdiction.heroStat), image: cmModel.jurisdiction.image, variant: "image" });
+    SECTIONS.push({ id: "jurisdiction", label: "Jurisdiction", tone: CMJurisdiction.tone, count: CMJurisdiction.beats({ jurisdiction: cmModel.jurisdiction }).length, render: (l, a) => <CMJurisdiction jurisdiction={cmModel.jurisdiction} local={l} active={a} reduce={reduce} /> });
+  }
+
   cmModel.projectStories.forEach((story, pi) => {
     const results = story.flagship ? resultsModel : null;
     const count = CMProject.beats({ story, results }).length;
     if (!count) return;
+    if (pi === 0) {
+      sectionNo++;
+      const pimg = ((story.states || []).find((s) => s.media) || {}).media || (hasHero ? STATUS_IMG : "");
+      pushChapter("projects", { number: pad2(sectionNo), kicker: "Projects", title: S(story.name) || "Projects", subtitle: [S(story.label), S(story.location)].filter(Boolean).join("  ·  "), image: pimg, variant: "image" });
+    }
     SECTIONS.push({ id: pi === 0 ? "projects" : ("project-" + story.key), label: pi === 0 ? "Projects" : "", tone: CMProject.tone, count, render: (l, a) => <CMProject story={story} results={results} local={l} active={a} reduce={reduce} /> });
   });
-  if (capitalHasData) SECTIONS.push({ id: "capital", label: "Capital", tone: CMCapital.tone, count: CMCapital.beats({ capital: capitalModel }).length, render: (l, a) => <CMCapital capital={capitalModel} local={l} active={a} reduce={reduce} /> });
-  if (leadershipModel && leadershipModel.featured) SECTIONS.push({ id: "leadership", label: "Leadership", tone: CMLeadership.tone, count: CMLeadership.beats({ leadership: leadershipModel }).length, render: (l, a) => <CMLeadership leadership={leadershipModel} local={l} active={a} reduce={reduce} /> });
-  if (whyData.reasons.length || whyData.advantages.length || whyData.catalysts.length) SECTIONS.push({ id: "whyinvest", label: "Why Invest", tone: CMWhyInvest.tone, count: CMWhyInvest.beats({ data: whyData }).length, render: (l, a) => <CMWhyInvest data={whyData} local={l} active={a} reduce={reduce} /> });
+
+  if (capitalHasData) {
+    sectionNo++;
+    pushChapter("capital", { number: pad2(sectionNo), kicker: "Capital", title: "Capital", subtitle: S(capitalModel.fundingStatus) || S(capitalModel.heroStat), variant: "data", tone: TONES.ink });
+    SECTIONS.push({ id: "capital", label: "Capital", tone: CMCapital.tone, count: CMCapital.beats({ capital: capitalModel }).length, render: (l, a) => <CMCapital capital={capitalModel} local={l} active={a} reduce={reduce} /> });
+  }
+
+  if (leadershipModel && leadershipModel.featured) {
+    sectionNo++;
+    const ceoPhoto = S(leadershipModel.featured.photo);
+    pushChapter("leadership", { number: pad2(sectionNo), kicker: "Leadership", title: "Leadership", subtitle: [S(leadershipModel.featured.name), S(leadershipModel.featured.role)].filter(Boolean).join("  —  "), image: ceoPhoto, variant: ceoPhoto ? "image" : "data" });
+    SECTIONS.push({ id: "leadership", label: "Leadership", tone: CMLeadership.tone, count: CMLeadership.beats({ leadership: leadershipModel }).length, render: (l, a) => <CMLeadership leadership={leadershipModel} local={l} active={a} reduce={reduce} /> });
+  }
+
+  if (whyData.reasons.length || whyData.advantages.length || whyData.catalysts.length) {
+    sectionNo++;
+    pushChapter("whyinvest", { number: pad2(sectionNo), kicker: "The Case", title: `Why ${shortCo(co.name)}`, subtitle: S(conf.investmentSummary), variant: "data", tone: TONES.ink });
+    SECTIONS.push({ id: "whyinvest", label: "Why Invest", tone: CMWhyInvest.tone, count: CMWhyInvest.beats({ data: whyData }).length, render: (l, a) => <CMWhyInvest data={whyData} local={l} active={a} reduce={reduce} /> });
+  }
+
   SECTIONS.push({ id: "follow", label: "Follow", tone: CMFollow.tone, count: 1, render: (l, a, armed) => <CMFollow data={followData} local={l} active={a} reduce={reduce} armed={armed} /> });
   SECTIONS.push({ id: "endcap", label: "", tone: CMEndCap.tone, count: 1, render: (l, a) => <CMEndCap name={co.name} ticker={tickerLabel} active={a} /> });
 
@@ -294,7 +331,7 @@ export function ConferenceScenes() {
     // `wheelLocked` until wheel events actually STOP for a quiet gap — so a hard flick's inertial
     // tail can't fire a second step once the transition lock releases. Only a fresh, deliberate
     // scroll (after the quiet gap) advances again.
-    let wheelAccum = 0, wheelIdle = null, wheelLocked = false, ty = null;
+    let wheelAccum = 0, wheelIdle = null, wheelLocked = false, ty = null, consumed = false;
     const onWheel = (e) => {
       e.preventDefault();
       clearTimeout(wheelIdle);
@@ -304,9 +341,18 @@ export function ConferenceScenes() {
       if (Math.abs(wheelAccum) > WHEEL_TH) { const d = wheelAccum > 0 ? 1 : -1; wheelAccum = 0; wheelLocked = true; go(d); }
       bumpIdle();
     };
-    const onTS = (e) => { if (!e.touches || e.touches.length !== 1) { ty = null; return; } ty = e.touches[0].clientY; bumpIdle(); };
-    const onTM = (e) => { if (ty != null && e.cancelable) e.preventDefault(); };
-    const onTE = (e) => { if (ty == null) return; const y = (e.changedTouches && e.changedTouches[0] ? e.changedTouches[0].clientY : ty); const dy = ty - y; ty = null; if (Math.abs(dy) > TOUCH_TH) go(dy > 0 ? 1 : -1); bumpIdle(); };
+    // Touch: accept the swipe the MOMENT intent is clear (mid-gesture), then take control and
+    // animate — the finger never has to drag the page or reach the bottom to "release" the step.
+    // `consumed` guarantees one step per finger-down; the lock guards against a fast multi-flick.
+    const onTS = (e) => { if (!e.touches || e.touches.length !== 1) { ty = null; return; } ty = e.touches[0].clientY; consumed = false; bumpIdle(); };
+    const onTM = (e) => {
+      if (ty == null) return;
+      if (e.cancelable) e.preventDefault();                    // we own vertical gestures (no page scroll)
+      if (consumed || lockRef.current) return;
+      const dy = ty - (e.touches[0] ? e.touches[0].clientY : ty);
+      if (Math.abs(dy) > TOUCH_TH) { consumed = true; go(dy > 0 ? 1 : -1); bumpIdle(); }
+    };
+    const onTE = () => { ty = null; consumed = false; };
     const onKey = (e) => {
       const k = e.key;
       if (k === "ArrowDown" || k === "Down" || k === "PageDown" || k === "ArrowRight" || k === "Right" || k === " " || k === "Spacebar") { e.preventDefault(); go(1); bumpIdle(); }
@@ -332,8 +378,14 @@ export function ConferenceScenes() {
   const activeSection = cur.si, activeLocal = cur.l;
   const activeTone = SECTIONS[activeSection] ? SECTIONS[activeSection].tone : TONES.ink;
   const onLight = activeTone.key === "sheet" || activeTone.key === "board";
+  // During a chapter card, highlight the topic it introduces (its navFor section).
+  const navActiveSection = (() => {
+    const s = SECTIONS[activeSection];
+    if (s && s.chapter) { const i = SECTIONS.findIndex((x) => x.id === s.navFor); if (i >= 0) return i; }
+    return activeSection;
+  })();
 
-  // Top nav — only primary sections (skip secondary project instances + endcap).
+  // Top nav — only primary sections (skip chapter cards, secondary projects, endcap).
   const NAV = SECTIONS.map((s, si) => ({ ...s, si })).filter((s) => s.label && s.id !== "endcap" && !/^project-/.test(s.id));
   const progress = total > 1 ? index / (total - 1) : 0;
 
@@ -351,7 +403,7 @@ export function ConferenceScenes() {
             position: "absolute", inset: 0, zIndex: isActive ? 2 : 1,
             opacity: isActive ? 1 : 0,
             transform: isActive ? "translateY(0)" : (si > activeSection ? "translateY(3.5%)" : "translateY(-3.5%)"),
-            transition: reduce ? "none" : `opacity 460ms ${EASE}, transform 540ms ${EASE}`,
+            transition: reduce ? "none" : `opacity 400ms ${EASE}, transform 460ms ${EASE}`,
             pointerEvents: isActive ? "auto" : "none",
           }}>
             {sec.render(local, isActive, armed)}
@@ -369,7 +421,7 @@ export function ConferenceScenes() {
         <div style={{ position: "fixed", top: 2, left: 0, right: 0, zIndex: 55, background: activeTone.nav, backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", borderBottom: `1px solid ${activeTone.navHair}`, transition: reduce ? "none" : `background 320ms ${EASE}, border-color 320ms ${EASE}` }}>
           <div style={{ maxWidth: 1280, margin: "0 auto", padding: "0 clamp(16px,4vw,44px)", height: 58, display: "flex", alignItems: "center", justifyContent: "center", gap: 4, flexWrap: "wrap" }}>
             {NAV.map((n) => {
-              const on = n.si === activeSection;
+              const on = n.si === navActiveSection;
               return (
                 <button key={n.id} onClick={() => { goTo(starts[n.si]); bumpIdle(); }} style={{ position: "relative", background: "none", border: "none", cursor: "pointer", padding: "8px 16px", fontSize: 14.5, fontWeight: on ? 800 : 600, letterSpacing: "-0.01em", color: on ? activeTone.navText : activeTone.navDim, transition: `color .25s ${EASE}` }}>
                   {n.label}
@@ -397,11 +449,11 @@ export function ConferenceScenes() {
         </div>
       )}
 
-      {/* Persistent follow QR chip — recedes on the Follow scene (which has the big QR). */}
+      {/* Persistent follow QR — a small, discreet scannable badge so the presentation stays the
+          visual priority. The full "Scan to follow" CTA lives on the Follow scene. */}
       {qr && SECTIONS[activeSection] && SECTIONS[activeSection].id !== "follow" && SECTIONS[activeSection].id !== "endcap" && (
-        <div style={{ position: "fixed", right: 18, bottom: 18, zIndex: 55, display: "flex", alignItems: "center", gap: 10, background: onLight ? "rgba(255,255,255,0.7)" : "rgba(11,18,32,0.8)", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)", border: `1px solid ${activeTone.navHair}`, borderRadius: 14, padding: "8px 13px 8px 8px", boxShadow: "0 12px 30px -14px rgba(0,0,0,0.5)", transition: reduce ? "none" : `background 400ms ${EASE}` }}>
-          <div style={{ height: 46, width: 46, background: "#fff", borderRadius: 8, padding: 4 }} dangerouslySetInnerHTML={{ __html: qr }} />
-          <div style={{ color: onLight ? "#141821" : "#fff", fontSize: 12, fontWeight: 800, lineHeight: 1.15, whiteSpace: "nowrap" }}>Follow on<br />Passport</div>
+        <div style={{ position: "fixed", right: 16, bottom: 16, zIndex: 55, opacity: 0.62, background: "#fff", borderRadius: 9, padding: 4, boxShadow: "0 8px 20px -14px rgba(0,0,0,0.5)", transition: reduce ? "none" : `opacity 400ms ${EASE}` }}>
+          <div style={{ height: 38, width: 38 }} dangerouslySetInnerHTML={{ __html: qr }} />
         </div>
       )}
     </div>
