@@ -53,6 +53,42 @@ export function ConferenceScenes() {
   const [qr, setQr] = useState("");
   useEffect(() => { let live = true; QRCode.toString(qrUrl, { type: "svg", errorCorrectionLevel: "H", margin: 0 }).then((s) => { if (live) setQr(s); }).catch(() => {}); return () => { live = false; }; }, [qrUrl]);
 
+  // ── "Add to Home Screen" → launch THIS booth, not the app feed ──────────────────
+  // iOS uses the manifest's start_url for an installed PWA. The app's static manifest points
+  // at /app (which needs login and lands on the feed). While the booth is on screen, swap in a
+  // booth-scoped manifest whose start_url is this exact booth URL — generated at runtime (so it
+  // isn't subject to the service worker's cached copy of the static manifest). If iOS can't read
+  // the runtime manifest it simply falls back to the current page URL (still the booth) — either
+  // way the Home-Screen icon opens the kiosk directly. Reverted on unmount.
+  useEffect(() => {
+    let objUrl = "", link = null, prevHref = null, created = false, titleEl = null, prevTitle = null;
+    try {
+      const label = shortCo(co.name) || S(co.name) || "Passport";
+      const manifest = {
+        name: S(co.name) ? `${S(co.name)} — Conference` : "Conference Mode",
+        short_name: label,
+        display: "standalone", orientation: "any",
+        background_color: "#05070d", theme_color: "#05070d",
+        start_url: window.location.href, scope: "/",
+        icons: [{ src: "/booth-icon.svg", sizes: "any", type: "image/svg+xml", purpose: "any maskable" }],
+      };
+      objUrl = URL.createObjectURL(new Blob([JSON.stringify(manifest)], { type: "application/manifest+json" }));
+      link = document.querySelector('link[rel="manifest"]');
+      if (link) prevHref = link.getAttribute("href");
+      else { link = document.createElement("link"); link.rel = "manifest"; document.head.appendChild(link); created = true; }
+      link.setAttribute("href", objUrl);
+      titleEl = document.querySelector('meta[name="apple-mobile-web-app-title"]');
+      if (titleEl) { prevTitle = titleEl.getAttribute("content"); titleEl.setAttribute("content", label); }
+    } catch (_) {}
+    return () => {
+      try {
+        if (link) { if (created) link.remove(); else if (prevHref != null) link.setAttribute("href", prevHref); }
+        if (titleEl && prevTitle != null) titleEl.setAttribute("content", prevTitle);
+        if (objUrl) URL.revokeObjectURL(objUrl);
+      } catch (_) {}
+    };
+  }, []);
+
   // ── Data (unchanged sourcing) ──────────────────────────────────────────────────
   const hasHero = S(STATUS_IMG).trim() !== "";
   const ex = (Array.isArray(EXCHANGES) ? EXCHANGES : []).filter((e) => e && e.sym);
