@@ -89,13 +89,46 @@ export function buildConferenceModel(ctx = {}) {
     return first ? gsrc(first) : "";
   })();
 
+  const title = clean(conf.hook) || clean(co.name);
+  const overview = clean(conf.overview);
+
+  // Overview image pool — the company's own imagery, in priority order, deduped. Feeds the
+  // Overview focus-carousel (text ↔ image slides). Purely presentation reuse of existing media.
+  const ovImgs = (() => {
+    const out = [];
+    const push = (s) => { const v = gsrc(s); if (v && !out.includes(v)) out.push(v); };
+    push(companyMedia);
+    ["overview", "company", "operations", "project", "projects"].forEach((k) => {
+      const g = conf.gallery && conf.gallery[k]; if (Array.isArray(g)) g.forEach(push);
+    });
+    push(heroImg);
+    if (Array.isArray(flagship.gallery)) flagship.gallery.forEach(push);
+    ["jurisdiction", "region", "district"].forEach((k) => {
+      const g = conf.gallery && conf.gallery[k]; if (Array.isArray(g)) g.forEach(push);
+    });
+    return out;
+  })();
+
+  // Overview carousel — a swipeable set of text↔image slides: a lead positioning slide, then the
+  // strongest company facts each paired with an image. Every slide is data-present; renders only
+  // what exists. The renderer shows it as a focus-carousel (image right, text left).
+  const overviewCarousel = (() => {
+    const out = [];
+    if (title || overview) out.push({ kicker: "Company", headline: title, body: overview, image: ovImgs[0] || "" });
+    facts.filter((f) => clean(f.value) && f.label !== "Current Activity").slice(0, 4).forEach((f, i) => {
+      out.push({ kicker: clean(f.label), headline: clean(f.value), body: "", capitalize: !!f.capitalize, image: ovImgs.length ? ovImgs[(i + 1) % ovImgs.length] : "" });
+    });
+    return out;
+  })();
+
   const company = {
     eyebrow: "Company",
-    title: clean(conf.hook) || clean(co.name),
-    overview: clean(conf.overview),
+    title,
+    overview,
     media: companyMedia,
     hasMedia: !!companyMedia,
     facts,
+    carousel: overviewCarousel,
   };
 
   // ── HIGHLIGHTS / AT A GLANCE ────────────────────────────────────────────────

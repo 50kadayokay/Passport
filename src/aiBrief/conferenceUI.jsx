@@ -306,18 +306,72 @@ CMChapter.tone = TONES.ink;
 // ════════════════════════════════════════════════════════════════════════════
 // SECTION — OVERVIEW  (Cover · Positioning · Facts)
 // ════════════════════════════════════════════════════════════════════════════
-function overviewBeats({ hero, company }) {
+function overviewBeats({ company }) {
   const beats = ["cover"];
-  if ((company && (company.title || company.overview))) beats.push("positioning");
-  if (company && company.facts && company.facts.length) beats.push("facts");
+  const slides = (company && company.carousel) || [];
+  if (slides.length) slides.forEach(() => beats.push("slide"));
+  else if (company && company.facts && company.facts.length) beats.push("facts");
   return beats;
 }
+
+// Overview focus-carousel — the text (left) crossfades while a row of image cards (right) slides
+// so the active card centers and enlarges; neighbours peek and dim. One swipe = one slide. The
+// card width is measured (not hard-coded) so it stays a true focus carousel at every iPad size.
+function OverviewCarousel({ slides, index, active, tone, reduce }) {
+  const vpRef = useRef(null);
+  const [vw, setVw] = useState(0);
+  useEffect(() => {
+    const el = vpRef.current; if (!el) return;
+    const measure = () => setVw(el.clientWidth || 0);
+    measure();
+    let ro; try { if (typeof ResizeObserver !== "undefined") { ro = new ResizeObserver(measure); ro.observe(el); } } catch (_) {}
+    window.addEventListener("resize", measure);
+    return () => { try { if (ro) ro.disconnect(); } catch (_) {} window.removeEventListener("resize", measure); };
+  }, []);
+  const cw = Math.max(0, Math.round(vw * 0.78));   // card = 78% of the frame → ~11% peek each side
+  const gap = 18;
+  const step = cw + gap;
+  const tx = vw > 0 ? Math.round(vw / 2 - cw / 2 - index * step) : 0;
+  return (
+    <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", padding: "clamp(70px,10vh,116px) clamp(22px,4vw,60px) clamp(44px,7vh,84px)", boxSizing: "border-box" }}>
+      <div style={{ width: "100%", maxWidth: 1340, margin: "0 auto", display: "grid", gridTemplateColumns: "minmax(0, 0.82fr) minmax(0, 1.18fr)", gap: "clamp(22px,3.4vw,60px)", alignItems: "center" }}>
+        {/* LEFT — text, crossfading per slide */}
+        <div style={{ position: "relative" }}>
+          <div style={{ position: "relative", minHeight: "clamp(180px, 32vh, 300px)" }}>
+            {slides.map((sl, i) => (
+              <div key={i} aria-hidden={i !== index} style={{ position: i === index ? "relative" : "absolute", top: 0, left: 0, right: 0, opacity: i === index ? 1 : 0, transform: i === index ? "none" : "translateY(12px)", transition: reduce ? "none" : `opacity 440ms ${EASE}, transform 440ms ${EASE}`, pointerEvents: i === index ? "auto" : "none" }}>
+                {sl.kicker && <div style={{ ...T.label, fontSize: 12, color: tone.accent, marginBottom: 12 }}>{sl.kicker}</div>}
+                {sl.headline && <div style={{ fontSize: "clamp(30px,4.4vw,64px)", fontWeight: 700, letterSpacing: "-0.035em", lineHeight: 1.03, color: tone.fg, textTransform: sl.capitalize ? "capitalize" : "none", maxWidth: "15ch" }}>{sl.headline}</div>}
+                {sl.body && <div style={{ ...T.lead, color: tone.dim, marginTop: "clamp(16px,2.2vh,24px)", maxWidth: "40ch" }}>{sl.body}</div>}
+              </div>
+            ))}
+          </div>
+        </div>
+        {/* RIGHT — focus carousel of image cards */}
+        <div ref={vpRef} style={{ position: "relative", height: "clamp(300px, 56vh, 560px)", overflow: "hidden" }}>
+          <div style={{ position: "absolute", top: 0, bottom: 0, left: 0, display: "flex", alignItems: "center", gap, transform: `translateX(${tx}px)`, transition: reduce ? "none" : `transform 640ms ${EASE}`, willChange: "transform" }}>
+            {slides.map((sl, i) => {
+              const act = i === index;
+              return (
+                <div key={i} style={{ flex: "0 0 auto", width: cw || 1, height: "88%", borderRadius: "clamp(16px,1.8vw,26px)", overflow: "hidden", border: `1px solid ${tone.hair}`, background: "#e9e5dc", boxShadow: act ? "0 46px 100px -54px rgba(20,24,33,0.55)" : "none", transform: act ? "scale(1)" : "scale(0.9)", opacity: act ? 1 : 0.42, transition: reduce ? "none" : `transform 640ms ${EASE}, opacity 640ms ${EASE}` }}>
+                  {sl.image ? <img src={sl.image} alt="" loading="lazy" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <div style={{ width: "100%", height: "100%", display: "grid", placeItems: "center", background: `linear-gradient(150deg, ${EM}22, #ece7dd 72%)` }} />}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function CMOverview({ hero, company, active, local, reduce }) {
   const tone = TONES.sheet;
-  const beats = overviewBeats({ hero, company });
+  const slides = (company && company.carousel) || [];
   const media = hero.media || { type: "none", src: "" };
   const tickers = hero.tickers || [];
-  const stat = hero.stat && hero.stat.value ? hero.stat : null;
+  const isCover = local <= 0;
+  const ci = Math.max(0, Math.min(local - 1, Math.max(0, slides.length - 1)));
 
   const Cover = (on) => (
     <Beat pad="clamp(48px, 6vh, 88px) clamp(28px, 5vw, 76px)" maxW={1160}>
@@ -355,28 +409,26 @@ export function CMOverview({ hero, company, active, local, reduce }) {
     </Beat>
   );
 
-  const Positioning = (on) => (
-    <Beat>
-      <Eyebrow on={on} color={tone.accent}>{company.eyebrow || "Company"}</Eyebrow>
-      {company.title && <Heading on={on} size="display" delay={120} color={tone.fg} style={{ marginTop: "clamp(18px,2.4vh,30px)", maxWidth: "16ch" }}>{company.title}</Heading>}
-      {company.overview && <Lead on={on} order={1} color={tone.dim} style={{ marginTop: "clamp(22px,3vh,36px)", maxWidth: "44ch" }}>{company.overview}</Lead>}
-    </Beat>
+  return (
+    <div style={{ position: "absolute", inset: 0, background: tone.bg, color: tone.fg, fontFamily: FONT, overflow: "hidden" }}>
+      {/* Cover — identity + framed hero (beat 0) */}
+      <div aria-hidden={!isCover} style={{ position: "absolute", inset: 0, opacity: isCover ? 1 : 0, transition: reduce ? "none" : `opacity 320ms ${EASE}`, pointerEvents: isCover ? "auto" : "none" }}>
+        {Cover(isCover && active)}
+      </div>
+      {/* Focus carousel (beats 1..N) */}
+      {slides.length > 0 && (
+        <div aria-hidden={isCover} style={{ position: "absolute", inset: 0, opacity: isCover ? 0 : 1, transition: reduce ? "none" : `opacity 320ms ${EASE}`, pointerEvents: isCover ? "none" : "auto" }}>
+          <OverviewCarousel slides={slides} index={ci} active={active && !isCover} tone={tone} reduce={reduce} />
+        </div>
+      )}
+      {/* Graceful fallback: no carousel imagery/text → a clean fact rail */}
+      {slides.length === 0 && company.facts && company.facts.length > 0 && (
+        <div aria-hidden={isCover} style={{ position: "absolute", inset: 0, opacity: isCover ? 0 : 1, transition: reduce ? "none" : `opacity 320ms ${EASE}`, pointerEvents: isCover ? "none" : "auto" }}>
+          <Beat><Eyebrow on={active && !isCover} color={tone.accent}>At a glance</Eyebrow><div style={{ marginTop: "clamp(34px,5vh,62px)" }}><FactRail facts={company.facts} on={active && !isCover} tone={tone} big /></div></Beat>
+        </div>
+      )}
+    </div>
   );
-
-  const Facts = (on) => (
-    <Beat>
-      <Eyebrow on={on} color={tone.accent}>At a glance</Eyebrow>
-      <div style={{ marginTop: "clamp(34px,5vh,62px)" }}><FactRail facts={company.facts} on={on} tone={tone} big /></div>
-    </Beat>
-  );
-
-  const render = (i, on) => {
-    const b = beats[i];
-    if (b === "cover") return Cover(on);
-    if (b === "positioning") return Positioning(on);
-    return Facts(on);
-  };
-  return <SectionPanel tone={tone} count={beats.length} local={local} active={active} reduce={reduce} render={render} />;
 }
 CMOverview.beats = overviewBeats;
 CMOverview.tone = TONES.sheet;
