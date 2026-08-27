@@ -169,33 +169,8 @@ function Eyebrow({ children, on, color, style }) {
     </Rise>
   );
 }
-// RevealText — a "reading reveal": text sits faint and fills to full colour word-by-word,
-// left → right, when its beat becomes active (the scroll-linked reference adapted to the deck's
-// discrete states). Pure per-word opacity → no layout shift, tone-agnostic. Non-string children
-// fall back to a single soft fade. Total spread is capped so long headings never crawl.
-function RevealText({ children, on, baseDelay = 0, per = 46, dim = 0.22, style, as: Tag = "span" }) {
-  const reduce = prefersReduce();
-  const shown = reduce || on;
-  if (typeof children !== "string") {
-    return <Tag style={{ opacity: shown ? 1 : dim, transition: reduce ? "none" : `opacity 460ms ${EASE} ${baseDelay}ms`, ...style }}>{children}</Tag>;
-  }
-  const parts = children.split(/(\s+)/);
-  const nWords = parts.filter((p) => !/^\s*$/.test(p)).length;
-  const step = Math.min(per, 660 / Math.max(1, nWords));
-  let wi = -1;
-  return (
-    <Tag style={style}>
-      {parts.map((p, i) => {
-        if (/^\s*$/.test(p)) return <span key={i}>{p}</span>;
-        wi += 1; const idx = wi;
-        return <span key={i} style={{ opacity: shown ? 1 : dim, transition: reduce ? "none" : `opacity 480ms ${EASE} ${baseDelay + idx * step}ms` }}>{p}</span>;
-      })}
-    </Tag>
-  );
-}
-
 function Heading({ children, on, size = "h1", delay, color, style }) {
-  return <div style={{ ...(T[size] || T.h1), color: color || "inherit", ...style }}><RevealText on={on} baseDelay={delay || 0}>{children}</RevealText></div>;
+  return <Rise on={on} kind="heading" delay={delay}><div style={{ ...(T[size] || T.h1), color: color || "inherit", ...style }}>{children}</div></Rise>;
 }
 function Lead({ children, on, order = 0, color, style }) {
   return <Rise on={on} kind="copy" order={order}><div style={{ ...T.lead, color: color || "inherit", ...style }}>{children}</div></Rise>;
@@ -353,7 +328,7 @@ export function CMChapter({ number, kicker, title, subtitle, image, tone, varian
       <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", justifyContent: "flex-end", padding: "clamp(52px,9vh,124px) clamp(28px,5vw,84px)", boxSizing: "border-box" }}>
         <div style={{ maxWidth: 1120 }}>
           {kicker && <Rise on={active} kind="copy"><div style={{ ...T.label, fontSize: 13, color: t.accent, marginBottom: "clamp(12px,1.8vh,20px)" }}>{kicker}</div></Rise>}
-          {title && <div style={{ fontSize: "clamp(52px,10.5vw,158px)", fontWeight: 700, letterSpacing: "-0.045em", lineHeight: 0.92, color: "#fff" }}><RevealText on={active} baseDelay={150} dim={0.18}>{title}</RevealText></div>}
+          {title && <Rise on={active} kind="heading" delay={140}><div style={{ fontSize: "clamp(52px,10.5vw,158px)", fontWeight: 700, letterSpacing: "-0.045em", lineHeight: 0.92, color: "#fff" }}>{title}</div></Rise>}
           {subtitle && <Rise on={active} kind="copy" order={1}><div style={{ fontSize: "clamp(18px,2.2vw,32px)", fontWeight: 500, color: "rgba(255,255,255,0.82)", marginTop: "clamp(16px,2.2vh,26px)", maxWidth: "36ch", lineHeight: 1.3 }}>{subtitle}</div></Rise>}
         </div>
       </div>
