@@ -404,10 +404,12 @@ export function ConferenceScenes() {
         return (
           <div key={sec.id} aria-hidden={!isActive} style={{
             position: "absolute", inset: 0, zIndex: isActive ? 2 : 1,
-            opacity: isActive ? 1 : 0,
-            transform: isActive ? "translateY(0)" : (si > activeSection ? "translateY(3.5%)" : "translateY(-3.5%)"),
-            transition: reduce ? "none" : `opacity 400ms ${EASE}, transform 460ms ${EASE}`,
+            // Pages slide vertically: the active page sits at 0, later pages wait one screen below,
+            // earlier ones one screen above. Advancing a topic slides the page UP. Pure slide (no fade).
+            transform: `translateY(${(si - activeSection) * 100}%)`,
+            transition: reduce ? "none" : `transform 500ms ${EASE}`,
             pointerEvents: isActive ? "auto" : "none",
+            willChange: "transform",
           }}>
             {sec.render(local, isActive, armed)}
           </div>

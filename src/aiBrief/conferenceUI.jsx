@@ -202,9 +202,12 @@ function SectionPanel({ tone, count, local, active, reduce, render }) {
         return (
           <div key={i} aria-hidden={!on} style={{
             position: "absolute", inset: 0,
-            opacity: on ? 1 : 0,
-            transition: (on || reduce) ? "none" : `opacity 320ms ${EASE}`,
+            // Beats slide vertically too (active at 0, later beats below, earlier above) so every
+            // swipe — within a topic or between topics — is a consistent page slide-up.
+            transform: `translateY(${(i - lc) * 100}%)`,
+            transition: reduce ? "none" : `transform 480ms ${EASE}`,
             pointerEvents: on ? "auto" : "none",
+            willChange: "transform",
           }}>
             {render(i, on && active)}
           </div>
