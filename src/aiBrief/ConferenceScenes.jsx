@@ -19,7 +19,7 @@ import QRCode from "qrcode";
 import { resolveWidgets, resolveProjectWidgets, widgetText } from "../lib/conferenceWidgets.js";
 import { buildConferenceModel } from "./conferenceModel.js";
 import {
-  CMStyles, TONES, BeatDots, CMChapter,
+  CMStyles, TONES, BeatDots, CMChapter, CurtainReveal,
   CMOverview, CMHighlights, CMJurisdiction, CMProject, CMCapital, CMLeadership, CMWhyInvest, CMFollow, CMEndCap,
 } from "./conferenceUI.jsx";
 import {
@@ -52,6 +52,8 @@ export function ConferenceScenes() {
   const profileUrl = `${origin}/app?c=${encodeURIComponent(slug)}${previewToken ? `&preview=${encodeURIComponent(previewToken)}` : ""}&qr=1`;
   const [qr, setQr] = useState("");
   useEffect(() => { let live = true; QRCode.toString(qrUrl, { type: "svg", errorCorrectionLevel: "H", margin: 0 }).then((s) => { if (live) setQr(s); }).catch(() => {}); return () => { live = false; }; }, [qrUrl]);
+  // Curtain-reveal opening — plays once on load, then reveals the deck.
+  const [intro, setIntro] = useState(true);
 
   // ── "Add to Home Screen" → launch THIS booth, not the app feed ──────────────────
   // iOS uses the manifest's start_url for an installed PWA. The app's static manifest points
@@ -392,6 +394,7 @@ export function ConferenceScenes() {
   return (
     <div ref={rootRef} className="cm-root" style={{ position: "fixed", inset: 0, overflow: "hidden", background: activeTone.bg, color: activeTone.fg, fontFamily: "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif", touchAction: "none", transition: reduce ? "none" : `background 520ms ${EASE}`, WebkitUserSelect: "none", userSelect: "none" }}>
       <CMStyles />
+      {intro && <CurtainReveal name={S(co.name)} accent={EM} onDone={() => setIntro(false)} />}
 
       {/* Section layers — all mounted; only the active fades/rises in. */}
       {SECTIONS.map((sec, si) => {

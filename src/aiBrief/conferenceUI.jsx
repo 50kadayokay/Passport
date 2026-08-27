@@ -263,6 +263,40 @@ function FactRail({ facts, on, tone, big = false }) {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
+// CURTAIN REVEAL — the opening into Conference Mode. A full-screen curtain of vertical
+// panels (with the company name) lifts away in a staggered sequence to reveal the hero.
+// Plays once on load; reduced-motion skips straight to the deck.
+// ════════════════════════════════════════════════════════════════════════════
+export function CurtainReveal({ name, accent, onDone }) {
+  const reduce = prefersReduce();
+  const N = 6;
+  const [lift, setLift] = useState(reduce);
+  const [showBrand, setShowBrand] = useState(false);
+  useEffect(() => {
+    if (reduce) { const t = setTimeout(() => onDone && onDone(), 150); return () => clearTimeout(t); }
+    const t0 = setTimeout(() => setShowBrand(true), 90);
+    const t1 = setTimeout(() => { setShowBrand(false); setLift(true); }, 900);
+    const t2 = setTimeout(() => onDone && onDone(), 900 + 740 + (N - 1) * 85 + 90);
+    return () => { [t0, t1, t2].forEach(clearTimeout); };
+  }, []);
+  const ac = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(String(accent || "")) ? accent : "#3fae6b";
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 200, pointerEvents: lift ? "none" : "auto", fontFamily: FONT }}>
+      {Array.from({ length: N }).map((_, i) => (
+        <div key={i} style={{ position: "absolute", top: "-1%", bottom: "-1%", left: `${(i * 100) / N}%`, width: `${100 / N + 0.35}%`, background: "#05070d", transform: lift ? "translateY(-104%)" : "translateY(0)", transition: reduce ? "none" : `transform 740ms cubic-bezier(0.76,0,0.24,1) ${i * 85}ms`, willChange: "transform" }} />
+      ))}
+      <div aria-hidden style={{ position: "absolute", inset: 0, background: `radial-gradient(58% 48% at 50% 46%, ${ac}26, transparent 70%)`, opacity: lift ? 0 : 1, transition: reduce ? "none" : `opacity 460ms ${EASE}`, pointerEvents: "none" }} />
+      <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", pointerEvents: "none" }}>
+        <div style={{ textAlign: "center", opacity: showBrand ? 1 : 0, transform: showBrand ? "translateY(0)" : "translateY(12px)", filter: showBrand ? "blur(0px)" : "blur(5px)", transition: reduce ? "none" : `opacity 560ms ${EASE}, transform 560ms ${EASE}, filter 560ms ${EASE}` }}>
+          {name && <div style={{ fontSize: "clamp(30px,5.5vw,72px)", fontWeight: 700, letterSpacing: "-0.035em", color: "#fff", lineHeight: 1, maxWidth: "16ch" }}>{name}</div>}
+          <div style={{ height: 3, width: 46, borderRadius: 3, background: ac, margin: "clamp(14px,2vh,22px) auto 0" }} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════════
 // CHAPTER TRANSITION (Type A) — dramatic punctuation between major topics.
 // A full-viewport reset: an image "takes over" (scales/reveals in) with a giant
 // section number watermark, section name, and one evocative line resolving over it.
