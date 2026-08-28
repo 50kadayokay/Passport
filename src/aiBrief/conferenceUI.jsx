@@ -589,7 +589,7 @@ export function CMGlobe({ coords, site, on, reduce, tone }) {
       const targetVec = ll(tLat, tLng, 1);
       const targetDir = targetVec.clone().normalize();
       const startDir = ll(-8, tLng + 62, 1).normalize();
-      const START_DIST = 3.7, END_DIST = 1.02;
+      const START_DIST = 4.2, END_DIST = 1.02;
 
       if (!st.built) {
         const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: "high-performance" });
@@ -617,19 +617,24 @@ export function CMGlobe({ coords, site, on, reduce, tone }) {
         // layer keeps the approach crisp; a finer DETAIL layer resolves on top at the destination —
         // so real imagery covers every scale (no upscaled Blue Marble ever fills the frame).
         const cx = R_MERC * tLng * GDEG, cy = R_MERC * Math.log(Math.tan(Math.PI / 4 + tLat * GDEG / 2));
+        const EDGE = 0.22;                                  // feather the outer 22% so patches dissolve, no square
         const makePatch = (url, half, radius) => {
-          const N = 72, geo = new THREE.BufferGeometry(), pos = [], uvs = [], idx = [];
+          const N = 72, geo = new THREE.BufferGeometry(), pos = [], uvs = [], col = [], idx = [];
           for (let j = 0; j <= N; j++) for (let i = 0; i <= N; i++) {
             const mx = cx - half + (2 * half) * (i / N), my = cy - half + (2 * half) * (j / N);
             const lng2 = (mx / R_MERC) / GDEG, lat2 = (2 * Math.atan(Math.exp(my / R_MERC)) - Math.PI / 2) / GDEG;
             const v = ll(lat2, lng2, radius);
             pos.push(v.x, v.y, v.z); uvs.push(i / N, j / N);
+            const d = Math.min(Math.min(i, N - i), Math.min(j, N - j)) / N / EDGE;   // 0 at edge → 1 inside
+            const a = d <= 0 ? 0 : d >= 1 ? 1 : d * d * (3 - 2 * d);                   // smoothstep alpha
+            col.push(1, 1, 1, a);
           }
           for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) { const a = j * (N + 1) + i, b = a + 1, c = a + (N + 1), d = c + 1; idx.push(a, c, b, b, c, d); }
           geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
-          geo.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2)); geo.setIndex(idx);
+          geo.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2));
+          geo.setAttribute("color", new THREE.Float32BufferAttribute(col, 4)); geo.setIndex(idx);
           const tex = new THREE.TextureLoader().load(url); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
-          const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide }));
+          const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ map: tex, vertexColors: true, transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide }));
           m.renderOrder = radius; scene.add(m); return m;
         };
         let region = null, patch = null;
@@ -659,8 +664,8 @@ export function CMGlobe({ coords, site, on, reduce, tone }) {
         const dist = START_DIST * Math.pow(END_DIST / START_DIST, eZoom);
         camera.position.copy(dir.multiplyScalar(dist));
         camera.up.set(0, 1, 0); camera.lookAt(0, 0, 0);
-        if (region) region.material.opacity = cl((p - 0.34) / 0.16);   // crisp regional layer for the approach
-        if (patch) patch.material.opacity = cl((p - 0.6) / 0.16);       // detail layer resolves at the destination
+        if (region) region.material.opacity = cl((p - 0.5) / 0.14);    // regional layer (appears once large/close)
+        if (patch) patch.material.opacity = cl((p - 0.66) / 0.14);     // detail layer resolves at the destination
       };
       const band = (p, a, b) => { const f = 0.05; if (p < a - f || p > b + f) return 0; if (p < a) return (p - (a - f)) / f; if (p > b) return 1 - (p - b) / f; return 1; };
       const overlays = (p) => {
@@ -676,7 +681,30 @@ export function CMGlobe({ coords, site, on, reduce, tone }) {
       const texOK = (m) => !m || (m.material.map.image && m.material.map.image.width);
       const ready = () => T.color.image && T.color.image.width && texOK(region) && texOK(patch);
       cancelAnimationFrame(rafRef.current);
-      if (!on) { st.t0 = null; st.lastP = 0; frame(0); return; }
+      // LEAVING the section: don't snap back to Earth. If the flight had arrived, play a gentle
+      // lift-off (camera pulls back off El Quevar, labels fade) so the exit reads as cinematic as
+      // the deck slides the section away; otherwise just hold the current frame.
+      if (!on) {
+        st.parked = true;
+        if ((st.lastP || 0) >= 1 && !reduce) {
+          const t0 = performance.now(), DUR2 = 900;
+          const exit = (now) => {
+            if (cancelled) return;
+            const q = cl((now - t0) / DUR2), e = 1 - Math.pow(1 - q, 3);
+            camera.position.copy(targetDir.clone().multiplyScalar(END_DIST + 0.6 * e));
+            camera.up.set(0, 1, 0); camera.lookAt(0, 0, 0);
+            const la = 1 - cl(q * 1.4);
+            if (markerRef.current) markerRef.current.style.opacity = la;
+            if (finalRef.current) finalRef.current.style.opacity = la;
+            if (st.w > 4) renderer.render(scene, camera);
+            if (q < 1) rafRef.current = requestAnimationFrame(exit);
+          };
+          rafRef.current = requestAnimationFrame(exit);
+        } else { frame(st.lastP || 0); }
+        return;
+      }
+      // ENTERING: replay from the top if we're returning after a completed flight.
+      if (st.parked) { st.parked = false; if ((st.lastP || 0) >= 1) { st.t0 = null; st.lastP = 0; } }
       if (reduce) { st.lastP = 1; const show = () => { if (cancelled) return; if (!ready()) { rafRef.current = requestAnimationFrame(show); return; } frame(1); }; show(); return; }
 
       const DUR = 6400, HOLD = 500;
@@ -707,19 +735,21 @@ export function CMGlobe({ coords, site, on, reduce, tone }) {
         <div ref={argRef} style={{ position: "absolute", left: 0, right: 0, top: "15%", textAlign: "center", opacity: 0, pointerEvents: "none", color: "#fff", fontFamily: FONT, fontSize: "clamp(15px,1.5vw,22px)", fontWeight: 700, letterSpacing: "0.42em", textShadow: "0 2px 20px rgba(0,0,0,0.65)" }}>ARGENTINA</div>
         <div ref={saltaRef} style={{ position: "absolute", left: 0, right: 0, top: "15%", textAlign: "center", opacity: 0, pointerEvents: "none", color: "#fff", fontFamily: FONT, fontSize: "clamp(13px,1.3vw,19px)", fontWeight: 700, letterSpacing: "0.42em", textShadow: "0 2px 20px rgba(0,0,0,0.65)" }}>SALTA PROVINCE</div>
         {site && (
-          <div ref={markerRef} style={{ position: "absolute", left: "50%", top: "50%", opacity: 0, pointerEvents: "none" }}>
-            <span className="cm-geo-pulse" style={{ borderColor: accent }} />
-            <span style={{ position: "absolute", left: 0, top: 0, transform: "translate(-50%,-50%)", width: 13, height: 13, borderRadius: 999, border: "1.5px solid " + accent, boxSizing: "border-box" }} />
-            <span style={{ position: "absolute", left: 0, top: 0, transform: "translate(-50%,-50%)", width: 3.5, height: 3.5, borderRadius: 999, background: "#fff", boxShadow: "0 0 0 1.5px " + accent }} />
+          <div ref={markerRef} style={{ position: "absolute", left: "50%", top: "50%", opacity: 0, pointerEvents: "none", filter: "drop-shadow(0 1px 3px rgba(0,0,0,0.65))" }}>
+            <span className="cm-geo-pulse" style={{ borderColor: "#ffffff" }} />
+            <span style={{ position: "absolute", left: 0, top: 0, transform: "translate(-50%,-50%)", width: 14, height: 14, borderRadius: 999, border: "1.5px solid #ffffff", boxSizing: "border-box" }} />
+            <span style={{ position: "absolute", left: 0, top: 0, transform: "translate(-50%,-50%)", width: 4, height: 4, borderRadius: 999, background: "#ffffff" }} />
           </div>
         )}
         {site && (
           <div ref={finalRef} style={{ position: "absolute", left: "50%", top: "50%", opacity: 0, pointerEvents: "none" }}>
-            <div style={{ position: "absolute", left: 0, bottom: 12, width: 1, height: "clamp(30px,5.5vh,54px)", background: "linear-gradient(to bottom, rgba(255,255,255,0.6), rgba(255,255,255,0))", transform: "translateX(-0.5px)" }} />
+            {/* soft radial scrim — legibility without a hard card */}
+            <div style={{ position: "absolute", left: "50%", bottom: 8, transform: "translate(-50%,0)", width: "clamp(300px,38vw,520px)", height: "clamp(150px,24vh,260px)", background: "radial-gradient(ellipse at 50% 92%, rgba(3,6,12,0.6), rgba(3,6,12,0.3) 42%, transparent 70%)" }} />
+            <div style={{ position: "absolute", left: 0, bottom: 12, width: 1, height: "clamp(30px,5.5vh,54px)", background: "linear-gradient(to bottom, rgba(255,255,255,0.75), rgba(255,255,255,0))", transform: "translateX(-0.5px)" }} />
             <div style={{ position: "absolute", left: 0, bottom: "calc(12px + clamp(30px,5.5vh,54px))", transform: "translate(-50%,0)", textAlign: "center", whiteSpace: "nowrap" }}>
-              <div style={{ color: "#fff", fontFamily: FONT, fontSize: "clamp(20px,2.1vw,30px)", fontWeight: 800, letterSpacing: "-0.01em", textShadow: "0 2px 18px rgba(0,0,0,0.6)" }}>{String(site.name || "").toUpperCase()}</div>
-              {region && <div style={{ color: "rgba(255,255,255,0.85)", fontFamily: FONT, fontSize: "clamp(12px,1.15vw,15px)", fontWeight: 500, marginTop: 3, textShadow: "0 1px 14px rgba(0,0,0,0.55)" }}>{region}</div>}
-              <div style={{ color: accent, fontFamily: FONT, fontSize: "clamp(11px,1vw,13px)", fontWeight: 700, letterSpacing: "0.05em", marginTop: 5, fontVariantNumeric: "tabular-nums", textShadow: "0 1px 14px rgba(0,0,0,0.55)" }}>{fmt(tLat, "N", "S")} · {fmt(tLng, "E", "W")}</div>
+              <div style={{ color: "#fff", fontFamily: FONT, fontSize: "clamp(20px,2.1vw,30px)", fontWeight: 800, letterSpacing: "-0.01em", textShadow: "0 1px 2px rgba(0,0,0,0.85), 0 2px 22px rgba(0,0,0,0.6)" }}>{String(site.name || "").toUpperCase()}</div>
+              {region && <div style={{ color: "rgba(255,255,255,0.92)", fontFamily: FONT, fontSize: "clamp(12px,1.15vw,15px)", fontWeight: 500, marginTop: 3, textShadow: "0 1px 2px rgba(0,0,0,0.85), 0 1px 14px rgba(0,0,0,0.55)" }}>{region}</div>}
+              <div style={{ color: "#eafff4", fontFamily: FONT, fontSize: "clamp(11.5px,1vw,13.5px)", fontWeight: 700, letterSpacing: "0.09em", marginTop: 6, fontVariantNumeric: "tabular-nums", textShadow: "0 1px 2px rgba(0,0,0,0.9), 0 1px 12px rgba(0,0,0,0.6)" }}>{fmt(tLat, "N", "S")} · {fmt(tLng, "E", "W")}</div>
             </div>
           </div>
         )}
