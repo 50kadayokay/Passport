@@ -21,6 +21,13 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import React, { useState, useEffect, useRef } from "react";
 import { EM, EM_TEXT, prefersReduce } from "./PassportProto.jsx";
+// three.js + the embedded satellite imagery (~3MB) are lazy-loaded as a SEPARATE chunk so they
+// never bloat the main app bundle; they're fetched the moment the Jurisdiction globe mounts.
+let _globeLib = null;
+function loadGlobeLib() {
+  if (!_globeLib) _globeLib = Promise.all([import("three"), import("./globeAssets.js")]).then(([THREE, A]) => ({ THREE, A }));
+  return _globeLib;
+}
 
 // ── Design tokens ────────────────────────────────────────────────────────────
 const FONT = "'Switzer', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
@@ -102,6 +109,8 @@ export function CMStyles() {
       .cm-root .cm-endcap-glow { animation: cm-endcap-glow 13s ease-in-out infinite; will-change: transform, opacity; }
       @keyframes cm-globe-ping { 0% { transform: translate(-50%,0) scale(0.4); opacity: 0.55; } 70% { opacity: 0; } 100% { transform: translate(-50%,0) scale(2.4); opacity: 0; } }
       .cm-root .cm-globe-ping { position: absolute; left: 50%; bottom: -2px; width: 22px; height: 22px; border-radius: 999px; transform: translate(-50%,0); animation: cm-globe-ping 2.6s ease-out infinite; will-change: transform, opacity; }
+      @keyframes cm-geo-pulse { 0% { transform: translate(-50%,-50%) scale(0.5); opacity: 0.5; } 80% { opacity: 0; } 100% { transform: translate(-50%,-50%) scale(2.6); opacity: 0; } }
+      .cm-root .cm-geo-pulse { position: absolute; left: 0; top: 0; width: 26px; height: 26px; border-radius: 999px; border: 1px solid #fff; transform: translate(-50%,-50%); animation: cm-geo-pulse 3s ease-out infinite; will-change: transform, opacity; }
       @media (prefers-reduced-motion: reduce) {
         .cm-root .cm-cue, .cm-root .cm-herodrift, .cm-root .cm-float,
         .cm-root .cm-endcap-type, .cm-root .cm-endcap-glow, .cm-root .cm-globe-ping { animation: none; }
@@ -532,221 +541,187 @@ CMHighlights.beats = highlightsBeats;
 CMHighlights.tone = TONES.ink;
 
 // ════════════════════════════════════════════════════════════════════════════
-// CMGlobe — a Google-Earth-style fly-to. A realistic raster globe (per-pixel
-// orthographic sampling of a rasterized world map + directional shading) rotates
-// AND zooms continuously toward the jurisdiction; as it dives in, the province
-// outline resolves and a flag plants on the site. Self-contained (WORLD_LAND +
-// PROVINCE_SHAPES, no libraries). Honors reduced-motion (snaps to the framed
-// province, no dive) and only runs while `on`.
+// CMGlobe — a real WebGL geospatial fly-to (three.js). ONE Earth, ONE camera:
+// a photographic NASA Blue Marble globe in near-black space and a single perspective
+// camera that flies continuously from orbit down to the project coordinates; a
+// high-resolution satellite patch resolves in on the SAME sphere surface at the
+// destination (no card, no crossfade, no swap). Progressive geographic labels + a
+// restrained survey marker. Fully offline (embedded imagery). Honors reduced-motion.
 // ════════════════════════════════════════════════════════════════════════════
-let _earthMap = null;
-function getEarthMap() {
-  if (_earthMap) return _earthMap;
-  const W = 1024, H = 512;
-  const cv = document.createElement("canvas"); cv.width = W; cv.height = H;
-  const ctx = cv.getContext("2d");
-  ctx.fillStyle = "#274a72"; ctx.fillRect(0, 0, W, H);          // ocean
-  ctx.fillStyle = "#5d6f4c";                                    // land
-  const px = (lng) => (lng + 180) / 360 * W, py = (lat) => (90 - lat) / 180 * H;
-  for (const ring of WORLD_LAND) {
-    ctx.beginPath();
-    for (let i = 0; i < ring.length; i++) { const x = px(ring[i][0]), y = py(ring[i][1]); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }
-    ctx.closePath(); ctx.fill();
-  }
-  _earthMap = { data: ctx.getImageData(0, 0, W, H).data, W, H };
-  return _earthMap;
+const GDEG = Math.PI / 180;
+const R_MERC = 6378137;
+// lat/lng -> unit vector matching an equirectangular texture on THREE.SphereGeometry
+function llToVec3(THREE, lat, lng, r) {
+  const phi = (lng + 180) * GDEG, theta = (90 - lat) * GDEG, st = Math.sin(theta);
+  return new THREE.Vector3(-r * Math.cos(phi) * st, r * Math.cos(theta), r * Math.sin(phi) * st);
 }
-function drawFlag(ctx, x, y, s, accent, t) {
-  ctx.save();
-  ctx.shadowColor = "rgba(8,14,10,0.45)"; ctx.shadowBlur = 7 * s; ctx.shadowOffsetY = 2.5 * s;
-  // base dot marks the exact site
-  ctx.beginPath(); ctx.arc(x, y, 4 * s, 0, 7); ctx.fillStyle = "#ffffff"; ctx.fill();
-  ctx.shadowColor = "transparent";
-  ctx.beginPath(); ctx.arc(x, y, 4 * s, 0, 7); ctx.lineWidth = 2 * s; ctx.strokeStyle = accent; ctx.stroke();
-  ctx.beginPath(); ctx.arc(x, y, 1.7 * s, 0, 7); ctx.fillStyle = accent; ctx.fill();
-  if (t > 0.02) {
-    const poleH = 42 * s * t, ty = y - poleH, fw = 27 * s * t, fh = 17 * s;
-    ctx.shadowColor = "rgba(8,14,10,0.4)"; ctx.shadowBlur = 6 * s; ctx.shadowOffsetY = 2 * s;
-    ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, ty); ctx.lineWidth = 3 * s; ctx.strokeStyle = "#252b30"; ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(x, ty); ctx.quadraticCurveTo(x + fw * 0.6, ty + fh * 0.16, x + fw, ty + fh * 0.5);
-    ctx.quadraticCurveTo(x + fw * 0.6, ty + fh * 0.5, x + fw * 0.5, ty + fh); ctx.lineTo(x, ty + fh * 0.86); ctx.closePath();
-    ctx.fillStyle = accent; ctx.fill();
-    ctx.shadowColor = "transparent"; ctx.lineWidth = 1.2 * s; ctx.strokeStyle = "rgba(255,255,255,0.9)"; ctx.stroke();
-  }
-  ctx.restore();
+let _tex = null;
+function getGlobeTextures(THREE, A) {
+  if (_tex) return _tex;
+  const L = new THREE.TextureLoader();
+  const color = L.load(A.EARTH_COLOR); color.colorSpace = THREE.SRGBColorSpace;
+  const normal = L.load(A.EARTH_NORMAL), spec = L.load(A.EARTH_SPEC);
+  _tex = { color, normal, spec };
+  return _tex;
 }
+
 export function CMGlobe({ coords, site, on, reduce, tone }) {
-  const canvasRef = useRef(null);
-  const boxRef = useRef(null);
-  const satRef = useRef(null);
+  const mountRef = useRef(null), boxRef = useRef(null);
+  const argRef = useRef(null), saltaRef = useRef(null), markerRef = useRef(null), finalRef = useRef(null);
+  const S = useRef({});
   const rafRef = useRef(0);
-  const [arrived, setArrived] = useState(false);
-  const accent = (tone && tone.accent) || "#2f9e6f";
-  const province = coords && coords.key ? PROVINCE_SHAPES[coords.key] : null;
-  const satUrl = site && site.sat ? SAT_IMAGES[site.sat] : null;
-  const fmt = (v, pos, neg) => `${Math.abs(v).toFixed(4)}° ${v >= 0 ? pos : neg}`;
+  const tLat = site ? site.lat : coords ? coords.lat : 0;
+  const tLng = site ? site.lng : coords ? coords.lng : 0;
+  const siteSat = site && site.sat ? site.sat : null;
+  const accent = (tone && tone.accent) || "#8fb7a3";
+  const fmt = (v, p, n) => Math.abs(v).toFixed(4) + "° " + (v >= 0 ? p : n);
 
   useEffect(() => {
-    const cv = canvasRef.current, box = boxRef.current;
-    if (!cv || !box || !coords) return;
-    const DEG = Math.PI / 180;
-    const earth = getEarthMap();
-    const LX = -0.3, LY = 0.4, LZ = 0.866;                       // camera-space light dir
-    // Camera destination = the exact PROJECT SITE when known, else province centroid, else point.
-    const tLng = site ? site.lng : province ? province.center[0] : coords.lng;
-    const tLat = site ? site.lat : province ? province.center[1] : coords.lat;
+    if (!coords) return;
+    const mount = mountRef.current, box = boxRef.current;
+    if (!mount || !box || typeof window === "undefined") return;
+    let cancelled = false;
+    loadGlobeLib().then(({ THREE, A }) => {
+      if (cancelled) return;
+      const st = S.current;
+      const ll = (lat, lng, r) => llToVec3(THREE, lat, lng, r);
+      const patchDef = siteSat && A.SITE_PATCHES[siteSat] ? A.SITE_PATCHES[siteSat] : null;
+      const targetVec = ll(tLat, tLng, 1);
+      const targetDir = targetVec.clone().normalize();
+      const startDir = ll(-8, tLng + 62, 1).normalize();
+      const START_DIST = 3.7, END_DIST = 1.02;
 
-    let dpr = 1, css = 100, RB = 300, buf = null, bctx = null, bimg = null;
-    const size = () => {
-      const r = box.getBoundingClientRect();
-      css = Math.max(60, Math.min(r.width, r.height));
-      dpr = Math.min(window.devicePixelRatio || 1, 2);
-      cv.width = Math.round(css * dpr); cv.height = Math.round(css * dpr);
-      cv.style.width = css + "px"; cv.style.height = css + "px";
-      RB = Math.min(300, Math.round(css));
-      buf = document.createElement("canvas"); buf.width = RB; buf.height = RB;
-      bctx = buf.getContext("2d"); bimg = bctx.createImageData(RB, RB);
-    };
-    const computeR1 = () => {
-      if (site && satUrl) return css * 62;                       // dive past the province; satellite frames the finish
-      if (province) {
-        const [w, s, e, n] = province.bbox;
-        const ang = Math.max((e - w) * Math.cos(tLat * DEG) * DEG, (n - s) * DEG, 0.02);
-        return Math.max(css * 0.5, Math.min(0.82 * css / ang, css * 55));
-      }
-      return css * 1.7;
-    };
-
-    const render = (rotLng, rotLat, R, provA, flagT) => {
-      const kb = RB / css, Rb = R * kb, cb = RB / 2, invR = 1 / Rb;
-      const f0 = rotLat * DEG, cf0 = Math.cos(f0), sf0 = Math.sin(f0), l0 = rotLng * DEG;
-      const eW = earth.W, eH = earth.H, ed = earth.data, bd = bimg.data;
-      for (let py = 0; py < RB; py++) {
-        const ny = (cb - py) * invR; let row = py * RB * 4;
-        for (let pxi = 0; pxi < RB; pxi++, row += 4) {
-          const nx = (pxi - cb) * invR, hh = nx * nx + ny * ny;
-          if (hh > 1) { bd[row + 3] = 0; continue; }
-          const nz = Math.sqrt(1 - hh);
-          const y0 = ny * cf0 + nz * sf0, z0 = -ny * sf0 + nz * cf0;
-          const lat = Math.asin(y0 > 1 ? 1 : y0 < -1 ? -1 : y0);
-          const lng = l0 + Math.atan2(nx, z0);
-          let u = ((lng / DEG + 180) / 360 * eW) | 0; u = ((u % eW) + eW) % eW;
-          let v = ((90 - lat / DEG) / 180 * eH) | 0; if (v < 0) v = 0; else if (v >= eH) v = eH - 1;
-          const si = (v * eW + u) * 4;
-          const sh = 0.4 + 0.6 * Math.max(0, nx * LX + ny * LY + nz * LZ);
-          bd[row] = ed[si] * sh; bd[row + 1] = ed[si + 1] * sh; bd[row + 2] = ed[si + 2] * sh; bd[row + 3] = 255;
-        }
-      }
-      bctx.putImageData(bimg, 0, 0);
-      const m = cv.getContext("2d");
-      m.setTransform(1, 0, 0, 1, 0, 0); m.clearRect(0, 0, cv.width, cv.height);
-      m.imageSmoothingEnabled = true; m.imageSmoothingQuality = "high";
-      const W = cv.width, cxd = W / 2, cyd = cv.height / 2, Rd = R * dpr;
-      m.drawImage(buf, 0, 0, RB, RB, 0, 0, W, cv.height);
-      // atmosphere glow while the limb is on-screen
-      if (Rd * 2 <= W * 1.02) {
-        const g = m.createRadialGradient(cxd, cyd, Rd * 0.97, cxd, cyd, Rd * 1.1);
-        g.addColorStop(0, "rgba(126,176,232,0)"); g.addColorStop(0.5, "rgba(126,176,232,0.30)"); g.addColorStop(1, "rgba(126,176,232,0)");
-        m.fillStyle = g; m.beginPath(); m.arc(cxd, cyd, Rd * 1.1, 0, 7); m.fill();
-      }
-      const projS = (lng, lat) => {
-        const l = (lng - rotLng) * DEG, f = lat * DEG, cf = Math.cos(f);
-        const x = cf * Math.sin(l), yy = Math.sin(f), zz = cf * Math.cos(l);
-        return { sx: cxd + Rd * x, sy: cyd - Rd * (yy * cf0 - zz * sf0), z: yy * sf0 + zz * cf0 };
-      };
-      if (province && provA > 0) {
-        m.lineJoin = "round"; m.lineCap = "round";
-        const trace = () => {
-          m.beginPath();
-          for (const ring of province.rings) {
-            for (let i = 0; i < ring.length; i++) { const p = projS(ring[i][0], ring[i][1]); i ? m.lineTo(p.sx, p.sy) : m.moveTo(p.sx, p.sy); }
-            m.closePath();
+      if (!st.built) {
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: "high-performance" });
+        renderer.setClearColor(0x03040a, 1);
+        renderer.outputColorSpace = THREE.SRGBColorSpace;
+        renderer.domElement.style.display = "block"; renderer.domElement.style.width = "100%"; renderer.domElement.style.height = "100%";
+        mount.appendChild(renderer.domElement);
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(34, 1, 0.0004, 100);
+        const T = getGlobeTextures(THREE, A);
+        const earth = new THREE.Mesh(new THREE.SphereGeometry(1, 144, 144),
+          new THREE.MeshPhongMaterial({ map: T.color, normalMap: T.normal, normalScale: new THREE.Vector2(0.65, 0.65), specularMap: T.spec, specular: new THREE.Color(0x2a3948), shininess: 16 }));
+        scene.add(earth);
+        const atm = new THREE.Mesh(new THREE.SphereGeometry(1.023, 96, 96), new THREE.ShaderMaterial({
+          transparent: true, side: THREE.BackSide, blending: THREE.AdditiveBlending, depthWrite: false,
+          vertexShader: "varying vec3 vN;void main(){vN=normalize(normalMatrix*normal);gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}",
+          fragmentShader: "varying vec3 vN;void main(){float i=pow(clamp(0.74-dot(vN,vec3(0.0,0.0,1.0)),0.0,1.0),1.7);gl_FragColor=vec4(0.28,0.5,0.92,1.0)*i*1.1;}",
+        }));
+        scene.add(atm);
+        const sun = new THREE.DirectionalLight(0xfff4e8, 2.2);
+        sun.position.copy(ll(8, tLng + 24, 1).multiplyScalar(5));
+        scene.add(sun);
+        scene.add(new THREE.AmbientLight(0x36414f, 1.2));
+        // Draped satellite LOD patches (mercator-gridded, unlit, double-sided). A coarse REGION
+        // layer keeps the approach crisp; a finer DETAIL layer resolves on top at the destination —
+        // so real imagery covers every scale (no upscaled Blue Marble ever fills the frame).
+        const cx = R_MERC * tLng * GDEG, cy = R_MERC * Math.log(Math.tan(Math.PI / 4 + tLat * GDEG / 2));
+        const makePatch = (url, half, radius) => {
+          const N = 72, geo = new THREE.BufferGeometry(), pos = [], uvs = [], idx = [];
+          for (let j = 0; j <= N; j++) for (let i = 0; i <= N; i++) {
+            const mx = cx - half + (2 * half) * (i / N), my = cy - half + (2 * half) * (j / N);
+            const lng2 = (mx / R_MERC) / GDEG, lat2 = (2 * Math.atan(Math.exp(my / R_MERC)) - Math.PI / 2) / GDEG;
+            const v = ll(lat2, lng2, radius);
+            pos.push(v.x, v.y, v.z); uvs.push(i / N, j / N);
           }
+          for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) { const a = j * (N + 1) + i, b = a + 1, c = a + (N + 1), d = c + 1; idx.push(a, c, b, b, c, d); }
+          geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+          geo.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2)); geo.setIndex(idx);
+          const tex = new THREE.TextureLoader().load(url); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
+          const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide }));
+          m.renderOrder = radius; scene.add(m); return m;
         };
-        // Dim everything OUTSIDE the province so the shape reads instantly (rect + province holes).
-        m.save(); m.beginPath(); m.rect(0, 0, cv.width, cv.height);
-        for (const ring of province.rings) { for (let i = ring.length - 1; i >= 0; i--) { const p = projS(ring[i][0], ring[i][1]); i === ring.length - 1 ? m.moveTo(p.sx, p.sy) : m.lineTo(p.sx, p.sy); } m.closePath(); }
-        m.globalAlpha = 0.42 * provA; m.fillStyle = "#0e1712"; m.fill("evenodd"); m.restore();
-        // Province: warm accent wash + crisp outline + white inner keyline.
-        trace(); m.save(); m.globalAlpha = 0.2 * provA; m.fillStyle = accent; m.fill(); m.restore();
-        trace(); m.save(); m.globalAlpha = provA; m.strokeStyle = accent; m.lineWidth = 3 * dpr; m.stroke();
-        m.globalAlpha = 0.6 * provA; m.strokeStyle = "#ffffff"; m.lineWidth = 1 * dpr; m.stroke(); m.restore();
+        let region = null, patch = null;
+        if (patchDef) {
+          if (patchDef.regionUrl) region = makePatch(patchDef.regionUrl, patchDef.regionHalfM || 300000, 1.0004);
+          patch = makePatch(patchDef.url, patchDef.halfM || 55000, 1.0008);
+        }
+        const resize = () => {
+          const r = box.getBoundingClientRect(), w = Math.round(r.width), h = Math.round(r.height);
+          if (w < 5 || h < 5) return;
+          renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+          renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
+          st.w = w; st.h = h;
+          if (st.frame) st.frame(st.lastP || 0);
+        };
+        const ro = new ResizeObserver(resize); ro.observe(box); resize();
+        Object.assign(st, { built: true, renderer, scene, camera, earth, region, patch, ro });
       }
-      if (flagT > 0) { const p = projS(tLng, tLat); if (p.z > -0.1) drawFlag(m, p.sx, p.sy, dpr, accent, flagT); }
-    };
+      const { renderer, scene, camera, region, patch } = st;
 
-    const easeIO = (p) => (p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2);
-    const cl = (x) => (x < 0 ? 0 : x > 1 ? 1 : x);
-    const setSat = (a, scale) => { const el = satRef.current; if (el) { el.style.opacity = a; el.style.transform = `scale(${scale})`; } };
-    let launched = false;
-
-    // Run everything off a MEASURED box — the effect can fire before layout (rect ≈ 0), which
-    // would compute a 60px globe and a tiny zoom target. ResizeObserver waits for a real size.
-    const run = () => {
-      size();
-      if (css < 90) return;                    // not laid out yet — wait for the observer
-      const R0 = 0.46 * css, R1 = computeR1();
-      if (!on) { render(tLng - 130, 6, R0, 0, 0); setSat(0, 1.28); setArrived(false); return; }
-      if (reduce) { render(tLng, tLat, R1, (province && !satUrl) ? 1 : 0, satUrl ? 0 : 1); setSat(satUrl ? 1 : 0, 1); setArrived(true); return; }
-      if (launched) return;                    // animate once; ignore later resize ticks
-      launched = true;
-      setArrived(false); setSat(0, 1.28);
-      // The flight: full Earth from space → rotate South America into view (rotation LEADS,
-      // settling ~62%) → keep flying in (exponential zoom) → province resolves then fades →
-      // real satellite terrain crossfades in and frames the exact site.
-      const startLng = tLng - 130, startLat = 6, DUR = 3000, t0 = performance.now();
-      const tick = (now) => {
-        const p = Math.min(1, (now - t0) / DUR);
-        const eRot = easeIO(cl(p / 0.62));
-        const e = easeIO(p);
-        const R = R0 * Math.pow(R1 / R0, e);                    // exponential zoom = a "dive"
-        const satA = satUrl ? cl((p - 0.62) / 0.26) : 0;
-        const satScale = 1.28 - 0.28 * cl((p - 0.48) / 0.52);
-        const provA = province ? cl((p - 0.38) / 0.12) * (1 - (satUrl ? cl((p - 0.58) / 0.12) : 0)) : 0;
-        const flagT = satUrl ? 0 : cl((p - 0.76) / 0.22);
-        render(startLng + (tLng - startLng) * eRot, startLat + (tLat - startLat) * eRot, R, provA, flagT);
-        setSat(satA, satScale);
-        if (p < 1) rafRef.current = requestAnimationFrame(tick);
-        else { rafRef.current = 0; setArrived(true); }
+      const easeOutCubic = (x) => 1 - Math.pow(1 - x, 3);
+      const easeInOutQuint = (x) => (x < 0.5 ? 16 * x * x * x * x * x : 1 - Math.pow(-2 * x + 2, 5) / 2);
+      const cl = (x) => (x < 0 ? 0 : x > 1 ? 1 : x);
+      const pose = (p) => {
+        const eDir = easeOutCubic(cl(p / 0.55)), eZoom = easeInOutQuint(p);
+        const dir = startDir.clone().lerp(targetDir, eDir).normalize();
+        const dist = START_DIST * Math.pow(END_DIST / START_DIST, eZoom);
+        camera.position.copy(dir.multiplyScalar(dist));
+        camera.up.set(0, 1, 0); camera.lookAt(0, 0, 0);
+        if (region) region.material.opacity = cl((p - 0.34) / 0.16);   // crisp regional layer for the approach
+        if (patch) patch.material.opacity = cl((p - 0.6) / 0.16);       // detail layer resolves at the destination
       };
-      rafRef.current = requestAnimationFrame(tick);
-    };
+      const band = (p, a, b) => { const f = 0.05; if (p < a - f || p > b + f) return 0; if (p < a) return (p - (a - f)) / f; if (p > b) return 1 - (p - b) / f; return 1; };
+      const overlays = (p) => {
+        if (argRef.current) argRef.current.style.opacity = band(p, 0.34, 0.5);
+        if (saltaRef.current) saltaRef.current.style.opacity = band(p, 0.58, 0.76);
+        if (markerRef.current) markerRef.current.style.opacity = cl((p - 0.9) / 0.08);
+        if (finalRef.current) finalRef.current.style.opacity = cl((p - 0.94) / 0.06);
+      };
+      const frame = (p) => { pose(p); overlays(p); if (st.w > 4) renderer.render(scene, camera); };
+      st.frame = frame; st.lastP = st.lastP || 0;
 
-    const ro = new ResizeObserver(() => run());
-    ro.observe(box);
-    run();
-    return () => { ro.disconnect(); cancelAnimationFrame(rafRef.current); rafRef.current = 0; };
-    // Depend on PRIMITIVES (not the coords object, which is a fresh identity each model
-    // rebuild) so incidental re-renders don't restart — and abort — the dive mid-flight.
-  }, [on, coords && coords.lng, coords && coords.lat, coords && coords.key, site && site.lat, site && site.lng, satUrl, reduce, accent]);
+      const T = getGlobeTextures(THREE, A);
+      const texOK = (m) => !m || (m.material.map.image && m.material.map.image.width);
+      const ready = () => T.color.image && T.color.image.width && texOK(region) && texOK(patch);
+      cancelAnimationFrame(rafRef.current);
+      if (!on) { st.t0 = null; st.lastP = 0; frame(0); return; }
+      if (reduce) { st.lastP = 1; const show = () => { if (cancelled) return; if (!ready()) { rafRef.current = requestAnimationFrame(show); return; } frame(1); }; show(); return; }
+
+      const DUR = 6400, HOLD = 500;
+      const loop = (now) => {
+        if (cancelled) return;
+        if (st.t0 == null) { frame(0); if (!ready()) { rafRef.current = requestAnimationFrame(loop); return; } st.t0 = now + HOLD; rafRef.current = requestAnimationFrame(loop); return; }
+        const p = cl((now - st.t0) / DUR); st.lastP = p;
+        frame(p);
+        if (p < 1) rafRef.current = requestAnimationFrame(loop);
+      };
+      rafRef.current = requestAnimationFrame(loop);
+    });
+    return () => { cancelled = true; cancelAnimationFrame(rafRef.current); };
+  }, [on, tLat, tLng, siteSat, reduce]);
+
+  useEffect(() => () => {
+    const st = S.current;
+    if (st.ro) st.ro.disconnect();
+    if (st.renderer) { st.renderer.dispose(); const el = st.renderer.domElement; if (el && el.parentNode) el.parentNode.removeChild(el); }
+  }, []);
 
   if (!coords) return null;
+  const region = site ? site.region : "";
   return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", width: "100%" }}>
-      <div ref={boxRef} style={{ position: "relative", width: "100%", height: "100%", aspectRatio: "1 / 1", maxWidth: "100%", maxHeight: "100%", overflow: "hidden", borderRadius: "clamp(10px,1.4vw,20px)" }}>
-        <canvas ref={canvasRef} style={{ position: "absolute", inset: 0, margin: "auto", display: "block" }} />
-        {satUrl && (
-          <div ref={satRef} aria-hidden style={{ position: "absolute", inset: 0, backgroundImage: `url(${satUrl})`, backgroundSize: "cover", backgroundPosition: "center", opacity: 0, transformOrigin: "center", willChange: "opacity, transform" }} />
+    <div style={{ position: "absolute", inset: 0, background: "#03040a" }}>
+      <div ref={boxRef} style={{ position: "absolute", inset: 0, overflow: "hidden", background: "#03040a" }}>
+        <div ref={mountRef} style={{ position: "absolute", inset: 0 }} />
+        <div ref={argRef} style={{ position: "absolute", left: 0, right: 0, top: "15%", textAlign: "center", opacity: 0, pointerEvents: "none", color: "#fff", fontFamily: FONT, fontSize: "clamp(15px,1.5vw,22px)", fontWeight: 700, letterSpacing: "0.42em", textShadow: "0 2px 20px rgba(0,0,0,0.65)" }}>ARGENTINA</div>
+        <div ref={saltaRef} style={{ position: "absolute", left: 0, right: 0, top: "15%", textAlign: "center", opacity: 0, pointerEvents: "none", color: "#fff", fontFamily: FONT, fontSize: "clamp(13px,1.3vw,19px)", fontWeight: 700, letterSpacing: "0.42em", textShadow: "0 2px 20px rgba(0,0,0,0.65)" }}>SALTA PROVINCE</div>
+        {site && (
+          <div ref={markerRef} style={{ position: "absolute", left: "50%", top: "50%", opacity: 0, pointerEvents: "none" }}>
+            <span className="cm-geo-pulse" style={{ borderColor: accent }} />
+            <span style={{ position: "absolute", left: 0, top: 0, transform: "translate(-50%,-50%)", width: 13, height: 13, borderRadius: 999, border: "1.5px solid " + accent, boxSizing: "border-box" }} />
+            <span style={{ position: "absolute", left: 0, top: 0, transform: "translate(-50%,-50%)", width: 3.5, height: 3.5, borderRadius: 999, background: "#fff", boxShadow: "0 0 0 1.5px " + accent }} />
+          </div>
         )}
-        {site && satUrl && (
-          <>
-            {/* project marker sits at the frame centre = the exact site coordinates */}
-            <div aria-hidden style={{ position: "absolute", left: "50%", top: "50%", transform: `translate(-50%,-100%) translateY(${arrived ? 0 : -12}px) scale(${arrived ? 1 : 0.55})`, opacity: arrived ? 1 : 0, transformOrigin: "50% 100%", transition: reduce ? "none" : "opacity .5s ease .15s, transform .6s cubic-bezier(0.34,1.56,0.64,1) .15s", pointerEvents: "none" }}>
-              <span className="cm-globe-ping" style={{ background: accent }} />
-              <svg width="30" height="39" viewBox="0 0 24 32" style={{ position: "relative", display: "block", filter: "drop-shadow(0 6px 12px rgba(8,14,20,0.5))" }}>
-                <path d="M12 0C5.4 0 0 5.3 0 11.9 0 20.6 12 32 12 32s12-11.4 12-20.1C24 5.3 18.6 0 12 0z" fill={accent} />
-                <circle cx="12" cy="12" r="4.6" fill="#fff" />
-              </svg>
+        {site && (
+          <div ref={finalRef} style={{ position: "absolute", left: "50%", top: "50%", opacity: 0, pointerEvents: "none" }}>
+            <div style={{ position: "absolute", left: 0, bottom: 12, width: 1, height: "clamp(30px,5.5vh,54px)", background: "linear-gradient(to bottom, rgba(255,255,255,0.6), rgba(255,255,255,0))", transform: "translateX(-0.5px)" }} />
+            <div style={{ position: "absolute", left: 0, bottom: "calc(12px + clamp(30px,5.5vh,54px))", transform: "translate(-50%,0)", textAlign: "center", whiteSpace: "nowrap" }}>
+              <div style={{ color: "#fff", fontFamily: FONT, fontSize: "clamp(20px,2.1vw,30px)", fontWeight: 800, letterSpacing: "-0.01em", textShadow: "0 2px 18px rgba(0,0,0,0.6)" }}>{String(site.name || "").toUpperCase()}</div>
+              {region && <div style={{ color: "rgba(255,255,255,0.85)", fontFamily: FONT, fontSize: "clamp(12px,1.15vw,15px)", fontWeight: 500, marginTop: 3, textShadow: "0 1px 14px rgba(0,0,0,0.55)" }}>{region}</div>}
+              <div style={{ color: accent, fontFamily: FONT, fontSize: "clamp(11px,1vw,13px)", fontWeight: 700, letterSpacing: "0.05em", marginTop: 5, fontVariantNumeric: "tabular-nums", textShadow: "0 1px 14px rgba(0,0,0,0.55)" }}>{fmt(tLat, "N", "S")} · {fmt(tLng, "E", "W")}</div>
             </div>
-            {/* destination label card */}
-            <div style={{ position: "absolute", left: "clamp(12px,2vw,20px)", bottom: "clamp(12px,2vw,20px)", right: "clamp(12px,2vw,20px)", opacity: arrived ? 1 : 0, transform: `translateY(${arrived ? 0 : 10}px)`, transition: reduce ? "none" : "opacity .55s ease .35s, transform .55s cubic-bezier(0.22,1,0.36,1) .35s", pointerEvents: "none" }}>
-              <div style={{ display: "inline-block", padding: "clamp(10px,1.4vw,15px) clamp(14px,1.8vw,20px)", borderRadius: 14, background: "rgba(10,15,22,0.62)", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)", border: "1px solid rgba(255,255,255,0.14)" }}>
-                <div style={{ fontSize: "clamp(18px,2vw,26px)", fontWeight: 800, letterSpacing: "-0.01em", color: "#fff", lineHeight: 1.05 }}>{String(site.name || "").toUpperCase()}</div>
-                {site.region && <div style={{ fontSize: "clamp(12px,1.1vw,15px)", fontWeight: 500, color: "rgba(255,255,255,0.82)", marginTop: 3 }}>{site.region}</div>}
-                <div style={{ fontSize: "clamp(11px,1vw,13px)", fontWeight: 700, letterSpacing: "0.04em", color: accent, marginTop: 6, fontVariantNumeric: "tabular-nums" }}>{fmt(site.lat, "N", "S")} · {fmt(site.lng, "E", "W")}</div>
-              </div>
-            </div>
-          </>
+          </div>
         )}
       </div>
     </div>
@@ -777,26 +752,24 @@ export function CMJurisdiction({ jurisdiction, active, local, reduce }) {
   // With a resolvable location, a globe spins to the jurisdiction and drops a pin
   // (text left / globe right, so it fits iPad height); otherwise the landscape image.
   const heroStatEl = (on) => j.heroStat && <Rise on={on} kind="copy"><div style={{ fontSize: "clamp(15px,1.3vw,19px)", fontWeight: 600, color: tone.accent, marginTop: "clamp(12px,1.6vh,18px)", borderLeft: `3px solid ${tone.accent}`, paddingLeft: 14, maxWidth: "40ch" }}>{j.heroStat}</div></Rise>;
-  const Location = (on) => (
-    <Beat pad="clamp(48px, 6.5vh, 84px) clamp(28px, 5vw, 76px)" maxW={1240}>
-      <Eyebrow on={on} color={tone.accent}>{j.eyebrow || "Jurisdiction"}</Eyebrow>
-      {j.coords ? (
-        <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,0.94fr)", gap: "clamp(20px,4vw,60px)", alignItems: "center", marginTop: "clamp(12px,1.8vh,22px)" }}>
-          <div>
-            {j.title && <Heading on={on} size="h1" delay={110} color={tone.fg} style={{ maxWidth: "14ch" }}>{j.title}</Heading>}
-            {heroStatEl(on)}
-          </div>
-          <Rise on={on} kind="media" delay={160}><div style={{ height: "clamp(280px, 54vh, 500px)" }}><CMGlobe coords={j.coords} site={j.site} on={on} reduce={reduce} tone={tone} /></div></Rise>
+  // With a resolvable location the geography IS the stage: a full-bleed cinematic fly-to fills the
+  // beat (near-black space → El Quevar), with only a restrained eyebrow overlaid — no map card.
+  const Location = (on) =>
+    j.coords ? (
+      <div style={{ position: "absolute", inset: 0, background: "#03040a", overflow: "hidden" }}>
+        <CMGlobe coords={j.coords} site={j.site} on={on} reduce={reduce} tone={tone} />
+        <div style={{ position: "absolute", top: "clamp(20px,3.6vh,42px)", left: "clamp(24px,5vw,76px)", pointerEvents: "none" }}>
+          <Eyebrow on={on} color="rgba(255,255,255,0.72)">{j.eyebrow || "Jurisdiction"}</Eyebrow>
         </div>
-      ) : (
-        <>
-          {j.title && <Heading on={on} size="h1" delay={110} color={tone.fg} style={{ marginTop: "clamp(12px,1.8vh,20px)", maxWidth: "16ch" }}>{j.title}</Heading>}
-          {heroStatEl(on)}
-          {j.image && <Rise on={on} kind="media" delay={200}><MediaFill src={j.image} on={on} style={{ marginTop: "clamp(22px,3vh,38px)", height: "clamp(220px, 40vh, 420px)", border: "1px solid rgba(18,22,29,0.08)" }} /></Rise>}
-        </>
-      )}
-    </Beat>
-  );
+      </div>
+    ) : (
+      <Beat pad="clamp(48px, 6.5vh, 84px) clamp(28px, 5vw, 76px)" maxW={1240}>
+        <Eyebrow on={on} color={tone.accent}>{j.eyebrow || "Jurisdiction"}</Eyebrow>
+        {j.title && <Heading on={on} size="h1" delay={110} color={tone.fg} style={{ marginTop: "clamp(12px,1.8vh,20px)", maxWidth: "16ch" }}>{j.title}</Heading>}
+        {heroStatEl(on)}
+        {j.image && <Rise on={on} kind="media" delay={200}><MediaFill src={j.image} on={on} style={{ marginTop: "clamp(22px,3vh,38px)", height: "clamp(220px, 40vh, 420px)", border: "1px solid rgba(18,22,29,0.08)" }} /></Rise>}
+      </Beat>
+    );
 
   // CONTEXT — the geographic/infrastructure narrative + facts, beside a supporting image.
   const Context = (on) => (
