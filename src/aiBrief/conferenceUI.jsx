@@ -763,10 +763,12 @@ export function CMGlobe({ coords, site, on, reduce, tone }) {
 // ════════════════════════════════════════════════════════════════════════════
 function jurisdictionBeats({ jurisdiction }) {
   const j = jurisdiction || {};
-  const beats = [];
-  if (j.title || j.image || j.coords) beats.push("location");
   const facts = j.facts || [];
-  const hasContext = j.narrative || j.districtContext || j.regionalGeology || (facts.length > 0);
+  const hasContext = !!(j.narrative || j.districtContext || j.regionalGeology || facts.length);
+  // Geography-led: state 0 = full-bleed fly-to; state 1 = map collapses to half + details panel.
+  if (j.coords) return hasContext ? ["map", "mapdetail"] : ["map"];
+  const beats = [];
+  if (j.title || j.image) beats.push("location");
   if (hasContext) beats.push("context");
   if (!beats.length && j.narrative) beats.push("context");
   return beats;
@@ -774,34 +776,49 @@ function jurisdictionBeats({ jurisdiction }) {
 export function CMJurisdiction({ jurisdiction, active, local, reduce }) {
   const tone = TONES.board;
   const j = jurisdiction || {};
-  const beats = jurisdictionBeats({ jurisdiction });
   const facts = j.facts || [];
+  const hasContext = !!(j.narrative || j.districtContext || j.regionalGeology || facts.length);
 
-  // LOCATION — an intentionally sparse editorial opening: place name + a short descriptor
-  // + the landscape. The prose lives in the Context beat so this never overflows.
-  // With a resolvable location, a globe spins to the jurisdiction and drops a pin
-  // (text left / globe right, so it fits iPad height); otherwise the landscape image.
-  const heroStatEl = (on) => j.heroStat && <Rise on={on} kind="copy"><div style={{ fontSize: "clamp(15px,1.3vw,19px)", fontWeight: 600, color: tone.accent, marginTop: "clamp(12px,1.6vh,18px)", borderLeft: `3px solid ${tone.accent}`, paddingLeft: 14, maxWidth: "40ch" }}>{j.heroStat}</div></Rise>;
-  // With a resolvable location the geography IS the stage: a full-bleed cinematic fly-to fills the
-  // beat (near-black space → El Quevar), with only a restrained eyebrow overlaid — no map card.
-  const Location = (on) =>
-    j.coords ? (
+  // GEOGRAPHY-LED: the full-bleed cinematic fly-to is state 0. The SECOND swipe (local ≥ 1)
+  // collapses the SAME map to the left half and slides a details panel in on the right — one
+  // continuous scene, the map slides rather than paging away.
+  if (j.coords) {
+    const split = hasContext && local >= 1;
+    const dTone = { ...tone, fg: "#f5f7fa", dim: "#c2ccd8", mute: "#8b97a6", hair: "rgba(255,255,255,0.12)" };
+    return (
       <div style={{ position: "absolute", inset: 0, background: "#03040a", overflow: "hidden" }}>
-        <CMGlobe coords={j.coords} site={j.site} on={on} reduce={reduce} tone={tone} />
-        <div style={{ position: "absolute", top: "clamp(20px,3.6vh,42px)", left: "clamp(24px,5vw,76px)", pointerEvents: "none" }}>
-          <Eyebrow on={on} color="rgba(255,255,255,0.72)">{j.eyebrow || "Jurisdiction"}</Eyebrow>
+        <div style={{ position: "absolute", top: 0, bottom: 0, left: 0, width: split ? "54%" : "100%", transition: reduce ? "none" : "width 820ms cubic-bezier(0.76,0,0.24,1)" }}>
+          <CMGlobe coords={j.coords} site={j.site} on={active} reduce={reduce} tone={tone} />
+          <div style={{ position: "absolute", top: "clamp(20px,3.6vh,42px)", left: "clamp(24px,5vw,76px)", pointerEvents: "none" }}>
+            <Eyebrow on={active} color="rgba(255,255,255,0.72)">{j.eyebrow || "Jurisdiction"}</Eyebrow>
+          </div>
         </div>
+        {hasContext && (
+          <div style={{ position: "absolute", top: 0, bottom: 0, right: 0, width: "46%", background: "#0a0e17", borderLeft: "1px solid rgba(255,255,255,0.08)", opacity: split ? 1 : 0, transform: split ? "translateX(0)" : "translateX(26px)", transition: reduce ? "none" : "opacity 620ms ease 160ms, transform 760ms cubic-bezier(0.22,1,0.36,1) 160ms", pointerEvents: split ? "auto" : "none", overflowY: "auto", padding: "clamp(38px,6vh,84px) clamp(30px,4vw,64px)" }}>
+            <div style={{ ...T.eyebrow, color: tone.accent }}>{(j.eyebrow || "Jurisdiction")} · Context</div>
+            {j.title && <div style={{ ...T.h2, color: dTone.fg, marginTop: "clamp(10px,1.5vh,18px)", maxWidth: "18ch" }}>{j.title}</div>}
+            {j.heroStat && <div style={{ fontSize: "clamp(14px,1.2vw,17px)", fontWeight: 600, color: tone.accent, marginTop: 14, borderLeft: `3px solid ${tone.accent}`, paddingLeft: 14, maxWidth: "44ch" }}>{j.heroStat}</div>}
+            {j.narrative && <div style={{ ...T.lead, color: dTone.dim, marginTop: "clamp(16px,2.2vh,26px)", maxWidth: "46ch" }}>{j.narrative}</div>}
+            {j.districtContext && <div style={{ fontSize: "clamp(14px,1.1vw,16px)", color: dTone.mute, marginTop: 16, lineHeight: 1.55, maxWidth: "46ch" }}><b style={{ color: dTone.fg, fontWeight: 700 }}>District — </b>{j.districtContext}</div>}
+            {j.regionalGeology && <div style={{ fontSize: "clamp(14px,1.1vw,16px)", color: dTone.mute, marginTop: 12, lineHeight: 1.55, maxWidth: "46ch" }}><b style={{ color: dTone.fg, fontWeight: 700 }}>Regional geology — </b>{j.regionalGeology}</div>}
+            {(() => { const pf = facts.filter((f) => String(f.label).toLowerCase() !== "jurisdiction" && f.value !== j.title).slice(0, 4); return pf.length > 0 ? <div style={{ marginTop: "clamp(22px,3vh,36px)" }}><FactRail facts={pf} on={split} tone={dTone} /></div> : null; })()}
+          </div>
+        )}
       </div>
-    ) : (
-      <Beat pad="clamp(48px, 6.5vh, 84px) clamp(28px, 5vw, 76px)" maxW={1240}>
-        <Eyebrow on={on} color={tone.accent}>{j.eyebrow || "Jurisdiction"}</Eyebrow>
-        {j.title && <Heading on={on} size="h1" delay={110} color={tone.fg} style={{ marginTop: "clamp(12px,1.8vh,20px)", maxWidth: "16ch" }}>{j.title}</Heading>}
-        {heroStatEl(on)}
-        {j.image && <Rise on={on} kind="media" delay={200}><MediaFill src={j.image} on={on} style={{ marginTop: "clamp(22px,3vh,38px)", height: "clamp(220px, 40vh, 420px)", border: "1px solid rgba(18,22,29,0.08)" }} /></Rise>}
-      </Beat>
     );
+  }
 
-  // CONTEXT — the geographic/infrastructure narrative + facts, beside a supporting image.
+  // FALLBACK — no resolvable location: the original editorial beats.
+  const beats = jurisdictionBeats({ jurisdiction });
+  const heroStatEl = (on) => j.heroStat && <Rise on={on} kind="copy"><div style={{ fontSize: "clamp(15px,1.3vw,19px)", fontWeight: 600, color: tone.accent, marginTop: "clamp(12px,1.6vh,18px)", borderLeft: `3px solid ${tone.accent}`, paddingLeft: 14, maxWidth: "40ch" }}>{j.heroStat}</div></Rise>;
+  const Location = (on) => (
+    <Beat pad="clamp(48px, 6.5vh, 84px) clamp(28px, 5vw, 76px)" maxW={1240}>
+      <Eyebrow on={on} color={tone.accent}>{j.eyebrow || "Jurisdiction"}</Eyebrow>
+      {j.title && <Heading on={on} size="h1" delay={110} color={tone.fg} style={{ marginTop: "clamp(12px,1.8vh,20px)", maxWidth: "16ch" }}>{j.title}</Heading>}
+      {heroStatEl(on)}
+      {j.image && <Rise on={on} kind="media" delay={200}><MediaFill src={j.image} on={on} style={{ marginTop: "clamp(22px,3vh,38px)", height: "clamp(220px, 40vh, 420px)", border: "1px solid rgba(18,22,29,0.08)" }} /></Rise>}
+    </Beat>
+  );
   const Context = (on) => (
     <Beat pad="clamp(56px, 7vh, 96px) clamp(28px, 5vw, 76px)" maxW={1220}>
       <Eyebrow on={on} color={tone.accent}>{(j.eyebrow || "Jurisdiction")} · Context</Eyebrow>
@@ -816,7 +833,6 @@ export function CMJurisdiction({ jurisdiction, active, local, reduce }) {
       </div>
     </Beat>
   );
-
   const render = (i, on) => (beats[i] === "location" ? Location(on) : Context(on));
   return <SectionPanel tone={tone} count={beats.length} local={local} active={active} reduce={reduce} render={render} />;
 }
