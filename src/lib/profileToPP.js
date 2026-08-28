@@ -462,6 +462,10 @@ export function mapProfileToPP(profile = {}) {
     // Basic-listing status-card fields (also harmless on full profiles).
     stage: str(c.stage),
     location: str(c.location),
+    // The corporate head office (from the exchange listing) — distinct from
+    // `location` (where the projects are) and from `jurisdiction`. Shown as the
+    // 4th status cell on a basic listing; must round-trip or an edit erases it.
+    headquarters: str(c.headquarters),
     status: "",
     marketCap: str(cap.marketCap),
     sharePrice: str(cap.sharePrice),
@@ -676,5 +680,13 @@ export function mapProfileToPP(profile = {}) {
     TIER: str(profile.tier),
     // The plain-language "what they do" brief shown on a basic listing.
     LISTING_BRIEF: str(brief.shortSummary || brief.oneLiner || brief.summary),
+    // Where an auto-generated listing was compiled from ({ label, date, facts }) —
+    // printed in the listing's disclaimer. Passed through verbatim; absent → the
+    // disclaimer just drops the "compiled from …" clause.
+    LISTING_SOURCE: (profile.listingSource && typeof profile.listingSource === "object") ? profile.listingSource : null,
+    // Passport-only: optional curated overrides for the Pro Highlights carousel. Passed
+    // through verbatim; the app's selector prefers these per-card when present, else derives
+    // from the normalized data above. Never read by Conference Mode. Absent → app derives.
+    PRO_HIGHLIGHTS: (profile.passport && typeof profile.passport === "object" && profile.passport.proHighlights) || null,
   };
 }

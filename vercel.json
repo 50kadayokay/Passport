@@ -3,6 +3,10 @@
   "buildCommand": "vite build",
   "outputDirectory": "dist",
   "rewrites": [
+    { "source": "/support", "destination": "/support.html" },
+    { "source": "/privacy", "destination": "/privacy.html" },
+    { "source": "/terms", "destination": "/terms.html" },
+    { "source": "/n/:id", "destination": "/api/share-news?id=:id" },
     { "source": "/(.*)", "destination": "/index.html" }
   ],
   "headers": [
@@ -14,5 +18,9 @@
       "source": "/((?!assets/).*)",
       "headers": [{ "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }]
     }
+  ],
+  "crons": [
+    { "path": "/api/news-pull", "schedule": "0 */3 * * *" },
+    { "path": "/api/news-process", "schedule": "30 */6 * * *" }
   ]
 }

@@ -63,6 +63,9 @@ body {
 @keyframes pp-view { 0% { opacity: 0; transform: translateY(6px); } 100% { opacity: 1; transform: translateY(0); } }
 .pp-view { animation: pp-view 0.34s cubic-bezier(0.22,1,0.36,1) both; }
 
+@keyframes pp-spin { to { transform: rotate(360deg); } }
+.pp-spin { animation: pp-spin 0.8s linear infinite; }
+
 @media (prefers-reduced-motion: reduce) {
   .pp-ping, .pp-slide-up, .pp-pop, .pp-fade, .pp-view, .pp-backdrop { animation: none !important; }
   .pp-wordfade { animation: none !important; opacity: 1 !important; filter: none !important; transform: none !important; }

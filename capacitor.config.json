@@ -1,0 +1,10 @@
+{
+  "appId": "com.liquidjungle.mineex",
+  "appName": "MineEx",
+  "webDir": "dist",
+  "ios": {
+    "contentInset": "never",
+    "backgroundColor": "#ffffff"
+  },
+  "backgroundColor": "#ffffff"
+}

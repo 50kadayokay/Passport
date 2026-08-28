@@ -32,6 +32,8 @@ const PROFILE_KEYS = [
   "compare",      // normalized cross-company metrics (Pass 4)
   "media",        // asset inventory (Pass 4)
   "citations",    // evidence audit as data (Pass 4)
+  "passport",     // Passport app-only presentation namespace (e.g. proHighlights). Additive;
+                  // never read by Conference Mode. Optional — the app derives it when absent.
 ];
 
 // Extraction metadata — kept alongside the profile for auditing, never rendered.

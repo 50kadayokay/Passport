@@ -3,6 +3,7 @@
 // on demand. authHeaders() returns the logged-in user's JWT for RLS-protected
 // PostgREST calls; falls back to the anon key when signed out.
 import { SUPABASE_URL, SUPABASE_ANON } from "./supabase.js";
+import { isNativeApp, API_BASE } from "./platform.js";
 
 const AUTH = `${SUPABASE_URL}/auth/v1`;
 const KEY = "pp.session";
@@ -118,7 +119,11 @@ export async function getMyRole() {
 // Email a reset link that returns to /reset. (Delivery uses Supabase's email
 // service — reliable delivery needs SMTP configured in the dashboard.)
 export async function requestPasswordReset(email) {
-  const redirectTo = `${window.location.origin}/reset`;
+  // In the native shell window.location.origin is capacitor://localhost, which the
+  // emailed link can't reopen — point recovery at the deployed web /reset instead,
+  // so the user completes the reset in Safari and returns to the app to sign in.
+  const origin = isNativeApp ? API_BASE : window.location.origin;
+  const redirectTo = `${origin}/reset`;
   const res = await fetch(`${AUTH}/recover?redirect_to=${encodeURIComponent(redirectTo)}`, {
     method: "POST", headers: base, body: JSON.stringify({ email }),
   });

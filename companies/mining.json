@@ -1,0 +1,8084 @@
+[
+ {
+  "name": "1844 Resources Inc.",
+  "symbol": "EFF",
+  "exchange": "TSXV",
+  "apiSymbol": "EFF.V",
+  "sector": "Mining",
+  "province": "SK",
+  "country": "Canada"
+ },
+ {
+  "name": "1911 Gold Corporation",
+  "symbol": "AUMB",
+  "exchange": "TSXV",
+  "apiSymbol": "AUMB.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "A.I.S. Resources Limited",
+  "symbol": "AIS",
+  "exchange": "TSXV",
+  "apiSymbol": "AIS.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "A2 Gold Corp.",
+  "symbol": "AUAU",
+  "exchange": "TSXV",
+  "apiSymbol": "AUAU.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Abacus Mining & Exploration Corporation",
+  "symbol": "AME",
+  "exchange": "TSXV",
+  "apiSymbol": "AME.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Abasca Resources Inc.",
+  "symbol": "ABA",
+  "exchange": "TSXV",
+  "apiSymbol": "ABA.V",
+  "sector": "Mining",
+  "province": "SK",
+  "country": "Canada"
+ },
+ {
+  "name": "Abcourt Mines Inc.",
+  "symbol": "ABI",
+  "exchange": "TSXV",
+  "apiSymbol": "ABI.V",
+  "sector": "Mining",
+  "province": "QC",
+  "country": "Canada"
+ },
+ {
+  "name": "Aben Gold Corp.",
+  "symbol": "ABM",
+  "exchange": "TSXV",
+  "apiSymbol": "ABM.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "AC/DC Battery Metals Inc.",
+  "symbol": "ACDC",
+  "exchange": "TSXV",
+  "apiSymbol": "ACDC.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Adamera Minerals Corp.",
+  "symbol": "ADZ",
+  "exchange": "TSXV",
+  "apiSymbol": "ADZ.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Adex Mining Inc.",
+  "symbol": "ADE",
+  "exchange": "TSXV",
+  "apiSymbol": "ADE.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Adyton Resources Corporation",
+  "symbol": "ADY",
+  "exchange": "TSXV",
+  "apiSymbol": "ADY.V",
+  "sector": "Mining",
+  "province": "Australia",
+  "country": "Australia/NZ/PNG"
+ },
+ {
+  "name": "AE Fuels Corporation",
+  "symbol": "AEF",
+  "exchange": "TSXV",
+  "apiSymbol": "AEF.V",
+  "sector": "Mining",
+  "province": "Australia",
+  "country": "Australia/NZ/PNG"
+ },
+ {
+  "name": "Aeonian Resources Corp.",
+  "symbol": "ALTN",
+  "exchange": "TSXV",
+  "apiSymbol": "ALTN.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Aero Energy Limited",
+  "symbol": "AERO",
+  "exchange": "TSXV",
+  "apiSymbol": "AERO.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "AFR NuVenture Resources Inc.",
+  "symbol": "AFR",
+  "exchange": "TSXV",
+  "apiSymbol": "AFR.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Aftermath Silver Ltd.",
+  "symbol": "AAG",
+  "exchange": "TSXV",
+  "apiSymbol": "AAG.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Akwaaba Mining Ltd.",
+  "symbol": "AML",
+  "exchange": "TSXV",
+  "apiSymbol": "AML.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Alaska Energy Metals Corporation",
+  "symbol": "AEMC",
+  "exchange": "TSXV",
+  "apiSymbol": "AEMC.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Alaska Silver Corp.",
+  "symbol": "WAM",
+  "exchange": "TSXV",
+  "apiSymbol": "WAM.V",
+  "sector": "Mining",
+  "province": "AZ",
+  "country": "USA"
+ },
+ {
+  "name": "Aldebaran Resources Inc.",
+  "symbol": "ALDE",
+  "exchange": "TSXV",
+  "apiSymbol": "ALDE.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Algo Grande Copper Corp.",
+  "symbol": "ALGR",
+  "exchange": "TSXV",
+  "apiSymbol": "ALGR.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Alliance Mining Corp.",
+  "symbol": "ALM",
+  "exchange": "TSXV",
+  "apiSymbol": "ALM.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Almaden Minerals Ltd.",
+  "symbol": "AMM",
+  "exchange": "TSXV",
+  "apiSymbol": "AMM.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Almadex Minerals Ltd.",
+  "symbol": "DEX",
+  "exchange": "TSXV",
+  "apiSymbol": "DEX.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Aloro Mining Corp.",
+  "symbol": "AORO",
+  "exchange": "TSXV",
+  "apiSymbol": "AORO.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Alpha Exploration Ltd.",
+  "symbol": "ALEX",
+  "exchange": "TSXV",
+  "apiSymbol": "ALEX.V",
+  "sector": "Mining",
+  "province": "Eritrea",
+  "country": "Africa"
+ },
+ {
+  "name": "Alphamin Resources Corp.",
+  "symbol": "AFM",
+  "exchange": "TSXV",
+  "apiSymbol": "AFM.V",
+  "sector": "Mining",
+  "province": "Mauritius",
+  "country": "Africa"
+ },
+ {
+  "name": "Altai Resources Inc.",
+  "symbol": "ATI",
+  "exchange": "TSXV",
+  "apiSymbol": "ATI.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Altair Resources Inc.",
+  "symbol": "AVX",
+  "exchange": "TSXV",
+  "apiSymbol": "AVX.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Altamira Gold Corp.",
+  "symbol": "ALTA",
+  "exchange": "TSXV",
+  "apiSymbol": "ALTA.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Altiplano Metals Inc.",
+  "symbol": "APN",
+  "exchange": "TSXV",
+  "apiSymbol": "APN.V",
+  "sector": "Mining",
+  "province": "AB",
+  "country": "Canada"
+ },
+ {
+  "name": "Alturas Minerals Corp.",
+  "symbol": "ALT",
+  "exchange": "TSXV",
+  "apiSymbol": "ALT.V",
+  "sector": "Mining",
+  "province": "Peru",
+  "country": "Latin America"
+ },
+ {
+  "name": "Amarc Resources Ltd.",
+  "symbol": "AHR",
+  "exchange": "TSXV",
+  "apiSymbol": "AHR.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Amaroq Ltd.",
+  "symbol": "AMRQ",
+  "exchange": "TSXV",
+  "apiSymbol": "AMRQ.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "American Eagle Gold Corp.",
+  "symbol": "AE",
+  "exchange": "TSXV",
+  "apiSymbol": "AE.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "American Lithium Corp.",
+  "symbol": "LI",
+  "exchange": "TSXV",
+  "apiSymbol": "LI.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Americore Resources Corp.",
+  "symbol": "AMCO",
+  "exchange": "TSXV",
+  "apiSymbol": "AMCO.V",
+  "sector": "Mining",
+  "province": "AB",
+  "country": "Canada"
+ },
+ {
+  "name": "Amex Exploration Inc.",
+  "symbol": "AMX",
+  "exchange": "TSXV",
+  "apiSymbol": "AMX.V",
+  "sector": "Mining",
+  "province": "QC",
+  "country": "Canada"
+ },
+ {
+  "name": "Andina Copper Corporation",
+  "symbol": "ANDC",
+  "exchange": "TSXV",
+  "apiSymbol": "ANDC.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Anfield Energy Inc.",
+  "symbol": "AEC",
+  "exchange": "TSXV",
+  "apiSymbol": "AEC.V",
+  "sector": "Mining",
+  "province": "AZ",
+  "country": "USA"
+ },
+ {
+  "name": "Angel Wing Metals Inc.",
+  "symbol": "AWM",
+  "exchange": "TSXV",
+  "apiSymbol": "AWM.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Angkor Resources Corp.",
+  "symbol": "ANK",
+  "exchange": "TSXV",
+  "apiSymbol": "ANK.V",
+  "sector": "Mining",
+  "province": "AB",
+  "country": "Canada"
+ },
+ {
+  "name": "Anortech Inc.",
+  "symbol": "ANOR",
+  "exchange": "TSXV",
+  "apiSymbol": "ANOR.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Antler Gold Inc.",
+  "symbol": "ANTL",
+  "exchange": "TSXV",
+  "apiSymbol": "ANTL.V",
+  "sector": "Mining",
+  "province": "NS",
+  "country": "Canada"
+ },
+ {
+  "name": "Apex Resources Inc.",
+  "symbol": "APX",
+  "exchange": "TSXV",
+  "apiSymbol": "APX.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Apogee Minerals Ltd.",
+  "symbol": "APMI",
+  "exchange": "TSXV",
+  "apiSymbol": "APMI.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Apollo Silver Corp.",
+  "symbol": "APGO",
+  "exchange": "TSXV",
+  "apiSymbol": "APGO.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Applied Graphite Technologies Corporation",
+  "symbol": "AGT",
+  "exchange": "TSXV",
+  "apiSymbol": "AGT.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Arbor Metals Corp.",
+  "symbol": "ABR",
+  "exchange": "TSXV",
+  "apiSymbol": "ABR.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Archon Minerals Limited",
+  "symbol": "ACS",
+  "exchange": "TSXV",
+  "apiSymbol": "ACS.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Arctic Star Exploration Corp.",
+  "symbol": "ADD",
+  "exchange": "TSXV",
+  "apiSymbol": "ADD.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "ArcWest Exploration Inc.",
+  "symbol": "AWX",
+  "exchange": "TSXV",
+  "apiSymbol": "AWX.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Argenta Silver Corp.",
+  "symbol": "AGAG",
+  "exchange": "TSXV",
+  "apiSymbol": "AGAG.V",
+  "sector": "Mining",
+  "province": "AB",
+  "country": "Canada"
+ },
+ {
+  "name": "Argentina Lithium & Energy Corp.",
+  "symbol": "LIT",
+  "exchange": "TSXV",
+  "apiSymbol": "LIT.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Argentum Silver Corp.",
+  "symbol": "ASL",
+  "exchange": "TSXV",
+  "apiSymbol": "ASL.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Arianne Phosphate Inc.",
+  "symbol": "DAN",
+  "exchange": "TSXV",
+  "apiSymbol": "DAN.V",
+  "sector": "Mining",
+  "province": "QC",
+  "country": "Canada"
+ },
+ {
+  "name": "Arizona Gold & Silver Inc.",
+  "symbol": "AZS",
+  "exchange": "TSXV",
+  "apiSymbol": "AZS.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Arras Minerals Corp.",
+  "symbol": "ARK",
+  "exchange": "TSXV",
+  "apiSymbol": "ARK.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Artemis Gold Inc.",
+  "symbol": "ARTG",
+  "exchange": "TSXV",
+  "apiSymbol": "ARTG.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Arya Resources Ltd.",
+  "symbol": "RBZ",
+  "exchange": "TSXV",
+  "apiSymbol": "RBZ.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Asante Gold Corporation",
+  "symbol": "ASE",
+  "exchange": "TSXV",
+  "apiSymbol": "ASE.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "AsiaBaseMetals Inc.",
+  "symbol": "ABZ",
+  "exchange": "TSXV",
+  "apiSymbol": "ABZ.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Aston Bay Holdings Ltd.",
+  "symbol": "BAY",
+  "exchange": "TSXV",
+  "apiSymbol": "BAY.V",
+  "sector": "Mining",
+  "province": "WA",
+  "country": "USA"
+ },
+ {
+  "name": "Astra Exploration Inc.",
+  "symbol": "ASTR",
+  "exchange": "TSXV",
+  "apiSymbol": "ASTR.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "ATEX Resources Inc.",
+  "symbol": "ATX",
+  "exchange": "TSXV",
+  "apiSymbol": "ATX.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Atha Energy Corp.",
+  "symbol": "SASK",
+  "exchange": "TSXV",
+  "apiSymbol": "SASK.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Atico Mining Corporation",
+  "symbol": "ATY",
+  "exchange": "TSXV",
+  "apiSymbol": "ATY.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Atlas Salt Inc.",
+  "symbol": "SALT",
+  "exchange": "TSXV",
+  "apiSymbol": "SALT.V",
+  "sector": "Mining",
+  "province": "NL",
+  "country": "Canada"
+ },
+ {
+  "name": "Atomic Minerals Corporation",
+  "symbol": "ATOM",
+  "exchange": "TSXV",
+  "apiSymbol": "ATOM.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Aton Resources Inc.",
+  "symbol": "AAN",
+  "exchange": "TSXV",
+  "apiSymbol": "AAN.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "AU Gold Corp.",
+  "symbol": "AUGC",
+  "exchange": "TSXV",
+  "apiSymbol": "AUGC.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "AuMega Metals Ltd.",
+  "symbol": "AUM",
+  "exchange": "TSXV",
+  "apiSymbol": "AUM.V",
+  "sector": "Mining",
+  "province": "Australia",
+  "country": "Australia/NZ/PNG"
+ },
+ {
+  "name": "AuQ Gold Mining Inc.",
+  "symbol": "AUQ",
+  "exchange": "TSXV",
+  "apiSymbol": "AUQ.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Aurania Resources Ltd.",
+  "symbol": "ARU",
+  "exchange": "TSXV",
+  "apiSymbol": "ARU.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Auric Resources Corp.",
+  "symbol": "RES",
+  "exchange": "TSXV",
+  "apiSymbol": "RES.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Auriginal Mining Corp.",
+  "symbol": "AUME",
+  "exchange": "TSXV",
+  "apiSymbol": "AUME.V",
+  "sector": "Mining",
+  "province": "QC",
+  "country": "Canada"
+ },
+ {
+  "name": "Aurion Resources Ltd.",
+  "symbol": "AU",
+  "exchange": "TSXV",
+  "apiSymbol": "AU.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Aurum Lake Mining Corporation",
+  "symbol": "ARL",
+  "exchange": "TSXV",
+  "apiSymbol": "ARL.V",
+  "sector": "Mining",
+  "province": "Cayman Islands",
+  "country": "Latin America"
+ },
+ {
+  "name": "Austral Gold Limited",
+  "symbol": "AGLD",
+  "exchange": "TSXV",
+  "apiSymbol": "AGLD.V",
+  "sector": "Mining",
+  "province": "Australia",
+  "country": "Australia/NZ/PNG"
+ },
+ {
+  "name": "Avaron Mining Corp.",
+  "symbol": "AVR",
+  "exchange": "TSXV",
+  "apiSymbol": "AVR.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Avidian Gold Corp.",
+  "symbol": "AVG",
+  "exchange": "TSXV",
+  "apiSymbol": "AVG.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Avrupa Minerals Ltd.",
+  "symbol": "AVU",
+  "exchange": "TSXV",
+  "apiSymbol": "AVU.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Awale Resources Limited",
+  "symbol": "ARIC",
+  "exchange": "TSXV",
+  "apiSymbol": "ARIC.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "AXO Copper Corp.",
+  "symbol": "AXO",
+  "exchange": "TSXV",
+  "apiSymbol": "AXO.V",
+  "sector": "Mining",
+  "province": "NS",
+  "country": "Canada"
+ },
+ {
+  "name": "Azarga Metals Corp.",
+  "symbol": "AZR",
+  "exchange": "TSXV",
+  "apiSymbol": "AZR.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Azimut Exploration Inc.",
+  "symbol": "AZM",
+  "exchange": "TSXV",
+  "apiSymbol": "AZM.V",
+  "sector": "Mining",
+  "province": "QC",
+  "country": "Canada"
+ },
+ {
+  "name": "Azincourt Energy Corp.",
+  "symbol": "AAZ",
+  "exchange": "TSXV",
+  "apiSymbol": "AAZ.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Aztec Minerals Corp.",
+  "symbol": "AZT",
+  "exchange": "TSXV",
+  "apiSymbol": "AZT.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Azucar Minerals Ltd.",
+  "symbol": "AMZ",
+  "exchange": "TSXV",
+  "apiSymbol": "AMZ.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Badlands Resources Inc.",
+  "symbol": "BLDS",
+  "exchange": "TSXV",
+  "apiSymbol": "BLDS.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Banyan Gold Corp.",
+  "symbol": "BYN",
+  "exchange": "TSXV",
+  "apiSymbol": "BYN.V",
+  "sector": "Mining",
+  "province": "AB",
+  "country": "Canada"
+ },
+ {
+  "name": "Barksdale Resources Corp.",
+  "symbol": "BRO",
+  "exchange": "TSXV",
+  "apiSymbol": "BRO.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Baru Gold Corp.",
+  "symbol": "BARU",
+  "exchange": "TSXV",
+  "apiSymbol": "BARU.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Batero Gold Corp.",
+  "symbol": "BAT",
+  "exchange": "TSXV",
+  "apiSymbol": "BAT.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Bathurst Metals Corp.",
+  "symbol": "BMV",
+  "exchange": "TSXV",
+  "apiSymbol": "BMV.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Battery Mineral Resources Corp.",
+  "symbol": "BMR",
+  "exchange": "TSXV",
+  "apiSymbol": "BMR.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Bayhorse Silver Inc.",
+  "symbol": "BHS",
+  "exchange": "TSXV",
+  "apiSymbol": "BHS.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "BC Moly Ltd.",
+  "symbol": "BM",
+  "exchange": "TSXV",
+  "apiSymbol": "BM.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "BCM Resources Corporation",
+  "symbol": "B",
+  "exchange": "TSXV",
+  "apiSymbol": "B.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Bear Creek Mining Corporation",
+  "symbol": "BCM",
+  "exchange": "TSXV",
+  "apiSymbol": "BCM.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Beauce Gold Fields Inc.",
+  "symbol": "BGF",
+  "exchange": "TSXV",
+  "apiSymbol": "BGF.V",
+  "sector": "Mining",
+  "province": "QC",
+  "country": "Canada"
+ },
+ {
+  "name": "Bedford Metals Corp.",
+  "symbol": "BFM",
+  "exchange": "TSXV",
+  "apiSymbol": "BFM.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Bell Copper Corporation",
+  "symbol": "BCU",
+  "exchange": "TSXV",
+  "apiSymbol": "BCU.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Belmont Resources Inc.",
+  "symbol": "BEA",
+  "exchange": "TSXV",
+  "apiSymbol": "BEA.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "BeMetals Corp.",
+  "symbol": "BMET",
+  "exchange": "TSXV",
+  "apiSymbol": "BMET.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Benton Resources Inc.",
+  "symbol": "BEX",
+  "exchange": "TSXV",
+  "apiSymbol": "BEX.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Benz Mining Corp.",
+  "symbol": "BZ",
+  "exchange": "TSXV",
+  "apiSymbol": "BZ.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Bessor Minerals Inc.",
+  "symbol": "BST",
+  "exchange": "TSXV",
+  "apiSymbol": "BST.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Big Ridge Gold Corp.",
+  "symbol": "BRAU",
+  "exchange": "TSXV",
+  "apiSymbol": "BRAU.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Big Tree Carbon Inc.",
+  "symbol": "BIGT",
+  "exchange": "TSXV",
+  "apiSymbol": "BIGT.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Bitterroot Resources Ltd.",
+  "symbol": "BTT",
+  "exchange": "TSXV",
+  "apiSymbol": "BTT.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Black Mammoth Metals Corporation",
+  "symbol": "BMM",
+  "exchange": "TSXV",
+  "apiSymbol": "BMM.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Black Spruce Exploration Inc.",
+  "symbol": "BARK",
+  "exchange": "TSXV",
+  "apiSymbol": "BARK.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Blackrock Silver Corp.",
+  "symbol": "BRC",
+  "exchange": "TSXV",
+  "apiSymbol": "BRC.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Blende Silver Corp.",
+  "symbol": "BAG",
+  "exchange": "TSXV",
+  "apiSymbol": "BAG.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Blue Moon Metals Inc.",
+  "symbol": "MOON",
+  "exchange": "TSXV",
+  "apiSymbol": "MOON.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Blue Sky Uranium Corp.",
+  "symbol": "BSK",
+  "exchange": "TSXV",
+  "apiSymbol": "BSK.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Blue Star Gold Corp.",
+  "symbol": "BAU",
+  "exchange": "TSXV",
+  "apiSymbol": "BAU.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Bocana Resources Corp.",
+  "symbol": "BOCA",
+  "exchange": "TSXV",
+  "apiSymbol": "BOCA.V",
+  "sector": "Mining",
+  "province": "AB",
+  "country": "Canada"
+ },
+ {
+  "name": "Bold Ventures Inc.",
+  "symbol": "BOL",
+  "exchange": "TSXV",
+  "apiSymbol": "BOL.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Bonanza Mining Corporation",
+  "symbol": "BNZ",
+  "exchange": "TSXV",
+  "apiSymbol": "BNZ.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Bonterra Resources Inc.",
+  "symbol": "BTR",
+  "exchange": "TSXV",
+  "apiSymbol": "BTR.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Borealis Mining Company Limited",
+  "symbol": "BOGO",
+  "exchange": "TSXV",
+  "apiSymbol": "BOGO.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Boron One Holdings Inc.",
+  "symbol": "BONE",
+  "exchange": "TSXV",
+  "apiSymbol": "BONE.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "BP Silver Corp.",
+  "symbol": "BPAG",
+  "exchange": "TSXV",
+  "apiSymbol": "BPAG.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Brasnova Energy Materials Inc.",
+  "symbol": "BEM",
+  "exchange": "TSXV",
+  "apiSymbol": "BEM.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Bravada Gold Corporation",
+  "symbol": "BVA",
+  "exchange": "TSXV",
+  "apiSymbol": "BVA.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Bravo Mining Corp.",
+  "symbol": "BRVO",
+  "exchange": "TSXV",
+  "apiSymbol": "BRVO.V",
+  "sector": "Mining",
+  "province": "Brazil",
+  "country": "Latin America"
+ },
+ {
+  "name": "Brixton Metals Corporation",
+  "symbol": "BBB",
+  "exchange": "TSXV",
+  "apiSymbol": "BBB.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Bronco Resources Corp.",
+  "symbol": "BRON",
+  "exchange": "TSXV",
+  "apiSymbol": "BRON.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Brunswick Exploration Inc.",
+  "symbol": "BRW",
+  "exchange": "TSXV",
+  "apiSymbol": "BRW.V",
+  "sector": "Mining",
+  "province": "QC",
+  "country": "Canada"
+ },
+ {
+  "name": "BTU Metals Corp.",
+  "symbol": "BTU",
+  "exchange": "TSXV",
+  "apiSymbol": "BTU.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Bulgold Inc.",
+  "symbol": "ZLTO",
+  "exchange": "TSXV",
+  "apiSymbol": "ZLTO.V",
+  "sector": "Mining",
+  "province": "Bulgaria",
+  "country": "UK/Europe"
+ },
+ {
+  "name": "Bullion Gold Resources Corp.",
+  "symbol": "BGD",
+  "exchange": "TSXV",
+  "apiSymbol": "BGD.V",
+  "sector": "Mining",
+  "province": "QC",
+  "country": "Canada"
+ },
+ {
+  "name": "Bunker Hill Mining Corp.",
+  "symbol": "BNKR",
+  "exchange": "TSXV",
+  "apiSymbol": "BNKR.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "BWR Exploration Inc.",
+  "symbol": "BWR",
+  "exchange": "TSXV",
+  "apiSymbol": "BWR.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "C3 Metals Inc.",
+  "symbol": "CCCM",
+  "exchange": "TSXV",
+  "apiSymbol": "CCCM.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Cabral Gold Inc.",
+  "symbol": "CBR",
+  "exchange": "TSXV",
+  "apiSymbol": "CBR.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Camino Minerals Corporation",
+  "symbol": "COR",
+  "exchange": "TSXV",
+  "apiSymbol": "COR.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Canada Carbon Inc.",
+  "symbol": "CCB",
+  "exchange": "TSXV",
+  "apiSymbol": "CCB.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Canada Nickel Company Inc.",
+  "symbol": "CNC",
+  "exchange": "TSXV",
+  "apiSymbol": "CNC.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Canada One Mining Corp.",
+  "symbol": "CONE",
+  "exchange": "TSXV",
+  "apiSymbol": "CONE.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Canada Rare Earth Corp.",
+  "symbol": "LL",
+  "exchange": "TSXV",
+  "apiSymbol": "LL.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Canadian Critical Minerals Inc.",
+  "symbol": "CCMI",
+  "exchange": "TSXV",
+  "apiSymbol": "CCMI.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Canadian Gold Corp.",
+  "symbol": "CGC",
+  "exchange": "TSXV",
+  "apiSymbol": "CGC.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Canadian Gold Resources Ltd.",
+  "symbol": "CAN",
+  "exchange": "TSXV",
+  "apiSymbol": "CAN.V",
+  "sector": "Mining",
+  "province": "NB",
+  "country": "Canada"
+ },
+ {
+  "name": "Canadian North Resources Inc.",
+  "symbol": "CNRI",
+  "exchange": "TSXV",
+  "apiSymbol": "CNRI.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Canadian Premium Sand Inc.",
+  "symbol": "CPS",
+  "exchange": "TSXV",
+  "apiSymbol": "CPS.V",
+  "sector": "Mining",
+  "province": "AB",
+  "country": "Canada"
+ },
+ {
+  "name": "Canaf Investments Inc.",
+  "symbol": "CAF",
+  "exchange": "TSXV",
+  "apiSymbol": "CAF.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Canalaska Uranium Ltd.",
+  "symbol": "CVV",
+  "exchange": "TSXV",
+  "apiSymbol": "CVV.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Canex Metals Inc.",
+  "symbol": "CANX",
+  "exchange": "TSXV",
+  "apiSymbol": "CANX.V",
+  "sector": "Mining",
+  "province": "AB",
+  "country": "Canada"
+ },
+ {
+  "name": "Canoe Mining Ventures Corp.",
+  "symbol": "CLV",
+  "exchange": "TSXV",
+  "apiSymbol": "CLV.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Canstar Resources Inc.",
+  "symbol": "ROX",
+  "exchange": "TSXV",
+  "apiSymbol": "ROX.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Canterra Minerals Corporation",
+  "symbol": "CTM",
+  "exchange": "TSXV",
+  "apiSymbol": "CTM.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Cantex Mine Development Corp.",
+  "symbol": "CD",
+  "exchange": "TSXV",
+  "apiSymbol": "CD.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Canuc Resources Corporation",
+  "symbol": "CDA",
+  "exchange": "TSXV",
+  "apiSymbol": "CDA.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Capella Minerals Limited",
+  "symbol": "CMIL",
+  "exchange": "TSXV",
+  "apiSymbol": "CMIL.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Capitan Silver Corp.",
+  "symbol": "CAPT",
+  "exchange": "TSXV",
+  "apiSymbol": "CAPT.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Cariboo Rose Resources Ltd.",
+  "symbol": "CRB",
+  "exchange": "TSXV",
+  "apiSymbol": "CRB.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Carlin Gold Corporation",
+  "symbol": "CGD",
+  "exchange": "TSXV",
+  "apiSymbol": "CGD.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Carlton Precious Inc.",
+  "symbol": "CPI",
+  "exchange": "TSXV",
+  "apiSymbol": "CPI.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Carolina Rush Corporation",
+  "symbol": "RUSH",
+  "exchange": "TSXV",
+  "apiSymbol": "RUSH.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Cartier Resources Inc.",
+  "symbol": "ECR",
+  "exchange": "TSXV",
+  "apiSymbol": "ECR.V",
+  "sector": "Mining",
+  "province": "QC",
+  "country": "Canada"
+ },
+ {
+  "name": "Casa Minerals Inc.",
+  "symbol": "CASA",
+  "exchange": "TSXV",
+  "apiSymbol": "CASA.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Cascadero Copper Corporation",
+  "symbol": "CCD",
+  "exchange": "TSXV",
+  "apiSymbol": "CCD.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Cascadia Minerals Ltd.",
+  "symbol": "CAM",
+  "exchange": "TSXV",
+  "apiSymbol": "CAM.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Cassiar Gold Corp.",
+  "symbol": "GLDC",
+  "exchange": "TSXV",
+  "apiSymbol": "GLDC.V",
+  "sector": "Mining",
+  "province": "AB",
+  "country": "Canada"
+ },
+ {
+  "name": "CBLT Inc.",
+  "symbol": "CBLT",
+  "exchange": "TSXV",
+  "apiSymbol": "CBLT.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Centenario Gold Corp.",
+  "symbol": "CTG",
+  "exchange": "TSXV",
+  "apiSymbol": "CTG.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Central Iron Ore Limited",
+  "symbol": "CIO",
+  "exchange": "TSXV",
+  "apiSymbol": "CIO.V",
+  "sector": "Mining",
+  "province": "Australia",
+  "country": "Australia/NZ/PNG"
+ },
+ {
+  "name": "Centurion Minerals Ltd.",
+  "symbol": "CTN",
+  "exchange": "TSXV",
+  "apiSymbol": "CTN.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Century Lithium Corp.",
+  "symbol": "LCE",
+  "exchange": "TSXV",
+  "apiSymbol": "LCE.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Cerrado Gold Inc.",
+  "symbol": "CERT",
+  "exchange": "TSXV",
+  "apiSymbol": "CERT.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Cerro De Pasco Resources Inc.",
+  "symbol": "CDPR",
+  "exchange": "TSXV",
+  "apiSymbol": "CDPR.V",
+  "sector": "Mining",
+  "province": "QC",
+  "country": "Canada"
+ },
+ {
+  "name": "Ceylon Graphite Corp.",
+  "symbol": "CYL",
+  "exchange": "TSXV",
+  "apiSymbol": "CYL.V",
+  "sector": "Mining",
+  "province": "NS",
+  "country": "Canada"
+ },
+ {
+  "name": "Chakana Copper Corp.",
+  "symbol": "PERU",
+  "exchange": "TSXV",
+  "apiSymbol": "PERU.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Champion Bear Resources Ltd.",
+  "symbol": "CBA",
+  "exchange": "TSXV",
+  "apiSymbol": "CBA.V",
+  "sector": "Mining",
+  "province": "AB",
+  "country": "Canada"
+ },
+ {
+  "name": "Chatham Rock Phosphate Limited",
+  "symbol": "NZP",
+  "exchange": "TSXV",
+  "apiSymbol": "NZP.V",
+  "sector": "Mining",
+  "province": "New Zealand",
+  "country": "Australia/NZ/PNG"
+ },
+ {
+  "name": "Chesapeake Gold Corp.",
+  "symbol": "CKG",
+  "exchange": "TSXV",
+  "apiSymbol": "CKG.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Chibougamau Independent Mines Inc.",
+  "symbol": "CBG",
+  "exchange": "TSXV",
+  "apiSymbol": "CBG.V",
+  "sector": "Mining",
+  "province": "QC",
+  "country": "Canada"
+ },
+ {
+  "name": "Churchill Resources Inc.",
+  "symbol": "CRI",
+  "exchange": "TSXV",
+  "apiSymbol": "CRI.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Clean Air Metals Inc.",
+  "symbol": "AIR",
+  "exchange": "TSXV",
+  "apiSymbol": "AIR.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Clean Energy Transition Inc.",
+  "symbol": "TRAN",
+  "exchange": "TSXV",
+  "apiSymbol": "TRAN.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Cleantech Vanadium Mining Corp.",
+  "symbol": "CTV",
+  "exchange": "TSXV",
+  "apiSymbol": "CTV.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Cleghorn Minerals Ltd.",
+  "symbol": "CZZ",
+  "exchange": "TSXV",
+  "apiSymbol": "CZZ.V",
+  "sector": "Mining",
+  "province": "QC",
+  "country": "Canada"
+ },
+ {
+  "name": "Coast Copper Corp.",
+  "symbol": "COCO",
+  "exchange": "TSXV",
+  "apiSymbol": "COCO.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Colibri Resource Corporation",
+  "symbol": "CBI",
+  "exchange": "TSXV",
+  "apiSymbol": "CBI.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Colonial Coal International Corp.",
+  "symbol": "CAD",
+  "exchange": "TSXV",
+  "apiSymbol": "CAD.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Colossus Resources Corp.",
+  "symbol": "CLUS",
+  "exchange": "TSXV",
+  "apiSymbol": "CLUS.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Comet Lithium Corporation",
+  "symbol": "CLIC",
+  "exchange": "TSXV",
+  "apiSymbol": "CLIC.V",
+  "sector": "Mining",
+  "province": "QC",
+  "country": "Canada"
+ },
+ {
+  "name": "Compass Gold Corporation",
+  "symbol": "CVB",
+  "exchange": "TSXV",
+  "apiSymbol": "CVB.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Condor Resources Inc.",
+  "symbol": "CN",
+  "exchange": "TSXV",
+  "apiSymbol": "CN.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Coniagas Battery Metals Inc.",
+  "symbol": "COS",
+  "exchange": "TSXV",
+  "apiSymbol": "COS.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Conquest Resources Limited",
+  "symbol": "CQR",
+  "exchange": "TSXV",
+  "apiSymbol": "CQR.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Consolidated Lithium Metals Inc.",
+  "symbol": "CLM",
+  "exchange": "TSXV",
+  "apiSymbol": "CLM.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "CopAur Minerals Inc.",
+  "symbol": "CPAU",
+  "exchange": "TSXV",
+  "apiSymbol": "CPAU.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Copper Fox Metals Inc.",
+  "symbol": "CUU",
+  "exchange": "TSXV",
+  "apiSymbol": "CUU.V",
+  "sector": "Mining",
+  "province": "AB",
+  "country": "Canada"
+ },
+ {
+  "name": "Copper Giant Resources Corp.",
+  "symbol": "CGNT",
+  "exchange": "TSXV",
+  "apiSymbol": "CGNT.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Copper Lake Resources Ltd.",
+  "symbol": "CPL",
+  "exchange": "TSXV",
+  "apiSymbol": "CPL.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Copper Road Resources Inc.",
+  "symbol": "CRD",
+  "exchange": "TSXV",
+  "apiSymbol": "CRD.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "CopperCorp Resources Inc.",
+  "symbol": "CPER",
+  "exchange": "TSXV",
+  "apiSymbol": "CPER.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "CopperEx Resources Corporation",
+  "symbol": "CUEX",
+  "exchange": "TSXV",
+  "apiSymbol": "CUEX.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Cordoba Minerals Corp.",
+  "symbol": "CDB",
+  "exchange": "TSXV",
+  "apiSymbol": "CDB.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Core Critical Metals Corp.",
+  "symbol": "CCMC",
+  "exchange": "TSXV",
+  "apiSymbol": "CCMC.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Core Nickel Corp.",
+  "symbol": "CNCO",
+  "exchange": "TSXV",
+  "apiSymbol": "CNCO.V",
+  "sector": "Mining",
+  "province": "SK",
+  "country": "Canada"
+ },
+ {
+  "name": "Cosa Resources Corp.",
+  "symbol": "COSA",
+  "exchange": "TSXV",
+  "apiSymbol": "COSA.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Cosigo Resources Ltd.",
+  "symbol": "CSG",
+  "exchange": "TSXV",
+  "apiSymbol": "CSG.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Critical Elements Lithium Corporation",
+  "symbol": "CRE",
+  "exchange": "TSXV",
+  "apiSymbol": "CRE.V",
+  "sector": "Mining",
+  "province": "QC",
+  "country": "Canada"
+ },
+ {
+  "name": "Culico Metals Inc.",
+  "symbol": "CLCO",
+  "exchange": "TSXV",
+  "apiSymbol": "CLCO.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Cygnus Metals Limited",
+  "symbol": "CYG",
+  "exchange": "TSXV",
+  "apiSymbol": "CYG.V",
+  "sector": "Mining",
+  "province": "Australia",
+  "country": "Australia/NZ/PNG"
+ },
+ {
+  "name": "D2 Lithium Corp.",
+  "symbol": "DTWO",
+  "exchange": "TSXV",
+  "apiSymbol": "DTWO.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Daura Gold Corp.",
+  "symbol": "DGC",
+  "exchange": "TSXV",
+  "apiSymbol": "DGC.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Decade Resources Ltd.",
+  "symbol": "DEC",
+  "exchange": "TSXV",
+  "apiSymbol": "DEC.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Defense Metals Corp.",
+  "symbol": "DEFN",
+  "exchange": "TSXV",
+  "apiSymbol": "DEFN.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Defiance Silver Corp.",
+  "symbol": "DEF",
+  "exchange": "TSXV",
+  "apiSymbol": "DEF.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Delta Resources Limited",
+  "symbol": "DLTA",
+  "exchange": "TSXV",
+  "apiSymbol": "DLTA.V",
+  "sector": "Mining",
+  "province": "QC",
+  "country": "Canada"
+ },
+ {
+  "name": "Desert Gold Ventures Inc.",
+  "symbol": "DAU",
+  "exchange": "TSXV",
+  "apiSymbol": "DAU.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "DFR Gold Inc.",
+  "symbol": "DFR",
+  "exchange": "TSXV",
+  "apiSymbol": "DFR.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Diamcor Mining Inc.",
+  "symbol": "DMI",
+  "exchange": "TSXV",
+  "apiSymbol": "DMI.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Dinero Ventures Ltd.",
+  "symbol": "DNO",
+  "exchange": "TSXV",
+  "apiSymbol": "DNO.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Dios Exploration Inc.",
+  "symbol": "DOS",
+  "exchange": "TSXV",
+  "apiSymbol": "DOS.V",
+  "sector": "Mining",
+  "province": "QC",
+  "country": "Canada"
+ },
+ {
+  "name": "Discovery Harbour Resources Corp.",
+  "symbol": "DHR",
+  "exchange": "TSXV",
+  "apiSymbol": "DHR.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Discovery-Corp Enterprises Inc.",
+  "symbol": "DCY",
+  "exchange": "TSXV",
+  "apiSymbol": "DCY.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "District Copper Corp.",
+  "symbol": "DCOP",
+  "exchange": "TSXV",
+  "apiSymbol": "DCOP.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "District Metals Corp.",
+  "symbol": "DMX",
+  "exchange": "TSXV",
+  "apiSymbol": "DMX.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Dixie Gold Inc.",
+  "symbol": "DG",
+  "exchange": "TSXV",
+  "apiSymbol": "DG.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "DLP Resources Inc.",
+  "symbol": "DLP",
+  "exchange": "TSXV",
+  "apiSymbol": "DLP.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Dolly Varden Silver Corporation",
+  "symbol": "DV",
+  "exchange": "TSXV",
+  "apiSymbol": "DV.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Domestic Metals Corp.",
+  "symbol": "DMCU",
+  "exchange": "TSXV",
+  "apiSymbol": "DMCU.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Doubleview Gold Corp.",
+  "symbol": "DBG",
+  "exchange": "TSXV",
+  "apiSymbol": "DBG.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Dryden Gold Corp.",
+  "symbol": "DRY",
+  "exchange": "TSXV",
+  "apiSymbol": "DRY.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Dynasty Gold Corp.",
+  "symbol": "DYG",
+  "exchange": "TSXV",
+  "apiSymbol": "DYG.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "E2Gold Inc.",
+  "symbol": "ETU",
+  "exchange": "TSXV",
+  "apiSymbol": "ETU.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "E3 Lithium Ltd.",
+  "symbol": "ETL",
+  "exchange": "TSXV",
+  "apiSymbol": "ETL.V",
+  "sector": "Mining",
+  "province": "AB",
+  "country": "Canada"
+ },
+ {
+  "name": "Eagle Plains Resources Ltd.",
+  "symbol": "EPL",
+  "exchange": "TSXV",
+  "apiSymbol": "EPL.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "East Africa Metals Inc.",
+  "symbol": "EAM",
+  "exchange": "TSXV",
+  "apiSymbol": "EAM.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Eastfield Resources Ltd.",
+  "symbol": "ETF",
+  "exchange": "TSXV",
+  "apiSymbol": "ETF.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Eastport Critical Metals Corp.",
+  "symbol": "EVI",
+  "exchange": "TSXV",
+  "apiSymbol": "EVI.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Edge Copper Corporation",
+  "symbol": "EDCU",
+  "exchange": "TSXV",
+  "apiSymbol": "EDCU.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Edison Lithium Corp.",
+  "symbol": "EDDY",
+  "exchange": "TSXV",
+  "apiSymbol": "EDDY.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "EDM Resources Inc.",
+  "symbol": "EDM",
+  "exchange": "TSXV",
+  "apiSymbol": "EDM.V",
+  "sector": "Mining",
+  "province": "NS",
+  "country": "Canada"
+ },
+ {
+  "name": "EGR Exploration Ltd.",
+  "symbol": "EGR",
+  "exchange": "TSXV",
+  "apiSymbol": "EGR.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Elcora Advanced Materials Corp.",
+  "symbol": "ERA",
+  "exchange": "TSXV",
+  "apiSymbol": "ERA.V",
+  "sector": "Mining",
+  "province": "NS",
+  "country": "Canada"
+ },
+ {
+  "name": "Electra Battery Materials Corporation",
+  "symbol": "ELBM",
+  "exchange": "TSXV",
+  "apiSymbol": "ELBM.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Electric Metals (USA) Limited",
+  "symbol": "EML",
+  "exchange": "TSXV",
+  "apiSymbol": "EML.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Electric Royalties Ltd.",
+  "symbol": "ELEC",
+  "exchange": "TSXV",
+  "apiSymbol": "ELEC.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Electrum Discovery Corp.",
+  "symbol": "ELY",
+  "exchange": "TSXV",
+  "apiSymbol": "ELY.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Element 29 Resources Inc.",
+  "symbol": "ECU",
+  "exchange": "TSXV",
+  "apiSymbol": "ECU.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Elemental Royalty Corporation",
+  "symbol": "ELE",
+  "exchange": "TSXV",
+  "apiSymbol": "ELE.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Emergent Metals Corp.",
+  "symbol": "EMR",
+  "exchange": "TSXV",
+  "apiSymbol": "EMR.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Emerita Resources Corp.",
+  "symbol": "EMO",
+  "exchange": "TSXV",
+  "apiSymbol": "EMO.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Eminent Gold Corp.",
+  "symbol": "EMNT",
+  "exchange": "TSXV",
+  "apiSymbol": "EMNT.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Empress Royalty Corp.",
+  "symbol": "EMPR",
+  "exchange": "TSXV",
+  "apiSymbol": "EMPR.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "enCore Energy Corp.",
+  "symbol": "EU",
+  "exchange": "TSXV",
+  "apiSymbol": "EU.V",
+  "sector": "Mining",
+  "province": "NV",
+  "country": "USA"
+ },
+ {
+  "name": "Endurance Gold Corporation",
+  "symbol": "EDG",
+  "exchange": "TSXV",
+  "apiSymbol": "EDG.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Enduro Metals Corporation",
+  "symbol": "ENDR",
+  "exchange": "TSXV",
+  "apiSymbol": "ENDR.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Enerev5 Metals Inc.",
+  "symbol": "ENEV",
+  "exchange": "TSXV",
+  "apiSymbol": "ENEV.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Engineer Gold Mines Ltd.",
+  "symbol": "EAU",
+  "exchange": "TSXV",
+  "apiSymbol": "EAU.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Engold Mines Ltd.",
+  "symbol": "EGM",
+  "exchange": "TSXV",
+  "apiSymbol": "EGM.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "EON Lithium Corp.",
+  "symbol": "EON",
+  "exchange": "TSXV",
+  "apiSymbol": "EON.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Equity Metals Corporation",
+  "symbol": "EQTY",
+  "exchange": "TSXV",
+  "apiSymbol": "EQTY.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Eskay Mining Corp.",
+  "symbol": "ESK",
+  "exchange": "TSXV",
+  "apiSymbol": "ESK.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Essex Resources Corp.",
+  "symbol": "ESXR",
+  "exchange": "TSXV",
+  "apiSymbol": "ESXR.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Euro Manganese Inc.",
+  "symbol": "EMN",
+  "exchange": "TSXV",
+  "apiSymbol": "EMN.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Euromax Resources Ltd.",
+  "symbol": "EOX",
+  "exchange": "TSXV",
+  "apiSymbol": "EOX.V",
+  "sector": "Mining",
+  "province": "UK",
+  "country": "UK/Europe"
+ },
+ {
+  "name": "European Electric Metals Inc.",
+  "symbol": "EVX",
+  "exchange": "TSXV",
+  "apiSymbol": "EVX.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "EV Nickel Inc.",
+  "symbol": "EVNI",
+  "exchange": "TSXV",
+  "apiSymbol": "EVNI.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Evergold Corp.",
+  "symbol": "EVER",
+  "exchange": "TSXV",
+  "apiSymbol": "EVER.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Excalibur Metals Corp.",
+  "symbol": "EXCL",
+  "exchange": "TSXV",
+  "apiSymbol": "EXCL.V",
+  "sector": "Mining",
+  "province": "NV",
+  "country": "USA"
+ },
+ {
+  "name": "Excellon Resources Inc.",
+  "symbol": "EXN",
+  "exchange": "TSXV",
+  "apiSymbol": "EXN.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "ExGen Resources Inc.",
+  "symbol": "EXG",
+  "exchange": "TSXV",
+  "apiSymbol": "EXG.V",
+  "sector": "Mining",
+  "province": "AB",
+  "country": "Canada"
+ },
+ {
+  "name": "F3 Uranium Corp.",
+  "symbol": "FUU",
+  "exchange": "TSXV",
+  "apiSymbol": "FUU.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "F4 Uranium Corp.",
+  "symbol": "FFU",
+  "exchange": "TSXV",
+  "apiSymbol": "FFU.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Fairchild Gold Corp.",
+  "symbol": "FAIR",
+  "exchange": "TSXV",
+  "apiSymbol": "FAIR.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Falco Resources Ltd.",
+  "symbol": "FPC",
+  "exchange": "TSXV",
+  "apiSymbol": "FPC.V",
+  "sector": "Mining",
+  "province": "QC",
+  "country": "Canada"
+ },
+ {
+  "name": "Falcon Energy Materials PLC",
+  "symbol": "FLCN",
+  "exchange": "TSXV",
+  "apiSymbol": "FLCN.V",
+  "sector": "Mining",
+  "province": "UAE",
+  "country": "Other"
+ },
+ {
+  "name": "Falcon Gold Corp.",
+  "symbol": "FG",
+  "exchange": "TSXV",
+  "apiSymbol": "FG.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Fancamp Exploration Ltd.",
+  "symbol": "FNC",
+  "exchange": "TSXV",
+  "apiSymbol": "FNC.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Fidelity Minerals Corp.",
+  "symbol": "FMN",
+  "exchange": "TSXV",
+  "apiSymbol": "FMN.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "FinEx Metals Ltd.",
+  "symbol": "FINX",
+  "exchange": "TSXV",
+  "apiSymbol": "FINX.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Finlay Minerals Ltd.",
+  "symbol": "FYL",
+  "exchange": "TSXV",
+  "apiSymbol": "FYL.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "FireFox Gold Corp.",
+  "symbol": "FFOX",
+  "exchange": "TSXV",
+  "apiSymbol": "FFOX.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Fireweed Metals Corp.",
+  "symbol": "FWZ",
+  "exchange": "TSXV",
+  "apiSymbol": "FWZ.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "First Andes Silver Ltd.",
+  "symbol": "FAS",
+  "exchange": "TSXV",
+  "apiSymbol": "FAS.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "First Atlantic Nickel Corp.",
+  "symbol": "FAN",
+  "exchange": "TSXV",
+  "apiSymbol": "FAN.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "First Canadian Graphite Inc.",
+  "symbol": "FCI",
+  "exchange": "TSXV",
+  "apiSymbol": "FCI.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Fitzroy Minerals Inc.",
+  "symbol": "FTZ",
+  "exchange": "TSXV",
+  "apiSymbol": "FTZ.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Fjordland Exploration Inc.",
+  "symbol": "FEX",
+  "exchange": "TSXV",
+  "apiSymbol": "FEX.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Focus Graphite Inc.",
+  "symbol": "FMS",
+  "exchange": "TSXV",
+  "apiSymbol": "FMS.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Fokus Mining Corporation",
+  "symbol": "FKM",
+  "exchange": "TSXV",
+  "apiSymbol": "FKM.V",
+  "sector": "Mining",
+  "province": "QC",
+  "country": "Canada"
+ },
+ {
+  "name": "Fort St. James Nickel Corp.",
+  "symbol": "FTJ",
+  "exchange": "TSXV",
+  "apiSymbol": "FTJ.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Fortune Bay Corp.",
+  "symbol": "FOR",
+  "exchange": "TSXV",
+  "apiSymbol": "FOR.V",
+  "sector": "Mining",
+  "province": "NS",
+  "country": "Canada"
+ },
+ {
+  "name": "Founders Metals Inc.",
+  "symbol": "FDR",
+  "exchange": "TSXV",
+  "apiSymbol": "FDR.V",
+  "sector": "Mining",
+  "province": "AB",
+  "country": "Canada"
+ },
+ {
+  "name": "FPX Nickel Corp.",
+  "symbol": "FPX",
+  "exchange": "TSXV",
+  "apiSymbol": "FPX.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Fredonia Mining Inc.",
+  "symbol": "FRED",
+  "exchange": "TSXV",
+  "apiSymbol": "FRED.V",
+  "sector": "Mining",
+  "province": "Argentina",
+  "country": "Latin America"
+ },
+ {
+  "name": "Freeman Gold Corp.",
+  "symbol": "FMAN",
+  "exchange": "TSXV",
+  "apiSymbol": "FMAN.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Freeport Resources Inc.",
+  "symbol": "FRI",
+  "exchange": "TSXV",
+  "apiSymbol": "FRI.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Frontier Lithium Inc.",
+  "symbol": "FL",
+  "exchange": "TSXV",
+  "apiSymbol": "FL.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Fuerte Metals Corporation",
+  "symbol": "FMT",
+  "exchange": "TSXV",
+  "apiSymbol": "FMT.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Full Metal Minerals Ltd.",
+  "symbol": "FMM",
+  "exchange": "TSXV",
+  "apiSymbol": "FMM.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Fuse Battery Metals Inc.",
+  "symbol": "FUSE",
+  "exchange": "TSXV",
+  "apiSymbol": "FUSE.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Future Fuels Inc.",
+  "symbol": "FTUR",
+  "exchange": "TSXV",
+  "apiSymbol": "FTUR.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Gabriel Resources Ltd.",
+  "symbol": "GBU",
+  "exchange": "TSXV",
+  "apiSymbol": "GBU.V",
+  "sector": "Mining",
+  "province": "England",
+  "country": "UK/Europe"
+ },
+ {
+  "name": "Galactic Gold Corp.",
+  "symbol": "GGAU",
+  "exchange": "TSXV",
+  "apiSymbol": "GGAU.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Galantas Gold Corporation",
+  "symbol": "GAL",
+  "exchange": "TSXV",
+  "apiSymbol": "GAL.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Galleon Gold Corp.",
+  "symbol": "GGO",
+  "exchange": "TSXV",
+  "apiSymbol": "GGO.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Galore Resources Inc.",
+  "symbol": "GRI",
+  "exchange": "TSXV",
+  "apiSymbol": "GRI.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Galway Metals Inc.",
+  "symbol": "GWM",
+  "exchange": "TSXV",
+  "apiSymbol": "GWM.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Gamma Resources Ltd.",
+  "symbol": "GAMA",
+  "exchange": "TSXV",
+  "apiSymbol": "GAMA.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Garibaldi Resources Corp.",
+  "symbol": "GGI",
+  "exchange": "TSXV",
+  "apiSymbol": "GGI.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Geiger Energy Corporation",
+  "symbol": "BEEP",
+  "exchange": "TSXV",
+  "apiSymbol": "BEEP.V",
+  "sector": "Mining",
+  "province": "AB",
+  "country": "Canada"
+ },
+ {
+  "name": "Generation Uranium Inc.",
+  "symbol": "GEN",
+  "exchange": "TSXV",
+  "apiSymbol": "GEN.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Gensource Potash Corporation",
+  "symbol": "GSP",
+  "exchange": "TSXV",
+  "apiSymbol": "GSP.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Geomega Resources Inc.",
+  "symbol": "GMA",
+  "exchange": "TSXV",
+  "apiSymbol": "GMA.V",
+  "sector": "Mining",
+  "province": "QC",
+  "country": "Canada"
+ },
+ {
+  "name": "Getty Copper Inc.",
+  "symbol": "GTC",
+  "exchange": "TSXV",
+  "apiSymbol": "GTC.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "GFG Resources Inc.",
+  "symbol": "GFG",
+  "exchange": "TSXV",
+  "apiSymbol": "GFG.V",
+  "sector": "Mining",
+  "province": "SK",
+  "country": "Canada"
+ },
+ {
+  "name": "GGL Resources Corp.",
+  "symbol": "GGL",
+  "exchange": "TSXV",
+  "apiSymbol": "GGL.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "GGX Gold Corp.",
+  "symbol": "GGX",
+  "exchange": "TSXV",
+  "apiSymbol": "GGX.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Giga Metals Corporation",
+  "symbol": "GIGA",
+  "exchange": "TSXV",
+  "apiSymbol": "GIGA.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Giyani Metals Corp.",
+  "symbol": "EMM",
+  "exchange": "TSXV",
+  "apiSymbol": "EMM.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Glacier Lake Resources Inc.",
+  "symbol": "GLI",
+  "exchange": "TSXV",
+  "apiSymbol": "GLI.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Gladiator Metals Corp.",
+  "symbol": "GLAD",
+  "exchange": "TSXV",
+  "apiSymbol": "GLAD.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Glen Eagle Resources Inc.",
+  "symbol": "GER",
+  "exchange": "TSXV",
+  "apiSymbol": "GER.V",
+  "sector": "Mining",
+  "province": "QC",
+  "country": "Canada"
+ },
+ {
+  "name": "Global Battery Metals Ltd.",
+  "symbol": "GBML",
+  "exchange": "TSXV",
+  "apiSymbol": "GBML.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Global Copper Corp.",
+  "symbol": "CUCU",
+  "exchange": "TSXV",
+  "apiSymbol": "CUCU.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Global Energy Metals Corporation",
+  "symbol": "GEMC",
+  "exchange": "TSXV",
+  "apiSymbol": "GEMC.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "GMV Minerals Inc.",
+  "symbol": "GMV",
+  "exchange": "TSXV",
+  "apiSymbol": "GMV.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Golconda Gold Ltd.",
+  "symbol": "GG",
+  "exchange": "TSXV",
+  "apiSymbol": "GG.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Gold Basin Resources Corporation",
+  "symbol": "GXX",
+  "exchange": "TSXV",
+  "apiSymbol": "GXX.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Gold Finder Resources Ltd.",
+  "symbol": "GLD",
+  "exchange": "TSXV",
+  "apiSymbol": "GLD.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Gold Hart Copper Corp.",
+  "symbol": "HART",
+  "exchange": "TSXV",
+  "apiSymbol": "HART.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Gold Reserve Inc.",
+  "symbol": "GRZ",
+  "exchange": "TSXV",
+  "apiSymbol": "GRZ.V",
+  "sector": "Mining",
+  "province": "WA",
+  "country": "USA"
+ },
+ {
+  "name": "Gold Strategy Inc.",
+  "symbol": "GST",
+  "exchange": "TSXV",
+  "apiSymbol": "GST.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Gold Strike Resources Corp.",
+  "symbol": "GSR",
+  "exchange": "TSXV",
+  "apiSymbol": "GSR.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Gold Terra Resource Corp.",
+  "symbol": "YGT",
+  "exchange": "TSXV",
+  "apiSymbol": "YGT.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Gold X2 Mining Inc.",
+  "symbol": "AUXX",
+  "exchange": "TSXV",
+  "apiSymbol": "AUXX.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Goldbank Mining Corporation",
+  "symbol": "GLB",
+  "exchange": "TSXV",
+  "apiSymbol": "GLB.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Goldcliff Resource Corporation",
+  "symbol": "GCN",
+  "exchange": "TSXV",
+  "apiSymbol": "GCN.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Golden Arrow Resources Corporation",
+  "symbol": "GRG",
+  "exchange": "TSXV",
+  "apiSymbol": "GRG.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Golden Cross Resources Inc.",
+  "symbol": "AUX",
+  "exchange": "TSXV",
+  "apiSymbol": "AUX.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Golden Goliath Resources Ltd.",
+  "symbol": "GNG",
+  "exchange": "TSXV",
+  "apiSymbol": "GNG.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Golden Pursuit Resources Ltd.",
+  "symbol": "GDP",
+  "exchange": "TSXV",
+  "apiSymbol": "GDP.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Golden Ridge Resources Ltd.",
+  "symbol": "GLDN",
+  "exchange": "TSXV",
+  "apiSymbol": "GLDN.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Golden Sky Minerals Corp.",
+  "symbol": "AUEN",
+  "exchange": "TSXV",
+  "apiSymbol": "AUEN.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Goldex Resources Corporation",
+  "symbol": "GDX",
+  "exchange": "TSXV",
+  "apiSymbol": "GDX.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Goldflare Exploration Inc.",
+  "symbol": "GOFL",
+  "exchange": "TSXV",
+  "apiSymbol": "GOFL.V",
+  "sector": "Mining",
+  "province": "QC",
+  "country": "Canada"
+ },
+ {
+  "name": "Goldgroup Mining Inc.",
+  "symbol": "GGA",
+  "exchange": "TSXV",
+  "apiSymbol": "GGA.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Goldhills Holding Ltd.",
+  "symbol": "GHL",
+  "exchange": "TSXV",
+  "apiSymbol": "GHL.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "GoldQuest Mining Corp.",
+  "symbol": "GQC",
+  "exchange": "TSXV",
+  "apiSymbol": "GQC.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Goldsky Resources Corp.",
+  "symbol": "GSKR",
+  "exchange": "TSXV",
+  "apiSymbol": "GSKR.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Goldstorm Metals Corp.",
+  "symbol": "GSTM",
+  "exchange": "TSXV",
+  "apiSymbol": "GSTM.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Goliath Resources Limited",
+  "symbol": "GOT",
+  "exchange": "TSXV",
+  "apiSymbol": "GOT.V",
+  "sector": "Mining",
+  "province": "QC",
+  "country": "Canada"
+ },
+ {
+  "name": "Gossan Resources Limited",
+  "symbol": "GSS",
+  "exchange": "TSXV",
+  "apiSymbol": "GSS.V",
+  "sector": "Mining",
+  "province": "MB",
+  "country": "Canada"
+ },
+ {
+  "name": "GPM Metals Inc.",
+  "symbol": "GPM",
+  "exchange": "TSXV",
+  "apiSymbol": "GPM.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "GR Silver Mining Ltd.",
+  "symbol": "GRSL",
+  "exchange": "TSXV",
+  "apiSymbol": "GRSL.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Granada Gold Mine Inc.",
+  "symbol": "GGM",
+  "exchange": "TSXV",
+  "apiSymbol": "GGM.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Grande Portage Resources Ltd.",
+  "symbol": "GPG",
+  "exchange": "TSXV",
+  "apiSymbol": "GPG.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Graphano Energy Ltd.",
+  "symbol": "GEL",
+  "exchange": "TSXV",
+  "apiSymbol": "GEL.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Graphite One Inc.",
+  "symbol": "GPH",
+  "exchange": "TSXV",
+  "apiSymbol": "GPH.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Gratomic Inc.",
+  "symbol": "GRAT",
+  "exchange": "TSXV",
+  "apiSymbol": "GRAT.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Great Atlantic Resources Corp.",
+  "symbol": "GR",
+  "exchange": "TSXV",
+  "apiSymbol": "GR.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Great Pacific Gold Corp.",
+  "symbol": "GPAC",
+  "exchange": "TSXV",
+  "apiSymbol": "GPAC.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Great Plains Metals Corp.",
+  "symbol": "GPS",
+  "exchange": "TSXV",
+  "apiSymbol": "GPS.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Great Quest Gold Ltd.",
+  "symbol": "GQ",
+  "exchange": "TSXV",
+  "apiSymbol": "GQ.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Green Shift Commodities Ltd.",
+  "symbol": "GCOM",
+  "exchange": "TSXV",
+  "apiSymbol": "GCOM.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Greencastle Resources Ltd.",
+  "symbol": "VGN",
+  "exchange": "TSXV",
+  "apiSymbol": "VGN.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Greenheart Gold Inc.",
+  "symbol": "GHRT",
+  "exchange": "TSXV",
+  "apiSymbol": "GHRT.V",
+  "sector": "Mining",
+  "province": "QC",
+  "country": "Canada"
+ },
+ {
+  "name": "GreenLight Metals Inc.",
+  "symbol": "GRL",
+  "exchange": "TSXV",
+  "apiSymbol": "GRL.V",
+  "sector": "Mining",
+  "province": "WI",
+  "country": "USA"
+ },
+ {
+  "name": "Grid Battery Metals Inc.",
+  "symbol": "CELL",
+  "exchange": "TSXV",
+  "apiSymbol": "CELL.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Grid Metals Corp.",
+  "symbol": "GRDM",
+  "exchange": "TSXV",
+  "apiSymbol": "GRDM.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Grit Metals Corp.",
+  "symbol": "FIN",
+  "exchange": "TSXV",
+  "apiSymbol": "FIN.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Grizzly Discoveries Inc.",
+  "symbol": "GZD",
+  "exchange": "TSXV",
+  "apiSymbol": "GZD.V",
+  "sector": "Mining",
+  "province": "AB",
+  "country": "Canada"
+ },
+ {
+  "name": "Grosvenor Resource Corporation",
+  "symbol": "GVR",
+  "exchange": "TSXV",
+  "apiSymbol": "GVR.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Grounded Lithium Corp.",
+  "symbol": "GRD",
+  "exchange": "TSXV",
+  "apiSymbol": "GRD.V",
+  "sector": "Mining",
+  "province": "AB",
+  "country": "Canada"
+ },
+ {
+  "name": "Group Eleven Resources Corp.",
+  "symbol": "ZNG",
+  "exchange": "TSXV",
+  "apiSymbol": "ZNG.V",
+  "sector": "Mining",
+  "province": "Ireland",
+  "country": "UK/Europe"
+ },
+ {
+  "name": "GSP Resource Corp.",
+  "symbol": "GSPR",
+  "exchange": "TSXV",
+  "apiSymbol": "GSPR.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "GT Resources Inc.",
+  "symbol": "GT",
+  "exchange": "TSXV",
+  "apiSymbol": "GT.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Guanajuato Silver Company Ltd.",
+  "symbol": "GSVR",
+  "exchange": "TSXV",
+  "apiSymbol": "GSVR.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Gungnir Resources Inc.",
+  "symbol": "GUG",
+  "exchange": "TSXV",
+  "apiSymbol": "GUG.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Gunpoint Exploration Ltd.",
+  "symbol": "GUN",
+  "exchange": "TSXV",
+  "apiSymbol": "GUN.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Guyana Goldstrike Inc.",
+  "symbol": "GYA",
+  "exchange": "TSXV",
+  "apiSymbol": "GYA.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Halcones Precious Metals Corp.",
+  "symbol": "HPM",
+  "exchange": "TSXV",
+  "apiSymbol": "HPM.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Hannan Metals Ltd.",
+  "symbol": "HAN",
+  "exchange": "TSXV",
+  "apiSymbol": "HAN.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Hanstone Gold Corp.",
+  "symbol": "HANS",
+  "exchange": "TSXV",
+  "apiSymbol": "HANS.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Happy Creek Minerals Ltd.",
+  "symbol": "HPY",
+  "exchange": "TSXV",
+  "apiSymbol": "HPY.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Harfang Exploration Inc.",
+  "symbol": "HAR",
+  "exchange": "TSXV",
+  "apiSymbol": "HAR.V",
+  "sector": "Mining",
+  "province": "QC",
+  "country": "Canada"
+ },
+ {
+  "name": "Harvest Gold Corp.",
+  "symbol": "HVG",
+  "exchange": "TSXV",
+  "apiSymbol": "HVG.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Hawkeye Gold & Diamond Inc.",
+  "symbol": "HAWK",
+  "exchange": "TSXV",
+  "apiSymbol": "HAWK.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Hayasa Metals Inc.",
+  "symbol": "HAY",
+  "exchange": "TSXV",
+  "apiSymbol": "HAY.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Heliostar Metals Ltd.",
+  "symbol": "HSTR",
+  "exchange": "TSXV",
+  "apiSymbol": "HSTR.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Helius Minerals Limited",
+  "symbol": "HHH",
+  "exchange": "TSXV",
+  "apiSymbol": "HHH.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Hemlo Mining Corp.",
+  "symbol": "HMMC",
+  "exchange": "TSXV",
+  "apiSymbol": "HMMC.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Hercules Metals Corp.",
+  "symbol": "BIG",
+  "exchange": "TSXV",
+  "apiSymbol": "BIG.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Highland Copper Company Inc.",
+  "symbol": "HI",
+  "exchange": "TSXV",
+  "apiSymbol": "HI.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Highway 50 Gold Corp.",
+  "symbol": "HWY",
+  "exchange": "TSXV",
+  "apiSymbol": "HWY.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Hispania Resources Inc.",
+  "symbol": "ESPN",
+  "exchange": "TSXV",
+  "apiSymbol": "ESPN.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Homeland Nickel Inc.",
+  "symbol": "SHL",
+  "exchange": "TSXV",
+  "apiSymbol": "SHL.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Homeland Uranium Corp.",
+  "symbol": "HLU",
+  "exchange": "TSXV",
+  "apiSymbol": "HLU.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Homerun Resources Inc.",
+  "symbol": "HMR",
+  "exchange": "TSXV",
+  "apiSymbol": "HMR.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Honey Badger Silver Inc.",
+  "symbol": "TUF",
+  "exchange": "TSXV",
+  "apiSymbol": "TUF.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Hot Chili Limited",
+  "symbol": "HCH",
+  "exchange": "TSXV",
+  "apiSymbol": "HCH.V",
+  "sector": "Mining",
+  "province": "Australia",
+  "country": "Australia/NZ/PNG"
+ },
+ {
+  "name": "Ibero Mining Corp.",
+  "symbol": "IMC",
+  "exchange": "TSXV",
+  "apiSymbol": "IMC.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Iconic Minerals Ltd.",
+  "symbol": "ICM",
+  "exchange": "TSXV",
+  "apiSymbol": "ICM.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "IDEX Metals Corp.",
+  "symbol": "IDEX",
+  "exchange": "TSXV",
+  "apiSymbol": "IDEX.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "IEMR Resources Inc.",
+  "symbol": "IRI",
+  "exchange": "TSXV",
+  "apiSymbol": "IRI.V",
+  "sector": "Mining",
+  "province": "China",
+  "country": "Asia"
+ },
+ {
+  "name": "Imagine Lithium Inc.",
+  "symbol": "ILI",
+  "exchange": "TSXV",
+  "apiSymbol": "ILI.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "iMetal Resources Inc.",
+  "symbol": "IMR",
+  "exchange": "TSXV",
+  "apiSymbol": "IMR.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "IMPACT Silver Corp.",
+  "symbol": "IPT",
+  "exchange": "TSXV",
+  "apiSymbol": "IPT.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Independence Gold Corp.",
+  "symbol": "IGO",
+  "exchange": "TSXV",
+  "apiSymbol": "IGO.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Infield Minerals Corp.",
+  "symbol": "IN",
+  "exchange": "TSXV",
+  "apiSymbol": "IN.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Infinico Metals Corp.",
+  "symbol": "INFM",
+  "exchange": "TSXV",
+  "apiSymbol": "INFM.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Infinitum Copper Corp.",
+  "symbol": "INFI",
+  "exchange": "TSXV",
+  "apiSymbol": "INFI.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Inomin Mines Inc.",
+  "symbol": "MINE",
+  "exchange": "TSXV",
+  "apiSymbol": "MINE.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Integra Resources Corp.",
+  "symbol": "ITR",
+  "exchange": "TSXV",
+  "apiSymbol": "ITR.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "International Iconic Gold Exploration Corp.",
+  "symbol": "ICON",
+  "exchange": "TSXV",
+  "apiSymbol": "ICON.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "International Lithium Corp.",
+  "symbol": "ILC",
+  "exchange": "TSXV",
+  "apiSymbol": "ILC.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "International Metals Mining Corp.",
+  "symbol": "IMM",
+  "exchange": "TSXV",
+  "apiSymbol": "IMM.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "International Prospect Ventures Ltd.",
+  "symbol": "IZZ",
+  "exchange": "TSXV",
+  "apiSymbol": "IZZ.V",
+  "sector": "Mining",
+  "province": "QC",
+  "country": "Canada"
+ },
+ {
+  "name": "International Zeolite Corp.",
+  "symbol": "IZ",
+  "exchange": "TSXV",
+  "apiSymbol": "IZ.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Inter-Rock Minerals Inc.",
+  "symbol": "IRO",
+  "exchange": "TSXV",
+  "apiSymbol": "IRO.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Intrepid Metals Corp.",
+  "symbol": "INTR",
+  "exchange": "TSXV",
+  "apiSymbol": "INTR.V",
+  "sector": "Mining",
+  "province": "NV",
+  "country": "USA"
+ },
+ {
+  "name": "Inventus Mining Corp.",
+  "symbol": "IVS",
+  "exchange": "TSXV",
+  "apiSymbol": "IVS.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "InZinc Mining Ltd.",
+  "symbol": "IZN",
+  "exchange": "TSXV",
+  "apiSymbol": "IZN.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Itafos Inc.",
+  "symbol": "IFOS",
+  "exchange": "TSXV",
+  "apiSymbol": "IFOS.V",
+  "sector": "Mining",
+  "province": "TX",
+  "country": "USA"
+ },
+ {
+  "name": "J2 Metals Inc.",
+  "symbol": "JTWO",
+  "exchange": "TSXV",
+  "apiSymbol": "JTWO.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "J4 Ventures Resources Corp.",
+  "symbol": "JJJJ",
+  "exchange": "TSXV",
+  "apiSymbol": "JJJJ.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Jade Leader Corp.",
+  "symbol": "JADE",
+  "exchange": "TSXV",
+  "apiSymbol": "JADE.V",
+  "sector": "Mining",
+  "province": "AB",
+  "country": "Canada"
+ },
+ {
+  "name": "Japan Gold Corp.",
+  "symbol": "JG",
+  "exchange": "TSXV",
+  "apiSymbol": "JG.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Jayden Resources Inc.",
+  "symbol": "JDN",
+  "exchange": "TSXV",
+  "apiSymbol": "JDN.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Jinhua Capital Corporation",
+  "symbol": "JHC",
+  "exchange": "TSXV",
+  "apiSymbol": "JHC.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Juggernaut Exploration Ltd.",
+  "symbol": "JUGR",
+  "exchange": "TSXV",
+  "apiSymbol": "JUGR.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "JZR Gold Inc.",
+  "symbol": "JZR",
+  "exchange": "TSXV",
+  "apiSymbol": "JZR.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "K2 Gold Corporation",
+  "symbol": "KTO",
+  "exchange": "TSXV",
+  "apiSymbol": "KTO.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Kalo Gold Corp.",
+  "symbol": "KALO",
+  "exchange": "TSXV",
+  "apiSymbol": "KALO.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "KAPA Gold Inc.",
+  "symbol": "KAPA",
+  "exchange": "TSXV",
+  "apiSymbol": "KAPA.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Kenorland Minerals Ltd.",
+  "symbol": "KLD",
+  "exchange": "TSXV",
+  "apiSymbol": "KLD.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Kermode Resources Ltd.",
+  "symbol": "KLM",
+  "exchange": "TSXV",
+  "apiSymbol": "KLM.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Kestrel Gold Inc.",
+  "symbol": "KGC",
+  "exchange": "TSXV",
+  "apiSymbol": "KGC.V",
+  "sector": "Mining",
+  "province": "AB",
+  "country": "Canada"
+ },
+ {
+  "name": "Kiboko Gold Inc.",
+  "symbol": "KIB",
+  "exchange": "TSXV",
+  "apiSymbol": "KIB.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Kincora Copper Limited",
+  "symbol": "KCC",
+  "exchange": "TSXV",
+  "apiSymbol": "KCC.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "King Copper Discovery Corp.",
+  "symbol": "KCP",
+  "exchange": "TSXV",
+  "apiSymbol": "KCP.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Kingfisher Metals Corp.",
+  "symbol": "KFR",
+  "exchange": "TSXV",
+  "apiSymbol": "KFR.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Kingman Minerals Ltd.",
+  "symbol": "KGS",
+  "exchange": "TSXV",
+  "apiSymbol": "KGS.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Kingsmen Resources Ltd.",
+  "symbol": "KNG",
+  "exchange": "TSXV",
+  "apiSymbol": "KNG.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Kiplin Metals Inc.",
+  "symbol": "KIP",
+  "exchange": "TSXV",
+  "apiSymbol": "KIP.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Kirkland Lake Discoveries Corp.",
+  "symbol": "KLDC",
+  "exchange": "TSXV",
+  "apiSymbol": "KLDC.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Kirkstone Metals Corp.",
+  "symbol": "KSM",
+  "exchange": "TSXV",
+  "apiSymbol": "KSM.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Klondike Gold Corp.",
+  "symbol": "KG",
+  "exchange": "TSXV",
+  "apiSymbol": "KG.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Klondike Silver Corp.",
+  "symbol": "KS",
+  "exchange": "TSXV",
+  "apiSymbol": "KS.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Kobo Resources Inc.",
+  "symbol": "KRI",
+  "exchange": "TSXV",
+  "apiSymbol": "KRI.V",
+  "sector": "Mining",
+  "province": "QC",
+  "country": "Canada"
+ },
+ {
+  "name": "Kodiak Copper Corp.",
+  "symbol": "KDK",
+  "exchange": "TSXV",
+  "apiSymbol": "KDK.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Kootenay Resources Inc.",
+  "symbol": "KTRI",
+  "exchange": "TSXV",
+  "apiSymbol": "KTRI.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Kootenay Silver Inc.",
+  "symbol": "KTN",
+  "exchange": "TSXV",
+  "apiSymbol": "KTN.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "KORE Mining Ltd.",
+  "symbol": "KORE",
+  "exchange": "TSXV",
+  "apiSymbol": "KORE.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Koryx Copper Inc.",
+  "symbol": "KRY",
+  "exchange": "TSXV",
+  "apiSymbol": "KRY.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Kubera Gold Corp.",
+  "symbol": "KBRA",
+  "exchange": "TSXV",
+  "apiSymbol": "KBRA.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Kutcho Copper Corp.",
+  "symbol": "KC",
+  "exchange": "TSXV",
+  "apiSymbol": "KC.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Labrador Gold Corp.",
+  "symbol": "LAB",
+  "exchange": "TSXV",
+  "apiSymbol": "LAB.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Lahontan Gold Corp.",
+  "symbol": "LG",
+  "exchange": "TSXV",
+  "apiSymbol": "LG.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Lake Victoria Gold Ltd.",
+  "symbol": "LVG",
+  "exchange": "TSXV",
+  "apiSymbol": "LVG.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Lake Winn Resources Corp.",
+  "symbol": "LWR",
+  "exchange": "TSXV",
+  "apiSymbol": "LWR.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Lara Exploration Ltd.",
+  "symbol": "LRA",
+  "exchange": "TSXV",
+  "apiSymbol": "LRA.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Latin Metals Inc.",
+  "symbol": "LMS",
+  "exchange": "TSXV",
+  "apiSymbol": "LMS.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Laurion Mineral Exploration Inc.",
+  "symbol": "LME",
+  "exchange": "TSXV",
+  "apiSymbol": "LME.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Lavras Gold Corp.",
+  "symbol": "LGC",
+  "exchange": "TSXV",
+  "apiSymbol": "LGC.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Leading Edge Materials Corp.",
+  "symbol": "LEM",
+  "exchange": "TSXV",
+  "apiSymbol": "LEM.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Legacy Gold Mines Ltd.",
+  "symbol": "LEGY",
+  "exchange": "TSXV",
+  "apiSymbol": "LEGY.V",
+  "sector": "Mining",
+  "province": "AB",
+  "country": "Canada"
+ },
+ {
+  "name": "Leviathan Metals Corp.",
+  "symbol": "LVX",
+  "exchange": "TSXV",
+  "apiSymbol": "LVX.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Libertystream Infrastructure Partners Inc.",
+  "symbol": "LIB",
+  "exchange": "TSXV",
+  "apiSymbol": "LIB.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Li-FT Power Ltd.",
+  "symbol": "LIFT",
+  "exchange": "TSXV",
+  "apiSymbol": "LIFT.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Lincoln Gold Mining Inc.",
+  "symbol": "LMG",
+  "exchange": "TSXV",
+  "apiSymbol": "LMG.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Lion One Metals Limited",
+  "symbol": "LIO",
+  "exchange": "TSXV",
+  "apiSymbol": "LIO.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Lion Rock Resources Inc.",
+  "symbol": "ROAR",
+  "exchange": "TSXV",
+  "apiSymbol": "ROAR.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Lithium Chile Inc.",
+  "symbol": "LITH",
+  "exchange": "TSXV",
+  "apiSymbol": "LITH.V",
+  "sector": "Mining",
+  "province": "AB",
+  "country": "Canada"
+ },
+ {
+  "name": "Lithium Ion Energy Ltd.",
+  "symbol": "ION",
+  "exchange": "TSXV",
+  "apiSymbol": "ION.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Lithium Ionic Corp.",
+  "symbol": "LTH",
+  "exchange": "TSXV",
+  "apiSymbol": "LTH.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Lithium South Development Corporation",
+  "symbol": "LIS",
+  "exchange": "TSXV",
+  "apiSymbol": "LIS.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "LithiumBank Resources Corp.",
+  "symbol": "LBNK",
+  "exchange": "TSXV",
+  "apiSymbol": "LBNK.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Lode Gold Resources Inc.",
+  "symbol": "LOD",
+  "exchange": "TSXV",
+  "apiSymbol": "LOD.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Lodestar Metals Corp.",
+  "symbol": "LSTR",
+  "exchange": "TSXV",
+  "apiSymbol": "LSTR.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Lomiko Metals Inc.",
+  "symbol": "LMR",
+  "exchange": "TSXV",
+  "apiSymbol": "LMR.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Los Andes Copper Limited",
+  "symbol": "LA",
+  "exchange": "TSXV",
+  "apiSymbol": "LA.V",
+  "sector": "Mining",
+  "province": "Chile",
+  "country": "Latin America"
+ },
+ {
+  "name": "Luca Mining Corp.",
+  "symbol": "LUCA",
+  "exchange": "TSXV",
+  "apiSymbol": "LUCA.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Lucky Minerals Inc.",
+  "symbol": "LKY",
+  "exchange": "TSXV",
+  "apiSymbol": "LKY.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "LunR Royalties Corp.",
+  "symbol": "LUNR",
+  "exchange": "TSXV",
+  "apiSymbol": "LUNR.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Lupaka Gold Corp.",
+  "symbol": "LPK",
+  "exchange": "TSXV",
+  "apiSymbol": "LPK.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Lux Metals Corp.",
+  "symbol": "LXM",
+  "exchange": "TSXV",
+  "apiSymbol": "LXM.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Luxor Metals Ltd.",
+  "symbol": "LUXR",
+  "exchange": "TSXV",
+  "apiSymbol": "LUXR.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "M3 Metals Corp.",
+  "symbol": "MT",
+  "exchange": "TSXV",
+  "apiSymbol": "MT.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Madoro Metals Corp.",
+  "symbol": "MDM",
+  "exchange": "TSXV",
+  "apiSymbol": "MDM.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Magma Silver Corp.",
+  "symbol": "MGMA",
+  "exchange": "TSXV",
+  "apiSymbol": "MGMA.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Magna Mining Inc.",
+  "symbol": "NICU",
+  "exchange": "TSXV",
+  "apiSymbol": "NICU.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Magna Terra Minerals Inc.",
+  "symbol": "MTT",
+  "exchange": "TSXV",
+  "apiSymbol": "MTT.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Magnum Goldcorp Inc.",
+  "symbol": "MGI",
+  "exchange": "TSXV",
+  "apiSymbol": "MGI.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Majestic Gold Corp.",
+  "symbol": "MJS",
+  "exchange": "TSXV",
+  "apiSymbol": "MJS.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Mako Mining Corp.",
+  "symbol": "MKO",
+  "exchange": "TSXV",
+  "apiSymbol": "MKO.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Mammoth Resources Corp.",
+  "symbol": "MTH",
+  "exchange": "TSXV",
+  "apiSymbol": "MTH.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Manganese X Energy Corp.",
+  "symbol": "MN",
+  "exchange": "TSXV",
+  "apiSymbol": "MN.V",
+  "sector": "Mining",
+  "province": "QC",
+  "country": "Canada"
+ },
+ {
+  "name": "Maple Gold Mines Ltd.",
+  "symbol": "MGM",
+  "exchange": "TSXV",
+  "apiSymbol": "MGM.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Marvel Discovery Corp.",
+  "symbol": "MARV",
+  "exchange": "TSXV",
+  "apiSymbol": "MARV.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Masivo Silver Corp.",
+  "symbol": "MASS",
+  "exchange": "TSXV",
+  "apiSymbol": "MASS.V",
+  "sector": "Mining",
+  "province": "AZ",
+  "country": "USA"
+ },
+ {
+  "name": "Matachewan Consolidated Mines, Limited",
+  "symbol": "MCM",
+  "exchange": "TSXV",
+  "apiSymbol": "MCM.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "MAX Resource Corp.",
+  "symbol": "MAX",
+  "exchange": "TSXV",
+  "apiSymbol": "MAX.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Mayfair Gold Corp.",
+  "symbol": "MFG",
+  "exchange": "TSXV",
+  "apiSymbol": "MFG.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Melkior Resources Inc.",
+  "symbol": "MKR",
+  "exchange": "TSXV",
+  "apiSymbol": "MKR.V",
+  "sector": "Mining",
+  "province": "QC",
+  "country": "Canada"
+ },
+ {
+  "name": "Metal Energy Corp.",
+  "symbol": "MERG",
+  "exchange": "TSXV",
+  "apiSymbol": "MERG.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Metalero Mining Corp.",
+  "symbol": "MLO",
+  "exchange": "TSXV",
+  "apiSymbol": "MLO.V",
+  "sector": "Mining",
+  "province": "AB",
+  "country": "Canada"
+ },
+ {
+  "name": "Metalex Ventures Ltd.",
+  "symbol": "MTX",
+  "exchange": "TSXV",
+  "apiSymbol": "MTX.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Metalla Royalty & Streaming Ltd.",
+  "symbol": "MTA",
+  "exchange": "TSXV",
+  "apiSymbol": "MTA.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Metallic Minerals Corp.",
+  "symbol": "MMG",
+  "exchange": "TSXV",
+  "apiSymbol": "MMG.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Metallis Resources Inc.",
+  "symbol": "MTS",
+  "exchange": "TSXV",
+  "apiSymbol": "MTS.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Metalquest Mining Inc.",
+  "symbol": "MQM",
+  "exchange": "TSXV",
+  "apiSymbol": "MQM.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Metals Creek Resources Corp.",
+  "symbol": "MEK",
+  "exchange": "TSXV",
+  "apiSymbol": "MEK.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Mexican Gold Mining Corp.",
+  "symbol": "MEX",
+  "exchange": "TSXV",
+  "apiSymbol": "MEX.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Midland Exploration Inc.",
+  "symbol": "MD",
+  "exchange": "TSXV",
+  "apiSymbol": "MD.V",
+  "sector": "Mining",
+  "province": "QC",
+  "country": "Canada"
+ },
+ {
+  "name": "Midnight Sun Mining Corp.",
+  "symbol": "MMA",
+  "exchange": "TSXV",
+  "apiSymbol": "MMA.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Millennial Potash Corp.",
+  "symbol": "MLP",
+  "exchange": "TSXV",
+  "apiSymbol": "MLP.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Millennium Silver Corp.",
+  "symbol": "MSC",
+  "exchange": "TSXV",
+  "apiSymbol": "MSC.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Minaurum Silver Inc.",
+  "symbol": "MGG",
+  "exchange": "TSXV",
+  "apiSymbol": "MGG.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Minco Capital Corp.",
+  "symbol": "MMM",
+  "exchange": "TSXV",
+  "apiSymbol": "MMM.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Minera Alamos Inc.",
+  "symbol": "MAI",
+  "exchange": "TSXV",
+  "apiSymbol": "MAI.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Mink Ventures Corporation",
+  "symbol": "MINK",
+  "exchange": "TSXV",
+  "apiSymbol": "MINK.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Minnova Corp.",
+  "symbol": "MCI",
+  "exchange": "TSXV",
+  "apiSymbol": "MCI.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Minsud Resources Corp.",
+  "symbol": "MSR",
+  "exchange": "TSXV",
+  "apiSymbol": "MSR.V",
+  "sector": "Mining",
+  "province": "Argentina",
+  "country": "Latin America"
+ },
+ {
+  "name": "Mirasol Resources Ltd.",
+  "symbol": "MRZ",
+  "exchange": "TSXV",
+  "apiSymbol": "MRZ.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Mithril Silver and Gold Limited",
+  "symbol": "MSG",
+  "exchange": "TSXV",
+  "apiSymbol": "MSG.V",
+  "sector": "Mining",
+  "province": "Australia",
+  "country": "Australia/NZ/PNG"
+ },
+ {
+  "name": "Mkango Resources Ltd.",
+  "symbol": "MKA",
+  "exchange": "TSXV",
+  "apiSymbol": "MKA.V",
+  "sector": "Mining",
+  "province": "AB",
+  "country": "Canada"
+ },
+ {
+  "name": "Mogotes Metals Inc.",
+  "symbol": "MOG",
+  "exchange": "TSXV",
+  "apiSymbol": "MOG.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Monarca Minerals Inc.",
+  "symbol": "MMN",
+  "exchange": "TSXV",
+  "apiSymbol": "MMN.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Mont Royal Resources Limited",
+  "symbol": "MRZL",
+  "exchange": "TSXV",
+  "apiSymbol": "MRZL.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Montero Mining and Exploration Ltd.",
+  "symbol": "MON",
+  "exchange": "TSXV",
+  "apiSymbol": "MON.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Monument Mining Limited",
+  "symbol": "MMY",
+  "exchange": "TSXV",
+  "apiSymbol": "MMY.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Monumental Energy Corp.",
+  "symbol": "MNRG",
+  "exchange": "TSXV",
+  "apiSymbol": "MNRG.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Moon River Moly Ltd.",
+  "symbol": "MOO",
+  "exchange": "TSXV",
+  "apiSymbol": "MOO.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Morien Resources Corp.",
+  "symbol": "MOX",
+  "exchange": "TSXV",
+  "apiSymbol": "MOX.V",
+  "sector": "Mining",
+  "province": "NS",
+  "country": "Canada"
+ },
+ {
+  "name": "Morocco Strategic Minerals Corporation",
+  "symbol": "MCC",
+  "exchange": "TSXV",
+  "apiSymbol": "MCC.V",
+  "sector": "Mining",
+  "province": "QC",
+  "country": "Canada"
+ },
+ {
+  "name": "Multi-Metal Development Ltd.",
+  "symbol": "MLY",
+  "exchange": "TSXV",
+  "apiSymbol": "MLY.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Mundoro Capital Inc.",
+  "symbol": "MUN",
+  "exchange": "TSXV",
+  "apiSymbol": "MUN.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Murchison Minerals Ltd.",
+  "symbol": "MUR",
+  "exchange": "TSXV",
+  "apiSymbol": "MUR.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Namibia Critical Metals Inc.",
+  "symbol": "NMI",
+  "exchange": "TSXV",
+  "apiSymbol": "NMI.V",
+  "sector": "Mining",
+  "province": "NS",
+  "country": "Canada"
+ },
+ {
+  "name": "Nations Royalty Corp.",
+  "symbol": "NRC",
+  "exchange": "TSXV",
+  "apiSymbol": "NRC.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Neoterrex Minerals Inc.",
+  "symbol": "NTX",
+  "exchange": "TSXV",
+  "apiSymbol": "NTX.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Nevada King Gold Corp.",
+  "symbol": "NKG",
+  "exchange": "TSXV",
+  "apiSymbol": "NKG.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Nevada Lithium Resources Inc.",
+  "symbol": "NVLH",
+  "exchange": "TSXV",
+  "apiSymbol": "NVLH.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Nevada Sunrise Metals Corporation",
+  "symbol": "NEV",
+  "exchange": "TSXV",
+  "apiSymbol": "NEV.V",
+  "sector": "Mining",
+  "province": "CA",
+  "country": "USA"
+ },
+ {
+  "name": "Nevgold Corp.",
+  "symbol": "NAU",
+  "exchange": "TSXV",
+  "apiSymbol": "NAU.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "New Age Metals Inc.",
+  "symbol": "NAM",
+  "exchange": "TSXV",
+  "apiSymbol": "NAM.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "New Destiny Mining Corp.",
+  "symbol": "NED",
+  "exchange": "TSXV",
+  "apiSymbol": "NED.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "New Energy Metals Corp.",
+  "symbol": "ENRG",
+  "exchange": "TSXV",
+  "apiSymbol": "ENRG.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "New Found Gold Corp.",
+  "symbol": "NFG",
+  "exchange": "TSXV",
+  "apiSymbol": "NFG.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "New Tymbal Resources Ltd.",
+  "symbol": "NTB",
+  "exchange": "TSXV",
+  "apiSymbol": "NTB.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Newcore Gold Ltd.",
+  "symbol": "NCAU",
+  "exchange": "TSXV",
+  "apiSymbol": "NCAU.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Newport Exploration Ltd.",
+  "symbol": "NWX",
+  "exchange": "TSXV",
+  "apiSymbol": "NWX.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "NeXGold Mining Corp.",
+  "symbol": "NEXG",
+  "exchange": "TSXV",
+  "apiSymbol": "NEXG.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "NexMetals Mining Corp.",
+  "symbol": "NEXM",
+  "exchange": "TSXV",
+  "apiSymbol": "NEXM.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Nexus Gold Corp.",
+  "symbol": "NXS",
+  "exchange": "TSXV",
+  "apiSymbol": "NXS.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "NiCan Limited",
+  "symbol": "NICN",
+  "exchange": "TSXV",
+  "apiSymbol": "NICN.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Nickel 28 Capital Corp.",
+  "symbol": "NKL",
+  "exchange": "TSXV",
+  "apiSymbol": "NKL.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Nickel Creek Platinum Corp.",
+  "symbol": "NCP",
+  "exchange": "TSXV",
+  "apiSymbol": "NCP.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Nickel North Exploration Corp.",
+  "symbol": "NNX",
+  "exchange": "TSXV",
+  "apiSymbol": "NNX.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Nicola Mining Inc.",
+  "symbol": "NIM",
+  "exchange": "TSXV",
+  "apiSymbol": "NIM.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Nio Strategic Metals Inc.",
+  "symbol": "NIO",
+  "exchange": "TSXV",
+  "apiSymbol": "NIO.V",
+  "sector": "Mining",
+  "province": "QC",
+  "country": "Canada"
+ },
+ {
+  "name": "Niobay Metals Inc.",
+  "symbol": "NBY",
+  "exchange": "TSXV",
+  "apiSymbol": "NBY.V",
+  "sector": "Mining",
+  "province": "QC",
+  "country": "Canada"
+ },
+ {
+  "name": "NOA Lithium Brines Inc.",
+  "symbol": "NOAL",
+  "exchange": "TSXV",
+  "apiSymbol": "NOAL.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Nobel Resources Corp.",
+  "symbol": "NBLC",
+  "exchange": "TSXV",
+  "apiSymbol": "NBLC.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Noble Mineral Exploration Inc.",
+  "symbol": "NOB",
+  "exchange": "TSXV",
+  "apiSymbol": "NOB.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Noble Plains Uranium Corp.",
+  "symbol": "NOBL",
+  "exchange": "TSXV",
+  "apiSymbol": "NOBL.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Noram Lithium Corp.",
+  "symbol": "NRM",
+  "exchange": "TSXV",
+  "apiSymbol": "NRM.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Nord Precious Metals Mining Inc.",
+  "symbol": "NTH",
+  "exchange": "TSXV",
+  "apiSymbol": "NTH.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Nortec Minerals Corp.",
+  "symbol": "NVT",
+  "exchange": "TSXV",
+  "apiSymbol": "NVT.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "North Arrow Minerals Inc.",
+  "symbol": "NAR",
+  "exchange": "TSXV",
+  "apiSymbol": "NAR.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "North Peak Resources Ltd.",
+  "symbol": "NPR",
+  "exchange": "TSXV",
+  "apiSymbol": "NPR.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "North Shore Uranium Ltd.",
+  "symbol": "NSU",
+  "exchange": "TSXV",
+  "apiSymbol": "NSU.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Northern Graphite Corporation",
+  "symbol": "NGC",
+  "exchange": "TSXV",
+  "apiSymbol": "NGC.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Northern Lion Gold Corp.",
+  "symbol": "NL",
+  "exchange": "TSXV",
+  "apiSymbol": "NL.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Northern Shield Resources Inc.",
+  "symbol": "NRN",
+  "exchange": "TSXV",
+  "apiSymbol": "NRN.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "NorthIsle Copper and Gold Inc.",
+  "symbol": "NCX",
+  "exchange": "TSXV",
+  "apiSymbol": "NCX.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Northwest Copper Corp.",
+  "symbol": "NWST",
+  "exchange": "TSXV",
+  "apiSymbol": "NWST.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Nulegacy Gold Corporation",
+  "symbol": "NUG",
+  "exchange": "TSXV",
+  "apiSymbol": "NUG.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Nuvau Minerals Inc.",
+  "symbol": "NMC",
+  "exchange": "TSXV",
+  "apiSymbol": "NMC.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "NV Gold Corporation",
+  "symbol": "NVX",
+  "exchange": "TSXV",
+  "apiSymbol": "NVX.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Oceanic Iron Ore Corp.",
+  "symbol": "FEO",
+  "exchange": "TSXV",
+  "apiSymbol": "FEO.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Olivut Resources Ltd.",
+  "symbol": "OLV",
+  "exchange": "TSXV",
+  "apiSymbol": "OLV.V",
+  "sector": "Mining",
+  "province": "AB",
+  "country": "Canada"
+ },
+ {
+  "name": "OMAI Gold Mines Corp.",
+  "symbol": "OMG",
+  "exchange": "TSXV",
+  "apiSymbol": "OMG.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Omineca Mining and Metals Ltd.",
+  "symbol": "OMM",
+  "exchange": "TSXV",
+  "apiSymbol": "OMM.V",
+  "sector": "Mining",
+  "province": "SK",
+  "country": "Canada"
+ },
+ {
+  "name": "One Bullion Limited",
+  "symbol": "OBUL",
+  "exchange": "TSXV",
+  "apiSymbol": "OBUL.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "OnGold Resources Ltd.",
+  "symbol": "ONAU",
+  "exchange": "TSXV",
+  "apiSymbol": "ONAU.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Onyx Gold Corp.",
+  "symbol": "ONYX",
+  "exchange": "TSXV",
+  "apiSymbol": "ONYX.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Opawica Explorations Inc.",
+  "symbol": "OPW",
+  "exchange": "TSXV",
+  "apiSymbol": "OPW.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Ophir Metals Corp.",
+  "symbol": "OPHR",
+  "exchange": "TSXV",
+  "apiSymbol": "OPHR.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Optegra Ventures Inc.",
+  "symbol": "OPTG",
+  "exchange": "TSXV",
+  "apiSymbol": "OPTG.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Opus One Gold Corporation",
+  "symbol": "OOR",
+  "exchange": "TSXV",
+  "apiSymbol": "OOR.V",
+  "sector": "Mining",
+  "province": "QC",
+  "country": "Canada"
+ },
+ {
+  "name": "Oracle Commodity Holding Corp.",
+  "symbol": "ORCL",
+  "exchange": "TSXV",
+  "apiSymbol": "ORCL.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Orestone Mining Corp.",
+  "symbol": "ORS",
+  "exchange": "TSXV",
+  "apiSymbol": "ORS.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Orex Minerals Inc.",
+  "symbol": "REX",
+  "exchange": "TSXV",
+  "apiSymbol": "REX.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Oroco Resource Corp.",
+  "symbol": "OCO",
+  "exchange": "TSXV",
+  "apiSymbol": "OCO.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Orogen Royalties Inc.",
+  "symbol": "OGN",
+  "exchange": "TSXV",
+  "apiSymbol": "OGN.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Orosur Mining Inc.",
+  "symbol": "OMI",
+  "exchange": "TSXV",
+  "apiSymbol": "OMI.V",
+  "sector": "Mining",
+  "province": "UK",
+  "country": "UK/Europe"
+ },
+ {
+  "name": "Osisko Development Corp.",
+  "symbol": "ODV",
+  "exchange": "TSXV",
+  "apiSymbol": "ODV.V",
+  "sector": "Mining",
+  "province": "QC",
+  "country": "Canada"
+ },
+ {
+  "name": "P2 Gold Inc.",
+  "symbol": "PGLD",
+  "exchange": "TSXV",
+  "apiSymbol": "PGLD.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Pacific Bay Minerals Ltd.",
+  "symbol": "PBM",
+  "exchange": "TSXV",
+  "apiSymbol": "PBM.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Pacific Booker Minerals Inc.",
+  "symbol": "BKM",
+  "exchange": "TSXV",
+  "apiSymbol": "BKM.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Pacific Empire Minerals Corp.",
+  "symbol": "PEMC",
+  "exchange": "TSXV",
+  "apiSymbol": "PEMC.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Pacific Imperial Mines Inc.",
+  "symbol": "PPM",
+  "exchange": "TSXV",
+  "apiSymbol": "PPM.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Pacific Ridge Exploration Ltd.",
+  "symbol": "PEX",
+  "exchange": "TSXV",
+  "apiSymbol": "PEX.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Palamina Corp.",
+  "symbol": "PA",
+  "exchange": "TSXV",
+  "apiSymbol": "PA.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Pambili Natural Resources Corporation",
+  "symbol": "PNN",
+  "exchange": "TSXV",
+  "apiSymbol": "PNN.V",
+  "sector": "Mining",
+  "province": "AB",
+  "country": "Canada"
+ },
+ {
+  "name": "Pan Global Resources Inc.",
+  "symbol": "PGZ",
+  "exchange": "TSXV",
+  "apiSymbol": "PGZ.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Panoro Minerals Ltd.",
+  "symbol": "PML",
+  "exchange": "TSXV",
+  "apiSymbol": "PML.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Pantera Silver Corp.",
+  "symbol": "PNTR",
+  "exchange": "TSXV",
+  "apiSymbol": "PNTR.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Paradigm Gold Corporation",
+  "symbol": "PDQ",
+  "exchange": "TSXV",
+  "apiSymbol": "PDQ.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Pasofino Gold Limited",
+  "symbol": "VEIN",
+  "exchange": "TSXV",
+  "apiSymbol": "VEIN.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Patagonia Gold Corp.",
+  "symbol": "PGDC",
+  "exchange": "TSXV",
+  "apiSymbol": "PGDC.V",
+  "sector": "Mining",
+  "province": "Argentina",
+  "country": "Latin America"
+ },
+ {
+  "name": "Patterson Metals Corp.",
+  "symbol": "PAT",
+  "exchange": "TSXV",
+  "apiSymbol": "PAT.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Pecoy Copper Corp.",
+  "symbol": "PCU",
+  "exchange": "TSXV",
+  "apiSymbol": "PCU.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Pegasus Resources Inc.",
+  "symbol": "PEGA",
+  "exchange": "TSXV",
+  "apiSymbol": "PEGA.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Pelangio Exploration Inc.",
+  "symbol": "PX",
+  "exchange": "TSXV",
+  "apiSymbol": "PX.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Perseverance Metals Inc.",
+  "symbol": "PMI",
+  "exchange": "TSXV",
+  "apiSymbol": "PMI.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Peruvian Metals Corp.",
+  "symbol": "PER",
+  "exchange": "TSXV",
+  "apiSymbol": "PER.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Phenom Resources Corp.",
+  "symbol": "PHNM",
+  "exchange": "TSXV",
+  "apiSymbol": "PHNM.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Pinnacle Silver and Gold Corp.",
+  "symbol": "PINN",
+  "exchange": "TSXV",
+  "apiSymbol": "PINN.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Pirate Gold Corp.",
+  "symbol": "YARR",
+  "exchange": "TSXV",
+  "apiSymbol": "YARR.V",
+  "sector": "Mining",
+  "province": "NL",
+  "country": "Canada"
+ },
+ {
+  "name": "PJX Resources Inc.",
+  "symbol": "PJX",
+  "exchange": "TSXV",
+  "apiSymbol": "PJX.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Plato Gold Corp.",
+  "symbol": "PGC",
+  "exchange": "TSXV",
+  "apiSymbol": "PGC.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Playfair Mining Ltd.",
+  "symbol": "PLY",
+  "exchange": "TSXV",
+  "apiSymbol": "PLY.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Portofino Resources Inc.",
+  "symbol": "POR",
+  "exchange": "TSXV",
+  "apiSymbol": "POR.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Power Group Projects Corp.",
+  "symbol": "PGP",
+  "exchange": "TSXV",
+  "apiSymbol": "PGP.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Power Metallic Mines Inc.",
+  "symbol": "PNPN",
+  "exchange": "TSXV",
+  "apiSymbol": "PNPN.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Power Metals Corp.",
+  "symbol": "PWM",
+  "exchange": "TSXV",
+  "apiSymbol": "PWM.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Power One Resources Corp.",
+  "symbol": "PWRO",
+  "exchange": "TSXV",
+  "apiSymbol": "PWRO.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "PPX Mining Corp.",
+  "symbol": "PPX",
+  "exchange": "TSXV",
+  "apiSymbol": "PPX.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Precipitate Gold Corp.",
+  "symbol": "PRG",
+  "exchange": "TSXV",
+  "apiSymbol": "PRG.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Premier American Uranium Inc.",
+  "symbol": "PUR",
+  "exchange": "TSXV",
+  "apiSymbol": "PUR.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Primary Hydrogen Corp.",
+  "symbol": "HDRO",
+  "exchange": "TSXV",
+  "apiSymbol": "HDRO.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "ProAm Explorations Corporation",
+  "symbol": "PMX",
+  "exchange": "TSXV",
+  "apiSymbol": "PMX.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Prospector Metals Corp.",
+  "symbol": "PPP",
+  "exchange": "TSXV",
+  "apiSymbol": "PPP.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Prosper Gold Corp.",
+  "symbol": "PGX",
+  "exchange": "TSXV",
+  "apiSymbol": "PGX.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Providence Gold Mines Inc.",
+  "symbol": "PHD",
+  "exchange": "TSXV",
+  "apiSymbol": "PHD.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "PTX Metals Inc.",
+  "symbol": "PTX",
+  "exchange": "TSXV",
+  "apiSymbol": "PTX.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Puma Exploration Inc.",
+  "symbol": "PUMA",
+  "exchange": "TSXV",
+  "apiSymbol": "PUMA.V",
+  "sector": "Mining",
+  "province": "QC",
+  "country": "Canada"
+ },
+ {
+  "name": "Pure Energy Minerals Limited",
+  "symbol": "PE",
+  "exchange": "TSXV",
+  "apiSymbol": "PE.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Purepoint Uranium Group Inc.",
+  "symbol": "PTU",
+  "exchange": "TSXV",
+  "apiSymbol": "PTU.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Purewave Hydrogen Corp.",
+  "symbol": "PWH",
+  "exchange": "TSXV",
+  "apiSymbol": "PWH.V",
+  "sector": "Mining",
+  "province": "CO",
+  "country": "USA"
+ },
+ {
+  "name": "Q2 Metals Corp.",
+  "symbol": "QTWO",
+  "exchange": "TSXV",
+  "apiSymbol": "QTWO.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "QCX Gold Corp.",
+  "symbol": "QCX",
+  "exchange": "TSXV",
+  "apiSymbol": "QCX.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Q-Gold Resources Ltd.",
+  "symbol": "QGR",
+  "exchange": "TSXV",
+  "apiSymbol": "QGR.V",
+  "sector": "Mining",
+  "province": "AZ",
+  "country": "USA"
+ },
+ {
+  "name": "QMC Quantum Minerals Corp.",
+  "symbol": "QMC",
+  "exchange": "TSXV",
+  "apiSymbol": "QMC.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Quadro Resources Ltd.",
+  "symbol": "QRO",
+  "exchange": "TSXV",
+  "apiSymbol": "QRO.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Quantum Critical Metals Corp.",
+  "symbol": "LEAP",
+  "exchange": "TSXV",
+  "apiSymbol": "LEAP.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Quartz Mountain Resources Ltd.",
+  "symbol": "QZM",
+  "exchange": "TSXV",
+  "apiSymbol": "QZM.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Quri-Mayu Developments Ltd.",
+  "symbol": "QURI",
+  "exchange": "TSXV",
+  "apiSymbol": "QURI.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Rackla Metals Inc.",
+  "symbol": "RAK",
+  "exchange": "TSXV",
+  "apiSymbol": "RAK.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Radisson Mining Resources Inc.",
+  "symbol": "RDS",
+  "exchange": "TSXV",
+  "apiSymbol": "RDS.V",
+  "sector": "Mining",
+  "province": "QC",
+  "country": "Canada"
+ },
+ {
+  "name": "Radius Gold Inc.",
+  "symbol": "RDU",
+  "exchange": "TSXV",
+  "apiSymbol": "RDU.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Rainy Mountain Royalty Corp.",
+  "symbol": "RMO",
+  "exchange": "TSXV",
+  "apiSymbol": "RMO.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Ramp Metals Inc.",
+  "symbol": "RAMP",
+  "exchange": "TSXV",
+  "apiSymbol": "RAMP.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Ranchero Gold Corp.",
+  "symbol": "RNCH",
+  "exchange": "TSXV",
+  "apiSymbol": "RNCH.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Rathdowney Resources Ltd.",
+  "symbol": "RTH",
+  "exchange": "TSXV",
+  "apiSymbol": "RTH.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Record Resources Inc.",
+  "symbol": "REC",
+  "exchange": "TSXV",
+  "apiSymbol": "REC.V",
+  "sector": "Mining",
+  "province": "AB",
+  "country": "Canada"
+ },
+ {
+  "name": "Red Pine Exploration Inc.",
+  "symbol": "RPX",
+  "exchange": "TSXV",
+  "apiSymbol": "RPX.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "ReeXploration Inc.",
+  "symbol": "REE",
+  "exchange": "TSXV",
+  "apiSymbol": "REE.V",
+  "sector": "Mining",
+  "province": "NS",
+  "country": "Canada"
+ },
+ {
+  "name": "Regency Silver Corp.",
+  "symbol": "RSMX",
+  "exchange": "TSXV",
+  "apiSymbol": "RSMX.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Regulus Resources Inc.",
+  "symbol": "REG",
+  "exchange": "TSXV",
+  "apiSymbol": "REG.V",
+  "sector": "Mining",
+  "province": "AB",
+  "country": "Canada"
+ },
+ {
+  "name": "Relevant Gold Corp.",
+  "symbol": "RGC",
+  "exchange": "TSXV",
+  "apiSymbol": "RGC.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Renegade Gold Inc.",
+  "symbol": "RAGE",
+  "exchange": "TSXV",
+  "apiSymbol": "RAGE.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Resouro Strategic Metals Inc.",
+  "symbol": "RSM",
+  "exchange": "TSXV",
+  "apiSymbol": "RSM.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Rev Exploration Corp.",
+  "symbol": "REVX",
+  "exchange": "TSXV",
+  "apiSymbol": "REVX.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Revival Gold Inc.",
+  "symbol": "RVG",
+  "exchange": "TSXV",
+  "apiSymbol": "RVG.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Rex Resources Corp.",
+  "symbol": "OWN",
+  "exchange": "TSXV",
+  "apiSymbol": "OWN.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Rhyolite Resources Ltd.",
+  "symbol": "RYE",
+  "exchange": "TSXV",
+  "apiSymbol": "RYE.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Richmond Minerals Inc.",
+  "symbol": "RMD",
+  "exchange": "TSXV",
+  "apiSymbol": "RMD.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Ridgeline Minerals Corp.",
+  "symbol": "RDG",
+  "exchange": "TSXV",
+  "apiSymbol": "RDG.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Ridgestone Mining Inc.",
+  "symbol": "RMI",
+  "exchange": "TSXV",
+  "apiSymbol": "RMI.V",
+  "sector": "Mining",
+  "province": "Taiwan",
+  "country": "Asia"
+ },
+ {
+  "name": "Riley Gold Corp.",
+  "symbol": "RLYG",
+  "exchange": "TSXV",
+  "apiSymbol": "RLYG.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Rio Silver Inc.",
+  "symbol": "RYO",
+  "exchange": "TSXV",
+  "apiSymbol": "RYO.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "River Road Resources Ltd.",
+  "symbol": "RRRL",
+  "exchange": "TSXV",
+  "apiSymbol": "RRRL.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Riverside Resources Inc.",
+  "symbol": "RRI",
+  "exchange": "TSXV",
+  "apiSymbol": "RRI.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "RJK Explorations Ltd.",
+  "symbol": "RJX",
+  "exchange": "TSXV",
+  "apiSymbol": "RJX.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Robex Resources Inc.",
+  "symbol": "RBX",
+  "exchange": "TSXV",
+  "apiSymbol": "RBX.V",
+  "sector": "Mining",
+  "province": "QC",
+  "country": "Canada"
+ },
+ {
+  "name": "Rochester Resources Ltd.",
+  "symbol": "RCT",
+  "exchange": "TSXV",
+  "apiSymbol": "RCT.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Rock Tech Lithium Inc.",
+  "symbol": "RCK",
+  "exchange": "TSXV",
+  "apiSymbol": "RCK.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Rockhaven Resources Ltd.",
+  "symbol": "RK",
+  "exchange": "TSXV",
+  "apiSymbol": "RK.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Rokmaster Resources Corp.",
+  "symbol": "RKR",
+  "exchange": "TSXV",
+  "apiSymbol": "RKR.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Roland Minerals Enterprises Corp.",
+  "symbol": "RME",
+  "exchange": "TSXV",
+  "apiSymbol": "RME.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Romios Gold Resources Inc.",
+  "symbol": "RG",
+  "exchange": "TSXV",
+  "apiSymbol": "RG.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Roscan Gold Corporation",
+  "symbol": "ROS",
+  "exchange": "TSXV",
+  "apiSymbol": "ROS.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Route 109 Resources Inc.",
+  "symbol": "RTE",
+  "exchange": "TSXV",
+  "apiSymbol": "RTE.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Royal Road Minerals Limited",
+  "symbol": "RYR",
+  "exchange": "TSXV",
+  "apiSymbol": "RYR.V",
+  "sector": "Mining",
+  "province": "Jersey",
+  "country": "UK/Europe"
+ },
+ {
+  "name": "RT Minerals Corp.",
+  "symbol": "RTM",
+  "exchange": "TSXV",
+  "apiSymbol": "RTM.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Rua Gold Inc.",
+  "symbol": "RUA",
+  "exchange": "TSXV",
+  "apiSymbol": "RUA.V",
+  "sector": "Mining",
+  "province": "New Zealand",
+  "country": "Australia/NZ/PNG"
+ },
+ {
+  "name": "Rusoro Mining Ltd.",
+  "symbol": "RML",
+  "exchange": "TSXV",
+  "apiSymbol": "RML.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Sable Resources Ltd.",
+  "symbol": "SAE",
+  "exchange": "TSXV",
+  "apiSymbol": "SAE.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Saga Metals Corp.",
+  "symbol": "SAGA",
+  "exchange": "TSXV",
+  "apiSymbol": "SAGA.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Sage Potash Corp.",
+  "symbol": "SAGE",
+  "exchange": "TSXV",
+  "apiSymbol": "SAGE.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Sailfish Royalty Corp.",
+  "symbol": "FISH",
+  "exchange": "TSXV",
+  "apiSymbol": "FISH.V",
+  "sector": "Mining",
+  "province": "British Virgin Islands",
+  "country": "Latin America"
+ },
+ {
+  "name": "Salazar Resources Limited",
+  "symbol": "SRL",
+  "exchange": "TSXV",
+  "apiSymbol": "SRL.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Sama Resources Inc.",
+  "symbol": "SME",
+  "exchange": "TSXV",
+  "apiSymbol": "SME.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "San Lorenzo Gold Corp.",
+  "symbol": "SLG",
+  "exchange": "TSXV",
+  "apiSymbol": "SLG.V",
+  "sector": "Mining",
+  "province": "AB",
+  "country": "Canada"
+ },
+ {
+  "name": "Sandfire Resources America Inc.",
+  "symbol": "SFR",
+  "exchange": "TSXV",
+  "apiSymbol": "SFR.V",
+  "sector": "Mining",
+  "province": "MT",
+  "country": "USA"
+ },
+ {
+  "name": "Santacruz Silver Mining Ltd.",
+  "symbol": "SCZ",
+  "exchange": "TSXV",
+  "apiSymbol": "SCZ.V",
+  "sector": "Mining",
+  "province": "Mexico",
+  "country": "Latin America"
+ },
+ {
+  "name": "Sarama Resources Ltd.",
+  "symbol": "SWA",
+  "exchange": "TSXV",
+  "apiSymbol": "SWA.V",
+  "sector": "Mining",
+  "province": "Australia",
+  "country": "Australia/NZ/PNG"
+ },
+ {
+  "name": "Scandium Canada Ltd.",
+  "symbol": "SCD",
+  "exchange": "TSXV",
+  "apiSymbol": "SCD.V",
+  "sector": "Mining",
+  "province": "QC",
+  "country": "Canada"
+ },
+ {
+  "name": "Scandium International Mining Corp.",
+  "symbol": "SCY",
+  "exchange": "TSXV",
+  "apiSymbol": "SCY.V",
+  "sector": "Mining",
+  "province": "NV",
+  "country": "USA"
+ },
+ {
+  "name": "Scorpio Gold Corporation",
+  "symbol": "SGN",
+  "exchange": "TSXV",
+  "apiSymbol": "SGN.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Scottie Resources Corp.",
+  "symbol": "SCOT",
+  "exchange": "TSXV",
+  "apiSymbol": "SCOT.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Search Minerals Inc.",
+  "symbol": "SMY",
+  "exchange": "TSXV",
+  "apiSymbol": "SMY.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Searchlight Resources Inc.",
+  "symbol": "SCLT",
+  "exchange": "TSXV",
+  "apiSymbol": "SCLT.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Sego Resources Inc.",
+  "symbol": "SGZ",
+  "exchange": "TSXV",
+  "apiSymbol": "SGZ.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Selkirk Copper Mines Inc.",
+  "symbol": "SCMI",
+  "exchange": "TSXV",
+  "apiSymbol": "SCMI.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Sendero Resources Corp.",
+  "symbol": "SEND",
+  "exchange": "TSXV",
+  "apiSymbol": "SEND.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Sherpa II Holdings Corp.",
+  "symbol": "SHRP",
+  "exchange": "TSXV",
+  "apiSymbol": "SHRP.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Sienna Resources Inc.",
+  "symbol": "SIEN",
+  "exchange": "TSXV",
+  "apiSymbol": "SIEN.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Sierra Madre Gold and Silver Ltd.",
+  "symbol": "SM",
+  "exchange": "TSXV",
+  "apiSymbol": "SM.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Sigma Lithium Corporation",
+  "symbol": "SGML",
+  "exchange": "TSXV",
+  "apiSymbol": "SGML.V",
+  "sector": "Mining",
+  "province": "Brazil",
+  "country": "Latin America"
+ },
+ {
+  "name": "Signature Resources Ltd.",
+  "symbol": "SGU",
+  "exchange": "TSXV",
+  "apiSymbol": "SGU.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Silver Bullet Mines Corp.",
+  "symbol": "SBMI",
+  "exchange": "TSXV",
+  "apiSymbol": "SBMI.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Silver Grail Resources Ltd.",
+  "symbol": "SVG",
+  "exchange": "TSXV",
+  "apiSymbol": "SVG.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Silver Mountain Resources Inc.",
+  "symbol": "AGMR",
+  "exchange": "TSXV",
+  "apiSymbol": "AGMR.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Silver North Resources Ltd.",
+  "symbol": "SNAG",
+  "exchange": "TSXV",
+  "apiSymbol": "SNAG.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Silver One Resources Inc.",
+  "symbol": "SVE",
+  "exchange": "TSXV",
+  "apiSymbol": "SVE.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Silver Predator Corp.",
+  "symbol": "SPD",
+  "exchange": "TSXV",
+  "apiSymbol": "SPD.V",
+  "sector": "Mining",
+  "province": "ID",
+  "country": "USA"
+ },
+ {
+  "name": "Silver Range Resources Ltd.",
+  "symbol": "SNG",
+  "exchange": "TSXV",
+  "apiSymbol": "SNG.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Silver Spruce Resources Inc.",
+  "symbol": "SSE",
+  "exchange": "TSXV",
+  "apiSymbol": "SSE.V",
+  "sector": "Mining",
+  "province": "NS",
+  "country": "Canada"
+ },
+ {
+  "name": "Silver Storm Mining Ltd.",
+  "symbol": "SVRS",
+  "exchange": "TSXV",
+  "apiSymbol": "SVRS.V",
+  "sector": "Mining",
+  "province": "QC",
+  "country": "Canada"
+ },
+ {
+  "name": "Silver Tiger Metals Inc.",
+  "symbol": "SLVR",
+  "exchange": "TSXV",
+  "apiSymbol": "SLVR.V",
+  "sector": "Mining",
+  "province": "NS",
+  "country": "Canada"
+ },
+ {
+  "name": "Silver Valley Metals Corp.",
+  "symbol": "SILV",
+  "exchange": "TSXV",
+  "apiSymbol": "SILV.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Silver Viper Minerals Corp.",
+  "symbol": "VIPR",
+  "exchange": "TSXV",
+  "apiSymbol": "VIPR.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Silver Wolf Exploration Ltd.",
+  "symbol": "SWLF",
+  "exchange": "TSXV",
+  "apiSymbol": "SWLF.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Silver X Mining Corp.",
+  "symbol": "AGX",
+  "exchange": "TSXV",
+  "apiSymbol": "AGX.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Silver47 Exploration Corp.",
+  "symbol": "AGA",
+  "exchange": "TSXV",
+  "apiSymbol": "AGA.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Silverco Mining Ltd.",
+  "symbol": "SICO",
+  "exchange": "TSXV",
+  "apiSymbol": "SICO.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Sirios Resources Inc.",
+  "symbol": "SOI",
+  "exchange": "TSXV",
+  "apiSymbol": "SOI.V",
+  "sector": "Mining",
+  "province": "QC",
+  "country": "Canada"
+ },
+ {
+  "name": "Sitka Gold Corp.",
+  "symbol": "SIG",
+  "exchange": "TSXV",
+  "apiSymbol": "SIG.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "SKRR Exploration Inc.",
+  "symbol": "SKRR",
+  "exchange": "TSXV",
+  "apiSymbol": "SKRR.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Sky Gold Corp.",
+  "symbol": "SKYG",
+  "exchange": "TSXV",
+  "apiSymbol": "SKYG.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Skyharbour Resources Ltd.",
+  "symbol": "SYH",
+  "exchange": "TSXV",
+  "apiSymbol": "SYH.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "SLAM Exploration Ltd.",
+  "symbol": "SXL",
+  "exchange": "TSXV",
+  "apiSymbol": "SXL.V",
+  "sector": "Mining",
+  "province": "NB",
+  "country": "Canada"
+ },
+ {
+  "name": "Smooth Rock Ventures Corp.",
+  "symbol": "SMRV",
+  "exchange": "TSXV",
+  "apiSymbol": "SMRV.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Solstice Gold Corp.",
+  "symbol": "SGC",
+  "exchange": "TSXV",
+  "apiSymbol": "SGC.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Soma Gold Corp.",
+  "symbol": "SOMA",
+  "exchange": "TSXV",
+  "apiSymbol": "SOMA.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Sonoro Gold Corp.",
+  "symbol": "SGO",
+  "exchange": "TSXV",
+  "apiSymbol": "SGO.V",
+  "sector": "Mining",
+  "province": "AB",
+  "country": "Canada"
+ },
+ {
+  "name": "South Atlantic Gold Inc.",
+  "symbol": "SAO",
+  "exchange": "TSXV",
+  "apiSymbol": "SAO.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "South Pacific Metals Corp.",
+  "symbol": "SPMC",
+  "exchange": "TSXV",
+  "apiSymbol": "SPMC.V",
+  "sector": "Mining",
+  "province": "Singapore",
+  "country": "Asia"
+ },
+ {
+  "name": "South Star Battery Metals Corp.",
+  "symbol": "STS",
+  "exchange": "TSXV",
+  "apiSymbol": "STS.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Southern Empire Resources Corp.",
+  "symbol": "SMP",
+  "exchange": "TSXV",
+  "apiSymbol": "SMP.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Southern Silver Exploration Corp.",
+  "symbol": "SSV",
+  "exchange": "TSXV",
+  "apiSymbol": "SSV.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "SouthGobi Resources Ltd.",
+  "symbol": "SGQ",
+  "exchange": "TSXV",
+  "apiSymbol": "SGQ.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Southstone Minerals Limited",
+  "symbol": "SML",
+  "exchange": "TSXV",
+  "apiSymbol": "SML.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Spanish Mountain Gold Ltd.",
+  "symbol": "SPA",
+  "exchange": "TSXV",
+  "apiSymbol": "SPA.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Spartan Metals Corp.",
+  "symbol": "W",
+  "exchange": "TSXV",
+  "apiSymbol": "W.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Sparton Resources Inc.",
+  "symbol": "SRI",
+  "exchange": "TSXV",
+  "apiSymbol": "SRI.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "SPC Nickel Corp.",
+  "symbol": "SPC",
+  "exchange": "TSXV",
+  "apiSymbol": "SPC.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "SRQ Resources Inc.",
+  "symbol": "SRQ",
+  "exchange": "TSXV",
+  "apiSymbol": "SRQ.V",
+  "sector": "Mining",
+  "province": "QC",
+  "country": "Canada"
+ },
+ {
+  "name": "St. James Gold Corp.",
+  "symbol": "LORD",
+  "exchange": "TSXV",
+  "apiSymbol": "LORD.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Stakeholder Gold Corp.",
+  "symbol": "SRC",
+  "exchange": "TSXV",
+  "apiSymbol": "SRC.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Stallion Uranium Corp.",
+  "symbol": "STUD",
+  "exchange": "TSXV",
+  "apiSymbol": "STUD.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Standard Lithium Ltd.",
+  "symbol": "SLI",
+  "exchange": "TSXV",
+  "apiSymbol": "SLI.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Standard Uranium Ltd.",
+  "symbol": "STND",
+  "exchange": "TSXV",
+  "apiSymbol": "STND.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Star Royalties Ltd.",
+  "symbol": "STRR",
+  "exchange": "TSXV",
+  "apiSymbol": "STRR.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Starr Peak Mining Ltd.",
+  "symbol": "STE",
+  "exchange": "TSXV",
+  "apiSymbol": "STE.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Stellar AfricaGold Inc.",
+  "symbol": "SPX",
+  "exchange": "TSXV",
+  "apiSymbol": "SPX.V",
+  "sector": "Mining",
+  "province": "QC",
+  "country": "Canada"
+ },
+ {
+  "name": "Sterling Metals Corp.",
+  "symbol": "SAG",
+  "exchange": "TSXV",
+  "apiSymbol": "SAG.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Stillwater Critical Minerals Corp.",
+  "symbol": "PGE",
+  "exchange": "TSXV",
+  "apiSymbol": "PGE.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Stockworks Gold Inc.",
+  "symbol": "STW",
+  "exchange": "TSXV",
+  "apiSymbol": "STW.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Storm Exploration Inc.",
+  "symbol": "STRM",
+  "exchange": "TSXV",
+  "apiSymbol": "STRM.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Strategic Metals Ltd.",
+  "symbol": "SMD",
+  "exchange": "TSXV",
+  "apiSymbol": "SMD.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Strategic Resources Inc.",
+  "symbol": "SR",
+  "exchange": "TSXV",
+  "apiSymbol": "SR.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Stria Lithium Inc.",
+  "symbol": "SRA",
+  "exchange": "TSXV",
+  "apiSymbol": "SRA.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Strikepoint Gold Inc.",
+  "symbol": "SKP",
+  "exchange": "TSXV",
+  "apiSymbol": "SKP.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Stroud Resources Ltd.",
+  "symbol": "SDR",
+  "exchange": "TSXV",
+  "apiSymbol": "SDR.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Stuhini Exploration Ltd.",
+  "symbol": "STU",
+  "exchange": "TSXV",
+  "apiSymbol": "STU.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Stuve Gold Corp.",
+  "symbol": "STUV",
+  "exchange": "TSXV",
+  "apiSymbol": "STUV.V",
+  "sector": "Mining",
+  "province": "AB",
+  "country": "Canada"
+ },
+ {
+  "name": "Summit Royalties Ltd.",
+  "symbol": "SUM",
+  "exchange": "TSXV",
+  "apiSymbol": "SUM.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Sun Peak Metals Corp.",
+  "symbol": "PEAK",
+  "exchange": "TSXV",
+  "apiSymbol": "PEAK.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Sun Summit Minerals Corp.",
+  "symbol": "SMN",
+  "exchange": "TSXV",
+  "apiSymbol": "SMN.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Superior Mining International Corporation",
+  "symbol": "SUI",
+  "exchange": "TSXV",
+  "apiSymbol": "SUI.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Surge Battery Metals Inc.",
+  "symbol": "NILI",
+  "exchange": "TSXV",
+  "apiSymbol": "NILI.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Surge Copper Corp.",
+  "symbol": "SURG",
+  "exchange": "TSXV",
+  "apiSymbol": "SURG.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Sylla Gold Corp.",
+  "symbol": "SYG",
+  "exchange": "TSXV",
+  "apiSymbol": "SYG.V",
+  "sector": "Mining",
+  "province": "NS",
+  "country": "Canada"
+ },
+ {
+  "name": "T2 Metals Corp.",
+  "symbol": "TWO",
+  "exchange": "TSXV",
+  "apiSymbol": "TWO.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Tactical Resources Corp.",
+  "symbol": "RARE",
+  "exchange": "TSXV",
+  "apiSymbol": "RARE.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Tajiri Resources Corp.",
+  "symbol": "TAJ",
+  "exchange": "TSXV",
+  "apiSymbol": "TAJ.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Taranis Resources Inc.",
+  "symbol": "TRO",
+  "exchange": "TSXV",
+  "apiSymbol": "TRO.V",
+  "sector": "Mining",
+  "province": "CO",
+  "country": "USA"
+ },
+ {
+  "name": "Tarku Resources Ltd.",
+  "symbol": "TKU",
+  "exchange": "TSXV",
+  "apiSymbol": "TKU.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "TDG Gold Corp.",
+  "symbol": "TDG",
+  "exchange": "TSXV",
+  "apiSymbol": "TDG.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Tearlach Resources Limited",
+  "symbol": "TEA",
+  "exchange": "TSXV",
+  "apiSymbol": "TEA.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Tectonic Metals Inc.",
+  "symbol": "TECT",
+  "exchange": "TSXV",
+  "apiSymbol": "TECT.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Terra Rossa Gold Ltd.",
+  "symbol": "TRR",
+  "exchange": "TSXV",
+  "apiSymbol": "TRR.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Tesoro Minerals Corp.",
+  "symbol": "TES",
+  "exchange": "TSXV",
+  "apiSymbol": "TES.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Teuton Resources Corp.",
+  "symbol": "TUO",
+  "exchange": "TSXV",
+  "apiSymbol": "TUO.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "TGX Energy & Resources Inc.",
+  "symbol": "TGX",
+  "exchange": "TSXV",
+  "apiSymbol": "TGX.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Thesis Gold Inc.",
+  "symbol": "TAU",
+  "exchange": "TSXV",
+  "apiSymbol": "TAU.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Thor Explorations Ltd.",
+  "symbol": "THX",
+  "exchange": "TSXV",
+  "apiSymbol": "THX.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Thunder Gold Corp.",
+  "symbol": "TGOL",
+  "exchange": "TSXV",
+  "apiSymbol": "TGOL.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Thunder Mountain Gold, Inc.",
+  "symbol": "THM",
+  "exchange": "TSXV",
+  "apiSymbol": "THM.V",
+  "sector": "Mining",
+  "province": "ID",
+  "country": "USA"
+ },
+ {
+  "name": "Thunderbird Minerals Corp.",
+  "symbol": "BIRD",
+  "exchange": "TSXV",
+  "apiSymbol": "BIRD.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Thunderstruck Resources Ltd.",
+  "symbol": "AWE",
+  "exchange": "TSXV",
+  "apiSymbol": "AWE.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Tier One Silver Inc.",
+  "symbol": "TSLV",
+  "exchange": "TSXV",
+  "apiSymbol": "TSLV.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Tiernan Gold Corp.",
+  "symbol": "TNGD",
+  "exchange": "TSXV",
+  "apiSymbol": "TNGD.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Tiger Gold Corp.",
+  "symbol": "TIGR",
+  "exchange": "TSXV",
+  "apiSymbol": "TIGR.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Tincorp Metals Inc.",
+  "symbol": "TIN",
+  "exchange": "TSXV",
+  "apiSymbol": "TIN.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Tinka Resources Limited",
+  "symbol": "TK",
+  "exchange": "TSXV",
+  "apiSymbol": "TK.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "TinOne Resources Inc.",
+  "symbol": "TORC",
+  "exchange": "TSXV",
+  "apiSymbol": "TORC.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Tintina Mines Ltd.",
+  "symbol": "TTS",
+  "exchange": "TSXV",
+  "apiSymbol": "TTS.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "TNR Gold Corp.",
+  "symbol": "TNR",
+  "exchange": "TSXV",
+  "apiSymbol": "TNR.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "TomaGold Corporation",
+  "symbol": "LOT",
+  "exchange": "TSXV",
+  "apiSymbol": "LOT.V",
+  "sector": "Mining",
+  "province": "QC",
+  "country": "Canada"
+ },
+ {
+  "name": "Tombill Mines Limited",
+  "symbol": "TBLL",
+  "exchange": "TSXV",
+  "apiSymbol": "TBLL.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Toogood Gold Corp.",
+  "symbol": "TGC",
+  "exchange": "TSXV",
+  "apiSymbol": "TGC.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Torq Resources Inc.",
+  "symbol": "TORQ",
+  "exchange": "TSXV",
+  "apiSymbol": "TORQ.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Torr Metals Inc.",
+  "symbol": "TMET",
+  "exchange": "TSXV",
+  "apiSymbol": "TMET.V",
+  "sector": "Mining",
+  "province": "AB",
+  "country": "Canada"
+ },
+ {
+  "name": "Total Metals Corp.",
+  "symbol": "TT",
+  "exchange": "TSXV",
+  "apiSymbol": "TT.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Tower Resources Ltd.",
+  "symbol": "TWR",
+  "exchange": "TSXV",
+  "apiSymbol": "TWR.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Trailbreaker Resources Ltd.",
+  "symbol": "TBK",
+  "exchange": "TSXV",
+  "apiSymbol": "TBK.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Transatlantic Mining Corp.",
+  "symbol": "TCO",
+  "exchange": "TSXV",
+  "apiSymbol": "TCO.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Transition Metals Corp.",
+  "symbol": "XTM",
+  "exchange": "TSXV",
+  "apiSymbol": "XTM.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Tres-Or Resources Ltd.",
+  "symbol": "TRS",
+  "exchange": "TSXV",
+  "apiSymbol": "TRS.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Tribeca Resources Corporation",
+  "symbol": "TRBC",
+  "exchange": "TSXV",
+  "apiSymbol": "TRBC.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Trident Resources Corp.",
+  "symbol": "ROCK",
+  "exchange": "TSXV",
+  "apiSymbol": "ROCK.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Trifecta Gold Ltd.",
+  "symbol": "TG",
+  "exchange": "TSXV",
+  "apiSymbol": "TG.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Trigon Metals Inc.",
+  "symbol": "TM",
+  "exchange": "TSXV",
+  "apiSymbol": "TM.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Trinity One Metals Ltd.",
+  "symbol": "TOM",
+  "exchange": "TSXV",
+  "apiSymbol": "TOM.V",
+  "sector": "Mining",
+  "province": "Mongolia",
+  "country": "Asia"
+ },
+ {
+  "name": "Tristar Gold Inc.",
+  "symbol": "TSG",
+  "exchange": "TSXV",
+  "apiSymbol": "TSG.V",
+  "sector": "Mining",
+  "province": "TX",
+  "country": "USA"
+ },
+ {
+  "name": "Triumph Gold Corp.",
+  "symbol": "TIG",
+  "exchange": "TSXV",
+  "apiSymbol": "TIG.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Troubadour Resources Inc.",
+  "symbol": "TR",
+  "exchange": "TSXV",
+  "apiSymbol": "TR.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "TRU Precious Metals Corp.",
+  "symbol": "TRU",
+  "exchange": "TSXV",
+  "apiSymbol": "TRU.V",
+  "sector": "Mining",
+  "province": "NB",
+  "country": "Canada"
+ },
+ {
+  "name": "Tsodilo Resources Limited",
+  "symbol": "TSD",
+  "exchange": "TSXV",
+  "apiSymbol": "TSD.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Tudor Gold Corp.",
+  "symbol": "TUD",
+  "exchange": "TSXV",
+  "apiSymbol": "TUD.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Tuktu Resources Ltd.",
+  "symbol": "TUK",
+  "exchange": "TSXV",
+  "apiSymbol": "TUK.V",
+  "sector": "Mining",
+  "province": "AB",
+  "country": "Canada"
+ },
+ {
+  "name": "TVI Pacific Inc.",
+  "symbol": "TVI",
+  "exchange": "TSXV",
+  "apiSymbol": "TVI.V",
+  "sector": "Mining",
+  "province": "AB",
+  "country": "Canada"
+ },
+ {
+  "name": "Ucore Rare Metals Inc.",
+  "symbol": "UCU",
+  "exchange": "TSXV",
+  "apiSymbol": "UCU.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Ultra Lithium Inc.",
+  "symbol": "ULT",
+  "exchange": "TSXV",
+  "apiSymbol": "ULT.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Unigold Inc.",
+  "symbol": "UGD",
+  "exchange": "TSXV",
+  "apiSymbol": "UGD.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "URZ3 Energy Corp.",
+  "symbol": "URZ",
+  "exchange": "TSXV",
+  "apiSymbol": "URZ.V",
+  "sector": "Mining",
+  "province": "QC",
+  "country": "Canada"
+ },
+ {
+  "name": "US Copper Corp.",
+  "symbol": "USCU",
+  "exchange": "TSXV",
+  "apiSymbol": "USCU.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Usha Resources Ltd.",
+  "symbol": "USHA",
+  "exchange": "TSXV",
+  "apiSymbol": "USHA.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Val-D'Or Mining Corporation",
+  "symbol": "VZZ",
+  "exchange": "TSXV",
+  "apiSymbol": "VZZ.V",
+  "sector": "Mining",
+  "province": "QC",
+  "country": "Canada"
+ },
+ {
+  "name": "Valhalla Metals Inc.",
+  "symbol": "VMXX",
+  "exchange": "TSXV",
+  "apiSymbol": "VMXX.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Valkea Resources Corp.",
+  "symbol": "OZ",
+  "exchange": "TSXV",
+  "apiSymbol": "OZ.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "ValOre Metals Corp.",
+  "symbol": "VO",
+  "exchange": "TSXV",
+  "apiSymbol": "VO.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "VanadiumCorp Resource Inc.",
+  "symbol": "VRB",
+  "exchange": "TSXV",
+  "apiSymbol": "VRB.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Vantex Resources Ltd.",
+  "symbol": "VAX",
+  "exchange": "TSXV",
+  "apiSymbol": "VAX.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Vatic Ventures Corp.",
+  "symbol": "VCV",
+  "exchange": "TSXV",
+  "apiSymbol": "VCV.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Vault Strategic Mining Corp.",
+  "symbol": "KNOX",
+  "exchange": "TSXV",
+  "apiSymbol": "KNOX.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Velocity Minerals Ltd.",
+  "symbol": "VLC",
+  "exchange": "TSXV",
+  "apiSymbol": "VLC.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Velox Energy Materials Inc.",
+  "symbol": "VLX",
+  "exchange": "TSXV",
+  "apiSymbol": "VLX.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Vendetta Mining Corp.",
+  "symbol": "VTT",
+  "exchange": "TSXV",
+  "apiSymbol": "VTT.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Vertical Exploration Inc.",
+  "symbol": "VERT",
+  "exchange": "TSXV",
+  "apiSymbol": "VERT.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Vinland Lithium Inc.",
+  "symbol": "VLD",
+  "exchange": "TSXV",
+  "apiSymbol": "VLD.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Vior Gold Corporation Inc.",
+  "symbol": "VIO",
+  "exchange": "TSXV",
+  "apiSymbol": "VIO.V",
+  "sector": "Mining",
+  "province": "QC",
+  "country": "Canada"
+ },
+ {
+  "name": "Viscount Mining Corp.",
+  "symbol": "VML",
+  "exchange": "TSXV",
+  "apiSymbol": "VML.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Visible Gold Mines Inc.",
+  "symbol": "VGD",
+  "exchange": "TSXV",
+  "apiSymbol": "VGD.V",
+  "sector": "Mining",
+  "province": "QC",
+  "country": "Canada"
+ },
+ {
+  "name": "Vision Lithium inc.",
+  "symbol": "VLI",
+  "exchange": "TSXV",
+  "apiSymbol": "VLI.V",
+  "sector": "Mining",
+  "province": "QC",
+  "country": "Canada"
+ },
+ {
+  "name": "Visionary Copper and Gold Mines Inc.",
+  "symbol": "VCG",
+  "exchange": "TSXV",
+  "apiSymbol": "VCG.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Visionary Metals Corp.",
+  "symbol": "VIZ",
+  "exchange": "TSXV",
+  "apiSymbol": "VIZ.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Viva Gold Corp.",
+  "symbol": "VAU",
+  "exchange": "TSXV",
+  "apiSymbol": "VAU.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Vizsla Copper Corp.",
+  "symbol": "VCU",
+  "exchange": "TSXV",
+  "apiSymbol": "VCU.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Vizsla Royalties Corp.",
+  "symbol": "VROY",
+  "exchange": "TSXV",
+  "apiSymbol": "VROY.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Volcanic Gold Mines Inc.",
+  "symbol": "VG",
+  "exchange": "TSXV",
+  "apiSymbol": "VG.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Volt Carbon Technologies Inc.",
+  "symbol": "VCT",
+  "exchange": "TSXV",
+  "apiSymbol": "VCT.V",
+  "sector": "Mining",
+  "province": "AB",
+  "country": "Canada"
+ },
+ {
+  "name": "Vortex Metals Inc.",
+  "symbol": "VMS",
+  "exchange": "TSXV",
+  "apiSymbol": "VMS.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Voyageur Pharmaceuticals Ltd.",
+  "symbol": "VM",
+  "exchange": "TSXV",
+  "apiSymbol": "VM.V",
+  "sector": "Mining",
+  "province": "AB",
+  "country": "Canada"
+ },
+ {
+  "name": "VR Resources Ltd.",
+  "symbol": "VRR",
+  "exchange": "TSXV",
+  "apiSymbol": "VRR.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Vulcan Minerals Inc.",
+  "symbol": "VUL",
+  "exchange": "TSXV",
+  "apiSymbol": "VUL.V",
+  "sector": "Mining",
+  "province": "NL",
+  "country": "Canada"
+ },
+ {
+  "name": "VVC Exploration Corp.",
+  "symbol": "VVC",
+  "exchange": "TSXV",
+  "apiSymbol": "VVC.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Walker Lane Resources Ltd.",
+  "symbol": "WLR",
+  "exchange": "TSXV",
+  "apiSymbol": "WLR.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Walker River Resources Corp.",
+  "symbol": "WRR",
+  "exchange": "TSXV",
+  "apiSymbol": "WRR.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Waseco Resources Inc.",
+  "symbol": "WRI",
+  "exchange": "TSXV",
+  "apiSymbol": "WRI.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Wealth Minerals Ltd.",
+  "symbol": "WML",
+  "exchange": "TSXV",
+  "apiSymbol": "WML.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Wescan Goldfields Inc.",
+  "symbol": "WGF",
+  "exchange": "TSXV",
+  "apiSymbol": "WGF.V",
+  "sector": "Mining",
+  "province": "SK",
+  "country": "Canada"
+ },
+ {
+  "name": "West High Yield (W.H.Y.) Resources Ltd.",
+  "symbol": "WHY",
+  "exchange": "TSXV",
+  "apiSymbol": "WHY.V",
+  "sector": "Mining",
+  "province": "AB",
+  "country": "Canada"
+ },
+ {
+  "name": "West Point Gold Corp.",
+  "symbol": "WPG",
+  "exchange": "TSXV",
+  "apiSymbol": "WPG.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "West Red Lake Gold Mines Ltd.",
+  "symbol": "WRLG",
+  "exchange": "TSXV",
+  "apiSymbol": "WRLG.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "West Vault Mining Inc.",
+  "symbol": "WVM",
+  "exchange": "TSXV",
+  "apiSymbol": "WVM.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Western Exploration Inc.",
+  "symbol": "WEX",
+  "exchange": "TSXV",
+  "apiSymbol": "WEX.V",
+  "sector": "Mining",
+  "province": "NV",
+  "country": "USA"
+ },
+ {
+  "name": "Western Gold Exploration Ltd.",
+  "symbol": "WGLD",
+  "exchange": "TSXV",
+  "apiSymbol": "WGLD.V",
+  "sector": "Mining",
+  "province": "Scotland",
+  "country": "UK/Europe"
+ },
+ {
+  "name": "Western Metallica Resources Corp.",
+  "symbol": "WMS",
+  "exchange": "TSXV",
+  "apiSymbol": "WMS.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Westhaven Gold Corp.",
+  "symbol": "WHN",
+  "exchange": "TSXV",
+  "apiSymbol": "WHN.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "WestKam Gold Corp.",
+  "symbol": "WKG",
+  "exchange": "TSXV",
+  "apiSymbol": "WKG.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "White Gold Corp.",
+  "symbol": "WGO",
+  "exchange": "TSXV",
+  "apiSymbol": "WGO.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Whitemud Resources Inc.",
+  "symbol": "WMK",
+  "exchange": "TSXV",
+  "apiSymbol": "WMK.V",
+  "sector": "Mining",
+  "province": "AB",
+  "country": "Canada"
+ },
+ {
+  "name": "Wildsky Resources Inc.",
+  "symbol": "WSK",
+  "exchange": "TSXV",
+  "apiSymbol": "WSK.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Winchester Equity Corporation",
+  "symbol": "WEC",
+  "exchange": "TSXV",
+  "apiSymbol": "WEC.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Winshear Gold Corp.",
+  "symbol": "WINS",
+  "exchange": "TSXV",
+  "apiSymbol": "WINS.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Wolfden Resources Corporation",
+  "symbol": "WLF",
+  "exchange": "TSXV",
+  "apiSymbol": "WLF.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "World Copper Ltd.",
+  "symbol": "WCU",
+  "exchange": "TSXV",
+  "apiSymbol": "WCU.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Xali Gold Corp.",
+  "symbol": "XGC",
+  "exchange": "TSXV",
+  "apiSymbol": "XGC.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "XAU Resources Inc.",
+  "symbol": "GIG",
+  "exchange": "TSXV",
+  "apiSymbol": "GIG.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Ximen Mining Corp.",
+  "symbol": "XIM",
+  "exchange": "TSXV",
+  "apiSymbol": "XIM.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Xplore Resources Corp.",
+  "symbol": "XPLR",
+  "exchange": "TSXV",
+  "apiSymbol": "XPLR.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "XXIX Metal Corp.",
+  "symbol": "XXIX",
+  "exchange": "TSXV",
+  "apiSymbol": "XXIX.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Zacatecas Silver Corp.",
+  "symbol": "ZAC",
+  "exchange": "TSXV",
+  "apiSymbol": "ZAC.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "ZEB Nickel Corp.",
+  "symbol": "ZBNI",
+  "exchange": "TSXV",
+  "apiSymbol": "ZBNI.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Zentek Ltd.",
+  "symbol": "ZEN",
+  "exchange": "TSXV",
+  "apiSymbol": "ZEN.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ },
+ {
+  "name": "Zephyr Minerals Ltd.",
+  "symbol": "ZFR",
+  "exchange": "TSXV",
+  "apiSymbol": "ZFR.V",
+  "sector": "Mining",
+  "province": "NS",
+  "country": "Canada"
+ },
+ {
+  "name": "Zincx Resources Corp.",
+  "symbol": "ZNX",
+  "exchange": "TSXV",
+  "apiSymbol": "ZNX.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Zodiac Gold Inc.",
+  "symbol": "ZAU",
+  "exchange": "TSXV",
+  "apiSymbol": "ZAU.V",
+  "sector": "Mining",
+  "province": "BC",
+  "country": "Canada"
+ },
+ {
+  "name": "Zonte Metals Inc.",
+  "symbol": "ZON",
+  "exchange": "TSXV",
+  "apiSymbol": "ZON.V",
+  "sector": "Mining",
+  "province": "ON",
+  "country": "Canada"
+ }
+]

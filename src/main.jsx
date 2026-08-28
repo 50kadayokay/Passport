@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from "react";
 import ReactDOM from "react-dom/client";
-import Site from "./site/Site.jsx"; // the public marketing site — the front door at "/"
 import "./index.css";
 import { SUPABASE_URL, SUPABASE_ANON } from "./lib/supabase.js";
 import { useAuth } from "./auth/useAuth.js";
-import { signIn, signUp } from "./lib/auth.js";
+import { signIn, signUp, requestPasswordReset, consumeHashSession, updatePassword, getUser } from "./lib/auth.js";
+import * as investorData from "./lib/investorData.js";
+import { isNativeApp } from "./lib/platform.js";
 
 // Surfaces are code-split so the marketing bundle stays lean:
 const Onboarding = React.lazy(() => import("./console/CompanyConsole.jsx")); // company console (wraps the builder)
@@ -13,6 +14,11 @@ const Portal = React.lazy(() => import("./portal/Portal.jsx"));               //
 const PortalGate = React.lazy(() => import("./portal/PortalGate.jsx"));       // resolves company + entitlement
 const PostDetailRoute = React.lazy(() => import("./aiBrief/Feed.jsx").then((m) => ({ default: m.PostDetailRoute }))); // /p/<id> deep link
 const BlueprintDemo = React.lazy(() => import("./admin/blueprints/BlueprintDemo.jsx")); // /bpdemo — dev harness (no auth/DB), removable
+// The public MineEx marketing site at /site — an isolated, code-split surface, so
+// none of it ships in the app bundle. The previous marketing pages stay reachable
+// at /site/legacy.
+const MarketingSite = React.lazy(() => import("./marketing/MarketingSite.jsx"));
+const LegacySite = React.lazy(() => import("./site/Site.jsx"));
 import AuthGate from "./auth/AuthGate.jsx";
 
 // Surfaces are split by URL path:
@@ -40,21 +46,44 @@ function DesktopOnly({ children }) {
   );
 }
 
+// Self-heal: after a deploy, a stale service-worker cache can leave a device unable
+// to load a JS chunk (white screen / "won't load"). When Vite reports a failed chunk
+// preload, wipe caches + the service worker and reload ONCE so the app recovers on
+// its own instead of staying stuck.
+if (typeof window !== "undefined") {
+  window.addEventListener("vite:preloadError", async () => {
+    try {
+      if (window.caches) { const ks = await caches.keys(); await Promise.all(ks.map((k) => caches.delete(k))); }
+      if (navigator.serviceWorker) { const rs = await navigator.serviceWorker.getRegistrations(); await Promise.all(rs.map((r) => r.unregister())); }
+    } catch (_) {}
+    try {
+      if (!sessionStorage.getItem("pp-healed")) { sessionStorage.setItem("pp-healed", "1"); window.location.reload(); }
+    } catch (_) { window.location.reload(); }
+  });
+}
+
 const path = typeof window !== "undefined" ? window.location.pathname : "/";
 const isOnboarding = path.startsWith("/onboarding");
 const isAdmin = path.startsWith("/admin");
 const isPortal = path.startsWith("/portal");
 const isPost = /^\/p\/[^/]+/.test(path);
 const postId = isPost ? decodeURIComponent(path.replace(/^\/p\//, "").split(/[/?#]/)[0]) : null;
-const isApp = path === "/app" || path.startsWith("/app/") || path.startsWith("/app?");
+// In the native iOS/Android shell the app boots at "/", so treat native as the app.
+const isApp = isNativeApp || path === "/app" || path.startsWith("/app/") || path.startsWith("/app?");
+const isReset = path === "/reset" || path.startsWith("/reset");
 // Blueprint workspace dev harness — LOCALHOST ONLY. In production /bpdemo falls through
 // to the normal app (never renders sample Blueprint content publicly).
 const isBpDemo = path.startsWith("/bpdemo") && (() => {
   try { const h = window.location.hostname; return h === "localhost" || h === "127.0.0.1"; } catch (_) { return false; }
 })();
-// The marketing homepage is no longer the front door (that's the login-gated app now);
-// it stays reachable at /site for linking from ads, decks, etc.
-const isMarketing = path === "/site" || path.startsWith("/site/");
+// The marketing homepage is no longer the front door for the app domain (that's the
+// login-gated app now); it stays reachable at /site. BUT on the public marketing
+// domain (mineex.ca) the ROOT is the marketing site — the website front door — while
+// the app itself lives at /app. Host-gated so passport-xi-five and native are unaffected.
+const mkHost = (typeof window !== "undefined" ? window.location.hostname : "").replace(/^www\./, "");
+const isMarketingHost = mkHost === "mineex.ca";
+const isMarketing = path === "/site" || path.startsWith("/site/") || (isMarketingHost && !isNativeApp && (path === "/" || path === ""));
+const isLegacySite = path === "/site/legacy" || path.startsWith("/site/legacy/");
 
 const lazyFallback = (label) => (
   <div style={{ minHeight: "100dvh", display: "grid", placeItems: "center", background: "#f4f5f7", color: "#94a3b8" }}>Loading {label}…</div>
@@ -66,18 +95,106 @@ const root = ReactDOM.createRoot(document.getElementById("root"));
 // desktop). Uses the shared GoTrue client, which clamps public signups to the
 // "investor" role and persists the session in localStorage — so once someone is
 // in, they stay in across app reopens.
-function InvestorAuth({ onSuccess }) {
-  const [mode, setMode] = useState("signin"); // login-only for investors; company signup lives on desktop /onboarding
+// Wise-style pre-auth welcome for logged-out users: an animated brand splash that
+// resolves into the "MineEx" wordmark, auto-advances to a "Get started" landing, then
+// a Log in / Register choice that hands off to <InvestorAuth> in the chosen mode.
+// Splash only plays on the first view per app load (splashSeen) so returning from the
+// form via "back" doesn't replay the intro.
+let splashSeen = false;
+const WELCOME_GREEN = "#059669";
+// Splash logo reveal: the icon tile rises in large and centred, then dissolves down
+// into the "M" (same slot) while "ineEx" completes the wordmark — so the logo "merges"
+// into the M of MineEx. mxLockup nudges the whole lockup left (~38px ≈ half of "ineEx")
+// so the M reads as centred before the rest appears.
+const WELCOME_KF = `
+@keyframes mxLockup{0%,52%{transform:translateX(38px)}100%{transform:translateX(0)}}
+@keyframes mxMerge{0%{opacity:0;transform:translateY(16px) scale(1.5)}28%{opacity:1;transform:translateY(0) scale(1.5)}58%{opacity:1;transform:scale(1.08)}82%,100%{opacity:0;transform:scale(.62)}}
+@keyframes mxM{0%,64%{opacity:0}86%,100%{opacity:1}}
+@keyframes mxRest{0%,68%{opacity:0;transform:translateX(-6px)}100%{opacity:1;transform:translateX(0)}}
+@keyframes mxFade{from{opacity:0}to{opacity:1}}`;
+
+function WelcomeIntro({ onChoose }) {
+  const [phase, setPhase] = useState(splashSeen ? "start" : "splash"); // splash | start | choose
+
+  useEffect(() => {
+    if (phase !== "splash") return;
+    splashSeen = true;
+    const t = setTimeout(() => setPhase("start"), 2600);
+    return () => clearTimeout(t);
+  }, [phase]);
+
+  const frame = { minHeight: "100dvh", display: "flex", flexDirection: "column", background: "#fff", maxWidth: 480, margin: "0 auto", boxSizing: "border-box", paddingLeft: 22, paddingRight: 22, paddingTop: "calc(env(safe-area-inset-top, 0px) + 22px)", paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 20px)" };
+  const ctaGreen = { height: 56, borderRadius: 9999, border: "none", background: WELCOME_GREEN, color: "#fff", fontSize: 16, fontWeight: 700, width: "100%", cursor: "pointer" };
+  const ctaLight = { height: 56, borderRadius: 9999, border: "none", background: "#f1f5f9", color: "#0f172a", fontSize: 16, fontWeight: 700, width: "100%", cursor: "pointer", marginTop: 10 };
+  const h1 = { fontSize: 29, fontWeight: 800, color: "#0f172a", letterSpacing: "-0.02em", lineHeight: 1.1, margin: "26px 0 0" };
+  const sub = { fontSize: 15, color: "#64748b", marginTop: 12, lineHeight: 1.45, maxWidth: 320 };
+
+  if (phase === "splash") {
+    return (
+      <div onClick={() => setPhase("start")} style={{ position: "fixed", inset: 0, background: WELCOME_GREEN, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <style>{WELCOME_KF}</style>
+        <div style={{ display: "inline-flex", alignItems: "center", animation: "mxLockup 1.9s cubic-bezier(.2,.8,.2,1) both" }}>
+          <span style={{ position: "relative", display: "inline-flex", alignItems: "center", justifyContent: "center", width: 44, height: 54 }}>
+            <img src="/icon-192.png" alt="" style={{ position: "absolute", width: 52, height: 52, borderRadius: 13, boxShadow: "0 14px 44px rgba(0,0,0,.20)", animation: "mxMerge 1.9s cubic-bezier(.2,.8,.2,1) both" }} />
+            <span style={{ position: "absolute", fontSize: 46, fontWeight: 800, color: "#fff", letterSpacing: "-0.02em", animation: "mxM 1.9s ease both" }}>M</span>
+          </span>
+          <span style={{ fontSize: 46, fontWeight: 800, color: "#fff", letterSpacing: "-0.02em", animation: "mxRest 1.9s ease both" }}>ineEx</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (phase === "start") {
+    return (
+      <div style={frame} key="start">
+        <style>{WELCOME_KF}</style>
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center", animation: "mxFade .45s both" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 200, height: 200, borderRadius: "50%", background: "radial-gradient(circle at 50% 45%, #d1fae5 0%, #ffffff 70%)" }}>
+            <img src="/icon-512.png" alt="" style={{ width: 148, height: 148, borderRadius: 34, boxShadow: "0 18px 50px rgba(15,23,42,.16)" }} />
+          </div>
+          <h1 style={h1}>Every junior miner,<br />in one feed.</h1>
+          <p style={sub}>Follow explorers and developers and get their news the moment it breaks.</p>
+        </div>
+        <button type="button" onClick={() => setPhase("choose")} style={ctaGreen}>Get started</button>
+      </div>
+    );
+  }
+
+  return (
+    <div style={frame} key="choose">
+      <style>{WELCOME_KF}</style>
+      <button type="button" onClick={() => setPhase("start")} aria-label="Back" style={{ alignSelf: "flex-start", background: "none", border: "none", fontSize: 26, lineHeight: 1, color: "#0f172a", cursor: "pointer", padding: "2px 4px", marginLeft: -4 }}>‹</button>
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center", animation: "mxFade .35s both" }}>
+        <img src="/icon-192.png" alt="" style={{ width: 84, height: 84, borderRadius: 21, boxShadow: "0 12px 34px rgba(15,23,42,.14)" }} />
+        <h1 style={h1}>One account for the<br />whole market</h1>
+        <p style={sub}>Free for investors. Create an account or sign in to continue.</p>
+      </div>
+      <button type="button" onClick={() => onChoose("signup")} style={ctaGreen}>Create account</button>
+      <button type="button" onClick={() => onChoose("signin")} style={ctaLight}>Log in</button>
+    </div>
+  );
+}
+
+function InvestorAuth({ onSuccess, initialMode, onBack }) {
+  const [mode, setMode] = useState(initialMode || "signin"); // signin | signup | forgot
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [confirm, setConfirm] = useState(false);
+  const [confirm, setConfirm] = useState(false); // signup: confirmation email sent
+  const [sent, setSent] = useState(false);        // forgot: reset link sent
+
+  const go = (m) => { setMode(m); setError(""); };
 
   const submit = async (e) => {
     e.preventDefault();
     setError(""); setBusy(true);
     try {
+      if (mode === "forgot") {
+        await requestPasswordReset(email.trim());
+        setSent(true);
+        return;
+      }
       if (mode === "signup") {
         const { session, needsConfirmation } = await signUp(email.trim(), password);
         if (needsConfirmation && !session) { setConfirm(true); return; }
@@ -93,54 +210,240 @@ function InvestorAuth({ onSuccess }) {
   };
 
   const wrap = { minHeight: "100dvh", display: "flex", flexDirection: "column", justifyContent: "center", padding: "28px 24px", background: "#ffffff", maxWidth: 460, margin: "0 auto" };
+  const input = { height: 50, borderRadius: 14, border: "1px solid #e2e8f0", padding: "0 16px", fontSize: 15, outline: "none", background: "#f8fafc" };
+  const link = { background: "none", border: "none", color: "#059669", fontWeight: 700, cursor: "pointer", padding: 0, fontSize: 13.5 };
 
-  if (confirm) {
+  if (confirm || sent) {
+    const isConfirm = confirm;
     return (
       <div style={wrap}>
         <div style={{ textAlign: "center" }}>
-          <div style={{ fontSize: 40, marginBottom: 10 }}>📬</div>
+          <div style={{ fontSize: 40, marginBottom: 10 }}>{isConfirm ? "📬" : "🔑"}</div>
           <h1 style={{ fontSize: 24, fontWeight: 800, color: "#0f172a", margin: 0 }}>Check your email</h1>
-          <p style={{ fontSize: 14, color: "#64748b", marginTop: 10, lineHeight: 1.5 }}>We sent a confirmation link to <b>{email}</b>. Tap it, then come back and sign in.</p>
-          <button onClick={() => { setConfirm(false); setMode("signin"); }} style={{ marginTop: 22, fontSize: 14, fontWeight: 700, color: "#059669", background: "none", border: "none" }}>Back to sign in</button>
+          <p style={{ fontSize: 14, color: "#64748b", marginTop: 10, lineHeight: 1.5 }}>
+            {isConfirm
+              ? <>We sent a confirmation link to <b>{email}</b>. Tap it, then come back and sign in.</>
+              : <>If an account exists for <b>{email}</b>, we've sent a link to reset your password.</>}
+          </p>
+          <button onClick={() => { setConfirm(false); setSent(false); go("signin"); }} style={{ marginTop: 22, ...link, fontSize: 14 }}>Back to sign in</button>
         </div>
       </div>
     );
   }
 
+  const title = mode === "signup" ? "Create your account" : mode === "forgot" ? "Reset your password" : "Welcome back";
+  const sub = mode === "signup" ? "Follow junior miners and get their updates in one feed. Free for investors."
+    : mode === "forgot" ? "Enter your email and we'll send you a reset link."
+    : "Sign in to your investor account.";
+
   return (
     <div style={wrap}>
-      <p style={{ fontSize: 12, fontWeight: 800, letterSpacing: "0.18em", textTransform: "uppercase", color: "#059669" }}>Passport</p>
-      <h1 style={{ fontSize: 27, fontWeight: 800, letterSpacing: "-0.02em", color: "#0f172a", marginTop: 6 }}>
-        {mode === "signup" ? "Create your account" : "Welcome back"}
-      </h1>
-      <p style={{ fontSize: 14, color: "#64748b", marginTop: 6 }}>
-        {mode === "signup" ? "Follow junior miners and get their updates in one feed. Free for investors." : "Sign in to your investor account."}
-      </p>
+      {onBack && <button type="button" onClick={onBack} aria-label="Back" style={{ position: "absolute", top: "calc(env(safe-area-inset-top, 0px) + 14px)", left: 18, background: "none", border: "none", fontSize: 26, lineHeight: 1, color: "#0f172a", cursor: "pointer", padding: "2px 6px" }}>‹</button>}
+      <p style={{ fontSize: 12, fontWeight: 800, letterSpacing: "0.18em", textTransform: "uppercase", color: "#059669" }}>MineEx</p>
+      <h1 style={{ fontSize: 27, fontWeight: 800, letterSpacing: "-0.02em", color: "#0f172a", marginTop: 6 }}>{title}</h1>
+      <p style={{ fontSize: 14, color: "#64748b", marginTop: 6 }}>{sub}</p>
 
       <form onSubmit={submit} style={{ marginTop: 22, display: "flex", flexDirection: "column", gap: 12 }}>
-        <input
-          type="email" inputMode="email" autoComplete="email" required placeholder="Email"
-          value={email} onChange={(e) => setEmail(e.target.value)}
-          style={{ height: 50, borderRadius: 14, border: "1px solid #e2e8f0", padding: "0 16px", fontSize: 15, outline: "none", background: "#f8fafc" }}
-        />
-        <input
-          type="password" autoComplete={mode === "signup" ? "new-password" : "current-password"} required placeholder="Password" minLength={6}
-          value={password} onChange={(e) => setPassword(e.target.value)}
-          style={{ height: 50, borderRadius: 14, border: "1px solid #e2e8f0", padding: "0 16px", fontSize: 15, outline: "none", background: "#f8fafc" }}
-        />
+        <input type="email" inputMode="email" autoComplete="email" required placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} style={input} />
+        {mode !== "forgot" && (
+          <input type="password" autoComplete={mode === "signup" ? "new-password" : "current-password"} required placeholder="Password" minLength={6} value={password} onChange={(e) => setPassword(e.target.value)} style={input} />
+        )}
+        {mode === "signin" && (
+          <div style={{ textAlign: "right", marginTop: -2 }}>
+            <button type="button" onClick={() => go("forgot")} style={{ ...link, color: "#64748b", fontSize: 12.5 }}>Forgot password?</button>
+          </div>
+        )}
         {error && <p style={{ fontSize: 13, color: "#dc2626", fontWeight: 600 }}>{error}</p>}
-        <button
-          type="submit" disabled={busy}
-          style={{ height: 50, borderRadius: 14, border: "none", background: "#0f172a", color: "#fff", fontSize: 15, fontWeight: 700, opacity: busy ? 0.6 : 1, marginTop: 4 }}
-        >
-          {busy ? "Please wait…" : mode === "signup" ? "Create account" : "Sign in"}
+        <button type="submit" disabled={busy} style={{ height: 54, borderRadius: 9999, border: "none", background: "#0f172a", color: "#fff", fontSize: 15, fontWeight: 700, opacity: busy ? 0.6 : 1, marginTop: 4 }}>
+          {busy ? "Please wait…" : mode === "signup" ? "Create account" : mode === "forgot" ? "Send reset link" : "Sign in"}
         </button>
       </form>
 
-      <p style={{ marginTop: 20, textAlign: "center", fontSize: 11.5, color: "#94a3b8", lineHeight: 1.5 }}>
+      <p style={{ marginTop: 20, textAlign: "center", fontSize: 13.5, color: "#64748b" }}>
+        {mode === "signin" && <>New to MineEx? <button type="button" onClick={() => go("signup")} style={link}>Create an account</button></>}
+        {mode === "signup" && <>Already have an account? <button type="button" onClick={() => go("signin")} style={link}>Sign in</button></>}
+        {mode === "forgot" && <button type="button" onClick={() => go("signin")} style={link}>Back to sign in</button>}
+      </p>
+
+      <p style={{ marginTop: 14, textAlign: "center", fontSize: 11.5, color: "#94a3b8", lineHeight: 1.5 }}>
         Are you a company? <a href="/onboarding" style={{ color: "#64748b", fontWeight: 600 }}>Set up your profile on desktop →</a>
       </p>
     </div>
+  );
+}
+
+// Password-reset landing (/reset): the recovery email link arrives here with a token
+// in the URL; adopt it as a session, then let the user set a new password.
+function ResetPassword() {
+  const [ready, setReady] = useState(false);
+  const [ok, setOk] = useState(false);
+  const [pw, setPw] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    const r = consumeHashSession();
+    if (!r || !r.type) setError(r?.error || "This reset link is invalid or has expired. Request a new one.");
+    setReady(true);
+  }, []);
+  const submit = async (e) => {
+    e.preventDefault(); setError(""); setBusy(true);
+    try { await updatePassword(pw); setOk(true); }
+    catch (err) { setError((err && err.message) || "Couldn't reset your password."); }
+    finally { setBusy(false); }
+  };
+  const wrap = { minHeight: "100dvh", display: "flex", flexDirection: "column", justifyContent: "center", padding: "28px 24px", background: "#ffffff", maxWidth: 460, margin: "0 auto" };
+  const input = { height: 50, borderRadius: 14, border: "1px solid #e2e8f0", padding: "0 16px", fontSize: 15, outline: "none", background: "#f8fafc" };
+  if (!ready) return <div style={{ ...wrap, alignItems: "center", color: "#94a3b8" }}>Loading…</div>;
+  if (ok) return (
+    <div style={wrap}><div style={{ textAlign: "center" }}>
+      <div style={{ fontSize: 40, marginBottom: 10 }}>✅</div>
+      <h1 style={{ fontSize: 24, fontWeight: 800, color: "#0f172a", margin: 0 }}>Password updated</h1>
+      <p style={{ fontSize: 14, color: "#64748b", marginTop: 10 }}>You're all set.</p>
+      <a href="/app" style={{ display: "inline-block", marginTop: 22, height: 50, lineHeight: "50px", padding: "0 24px", borderRadius: 14, background: "#0f172a", color: "#fff", fontSize: 15, fontWeight: 700, textDecoration: "none" }}>Open MineEx</a>
+    </div></div>
+  );
+  return (
+    <div style={wrap}>
+      <p style={{ fontSize: 12, fontWeight: 800, letterSpacing: "0.18em", textTransform: "uppercase", color: "#059669" }}>MineEx</p>
+      <h1 style={{ fontSize: 27, fontWeight: 800, letterSpacing: "-0.02em", color: "#0f172a", marginTop: 6 }}>Set a new password</h1>
+      <form onSubmit={submit} style={{ marginTop: 22, display: "flex", flexDirection: "column", gap: 12 }}>
+        <input type="password" autoComplete="new-password" required placeholder="New password" minLength={6} value={pw} onChange={(e) => setPw(e.target.value)} style={input} />
+        {error && <p style={{ fontSize: 13, color: "#dc2626", fontWeight: 600 }}>{error}</p>}
+        <button type="submit" disabled={busy} style={{ height: 54, borderRadius: 9999, border: "none", background: "#0f172a", color: "#fff", fontSize: 15, fontWeight: 700, opacity: busy ? 0.6 : 1, marginTop: 4 }}>
+          {busy ? "Please wait…" : "Update password"}
+        </button>
+      </form>
+      <p style={{ marginTop: 18, textAlign: "center", fontSize: 13.5 }}><a href="/app" style={{ color: "#059669", fontWeight: 700, textDecoration: "none" }}>Back to sign in</a></p>
+    </div>
+  );
+}
+
+// Onboarding — shown once to a signed-in investor whose profile isn't complete yet
+// (investor_profiles.onboarding_completed = false). Required step (name + investor
+// type) is saved via completeOnboarding(), which flips the flag; interests and the
+// notification prompt are optional. Also warms the local profile cache so the profile
+// shows immediately on entry. Guests (shared/QR links) never see this — the gate in
+// AppRoot only runs it for signed-in users. Existing app UI is untouched.
+const ONB_TYPES = ["Retail Investor", "Angel Investor", "Institutional", "Fund Manager", "Analyst", "Advisor", "Other"];
+const ONB_COMMODITIES = ["Gold", "Silver", "Copper", "Uranium", "Lithium", "Nickel", "Rare Earths", "Zinc", "Cobalt", "Other"];
+const ONB_JURISDICTIONS = ["Canada", "USA", "Mexico", "South America", "Australia", "Africa", "Europe", "Asia"];
+const ONB_STAGES = ["Grassroots", "Exploration", "Discovery", "Resource", "Development", "Production"];
+
+function InvestorOnboarding({ onDone }) {
+  const [step, setStep] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [name, setName] = useState("");
+  const [type, setType] = useState("");
+  const [location, setLocation] = useState("");
+  const [commodities, setCommodities] = useState([]);
+  const [jurisdictions, setJurisdictions] = useState([]);
+  const [stages, setStages] = useState([]);
+
+  const tog = (arr, set, v) => set(arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v]);
+
+  const finish = async () => {
+    setBusy(true); setError("");
+    try {
+      // Required first — this is the write that flips onboarding_completed to true.
+      await investorData.completeOnboarding({ name: name.trim(), investorType: type, location: location.trim() });
+      // Optional interests — best-effort; a failure here must not block entry.
+      if (commodities.length || jurisdictions.length || stages.length) {
+        try { await investorData.upsertInvestorPreferences({ commodities, jurisdictions, stages }); } catch (_) {}
+      }
+      // Warm the local profile cache so the profile tab shows this data immediately.
+      try {
+        const email = getUser()?.email || "guest";
+        localStorage.setItem(`mineex.profile.v1.${email}`, JSON.stringify({ name: name.trim(), investorType: type, location: location.trim() }));
+      } catch (_) {}
+      onDone && onDone();
+    } catch (err) {
+      setError((err && err.message) || "Something went wrong. Please try again.");
+      setBusy(false);
+    }
+  };
+
+  const enableNotifsThenFinish = async () => {
+    try { if (typeof Notification !== "undefined" && Notification.requestPermission) await Notification.requestPermission(); } catch (_) {}
+    finish();
+  };
+
+  // Shared styles.
+  const input = { height: 52, borderRadius: 14, border: "1px solid #e5e9f0", padding: "0 16px", fontSize: 16, outline: "none", background: "#f7f9fc", width: "100%", boxSizing: "border-box", color: "#0f172a" };
+  const cta = (dis) => ({ height: 56, borderRadius: 9999, border: "none", background: "#0f172a", color: "#fff", fontSize: 16, fontWeight: 700, opacity: dis ? 0.4 : 1, cursor: dis ? "default" : "pointer", width: "100%" });
+  const skip = { background: "none", border: "none", color: "#64748b", fontWeight: 600, fontSize: 14, cursor: "pointer", padding: "12px 0 2px", width: "100%" };
+  const label = { fontSize: 11.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "#94a3b8", marginTop: 22, marginBottom: 9, display: "block" };
+  const chip = (on) => ({ padding: "9px 15px", borderRadius: 9999, fontSize: 14, fontWeight: 700, cursor: "pointer", border: on ? "1px solid #059669" : "1px solid #e5e9f0", background: on ? "#059669" : "#fff", color: on ? "#fff" : "#475569", transition: "all .12s" });
+  const chipRow = { display: "flex", flexWrap: "wrap", gap: 8 };
+  const title = { fontSize: 27, fontWeight: 800, color: "#0f172a", margin: "16px 0 0", letterSpacing: "-0.01em", lineHeight: 1.12 };
+  const sub = { fontSize: 14.5, color: "#64748b", marginTop: 8, lineHeight: 1.45 };
+
+  // Full-height frame: progress bar pinned at the top, content top-aligned and
+  // scrollable, CTA anchored at the bottom. Honors the notch / home-indicator safe areas.
+  // Full-height frame: progress bar pinned at the top, content top-aligned and
+  // scrollable, CTA anchored at the bottom. Honors the notch / home-indicator safe
+  // areas. Kept as a plain render helper (NOT a nested <Component>) so typing in an
+  // input never remounts the subtree and steals focus.
+  const frame = (content, footer) => (
+    <div style={{ minHeight: "100dvh", display: "flex", flexDirection: "column", background: "#fff", maxWidth: 480, margin: "0 auto", boxSizing: "border-box", paddingLeft: 22, paddingRight: 22, paddingTop: "calc(env(safe-area-inset-top, 0px) + 22px)", paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 18px)" }}>
+      <div style={{ display: "flex", gap: 6 }}>
+        {[0, 1, 2].map((i) => <span key={i} style={{ height: 5, flex: 1, borderRadius: 9999, background: i <= step ? "#059669" : "#e8edf2", transition: "background .2s" }} />)}
+      </div>
+      <div style={{ flex: 1, overflowY: "auto", paddingTop: 8, WebkitOverflowScrolling: "touch" }}>{content}</div>
+      <div style={{ paddingTop: 14 }}>{footer}</div>
+    </div>
+  );
+
+  if (step === 0) {
+    const canNext = name.trim() && type;
+    return frame(
+      <>
+        <p style={{ fontSize: 12, fontWeight: 800, letterSpacing: "0.18em", textTransform: "uppercase", color: "#059669", margin: "8px 0 0" }}>Welcome to MineEx</p>
+        <h1 style={title}>Complete your profile</h1>
+        <p style={sub}>This is shared with companies when you message them — you can edit it anytime.</p>
+        <label style={label}>Your name</label>
+        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Full name" style={input} />
+        <label style={label}>Investor type</label>
+        <div style={chipRow}>{ONB_TYPES.map((t) => <button key={t} type="button" onClick={() => setType(t)} style={chip(type === t)}>{t}</button>)}</div>
+        <label style={label}>Location <span style={{ textTransform: "none", color: "#cbd5e1", fontWeight: 600, letterSpacing: 0 }}>(optional)</span></label>
+        <input value={location} onChange={(e) => setLocation(e.target.value)} placeholder="City, Country" style={input} />
+        <div style={{ height: 8 }} />
+      </>,
+      <button type="button" disabled={!canNext} onClick={() => canNext && setStep(1)} style={cta(!canNext)}>Continue</button>
+    );
+  }
+
+  if (step === 1) {
+    return frame(
+      <>
+        <h1 style={title}>What are you interested in?</h1>
+        <p style={sub}>We'll use this to tailor your feed. All optional.</p>
+        <label style={label}>Commodities</label>
+        <div style={chipRow}>{ONB_COMMODITIES.map((c) => <button key={c} type="button" onClick={() => tog(commodities, setCommodities, c)} style={chip(commodities.includes(c))}>{c}</button>)}</div>
+        <label style={label}>Jurisdictions</label>
+        <div style={chipRow}>{ONB_JURISDICTIONS.map((j) => <button key={j} type="button" onClick={() => tog(jurisdictions, setJurisdictions, j)} style={chip(jurisdictions.includes(j))}>{j}</button>)}</div>
+        <label style={label}>Company stage</label>
+        <div style={chipRow}>{ONB_STAGES.map((s) => <button key={s} type="button" onClick={() => tog(stages, setStages, s)} style={chip(stages.includes(s))}>{s}</button>)}</div>
+        <div style={{ height: 8 }} />
+      </>,
+      <>
+        <button type="button" onClick={() => setStep(2)} style={cta(false)}>Continue</button>
+        <button type="button" onClick={() => setStep(2)} style={skip}>Skip for now</button>
+      </>
+    );
+  }
+
+  return frame(
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center", height: "100%", padding: "0 8px" }}>
+      <div style={{ width: 84, height: 84, borderRadius: 24, background: "#ecfdf5", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 40, marginBottom: 22 }}>🔔</div>
+      <h1 style={{ ...title, marginTop: 0, textAlign: "center" }}>Never miss an update</h1>
+      <p style={{ ...sub, marginTop: 12, maxWidth: 320 }}>Get notified when the companies you follow release drill results, financings, and news.</p>
+      {error && <p style={{ fontSize: 13, color: "#dc2626", fontWeight: 600, marginTop: 14 }}>{error}</p>}
+    </div>,
+    <>
+      <button type="button" onClick={enableNotifsThenFinish} disabled={busy} style={cta(busy)}>{busy ? "Setting up…" : "Enable notifications"}</button>
+      <button type="button" onClick={finish} disabled={busy} style={skip}>Not now</button>
+    </>
   );
 }
 
@@ -153,6 +456,24 @@ function AppRoot() {
   const [loadState, setLoadState] = useState("loading");   // loading | ok | notfound
   const modRef = useRef(null);
   const seededRef = useRef(false);
+  // Onboarding gate: "checking" until we know, then "needed" | "done". Only consulted
+  // for signed-in users; guests viewing a shared profile bypass it entirely.
+  const [onbState, setOnbState] = useState("checking");
+  // Pre-auth welcome flow: null = show the animated welcome intro; "signin"/"signup" =
+  // the user picked an option, so render the auth form in that mode.
+  const [authMode, setAuthMode] = useState(null);
+
+  // When a session appears, ask the cloud whether this investor has finished onboarding.
+  // Fail-open (treat as done) on any error so a transient fetch failure never traps a
+  // real user on the onboarding screen.
+  useEffect(() => {
+    if (!signedIn) { setOnbState("checking"); return; }
+    let cancelled = false;
+    investorData.getInvestorProfile()
+      .then((p) => { if (!cancelled) setOnbState(p && p.onboardingCompleted ? "done" : "needed"); })
+      .catch(() => { if (!cancelled) setOnbState("done"); });
+    return () => { cancelled = true; };
+  }, [signedIn]);
 
   // Live editor preview: when embedded in the admin editor, the parent posts the
   // draft's `pp` object; apply it in place and remount so edits show instantly —
@@ -216,7 +537,7 @@ function AppRoot() {
       // recent press releases). One query, both derived.
       try {
         const base = { apikey: SUPABASE_ANON, Authorization: `Bearer ${SUPABASE_ANON}` };
-        const dres = await fetch(`${SUPABASE_URL}/rest/v1/companies?status=eq.published&select=slug,name,primary_ticker,co:profile->pp->COMPANY,brand:profile->brand,cap:profile->capital,pr:profile->pp->PR_YEARS&order=name`, { headers: base });
+        const dres = await fetch(`${SUPABASE_URL}/rest/v1/companies?status=eq.published&select=slug,name,primary_ticker,updated_at,co:profile->pp->COMPANY,brand:profile->brand,cap:profile->capital,tier:profile->pp->TIER,brief:profile->pp->LISTING_BRIEF,pr:profile->pp->PR_YEARS,ctier:tier&order=name`, { headers: base });
         const drows = await dres.json().catch(() => []);
         // Parse a "C$41.2M" / "$1.2B" style figure into a number of dollars, for market-cap buckets.
         const money = (v) => {
@@ -234,13 +555,18 @@ function AppRoot() {
               id: r.slug, slug: r.slug, name, live: true,
               ticker: r.primary_ticker || co.ticker || "",
               commodity: co.commodity || "", region: co.jurisdiction || co.region || "",
+              stage: co.stage || "", website: co.website || "", headquarters: co.headquarters || "",
+              brief: r.brief || co.slogan || "", tier: r.tier || "", updatedAt: r.updated_at || "",
               funding: cap.state || "", mcap: cap.marketCap || "", mcapNum: money(cap.marketCap),
               logo: brand.avatar || brand.logo || "", mono, c: "#334155",
-              tags: [name, r.slug, r.primary_ticker, co.commodity, co.jurisdiction, cap.state].filter(Boolean).join(" ").toLowerCase().split(/[^a-z0-9]+/).filter(Boolean),
+              tags: [name, r.slug, r.primary_ticker, co.commodity, co.jurisdiction].filter(Boolean).join(" ").toLowerCase().split(/[^a-z0-9]+/).filter(Boolean),
             };
           });
           const feed = [];
           for (const r of drows) {
+            // Releases in the feed are a PAID feature (basic/pro). Free/listing companies —
+            // incl. demo profiles like Argenta — don't push their profile press releases here.
+            if (!["basic", "pro"].includes(r.ctier)) continue;
             const logo = (r.brand && (r.brand.avatar || r.brand.logo)) || "";
             for (const y of (Array.isArray(r.pr) ? r.pr : [])) for (const it of (y.items || [])) {
               if (!it.id) continue;
@@ -279,7 +605,20 @@ function AppRoot() {
   // publicly viewable with no wall, so a scanned booth QR or a shared link just works.
   const search = (() => { try { return new URLSearchParams(window.location.search); } catch (_) { return new URLSearchParams(); } })();
   const hasSharedProfile = search.has("c") || search.has("preview");
-  if (!signedIn && (!hasSharedProfile || search.has("signin"))) return <InvestorAuth />;
+  if (!signedIn && (!hasSharedProfile || search.has("signin"))) {
+    // A direct ?signin deep-link jumps straight to the sign-in form (no welcome intro).
+    const forced = search.has("signin");
+    if (forced || authMode) {
+      return <InvestorAuth initialMode={forced ? "signin" : authMode} onBack={forced ? null : () => setAuthMode(null)} />;
+    }
+    return <WelcomeIntro onChoose={setAuthMode} />;
+  }
+  // Signed-in investors must finish onboarding before entering the app. Guests (viewing
+  // a shared/QR profile without a session) skip this and go straight to the profile.
+  if (signedIn) {
+    if (onbState === "checking") return lazyFallback("app");
+    if (onbState === "needed") return <InvestorOnboarding onDone={() => setOnbState("done")} />;
+  }
   if (!App) return lazyFallback("app");
   if (loadState === "notfound") return <ProfileUnavailable />;
   return <App key={seed} guest={!signedIn} />;
@@ -306,6 +645,8 @@ if (isBpDemo) {
 } else if (isPost) {
   // Public deep link to a single release (shared links, notification taps).
   root.render(<React.Suspense fallback={lazyFallback("release")}><PostDetailRoute postId={postId} /></React.Suspense>);
+} else if (isReset) {
+  root.render(<ResetPassword />);
 } else if (isApp) {
   root.render(<AppRoot />);
 } else {
@@ -332,7 +673,9 @@ if (isBpDemo) {
           </AuthGate>
         </DesktopOnly>
       ) : isMarketing ? (
-        <Site />
+        <React.Suspense fallback={lazyFallback("MineEx")}>
+          {isLegacySite ? <LegacySite /> : <MarketingSite />}
+        </React.Suspense>
       ) : (
         <AppRoot />
       )}

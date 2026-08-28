@@ -4,14 +4,16 @@ import {
   BarChart3, Sparkles, Radio, Star, Bell, Briefcase, CreditCard, LifeBuoy,
   FolderOpen, Search, Activity, ScrollText, Settings,
   LogOut, Loader2, Circle, CheckCircle2, ExternalLink, Plus, ArrowRight, RefreshCw, AlertTriangle, Inbox, Link2, Film,
-  Presentation, Smartphone,
+  Presentation, Smartphone, UserCog,
 } from "lucide-react";
 import { fetchCompanies, updateCompany, SUPABASE_URL } from "../lib/supabase.js";
 import { authHeaders, getUser, signOut } from "../lib/auth.js";
+import NewsReview from "./NewsReview.jsx";
 import Admin from "./Admin.jsx";
 import AudienceCard from "./AudienceCard.jsx";
 import OnboardingEngine from "./onboarding/OnboardingEngine.jsx";
 import BlueprintReview from "./BlueprintReview.jsx";
+import AccountManagement from "./AccountManagement.jsx";
 import Blueprints from "./blueprints/Blueprints.jsx";  // full Conference Blueprint workbench (pools/evidence/approval)
 
 // Sidebar organized into business areas. `ready` = wired to live data; the rest
@@ -32,11 +34,12 @@ const NAV = [
   { group: "Product", items: [
     { id: "analytics", label: "Analytics", Icon: BarChart3, need: "the events table (Phase 6)" },
     { id: "ai", label: "AI Workspace", Icon: Sparkles, need: "the AI generation pipeline" },
-    { id: "pulse", label: "Pulse", Icon: Radio, need: "the content/news pipeline" },
+    { id: "pulse", label: "News Review", Icon: Radio, ready: true },
     { id: "featured", label: "Featured Companies", Icon: Star, need: "a featured-slots table" },
     { id: "notifications", label: "Notifications", Icon: Bell, need: "push + a broadcasts table" },
   ]},
   { group: "Business", items: [
+    { id: "accounts", label: "Account Management", Icon: UserCog, ready: true },
     { id: "crm", label: "CRM", Icon: Briefcase, need: "a leads/pipeline table" },
     { id: "billing", label: "Billing", Icon: CreditCard, need: "Stripe (Phase 5)" },
     { id: "support", label: "Support", Icon: LifeBuoy, need: "a tickets table" },
@@ -49,7 +52,7 @@ const NAV = [
     { id: "settings", label: "Settings", Icon: Settings, need: "a platform-config table" },
   ]},
 ];
-const READY = new Set(["home", "publish", "card", "companies", "review-conference", "review-app", "onboarding", "users", "operations"]);
+const READY = new Set(["home", "publish", "card", "companies", "review-conference", "review-app", "onboarding", "users", "operations", "pulse", "accounts"]);
 const flat = (id) => NAV.flatMap((g) => g.items).find((i) => i.id === id) || {};
 
 const isPublished = (c) => (c.status || "").toLowerCase() === "published";
@@ -138,7 +141,9 @@ export default function MissionControl() {
               {section === "publish" && <ReadyForPublish companies={companies} reload={loadData} loading={loading} />}
               {section === "card" && <AudienceCard />}
               {section === "operations" && <Operations companies={companies} reload={loadData} go={go} />}
+              {section === "pulse" && <NewsReview />}
               {section === "users" && <UsersSection users={users} loading={loading} />}
+              {section === "accounts" && <AccountManagement companies={companies} loading={loading} reload={loadData} />}
               {section === "sales" && <SalesEmpty />}
               {!READY.has(section) && <Stub id={section} />}
             </div>
@@ -151,9 +156,21 @@ export default function MissionControl() {
 
 /* ============= READY FOR PUBLISH — the concierge publishing folder ============= */
 const statusOf = (c) => (c.status || "draft").toLowerCase();
+// The company's avatar for an admin list. Every candidate is string-guarded: a
+// profile may carry `company.brand` as a nested OBJECT ({logo, hero, avatar}),
+// and the old version returned that object straight into <img src>, rendering a
+// broken image (Kingsmen did exactly this). pp wins when present — it is what the
+// app actually paints — then the structured brand, then the nested brand object.
+const asUrl = (v) => (typeof v === "string" && v.trim() ? v.trim() : "");
 const logoOf = (c) => {
   const p = c.profile || {};
-  return (p.company && (p.company.logo || p.company.brand)) || (p.pp && (p.pp.AVATAR || p.pp.LOGO)) || "";
+  const pp = p.pp || {};
+  const brand = (p.brand && typeof p.brand === "object" && p.brand) || {};
+  const co = p.company || {};
+  const coBrand = (co.brand && typeof co.brand === "object" && co.brand) || {};
+  return asUrl(pp.AVATAR) || asUrl(pp.LOGO)
+      || asUrl(co.logo) || asUrl(brand.avatar) || asUrl(brand.logo)
+      || asUrl(coBrand.avatar) || asUrl(coBrand.logo) || "";
 };
 const initialsOf = (name) => String(name || "?").trim().split(/\s+/).slice(0, 2).map((w) => w[0] || "").join("").toUpperCase() || "?";
 

@@ -19,7 +19,7 @@ import QRCode from "qrcode";
 import { resolveWidgets, resolveProjectWidgets, widgetText } from "../lib/conferenceWidgets.js";
 import { buildConferenceModel } from "./conferenceModel.js";
 import {
-  CMStyles, TONES, BeatDots,
+  CMStyles, TONES, BeatDots, CMChapter, CurtainReveal,
   CMOverview, CMHighlights, CMJurisdiction, CMProject, CMCapital, CMLeadership, CMWhyInvest, CMFollow, CMEndCap,
 } from "./conferenceUI.jsx";
 import {
@@ -28,10 +28,11 @@ import {
   STATUS, STATUS_IMG, TEAM_MEMBERS,
 } from "./PassportProto.jsx";
 
-const EASE = "cubic-bezier(0.22, 1, 0.36, 1)";
-const TRANS_MS = 620;          // section/beat transition duration = the lock window
-const WHEEL_TH = 46;           // trackpad/mouse-wheel accumulation threshold (one gesture → one step)
-const TOUCH_TH = 56;           // finger swipe distance threshold (px)
+const EASE = "cubic-bezier(0.76, 0, 0.24, 1)"; // smooth ease-in-out glide (accelerate → settle), premium
+const TRANS_MS = 780;          // slide duration = the lock window — long & deliberate, not snappy
+const WHEEL_TH = 58;           // trackpad/mouse-wheel accumulation threshold — needs a fuller, deliberate scroll
+const WHEEL_COOLDOWN = 860;    // fixed lock after a wheel step — outlasts the slide + swallows the inertial tail
+const TOUCH_TH = 52;           // finger travel to trigger — a real, deliberate swipe, not a twitch
 
 export function ConferenceScenes() {
   const S = (x) => (x == null ? "" : String(x));
@@ -52,6 +53,44 @@ export function ConferenceScenes() {
   const profileUrl = `${origin}/app?c=${encodeURIComponent(slug)}${previewToken ? `&preview=${encodeURIComponent(previewToken)}` : ""}&qr=1`;
   const [qr, setQr] = useState("");
   useEffect(() => { let live = true; QRCode.toString(qrUrl, { type: "svg", errorCorrectionLevel: "H", margin: 0 }).then((s) => { if (live) setQr(s); }).catch(() => {}); return () => { live = false; }; }, [qrUrl]);
+  // Curtain-reveal opening — plays once on load, then reveals the deck.
+  const [intro, setIntro] = useState(true);
+
+  // ── "Add to Home Screen" → launch THIS booth, not the app feed ──────────────────
+  // iOS uses the manifest's start_url for an installed PWA. The app's static manifest points
+  // at /app (which needs login and lands on the feed). While the booth is on screen, swap in a
+  // booth-scoped manifest whose start_url is this exact booth URL — generated at runtime (so it
+  // isn't subject to the service worker's cached copy of the static manifest). If iOS can't read
+  // the runtime manifest it simply falls back to the current page URL (still the booth) — either
+  // way the Home-Screen icon opens the kiosk directly. Reverted on unmount.
+  useEffect(() => {
+    let objUrl = "", link = null, prevHref = null, created = false, titleEl = null, prevTitle = null;
+    try {
+      const label = shortCo(co.name) || S(co.name) || "Passport";
+      const manifest = {
+        name: S(co.name) ? `${S(co.name)} — Conference` : "Conference Mode",
+        short_name: label,
+        display: "standalone", orientation: "any",
+        background_color: "#05070d", theme_color: "#05070d",
+        start_url: window.location.href, scope: "/",
+        icons: [{ src: "/booth-icon.svg", sizes: "any", type: "image/svg+xml", purpose: "any maskable" }],
+      };
+      objUrl = URL.createObjectURL(new Blob([JSON.stringify(manifest)], { type: "application/manifest+json" }));
+      link = document.querySelector('link[rel="manifest"]');
+      if (link) prevHref = link.getAttribute("href");
+      else { link = document.createElement("link"); link.rel = "manifest"; document.head.appendChild(link); created = true; }
+      link.setAttribute("href", objUrl);
+      titleEl = document.querySelector('meta[name="apple-mobile-web-app-title"]');
+      if (titleEl) { prevTitle = titleEl.getAttribute("content"); titleEl.setAttribute("content", label); }
+    } catch (_) {}
+    return () => {
+      try {
+        if (link) { if (created) link.remove(); else if (prevHref != null) link.setAttribute("href", prevHref); }
+        if (titleEl && prevTitle != null) titleEl.setAttribute("content", prevTitle);
+        if (objUrl) URL.revokeObjectURL(objUrl);
+      } catch (_) {}
+    };
+  }, []);
 
   // ── Data (unchanged sourcing) ──────────────────────────────────────────────────
   const hasHero = S(STATUS_IMG).trim() !== "";
@@ -204,19 +243,56 @@ export function ConferenceScenes() {
   };
 
   // ── SECTION MANIFEST ─────────────────────────────────────────────────────────────
+  // Each major topic is preceded by a dramatic Chapter transition (its own dark 1-beat section),
+  // giving the deck a chapter cadence (running section number). Chapters carry `navFor` so the top
+  // nav highlights the upcoming topic while its chapter is on screen. Everything stays data-driven.
   const SECTIONS = [];
+  let sectionNo = 0;
+  const pad2 = (n) => String(n).padStart(2, "0");
+  const pushChapter = (navFor, opts) => SECTIONS.push({ id: `chapter-${navFor}`, chapter: true, navFor, label: "", tone: TONES.ink, count: 1, render: (l, a) => <CMChapter {...opts} active={a} /> });
+
+  sectionNo++; // 01 · Overview (the opening — no chapter card, it IS the intro)
   SECTIONS.push({ id: "overview", label: "Overview", tone: CMOverview.tone, count: CMOverview.beats({ hero: cmModel.hero, company: cmModel.company }).length, render: (l, a) => <CMOverview hero={cmModel.hero} company={cmModel.company} local={l} active={a} reduce={reduce} /> });
-  if (cmModel.highlights.cards.length) SECTIONS.push({ id: "highlights", label: "Highlights", tone: CMHighlights.tone, count: CMHighlights.beats({ highlights: cmModel.highlights }).length, render: (l, a) => <CMHighlights highlights={cmModel.highlights} local={l} active={a} reduce={reduce} /> });
-  if (cmModel.jurisdiction.hasContent) SECTIONS.push({ id: "jurisdiction", label: "Jurisdiction", tone: CMJurisdiction.tone, count: CMJurisdiction.beats({ jurisdiction: cmModel.jurisdiction }).length, render: (l, a) => <CMJurisdiction jurisdiction={cmModel.jurisdiction} local={l} active={a} reduce={reduce} /> });
+
+  if (cmModel.highlights.cards.length) { sectionNo++; SECTIONS.push({ id: "highlights", label: "Highlights", tone: CMHighlights.tone, count: CMHighlights.beats({ highlights: cmModel.highlights }).length, render: (l, a) => <CMHighlights highlights={cmModel.highlights} local={l} active={a} reduce={reduce} /> }); }
+
+  if (cmModel.jurisdiction.hasContent) {
+    sectionNo++;
+    pushChapter("jurisdiction", { number: pad2(sectionNo), kicker: "Jurisdiction", title: S(cmModel.jurisdiction.title) || S(co.jurisdiction) || "The District", subtitle: S(cmModel.jurisdiction.heroStat), image: cmModel.jurisdiction.image, variant: "image" });
+    SECTIONS.push({ id: "jurisdiction", label: "Jurisdiction", tone: CMJurisdiction.tone, count: CMJurisdiction.beats({ jurisdiction: cmModel.jurisdiction }).length, render: (l, a) => <CMJurisdiction jurisdiction={cmModel.jurisdiction} local={l} active={a} reduce={reduce} /> });
+  }
+
   cmModel.projectStories.forEach((story, pi) => {
     const results = story.flagship ? resultsModel : null;
     const count = CMProject.beats({ story, results }).length;
     if (!count) return;
+    if (pi === 0) {
+      sectionNo++;
+      const pimg = ((story.states || []).find((s) => s.media) || {}).media || (hasHero ? STATUS_IMG : "");
+      pushChapter("projects", { number: pad2(sectionNo), kicker: "Projects", title: S(story.name) || "Projects", subtitle: [S(story.label), S(story.location)].filter(Boolean).join("  ·  "), image: pimg, variant: "image" });
+    }
     SECTIONS.push({ id: pi === 0 ? "projects" : ("project-" + story.key), label: pi === 0 ? "Projects" : "", tone: CMProject.tone, count, render: (l, a) => <CMProject story={story} results={results} local={l} active={a} reduce={reduce} /> });
   });
-  if (capitalHasData) SECTIONS.push({ id: "capital", label: "Capital", tone: CMCapital.tone, count: CMCapital.beats({ capital: capitalModel }).length, render: (l, a) => <CMCapital capital={capitalModel} local={l} active={a} reduce={reduce} /> });
-  if (leadershipModel && leadershipModel.featured) SECTIONS.push({ id: "leadership", label: "Leadership", tone: CMLeadership.tone, count: CMLeadership.beats({ leadership: leadershipModel }).length, render: (l, a) => <CMLeadership leadership={leadershipModel} local={l} active={a} reduce={reduce} /> });
-  if (whyData.reasons.length || whyData.advantages.length || whyData.catalysts.length) SECTIONS.push({ id: "whyinvest", label: "Why Invest", tone: CMWhyInvest.tone, count: CMWhyInvest.beats({ data: whyData }).length, render: (l, a) => <CMWhyInvest data={whyData} local={l} active={a} reduce={reduce} /> });
+
+  if (capitalHasData) {
+    sectionNo++;
+    pushChapter("capital", { number: pad2(sectionNo), kicker: "Capital", title: "Capital", subtitle: S(capitalModel.fundingStatus) || S(capitalModel.heroStat), variant: "data", tone: TONES.ink });
+    SECTIONS.push({ id: "capital", label: "Capital", tone: CMCapital.tone, count: CMCapital.beats({ capital: capitalModel }).length, render: (l, a) => <CMCapital capital={capitalModel} local={l} active={a} reduce={reduce} /> });
+  }
+
+  if (leadershipModel && leadershipModel.featured) {
+    sectionNo++;
+    const ceoPhoto = S(leadershipModel.featured.photo);
+    pushChapter("leadership", { number: pad2(sectionNo), kicker: "Leadership", title: "Leadership", subtitle: [S(leadershipModel.featured.name), S(leadershipModel.featured.role)].filter(Boolean).join("  —  "), image: ceoPhoto, variant: ceoPhoto ? "image" : "data" });
+    SECTIONS.push({ id: "leadership", label: "Leadership", tone: CMLeadership.tone, count: CMLeadership.beats({ leadership: leadershipModel }).length, render: (l, a) => <CMLeadership leadership={leadershipModel} local={l} active={a} reduce={reduce} /> });
+  }
+
+  if (whyData.reasons.length || whyData.advantages.length || whyData.catalysts.length) {
+    sectionNo++;
+    pushChapter("whyinvest", { number: pad2(sectionNo), kicker: "The Case", title: `Why ${shortCo(co.name)}`, subtitle: S(conf.investmentSummary), variant: "data", tone: TONES.ink });
+    SECTIONS.push({ id: "whyinvest", label: "Why Invest", tone: CMWhyInvest.tone, count: CMWhyInvest.beats({ data: whyData }).length, render: (l, a) => <CMWhyInvest data={whyData} local={l} active={a} reduce={reduce} /> });
+  }
+
   SECTIONS.push({ id: "follow", label: "Follow", tone: CMFollow.tone, count: 1, render: (l, a, armed) => <CMFollow data={followData} local={l} active={a} reduce={reduce} armed={armed} /> });
   SECTIONS.push({ id: "endcap", label: "", tone: CMEndCap.tone, count: 1, render: (l, a) => <CMEndCap name={co.name} ticker={tickerLabel} active={a} /> });
 
@@ -235,11 +311,8 @@ export function ConferenceScenes() {
   const [index, setIndexState] = useState(0);
   totalRef.current = total;
 
-  const bumpIdle = useCallback(() => {
-    clearTimeout(idleRef.current);
-    const ms = (Number(conf.kioskIdleTimeout) > 0 ? Number(conf.kioskIdleTimeout) : 45) * 1000;
-    idleRef.current = setTimeout(() => { if (idxRef.current !== 0 && !lockRef.current) { lockRef.current = true; idxRef.current = 0; setIndexState(0); clearTimeout(unlockRef.current); unlockRef.current = setTimeout(() => { lockRef.current = false; }, TRANS_MS); } }, ms);
-  }, [conf.kioskIdleTimeout]);
+  // Idle attract-reset intentionally disabled: the deck stays wherever the presenter left it.
+  const bumpIdle = useCallback(() => {}, []);
 
   const commit = useCallback((next) => {
     const cur = idxRef.current;
@@ -254,23 +327,36 @@ export function ConferenceScenes() {
 
   useEffect(() => {
     const root = rootRef.current; if (!root) return;
-    // Momentum-aware wheel: one intentional gesture = one state. After a step fires we stay
-    // `wheelLocked` until wheel events actually STOP for a quiet gap — so a hard flick's inertial
-    // tail can't fire a second step once the transition lock releases. Only a fresh, deliberate
-    // scroll (after the quiet gap) advances again.
-    let wheelAccum = 0, wheelIdle = null, wheelLocked = false, ty = null;
+    // Momentum-aware wheel: one intentional gesture = one state. After a step fires we hold a SHORT
+    // FIXED cooldown (not "until events stop") — a trackpad's inertial tail keeps firing events, so a
+    // stop-based lock would never release until you physically tap to cancel the inertia. The fixed
+    // cooldown swallows the tail, then the next deliberate swipe advances immediately. A separate quiet
+    // gap resets the accumulator so slow drift doesn't creep across gestures.
+    let wheelAccum = 0, wheelAccumIdle = null, wheelCd = null, wheelLocked = false, ty = null, consumed = false;
     const onWheel = (e) => {
       e.preventDefault();
-      clearTimeout(wheelIdle);
-      wheelIdle = setTimeout(() => { wheelLocked = false; wheelAccum = 0; }, 140);
-      if (wheelLocked || lockRef.current) { wheelAccum = 0; return; }
+      clearTimeout(wheelAccumIdle);
+      wheelAccumIdle = setTimeout(() => { wheelAccum = 0; }, 120);
+      if (wheelLocked || lockRef.current) return;
       wheelAccum += e.deltaY;
-      if (Math.abs(wheelAccum) > WHEEL_TH) { const d = wheelAccum > 0 ? 1 : -1; wheelAccum = 0; wheelLocked = true; go(d); }
-      bumpIdle();
+      if (Math.abs(wheelAccum) > WHEEL_TH) {
+        const d = wheelAccum > 0 ? 1 : -1; wheelAccum = 0; wheelLocked = true;
+        clearTimeout(wheelCd); wheelCd = setTimeout(() => { wheelLocked = false; }, WHEEL_COOLDOWN);
+        go(d);
+      }
     };
-    const onTS = (e) => { if (!e.touches || e.touches.length !== 1) { ty = null; return; } ty = e.touches[0].clientY; bumpIdle(); };
-    const onTM = (e) => { if (ty != null && e.cancelable) e.preventDefault(); };
-    const onTE = (e) => { if (ty == null) return; const y = (e.changedTouches && e.changedTouches[0] ? e.changedTouches[0].clientY : ty); const dy = ty - y; ty = null; if (Math.abs(dy) > TOUCH_TH) go(dy > 0 ? 1 : -1); bumpIdle(); };
+    // Touch: accept the swipe the MOMENT intent is clear (mid-gesture), then take control and
+    // animate — the finger never has to drag the page or reach the bottom to "release" the step.
+    // `consumed` guarantees one step per finger-down; the lock guards against a fast multi-flick.
+    const onTS = (e) => { if (!e.touches || e.touches.length !== 1) { ty = null; return; } ty = e.touches[0].clientY; consumed = false; bumpIdle(); };
+    const onTM = (e) => {
+      if (ty == null) return;
+      if (e.cancelable) e.preventDefault();                    // we own vertical gestures (no page scroll)
+      if (consumed || lockRef.current) return;
+      const dy = ty - (e.touches[0] ? e.touches[0].clientY : ty);
+      if (Math.abs(dy) > TOUCH_TH) { consumed = true; go(dy > 0 ? 1 : -1); bumpIdle(); }
+    };
+    const onTE = () => { ty = null; consumed = false; };
     const onKey = (e) => {
       const k = e.key;
       if (k === "ArrowDown" || k === "Down" || k === "PageDown" || k === "ArrowRight" || k === "Right" || k === " " || k === "Spacebar") { e.preventDefault(); go(1); bumpIdle(); }
@@ -288,7 +374,7 @@ export function ConferenceScenes() {
       root.removeEventListener("wheel", onWheel); root.removeEventListener("touchstart", onTS);
       root.removeEventListener("touchmove", onTM); root.removeEventListener("touchend", onTE);
       window.removeEventListener("keydown", onKey);
-      clearTimeout(wheelIdle); clearTimeout(unlockRef.current); clearTimeout(idleRef.current);
+      clearTimeout(wheelAccumIdle); clearTimeout(wheelCd); clearTimeout(unlockRef.current); clearTimeout(idleRef.current);
     };
   }, [go, goTo, bumpIdle]);
 
@@ -296,26 +382,21 @@ export function ConferenceScenes() {
   const activeSection = cur.si, activeLocal = cur.l;
   const activeTone = SECTIONS[activeSection] ? SECTIONS[activeSection].tone : TONES.ink;
   const onLight = activeTone.key === "sheet" || activeTone.key === "board";
+  // During a chapter card, highlight the topic it introduces (its navFor section).
+  const navActiveSection = (() => {
+    const s = SECTIONS[activeSection];
+    if (s && s.chapter) { const i = SECTIONS.findIndex((x) => x.id === s.navFor); if (i >= 0) return i; }
+    return activeSection;
+  })();
 
-  // Top nav — only primary sections (skip secondary project instances + endcap).
+  // Top nav — only primary sections (skip chapter cards, secondary projects, endcap).
   const NAV = SECTIONS.map((s, si) => ({ ...s, si })).filter((s) => s.label && s.id !== "endcap" && !/^project-/.test(s.id));
   const progress = total > 1 ? index / (total - 1) : 0;
-
-  // KIOSK MODE — a clean conference swipe surface with no top section menu. Auto-on when the
-  // booth is launched full-screen from the iPad Home Screen (standalone PWA); `&kiosk=1` forces
-  // it on in any browser (and `&kiosk=0` forces the menu back for desk review/editing).
-  const kioskMode = (() => {
-    try {
-      const p = new URLSearchParams(window.location.search);
-      if (p.get("kiosk") === "1") return true;
-      if (p.get("kiosk") === "0") return false;
-      return window.navigator.standalone === true || window.matchMedia("(display-mode: standalone)").matches;
-    } catch (_) { return false; }
-  })();
 
   return (
     <div ref={rootRef} className="cm-root" style={{ position: "fixed", inset: 0, overflow: "hidden", background: activeTone.bg, color: activeTone.fg, fontFamily: "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif", touchAction: "none", transition: reduce ? "none" : `background 520ms ${EASE}`, WebkitUserSelect: "none", userSelect: "none" }}>
       <CMStyles />
+      {intro && <CurtainReveal name={S(co.name)} accent={EM} onDone={() => setIntro(false)} />}
 
       {/* Section layers — all mounted; only the active fades/rises in. */}
       {SECTIONS.map((sec, si) => {
@@ -325,10 +406,12 @@ export function ConferenceScenes() {
         return (
           <div key={sec.id} aria-hidden={!isActive} style={{
             position: "absolute", inset: 0, zIndex: isActive ? 2 : 1,
-            opacity: isActive ? 1 : 0,
-            transform: isActive ? "translateY(0)" : (si > activeSection ? "translateY(3.5%)" : "translateY(-3.5%)"),
-            transition: reduce ? "none" : `opacity 460ms ${EASE}, transform 540ms ${EASE}`,
+            // Pages slide vertically: the active page sits at 0, later pages wait one screen below,
+            // earlier ones one screen above. Advancing a topic slides the page UP. Pure slide (no fade).
+            transform: `translateY(${(si - activeSection) * 100}%)`,
+            transition: reduce ? "none" : `transform ${TRANS_MS}ms ${EASE}`,
             pointerEvents: isActive ? "auto" : "none",
+            willChange: "transform",
           }}>
             {sec.render(local, isActive, armed)}
           </div>
@@ -340,12 +423,12 @@ export function ConferenceScenes() {
         <div style={{ height: "100%", width: `${progress * 100}%`, background: activeTone.accent, transition: reduce ? "none" : `width 640ms ${EASE}` }} />
       </div>
 
-      {/* Color-inheriting top nav — hidden in kiosk mode (pure swipe, no menu). */}
-      {!kioskMode && (
+      {/* Color-inheriting top nav — always shown (progress indicator + jump-to-section). */}
+      {(
         <div style={{ position: "fixed", top: 2, left: 0, right: 0, zIndex: 55, background: activeTone.nav, backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", borderBottom: `1px solid ${activeTone.navHair}`, transition: reduce ? "none" : `background 320ms ${EASE}, border-color 320ms ${EASE}` }}>
           <div style={{ maxWidth: 1280, margin: "0 auto", padding: "0 clamp(16px,4vw,44px)", height: 58, display: "flex", alignItems: "center", justifyContent: "center", gap: 4, flexWrap: "wrap" }}>
             {NAV.map((n) => {
-              const on = n.si === activeSection;
+              const on = n.si === navActiveSection;
               return (
                 <button key={n.id} onClick={() => { goTo(starts[n.si]); bumpIdle(); }} style={{ position: "relative", background: "none", border: "none", cursor: "pointer", padding: "8px 16px", fontSize: 14.5, fontWeight: on ? 800 : 600, letterSpacing: "-0.01em", color: on ? activeTone.navText : activeTone.navDim, transition: `color .25s ${EASE}` }}>
                   {n.label}
@@ -373,11 +456,11 @@ export function ConferenceScenes() {
         </div>
       )}
 
-      {/* Persistent follow QR chip — recedes on the Follow scene (which has the big QR). */}
+      {/* Persistent follow QR — a small, discreet scannable badge so the presentation stays the
+          visual priority. The full "Scan to follow" CTA lives on the Follow scene. */}
       {qr && SECTIONS[activeSection] && SECTIONS[activeSection].id !== "follow" && SECTIONS[activeSection].id !== "endcap" && (
-        <div style={{ position: "fixed", right: 18, bottom: 18, zIndex: 55, display: "flex", alignItems: "center", gap: 10, background: onLight ? "rgba(255,255,255,0.7)" : "rgba(11,18,32,0.8)", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)", border: `1px solid ${activeTone.navHair}`, borderRadius: 14, padding: "8px 13px 8px 8px", boxShadow: "0 12px 30px -14px rgba(0,0,0,0.5)", transition: reduce ? "none" : `background 400ms ${EASE}` }}>
-          <div style={{ height: 46, width: 46, background: "#fff", borderRadius: 8, padding: 4 }} dangerouslySetInnerHTML={{ __html: qr }} />
-          <div style={{ color: onLight ? "#141821" : "#fff", fontSize: 12, fontWeight: 800, lineHeight: 1.15, whiteSpace: "nowrap" }}>Follow on<br />Passport</div>
+        <div style={{ position: "fixed", right: 16, bottom: 16, zIndex: 55, opacity: 0.62, background: "#fff", borderRadius: 9, padding: 4, boxShadow: "0 8px 20px -14px rgba(0,0,0,0.5)", transition: reduce ? "none" : `opacity 400ms ${EASE}` }}>
+          <div style={{ height: 38, width: 38 }} dangerouslySetInnerHTML={{ __html: qr }} />
         </div>
       )}
     </div>

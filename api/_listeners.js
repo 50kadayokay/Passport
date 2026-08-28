@@ -37,17 +37,22 @@ async function feedProjectionV1(event, db) {
     materialityLabel = (upd && upd[0] && upd[0].detected && upd[0].detected.materiality) || null;
   }
   const content = pub.content || {};
+  // The composer states what it published. Anything that isn't an explicit media
+  // post stays a press release — the historical default, and the only type that
+  // notifies followers (see inAppNotificationsV1 below).
+  const postType = String(content.post_type || "") === "media" ? "media" : "press_release";
   const row = {
     publication_id: pub.id,
     company_id: pub.company_id,
-    post_type: "press_release",
-    category: null,
+    post_type: postType,
+    category: content.category ? String(content.category) : null,
     title: (content.headline && String(content.headline).trim()) || "Company update",
     summary: content.body || null,
-    thumbnail_url: content.media_url || null,
-    source_url: pub.external_url || null,
-    materiality_label: materialityLabel,
-    materiality_score: scoreFor(materialityLabel),
+    // A media post's media_url is the video itself, so prefer an explicit thumbnail.
+    thumbnail_url: content.thumbnail_url || content.media_url || null,
+    source_url: content.source_url || pub.external_url || null,
+    materiality_label: postType === "media" ? null : materialityLabel,
+    materiality_score: postType === "media" ? null : scoreFor(materialityLabel),
     published_at: pub.published_at || new Date().toISOString(),
     removed_at: null, // re-publish makes it visible again
   };

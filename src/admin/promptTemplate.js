@@ -2192,6 +2192,17 @@ Use exactly this structure:
     { "label": "", "timing": "", "type": "assay|resource|study|permit|construction|production|financing", "impact": "" }
   ],
 
+  "passport": {
+    "_comment": "OPTIONAL — Passport app 'Pro Highlights' carousel. LEAVE OMITTED by default: the app AUTO-DERIVES all five cards (flagship project, current program, standout result, capital, what's next) from the normalized company / projects / capital / catalysts data above, stage-adaptively. Only include a card's object here to OVERRIDE a specific derived card when a curated, source-supported version is clearly better. Never fabricate; omit any field you cannot support from the documents. proHighlights is read ONLY by the Passport app — never by Conference Mode.",
+    "proHighlights": {
+      "flagshipProject": { "projectName": "", "positioning": "factual one-liner, no promo language", "location": "", "commodity": "", "ownership": "", "stage": "" },
+      "currentProgram": { "label": "", "primaryMetric": "the single strongest investor-relevant number", "primaryUnit": "", "progressCurrent": null, "progressTarget": null, "summary": "", "supportingFacts": ["max 2-3"] },
+      "standoutResult": { "primaryValue": "", "label": "", "context": "interval / grade / basis", "projectName": "", "date": "" },
+      "capital": { "primaryValue": "", "primaryLabel": "Cash", "cashAsOf": "", "secondary": [ { "label": "", "value": "" } ], "fundingStatus": "only the company's OWN stated wording" },
+      "whatsNext": { "headline": "What's Next", "items": [ { "label": "", "timing": "disclosed timing, else Upcoming/Planned/Ongoing" } ] }
+    }
+  },
+
   "projects": [
     {
       "key": "",

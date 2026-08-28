@@ -1,0 +1,65 @@
+<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1">
+<title>Filled templates — real data</title>
+<style>
+  body{margin:0;background:#e9edf1;font-family:-apple-system,system-ui,sans-serif;padding:22px 14px;color:#0f172a}
+  .note{max-width:410px;margin:0 auto 18px;font-size:12.5px;color:#475569;line-height:1.5}
+  .note b{color:#0f172a}
+  .wrap{max-width:410px;margin:0 auto 22px;background:#fff;border-radius:26px;padding:16px 16px 20px;box-shadow:0 2px 4px rgba(15,23,42,.05),0 24px 50px -30px rgba(15,23,42,.5)}
+  .top{display:flex;justify-content:space-between;align-items:center;padding:2px 2px 12px}
+  .back{font-size:24px;color:#0f172a}
+  .follow{background:#c8a24a;color:#3a2e12;font-weight:800;font-size:13.5px;padding:9px 16px;border-radius:999px}
+  .banner{height:150px;border-radius:18px;position:relative;overflow:hidden}
+  .mtn{position:absolute;bottom:0;left:0;width:100%}
+  .avatar{width:74px;height:74px;border-radius:18px;display:grid;place-items:center;color:#fff;font-weight:800;font-size:22px;margin:-34px 0 0 8px;position:relative;border:4px solid #fff}
+  .name{font-size:22px;font-weight:800;margin:12px 2px 0;letter-spacing:-.02em}
+  .badge{display:inline-flex;align-items:center;gap:5px;background:#eef2f6;color:#64748b;font-weight:700;font-size:12.5px;padding:7px 12px;border-radius:999px;margin:10px 2px 0}
+  .tick{display:inline-flex;flex-direction:column;background:#0f172a;color:#fff;border-radius:14px;padding:8px 15px;margin:12px 2px 0}
+  .tick .ex{font-size:9px;font-weight:800;letter-spacing:.14em;color:#94a3b8}
+  .tick .sy{font-size:16px;font-weight:800;display:flex;align-items:center;gap:6px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:11px;margin:16px 2px 0}
+  .cell{background:#f6f8fa;border-radius:15px;padding:13px 14px}
+  .cell .lab{display:flex;align-items:center;gap:6px;font-size:10.5px;font-weight:800;letter-spacing:.08em;color:#94a3b8;text-transform:uppercase}
+  .cell .val{font-size:16px;font-weight:800;margin-top:6px}
+  .cell.na .val{color:#cbd5e1}
+  .wtd{display:flex;align-items:center;gap:7px;margin:20px 2px 0;font-size:12.5px;font-weight:800;letter-spacing:.06em;color:#8a6d1f;text-transform:uppercase}
+  .desc{border:1px solid #eef2f6;border-radius:15px;padding:15px;margin:11px 2px 0;font-size:14px;line-height:1.55;color:#334155}
+  .src{font-size:10.5px;color:#94a3b8;margin:8px 4px 0}
+</style>
+<div class=note><b>4 of your real TSXV companies, filled into the template.</b> Facts (name, ticker, jurisdiction) from the TMX file. Commodity, stage & the "What they do" text are <b>summarized from each company's real scraped About text / search snippet</b> — grounded, nothing invented. The last one is a genuine shell with no web presence → honest factual fallback. This is exactly what the automated pipeline produces per company.</div>
+
+<div id=app></div>
+<script>
+const CO = [
+ {name:"1911 Gold Corporation", sym:"AUMB", ex:"TSXV", init:"1G", loc:"Manitoba", juris:"Canada", com:"Gold", stage:"Developer", grad:["#b8860b","#8a6410"], tint:"#a9791a",
+  desc:"1911 Gold is an advanced-stage gold explorer and developer in Manitoba's Rice Lake district, holding roughly 62,000 hectares around the fully permitted True North mine and mill. It is working toward a district-scale gold operation built on that existing infrastructure.",
+  src:"Source: 1911gold.com/corporate/about-us"},
+ {name:"Abcourt Mines Inc.", sym:"ABI", ex:"TSXV", init:"AB", loc:"Quebec", juris:"Canada", com:"Gold · Silver", stage:"Developer", grad:["#b8860b","#8a6410"], tint:"#a9791a",
+  desc:"Abcourt Mines is an emerging gold producer in Quebec's Abitibi mining camp. It is advancing the Sleeping Giant mine and mill toward commercial production and running a 20,000 m drill campaign at its Flordin-Cartwright project.",
+  src:"Source: search snippet / abcourt.com"},
+ {name:"AC/DC Battery Metals Inc.", sym:"ACDC", ex:"TSXV", init:"AC", loc:"British Columbia", juris:"Canada", com:"Nickel · Cobalt", stage:"Explorer", grad:["#4b6b7a","#2f4a57"], tint:"#3f6070",
+  desc:"AC/DC Battery Metals is an exploration company focused on battery and critical minerals in British Columbia. It holds a 100% interest in its ~6,125-hectare Nickel Project in the Takla Lake area, targeting nickel, cobalt and chromium deposits.",
+  src:"Source: search snippet (name gives no commodity — description does)"},
+ {name:"1844 Resources Inc.", sym:"EFF", ex:"TSXV", init:"1R", loc:"Saskatchewan", juris:"Canada", com:"", stage:"Explorer", grad:["#64748b","#475569"], tint:"#556173",
+  desc:"1844 Resources Inc. is a TSX Venture-listed mineral exploration company based in Saskatchewan, Canada.",
+  src:"No web presence found → factual fallback line (no invented details)"},
+];
+const mtn = c => `<svg class=mtn viewBox="0 0 400 90" preserveAspectRatio="none"><path d="M0,90 L70,38 L120,70 L200,25 L270,62 L330,40 L400,72 L400,90 Z" fill="rgba(255,255,255,.16)"/><path d="M0,90 L90,55 L160,78 L240,45 L300,72 L360,55 L400,80 L400,90 Z" fill="rgba(255,255,255,.10)"/></svg>`;
+document.getElementById('app').innerHTML = CO.map(c=>`
+ <div class=wrap>
+   <div class=top><span class=back>‹</span><span class=follow>+ Follow</span></div>
+   <div class=banner style="background:linear-gradient(160deg,${c.grad[0]},${c.grad[1]})">${mtn(c)}</div>
+   <div class=avatar style="background:${c.tint}">${c.init}</div>
+   <div class=name>${c.name}</div>
+   <div class=badge>✔︎ Community listing · unclaimed</div><br>
+   <div class=tick><span class=ex>${c.ex}</span><span class=sy>${c.sym} <span style="font-size:13px">↗</span></span></div>
+   <div class=grid>
+     <div class=cell><div class=lab>📍 Location</div><div class=val>${c.loc}</div></div>
+     <div class=cell><div class=lab>🏛 Jurisdiction</div><div class=val>${c.juris}</div></div>
+     <div class="cell ${c.com?'':'na'}"><div class=lab>💎 Commodity</div><div class=val>${c.com||'—'}</div></div>
+     <div class=cell><div class=lab>⛰ Stage</div><div class=val>${c.stage}</div></div>
+   </div>
+   <div class=wtd>✦ What they do</div>
+   <div class=desc>${c.desc}</div>
+   <div class=src>${c.src}</div>
+ </div>`).join('');
+</script>

@@ -1,0 +1,17 @@
+<!-- MineEx app icon — a stratigraphic "core sample": four rock bands in a rounded
+     capsule on a warm cream field. Full-bleed square (no own transparency) so it
+     works as an iOS app icon; the core sits well inside the maskable safe zone. -->
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1024" height="1024" fill="#F1ECE2"/>
+  <defs>
+    <clipPath id="core">
+      <rect x="372" y="162" width="280" height="700" rx="42" ry="42"/>
+    </clipPath>
+  </defs>
+  <g clip-path="url(#core)">
+    <rect x="372" y="162" width="280" height="175" fill="#C4633B"/>
+    <rect x="372" y="337" width="280" height="175" fill="#DED3BE"/>
+    <rect x="372" y="512" width="280" height="175" fill="#DFA94C"/>
+    <rect x="372" y="687" width="280" height="175" fill="#8B5A35"/>
+  </g>
+</svg>

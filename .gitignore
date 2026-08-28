@@ -13,3 +13,8 @@ dist/
 Passport_ai_brief__1_.html
 .vercel
 .env*
+
+# secrets & local-only cruft — never commit
+companies/keys.env
+backups/
+__acct.*

@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useEffect, useRef } from "react";
 import { X, Loader2, Check, Upload, Plus, Trash2, ChevronDown, Image as ImageIcon } from "lucide-react";
 import { mapProfileToPP } from "../lib/profileToPP.js";
+import { hydrateListingProfile } from "../lib/listingProfile.js";
 import { uploadCompanyMedia } from "../lib/storage.js";
 import LogoEditor from "./LogoEditor.jsx";
 
@@ -216,8 +217,14 @@ function Section({ id, title, open, setOpen, children, hidden }) {
   );
 }
 
+// The preview renders at a real iPhone's logical viewport, then scales to fit.
+const PHONE_W = 390, PHONE_H = 844;
+
 export default function ProfileEditor({ profile, companyName, slug, previewToken, onClose, onSave }) {
-  const [draft, setDraft] = useState(() => JSON.parse(JSON.stringify(profile || {})));
+  // A basic listing stores its whole profile in the raw `pp` blob with nothing
+  // structured underneath. Lift it into the structured shape first, or the fields
+  // render empty and saving regenerates pp from nothing (destroying the listing).
+  const [draft, setDraft] = useState(() => hydrateListingProfile(profile));
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [err, setErr] = useState("");
@@ -280,12 +287,30 @@ export default function ProfileEditor({ profile, companyName, slug, previewToken
     } catch (_) { /* tainted canvas or load failed — pick manually */ }
   };
 
+  // Scale the phone to fill the preview column without ever cropping it.
+  const previewShellRef = useRef(null);
+  const [previewScale, setPreviewScale] = useState(1);
+  useEffect(() => {
+    const el = previewShellRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const fit = () => {
+      const r = el.getBoundingClientRect();
+      const pad = 48;   // matches p-6 on both sides
+      const s = Math.min((r.width - pad) / PHONE_W, (r.height - pad) / PHONE_H);
+      if (Number.isFinite(s) && s > 0) setPreviewScale(Math.max(0.6, Math.min(1.6, s)));
+    };
+    fit();
+    const ro = new ResizeObserver(fit);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   const src = `/app?c=${encodeURIComponent(slug)}${previewToken ? `&preview=${encodeURIComponent(previewToken)}` : ""}`;
   const P = { draft, update };
   // A basic "listing" tier company only renders hero/logo/status-card/brief on its 1-pager,
   // so the editor hides the full-profile sections (status card, capital, team, projects, CEO
   // note) — a fast, focused edit for polishing listings at scale ("10 companies/day").
-  const isListing = (draft.tier || "") === "listing";
+  const isListing = (draft.tier || (draft.pp && draft.pp.TIER) || "") === "listing";
   const team = Array.isArray(draft.team) ? draft.team : [];
   const projects = Array.isArray(draft.projects) ? draft.projects : [];
   const keyPoints = Array.isArray(draft.companyBrief?.keyPoints) ? draft.companyBrief.keyPoints : [];
@@ -293,7 +318,7 @@ export default function ProfileEditor({ profile, companyName, slug, previewToken
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-5" onClick={onClose}>
-      <div className="flex h-[92vh] w-full max-w-[1160px] flex-col overflow-hidden rounded-3xl bg-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
+      <div className="flex h-[95vh] w-full max-w-[1680px] flex-col overflow-hidden rounded-3xl bg-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
         <div className="flex flex-shrink-0 items-center justify-between border-b border-slate-200 px-6 py-3.5">
           <p className="text-[16px] font-extrabold tracking-tight text-slate-900">Edit profile · <span className="text-slate-400">{companyName}</span></p>
           <div className="flex items-center gap-3">
@@ -307,9 +332,16 @@ export default function ProfileEditor({ profile, companyName, slug, previewToken
         </div>
 
         <div className="flex min-h-0 flex-1">
-          <div className="flex w-[420px] flex-shrink-0 items-center justify-center bg-slate-100 p-5">
-            <div className="h-[720px] max-h-full w-[360px] overflow-hidden rounded-[40px] border border-slate-200 bg-white shadow-xl">
-              <iframe ref={iframeRef} key={previewVersion} title="preview" src={src} className="h-full w-full border-0" onLoad={postDraft} />
+          {/* The preview renders the app at TRUE phone width (so layout matches the
+              device exactly) and is then scaled up to fill whatever room the window
+              gives it — bigger type and imagery to check work against, never a
+              re-flowed desktop-ish layout. */}
+          <div ref={previewShellRef} className="flex w-[620px] flex-shrink-0 items-center justify-center bg-slate-100 p-6">
+            <div className="overflow-hidden rounded-[44px] border border-slate-200 bg-white shadow-xl"
+              style={{ width: PHONE_W * previewScale, height: PHONE_H * previewScale }}>
+              <iframe ref={iframeRef} key={previewVersion} title="preview" src={src} onLoad={postDraft}
+                className="border-0"
+                style={{ width: PHONE_W, height: PHONE_H, transform: `scale(${previewScale})`, transformOrigin: "top left" }} />
             </div>
           </div>
 
@@ -321,8 +353,10 @@ export default function ProfileEditor({ profile, companyName, slug, previewToken
             )}
             <Section id="identity" title="Identity & logo" open={open} setOpen={setOpen}>
               <Img {...P} path="brand.logo" label="Profile logo (the circular icon)" round maxDim={512} />
-              <Img {...P} path="companyStatus.photo" label="Status card photo (the big site/drone image)" maxDim={1000} />
-              {/* Status card logo — upload any logo; the processor removes its background + sizes it. */}
+              <Img {...P} path="companyStatus.photo" label={isListing ? "Hero photo (the big image at the top)" : "Status card photo (the big site/drone image)"} maxDim={1000} />
+              {/* Status card logo — upload any logo; the processor removes its background + sizes it.
+                  A basic listing never renders it, so it is hidden there. */}
+              {!isListing && (
               <div>
                 <span className="mb-1 block text-[11px] font-bold uppercase tracking-wider text-slate-400">Status card logo (fades in over the status photo)</span>
                 <div className="flex items-center gap-3">
@@ -338,16 +372,28 @@ export default function ProfileEditor({ profile, companyName, slug, previewToken
                   </div>
                 </div>
               </div>
+              )}
               <Txt {...P} path="company.name" label="Company name" />
               <Txt {...P} path="company.ticker" label="Ticker" ph="TSXV: AGAG" />
               <Txt {...P} path="company.website" label="Website" />
-              <Txt {...P} path="company.slogan" label="Slogan" ph="A Pure Silver Company" />
-              {/* Basic-listing status-card fields (also shown on the full profile's identity). */}
+              {!isListing && <Txt {...P} path="company.slogan" label="Slogan" ph="A Pure Silver Company" />}
+              {/* The status-card cells. On a basic listing these ARE the four cells the
+                  app prints (Jurisdiction · Commodity · Stage · Headquarters), so the
+                  editor shows exactly those — headquarters falls back to location. */}
               <div className="grid grid-cols-2 gap-2">
                 <Txt {...P} path="company.commodity" label="Commodity" ph="Silver-Gold" />
                 <Txt {...P} path="company.stage" label="Stage" ph="developer" />
-                <Txt {...P} path="company.location" label="Location (region)" ph="Aysen Region" />
-                <Txt {...P} path="company.jurisdiction" label="Jurisdiction (country)" ph="Chile" />
+                {isListing ? (
+                  <>
+                    <Txt {...P} path="company.jurisdiction" label="Jurisdiction (where the projects are)" ph="Nevada, USA" />
+                    <Txt {...P} path="company.headquarters" label="Headquarters (head office)" ph="British Columbia, Canada" />
+                  </>
+                ) : (
+                  <>
+                    <Txt {...P} path="company.location" label="Location (region)" ph="Aysen Region" />
+                    <Txt {...P} path="company.jurisdiction" label="Jurisdiction (country)" ph="Chile" />
+                  </>
+                )}
               </div>
               <div>
                 <span className="mb-1 block text-[11px] font-bold uppercase tracking-wider text-slate-400">Brand accent color</span>
@@ -403,8 +449,11 @@ export default function ProfileEditor({ profile, companyName, slug, previewToken
               <Txt {...P} path="companyStatus.expected" label="Expected (ETA)" />
             </Section>
 
-            <Section id="brief" title="60-second brief" open={open} setOpen={setOpen}>
-              <Area {...P} path="companyBrief.shortSummary" label="What they do (shown on the profile & basic listing)" rows={3} ph="Plain-language 2–3 sentences: commodity, stage, and where the flagship project is." />
+            <Section id="brief" title={isListing ? "What they do" : "60-second brief"} open={open} setOpen={setOpen}>
+              <Area {...P} path="companyBrief.shortSummary" label={isListing ? "What they do (the paragraph on the listing)" : "What they do (shown on the profile & basic listing)"} rows={3} ph="Plain-language 2–3 sentences: commodity, stage, and where the flagship project is." />
+              {/* Value drivers and the brief sections are full-profile only —
+                  a basic listing prints just the paragraph above. */}
+              {!isListing && (<>
               <div>
                 <span className="mb-1 block text-[11px] font-bold uppercase tracking-wider text-slate-400">Value drivers</span>
                 <div className="space-y-2">
@@ -431,6 +480,15 @@ export default function ProfileEditor({ profile, companyName, slug, previewToken
                   ))}
                 </div>
               </div>
+              </>)}
+
+              {/* Provenance printed in the listing disclaimer ("compiled from … · date"). */}
+              {isListing && (
+                <div className="grid grid-cols-2 gap-2 border-t border-slate-100 pt-3">
+                  <Txt {...P} path="listingSource.label" label="Compiled from (source)" ph="company.com" />
+                  <Txt {...P} path="listingSource.date" label="Compiled (date)" ph="Aug 2026" />
+                </div>
+              )}
             </Section>
 
             <Section id="capital" title="Capital" open={open} setOpen={setOpen} hidden={isListing}>

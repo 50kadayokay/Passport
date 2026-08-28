@@ -1,7 +1,9 @@
-import React, { useState, useEffect, useRef } from "react";
-import { createPortal } from "react-dom";
-import { fetchCompany } from "../lib/supabase.js";
+import React, { useState, useEffect, useRef, useMemo } from "react";
+import { createPortal, flushSync } from "react-dom";
+import { fetchCompany, SUPABASE_URL, SUPABASE_ANON } from "../lib/supabase.js";
+import { API_BASE } from "../lib/platform.js";
 import QRCode from "qrcode";
+import { buildCompanyIdentity } from "./proHighlights.js";
 
 // The app's outermost frame element. Full-screen overlays (e.g. the CEO profile)
 // portal into this so they cover the whole phone — clearing the company header and
@@ -12,16 +14,22 @@ let ppFrameEl = null;
 import {
   Home, Clock, Map as MapIcon, PieChart, Users,
   BadgeCheck, Bookmark, Plus, Check, Zap, X,
-  ChevronRight, ChevronLeft, Gem, MapPin, Wallet, TrendingUp,
+  ChevronRight, ChevronLeft, Gem, MapPin, Wallet, TrendingUp, RotateCcw,
   Coins, Pickaxe, Route, Mountain, Navigation,
   Target, FlaskConical, Drill, ShieldCheck, Info, MessageSquare,
   Activity, Landmark, Radio, Eye, Minus, Layers, ArrowUpRight, Crosshair, Camera, Grid3x3,
-  Compass, ScanLine, CircleUserRound, Search, Bell, Settings, ChevronDown, Plus as PlusIcon, Sparkles, Flame, Send, PenSquare,
+  Compass, ScanLine, CircleUserRound, Search, Bell, Settings, ChevronDown, SlidersHorizontal, Plus as PlusIcon, Sparkles, Flame, Send, PenSquare,
   Star, Scan, User, Newspaper, Globe, QrCode, Focus, TrendingDown,
   Droplets, Plane, Building2, Factory, Hammer, GalleryHorizontal, Play, Mic,
-  Heart, Telescope, ArrowDownUp, Quote, Phone, Mail, Twitter, Linkedin, LogOut
+  Heart, Telescope, ArrowDownUp, Quote, Phone, Mail, Twitter, Linkedin, LogOut,
+  Trash2, Briefcase, Instagram, Share2
 } from "lucide-react";
-import { signOut, getUser } from "../lib/auth.js";
+import { signOut, getUser, getAccessToken, authHeaders, onAuthChange, requestPasswordReset } from "../lib/auth.js";
+import * as investorData from "../lib/investorData.js";
+import * as discovery from "../lib/discovery.js";
+import { mockEnabled, buildMockNewsroom, disableMock } from "./mockNewsroom.js"; // DEV-ONLY Mock Newsroom (delete to remove)
+import { fetchLiveNews } from "../lib/news.js"; // approved real news (public view)
+import PullToRefresh from "./PullToRefresh.jsx"; // swipe-down refresh on the feed
 import { resolveWidgets, resolveProjectWidgets, widgetText } from "../lib/conferenceWidgets.js";
 import { ConferenceScenes } from "./ConferenceScenes.jsx";
 
@@ -993,7 +1001,46 @@ function ScenarioGlassButton({ variant, Icon, selected, dimmed, onClick, compact
   );
 }
 
-function Overview({ tab, goto, openBrief, following, setFollowing, bookmarked, setBookmarked, saved, openCompare, openWatchlist, openConference }) {
+// Sample a flagship banner image's luminance ONCE (cross-origin-safe) so the Company Status
+// header overlay can ADAPT rather than darkening every photo the same. Returns the perceived
+// luminance of the shown crop band (0 = black … 1 = white). Falls back to 0.5 whenever the
+// pixels can't be read (CORS taint, decode error) so it never breaks a company.
+function useBannerLum(src) {
+  const [lum, setLum] = useState(0.5);
+  useEffect(() => {
+    setLum(0.5);
+    if (!src) return;
+    let cancelled = false;
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      if (cancelled) return;
+      try {
+        const cw = 20, ch = 10;                       // tiny sample of the shown crop band
+        const cv = document.createElement("canvas");
+        cv.width = cw; cv.height = ch;
+        const ctx = cv.getContext("2d", { willReadFrequently: true });
+        if (!ctx || !img.width || !img.height) return;
+        // cover-crop matching the banner (object-position 50% 30%)
+        const ar = cw / ch, iar = img.width / img.height;
+        let sw, sh, sx, sy;
+        if (iar > ar) { sh = img.height; sw = sh * ar; sx = (img.width - sw) / 2; sy = 0; }
+        else { sw = img.width; sh = sw / ar; sx = 0; sy = (img.height - sh) * 0.30; }
+        ctx.drawImage(img, sx, sy, sw, sh, 0, 0, cw, ch);
+        const d = ctx.getImageData(0, 0, cw, ch).data;   // throws if cross-origin tainted
+        let sum = 0, n = 0;
+        for (let i = 0; i < d.length; i += 4) { sum += 0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2]; n++; }
+        if (!cancelled && n) setLum((sum / n) / 255);
+      } catch (_) { /* tainted/unreadable → keep the safe 0.5 default */ }
+    };
+    img.onerror = () => {};
+    img.src = src;
+    return () => { cancelled = true; };
+  }, [src]);
+  return lum;
+}
+
+function Overview({ tab, goto, openBrief, following, setFollowing, bookmarked, setBookmarked, saved, openCompare, openWatchlist, openConference, initialFlipped = false, introDone = false, onFlip, onIntroDone }) {
   const [showStatusInfo, setShowStatusInfo] = useState(false);
 
   // Current program progress (hole-based) — data-driven, falls back to the sample.
@@ -1010,17 +1057,21 @@ function Overview({ tab, goto, openBrief, following, setFollowing, bookmarked, s
   const [photoOpen, setPhotoOpen] = useState(false);
 
   // Status flip card — intro: image fades in, logo fades in, then flips to details.
-  const [flipped, setFlipped] = useState(false);   // false = image face, true = details face
-  const [imgIn, setImgIn] = useState(false);
+  // `introDone` (persisted by CompanyProfile for the whole profile session) means the intro
+  // already played on a previous visit to this tab — so we restore the last flip state WITHOUT
+  // re-animating. It resets only when the profile is fully left and re-entered (CompanyProfile
+  // remounts). Manual/auto flips are pushed back up via onFlip / onIntroDone.
+  const [flipped, setFlipped] = useState(introDone ? initialFlipped : false); // false = image face, true = status face
+  const [imgIn, setImgIn] = useState(introDone);
   const [logoIn, setLogoIn] = useState(false);
-  const [showLogo, setShowLogo] = useState(true);   // logo only during the intro
+  const [showLogo, setShowLogo] = useState(!introDone);   // logo only during the intro
   // Don't start the intro until the hero image is actually decoded — otherwise the
   // timed fade runs against an unloaded network image (Storage URL), the CEO sees a
   // black flash, and the image pops in AFTER the animation finished. Preload + decode
   // first (with a safety cap so a slow/broken image never hangs the card).
-  const [imgReady, setImgReady] = useState(() => !STATUS_IMG);
+  const [imgReady, setImgReady] = useState(() => introDone || !STATUS_IMG);
   useEffect(() => {
-    if (!STATUS_IMG) return;                 // gradient fallback → already "ready"
+    if (introDone || !STATUS_IMG) return;    // no intro to run → skip the decode gate
     let done = false;
     const finish = () => { if (!done) { done = true; setImgReady(true); } };
     const img = new Image();
@@ -1031,6 +1082,7 @@ function Overview({ tab, goto, openBrief, following, setFollowing, bookmarked, s
     return () => { done = true; clearTimeout(cap); };
   }, []);
   useEffect(() => {
+    if (introDone) return;                    // already played this session → don't re-animate
     if (!imgReady) return;                    // hold the whole sequence until decoded
     const t1 = setTimeout(() => setImgIn(true), 60);      // image fades in
     const t2 = setTimeout(() => setLogoIn(true), 680);    // logo fades in after
@@ -1038,6 +1090,9 @@ function Overview({ tab, goto, openBrief, following, setFollowing, bookmarked, s
     const t4 = setTimeout(() => setShowLogo(false), 2900); // drop logo once details are shown
     return () => { [t1, t2, t3, t4].forEach(clearTimeout); };
   }, [imgReady]);
+  // Persist the flip state up to CompanyProfile so returning to this tab keeps it as-is; mark the
+  // intro "done" once the card has shown its status face (auto-flip or a manual flip).
+  useEffect(() => { if (onFlip) onFlip(flipped); if (flipped && onIntroDone) onIntroDone(); }, [flipped]);
 
   // Fill the progress bar each time the card flips to its details face,
   // starting once the flip has rotated far enough to reveal the back face.
@@ -1101,165 +1156,165 @@ function Overview({ tab, goto, openBrief, following, setFollowing, bookmarked, s
   const [driversSeen, setDriversSeen] = useState(false);
   const statusCarRef = useRef(null);
   const onStatusScroll = () => { const el = statusCarRef.current; if (!el) return; const p = Math.round(el.scrollLeft / (el.clientWidth || 1)); setStatusPage(p); if (p >= 1) setDriversSeen(true); };
+
+  // Pro Highlights — the five-card Company Highlights carousel replaces the Status Card on
+  // full (Pro) profiles. Derived from the SAME normalized data (Passport-only selector);
+  // basic "listing" profiles keep the classic status carousel, and so does any profile with
+  // too little data to tell the story. Additive/read-only: no data contract changes.
+  // Universal Company Identity card (replaces the old status carousel). Same footprint,
+  // every company: tickers · flagship · location · commodity · projects · stage · focus.
+  const identity = React.useMemo(() => buildCompanyIdentity({
+    COMPANY, STATUS, STATUS_IMG, PROJECTS_FULL, PROJECTS_DATA, EXCHANGES, STAGES, STAGE_NOW,
+  }), []);
+  // Company Status back-face model — tickers (font shrinks as their count grows so they
+  // never overflow the fixed card) + a fixed six-cell identity grid.
+  const idTickers = Array.isArray(identity.tickers) ? identity.tickers : [];
+  const idTkSize = idTickers.length <= 2 ? 13 : idTickers.length === 3 ? 11.5 : 10.5;
+  // Flagship-project image for the header banner (universal hierarchy already resolved by the
+  // selector: flagship gallery hero → STATUS_IMG). Falls back to the clean header when absent.
+  const idBanner = (identity.flagship && identity.flagship.image) || "";
+  // Adaptive treatment, derived continuously from image luminance: protection lives ONLY in the
+  // localized zones (top-left behind COMPANY STATUS, bottom behind the tickers) and scales UP with
+  // brightness (white text needs more on a bright photo); the open image gets NO global darken, so
+  // bright skies stay vivid and dark photos are barely touched. Consistent result, not identical CSS.
+  const bannerLum = useBannerLum(idBanner);
+  const clampN = (v, a, b) => Math.max(a, Math.min(b, v));
+  const bannerCfg = {
+    tl: +clampN(0.4 + bannerLum * 0.28, 0.44, 0.62).toFixed(3),   // top-left, behind COMPANY STATUS
+    bot: +clampN(0.24 + bannerLum * 0.36, 0.3, 0.52).toFixed(3),  // bottom, behind the ticker pills
+  };
+  // 2×3 status grid — six equal "fact modules" on NEUTRAL Passport surfaces. Category colour
+  // is universal (keyed to info TYPE, not the company) and lives ONLY in the icon + its faint
+  // container tint; tiles/text/labels stay neutral so the card belongs to the rest of Passport.
+  const idCells = [
+    { label: "Commodity",       value: identity.meta && identity.meta.commodity,          Icon: Gem,        icBg: "rgba(90,116,153,0.12)", ic: "#5c7599" }, // cool silver-blue
+    { label: "Jurisdiction",    value: identity.meta && identity.meta.jurisdiction,       Icon: MapPin,     icBg: "rgba(184,124,46,0.13)", ic: "#b0762e" }, // earth / sand
+    { label: "Flagship Project",value: identity.flagship && identity.flagship.projectName, Icon: Mountain,   icBg: "rgba(37,99,235,0.11)",  ic: "#2563eb" }, // Passport blue
+    { label: "Stage",           value: identity.stage,                                     Icon: TrendingUp, icBg: "rgba(99,91,201,0.12)",  ic: "#5b57c9" }, // indigo
+    { label: "Projects",        value: identity.meta && identity.meta.projects,           Icon: Layers,     icBg: "rgba(14,139,168,0.12)", ic: "#0e8ba8" }, // cyan
+    { label: "Current Focus",   value: identity.meta && identity.meta.focus,              Icon: Activity,   icBg: "rgba(5,150,105,0.13)",  ic: "#059669", live: true }, // emerald / activity
+  ];
+
   return (
     <div className="px-5 pt-2" style={{ opacity: snapIn ? 1 : 0, transform: snapIn ? "none" : "translateY(6px)", transition: "opacity .5s ease, transform .5s ease", display: "flex", flexDirection: "column", height: "100%", minHeight: 0, paddingBottom: 5 }}>
 
-      {/* ============ SECTION 1 — STATUS + CORE VALUE DRIVERS (swipe carousel) ============ */}
-      {/* card GROWS to fill the space between the top tabs and the AI Brief (which is pinned
-          just above the bottom nav) — so the card + brief always fill the phone, no dead space. */}
+      {/* ============ SECTION 1 — Company Status Card (flip: image/logo → status grid) ============ */}
+      {/* Original flip card, restored: front = hero image + logo fade-in (auto-flips after the
+          intro, or on tap); back = the new high-signal Company Status identity grid. Same outer
+          footprint as the original (grows to fill tabs→AI Brief). No carousel, no scroll. */}
       <div style={{ flex: "1 1 auto", display: "flex", flexDirection: "column", minHeight: 0 }}>
-      {/* The card's soft shadow is cast by a layer BEHIND the swipe carousel. The carousel
-          itself must clip (overflow) for the horizontal swipe, which was slicing the shadow
-          into a hard/angled edge — casting it from an un-clipped layer keeps it fully soft
-          while the card stays full size (no padding needed inside the carousel). */}
-      <div style={{ position: "relative", flex: "1 1 auto", minHeight: 0, display: "flex" }}>
-      <div aria-hidden="true" style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0, borderRadius: 24, background: "#ffffff", boxShadow: "0 12px 30px -10px rgba(15,23,42,0.20)", zIndex: 0 }} />
-      <div ref={statusCarRef} onScroll={onStatusScroll} className="pp-noscroll" style={{ position: "relative", zIndex: 1, width: "100%", display: "flex", overflowX: "auto", scrollSnapType: "x mandatory", WebkitOverflowScrolling: "touch", alignItems: "stretch", flex: "1 1 auto", minHeight: 0 }}>
-      {/* SLIDE 1 — status flip card */}
-      <div style={{ flex: "0 0 100%", scrollSnapAlign: "start", minWidth: 0, display: "flex" }}>
-      <div style={{ perspective: 1600, flex: 1, minWidth: 0 }}>
-        <div style={{ position: "relative", height: "100%", transformStyle: "preserve-3d", WebkitTransformStyle: "preserve-3d", transition: "transform .85s cubic-bezier(.2,.75,.2,1)", transform: flipped ? "rotateY(180deg)" : "rotateY(0deg)" }}>
-          {/* BACK FACE — status details */}
-          <div style={{ height: "100%", backfaceVisibility: "hidden", WebkitBackfaceVisibility: "hidden", transform: "rotateY(180deg)", opacity: flipped ? 1 : 0, transition: "opacity .45s ease" }}>
-      <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white" style={{ height: "100%", display: "flex", flexDirection: "column", paddingBottom: 4 }}>
-        <div style={{ flex: "1 1 auto", minHeight: 0, display: "flex", flexDirection: "column", justifyContent: "center", overflow: "hidden", padding: "14px 20px 6px" }}>
-          {/* Row 1 — status details (left) + image (right) */}
-          <div style={{ display: "flex", flexDirection: "row-reverse", alignItems: "center", gap: 14 }}>
-            {/* site photo — tap to flip to the full image */}
-            <button
-              onClick={() => { haptic(); setShowLogo(true); setLogoIn(false); setFlipped(false); setTimeout(() => setLogoIn(true), 380); }}
-              aria-label="Show site photo"
-              className="relative overflow-hidden rounded-2xl border border-slate-200 transition active:scale-[0.97]"
-              style={{ width: 78, height: 78, flexShrink: 0, boxShadow: "0 9px 20px -10px rgba(15,23,42,0.5)" }}
-            >
-              {STATUS_IMG ? <img src={STATUS_IMG} alt={COMPANY.name || ""} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
-                : <div style={{ width: "100%", height: "100%", background: "#eef2f7" }} />}
-              <span className="absolute top-1.5 right-1.5 grid place-items-center rounded-full" style={{ width: 24, height: 24, background: "rgba(15,23,42,0.55)", backdropFilter: "blur(4px)" }}>
-                <ArrowUpRight size={13} className="text-white" strokeWidth={2.6} />
-              </span>
-            </button>
+        <div style={{ position: "relative", flex: "1 1 auto", minHeight: 0, display: "flex" }}>
+          {/* soft shadow cast by a layer behind the card (unchanged from the original) */}
+          <div aria-hidden="true" style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0, borderRadius: 24, background: "#ffffff", boxShadow: "0 12px 30px -10px rgba(15,23,42,0.20)", zIndex: 0 }} />
+          <div style={{ perspective: 1600, position: "relative", zIndex: 1, flex: 1, minWidth: 0 }}>
+            <div style={{ position: "relative", height: "100%", transformStyle: "preserve-3d", WebkitTransformStyle: "preserve-3d", transition: "transform .85s cubic-bezier(.2,.75,.2,1)", transform: flipped ? "rotateY(180deg)" : "rotateY(0deg)" }}>
 
-            {/* status · hero headline · supporting — one composition with the image */}
-            <div data-fc="companyStatus.statusHeadline" style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", flex: "1 1 0%", minWidth: 0 }}>
-              <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1" style={{ border: "1px solid #f97316", background: "transparent" }}>
-                <span className="relative flex h-1.5 w-1.5">
-                  <span className="pp-ping absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75" />
-                  <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-orange-500" />
-                </span>
-                <span className="font-extrabold uppercase" style={{ fontSize: 9, letterSpacing: "0.14em", color: "#f97316" }}>Company Status</span>
-              </span>
-              <h2 className="font-extrabold tracking-tight text-slate-900" style={{ marginTop: 13, fontSize: 23, lineHeight: 1.08 }}>{STATUS.state || (STATUS.hasData ? "" : "No status update yet")}</h2>
-              <p className="font-medium text-slate-500" style={{ marginTop: 9, fontSize: 12, lineHeight: 1.35 }}><WordFade text={STATUS.detail} /></p>
-            </div>
-          </div>
-
-          {/* progress — only when the company reported a milestone total; an
-              empty 0% bar reads as broken rather than "nothing to report". */}
-          {STATUS.progressTotal > 0 && (
-          <div className="mt-4">
-            <div className="relative flex h-4 items-center">
-              <div className="relative h-2 w-full overflow-hidden rounded-full bg-slate-200">
-                <div className="absolute inset-y-0 left-0 rounded-full" style={{ width: `${progressW}%`, background: `linear-gradient(90deg, ${EM}, ${EM})` }} />
-              </div>
-              <div className="absolute z-10 h-4 w-4 rounded-full" style={{ left: `${progressW}%`, transform: "translateX(-50%)", background: EM_TEXT, boxShadow: "0 0 0 2.5px #fff, 0 0 0 4.5px rgba(4,120,87,0.35), 0 2px 6px -1px rgba(0,0,0,0.25)", opacity: (whyOpen || showStatusInfo || photoOpen) ? 0 : 1, transition: "opacity .2s ease" }} />
-            </div>
-            <div className="mt-1.5 flex justify-between">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{STATUS.progressLabel}</span>
-              <span className="text-[10px] font-extrabold tabular-nums tracking-wider" style={{ color: EM_TEXT }}>{Math.round(pct)}%</span>
-            </div>
-          </div>
-          )}
-        </div>
-
-        {/* boxes — latest update / investment impact (display only, no pop-ups) */}
-        <div className="grid grid-cols-2 border-t border-slate-100">
-          <div data-fc="companyStatus.latestUpdate" className="flex flex-col border-r border-slate-100 p-3" style={{ background: "#ffffff" }}>
-            <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Latest Update</p>
-            <StatusPoints text={STATUS.latest} />
-          </div>
-          <div data-fc="companyStatus.investmentImpact" className="flex flex-col p-3" style={{ background: "#ffffff" }}>
-            <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Investment Impact</p>
-            <StatusPoints text={STATUS.impact} />
-          </div>
-        </div>
-
-        {/* boxes — next catalyst / expected */}
-        {/* Next Catalyst + Expected. When no timing was disclosed (eta empty), Next
-            Catalyst spans the full width instead of leaving an orphaned "Expected" cell. */}
-        <div className={`grid ${STATUS.eta ? "grid-cols-2" : "grid-cols-1"} border-t border-slate-100`}>
-          <div data-fc="companyStatus.nextCatalyst" className={`flex flex-col p-3 ${STATUS.eta ? "border-r border-slate-100" : ""}`}>
-            <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Next Catalyst</p>
-            <p className="mt-1 text-[13px] font-bold tracking-tight text-slate-900">{STATUS.nextCatalyst || "—"}</p>
-          </div>
-          {STATUS.eta && (
-            <div data-fc="companyStatus.expected" className="flex flex-col p-3">
-              <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Expected</p>
-              <p className="mt-1 text-[13px] font-bold tracking-tight text-slate-900">{STATUS.eta.replace("Expected ", "")}</p>
-            </div>
-          )}
-        </div>
-      </div>
-          </div>
-
-          {/* FRONT FACE — drone image + intro logo */}
-          <button
-            onClick={() => { haptic(); setFlipped(true); }}
-            aria-label="Show status details"
-            style={{ position: "absolute", inset: 0, padding: 0, cursor: "pointer", borderRadius: 24, overflow: "hidden", border: "1px solid #e2e8f0", backfaceVisibility: "hidden", WebkitBackfaceVisibility: "hidden", pointerEvents: flipped ? "none" : "auto", opacity: flipped ? 0 : 1, transition: "opacity .45s ease" }}
-          >
-            {/* Gradient base is ALWAYS painted, so the card is never empty/black while the
-                hero decodes — the photo fades in smoothly over it. */}
-            <div style={{ position: "absolute", inset: 0, background: "linear-gradient(160deg,#e8edf3,#dfe6ee)" }} />
-            {STATUS_IMG && <img src={STATUS_IMG} alt={COMPANY.name || ""} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: imgIn ? 1 : 0, transition: "opacity .7s ease" }} />}
-            <span style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(0,0,0,0.10) 0%, rgba(0,0,0,0) 38%, rgba(0,0,0,0.30) 100%)" }} />
-            {showLogo && STATUS_LOGO && (
-              <span style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", opacity: logoIn ? 1 : 0, transition: "opacity .7s ease" }}>
-                {STATUS_LOGO && <img src={STATUS_LOGO} alt={COMPANY.name || ""} style={{ width: "85%", filter: "drop-shadow(0 3px 12px rgba(0,0,0,0.8))" }} />}
-              </span>
-            )}
-            {!showLogo && (
-              <span className="absolute" style={{ bottom: 12, right: 12, display: "inline-flex", alignItems: "center", gap: 5, borderRadius: 9999, padding: "5px 10px", background: "rgba(15,23,42,0.5)", backdropFilter: "blur(4px)" }}>
-                <Info size={11} className="text-white" strokeWidth={2.6} />
-                <span className="font-bold uppercase text-white" style={{ fontSize: 8, letterSpacing: "0.12em" }}>Tap for details</span>
-              </span>
-            )}
-          </button>
-        </div>
-      </div>
-      </div>
-      {/* SLIDE 2 — core value drivers */}
-      <div style={{ flex: "0 0 100%", scrollSnapAlign: "start", minWidth: 0, display: "flex" }}>
-        {WHY.length > 0 ? (
-          <div className="rounded-3xl border border-slate-200 bg-white p-5" style={{ flex: 1, minWidth: 0, height: "100%", display: "flex", flexDirection: "column", justifyContent: "center" }}>
-            <div className="flex items-center gap-1.5">
-              <Target size={13} style={{ color: EM_TEXT }} strokeWidth={2.6} />
-              <span className="text-[10px] font-extrabold uppercase tracking-[0.18em]" style={{ color: EM_TEXT }}>Core Value Drivers</span>
-            </div>
-            <div className="relative mt-4">
-              <span aria-hidden="true" style={{ position: "absolute", left: 14, top: 15, bottom: 15, width: 2, borderRadius: 9999, background: "#e2e8f0" }} />
-              <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-                {WHY.map((w, i) => (
-                  <div key={i} className="relative flex items-center" style={{ gap: 14, opacity: driversSeen ? 1 : 0, transform: driversSeen ? "none" : "translateY(10px)", transition: "opacity .5s cubic-bezier(.16,.84,.44,1), transform .5s cubic-bezier(.16,.84,.44,1)", transitionDelay: driversSeen ? `${i * 90}ms` : "0ms" }}>
-                    <span className="relative z-10 grid flex-shrink-0 place-items-center rounded-full" style={{ width: 30, height: 30, background: EM, boxShadow: `0 2px 8px -1px ${EM}80` }}>
-                      <w.Icon size={14} strokeWidth={2.5} style={{ color: "#fff" }} />
-                    </span>
-                    <span className="font-semibold leading-snug tracking-tight text-slate-700" style={{ fontSize: 13.5 }}>{w.text}</span>
+              {/* BACK FACE — Company Status panel: tickers + six-cell identity grid */}
+              <div style={{ height: "100%", backfaceVisibility: "hidden", WebkitBackfaceVisibility: "hidden", transform: "rotateY(180deg)", opacity: flipped ? 1 : 0, transition: "opacity .45s ease" }}>
+                <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white" style={{ height: "100%", display: "flex", flexDirection: "column" }}>
+                  {/* header — a subtle photographic project banner behind COMPANY STATUS + the
+                      ticker strip. The flagship image is an ABSOLUTE background layer, so the header
+                      keeps its exact height; a controlled overlay preserves text contrast and the
+                      very bottom fades into the grid surface. No image → the original clean header. */}
+                  <div style={{ flex: "0 0 auto", position: "relative", overflow: "hidden", padding: "14px 18px 13px", background: idBanner ? "#0b1220" : "linear-gradient(180deg, #ffffff 0%, #f8fafd 100%)" }}>
+                    {idBanner && (
+                      <>
+                        <img src={idBanner} alt="" aria-hidden="true" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", objectPosition: "50% 30%" }} />
+                        {/* adaptive contrast ZONES (not one flat darken): a LOCALIZED top-left wash
+                            behind COMPANY STATUS + a bottom wash behind the tickers, then the soft fade
+                            into the grid. NO global darken — the open image keeps its colour; strengths
+                            scale with the measured luminance so bright skies stay vivid and readable. */}
+                        <span aria-hidden="true" style={{ position: "absolute", inset: 0, background: `radial-gradient(95% 150% at 15% 4%, rgba(11,18,32,${bannerCfg.tl}) 0%, rgba(11,18,32,0) 55%)` }} />
+                        <span aria-hidden="true" style={{ position: "absolute", inset: 0, background: `linear-gradient(180deg, rgba(11,18,32,0) 46%, rgba(11,18,32,${bannerCfg.bot}) 100%)` }} />
+                        {/* soft transition into the grid — the very bottom edge fades to the grid surface */}
+                        <span aria-hidden="true" style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: 18, background: "linear-gradient(180deg, rgba(244,247,251,0) 0%, #f4f7fb 100%)" }} />
+                      </>
+                    )}
+                    <div style={{ position: "relative", zIndex: 1 }}>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          {/* the one restrained Passport brand motif — a soft glow behind the status dot */}
+                          <span className="relative inline-flex" style={{ width: 6, height: 6 }}>
+                            <span className="pp-ping absolute inline-flex h-full w-full rounded-full" style={{ background: "#fb923c", opacity: 0.7 }} />
+                            <span className="relative inline-flex rounded-full" style={{ width: 6, height: 6, background: "#f97316", boxShadow: idBanner ? "0 0 7px 1px rgba(249,115,22,0.9)" : "0 0 6px 1px rgba(249,115,22,0.55)" }} />
+                          </span>
+                          <span className="font-extrabold uppercase" style={{ fontSize: 9.5, letterSpacing: "0.16em", color: idBanner ? "#fdb271" : "#f97316", textShadow: idBanner ? "0 0 2px rgba(0,0,0,0.95), 0 0 4px rgba(0,0,0,0.85), 0 1px 3px rgba(0,0,0,0.9)" : "none" }}>Company Status</span>
+                        </div>
+                        {/* flip back to the front (photo/logo) — integrated control, replaces the old floating thumbnail */}
+                        <button onClick={() => { haptic(); setShowLogo(true); setLogoIn(false); setFlipped(false); setTimeout(() => setLogoIn(true), 380); }}
+                          aria-label="Show project photo"
+                          className="grid place-items-center rounded-full transition active:scale-90"
+                          style={{ width: 24, height: 24, marginRight: -2, color: idBanner ? "rgba(255,255,255,0.82)" : "#cbd5e1" }}>
+                          <RotateCcw size={13} strokeWidth={2.4} />
+                        </button>
+                      </div>
+                      {idTickers.length > 0 && (
+                        <div style={{ marginTop: 10 }}>
+                          <p className="font-bold uppercase" style={{ fontSize: 7.5, letterSpacing: "0.14em", color: idBanner ? "rgba(255,255,255,0.82)" : "#94a3b8", textShadow: idBanner ? "0 1px 3px rgba(0,0,0,0.8)" : "none" }}>Trades As</p>
+                          <div style={{ marginTop: 5, display: "flex", flexWrap: "wrap", gap: 6 }}>
+                            {idTickers.map((t, i) => (
+                              <span key={i} style={{ display: "inline-flex", alignItems: "baseline", gap: 4, whiteSpace: "nowrap", padding: "3px 10px", borderRadius: 9999,
+                                background: idBanner ? "rgba(255,255,255,0.13)" : "#f4f7fb",
+                                border: idBanner ? "1px solid rgba(255,255,255,0.34)" : "1px solid rgba(51,65,85,0.14)",
+                                backdropFilter: idBanner ? "blur(8px)" : undefined, WebkitBackdropFilter: idBanner ? "blur(8px)" : undefined,
+                                boxShadow: idBanner ? "0 1px 3px rgba(0,0,0,0.16)" : "inset 0 1px 0 rgba(255,255,255,0.9)" }}>
+                                {t.ex && <span style={{ fontSize: idTkSize - 2.5, fontWeight: 700, color: idBanner ? "rgba(255,255,255,0.82)" : "#94a3b8", letterSpacing: "0.03em", textShadow: idBanner ? "0 1px 2px rgba(0,0,0,0.45)" : "none" }}>{t.ex}</span>}
+                                <span style={{ fontSize: idTkSize - 0.5, fontWeight: 800, color: idBanner ? "#ffffff" : "#0f172a", letterSpacing: "-0.01em", textShadow: idBanner ? "0 1px 3px rgba(0,0,0,0.55)" : "none" }}>{t.sym}</span>
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                ))}
+                  {/* status grid — six equal "fact modules" on a light tray, each a subtly
+                      raised surface so separation reads from surface contrast, not spreadsheet
+                      lines. One unified neutral icon system; no manufactured primary cell. */}
+                  <div style={{ flex: "1 1 auto", minHeight: 0, background: "linear-gradient(180deg,#f4f7fb,#eef3f9)", borderTop: "1px solid #e7ecf3", padding: 8, display: "grid", gridTemplateColumns: "1fr 1fr", gridTemplateRows: "repeat(3, 1fr)", gap: 6 }}>
+                    {idCells.map((c, i) => {
+                      const Ic = c.Icon;
+                      return (
+                        <div key={i} style={{ minWidth: 0, display: "flex", alignItems: "center", gap: 8, padding: "0 10px", background: "#ffffff", borderRadius: 10, border: "1px solid rgba(15,23,42,0.05)", boxShadow: "0 1px 1.5px rgba(15,23,42,0.03), inset 0 1px 0 rgba(255,255,255,0.9)" }}>
+                          {Ic && (
+                            <span style={{ flexShrink: 0, width: 25, height: 25, borderRadius: 9999, background: c.icBg || "rgba(100,116,139,0.10)", border: "1px solid rgba(15,23,42,0.045)", display: "grid", placeItems: "center", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.6)" }}>
+                              <Ic size={12.5} strokeWidth={2.2} style={{ color: c.ic || "#64748b" }} />
+                            </span>
+                          )}
+                          <div style={{ minWidth: 0, flex: 1 }}>
+                            <p className="font-bold uppercase" style={{ fontSize: 8, letterSpacing: "0.04em", color: "#94a3b8", lineHeight: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.label}</p>
+                            <p className="tracking-tight" style={{ marginTop: 3, fontSize: 13.5, fontWeight: 700, lineHeight: 1.1, color: "#0f172a", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+                              {c.live && c.value && <span style={{ display: "inline-block", width: 5.5, height: 5.5, borderRadius: 9999, background: "#10b981", marginRight: 5, verticalAlign: "middle", position: "relative", top: -1, boxShadow: "0 0 0 2px rgba(16,185,129,0.16)" }} />}
+                              {c.value || "—"}
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
+
+              {/* FRONT FACE — drone image + intro logo (restored verbatim from the original) */}
+              <button onClick={() => { haptic(); setFlipped(true); }} aria-label="Show company status"
+                style={{ position: "absolute", inset: 0, padding: 0, cursor: "pointer", borderRadius: 24, overflow: "hidden", border: "1px solid #e2e8f0", backfaceVisibility: "hidden", WebkitBackfaceVisibility: "hidden", pointerEvents: flipped ? "none" : "auto", opacity: flipped ? 0 : 1, transition: "opacity .45s ease" }}>
+                <div style={{ position: "absolute", inset: 0, background: "linear-gradient(160deg,#e8edf3,#dfe6ee)" }} />
+                {STATUS_IMG && <img src={STATUS_IMG} alt={COMPANY.name || ""} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: imgIn ? 1 : 0, transition: "opacity .7s ease" }} />}
+                <span style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(0,0,0,0.10) 0%, rgba(0,0,0,0) 38%, rgba(0,0,0,0.30) 100%)" }} />
+                {showLogo && STATUS_LOGO && (
+                  <span style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", opacity: logoIn ? 1 : 0, transition: "opacity .7s ease" }}>
+                    <img src={STATUS_LOGO} alt={COMPANY.name || ""} style={{ width: "85%", filter: "drop-shadow(0 3px 12px rgba(0,0,0,0.8))" }} />
+                  </span>
+                )}
+                {!showLogo && (
+                  <span className="absolute" style={{ bottom: 12, right: 12, display: "inline-flex", alignItems: "center", gap: 5, borderRadius: 9999, padding: "5px 10px", background: "rgba(15,23,42,0.5)", backdropFilter: "blur(4px)" }}>
+                    <Info size={11} className="text-white" strokeWidth={2.6} />
+                    <span className="font-bold uppercase text-white" style={{ fontSize: 8, letterSpacing: "0.12em" }}>Tap for status</span>
+                  </span>
+                )}
+              </button>
             </div>
           </div>
-        ) : <div style={{ height: 1 }} />}
-      </div>
-      </div>
-      </div>
-      {/* page dots — grey circles; the active page is larger + darker */}
-      <div className="mt-2.5 flex items-center justify-center gap-2" style={{ width: "100%" }}>
-        {[0, 1].map((i) => {
-          const on = statusPage === i;
-          return <span key={i} onClick={() => statusCarRef.current && statusCarRef.current.scrollTo({ left: i * statusCarRef.current.clientWidth, behavior: "smooth" })} style={{ width: on ? 9 : 7, height: on ? 9 : 7, borderRadius: 9999, cursor: "pointer", background: on ? "#475569" : "#cbd5e1", transition: "width .25s ease, height .25s ease, background .25s ease" }} />;
-        })}
-      </div>
+        </div>
       </div>
 
       {/* ============ CEO NOTE — a human voice, sits above the AI Brief ============ */}
@@ -1311,7 +1366,7 @@ function Overview({ tab, goto, openBrief, following, setFollowing, bookmarked, s
       )}
 
       {/* ===== SITE PHOTO — expanded view ===== */}
-      {photoOpen && (
+      {photoOpen && createPortal(
         <div
           className="absolute inset-0 z-[85] flex flex-col items-center justify-center bg-slate-950/90 backdrop-blur-sm pp-fade"
           style={{ padding: 20 }}
@@ -1337,7 +1392,8 @@ function Overview({ tab, goto, openBrief, following, setFollowing, bookmarked, s
               <span className="text-[12px] font-medium text-white/70">Chihuahua, Mexico</span>
             </div>
           </div>
-        </div>
+        </div>,
+        ppFrameEl || document.body
       )}
 
       {/* ===== LIVE STATUS — info modal (summary + every stage) ===== */}
@@ -1810,8 +1866,42 @@ function FullText({ full }) {
 /* Centered rounded modal. Compact fixed height. Optional `header` stays fixed
    at the top while `children` scroll beneath it. X stays pinned top-right.
    Tap X or backdrop to close. */
+// Elastic overscroll for sheet content — pull past either edge and it stretches with
+// resistance, then springs back into place (the "magnetic" iOS bounce), consistent even
+// where the platform gives no native rubber-band.
+function RubberScroll({ children, className, style }) {
+  const ref = useRef(null);
+  const st = useRef({ lastY: 0, over: 0, dir: 0 });
+  useEffect(() => {
+    const el = ref.current; if (!el) return;
+    const R = 0.35, CAP = 110, SPRING = "transform .45s cubic-bezier(0.22,1,0.36,1)";
+    const draw = () => { const o = st.current.over; const s = Math.sign(o) * Math.min(Math.abs(o) * R, CAP); el.style.transform = `translateY(${s}px)`; };
+    const start = (e) => { const t = e.touches[0]; if (!t) return; st.current = { lastY: t.clientY, over: 0, dir: 0 }; el.style.transition = "none"; };
+    const move = (e) => {
+      const t = e.touches[0]; if (!t) return;
+      const dy = t.clientY - st.current.lastY; st.current.lastY = t.clientY;
+      const max = el.scrollHeight - el.clientHeight;
+      const atTop = el.scrollTop <= 0, atBot = el.scrollTop >= max - 0.5;
+      if (st.current.over !== 0) {
+        let o = st.current.over + dy;
+        if ((st.current.dir > 0 && o <= 0) || (st.current.dir < 0 && o >= 0)) { o = 0; st.current.dir = 0; }
+        st.current.over = o;
+      } else if (atTop && dy > 0) { st.current.over = dy; st.current.dir = 1; }
+      else if (atBot && dy < 0) { st.current.over = dy; st.current.dir = -1; }
+      if (st.current.over !== 0) { e.preventDefault(); draw(); }
+    };
+    const end = () => { if (st.current.over !== 0) { el.style.transition = SPRING; el.style.transform = "translateY(0px)"; st.current.over = 0; st.current.dir = 0; } };
+    el.addEventListener("touchstart", start, { passive: true });
+    el.addEventListener("touchmove", move, { passive: false });
+    el.addEventListener("touchend", end, { passive: true });
+    el.addEventListener("touchcancel", end, { passive: true });
+    return () => { el.removeEventListener("touchstart", start); el.removeEventListener("touchmove", move); el.removeEventListener("touchend", end); el.removeEventListener("touchcancel", end); };
+  }, []);
+  return <div ref={ref} className={className} style={style}>{children}</div>;
+}
+
 function Sheet({ header, children, onClose }) {
-  return (
+  return createPortal(
     <div className="absolute inset-0 z-40 flex items-center justify-center" style={{ padding: 16 }}>
       <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm pp-fade" onClick={onClose} />
       <div
@@ -1831,11 +1921,12 @@ function Sheet({ header, children, onClose }) {
             {header}
           </div>
         )}
-        <div className="pp-scroll overflow-y-auto" style={{ flex: 1, minHeight: 0, padding: header ? "12px 20px 0 20px" : "20px 20px 0", paddingBottom: "calc(56px + env(safe-area-inset-bottom, 0px))" }}>
+        <RubberScroll className="pp-scroll overflow-y-auto" style={{ flex: 1, minHeight: 0, padding: header ? "12px 20px 0 20px" : "20px 20px 0", paddingBottom: "calc(28px + env(safe-area-inset-bottom, 0px))" }}>
           {children}
-        </div>
+        </RubberScroll>
       </div>
-    </div>
+    </div>,
+    ppFrameEl || document.body
   );
 }
 
@@ -1913,7 +2004,7 @@ function BottomSheet({ children, onClose, mediaKey, topBanner }) {
     else setDrag(0);
   };
 
-  return (
+  return createPortal(
     <div className="absolute inset-0 z-50 flex flex-col justify-end">
       <div
         className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
@@ -1953,11 +2044,12 @@ function BottomSheet({ children, onClose, mediaKey, topBanner }) {
         </button>
         {/* scrollable content — card stays still while this scrolls */}
         {mediaKey ? <div style={{ flexShrink: 0, padding: "0 20px" }}><CardHeader mediaKey={mediaKey} /></div> : null}
-        <div className="pp-scroll overflow-y-auto" style={{ flex: 1, minHeight: 0, padding: "6px 20px 0 20px", paddingBottom: "calc(56px + env(safe-area-inset-bottom, 0px))" }}>
+        <RubberScroll className="pp-scroll overflow-y-auto" style={{ flex: 1, minHeight: 0, padding: "6px 20px 0 20px", paddingBottom: "calc(28px + env(safe-area-inset-bottom, 0px))" }}>
           {typeof children === "function" ? children(close) : children}
-        </div>
+        </RubberScroll>
       </div>
-    </div>
+    </div>,
+    ppFrameEl || document.body
   );
 }
 
@@ -2226,7 +2318,7 @@ function MapView({ onOpenProjects }) {
 function PeekModal({ site, onClose, onOpenProjects }) {
   // A pinned site with no matching project entry must not blank the modal out.
   const p = PROJECTS_DATA[site] || {};
-  return (
+  return createPortal(
     <div className="absolute inset-0 z-40 flex flex-col justify-end">
       <div className="absolute inset-0 bg-slate-900/30 pp-fade" onClick={onClose} />
       <div className="relative rounded-t-[28px] border-t border-slate-200 bg-white p-5 shadow-2xl pp-slide-up">
@@ -2261,7 +2353,8 @@ function PeekModal({ site, onClose, onOpenProjects }) {
           </button>
         )}
       </div>
-    </div>
+    </div>,
+    ppFrameEl || document.body
   );
 }
 // Updates — the company's live operational feed (see UPDATE_POSTS for data).
@@ -2382,10 +2475,60 @@ function MediaGrid({ posts, onOpen }) {
   );
 }
 
-// Full-screen vertical media viewer. Videos autoplay when scrolled into view
-// (needs a real `videoSrc` on the post — otherwise the thumbnail shows with a play badge).
+// Per-company post likes, saved on the device (keyed by the image URL so a like
+// sticks even if posts get reordered).
+const mediaLikeKey = () => { try { return `mineex.likes.${new URLSearchParams(window.location.search).get("c") || "co"}`; } catch (_) { return "mineex.likes.co"; } };
+// Short stable key for a post (images can be huge base64 data URIs, so never store
+// the raw URL as the like key — hash it).
+function postLikeId(s) { let h = 0; const t = String(s || ""); for (let i = 0; i < t.length; i++) h = (h * 31 + t.charCodeAt(i)) | 0; return "m" + (h >>> 0).toString(36); }
+function loadMediaLikes() { try { return new Set(JSON.parse(localStorage.getItem(mediaLikeKey()) || "[]")); } catch (_) { return new Set(); } }
+function saveMediaLikes(set) { try { localStorage.setItem(mediaLikeKey(), JSON.stringify([...set])); } catch (_) {} }
+const mediaSaveKey = () => { try { return `mineex.saves.${new URLSearchParams(window.location.search).get("c") || "co"}`; } catch (_) { return "mineex.saves.co"; } };
+function loadMediaSaves() { try { return new Set(JSON.parse(localStorage.getItem(mediaSaveKey()) || "[]")); } catch (_) { return new Set(); } }
+function saveMediaSaves(set) { try { localStorage.setItem(mediaSaveKey(), JSON.stringify([...set])); } catch (_) {} }
+
+// Returns the signed-in investor's id, else null. EVERY cloud-sync path is gated on
+// this — signed-out/guest users hit only localStorage, so their behavior is byte-for-
+// byte identical to before Stage 3.
+function investorAuthed() { try { return getUser()?.id || null; } catch (_) { return null; } }
+
+// Media likes/saves cloud bridge. The per-company localStorage keys remain the sync
+// cache (instant render); the cloud becomes authoritative once hydrated. A tiny bus
+// lets an open MediaViewer re-read after a background hydrate.
+const mediaBus = { listeners: new Set(), sub(fn) { this.listeners.add(fn); return () => this.listeners.delete(fn); }, emit() { this.listeners.forEach((fn) => { try { fn(); } catch (_) {} }); } };
+function clearMediaCache(prefix) {
+  try { for (let i = localStorage.length - 1; i >= 0; i--) { const k = localStorage.key(i); if (k && k.startsWith(prefix)) localStorage.removeItem(k); } } catch (_) {}
+}
+function writeMediaCacheFromRows(prefix, rows) {
+  clearMediaCache(prefix);
+  const bySlug = {};
+  for (const r of rows) (bySlug[r.companySlug] = bySlug[r.companySlug] || []).push(r.postKey);
+  for (const slug of Object.keys(bySlug)) { try { localStorage.setItem(prefix + slug, JSON.stringify(bySlug[slug])); } catch (_) {} }
+}
+async function hydrateMediaFromCloud() {
+  if (!investorAuthed()) return;
+  try {
+    const [likes, saves] = await Promise.all([investorData.getPostLikes(), investorData.getPostSaves()]);
+    writeMediaCacheFromRows("mineex.likes.", likes);
+    writeMediaCacheFromRows("mineex.saves.", saves);
+    mediaBus.emit();
+  } catch (_) {}
+}
+
+// Instagram-style media FEED — white background, each post is: header (avatar +
+// handle) → media → like/share actions → caption. Scroll through every post;
+// videos autoplay when scrolled into view.
 function MediaViewer({ posts, start, onClose }) {
   const ref = useRef(null);
+  const [likes, setLikes] = useState(() => loadMediaLikes());
+  const [saves, setSaves] = useState(() => loadMediaSaves());
+  const [toast, setToast] = useState("");
+  const toastT = useRef(null);
+  const flash = (m) => { setToast(m); clearTimeout(toastT.current); toastT.current = setTimeout(() => setToast(""), 1600); };
+
+  // Re-read likes/saves when a background cloud hydrate refreshes the cache.
+  useEffect(() => mediaBus.sub(() => { setLikes(loadMediaLikes()); setSaves(loadMediaSaves()); }), []);
+
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
@@ -2402,20 +2545,68 @@ function MediaViewer({ posts, start, onClose }) {
     return () => io.disconnect();
   }, [start]);
 
-  return (
-    <div className="absolute inset-0 z-50" style={{ background: "#000" }}>
-      <div className="absolute inset-x-0 top-0 z-10 flex items-center justify-between px-4 py-3" style={{ background: "linear-gradient(180deg, rgba(0,0,0,0.55), transparent)" }}>
-        <span className="text-[13px] font-bold tracking-tight text-white">Media</span>
-        <button onClick={onClose} aria-label="Close" className="grid h-8 w-8 place-items-center rounded-full" style={{ background: "rgba(255,255,255,0.18)" }}>
-          <X size={17} className="text-white" strokeWidth={2.4} />
-        </button>
+  const toggleLike = (key) => {
+    haptic();
+    const slug = currentSlug();
+    const on = !likes.has(key);
+    const next = new Set(likes); on ? next.add(key) : next.delete(key);
+    setLikes(next); saveMediaLikes(next);
+    if (investorAuthed() && slug) { (on ? investorData.likePost(slug, key) : investorData.unlikePost(slug, key)).catch(() => {}); }
+  };
+  const toggleSave = (key) => {
+    haptic();
+    const slug = currentSlug();
+    const on = !saves.has(key);
+    const next = new Set(saves); on ? next.add(key) : next.delete(key);
+    setSaves(next); saveMediaSaves(next); flash(on ? "Saved" : "Removed");
+    if (investorAuthed() && slug) { (on ? investorData.savePost(slug, key) : investorData.unsavePost(slug, key)).catch(() => {}); }
+  };
+  const share = async (p) => {
+    haptic();
+    let slug = ""; try { slug = new URLSearchParams(window.location.search).get("c") || ""; } catch (_) {}
+    const url = "https://passport-xi-five.vercel.app/app" + (slug ? `?c=${encodeURIComponent(slug)}` : "");
+    const data = { title: p.title || COMPANY.name, text: p.title || COMPANY.name, url };
+    try { if (navigator.share) { await navigator.share(data); return; } } catch (_) { return; }
+    try { await navigator.clipboard.writeText(url); flash("Link copied"); } catch (_) { flash("Couldn’t share"); }
+  };
+
+  const handle = (() => {
+    const w = String(COMPANY.website || "").replace(/^https?:\/\/(www\.)?/i, "").replace(/\/.*$/, "").replace(/\.[a-z.]+$/i, "");
+    return (w || String(COMPANY.name || "company")).toLowerCase().replace(/[^a-z0-9]/g, "") || "company";
+  })();
+
+  return createPortal(
+    <div className="absolute inset-0 z-[95] flex flex-col" style={{ background: "#ffffff", paddingTop: "env(safe-area-inset-top, 0px)" }}>
+      {/* top bar */}
+      <div className="flex flex-shrink-0 items-center border-b border-slate-100 px-2 py-2">
+        <button onClick={onClose} aria-label="Back" className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-full text-slate-900 transition active:scale-90"><ChevronLeft size={24} /></button>
+        <div className="min-w-0 flex-1 text-center">
+          <p className="text-[16px] font-extrabold tracking-tight text-slate-900">Posts</p>
+          <p className="truncate text-[12px] font-medium text-slate-500">{handle}</p>
+        </div>
+        <span className="h-9 w-9 flex-shrink-0" />
       </div>
-      <div ref={ref} className="h-full snap-y snap-mandatory overflow-y-auto pp-noscroll">
+      {/* feed */}
+      <div ref={ref} className="pp-scroll flex-1 overflow-y-auto" style={{ overscrollBehaviorY: "contain" }}>
         {posts.map((p, i) => {
           const img = updateImg(p);
+          const key = postLikeId(img || String(i));
+          const liked = likes.has(key);
+          const saved = saves.has(key);
           return (
-            <div key={i} data-slot={i} className="flex h-full snap-start flex-col justify-center py-4">
-              <div className="relative w-full">
+            <div key={i} data-slot={i} className="border-b border-slate-100 pb-3">
+              {/* post header */}
+              <div className="flex items-center gap-2.5 px-3.5 py-2.5">
+                <span className="h-9 w-9 flex-shrink-0 overflow-hidden rounded-full bg-slate-100">
+                  {AVATAR ? <img src={AVATAR} alt="" className="h-full w-full object-cover" /> : <span className="grid h-full w-full place-items-center text-[13px] font-extrabold text-slate-400">{(COMPANY.name || "?").trim().slice(0, 1).toUpperCase()}</span>}
+                </span>
+                <div className="flex min-w-0 items-center gap-1">
+                  <span className="truncate text-[13.5px] font-bold tracking-tight text-slate-900">{handle}</span>
+                  <BadgeCheck size={13} className="flex-shrink-0" style={{ color: "#0ea5e9" }} fill="rgba(14,165,233,0.15)" />
+                </div>
+              </div>
+              {/* media */}
+              <div className="relative w-full bg-black">
                 {p.videoSrc ? (
                   <video src={p.videoSrc} poster={img || undefined} muted loop playsInline className="w-full" />
                 ) : img ? (
@@ -2423,23 +2614,42 @@ function MediaViewer({ posts, start, onClose }) {
                 ) : null}
                 {p.video && !p.videoSrc && (
                   <span className="pointer-events-none absolute inset-0 grid place-items-center">
-                    <span className="grid h-14 w-14 place-items-center rounded-full" style={{ background: "rgba(255,255,255,0.9)", boxShadow: "0 6px 20px rgba(0,0,0,0.4)" }}>
+                    <span className="grid h-14 w-14 place-items-center rounded-full" style={{ background: "rgba(255,255,255,0.92)", boxShadow: "0 6px 20px rgba(0,0,0,0.4)" }}>
                       <Play size={22} strokeWidth={2.6} fill="#0f172a" style={{ color: "#0f172a", marginLeft: 2 }} />
                     </span>
                   </span>
                 )}
               </div>
-              <div className="px-5 pt-3">
-                <CategoryPill cat={p.cat} />
-                <p className="mt-2 text-[14px] font-bold tracking-tight text-white">{p.title}</p>
-                {p.desc && <p className="mt-1 text-[12.5px] font-medium leading-relaxed" style={{ color: "rgba(255,255,255,0.7)" }}>{p.desc}</p>}
-                <p className="mt-1.5 text-[10px] font-semibold uppercase tracking-wider" style={{ color: "rgba(255,255,255,0.45)" }}>{p.ts}</p>
+              {/* actions */}
+              <div className="flex items-center gap-4 px-3.5 pt-2.5">
+                <button onClick={() => toggleLike(key)} aria-label="Like" className="transition active:scale-90">
+                  <Heart size={26} strokeWidth={1.9} fill={liked ? "#ed4956" : "none"} style={{ color: liked ? "#ed4956" : "#0f172a" }} />
+                </button>
+                <button onClick={() => share(p)} aria-label="Share" className="transition active:scale-90">
+                  <Send size={24} strokeWidth={1.9} style={{ color: "#0f172a" }} />
+                </button>
+                <button onClick={() => toggleSave(key)} aria-label="Save" className="ml-auto transition active:scale-90">
+                  <Bookmark size={25} strokeWidth={1.9} fill={saved ? "#0f172a" : "none"} style={{ color: "#0f172a" }} />
+                </button>
+              </div>
+              {/* caption */}
+              <div className="px-3.5 pt-2">
+                <p className="text-[13.5px] leading-snug text-slate-800">
+                  <span className="font-bold text-slate-900">{handle}</span> {p.title}{p.desc ? ` ${p.desc}` : ""}
+                </p>
+                <p className="mt-1.5 text-[11px] font-medium text-slate-400">{p.ts}</p>
               </div>
             </div>
           );
         })}
       </div>
-    </div>
+      {toast && (
+        <div className="pointer-events-none absolute inset-x-0 bottom-10 z-20 flex justify-center">
+          <span className="rounded-full px-4 py-2 text-[12.5px] font-bold text-white" style={{ background: "rgba(15,23,42,0.9)" }}>{toast}</span>
+        </div>
+      )}
+    </div>,
+    ppFrameEl || document.body
   );
 }
 
@@ -3416,10 +3626,21 @@ function ProjectGallery({ slides }) {
 
   const stop = (e) => e.stopPropagation();
 
+  // Pre-decode the first photo as soon as the gallery mounts (it mounts as the swipe neighbour,
+  // ~half a second before you land on Projects) so it's ready — no decode flash on arrival.
+  useEffect(() => {
+    const first = slides && slides[0] && (typeof slides[0] === "string" ? slides[0] : slides[0].src);
+    if (!first) return;
+    const im = new Image();
+    im.src = first;
+    if (im.decode) im.decode().catch(() => {});
+  }, []);
+
   return (
     <div>
-      {/* TILE — same footprint as the map it replaces: 300 tall, rounded, bordered */}
-      <div className="relative overflow-hidden rounded-2xl border border-slate-200" style={{ height: 300, background: "#0f172a" }}>
+      {/* TILE — same footprint as the map it replaces: 300 tall, rounded, bordered. A LIGHT
+          placeholder (never dark) shows only for the split second before the photo paints. */}
+      <div className="relative overflow-hidden rounded-2xl border border-slate-200" style={{ height: 300, background: "linear-gradient(135deg, #eef2f7, #e2e8f0)" }}>
         <div
           ref={ref}
           onScroll={onScroll}
@@ -3445,7 +3666,7 @@ function ProjectGallery({ slides }) {
       </div>
 
       {/* FULLSCREEN LIGHTBOX */}
-      {open && (
+      {open && createPortal(
         <div onClick={closeLightbox} className="absolute inset-0 z-[80] flex flex-col bg-slate-950/95 backdrop-blur-sm pp-fade">
           <button
             onClick={closeLightbox}
@@ -3507,7 +3728,8 @@ function ProjectGallery({ slides }) {
               ))}
             </div>
           </div>
-        </div>
+        </div>,
+        ppFrameEl || document.body
       )}
     </div>
   );
@@ -4871,6 +5093,23 @@ function ProjectsView() {
 /* ============================================================
    TEAM  —  Board & Management
    ============================================================ */
+// Leadership avatar — the member photo when present, otherwise an accent-tinted circle with the
+// person's initials (never a broken/black <img>). Universal: works for any company's team.
+function memberInitials(name, initials) {
+  const fromName = String(name || "").trim().split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0] || "").join("");
+  return String(initials || fromName || "?").toUpperCase();
+}
+function MemberAvatar({ photo, name, initials, size = 64, className = "" }) {
+  const base = { height: size, width: size, border: "1px solid #e2e8f0" };
+  if (photo) return <img src={photo} alt={name || ""} className={"flex-shrink-0 rounded-full object-cover " + className} style={base} />;
+  return (
+    <span className={"grid flex-shrink-0 place-items-center rounded-full " + className}
+      style={{ ...base, background: `linear-gradient(150deg, ${EM}26, ${EM}0a)`, color: EM_TEXT, fontWeight: 800, fontSize: Math.round(size * 0.36), letterSpacing: "0.01em" }}>
+      {memberInitials(name, initials)}
+    </span>
+  );
+}
+
 function TeamView({ onOpenCompany }) {
   const [open, setOpen] = useState(null);
   const [ceoFollow, setCeoFollow] = useState(false);
@@ -4892,13 +5131,14 @@ function TeamView({ onOpenCompany }) {
   const lead = TEAM_MEMBERS[0];
   const rest = TEAM_MEMBERS.slice(1);
   const active = open != null ? TEAM_MEMBERS[open] : null;
+  // Messaging a leader routes to the company thread — the message reaches the CEO's
+  // inbox either way (see the email bridge). Kept as one coherent conversation.
   const leadDm = {
-    id: "scott",
-    name: lead.name,
-    sub: `${lead.role} · ${COMPANY.name}`,
-    mono: lead.initials || "SE",
-    c: "#0f766e",
-    seed: [{ from: "them", text: "Thanks for connecting — happy to answer anything about Kingsmen." }],
+    id: currentSlug() || "company",
+    name: COMPANY.name,
+    sub: "Investor Relations",
+    mono: (COMPANY.name || "?").replace(/[^A-Za-z]/g, "").slice(0, 2).toUpperCase() || "•",
+    c: EM || "#1e3a8a",
   };
   return (
     <div className="space-y-5 px-5 pt-2">
@@ -4912,7 +5152,7 @@ function TeamView({ onOpenCompany }) {
         {/* lead (CEO) — same row layout as the rest so everything aligns */}
         <button data-fc={"team." + String(lead.name || "")} onClick={() => setOpen(0)} className="flex w-full items-start gap-3.5 border-t border-slate-100 pt-4 text-left transition active:opacity-70">
           <div className="relative flex-shrink-0">
-            <img src={lead.photo} alt={lead.name} className="h-16 w-16 rounded-full object-cover" style={{ border: "1px solid #e2e8f0" }} />
+            <MemberAvatar photo={lead.photo} name={lead.name} initials={lead.initials} size={64} />
             <span className="absolute -bottom-0.5 -right-0.5 grid h-5 w-5 place-items-center rounded-full bg-white">
               <BadgeCheck size={16} style={{ color: "#0ea5e9" }} fill="rgba(14,165,233,0.18)" />
             </span>
@@ -4930,7 +5170,7 @@ function TeamView({ onOpenCompany }) {
           const i = idx + 1;
           return (
             <button key={i} data-fc={"team." + String(m.name || "")} onClick={() => setOpen(i)} className="mt-3.5 flex w-full items-start gap-3.5 border-t border-slate-100 pt-3.5 text-left transition active:opacity-70">
-              <img src={m.photo} alt={m.name} className="h-16 w-16 flex-shrink-0 rounded-full object-cover" style={{ border: "1px solid #e2e8f0" }} />
+              <MemberAvatar photo={m.photo} name={m.name} initials={m.initials} size={64} />
               <div className="min-w-0 flex-1">
                 <h4 className="text-[14.5px] font-bold tracking-tight text-slate-900">{m.name}</h4>
                 <p className="text-[11px] font-semibold" style={{ color: THEME.team.t }}>{m.role}</p>
@@ -4949,10 +5189,10 @@ function TeamView({ onOpenCompany }) {
             <div className="relative flex-shrink-0">
               {open === 0 ? (
                 <button onClick={() => setProfile(true)} className="block transition active:scale-95" aria-label="Open profile">
-                  <img src={active.photo} alt={active.name} className="h-16 w-16 rounded-full object-cover" style={{ border: "1px solid #e2e8f0" }} />
+                  <MemberAvatar photo={active.photo} name={active.name} initials={active.initials} size={64} />
                 </button>
               ) : (
-                <img src={active.photo} alt={active.name} className="h-16 w-16 rounded-full object-cover" style={{ border: "1px solid #e2e8f0" }} />
+                <MemberAvatar photo={active.photo} name={active.name} initials={active.initials} size={64} />
               )}
               {open === 0 && (
                 <span className="pointer-events-none absolute -bottom-0.5 -right-0.5 grid h-5 w-5 place-items-center rounded-full bg-white">
@@ -5012,7 +5252,7 @@ function TeamView({ onOpenCompany }) {
             {/* header — photo + a single combined Connections count */}
             <div className="px-5 pt-5">
               <div className="flex items-center gap-8">
-                <img src={lead.photo} alt={lead.name} className="h-20 w-20 flex-shrink-0 rounded-full object-cover" style={{ border: "1px solid #e2e8f0" }} />
+                <MemberAvatar photo={lead.photo} name={lead.name} initials={lead.initials} size={80} />
                 <div className="flex flex-1 items-center justify-around text-center">
                   {[["0", "Posts"], [String(148 + (ceoFollow ? 1 : 0)), "Connections"]].map(([n, l]) => (
                     <div key={l}>
@@ -5331,7 +5571,10 @@ function BriefOverlay({ onClose }) {
                 </div>
               ))}
             </div>
-            <button onClick={close} className="mt-7 flex h-11 w-full items-center justify-center rounded-xl text-xs uppercase tracking-wider font-bold text-white transition active:scale-95" style={DARK_CTA}>Got It</button>
+            <p className="mt-6 border-t border-slate-100 pt-4 text-[10.5px] font-medium leading-relaxed text-slate-400">
+              AI-generated from public disclosures for information only. It may contain errors and is <b className="font-bold text-slate-500">not investment advice</b>. Always verify against the company's official filings before making any investment decision.
+            </p>
+            <button onClick={close} className="mt-5 flex h-11 w-full items-center justify-center rounded-xl text-xs uppercase tracking-wider font-bold text-white transition active:scale-95" style={DARK_CTA}>Got It</button>
           </>
         );
       }}
@@ -5347,6 +5590,15 @@ function BriefOverlay({ onClose }) {
 // main.jsx). Explore + search read this; empty until the fetch resolves.
 const DIRECTORY = (typeof window !== "undefined" && Array.isArray(window.__DIRECTORY__)) ? window.__DIRECTORY__ : [];
 
+// Deterministic avatar colour so companies WITHOUT an uploaded logo still read as
+// distinct (previously every monogram was the same slate). Seeded by identity, so a
+// company's colour is stable across the app. An explicit brand colour still wins.
+const AVATAR_COLORS = ["#4f46e5", "#0891b2", "#0d9488", "#059669", "#65a30d", "#ca8a04", "#d97706", "#ea580c", "#dc2626", "#e11d48", "#db2777", "#9333ea", "#7c3aed", "#2563eb", "#0284c7", "#0f766e"];
+function avatarColor(seed) {
+  const s = String(seed || "?"); let h = 0;
+  for (let k = 0; k < s.length; k++) h = (h * 31 + s.charCodeAt(k)) >>> 0;
+  return AVATAR_COLORS[h % AVATAR_COLORS.length];
+}
 function CoLogo({ co, size = 44 }) {
   if (co.logo) {
     return (
@@ -5355,8 +5607,11 @@ function CoLogo({ co, size = 44 }) {
       </div>
     );
   }
+  // Honour a real brand colour if one was set; otherwise vary by identity.
+  const generic = !co.c || co.c === "#334155" || co.c === "#64748b";
+  const bg = generic ? avatarColor(co.slug || co.name || co.mono) : co.c;
   return (
-    <div className="grid flex-shrink-0 place-items-center rounded-full text-[13px] font-extrabold text-white" style={{ height: size, width: size, background: co.c || "#64748b" }}>
+    <div className="grid flex-shrink-0 place-items-center rounded-full font-extrabold text-white" style={{ height: size, width: size, background: bg, fontSize: Math.round(size * 0.34) }}>
       {co.mono}
     </div>
   );
@@ -5516,6 +5771,198 @@ const TRENDING = (() => {
     .map((c, i) => ({ ...c, metric: labels[i] || "Featured" }));
 })();
 
+/* ============================================================
+   FEED CONTENT MODEL — one normalized object shape drives every tab
+   (For You / News / Company Updates / Media) so new metadata, and later
+   a smarter ranking backend, slot in without touching the cards. We do
+   NOT fabricate content we don't collect yet: News (external editorial)
+   and Media (video) stay empty until real sources exist.
+   ============================================================ */
+
+// Small, deliberately non-dominant content-type indicators.
+const CONTENT_TYPES = {
+  NEWS:           { label: "News",         c: "#2563eb", b: "rgba(37,99,235,0.10)",  Icon: Newspaper },
+  UPDATE:         { label: "Update",       c: "#0d9488", b: "rgba(13,148,136,0.10)", Icon: Radio },
+  VIDEO:          { label: "Video",        c: "#7c3aed", b: "rgba(124,58,237,0.10)", Icon: Play },
+  INTERVIEW:      { label: "Interview",    c: "#c2410c", b: "rgba(194,65,12,0.10)",  Icon: Mic },
+  "MINEEX BRIEF": { label: "MineEx Brief", c: "#ea580c", b: "rgba(234,88,12,0.10)",  Icon: Sparkles },
+};
+// Press releases are labelled by WHAT HAPPENED (scannable), not a generic "Update".
+const EVENT_TYPES = {
+  "DRILL RESULTS":   { label: "Drill Results",   c: "#b45309", b: "rgba(180,83,9,0.10)",   Icon: Drill },
+  "ASSAYS":          { label: "Assays",          c: "#0d9488", b: "rgba(13,148,136,0.10)", Icon: FlaskConical },
+  "RESOURCE UPDATE": { label: "Resource Update", c: "#7c3aed", b: "rgba(124,58,237,0.10)", Icon: Layers },
+  "FINANCING":       { label: "Financing",       c: "#059669", b: "rgba(5,150,105,0.10)",  Icon: Wallet },
+  "EXPLORATION":     { label: "Exploration",     c: "#2563eb", b: "rgba(37,99,235,0.10)",  Icon: Telescope },
+  "ACQUISITION":     { label: "Acquisition",     c: "#db2777", b: "rgba(219,39,119,0.10)", Icon: Landmark },
+  "PERMITTING":      { label: "Permitting",      c: "#0891b2", b: "rgba(8,145,178,0.10)",  Icon: ShieldCheck },
+  "PARTNERSHIP":     { label: "Partnership",     c: "#4f46e5", b: "rgba(79,70,229,0.10)",  Icon: Users },
+  "CORPORATE":       { label: "Corporate",       c: "#64748b", b: "rgba(100,116,139,0.10)",Icon: Building2 },
+};
+const BADGES = { ...CONTENT_TYPES, ...EVENT_TYPES };
+function TypeBadge({ type }) {
+  const m = BADGES[type] || CONTENT_TYPES.UPDATE;
+  const Ic = m.Icon;
+  return (
+    <span className="inline-flex flex-shrink-0 items-center gap-1 rounded-md px-1.5 py-0.5 text-[8px] font-extrabold uppercase tracking-wider" style={{ background: m.b, color: m.c }}>
+      <Ic size={9} />{m.label}
+    </span>
+  );
+}
+
+const DIR_BY_SLUG = (() => { const m = {}; for (const c of DIRECTORY) m[c.slug] = c; return m; })();
+
+// Company account tier (Free / Basic / Pro), derived from the profile TIER we
+// already store — not a new signal. Conference/Pro profiles → Pro; other
+// published profiles with managed updates → Basic; bare listings → Free.
+function accountTier(co) {
+  const t = String((co && co.tier) || "").toLowerCase();
+  if (t === "pro" || t === "conference") return "pro";
+  if (t === "listing") return "free";
+  return "basic";
+}
+
+// Each press release → a normalized feed object. The extra fields (thumbnail,
+// externalUrl, source, commodity, jurisdiction…) are here so future content
+// types and a relevance-ranking backend slot straight in.
+const FEED_OBJECTS = FEED.map((f) => {
+  const co = DIR_BY_SLUG[f.coId] || DIR_BY_SLUG[f.slug] || {};
+  return {
+    id: `${f.coId}:${f.date}`,
+    contentType: "UPDATE",
+    companyId: f.coId, companyName: f.co, ticker: co.ticker || "",
+    commodity: co.commodity || "", jurisdiction: co.region || "",
+    publishedAt: f.date, source: "MineEx", headline: f.headline,
+    summary: f.whatHappened || "", thumbnail: "", externalUrl: "",
+    companyTier: accountTier(co), isFeatured: false,
+    // fields the card + inline reader read
+    src: "Company", Icon: f.key ? Sparkles : Radio, co: f.co, when: relTime(f.date),
+    t: f.headline, live: true, slug: f.slug, logo: f.logo, key: !!f.key,
+    whatHappened: f.whatHappened, why: f.why, takeaways: f.takeaways, originalTitle: f.originalTitle,
+  };
+});
+
+// Weighted interleave of already-ranked pools by TARGET inventory share
+// (largest-deficit scheduler). Empty pools are skipped and their share
+// redistributes, so a guest with no follows still gets Pro discovery + organic.
+function interleaveFeed(pools) {
+  const active = pools.filter((p) => p.items.length);
+  if (!active.length) return [];
+  const sumW = active.reduce((s, p) => s + (p.weight || 0), 0) || 1;
+  const produced = active.map(() => 0), cursor = active.map(() => 0), out = [];
+  const total = active.reduce((s, p) => s + p.items.length, 0);
+  while (out.length < total) {
+    let pick = -1, best = -Infinity;
+    active.forEach((p, i) => {
+      if (cursor[i] >= p.items.length) return;
+      const want = (p.weight || 0) / sumW;
+      const have = out.length ? produced[i] / out.length : 0;
+      const deficit = want - have;
+      if (deficit > best) { best = deficit; pick = i; }
+    });
+    if (pick < 0) break;
+    out.push(active[pick].items[cursor[pick]]); cursor[pick]++; produced[pick]++;
+  }
+  return out;
+}
+
+// The large Featured Update — now content-type aware (Update / Video / Brief…).
+// Driven by relevance + recency; Pro gains eligibility but is never labelled
+// "featured" for being paid.
+function FeaturedCard({ it, onOpen }) {
+  return (
+    <button onClick={() => { haptic(); it.live && onOpen && onOpen(it); }} className="w-full overflow-hidden rounded-3xl border border-slate-100 bg-white text-left transition active:scale-[0.99]" style={{ boxShadow: "0 1px 2px rgba(15,23,42,0.04), 0 16px 30px -22px rgba(15,23,42,0.5)" }}>
+      <div className="relative h-24 w-full" style={{ background: "linear-gradient(135deg,#0f172a,#334155)" }}>
+        <Flame size={110} strokeWidth={1} className="absolute -right-4 -top-4 text-white/10" />
+        <span className="absolute left-4 top-4"><TypeBadge type={it.badge || it.contentType} /></span>
+        {it.followed && <span className="absolute right-4 top-4 inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-wider text-white" style={{ background: "rgba(255,255,255,0.18)" }}><Check size={10} />Following</span>}
+      </div>
+      <div className="p-4">
+        <p className="text-[15px] font-extrabold leading-snug tracking-tight text-slate-900">{it.headline}</p>
+        <div className="mt-2 flex items-center gap-1.5 text-[11px] font-bold tracking-tight text-slate-400">
+          <span>{it.companyName}</span><span className="text-slate-300">·</span><span>{it.when}</span>
+        </div>
+      </div>
+    </button>
+  );
+}
+
+// Media (video / interview) card — visual-first, thumbnail + play indicator.
+// Ready for Pro media publishing; only renders when real media objects exist.
+function MediaCard({ it, onOpen }) {
+  return (
+    <button onClick={() => { haptic(); it.live && onOpen && onOpen(it); }}
+      className="w-full overflow-hidden rounded-3xl border border-slate-100 bg-white text-left transition active:scale-[0.99]"
+      style={{ boxShadow: "0 1px 2px rgba(15,23,42,0.04), 0 16px 30px -22px rgba(15,23,42,0.5)" }}>
+      <div className="relative h-40 w-full" style={{ background: it.thumbnail ? `center/cover no-repeat url(${it.thumbnail})` : "linear-gradient(135deg,#0f172a,#334155)" }}>
+        <span className="absolute inset-0 grid place-items-center">
+          <span className="grid h-12 w-12 place-items-center rounded-full bg-white/90"><Play size={20} className="ml-0.5" style={{ color: "#0f172a" }} /></span>
+        </span>
+        <span className="absolute left-3 top-3"><TypeBadge type={it.badge || it.contentType} /></span>
+      </div>
+      <div className="p-4">
+        <p className="text-[14px] font-extrabold leading-snug tracking-tight text-slate-900">{it.headline}</p>
+        <div className="mt-1.5 flex items-center gap-1.5 text-[11px] font-bold tracking-tight text-slate-400">
+          <span>{it.companyName}</span>{it.when && (<><span className="text-slate-300">·</span><span>{it.when}</span></>)}
+        </div>
+      </div>
+    </button>
+  );
+}
+
+// Honest empty state for tabs whose real source (external news, video) isn't wired yet.
+function FeedEmpty({ Icon, title, sub }) {
+  return (
+    <div className="mt-3 grid place-items-center rounded-3xl border border-dashed border-slate-200 py-16 text-center">
+      <span className="grid h-12 w-12 place-items-center rounded-2xl bg-slate-50"><Icon size={22} className="text-slate-300" /></span>
+      <p className="mt-3 text-[14px] font-extrabold tracking-tight text-slate-700">{title}</p>
+      <p className="mt-1 max-w-[260px] text-[12.5px] font-medium leading-relaxed text-slate-400">{sub}</p>
+    </div>
+  );
+}
+
+// Neutral loading placeholder shown on first paint until the live news is in — so the
+// feed never flashes the built-in items and then re-ranks.
+function FeedSkeleton() {
+  return (
+    <div className="space-y-3 pt-2">
+      <div className="h-52 w-full animate-pulse rounded-2xl bg-slate-100" />
+      {[0, 1, 2].map((i) => (
+        <div key={i} className="flex gap-3 rounded-2xl border border-slate-100 bg-white p-3">
+          <div className="h-14 w-14 flex-shrink-0 animate-pulse rounded-xl bg-slate-100" />
+          <div className="flex-1 space-y-2 py-1">
+            <div className="h-3 w-1/3 animate-pulse rounded bg-slate-100" />
+            <div className="h-3.5 w-full animate-pulse rounded bg-slate-100" />
+            <div className="h-3.5 w-2/3 animate-pulse rounded bg-slate-100" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// Minimal underline tabs (native iOS content-app feel — no bulky pills/segments).
+const FEED_TABS = [["foryou", "For You"], ["news", "News"], ["updates", "Press Releases"], ["media", "Media"]];
+function FeedTabs({ active, onChange }) {
+  return (
+    <div className="-mx-5 border-b border-slate-100 px-5">
+      <div className="flex gap-6 overflow-x-auto pp-scroll" style={{ scrollbarWidth: "none" }}>
+        {FEED_TABS.map(([id, label]) => {
+          const on = active === id;
+          return (
+            <button key={id} onClick={() => { haptic(); onChange(id); }}
+              className="relative flex-shrink-0 whitespace-nowrap pb-2.5 pt-1 text-[14px] font-bold tracking-tight transition"
+              style={{ color: on ? "#0f172a" : "#94a3b8" }}>
+              {label}
+              {on && <span className="absolute inset-x-0 -bottom-px h-[2.5px] rounded-full" style={{ background: "#0f172a" }} />}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // One compact activity card, reused by TODAY and FOLLOWING. Tapping the row expands an
 // INLINE reader (headline, what happened, why it matters, key numbers) so the release can be
 // read without leaving the feed; tapping again collapses it. A footer button opens the company.
@@ -5528,11 +5975,23 @@ function ActivityRow({ it, onOpen }) {
     <div className="overflow-hidden rounded-2xl border border-slate-100 bg-white transition"
       style={{ boxShadow: "0 1px 2px rgba(15,23,42,0.04), 0 12px 26px -20px rgba(15,23,42,0.4)" }}>
       <button onClick={toggle} className="flex w-full items-start gap-3 p-3.5 text-left transition active:scale-[0.995]">
-        <span className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-xl" style={{ background: s.b }}><it.Icon size={16} style={{ color: s.c }} /></span>
+        {it.co ? (
+          // A company published: lead with its circular profile avatar, with the category
+          // icon tucked beneath it (scaled down + white ring so it reads as a badge).
+          <span className="flex flex-shrink-0 flex-col items-center gap-1">
+            <CoLogo co={{ logo: it.logo, slug: it.slug || it.companyId, name: it.co, mono: (it.co || "").trim().split(/\s+/).slice(0, 2).map((w) => w[0] || "").join("").toUpperCase() }} size={36} />
+            <span className="grid h-[22px] w-[22px] place-items-center rounded-lg ring-2 ring-white" style={{ background: s.b }}><it.Icon size={12} style={{ color: s.c }} /></span>
+          </span>
+        ) : (
+          <span className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-xl" style={{ background: s.b }}><it.Icon size={16} style={{ color: s.c }} /></span>
+        )}
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
-            <span className="rounded-md px-1.5 py-0.5 text-[8px] font-extrabold uppercase tracking-wider" style={{ background: s.b, color: s.c }}>{it.src}</span>
+            {it.contentType
+              ? <TypeBadge type={it.badge || it.contentType} />
+              : <span className="rounded-md px-1.5 py-0.5 text-[8px] font-extrabold uppercase tracking-wider" style={{ background: s.b, color: s.c }}>{it.src}</span>}
             <span className="truncate text-[11px] font-bold tracking-tight text-slate-400">{it.co}</span>
+            {it.followed && <span className="flex-shrink-0 inline-flex items-center gap-0.5 text-[9px] font-extrabold uppercase tracking-wider" style={{ color: EM_TEXT }}><Check size={9} strokeWidth={3} />Following</span>}
             <span className="ml-auto flex-shrink-0 text-[10.5px] font-semibold text-slate-300">{it.when}</span>
           </div>
           <p className="mt-1.5 text-[13.5px] font-bold leading-snug tracking-tight text-slate-900">{it.t}</p>
@@ -5577,205 +6036,1036 @@ function ActivityRow({ it, onOpen }) {
   );
 }
 
-// ===== PAGE 1 — TODAY (homepage): what happened across mining today, in 60 seconds =====
-function TodayScreen({ onOpenCompany, onScan }) {
-  const featured = TODAY_ACTIVITY[0];
-  const rest = TODAY_ACTIVITY.slice(1);
-  return (
-    <div className="flex h-full flex-col">
-      <ScreenHead eyebrow="Junior Mining" title="Today" onScan={onScan} />
-      <div className="pp-scroll flex-1 overflow-y-auto px-5 pb-28 pt-1">
-        {/* Trending companies */}
-        <p className="px-1 pb-2 pt-2 text-[11px] font-bold uppercase tracking-widest text-slate-400">Trending Companies</p>
-        <div className="flex gap-2.5 overflow-x-auto pb-1 pp-scroll">
-          {TRENDING.map((c) => (
-            <button key={c.id} onClick={() => { haptic(); c.live ? onOpenCompany(c) : null; }}
-              className="flex-shrink-0 rounded-2xl border border-slate-100 bg-white p-3 text-left transition active:scale-[0.98]" style={{ width: 158, boxShadow: "0 1px 2px rgba(15,23,42,0.04), 0 12px 26px -20px rgba(15,23,42,0.4)" }}>
-              <div className="flex items-center gap-2">
-                <CoLogo co={c} size={34} />
-                <div className="min-w-0">
-                  <p className="truncate text-[12.5px] font-bold tracking-tight text-slate-900">{c.name}</p>
-                  <p className="truncate text-[10px] font-semibold text-slate-400">{c.ticker}</p>
-                </div>
-              </div>
-              <div className="mt-2 flex items-center gap-1">
-                <Flame size={11} style={{ color: "#ea580c" }} />
-                <span className="text-[9.5px] font-bold uppercase tracking-wider" style={{ color: "#ea580c" }}>{c.metric}</span>
-              </div>
-              {(c.commodity || c.region) && (
-                <p className="mt-1 truncate text-[10.5px] font-semibold text-slate-400">{[c.commodity, c.region].filter(Boolean).join(" · ")}</p>
-              )}
-            </button>
-          ))}
-        </div>
+/* ============================================================
+   EDITORIAL FEED COMPONENTS — Apple-News-style hierarchy, Reels-style
+   media, and a shared rich reader. All MineEx design language. These read
+   the normalized story shape, so they work for real data later too.
+   ============================================================ */
 
-        {/* Featured update */}
-        {featured && (<>
-        <p className="px-1 pb-2 pt-5 text-[11px] font-bold uppercase tracking-widest text-slate-400">Featured Update</p>
-        <button onClick={() => { haptic(); featured.live ? onOpenCompany(featured) : null; }} className="w-full overflow-hidden rounded-3xl border border-slate-100 bg-white text-left transition active:scale-[0.99]" style={{ boxShadow: "0 1px 2px rgba(15,23,42,0.04), 0 16px 30px -22px rgba(15,23,42,0.5)" }}>
-          <div className="relative h-24 w-full" style={{ background: "linear-gradient(135deg,#0f172a,#334155)" }}>
-            <Flame size={110} strokeWidth={1} className="absolute -right-4 -top-4 text-white/10" />
-            <span className="absolute left-4 top-4 rounded-md px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-wider text-white" style={{ background: "rgba(255,255,255,0.18)" }}>{featured.src}</span>
-          </div>
-          <div className="p-4">
-            <p className="text-[15px] font-extrabold leading-snug tracking-tight text-slate-900">{featured.t}</p>
-            <div className="mt-2 flex items-center gap-1.5 text-[11px] font-bold tracking-tight text-slate-400">
-              <span>{featured.co}</span><span className="text-slate-300">·</span><span>{featured.when} ago</span>
+// Cover imagery. PRODUCTION uses the real article image / project photo / video
+// thumbnail via `it.image`. When none exists, we fall back to a tasteful, MINEEX-
+// BRANDED editorial illustration keyed by `scene` (drill core, geo map, landscape,
+// rig, interview, processing, market) — NOT fake photographic scenery. The mock
+// sets `scene` per story so the feed feels varied; real data with no image gets
+// the neutral "mineex" mark. No network — all inline SVG.
+const COVER_PAL = {
+  Silver: ["#3b475c", "#0f172a"], Gold: ["#7a5a12", "#2c1f06"], Copper: ["#7c3a1d", "#2f150a"],
+  Lithium: ["#0f766e", "#08302e"], Uranium: ["#166534", "#082014"], Nickel: ["#20456e", "#0b1f36"], default: ["#243244", "#0f172a"],
+};
+const hashSeed = (s) => { let h = 0; s = String(s || "x"); for (let k = 0; k < s.length; k++) h = (h * 31 + s.charCodeAt(k)) >>> 0; return h; };
+// Each scene → inner SVG markup (white shapes on the commodity gradient), so it
+// reads as intentional editorial illustration rather than a generated photo.
+const SCENE_SVG = {
+  topo: (h) => `<g fill='none' stroke='#fff' stroke-opacity='0.13' stroke-width='1.4'><path d='M0 70 C120 30 280 110 400 60'/><path d='M0 120 C120 80 280 160 400 110'/><path d='M0 170 C120 130 280 210 400 160'/><path d='M0 220 C120 180 280 250 400 210'/></g><polygon points='0,260 150,150 250,205 400,120 400,260' fill='#fff' fill-opacity='0.05'/>`,
+  core: (h) => { const rows = [50, 96, 142, 188], gap = 9; let out = "", brightRow = h % rows.length, brightSeg = (h >> 2) % 6; rows.forEach((y, ri) => { const segs = 5 + ((h + ri) % 3), w = (356 - (segs - 1) * gap) / segs; let x = 22; for (let s = 0; s < segs; s++) { const bright = ri === brightRow && s === brightSeg % segs; out += `<rect x='${x.toFixed(1)}' y='${y}' width='${w.toFixed(1)}' height='30' rx='5' fill='#fff' fill-opacity='${bright ? 0.24 : 0.05 + ((s + ri) % 3) * 0.02}'/>`; x += w + gap; } }); return out; },
+  geomap: (h) => { const cx = 140 + (h % 130), cy = 122; let s = ""; for (let r = 26; r <= 108; r += 24) s += `<ellipse cx='${cx}' cy='${cy}' rx='${r + 12}' ry='${r}' fill='none' stroke='#fff' stroke-opacity='0.13' stroke-width='1.3'/>`; return s + `<path d='M0 205 L400 65' stroke='#fff' stroke-opacity='0.14' stroke-width='1.4' stroke-dasharray='7 7'/><circle cx='${cx}' cy='${cy}' r='3.5' fill='#fff' fill-opacity='0.55'/><circle cx='${cx + 58}' cy='${cy - 34}' r='3' fill='#fff' fill-opacity='0.4'/><circle cx='${cx - 46}' cy='${cy + 30}' r='3' fill='#fff' fill-opacity='0.4'/>`; },
+  landscape: (h) => `<polygon points='0,260 120,140 210,190 300,120 400,175 400,260' fill='#fff' fill-opacity='0.05'/><polygon points='0,260 90,178 190,150 290,200 400,160 400,260' fill='#fff' fill-opacity='0.08'/><polygon points='0,260 140,208 260,184 360,220 400,204 400,260' fill='#fff' fill-opacity='0.12'/>`,
+  drilling: (h) => `<line x1='0' y1='212' x2='400' y2='212' stroke='#fff' stroke-opacity='0.12'/><polygon points='150,54 182,212 118,212' fill='none' stroke='#fff' stroke-opacity='0.22' stroke-width='2'/><line x1='150' y1='54' x2='150' y2='36' stroke='#fff' stroke-opacity='0.22' stroke-width='2'/><line x1='134' y1='120' x2='166' y2='120' stroke='#fff' stroke-opacity='0.18' stroke-width='1.5'/><line x1='128' y1='160' x2='172' y2='160' stroke='#fff' stroke-opacity='0.18' stroke-width='1.5'/><rect x='232' y='186' width='46' height='26' rx='3' fill='#fff' fill-opacity='0.08'/>`,
+  interview: (h) => `<circle cx='200' cy='96' r='42' fill='#fff' fill-opacity='0.14'/><path d='M132 222 a68 60 0 0 1 136 0 z' fill='#fff' fill-opacity='0.10'/>`,
+  processing: (h) => `<line x1='0' y1='206' x2='400' y2='206' stroke='#fff' stroke-opacity='0.12'/><polygon points='92,206 130,118 168,206' fill='none' stroke='#fff' stroke-opacity='0.2' stroke-width='2'/><line x1='130' y1='118' x2='130' y2='94' stroke='#fff' stroke-opacity='0.2' stroke-width='2'/><line x1='166' y1='200' x2='300' y2='186' stroke='#fff' stroke-opacity='0.13' stroke-width='6'/><circle cx='250' cy='176' r='28' fill='#fff' fill-opacity='0.08'/><circle cx='312' cy='182' r='22' fill='#fff' fill-opacity='0.08'/>`,
+  market: (h) => { let g = ""; for (let y = 74; y <= 210; y += 34) g += `<line x1='20' y1='${y}' x2='380' y2='${y}' stroke='#fff' stroke-opacity='0.07'/>`; const pts = "20,192 80,172 140,182 200,132 260,148 320,92 380,68"; return g + `<polygon points='${pts} 380,222 20,222' fill='#fff' fill-opacity='0.05'/><polyline points='${pts}' fill='none' stroke='#fff' stroke-opacity='0.38' stroke-width='2.5'/>`; },
+  mineex: (h) => `<polygon points='118,182 174,92 210,138 250,78 302,182' fill='none' stroke='#fff' stroke-opacity='0.4' stroke-width='2.5'/><text x='200' y='226' text-anchor='middle' font-family='Arial,Helvetica,sans-serif' font-size='19' font-weight='700' letter-spacing='2' fill='#fff' fill-opacity='0.85'>MineEx</text>`,
+};
+function coverStyle(tone, seedStr, scene) {
+  const h = hashSeed(seedStr);
+  const [a, b] = scene === "mineex" ? ["#0b7a56", "#064e3a"] : COVER_PAL[Object.keys(COVER_PAL).find((k) => String(tone || "").includes(k)) || "default"];
+  const ang = [125, 140, 160, 115][h % 4];
+  const inner = (SCENE_SVG[scene] || SCENE_SVG.topo)(h);
+  const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='400' height='260'>${inner}</svg>`;
+  return { background: `url("data:image/svg+xml,${encodeURIComponent(svg)}"), linear-gradient(${ang}deg, ${a}, ${b})`, backgroundSize: "cover, cover", backgroundPosition: "center" };
+}
+// Card-facing cover: real image first, then the story's scene, then MineEx fallback.
+function coverFor(it) {
+  if (it && it.image) return { backgroundImage: `url("${it.image}")`, backgroundSize: "cover", backgroundPosition: "center" };
+  return coverStyle(it && (it.commodity || it.contentType), it && it.id, (it && it.scene) || "mineex");
+}
+const isMedia = (t) => t === "VIDEO" || t === "INTERVIEW";
+
+// Subtle "why you're seeing this" label — used sparingly.
+function ContextLabel({ text, dark }) {
+  if (!text) return null;
+  return <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold tracking-tight" style={dark ? { background: "rgba(255,255,255,0.18)", color: "#fff" } : { background: "#f1f5f9", color: "#64748b" }}>{text}</span>;
+}
+function FollowingChip({ dark }) {
+  return <span className="inline-flex flex-shrink-0 items-center gap-0.5 text-[9px] font-extrabold uppercase tracking-wider" style={{ color: dark ? "#fff" : EM_TEXT }}><Check size={9} strokeWidth={3} />Following</span>;
+}
+
+// Shared rich reader (bottom sheet): the "proper reading experience" for a press
+// release / news story / media item. Long summary + context + key numbers + the
+// original source link + Open Company.
+function StoryReader({ it, onOpen, onClose }) {
+  const [playing, setPlaying] = useState(false);
+  const [saved, setSaved] = useState(() => savedStore.has(it && it.id));
+  const toggleSave = () => { if (it) savedStore.toggle(it); setSaved((s) => !s); };
+  const shareStory = async () => {
+    haptic();
+    // Share a MineEx URL for news (branded card via /n/<id> OG tags); fall back to the
+    // source link for items without a public news id.
+    const nid = it && it.contentType === "NEWS" ? String(it.id || "").replace(/^news-/, "") : "";
+    const url = nid ? `https://mineex.ca/n/${nid}` : ((it && it.fullUrl) || "");
+    const title = (it && (it.headline || it.t)) || "MineEx";
+    try {
+      if (navigator.share) await navigator.share({ title, url });
+      else if (navigator.clipboard && url) await navigator.clipboard.writeText(url);
+    } catch { /* user cancelled or unsupported */ }
+  };
+  if (!it) return null;
+  const media = isMedia(it.contentType);
+  const isBrief = it.contentType === "MINEEX BRIEF";
+  // A press-release-type source links to the full release; editorial coverage links to the article.
+  const isRelease = /press|wire|release|company|ir\b|regulat/i.test(it.publisherType || "") || it.contentType === "PRESS RELEASE";
+  const origLabel = media ? "Watch on MineEx" : it.contentType === "NEWS" ? (isRelease ? "Read Full Press Release" : "Read Original Article") : "Read Full Press Release";
+  const dateStr = (() => { const d = it.publishedAt ? new Date(it.publishedAt) : null; return d && !isNaN(d) ? d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }) : (it.when || ""); })();
+  const isReader = !!it.summaryLong && (it.contentType === "NEWS" || it.contentType === "PRESS RELEASE");
+  return createPortal(
+    <div className="absolute inset-0 z-[110] flex flex-col justify-end pp-fade" onClick={onClose}>
+      <style>{"@keyframes mxUp{from{transform:translateY(100%)}to{transform:translateY(0)}}"}</style>
+      <div className="absolute inset-0" style={{ background: "rgba(15,23,42,0.4)", backdropFilter: "blur(2px)" }} />
+      <div onClick={(e) => e.stopPropagation()} className="relative flex h-[92%] flex-col rounded-t-[26px] bg-white" style={{ animation: "mxUp .3s cubic-bezier(.2,.8,.2,1)", boxShadow: "0 -12px 40px -12px rgba(15,23,42,0.35)" }}>
+        <div className="flex-shrink-0 px-5 pt-3">
+          <div className="mx-auto mb-2 h-1 w-9 rounded-full bg-slate-200" />
+          <div className="flex items-center justify-between">
+            <TypeBadge type={it.badge || it.contentType} />
+            <div className="flex items-center gap-2">
+              <button onClick={shareStory} aria-label="Share" className="grid h-8 w-8 place-items-center rounded-full bg-slate-100 text-slate-600 active:scale-90"><Share2 size={15} /></button>
+              <button onClick={toggleSave} aria-label={saved ? "Saved" : "Save"} className="grid h-8 w-8 place-items-center rounded-full active:scale-90" style={saved ? { background: EM, color: "#fff" } : { background: "#f1f5f9", color: "#475569" }}><Bookmark size={15} fill={saved ? "currentColor" : "none"} /></button>
+              <button onClick={onClose} aria-label="Close" className="grid h-8 w-8 place-items-center rounded-full bg-slate-100 text-slate-500 active:scale-90"><X size={16} /></button>
             </div>
           </div>
-        </button>
-        </>)}
+        </div>
+        <div className="pp-scroll min-h-0 flex-1 overflow-y-auto px-5 pb-6 pt-3">
+          {media && (
+            <button onClick={() => { haptic(); setPlaying((v) => !v); }} className="relative mb-4 block h-52 w-full overflow-hidden rounded-2xl" style={coverFor(it)}>
+              <span className="absolute inset-0 grid place-items-center">
+                <span className="grid h-14 w-14 place-items-center rounded-full bg-white/90">{playing ? <span className="flex gap-1"><span className="h-4 w-1.5 rounded-sm bg-slate-900" /><span className="h-4 w-1.5 rounded-sm bg-slate-900" /></span> : <Play size={22} className="ml-0.5 text-slate-900" />}</span>
+              </span>
+              {it.duration && <span className="absolute bottom-2.5 right-2.5 rounded bg-black/50 px-1.5 py-0.5 text-[10px] font-bold text-white">{it.duration}</span>}
+              {playing && <span className="absolute bottom-0 left-0 h-1 bg-white/80" style={{ width: "38%" }} />}
+            </button>
+          )}
+          <div className="mb-2 flex items-center gap-2">
+            <CoLogo co={{ logo: it.logo, slug: it.slug || it.companyId, name: it.companyName, mono: (it.companyName || "").split(/\s+/).slice(0, 2).map((w) => w[0] || "").join("").toUpperCase() }} size={30} />
+            <div className="min-w-0">
+              <p className="truncate text-[12px] font-bold tracking-tight text-slate-800">{it.companyName}{it.ticker ? ` · ${it.ticker}` : ""}</p>
+              <p className="text-[10.5px] font-semibold text-slate-400">{it.source} · {it.when}</p>
+            </div>
+          </div>
+          <h2 className="text-[20px] font-extrabold leading-tight tracking-tight text-slate-900">{it.originalHeadline || it.headline}</h2>
 
-        {/* Latest activity — ranked, cross-source */}
-        <p className="px-1 pb-2 pt-5 text-[11px] font-bold uppercase tracking-widest text-slate-400">Latest Activity</p>
-        <div className="space-y-2.5">
-          {rest.map((it, i) => <ActivityRow key={i} it={it} onOpen={onOpenCompany} />)}
+          {/* MineEx Summary — what was announced */}
+          {it.summaryLong && (<>
+            <p className="mt-4 text-[10.5px] font-bold uppercase tracking-widest text-slate-400">MineEx Summary</p>
+            <p className="mt-1.5 text-[14px] font-medium leading-relaxed text-slate-600">{it.summaryLong}</p>
+          </>)}
+
+          {/* What does this mean? — explains only the technical terms in this item */}
+          {it.plainEnglish && (<>
+            <p className="mt-4 text-[10.5px] font-bold uppercase tracking-widest text-slate-400">What does this mean?</p>
+            <p className="mt-1.5 text-[13.5px] font-medium leading-relaxed text-slate-600">{it.plainEnglish}</p>
+          </>)}
+
+          {/* Context — source-only; where it fits / what's next */}
+          {it.context && (<>
+            <p className="mt-4 text-[10.5px] font-bold uppercase tracking-widest text-slate-400">Context</p>
+            <p className="mt-1.5 text-[13.5px] font-medium leading-relaxed text-slate-600">{it.context}</p>
+          </>)}
+
+          {/* Key Numbers — compact single-figure rows, exact from source */}
+          {Array.isArray(it.keyNumbers) && it.keyNumbers.length > 0 && (<>
+            <p className="mt-4 text-[10.5px] font-bold uppercase tracking-widest text-slate-400">Key Numbers</p>
+            <div className="mt-2 space-y-1.5">
+              {it.keyNumbers.map((k, j) => (
+                <div key={j} className="flex items-baseline justify-between gap-3 rounded-xl border border-slate-100 bg-slate-50/70 px-3.5 py-2.5">
+                  <span className="text-[14px] font-extrabold leading-snug tracking-tight text-slate-900">{k.value}</span>
+                  {k.label && <span className="flex-shrink-0 text-right text-[11px] font-semibold text-slate-400">{k.label}</span>}
+                </div>
+              ))}
+            </div>
+          </>)}
+
+          {it.watch && (<>
+            <p className="mt-4 text-[10.5px] font-bold uppercase tracking-widest text-slate-400">What to watch next</p>
+            <p className="mt-1.5 text-[13.5px] font-medium leading-relaxed text-slate-600">{it.watch}</p>
+          </>)}
+
+          {/* Source attribution */}
+          {isReader && (it.source || dateStr) && (
+            <p className="mt-5 text-[11.5px] font-semibold text-slate-400">Source: {it.source || "Industry"}{dateStr ? ` · ${dateStr}` : ""}</p>
+          )}
+
+          {/* Standard disclosure */}
+          {isReader && <p className="mt-3 rounded-xl bg-slate-50 px-3 py-2.5 text-[11px] font-medium leading-snug text-slate-400">MineEx provides factual summaries and educational context, not investment advice. Refer to the original disclosure for complete information.</p>}
+          {isBrief && <p className="mt-5 rounded-xl bg-slate-50 px-3 py-2.5 text-[11.5px] font-medium leading-snug text-slate-400">A MineEx Brief is a factual, contextual summary based on source material — not investment advice or independent analysis.</p>}
+        </div>
+        <div className="flex-shrink-0 border-t border-slate-100 px-5 py-3" style={{ paddingBottom: "calc(env(safe-area-inset-bottom,0px) + 12px)" }}>
+          <div className="flex items-center gap-2.5">
+            {it.live && onOpen && <button onClick={() => { haptic(); onClose(); onOpen(it); }} className={`h-12 rounded-2xl border border-slate-200 px-4 text-[13px] font-bold text-slate-700 active:scale-95 ${isBrief ? "flex-1" : "flex-shrink-0"}`}>Open Company</button>}
+            {!isBrief && <button onClick={() => { haptic(); try { window.open(it.fullUrl, "_blank", "noopener"); } catch {} }} className="flex h-12 flex-1 items-center justify-center gap-1.5 rounded-2xl text-[14px] font-bold text-white active:scale-[0.98]" style={{ background: EM }}>{origLabel} <ArrowUpRight size={15} /></button>}
+          </div>
         </div>
       </div>
+    </div>, ppFrameEl || document.body);
+}
+
+// Lead / hero story — strong imagery, big headline over the image.
+function LeadStory({ it, onRead, reason }) {
+  return (
+    <button onClick={() => { haptic(); onRead(it); }} className="w-full overflow-hidden rounded-3xl border border-slate-100 bg-white text-left transition active:scale-[0.99]" style={{ boxShadow: "0 1px 2px rgba(15,23,42,0.04), 0 18px 34px -22px rgba(15,23,42,0.5)" }}>
+      <div className="relative h-52 w-full" style={coverFor(it)}>
+        <div className="absolute inset-0" style={{ background: "linear-gradient(180deg, rgba(15,23,42,0) 35%, rgba(15,23,42,0.82))" }} />
+        <div className="absolute left-4 top-4 flex items-center gap-2"><TypeBadge type={it.badge || it.contentType} />{it.followed && <FollowingChip dark />}</div>
+        {isMedia(it.contentType) && <span className="absolute inset-0 grid place-items-center"><span className="grid h-12 w-12 place-items-center rounded-full bg-white/85"><Play size={18} className="ml-0.5 text-slate-900" /></span></span>}
+        <div className="absolute inset-x-4 bottom-3.5">
+          <p className="text-[19px] font-extrabold leading-tight tracking-tight text-white" style={{ textShadow: "0 1px 14px rgba(0,0,0,0.45)" }}>{it.headline}</p>
+        </div>
+      </div>
+      <div className="p-4">
+        {reason && <div className="mb-1.5"><ContextLabel text={reason} /></div>}
+        {it.dek && <p className="text-[13px] font-medium leading-snug text-slate-500">{it.dek}</p>}
+        <div className="mt-2 flex items-center gap-1.5 text-[11px] font-bold tracking-tight text-slate-400">
+          <span className="truncate">{it.companyName}</span><span className="text-slate-300">·</span><span className="flex-shrink-0">{it.when}</span>
+        </div>
+      </div>
+    </button>
+  );
+}
+
+// Medium editorial row — square cover thumbnail + headline (for "Top Stories").
+function TopStory({ it, onRead }) {
+  return (
+    <button onClick={() => { haptic(); onRead(it); }} className="flex w-full items-stretch gap-3 rounded-2xl border border-slate-100 bg-white p-2.5 text-left transition active:scale-[0.99]" style={{ boxShadow: "0 1px 2px rgba(15,23,42,0.04), 0 12px 26px -20px rgba(15,23,42,0.4)" }}>
+      <div className="relative h-[74px] w-[74px] flex-shrink-0 overflow-hidden rounded-xl" style={coverFor(it)}>
+        {isMedia(it.contentType) && <span className="absolute inset-0 grid place-items-center"><span className="grid h-7 w-7 place-items-center rounded-full bg-white/85"><Play size={12} className="ml-0.5 text-slate-900" /></span></span>}
+      </div>
+      <div className="flex min-w-0 flex-1 flex-col justify-center">
+        <div className="mb-1 flex items-center gap-1.5"><TypeBadge type={it.badge || it.contentType} />{it.followed && <FollowingChip />}</div>
+        <p className="line-clamp-2 text-[13.5px] font-bold leading-snug tracking-tight text-slate-900">{it.headline}</p>
+        <p className="mt-1 truncate text-[10.5px] font-semibold text-slate-400">{it.companyName} · {it.when}</p>
+      </div>
+    </button>
+  );
+}
+
+// Press-release card (collapsed) — company, ticker, date, headline, type, followed.
+function PRCard({ it, onRead }) {
+  return (
+    <button onClick={() => { haptic(); onRead(it); }} className="flex w-full items-start gap-3 rounded-2xl border border-slate-100 bg-white p-3.5 text-left transition active:scale-[0.995]" style={{ boxShadow: "0 1px 2px rgba(15,23,42,0.04), 0 12px 26px -20px rgba(15,23,42,0.4)" }}>
+      <CoLogo co={{ logo: it.logo, slug: it.slug || it.companyId, name: it.companyName, mono: (it.companyName || "").split(/\s+/).slice(0, 2).map((w) => w[0] || "").join("").toUpperCase() }} size={38} />
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-1.5">
+          <span className="truncate text-[12px] font-bold tracking-tight text-slate-700">{it.companyName}</span>
+          {it.ticker && <span className="flex-shrink-0 text-[10.5px] font-semibold text-slate-400">{it.ticker}</span>}
+          {it.followed && <FollowingChip />}
+          <span className="ml-auto flex-shrink-0 text-[10.5px] font-semibold text-slate-300">{it.when}</span>
+        </div>
+        <p className="mt-1 text-[13.5px] font-bold leading-snug tracking-tight text-slate-900">{it.headline}</p>
+        <div className="mt-1.5 flex items-center gap-1.5"><TypeBadge type={it.badge || it.contentType} /><span className="text-[10.5px] font-semibold text-slate-400">Tap to read summary</span></div>
+      </div>
+      <ChevronRight size={16} className="mt-0.5 flex-shrink-0 text-slate-300" />
+    </button>
+  );
+}
+
+// News card — editorial, with imagery. size: "lead" | "med" | "sm".
+function NewsCard({ it, onRead, size = "med" }) {
+  if (size === "lead") return <LeadStory it={it} onRead={onRead} />;
+  if (size === "sm") return (
+    <button onClick={() => { haptic(); onRead(it); }} className="flex w-full items-center gap-3 rounded-2xl border border-slate-100 bg-white p-3 text-left transition active:scale-[0.995]" style={{ boxShadow: "0 1px 2px rgba(15,23,42,0.04), 0 12px 26px -20px rgba(15,23,42,0.4)" }}>
+      <div className="min-w-0 flex-1">
+        <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">{it.source} · {it.when}</p>
+        <p className="line-clamp-2 text-[13.5px] font-bold leading-snug tracking-tight text-slate-900">{it.headline}</p>
+      </div>
+      <div className="h-14 w-14 flex-shrink-0 rounded-xl" style={coverFor(it)} />
+    </button>
+  );
+  return (
+    <button onClick={() => { haptic(); onRead(it); }} className="w-full overflow-hidden rounded-2xl border border-slate-100 bg-white text-left transition active:scale-[0.99]" style={{ boxShadow: "0 1px 2px rgba(15,23,42,0.04), 0 14px 28px -22px rgba(15,23,42,0.45)" }}>
+      <div className="h-32 w-full" style={coverFor(it)} />
+      <div className="p-3.5">
+        <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">{it.source} · {it.when}{it.commodity ? ` · ${it.commodity}` : ""}</p>
+        <p className="text-[14.5px] font-extrabold leading-snug tracking-tight text-slate-900">{it.headline}</p>
+        {it.dek && <p className="mt-1 line-clamp-2 text-[12.5px] font-medium leading-snug text-slate-500">{it.dek}</p>}
+      </div>
+    </button>
+  );
+}
+
+// MineEx Brief — distinct editorial treatment (accent rule, MineEx wordmark).
+function BriefCard({ it, onRead, reason }) {
+  return (
+    <button onClick={() => { haptic(); onRead(it); }} className="w-full rounded-2xl border border-slate-100 bg-white p-4 text-left transition active:scale-[0.99]" style={{ boxShadow: "0 1px 2px rgba(15,23,42,0.04), 0 12px 26px -20px rgba(15,23,42,0.4)", borderLeft: `3px solid ${EM}` }}>
+      <div className="mb-1.5 flex items-center gap-1.5"><TypeBadge type="MINEEX BRIEF" />{reason && <ContextLabel text={reason} />}</div>
+      <p className="text-[15px] font-extrabold leading-snug tracking-tight text-slate-900">{it.headline}</p>
+      {it.dek && <p className="mt-1 text-[12.5px] font-medium leading-snug text-slate-500">{it.dek}</p>}
+      <p className="mt-2 text-[10.5px] font-bold uppercase tracking-wider" style={{ color: EM_TEXT }}>Factual summary · MineEx · {it.when}</p>
+    </button>
+  );
+}
+
+// Media teaser inside For You (horizontal) — routes into the Reels tab.
+function MediaTeaser({ it, onRead }) {
+  return (
+    <button onClick={() => { haptic(); onRead(it); }} className="flex w-full items-stretch gap-3 overflow-hidden rounded-2xl border border-slate-100 bg-white p-2.5 text-left transition active:scale-[0.99]" style={{ boxShadow: "0 1px 2px rgba(15,23,42,0.04), 0 12px 26px -20px rgba(15,23,42,0.4)" }}>
+      <div className="relative h-[74px] w-[110px] flex-shrink-0 overflow-hidden rounded-xl" style={coverFor(it)}>
+        <span className="absolute inset-0 grid place-items-center"><span className="grid h-8 w-8 place-items-center rounded-full bg-white/85"><Play size={13} className="ml-0.5 text-slate-900" /></span></span>
+        {it.duration && <span className="absolute bottom-1 right-1 rounded bg-black/50 px-1 text-[9px] font-bold text-white">{it.duration}</span>}
+      </div>
+      <div className="flex min-w-0 flex-1 flex-col justify-center">
+        <div className="mb-1"><TypeBadge type={it.badge || it.contentType} /></div>
+        <p className="line-clamp-2 text-[13px] font-bold leading-snug tracking-tight text-slate-900">{it.headline}</p>
+        <p className="mt-1 truncate text-[10.5px] font-semibold text-slate-400">{it.companyName} · {it.when}</p>
+      </div>
+    </button>
+  );
+}
+
+// Occasional company recommendation inside For You (Pro-eligible, relevance-driven).
+function CompanyRecCard({ co, reason, onOpen }) {
+  return (
+    <div className="rounded-2xl border border-slate-100 bg-white p-3.5" style={{ boxShadow: "0 1px 2px rgba(15,23,42,0.04), 0 12px 26px -20px rgba(15,23,42,0.4)" }}>
+      <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-slate-400">Suggested for you</p>
+      <button onClick={() => { haptic(); co.live && onOpen && onOpen(co); }} className="flex w-full items-center gap-3 text-left active:scale-[0.99]">
+        <CoLogo co={co} size={40} />
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-[13.5px] font-bold tracking-tight text-slate-900">{co.name}</p>
+          <p className="truncate text-[11px] font-semibold text-slate-400">{[co.ticker, co.commodity].filter(Boolean).join(" · ")}</p>
+          {reason && <div className="mt-1"><ContextLabel text={reason} /></div>}
+        </div>
+        <span className="flex-shrink-0 rounded-full px-3 py-1.5 text-[11.5px] font-bold text-white" style={{ background: EM }}>View</span>
+      </button>
     </div>
   );
 }
 
-function DiscoverScreen({ onOpenCompany, onScan }) {
-  const [mode, setMode] = useState("juniors"); // juniors | analysts
-  const [q, setQ] = useState("");
-  const query = q.trim().toLowerCase();
-  const isJ = mode === "juniors";
+// MEDIA TAB — vertical, swipeable, video-first (Reels/TikTok interaction, MineEx skin).
+function Reels({ items, onOpen, followed }) {
+  const [followSet, setFollowSet] = useState(() => new Set(followed || []));
+  const [playing, setPlaying] = useState({});
+  if (!items.length) return <FeedEmpty Icon={Play} title="No media yet" sub="Pro companies will publish interviews and site footage here." />;
+  const toggleFollow = (slug) => { haptic(); setFollowSet((s) => { const n = new Set(s); n.has(slug) ? n.delete(slug) : n.add(slug); return n; }); };
+  return (
+    <div className="pp-scroll h-full snap-y snap-mandatory overflow-y-auto" style={{ scrollbarWidth: "none" }}>
+      {items.map((it) => {
+        const isFollowing = followSet.has(it.companyId);
+        const play = !!playing[it.id];
+        return (
+          <div key={it.id} className="relative flex h-full snap-start snap-always items-stretch justify-center px-3 py-3">
+            <div className="relative w-full overflow-hidden rounded-3xl" style={coverFor(it)}>
+              <div className="absolute inset-0" style={{ background: "linear-gradient(180deg, rgba(15,23,42,0.35) 0%, rgba(15,23,42,0) 30%, rgba(15,23,42,0) 55%, rgba(15,23,42,0.85) 100%)" }} />
+              {/* play control */}
+              <button onClick={() => { haptic(); setPlaying((p) => ({ ...p, [it.id]: !p[it.id] })); }} className="absolute inset-0 grid place-items-center">
+                {!play && <span className="grid h-16 w-16 place-items-center rounded-full bg-white/90"><Play size={26} className="ml-1 text-slate-900" /></span>}
+              </button>
+              {it.duration && <span className="absolute right-3 top-3 rounded bg-black/45 px-1.5 py-0.5 text-[10px] font-bold text-white">{it.duration}</span>}
+              <div className="absolute left-3 top-3"><TypeBadge type={it.badge || it.contentType} /></div>
+              {play && <span className="absolute inset-x-0 bottom-0 h-1 bg-white/85" style={{ width: "42%" }} />}
 
-  // ---- investor screening filters (commodity / jurisdiction / funding / market cap) ----
-  const [filters, setFilters] = useState({ commodity: "", country: "", funding: "", mcap: "" });
-  const [openCat, setOpenCat] = useState("");
-  const countryOf = (c) => String(c.region || "").split(",").pop().trim();
-  const bucketOf = (n) => n == null ? "" : n < 25e6 ? "< $25M" : n < 100e6 ? "$25–100M" : n < 500e6 ? "$100–500M" : "> $500M";
-  const uniq = (a) => [...new Set(a.filter(Boolean))].sort();
-  const OPTS = {
-    commodity: uniq(DIRECTORY.flatMap((c) => String(c.commodity || "").split(/[·,/&]+/).map((s) => s.trim()))),
-    country: uniq(DIRECTORY.map(countryOf)),
-    funding: uniq(DIRECTORY.map((c) => c.funding)),
-    mcap: ["< $25M", "$25–100M", "$100–500M", "> $500M"],
+              {/* right action rail */}
+              <div className="absolute bottom-44 right-3 flex flex-col items-center gap-4 text-white">
+                <button onClick={() => toggleFollow(it.companyId)} className="flex flex-col items-center gap-1 active:scale-90">
+                  <span className="grid h-11 w-11 place-items-center rounded-full" style={{ background: isFollowing ? "rgba(255,255,255,0.25)" : EM }}>{isFollowing ? <Check size={20} /> : <Plus size={20} />}</span>
+                  <span className="text-[9px] font-bold">{isFollowing ? "Following" : "Follow"}</span>
+                </button>
+                <button className="flex flex-col items-center gap-1 active:scale-90"><span className="grid h-11 w-11 place-items-center rounded-full bg-white/15"><Bookmark size={18} /></span><span className="text-[9px] font-bold">Save</span></button>
+                <button className="flex flex-col items-center gap-1 active:scale-90"><span className="grid h-11 w-11 place-items-center rounded-full bg-white/15"><Share2 size={18} /></span><span className="text-[9px] font-bold">Share</span></button>
+              </div>
+
+              {/* bottom meta */}
+              <div className="absolute inset-x-4 bottom-5 text-white">
+                <div className="mb-2 flex items-center gap-2">
+                  <CoLogo co={{ logo: it.logo, slug: it.slug || it.companyId, name: it.companyName, mono: (it.companyName || "").split(/\s+/).slice(0, 2).map((w) => w[0] || "").join("").toUpperCase() }} size={34} />
+                  <div className="min-w-0">
+                    <p className="truncate text-[13px] font-extrabold tracking-tight">{it.companyName}</p>
+                    <p className="truncate text-[10.5px] font-semibold text-white/70">{it.ticker}</p>
+                  </div>
+                  {it.live && onOpen && <button onClick={() => { haptic(); onOpen(it); }} className="ml-auto flex-shrink-0 rounded-full bg-white/20 px-3 py-1.5 text-[11px] font-bold">Open</button>}
+                </div>
+                <p className="text-[15px] font-extrabold leading-snug tracking-tight" style={{ textShadow: "0 1px 12px rgba(0,0,0,0.5)" }}>{it.headline}</p>
+                {it.caption && <p className="mt-1 line-clamp-2 text-[12px] font-medium leading-snug text-white/85">{it.caption}</p>}
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {it.commodity && <span className="rounded-full bg-white/18 px-2 py-0.5 text-[10px] font-bold">{it.commodity}</span>}
+                  {it.jurisdiction && <span className="rounded-full bg-white/18 px-2 py-0.5 text-[10px] font-bold">{it.jurisdiction}</span>}
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ===== PAGE 1 — TODAY (homepage): the personalized junior-mining feed =====
+// Tabs: For You (mixed, ranked), News (external editorial), Company Updates
+// (official news / MineEx summaries), Media (Pro video-first). Ranking here is
+// deliberately transparent — real signals only (follows + followed-commodity
+// relevance + recency + a modest Pro boost) — structured so a smarter backend
+// can replace it without changing the cards.
+function TodayScreen({ onOpenCompany, onScan }) {
+  const [tab, setTab] = useState("foryou");
+  const [, bump] = useState(0);
+  useEffect(() => listStore.sub(() => bump((x) => x + 1)), []);
+
+  // ---- DEV-ONLY Mock Newsroom (?mock=1 OR long-press the "Today" title). Delete this block + the switcher below to remove. ----
+  const mockOn = mockEnabled();
+  const mock = useMemo(() => (mockOn ? buildMockNewsroom() : null), [mockOn]);
+  const [mockInv, setMockInv] = useState(() => { try { return Number(localStorage.getItem("mineex.mockInvestor") || 0) || 0; } catch { return 0; } });
+  const activeInv = mock ? (mock.investors[mockInv] || mock.investors[0]) : null;
+  // Long-press the header toggles Mock Newsroom in-app — DEV BUILDS ONLY. In any
+  // production build (native app + deployed web) this is a no-op, so an App Review
+  // tester's long-press does nothing.
+  const holdRef = useRef(null);
+  const MOCK_GESTURE = !!(import.meta && import.meta.env && import.meta.env.DEV);
+  const startHold = () => { if (!MOCK_GESTURE) return; holdRef.current = setTimeout(() => { try { localStorage.setItem("mineex.mock", mockEnabled() ? "0" : "1"); } catch {} haptic(); window.location.href = window.location.pathname; }, 650); };
+  const cancelHold = () => { if (holdRef.current) { clearTimeout(holdRef.current); holdRef.current = null; } };
+  // ----------------------------------------------------------------------------------------------------------------------------
+
+  // Approved REAL news (public view). Loaded only in the real path; mock uses its own data.
+  const [liveNews, setLiveNews] = useState([]);
+  // `newsLoaded` gates the first paint: until the live news has come back we don't
+  // render the feed at all, so the built-in company/activity items (window.__FEED__)
+  // never flash + re-rank when the real news arrives a moment later.
+  const [newsLoaded, setNewsLoaded] = useState(false);
+  // Re-fetch the approved public feed. Called on mount and on pull-to-refresh.
+  const refreshNews = React.useCallback(async () => {
+    if (mockOn) { setNewsLoaded(true); return; }
+    try { const rows = await fetchLiveNews(60); setLiveNews(rows); } catch { /* ignore */ }
+    finally { setNewsLoaded(true); }
+  }, [mockOn]);
+  useEffect(() => { refreshNews(); }, [refreshNews]);
+  const feedReady = mockOn || newsLoaded;
+  const NEWS_SCENE = { "Drill Results": "core", Assays: "core", "Resource Update": "geomap", Exploration: "geomap", Acquisition: "geomap", Financing: "processing", Permitting: "landscape", Partnership: "landscape", Production: "landscape", Corporate: "landscape", "Macro/Market": "market" };
+  const liveObjects = useMemo(() => liveNews.map((n) => ({
+    id: `news-${n.id}`, contentType: "NEWS", badge: "NEWS", eventType: n.event_type || "",
+    isPressRelease: !!n.is_press_release, category: n.category || "",
+    companyId: n.company_slug || "", companyName: n.source_name || "Industry", ticker: "",
+    commodity: (n.commodities || []).join(" · "), jurisdiction: (n.jurisdictions || []).slice(0, 2).join(", "),
+    publishedAt: n.published_at, source: n.source_name || "Industry", headline: n.title, t: n.title,
+    dek: n.mineex_summary ? String(n.mineex_summary).slice(0, 150) : "", summary: n.mineex_summary || "",
+    summaryLong: n.mineex_summary || "", mineex_summary: n.mineex_summary || "",
+    plainEnglish: n.plain_english_explanation || "", context: n.context || "",
+    keyNumbers: Array.isArray(n.key_numbers) ? n.key_numbers : [],
+    publisherType: n.publisher_type || "", watch: "",
+    originalHeadline: n.title, fullUrl: n.canonical_url, whatHappened: "", why: "", takeaways: [],
+    image: n.image_url || "", scene: NEWS_SCENE[n.event_type] || "market",
+    materiality: n.materiality_score || 50, companyTier: "free", isFeatured: false,
+    src: "Industry", Icon: Newspaper, co: n.source_name || "Industry", when: relTime(String(n.published_at).slice(0, 10)),
+    live: !!n.company_slug, slug: n.company_slug || "", logo: "", key: false,
+  })), [liveNews]);
+
+  const followedIds = mockOn ? (activeInv ? activeInv.following : []) : listStore.ids("following");
+  const followKey = followedIds.join(",");
+
+  // Interests. Mock: the investor's declared interests. Real: commodities of followed companies.
+  const interest = useMemo(() => {
+    if (mockOn) return new Set(activeInv ? activeInv.interests : []);
+    const s = new Set();
+    for (const id of followedIds) { const c = DIR_BY_SLUG[id]; if (c) discovery.commoditiesOf(c).forEach((v) => s.add(v)); }
+    return s;
+  }, [mockOn, mockInv, followKey]);
+
+  // Annotate each object with the signals ranking needs (following / relevance / Pro).
+  const objects = useMemo(() => {
+    const base = mockOn ? mock.stories : [...FEED_OBJECTS, ...liveObjects];
+    const rel = (o) => interest.size > 0 && !!o.commodity && discovery.commoditiesOf({ commodity: o.commodity }).some((v) => interest.has(v));
+    return base.map((o) => {
+      const followed = followedIds.includes(o.companyId);
+      return { ...o, followed, pro: o.companyTier === "pro", relevant: !followed && rel(o) };
+    });
+  }, [mockOn, mock, liveObjects, followKey, interest, mockInv]);
+
+  // Shared rich reader + subtle "why you're seeing this" context.
+  const [reader, setReader] = useState(null);
+  const openStory = (it) => { haptic(); setReader(it); };
+  const matchCommodity = (o) => { for (const v of discovery.commoditiesOf({ commodity: o.commodity })) if (interest.has(v)) return v; return null; };
+  const reasonFor = (o) => {
+    if (o.followed) return null;                                   // Following chip already says it
+    const m = matchCommodity(o);
+    if (o.relevant && m) return `Because you follow ${m.toLowerCase()}`;
+    if (o.pro) return "Similar to companies you follow";
+    if (o.commodity) return [o.commodity, (o.jurisdiction || "").split(",").pop().trim()].filter(Boolean).join(" · ");
+    return null;
   };
-  const CAT_LABEL = { commodity: "Commodity", country: "Jurisdiction", funding: "Funding", mcap: "Market cap" };
-  const activeCount = Object.values(filters).filter(Boolean).length;
-  const setFilter = (cat, val) => { haptic(); setFilters((f) => ({ ...f, [cat]: f[cat] === val ? "" : val })); };
 
-  const passFilters = (c) =>
-    (!filters.commodity || String(c.commodity || "").toLowerCase().includes(filters.commodity.toLowerCase())) &&
-    (!filters.country || countryOf(c).toLowerCase() === filters.country.toLowerCase()) &&
-    (!filters.funding || String(c.funding || "").toLowerCase() === filters.funding.toLowerCase()) &&
-    (!filters.mcap || bucketOf(c.mcapNum) === filters.mcap);
-  const passQuery = (c) => !query || c.name.toLowerCase().includes(query) || c.ticker.toLowerCase().includes(query) || (c.tags || []).some((t) => t.includes(query));
+  // Apple-News-style hierarchy: a LEAD story, a few TOP STORIES, then the mixed
+  // personalized feed. Relevance hierarchy: followed > interests > materiality.
+  // Freshness bonus so "Today" feels current — stale content rarely leads.
+  const freshBonus = (o) => { const t = new Date(o.publishedAt).getTime(); if (!isFinite(t)) return 0; const h = (Date.now() - t) / 3600e3; return h < 24 ? 40 : h < 72 ? 25 : h < 168 ? 8 : 0; };
+  const heroScore = (o) => (o.materiality || 50) + (o.followed ? 45 : 0) + (o.relevant ? 20 : 0) + freshBonus(o);
+  const ranked = useMemo(() => objects.filter((o) => !isMedia(o.contentType)).sort((a, b) => heroScore(b) - heroScore(a) || String(b.publishedAt).localeCompare(String(a.publishedAt))), [objects]);
+  const lead = ranked[0] || null;
+  const topStories = ranked.slice(1, 4);
+  const mixed = useMemo(() => {
+    const used = new Set([lead && lead.id, ...topStories.map((s) => s.id)].filter(Boolean));
+    const rest = objects.filter((o) => !used.has(o.id));
+    const byRecency = (a, b) => String(b.publishedAt).localeCompare(String(a.publishedAt));
+    const relFirst = (a, b) => (Number(b.relevant) - Number(a.relevant)) || byRecency(a, b);
+    const isN = (o) => o.contentType === "NEWS";
+    const out = interleaveFeed([
+      { items: rest.filter((o) => o.followed).sort(byRecency), weight: 0.40 },                       // FOLLOWING
+      { items: rest.filter((o) => !o.followed && !isN(o) && o.pro).sort(relFirst), weight: 0.25 },   // PRO DISCOVERY
+      { items: rest.filter((o) => !o.followed && isN(o)).sort(relFirst), weight: 0.25 },             // INDUSTRY NEWS
+      { items: rest.filter((o) => !o.followed && !isN(o) && !o.pro).sort(byRecency), weight: 0.10 }, // DISCOVERY
+    ]);
+    // One relevant Pro-company recommendation, slotted a few items down.
+    if (mockOn && mock.roster) {
+      const pool = mock.roster.filter((c) => c.companyTier === "pro" && !followedIds.includes(c.slug));
+      const rel = pool.filter((c) => interest.has(c.commodity));
+      const c = (rel.length ? rel : pool)[0];
+      if (c) out.splice(Math.min(3, out.length), 0, { __reco: { id: c.slug, slug: c.slug, name: c.name, ticker: c.ticker, commodity: c.commodity, region: c.region, logo: c.logo, mono: c.mono, live: c.live, reason: interest.has(c.commodity) ? `Because you follow ${c.commodity.toLowerCase()}` : "Similar to companies you follow" }, id: "reco-" + c.slug });
+    }
+    return out;
+  }, [objects, lead, mockOn, mock, followKey, interest, mockInv]);
 
-  const companies = DIRECTORY.filter((c) => passQuery(c) && passFilters(c));
-  const analysts = query
-    ? ANALYSTS.filter((a) => a.name.toLowerCase().includes(query) || a.firm.toLowerCase().includes(query) || a.tags.some((t) => t.includes(query)))
-    : ANALYSTS;
-  const count = isJ ? companies.length : analysts.length;
+  const renderFeedItem = (it, reason) =>
+    isMedia(it.contentType) ? <MediaTeaser it={it} onRead={openStory} />
+    : it.contentType === "NEWS" ? <NewsCard it={it} onRead={openStory} size="med" />
+    : it.contentType === "MINEEX BRIEF" ? <BriefCard it={it} onRead={openStory} reason={reason} />
+    : <PRCard it={it} onRead={openStory} />;
 
-  const goJuniors = (val) => { haptic(); setMode("juniors"); setQ(val); };
-  const goAnalysts = () => { haptic(); setMode("analysts"); setQ(""); };
+  // Press Releases — official company news only, followed first, then relevance/recency.
+  const updates = useMemo(() => {
+    const score = (o) => (o.followed ? 1000 : 0) + (o.relevant ? 40 : 0) + (o.pro ? 60 : 0);
+    // Companies tab = official company disclosures: direct UPDATE posts + pipeline
+    // items the AI classified as a press release (is_press_release). Editorial stays in News.
+    return objects.filter((o) => o.contentType === "UPDATE" || (o.contentType === "NEWS" && o.isPressRelease)).sort((a, b) => score(b) - score(a) || String(b.publishedAt).localeCompare(String(a.publishedAt)));
+  }, [objects]);
+  // News — external editorial (NEVER pay-ranked): relevance to interests, then recency.
+  const news = useMemo(() => objects.filter((o) => o.contentType === "NEWS" && !o.isPressRelease).sort((a, b) => (Number(b.relevant) - Number(a.relevant)) || String(b.publishedAt).localeCompare(String(a.publishedAt))), [objects]);
+  // Media — video-first Pro publishing surface (Reels).
+  const media = useMemo(() => objects.filter((o) => isMedia(o.contentType)).sort((a, b) => String(b.publishedAt).localeCompare(String(a.publishedAt))), [objects]);
 
-  const chip = (label, active, onClick, extra) => (
-    <button key={label} onClick={onClick}
-      className="flex-shrink-0 rounded-full border px-3 py-1.5 text-[11.5px] font-bold tracking-tight transition active:scale-95"
-      style={active ? { background: "#0f172a", borderColor: "#0f172a", color: "#fff" } : { background: "#fff", borderColor: "#e2e8f0", color: "#475569" }}>
-      {extra}{label}
+  return (
+    <div className="flex h-full flex-col">
+      <div onPointerDown={startHold} onPointerUp={cancelHold} onPointerLeave={cancelHold} onPointerCancel={cancelHold} style={{ touchAction: "manipulation", userSelect: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none" }}>
+        <ScreenHead eyebrow="Junior Mining" title="Today" onScan={onScan} />
+      </div>
+      <div className="px-5">
+        <FeedTabs active={tab} onChange={setTab} />
+      </div>
+      {/* Media = full-bleed Reels; other tabs = scrolling editorial page */}
+      {tab === "media" ? (
+        <div className="relative flex-1 overflow-hidden pb-[76px]">
+          <Reels items={media} onOpen={onOpenCompany} followed={followedIds} />
+        </div>
+      ) : (
+        <PullToRefresh onRefresh={refreshNews} className="pp-scroll flex-1 overflow-y-auto px-5 pb-28 pt-1">
+          {/* DEV-ONLY Mock Newsroom switcher — pick a mock investor to test personalization. Delete to remove. */}
+          {mockOn && activeInv && (
+            <div className="mb-3 mt-1 rounded-2xl border border-dashed border-amber-300 bg-amber-50/70 px-3.5 py-2.5">
+              <div className="flex items-center justify-between">
+                <span className="flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-widest text-amber-700"><FlaskConical size={12} />Mock Newsroom · dev</span>
+                <button onClick={() => { disableMock(); window.location.href = window.location.pathname; }} className="text-[11px] font-bold text-amber-700 active:scale-95">Exit</button>
+              </div>
+              <div className="mt-2 flex gap-1.5 overflow-x-auto pp-scroll">
+                {mock.investors.map((inv, k) => {
+                  const on = k === mockInv;
+                  return (
+                    <button key={inv.id} onClick={() => { haptic(); setMockInv(k); try { localStorage.setItem("mineex.mockInvestor", String(k)); } catch {} }}
+                      className="flex-shrink-0 rounded-full px-3 py-1.5 text-[12px] font-bold tracking-tight transition active:scale-95"
+                      style={on ? { background: "#0f172a", color: "#fff" } : { background: "#fff", color: "#92400e", border: "1px solid #fcd34d" }}>
+                      {inv.name}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="mt-1.5 text-[11px] font-medium leading-snug text-amber-700/90">{activeInv.tagline}</p>
+            </div>
+          )}
+
+          {!feedReady ? <FeedSkeleton /> : (<>
+
+          {tab === "foryou" && (
+            lead ? (<div className="pt-2">
+              <LeadStory it={lead} onRead={openStory} reason={reasonFor(lead)} />
+              {topStories.length > 0 && (<>
+                <p className="px-1 pb-2 pt-5 text-[11px] font-bold uppercase tracking-widest text-slate-400">Top Stories</p>
+                <div className="space-y-2.5">{topStories.map((it) => <TopStory key={it.id} it={it} onRead={openStory} />)}</div>
+              </>)}
+              <p className="px-1 pb-2 pt-5 text-[11px] font-bold uppercase tracking-widest text-slate-400">For You</p>
+              <div className="space-y-2.5">
+                {mixed.map((it, idx) => it.__reco
+                  ? <CompanyRecCard key={it.id} co={it.__reco} reason={it.__reco.reason} onOpen={onOpenCompany} />
+                  : <div key={it.id}>{renderFeedItem(it, idx % 2 === 1 ? reasonFor(it) : null)}</div>)}
+              </div>
+            </div>) : (
+              <FeedEmpty Icon={Newspaper} title="Nothing here yet" sub="Follow companies and set your interests to build a personalized feed." />
+            )
+          )}
+
+          {tab === "news" && (
+            <div className="pt-2">
+              {news.length ? (<>
+                <NewsCard it={news[0]} onRead={openStory} size="lead" />
+                {news.length > 1 && (<>
+                  <p className="px-1 pb-2 pt-5 text-[11px] font-bold uppercase tracking-widest text-slate-400">Latest News</p>
+                  <div className="space-y-2.5">{news.slice(1).map((it, idx) => <NewsCard key={it.id} it={it} onRead={openStory} size={idx < 2 ? "med" : "sm"} />)}</div>
+                </>)}
+              </>) : (
+                <FeedEmpty Icon={Globe} title="Industry news is on the way" sub="We're connecting editorial and RSS mining news here — ranked by relevance, never by payment. Press releases are in their own tab." />
+              )}
+            </div>
+          )}
+
+          {tab === "updates" && (
+            <div className="pt-3">
+              {updates.length ? (
+                <div className="space-y-2.5">{updates.map((it) => it.contentType === "NEWS" ? <NewsCard key={it.id} it={it} onRead={openStory} size="med" /> : <PRCard key={it.id} it={it} onRead={openStory} />)}</div>
+              ) : (
+                <FeedEmpty Icon={Radio} title="No press releases yet" sub="Follow companies to see their official releases — presented in a readable MineEx format — here first." />
+              )}
+            </div>
+          )}
+
+          </>)}
+
+        </PullToRefresh>
+      )}
+
+      {reader && <StoryReader it={reader} onOpen={onOpenCompany} onClose={() => setReader(null)} />}
+    </div>
+  );
+}
+
+// ---------- EXPLORE: iOS filter bottom-sheet ----------
+// Sections are groups of selectable rows; a row may carry `sub` for one level of
+// drill-down (country → provinces). Selection is a flat token array the parent maps back
+// to its facet matcher. The footer CTA shows the live matching count for the pending
+// selection combined with the other active filters.
+function FilterSheet({ title, searchable, popular, sections, selected, onApply, onClose, countFor }) {
+  const [pending, setPending] = useState(selected);
+  const [q, setQ] = useState("");
+  const [expanded, setExpanded] = useState({});
+  const toggle = (v) => setPending((p) => p.includes(v) ? p.filter((x) => x !== v) : [...p, v]);
+  const query = q.trim().toLowerCase();
+  const show = (label) => !query || String(label).toLowerCase().includes(query);
+  const n = countFor(pending);
+
+  const Row = ({ value, count, indent }) => (
+    <button onClick={() => { haptic(); toggle(value); }} className={`flex w-full items-center gap-3 py-2.5 ${indent ? "pl-9 pr-1" : "px-1"}`}>
+      <span className="grid h-[22px] w-[22px] flex-shrink-0 place-items-center rounded-md border transition"
+        style={pending.includes(value) ? { background: EM, borderColor: EM } : { borderColor: "#cbd5e1" }}>
+        {pending.includes(value) && <Check size={14} className="text-white" strokeWidth={3} />}
+      </span>
+      <span className="min-w-0 flex-1 truncate text-left text-[14px] font-semibold tracking-tight text-slate-800">{value}</span>
+      {count != null && <span className="flex-shrink-0 text-[12px] font-semibold tabular-nums text-slate-400">{count}</span>}
     </button>
   );
+
+  return createPortal(
+    <div className="absolute inset-0 z-[80] flex flex-col justify-end pp-fade" onClick={onClose}>
+      <style>{"@keyframes mxSheet{from{transform:translateY(100%)}to{transform:translateY(0)}}"}</style>
+      <div className="absolute inset-0" style={{ background: "rgba(15,23,42,0.35)", backdropFilter: "blur(2px)" }} />
+      <div onClick={(e) => e.stopPropagation()} className="relative flex h-[88%] flex-col rounded-t-[26px] bg-white"
+        style={{ animation: "mxSheet .28s cubic-bezier(.2,.8,.2,1)", boxShadow: "0 -12px 40px -12px rgba(15,23,42,0.35)" }}>
+        <div className="flex-shrink-0 px-5 pt-3">
+          <div className="mx-auto mb-3 h-1 w-9 rounded-full bg-slate-200" />
+          <div className="flex items-center justify-between">
+            <h3 className="text-[17px] font-extrabold tracking-tight text-slate-900">{title}</h3>
+            <button onClick={onClose} className="grid h-8 w-8 place-items-center rounded-full bg-slate-100 text-slate-500 active:scale-90"><X size={16} /></button>
+          </div>
+          {searchable && (
+            <div className="mt-3 flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+              <Search size={15} className="text-slate-400" />
+              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={`Search ${title.toLowerCase()}…`} className="w-full bg-transparent text-[13.5px] outline-none placeholder:text-slate-400" />
+            </div>
+          )}
+        </div>
+        <div className="pp-scroll min-h-0 flex-1 overflow-y-auto px-5 pt-3" style={{ WebkitOverflowScrolling: "touch" }}>
+          {popular && popular.length > 0 && !query && (
+            <div className="mb-2">
+              <p className="pb-1.5 text-[10.5px] font-bold uppercase tracking-widest text-slate-400">Popular</p>
+              <div className="flex flex-wrap gap-2">
+                {popular.map((o) => (
+                  <button key={o.value} onClick={() => { haptic(); toggle(o.value); }} className="rounded-full border px-3 py-1.5 text-[12.5px] font-bold transition active:scale-95"
+                    style={pending.includes(o.value) ? { background: EM, borderColor: EM, color: "#fff" } : { background: "#fff", borderColor: "#e2e8f0", color: "#475569" }}>
+                    {o.value}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          {sections.map((sec, si) => {
+            const rows = sec.rows.filter((r) => show(r.value) || (r.sub || []).some((s) => show(s.value)));
+            if (!rows.length) return null;
+            return (
+              <div key={sec.header || si} className="border-t border-slate-100 py-1 first:border-t-0">
+                {sec.header && <p className="pb-0.5 pt-2 text-[10.5px] font-bold uppercase tracking-widest text-slate-400">{sec.header}</p>}
+                {rows.map((r) => (
+                  <div key={r.value}>
+                    <div className="flex items-center">
+                      <div className="min-w-0 flex-1"><Row value={r.value} count={r.count} /></div>
+                      {r.sub && r.sub.length > 0 && (
+                        <button onClick={() => setExpanded((e) => ({ ...e, [r.value]: !e[r.value] }))} className="grid h-8 w-8 flex-shrink-0 place-items-center text-slate-300">
+                          <ChevronRight size={16} style={{ transform: (expanded[r.value] || query) ? "rotate(90deg)" : "none", transition: "transform .15s" }} />
+                        </button>
+                      )}
+                    </div>
+                    {r.sub && (expanded[r.value] || query) && r.sub.filter((s) => show(s.value)).map((s) => <Row key={s.value} value={s.value} count={s.count} indent />)}
+                  </div>
+                ))}
+              </div>
+            );
+          })}
+          {sections.every((s) => !s.rows.length) && <p className="py-10 text-center text-[13px] font-medium text-slate-400">No options available yet.</p>}
+          <div className="h-2" />
+        </div>
+        <div className="flex-shrink-0 border-t border-slate-100 px-5 py-3" style={{ paddingBottom: "calc(env(safe-area-inset-bottom,0px) + 12px)" }}>
+          <div className="flex items-center gap-3">
+            {pending.length > 0 && <button onClick={() => { haptic(); setPending([]); }} className="flex-shrink-0 text-[13.5px] font-bold text-slate-500 active:scale-95">Clear</button>}
+            <button onClick={() => { haptic(); onApply(pending); }} className="h-12 flex-1 rounded-2xl text-[14px] font-bold text-white transition active:scale-[0.98]" style={{ background: EM }}>
+              Show {n} {n === 1 ? "company" : "companies"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>, ppFrameEl || document.body);
+}
+
+// Compact company card for the horizontal discovery carousels.
+function CarouselCard({ co, onOpen, tag }) {
+  const com = discovery.commoditiesOf(co)[0];
+  const country = discovery.countriesOf(co)[0];
+  return (
+    <button onClick={() => { haptic(); co.live && onOpen(co); }}
+      className="flex w-[164px] flex-shrink-0 flex-col rounded-2xl border border-slate-100 bg-white p-3 text-left transition active:scale-[0.98]"
+      style={{ boxShadow: "0 1px 2px rgba(15,23,42,0.04), 0 12px 26px -20px rgba(15,23,42,0.4)" }}>
+      <div className="flex items-center">
+        <CoLogo co={co} size={34} />
+        {co.live && <BadgeCheck size={13} style={{ color: EM }} className="ml-auto flex-shrink-0" />}
+      </div>
+      <p className="mt-2 truncate text-[13px] font-bold tracking-tight text-slate-900">{co.name}</p>
+      <p className="mt-0.5 truncate text-[10.5px] font-semibold text-slate-400">{co.ticker}</p>
+      <div className="mt-1.5 flex flex-wrap gap-1">
+        {com && <span className="rounded-full px-2 py-0.5 text-[9.5px] font-bold" style={{ background: "#ecfdf5", color: EM_TEXT }}>{com}</span>}
+        {country && <span className="rounded-full bg-slate-50 px-2 py-0.5 text-[9.5px] font-bold text-slate-500">{country}</span>}
+      </div>
+      {tag && <span className="mt-1.5 text-[9px] font-bold uppercase tracking-wide" style={{ color: "#b45309" }}>{tag}</span>}
+    </button>
+  );
+}
+
+const SORTS = [["recommended", "Recommended"], ["updated", "Recently updated"], ["az", "A–Z"], ["za", "Z–A"]];
+
+function DiscoverScreen({ onOpenCompany, onScan }) {
+  const [q, setQ] = useState("");
+  const [filters, setFilters] = useState({ commodity: [], location: [], stage: [], activity: [], funding: [] });
+  const [sheet, setSheet] = useState(null); // legacy (unused)
+  const [facet, setFacet] = useState("commodity"); // active facet tab inside the Advanced Search card
+  const [advExpanded, setAdvExpanded] = useState({}); // country → province drill-down in the card
+  const [sort, setSort] = useState("recommended");
+  const [sortOpen, setSortOpen] = useState(false);
+  const [visible, setVisible] = useState(30);
+  const [searchOpen, setSearchOpen] = useState(false); // Instagram-style search card (Recent + typeahead)
+  const [filterOpen, setFilterOpen] = useState(false); // Advanced Search filter card (facet tabs)
+  const searchRef = useRef(null);
+  useEffect(() => { if (searchOpen && searchRef.current) { const t = setTimeout(() => searchRef.current && searchRef.current.focus(), 60); return () => clearTimeout(t); } }, [searchOpen]);
+  const query = q.trim().toLowerCase();
+  const ALL = DIRECTORY;
+
+  // Recent searches (Instagram-style) — the companies the user last opened from search.
+  const RECENT_KEY = "mineex.recentSearch.v1";
+  const [recents, setRecents] = useState(() => { try { return JSON.parse(localStorage.getItem(RECENT_KEY) || "[]"); } catch { return []; } });
+  const recentCompanies = useMemo(() => recents.map((id) => ALL.find((c) => c.id === id)).filter(Boolean).slice(0, 8), [recents]);
+  const pushRecent = (co) => setRecents((r) => { const next = [co.id, ...r.filter((x) => x !== co.id)].slice(0, 12); try { localStorage.setItem(RECENT_KEY, JSON.stringify(next)); } catch {} return next; });
+  const clearRecents = () => { haptic(); setRecents([]); try { localStorage.removeItem(RECENT_KEY); } catch {} };
+
+  const locTokens = (co) => [...discovery.countriesOf(co), ...discovery.provincesOf(co, "Canada"), ...discovery.provincesOf(co, "United States")];
+  const matchers = {
+    commodity: (co, sel) => !sel.length || discovery.commoditiesOf(co).some((v) => sel.includes(v)),
+    location: (co, sel) => !sel.length || locTokens(co).some((v) => sel.includes(v)),
+    stage: (co, sel) => !sel.length || sel.includes(discovery.stageOf(co)),
+    activity: (co, sel) => !sel.length || discovery.activityOf(co).some((v) => sel.includes(v)),
+    funding: (co, sel) => !sel.length || sel.includes(co.funding),
+  };
+  const matchQuery = (co) => !query || (co.tags || []).some((t) => t.includes(query)) || String(co.brief || "").toLowerCase().includes(query);
+  const FKEYS = ["commodity", "location", "stage"];
+  const activeKeys = FKEYS.filter((k) => filters[k].length);
+  const hasFilters = activeKeys.length > 0;
+
+  const sortList = (base) => {
+    const byName = (a, b) => a.name.localeCompare(b.name);
+    if (sort === "az") return [...base].sort(byName);
+    if (sort === "za") return [...base].sort((a, b) => b.name.localeCompare(a.name));
+    if (sort === "updated") return [...base].sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)) || byName(a, b));
+    return [...base].sort((a, b) => discovery.recommendedScore(b) - discovery.recommendedScore(a) || byName(a, b));
+  };
+  const filtered = useMemo(() => sortList(ALL.filter((co) => matchQuery(co) && FKEYS.every((k) => matchers[k](co, filters[k])))), [query, filters, sort]);
+  // "Featured" = companies that claimed/upgraded to a full profile (want extra attention).
+  // TODO: swap for an explicit `featured` flag when paid placement lands.
+  const featured = useMemo(() => sortList(ALL.filter((co) => co.tier !== "listing")), [sort]);
+  // Live typeahead results for the search card.
+  const searchResults = useMemo(() => (query ? sortList(ALL.filter(matchQuery)).slice(0, 40) : []), [query, sort]);
+  useEffect(() => { setVisible(30); }, [query, filters, sort]);
+
+  // count for a facet's PENDING selection, combined with the other committed filters
+  const countFor = (facet) => (pending) =>
+    ALL.filter((co) => matchQuery(co) && FKEYS.every((k) => matchers[k](co, k === facet ? pending : filters[k]))).length;
+
+  // facet option counts (over the whole directory) — built once
+  const counts = useMemo(() => {
+    const mk = (vof) => { const m = new Map(); for (const co of ALL) for (const v of vof(co)) if (v) m.set(v, (m.get(v) || 0) + 1); return m; };
+    return {
+      commodity: mk(discovery.commoditiesOf), country: mk(discovery.countriesOf),
+      provCA: mk((co) => discovery.provincesOf(co, "Canada")), provUS: mk((co) => discovery.provincesOf(co, "United States")),
+      stage: mk((co) => { const s = discovery.stageOf(co); return s ? [s] : []; }), activity: mk(discovery.activityOf),
+      funding: mk((co) => co.funding ? [co.funding] : []),
+    };
+  }, []);
+
+  // Options for the active facet, rendered INLINE in the one Advanced Search card
+  // (no more second sheet). Commodity/Location are grouped w/ counts; Location
+  // countries drill down to provinces.
+  const facetCfg = (f) => {
+    const rowsFor = (m, order) => order.filter((v) => m.has(v)).map((v) => ({ value: v, count: m.get(v) }));
+    if (f === "commodity") {
+      const m = counts.commodity, grouped = new Set();
+      const sections = discovery.COMMODITY_GROUPS.map((g) => ({ header: g.group, rows: g.items.filter((v) => m.has(v)).map((v) => { grouped.add(v); return { value: v, count: m.get(v) }; }) })).filter((s) => s.rows.length);
+      const other = [...m.keys()].filter((v) => !grouped.has(v)).sort((a, b) => m.get(b) - m.get(a)).map((v) => ({ value: v, count: m.get(v) }));
+      if (other.length) sections.push({ header: "Other", rows: other });
+      return { sections };
+    }
+    if (f === "location") {
+      const cc = counts.country, grouped = new Set();
+      const provFor = (c) => { const pm = c === "Canada" ? counts.provCA : c === "United States" ? counts.provUS : null; if (!pm) return undefined; const l = (discovery.PROVINCES[c] || []).filter((p) => pm.has(p)).map((p) => ({ value: p, count: pm.get(p) })); return l.length ? l : undefined; };
+      const sections = discovery.LOCATION_REGIONS.map((r) => ({ header: r.region, rows: r.countries.filter((v) => cc.has(v)).map((v) => { grouped.add(v); return { value: v, count: cc.get(v), sub: provFor(v) }; }) })).filter((s) => s.rows.length);
+      const other = [...cc.keys()].filter((v) => !grouped.has(v)).sort((a, b) => cc.get(b) - cc.get(a)).map((v) => ({ value: v, count: cc.get(v) }));
+      if (other.length) sections.push({ header: "Other", rows: other });
+      return { sections };
+    }
+    if (f === "stage") return { sections: [{ header: "", rows: rowsFor(counts.stage, discovery.STAGES) }] };
+    return { sections: [] };
+  };
+  const adv = facetCfg(facet);
+  const advToggle = (value) => { haptic(); setFilters((fs) => ({ ...fs, [facet]: fs[facet].includes(value) ? fs[facet].filter((x) => x !== value) : [...fs[facet], value] })); };
+  const openSearchCard = () => { haptic(); setSearchOpen(true); };
+  const closeSearchCard = () => { haptic(); setSearchOpen(false); setQ(""); };
+  const openFilter = () => { haptic(); setFacet("commodity"); setAdvExpanded({}); setFilterOpen(true); };
+  const openFromSearch = (co) => { if (!co.live) return; pushRecent(co); setSearchOpen(false); setQ(""); onOpenCompany(co); };
+
+  const barLabel = (k, name) => { const s = filters[k]; return !s.length ? name : s.length > 1 ? `${s[0]} +${s.length - 1}` : s[0]; };
+  const clearFacet = (k) => { haptic(); setFilters((f) => ({ ...f, [k]: [] })); };
+  const clearAll = () => { haptic(); setFilters({ commodity: [], location: [], stage: [], activity: [], funding: [] }); };
+  const togglePopular = (facet, value) => { haptic(); setFilters((f) => ({ ...f, [facet]: f[facet].includes(value) ? f[facet].filter((x) => x !== value) : [...f[facet], value] })); };
+
+  const discoverMode = !hasFilters && !query;
+  const recent = useMemo(() => discoverMode ? [...ALL].filter((co) => co.updatedAt).sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt))).slice(0, 12) : [], [discoverMode]);
+
+  // Main list: Featured (paid/claimed) when browsing; filtered results once filters are on.
+  const listCompanies = hasFilters ? filtered : featured;
+  const onScroll = (e) => { const el = e.currentTarget; if (el.scrollHeight - el.scrollTop - el.clientHeight < 600) setVisible((v) => (v < listCompanies.length ? v + 30 : v)); };
+
+  const QUICK = ["Gold", "Silver", "Copper", "Uranium", "Lithium"];
+  const CATS = [["commodity", "Commodity", Gem], ["location", "Location", MapPin], ["stage", "Stage", Mountain]];
+  const facetSummary = (k) => { const s = filters[k]; return !s.length ? "Any" : s.length > 1 ? `${s[0]} +${s.length - 1}` : s[0]; };
 
   return (
     <div className="flex h-full flex-col">
       <ScreenHead eyebrow="Discover Companies" title="Explore" onScan={onScan} />
       <div className="px-5 pb-2">
-        <div className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3.5 py-2.5">
+        {/* Search bar → opens the Instagram-style search card (Recent + typeahead) */}
+        <button onClick={openSearchCard} className="flex w-full items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-left transition active:scale-[0.99]">
           <Search size={17} className="flex-shrink-0 text-slate-400" />
-          <input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder={isJ ? "Search companies, tickers, commodities" : "Search analysts, firms, coverage"}
-            className="w-full bg-transparent text-[14px] font-medium tracking-tight text-slate-900 outline-none placeholder:text-slate-400"
-          />
-          {q && <button onClick={() => setQ("")} className="flex-shrink-0 text-slate-400"><X size={16} /></button>}
-        </div>
+          <span className="flex-1 truncate text-[14px] font-medium text-slate-400">Search companies, tickers, commodities</span>
+        </button>
 
-        <div className="mt-3 flex gap-2 overflow-x-auto pb-1 pp-scroll">
-          {isJ && Object.keys(CAT_LABEL).map((cat) =>
-            chip(filters[cat] || (CAT_LABEL[cat] + (openCat === cat ? "  ▴" : "  ▾")), !!filters[cat] || openCat === cat, () => { haptic(); setOpenCat(openCat === cat ? "" : cat); })
+        {/* Filter → Advanced Search pill (opens the Commodity / Location / Stage card) */}
+        <div className="mt-3 flex items-center gap-2">
+          <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Filter</span>
+          <button onClick={openFilter} className="flex items-center gap-1.5 rounded-full border px-4 py-1.5 text-[12.5px] font-bold tracking-tight transition active:scale-95"
+            style={hasFilters ? { background: "#0f172a", borderColor: "#0f172a", color: "#fff" } : { background: "#fff", borderColor: "#e2e8f0", color: "#475569" }}>
+            <SlidersHorizontal size={13} />Advanced Search{hasFilters ? ` · ${activeKeys.length}` : ""}
+          </button>
+          {hasFilters && <button onClick={clearAll} className="ml-auto flex items-center gap-1 text-[12px] font-bold text-slate-500 active:scale-95"><X size={12} />Clear</button>}
+        </div>
+      </div>
+
+      <div className="pp-scroll flex-1 overflow-y-auto px-5 pb-28 pt-1" onScroll={onScroll}>
+        {/* discovery carousel — Recently Updated (real update timestamps only) */}
+        {discoverMode && recent.length > 0 && (
+          <div className="mb-1 mt-1">
+            <p className="px-1 pb-2 pt-2 text-[13px] font-extrabold tracking-tight text-slate-900">Recently Updated</p>
+            <div className="-mx-5 flex gap-2.5 overflow-x-auto px-5 pb-1 pp-scroll">
+              {recent.map((c) => <CarouselCard key={c.id} co={c} onOpen={onOpenCompany} />)}
+            </div>
+          </div>
+        )}
+
+        {/* list header + sort */}
+        <div className="relative mt-4 flex items-center justify-between px-1 pb-2">
+          <p className="text-[13px] font-extrabold tracking-tight text-slate-900">{hasFilters ? `${filtered.length} ${filtered.length === 1 ? "company" : "companies"}` : "Featured"}</p>
+          <button onClick={() => { haptic(); setSortOpen((v) => !v); }} className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-bold text-slate-600 active:scale-95">
+            <ArrowDownUp size={12} strokeWidth={2.4} />{SORTS.find((s) => s[0] === sort)[1]}
+          </button>
+          {sortOpen && (
+            <>
+              <div className="fixed inset-0 z-[70]" onClick={() => setSortOpen(false)} />
+              <div className="absolute right-1 top-9 z-[71] w-44 overflow-hidden rounded-2xl border border-slate-100 bg-white py-1" style={{ boxShadow: "0 12px 34px -10px rgba(15,23,42,0.35)" }}>
+                {SORTS.map(([v, label]) => (
+                  <button key={v} onClick={() => { haptic(); setSort(v); setSortOpen(false); }} className="flex w-full items-center justify-between px-4 py-2.5 text-left text-[13px] font-semibold text-slate-700 active:bg-slate-50">
+                    {label}{sort === v && <Check size={15} style={{ color: EM }} />}
+                  </button>
+                ))}
+              </div>
+            </>
           )}
-          {isJ && activeCount > 0 && chip("Clear all", false, () => { haptic(); setFilters({ commodity: "", country: "", funding: "", mcap: "" }); setOpenCat(""); }, <X size={11} className="mr-1 inline -translate-y-px" style={{ color: "#64748b" }} />)}
         </div>
-        {isJ && openCat && (
-          <div className="mt-2 flex flex-wrap gap-2">
-            {OPTS[openCat].length === 0
-              ? <span className="px-1 py-1 text-[11.5px] font-medium text-slate-400">Nothing to filter yet — options appear as companies are added.</span>
-              : OPTS[openCat].map((opt) => chip(opt, filters[openCat] === opt, () => { setFilter(openCat, opt); }))}
+
+        {/* company list (paginated) */}
+        {listCompanies.length > 0 ? (
+          <div className="space-y-2.5">
+            {listCompanies.slice(0, visible).map((c) => <CompanyRow key={c.id} co={c} onOpen={onOpenCompany} />)}
+            {visible < listCompanies.length && (
+              <button onClick={() => setVisible((v) => v + 30)} className="mt-1 w-full py-3 text-center text-[12.5px] font-bold text-slate-500 active:scale-95">Show more ({listCompanies.length - visible})</button>
+            )}
+          </div>
+        ) : (
+          <div className="mt-4 grid place-items-center rounded-2xl border border-dashed border-slate-200 py-12 text-center">
+            <Compass size={26} className="text-slate-300" />
+            <p className="mt-2 text-[13.5px] font-bold text-slate-500">No companies match these filters.</p>
+            <p className="mt-0.5 max-w-[240px] text-[12px] font-medium text-slate-400">Try removing a filter to broaden your search.</p>
+            {hasFilters && <button onClick={clearAll} className="mt-4 rounded-full px-4 py-2 text-[12.5px] font-bold text-white active:scale-95" style={{ background: EM }}>Clear filters</button>}
           </div>
         )}
       </div>
 
-      <div className="pp-scroll flex-1 space-y-2.5 overflow-y-auto px-5 pb-28 pt-1">
-        <p className="px-1 pb-1 pt-2 text-[11px] font-bold uppercase tracking-widest text-slate-400">
-          {(query || (isJ && activeCount)) ? `${count} result${count === 1 ? "" : "s"}` : (isJ ? "Featured Juniors" : "Featured Analysts")}
-        </p>
-        {isJ
-          ? companies.map((c) => <CompanyRow key={c.id} co={c} onOpen={onOpenCompany} />)
-          : analysts.map((a) => <AnalystRow key={a.id} a={a} onOpenCompany={onOpenCompany} />)}
-        {count === 0 && (
-          <div className="grid place-items-center rounded-2xl border border-dashed border-slate-200 py-12 text-center">
-            {isJ ? <Compass size={26} className="text-slate-300" /> : <Users size={26} className="text-slate-300" />}
-            <p className="mt-2 text-[13px] font-semibold text-slate-400">No {isJ ? "companies" : "analysts"} match “{q}”.</p>
+      {/* Search card (opened from the search bar) — Instagram-style: Recent, then live typeahead */}
+      {searchOpen && createPortal(
+        <div className="absolute inset-0 z-[90] flex flex-col justify-end pp-fade" onClick={closeSearchCard}>
+          <style>{"@keyframes mxSearchUp{from{transform:translateY(100%)}to{transform:translateY(0)}}"}</style>
+          <div className="absolute inset-0" style={{ background: "rgba(15,23,42,0.35)", backdropFilter: "blur(2px)" }} />
+          <div onClick={(e) => e.stopPropagation()} className="relative flex h-[92%] flex-col rounded-t-[26px] bg-white" style={{ animation: "mxSearchUp .3s cubic-bezier(.2,.8,.2,1)", boxShadow: "0 -12px 40px -12px rgba(15,23,42,0.35)" }}>
+            <div className="flex-shrink-0 px-4 pt-3">
+              <div className="mx-auto mb-2.5 h-1 w-9 rounded-full bg-slate-200" />
+              <div className="flex items-center gap-2.5">
+                <div className="flex flex-1 items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
+                  <Search size={16} className="flex-shrink-0 text-slate-400" />
+                  <input ref={searchRef} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search companies, tickers, commodities" className="w-full bg-transparent text-[14px] font-medium text-slate-900 outline-none placeholder:text-slate-400" />
+                  {q && <button onClick={() => setQ("")} className="flex-shrink-0 text-slate-400"><X size={15} /></button>}
+                </div>
+                <button onClick={closeSearchCard} className="flex-shrink-0 text-[14px] font-bold text-slate-500 active:scale-95">Cancel</button>
+              </div>
+            </div>
+            <div className="pp-scroll min-h-0 flex-1 overflow-y-auto px-4 pb-8 pt-3">
+              {!query ? (
+                recentCompanies.length > 0 ? (
+                  <>
+                    <div className="flex items-center justify-between px-1 pb-1.5">
+                      <p className="text-[13px] font-extrabold tracking-tight text-slate-900">Recent</p>
+                      <button onClick={clearRecents} className="text-[12px] font-bold text-slate-400 active:scale-95">Clear</button>
+                    </div>
+                    <div className="space-y-2.5">{recentCompanies.map((c) => <CompanyRow key={c.id} co={c} onOpen={openFromSearch} />)}</div>
+                  </>
+                ) : (
+                  <div className="grid place-items-center py-20 text-center">
+                    <Search size={26} className="text-slate-300" />
+                    <p className="mt-2 text-[13.5px] font-bold text-slate-500">Search {ALL.length} companies</p>
+                    <p className="mt-0.5 text-[12px] font-medium text-slate-400">By name, ticker, or commodity.</p>
+                  </div>
+                )
+              ) : searchResults.length > 0 ? (
+                <div className="space-y-2.5">{searchResults.map((c) => <CompanyRow key={c.id} co={c} onOpen={openFromSearch} />)}</div>
+              ) : (
+                <div className="grid place-items-center py-20 text-center">
+                  <Compass size={26} className="text-slate-300" />
+                  <p className="mt-2 text-[13.5px] font-bold text-slate-500">No matches for “{q}”.</p>
+                  <p className="mt-0.5 text-[12px] font-medium text-slate-400">Try a different name, ticker, or commodity.</p>
+                </div>
+              )}
+            </div>
           </div>
-        )}
-      </div>
+        </div>, ppFrameEl || document.body)}
+
+      {/* Advanced Search filter card (opened from the Advanced Search pill) — facet tabs, no text search */}
+      {filterOpen && createPortal(
+        <div className="absolute inset-0 z-[90] flex flex-col justify-end pp-fade" onClick={() => setFilterOpen(false)}>
+          <style>{"@keyframes mxSearchUp{from{transform:translateY(100%)}to{transform:translateY(0)}}"}</style>
+          <div className="absolute inset-0" style={{ background: "rgba(15,23,42,0.35)", backdropFilter: "blur(2px)" }} />
+          <div onClick={(e) => e.stopPropagation()} className="relative flex h-[88%] flex-col rounded-t-[26px] bg-white" style={{ animation: "mxSearchUp .3s cubic-bezier(.2,.8,.2,1)", boxShadow: "0 -12px 40px -12px rgba(15,23,42,0.35)" }}>
+            {/* Header: title + facet tabs (no text search — that lives on the search bar) */}
+            <div className="flex-shrink-0 px-5 pt-3">
+              <div className="mx-auto mb-3 h-1 w-9 rounded-full bg-slate-200" />
+              <div className="flex items-center justify-between">
+                <h3 className="text-[17px] font-extrabold tracking-tight text-slate-900">Advanced Search</h3>
+                <button onClick={() => { haptic(); setFilterOpen(false); }} className="grid h-8 w-8 place-items-center rounded-full bg-slate-100 text-slate-500 active:scale-90"><X size={16} /></button>
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {CATS.map(([k, name]) => {
+                  const on = facet === k;
+                  const sel = filters[k].length;
+                  return (
+                    <button key={k} onClick={() => { haptic(); setFacet(k); setAdvExpanded({}); }} className="rounded-full border px-4 py-1.5 text-[12.5px] font-bold tracking-tight transition active:scale-95"
+                      style={on ? { background: EM, borderColor: EM, color: "#fff" } : { background: "#fff", borderColor: "#e2e8f0", color: "#475569" }}>
+                      {name}{sel ? ` · ${sel}` : ""}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            {/* Options for the active facet */}
+            <div className="pp-scroll min-h-0 flex-1 overflow-y-auto px-5 pt-2">
+              {adv.sections.map((sec, si) => {
+                if (!sec.rows.length) return null;
+                return (
+                  <div key={sec.header || si} className="border-t border-slate-100 py-1 first:border-t-0">
+                    {sec.header && <p className="pb-0.5 pt-2 text-[10.5px] font-bold uppercase tracking-widest text-slate-400">{sec.header}</p>}
+                    {sec.rows.map((r) => (
+                      <div key={r.value}>
+                        <div className="flex items-center">
+                          <button onClick={() => advToggle(r.value)} className="flex min-w-0 flex-1 items-center gap-3 py-2.5 px-1">
+                            <span className="grid h-[22px] w-[22px] flex-shrink-0 place-items-center rounded-md border transition" style={filters[facet].includes(r.value) ? { background: EM, borderColor: EM } : { borderColor: "#cbd5e1" }}>
+                              {filters[facet].includes(r.value) && <Check size={14} className="text-white" strokeWidth={3} />}
+                            </span>
+                            <span className="min-w-0 flex-1 truncate text-left text-[14px] font-semibold tracking-tight text-slate-800">{r.value}</span>
+                            {r.count != null && <span className="flex-shrink-0 text-[12px] font-semibold tabular-nums text-slate-400">{r.count}</span>}
+                          </button>
+                          {r.sub && r.sub.length > 0 && (
+                            <button onClick={() => setAdvExpanded((e) => ({ ...e, [r.value]: !e[r.value] }))} className="grid h-8 w-8 flex-shrink-0 place-items-center text-slate-300">
+                              <ChevronRight size={16} style={{ transform: advExpanded[r.value] ? "rotate(90deg)" : "none", transition: "transform .15s" }} />
+                            </button>
+                          )}
+                        </div>
+                        {r.sub && advExpanded[r.value] && r.sub.map((s) => (
+                          <button key={s.value} onClick={() => advToggle(s.value)} className="flex w-full items-center gap-3 py-2.5 pl-9 pr-1">
+                            <span className="grid h-[22px] w-[22px] flex-shrink-0 place-items-center rounded-md border transition" style={filters[facet].includes(s.value) ? { background: EM, borderColor: EM } : { borderColor: "#cbd5e1" }}>
+                              {filters[facet].includes(s.value) && <Check size={14} className="text-white" strokeWidth={3} />}
+                            </span>
+                            <span className="min-w-0 flex-1 truncate text-left text-[14px] font-semibold tracking-tight text-slate-800">{s.value}</span>
+                            {s.count != null && <span className="flex-shrink-0 text-[12px] font-semibold tabular-nums text-slate-400">{s.count}</span>}
+                          </button>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                );
+              })}
+              {!adv.sections.some((s) => s.rows.length) && <p className="py-10 text-center text-[13px] font-medium text-slate-400">No options available yet.</p>}
+              <div className="h-2" />
+            </div>
+            {/* Footer CTA */}
+            <div className="flex-shrink-0 border-t border-slate-100 px-5 py-3" style={{ paddingBottom: "calc(env(safe-area-inset-bottom,0px) + 12px)" }}>
+              <div className="flex items-center gap-3">
+                {hasFilters && <button onClick={clearAll} className="flex-shrink-0 text-[13.5px] font-bold text-slate-500 active:scale-95">Clear</button>}
+                <button onClick={() => { haptic(); setFilterOpen(false); }} className="h-12 flex-1 rounded-2xl text-[14px] font-bold text-white transition active:scale-[0.98]" style={{ background: EM }}>Show {filtered.length} {filtered.length === 1 ? "company" : "companies"}</button>
+              </div>
+            </div>
+          </div>
+        </div>, ppFrameEl || document.body)}
     </div>
   );
 }
 
 /* ---------- FOLLOWING ---------- */
-// A company row that reveals Favourite (heart) + Watchlist (telescope) actions on swipe-right.
-// Adding to a list never removes the company from the Companies list.
-function SwipeableCompanyRow({ co, onOpen, onFav, onWatch, onRemove, isFav, isWatch }) {
-  const ACTIONS_W = 174;
-  const [dx, setDx] = useState(0);
-  const [live, setLive] = useState(0);
-  const drag = useRef({ startX: 0, startY: 0, startDx: 0, active: false, moved: false });
-  const pos = drag.current.active ? live : dx;
-
-  const down = (e) => { const p = e.touches ? e.touches[0] : e; drag.current = { startX: p.clientX, startY: p.clientY, startDx: dx, active: true, moved: false }; setLive(dx); };
-  const move = (e) => {
-    if (!drag.current.active) return;
-    const p = e.touches ? e.touches[0] : e;
-    const ddx = p.clientX - drag.current.startX;
-    if (!drag.current.moved && Math.abs(ddx) < 6) return;
-    drag.current.moved = true;
-    setLive(Math.max(0, Math.min(ACTIONS_W, drag.current.startDx + ddx)));
-  };
-  const up = () => { if (!drag.current.active) return; const open = live > ACTIONS_W / 2; drag.current.active = false; setDx(open ? ACTIONS_W : 0); };
-  const close = () => setDx(0);
-  const tap = () => { if (drag.current.moved) return; if (dx > 0) { close(); return; } if (co.live) onOpen(); };
-
+// A company row. Tapping the arrow on the right reveals contextual actions passed in
+// via `actions` (an array of { Icon, label, bg, fill?, run(id) }): Favourite/Watch on
+// the Companies list; Move/Remove on the Favourites & Watchlist lists. Tapping the row
+// body opens the company.
+function CompanyListRow({ co, onOpen, isFav, isWatch, actions }) {
+  const [open, setOpen] = useState(false);
   return (
-    <div className="relative overflow-hidden rounded-2xl">
-      <div className="absolute inset-y-0 left-0 flex items-stretch overflow-hidden rounded-l-2xl" style={{ width: ACTIONS_W }}>
-        <button onClick={() => { haptic(); onFav(co.id); close(); }} className="flex flex-1 flex-col items-center justify-center gap-1 transition active:opacity-80" style={{ background: isFav ? "#e11d48" : "#fb7185" }}>
-          <Heart size={17} className="text-white" fill={isFav ? "#fff" : "none"} strokeWidth={2.4} />
-          <span className="text-[8px] font-bold uppercase tracking-wide text-white">{isFav ? "Saved" : "Favourite"}</span>
-        </button>
-        <button onClick={() => { haptic(); onWatch(co.id); close(); }} className="flex flex-1 flex-col items-center justify-center gap-1 transition active:opacity-80" style={{ background: isWatch ? "#1d4ed8" : "#3b82f6" }}>
-          <Telescope size={17} className="text-white" strokeWidth={2.4} />
-          <span className="text-[8px] font-bold uppercase tracking-wide text-white">{isWatch ? "Watching" : "Watch"}</span>
-        </button>
-        <button onClick={() => { haptic(); onRemove(co.id); }} className="flex flex-1 flex-col items-center justify-center gap-1 transition active:opacity-80" style={{ background: "#475569" }}>
-          <X size={17} className="text-white" strokeWidth={2.6} />
-          <span className="text-[8px] font-bold uppercase tracking-wide text-white">Remove</span>
-        </button>
-      </div>
-      <div
-        onTouchStart={down} onTouchMove={move} onTouchEnd={up}
-        onMouseDown={down} onMouseMove={move} onMouseUp={up} onMouseLeave={up}
-        onClick={tap}
-        className="flex w-full cursor-pointer items-center gap-3 rounded-2xl border border-slate-100 bg-white p-3 text-left"
-        style={{ transform: `translateX(${pos}px)`, transition: drag.current.active ? "none" : "transform .26s cubic-bezier(.4,0,.2,1)", boxShadow: "0 1px 2px rgba(15,23,42,0.04), 0 12px 26px -20px rgba(15,23,42,0.4)" }}
-      >
+    <div className="flex items-center gap-3 rounded-2xl border border-slate-100 bg-white p-3"
+      style={{ boxShadow: "0 1px 2px rgba(15,23,42,0.04), 0 12px 26px -20px rgba(15,23,42,0.4)" }}>
+      <button onClick={() => onOpen()} className="flex min-w-0 flex-1 items-center gap-3 text-left">
         <CoLogo co={co} />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
@@ -5785,18 +7075,31 @@ function SwipeableCompanyRow({ co, onOpen, onFav, onWatch, onRemove, isFav, isWa
             {isWatch && <Telescope size={11} className="flex-shrink-0" style={{ color: "#1d4ed8" }} />}
           </div>
           <div className="mt-0.5 flex items-center gap-1.5 text-[11px] font-semibold tracking-tight text-slate-400">
-            <span>{co.ticker}</span><span className="text-slate-300">·</span><span className="truncate">{co.commodity}</span>
+            <span>{co.ticker}</span>{co.commodity && <><span className="text-slate-300">·</span><span className="truncate">{co.commodity}</span></>}
           </div>
-          <div className="mt-0.5 flex items-center gap-1 text-[10.5px] font-medium text-slate-400">
-            <MapPin size={10} className="flex-shrink-0" /><span className="truncate">{co.region}</span>
-          </div>
+          {co.region && (
+            <div className="mt-0.5 flex items-center gap-1 text-[10.5px] font-medium text-slate-400">
+              <MapPin size={10} className="flex-shrink-0" /><span className="truncate">{co.region}</span>
+            </div>
+          )}
         </div>
-        <div className="flex flex-shrink-0 flex-col items-end">
-          <span className="text-[13px] font-bold tabular-nums tracking-tight text-slate-900">{co.price}</span>
-          <span className="text-[11px] font-bold tabular-nums tracking-tight" style={{ color: co.up ? EM_TEXT : "#dc2626" }}>{co.chg}</span>
+      </button>
+      {open ? (
+        <div className="flex flex-shrink-0 items-center gap-1">
+          {actions.map((a, i) => (
+            <button key={i} onClick={() => { a.run(co.id); setOpen(false); }} aria-label={a.label}
+              className="grid h-8 w-8 place-items-center rounded-full text-white transition active:scale-90" style={{ background: a.bg }}>
+              <a.Icon size={15} strokeWidth={2.3} fill={a.fill || "none"} />
+            </button>
+          ))}
+          <button onClick={() => setOpen(false)} aria-label="Close" className="grid h-8 w-8 place-items-center rounded-full bg-slate-100 text-slate-500 transition active:scale-90"><X size={15} /></button>
         </div>
-        <ChevronRight size={16} className="ml-0.5 flex-shrink-0 text-slate-300" />
-      </div>
+      ) : (
+        <button onClick={() => { haptic(); setOpen(true); }} aria-label="Actions"
+          className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-full text-slate-400 transition active:scale-90 active:bg-slate-50">
+          <ChevronRight size={20} />
+        </button>
+      )}
     </div>
   );
 }
@@ -5825,20 +7128,14 @@ function FollowingScreen({ followed, onOpenCompany, onScan }) {
   const [seg, setSeg] = useState("following");
   const [sortBy, setSortBy] = useState("recent");
   const [q, setQ] = useState("");
-  const [companyIds, setCompanyIds] = useState(followed);
-  const [favIds, setFavIds] = useState([]);
-  const [watchIds, setWatchIds] = useState([]);
+  // Persisted lists (survive reload). Subscribe so add/remove re-renders live.
+  const [, bumpList] = useState(0);
+  useEffect(() => listStore.sub(() => bumpList((x) => x + 1)), []);
+  const companyIds = listStore.ids("following");
+  const favIds = listStore.ids("favourite");
+  const watchIds = listStore.ids("watchlist");
 
-  const SEGS = [
-    { id: "following", label: "Following" },
-    { id: "favourites", label: "Favourites" },
-    { id: "watchlist", label: "Watchlist" },
-  ];
-  const addUnique = (setter) => (id) => setter((xs) => (xs.includes(id) ? xs : [...xs, id]));
-  const onFav = addUnique(setFavIds);
-  const onWatch = addUnique(setWatchIds);
-  const onRemove = (id) => setCompanyIds((xs) => xs.filter((x) => x !== id));
-  const followingCount = companyIds.length;
+  const openCo = (c) => onOpenCompany(c);
 
   const byOrder = (list, order) => [...list].sort((a, b) => order.indexOf(b.id) - order.indexOf(a.id));
   const byName = (list) => [...list].sort((a, b) => a.name.localeCompare(b.name));
@@ -5850,10 +7147,6 @@ function FollowingScreen({ followed, onOpenCompany, onScan }) {
   const favourites = sortCos(DIRECTORY.filter((c) => favIds.includes(c.id) && match(c)), favIds);
   const watchlist = sortCos(DIRECTORY.filter((c) => watchIds.includes(c.id) && match(c)), watchIds);
 
-  // Recent Activity mirrors the selected list — Following/Favourites/Watchlist each show only their companies' updates.
-  const activeIds = seg === "favourites" ? favIds : seg === "watchlist" ? watchIds : companyIds;
-  const activity = CO_UPDATES.filter((u) => activeIds.includes(u.coId)).sort((a, b) => b.rank - a.rank);
-
   const nounFor = { following: "following", favourites: "favourites", watchlist: "in watchlist" };
   const countFor = { following: following.length, favourites: favourites.length, watchlist: watchlist.length };
 
@@ -5861,32 +7154,24 @@ function FollowingScreen({ followed, onOpenCompany, onScan }) {
     <div className="flex h-full flex-col">
       <ScreenHead eyebrow="Your Workspace" title="Following" onScan={onScan} />
       <div className="px-5 pb-1">
+        {/* segmented toggle — Following / Favourites / Watchlist, each with its live count */}
         <div className="flex gap-1 rounded-2xl bg-slate-100 p-1">
-          {SEGS.map((s) => {
-            const on = seg === s.id;
-            const n = s.id === "favourites" ? favIds.length : s.id === "watchlist" ? watchIds.length : companyIds.length;
+          {[["following", "Following", companyIds.length], ["favourites", "Favourites", favIds.length], ["watchlist", "Watchlist", watchIds.length]].map(([id, label, n]) => {
+            const on = seg === id;
             return (
-              <button key={s.id} onClick={() => { haptic(); setSeg(s.id); }}
-                className="min-w-0 flex-1 rounded-xl py-2 text-[12px] font-bold tracking-tight transition"
+              <button key={id} onClick={() => { haptic(); setSeg(id); }}
+                className="flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-xl py-2 text-[11.5px] font-bold tracking-tight transition"
                 style={on ? { background: "#fff", color: "#0f172a", boxShadow: "0 1px 3px rgba(15,23,42,0.12)" } : { color: "#64748b" }}>
-                {s.label}
+                <span className="truncate">{label}</span>
+                <span className="tabular-nums" style={{ color: on ? EM_TEXT : "#94a3b8" }}>{n}</span>
               </button>
             );
           })}
         </div>
-        <div className="mt-2 flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3.5 py-2">
+        <div className="mt-2.5 flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3.5 py-2">
           <Search size={16} className="flex-shrink-0 text-slate-400" />
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search this list" className="w-full bg-transparent text-[13.5px] font-medium tracking-tight text-slate-900 outline-none placeholder:text-slate-400" />
           {q && <button onClick={() => setQ("")} className="flex-shrink-0 text-slate-400"><X size={15} /></button>}
-        </div>
-        {/* live tallies — update instantly when a company is followed, favourited, or watchlisted */}
-        <div className="mt-2.5 flex items-center gap-4 px-1">
-          {[["following", "Following", companyIds.length], ["favourites", "Favourites", favIds.length], ["watchlist", "Watchlist", watchIds.length]].map(([id, label, n]) => (
-            <button key={id} onClick={() => { haptic(); setSeg(id); }} className="flex items-baseline gap-1 transition active:scale-95">
-              <span className="text-[14px] font-extrabold tabular-nums tracking-tight" style={{ color: seg === id ? "#0f172a" : "#334155" }}>{n}</span>
-              <span className="text-[10.5px] font-bold uppercase tracking-wider" style={{ color: seg === id ? "#0f172a" : "#94a3b8" }}>{label}</span>
-            </button>
-          ))}
         </div>
       </div>
 
@@ -5896,30 +7181,42 @@ function FollowingScreen({ followed, onOpenCompany, onScan }) {
         {seg === "following" && (following.length ? (
           <div className="space-y-2.5">
             {following.map((c) => (
-              <SwipeableCompanyRow key={c.id} co={c} onOpen={onOpenCompany}
-                onFav={onFav} onWatch={onWatch} onRemove={onRemove} isFav={favIds.includes(c.id)} isWatch={watchIds.includes(c.id)} />
+              <CompanyListRow key={c.id} co={c} onOpen={() => openCo(c)} isFav={favIds.includes(c.id)} isWatch={watchIds.includes(c.id)}
+                actions={[
+                  { Icon: Heart, label: "Favourite", bg: favIds.includes(c.id) ? "#e11d48" : "#fb7185", fill: favIds.includes(c.id) ? "#fff" : "none", run: (id) => { if (window.confirm(`Add ${c.name} to your Favourites?`)) listStore.setExclusive(id, "favourite"); } },
+                  { Icon: Telescope, label: "Watch", bg: watchIds.includes(c.id) ? "#1d4ed8" : "#3b82f6", run: (id) => { if (window.confirm(`Add ${c.name} to your Watchlist?`)) listStore.setExclusive(id, "watchlist"); } },
+                  { Icon: Trash2, label: "Unfollow", bg: "#475569", run: (id) => { if (window.confirm(`Unfollow ${c.name}? It will leave your Following list.`)) listStore.set("following", id, false); } },
+                ]} />
             ))}
-            <p className="px-1 pt-1 text-center text-[10.5px] font-medium text-slate-400">Swipe a company right to Favourite, Watch, or Remove it.</p>
+            <p className="px-1 pt-1 text-center text-[10.5px] font-medium text-slate-400">Tap › to favourite, watch, or unfollow.</p>
           </div>
         ) : <EmptyList Icon={Bookmark} text={query ? "No companies match your search." : "No companies followed yet."} />)}
 
-        {seg === "favourites" && (favourites.length
-          ? <div className="space-y-2.5">{favourites.map((c) => <CompanyRow key={c.id} co={c} onOpen={onOpenCompany} />)}</div>
-          : <EmptyList Icon={Heart} text="Swipe a company right and tap the heart to favourite it." />)}
-
-        {seg === "watchlist" && (watchlist.length
-          ? <div className="space-y-2.5">{watchlist.map((c) => <CompanyRow key={c.id} co={c} onOpen={onOpenCompany} />)}</div>
-          : <EmptyList Icon={Telescope} text="Swipe a company right and tap the telescope to add it to your watchlist." />)}
-
-        {/* Recent Activity — changes with the selected list */}
-        <p className="px-1 pb-2 pt-6 text-[11px] font-bold uppercase tracking-widest text-slate-400">Recent Activity</p>
-        {activity.length ? (
-          <div className="space-y-2.5">{activity.map((it, i) => <ActivityRow key={i} it={it} onOpen={onOpenCompany} />)}</div>
-        ) : (
-          <div className="grid place-items-center rounded-2xl border border-dashed border-slate-200 py-10 text-center">
-            <Activity size={22} className="text-slate-300" /><p className="mt-2 max-w-[220px] text-[12.5px] font-semibold text-slate-400">Updates from your {seg} companies will appear here.</p>
+        {seg === "favourites" && (favourites.length ? (
+          <div className="space-y-2.5">
+            {favourites.map((c) => (
+              <CompanyListRow key={c.id} co={c} onOpen={() => openCo(c)} isFav isWatch={false}
+                actions={[
+                  { Icon: Telescope, label: "Move to Watchlist", bg: "#3b82f6", run: (id) => { if (window.confirm(`Move ${c.name} to your Watchlist?`)) listStore.setExclusive(id, "watchlist"); } },
+                  { Icon: Trash2, label: "Remove from Favourites", bg: "#e11d48", run: (id) => { if (window.confirm(`Remove ${c.name} from Favourites?`)) listStore.set("favourite", id, false); } },
+                ]} />
+            ))}
+            <p className="px-1 pt-1 text-center text-[10.5px] font-medium text-slate-400">Tap › to move to Watchlist or remove.</p>
           </div>
-        )}
+        ) : <EmptyList Icon={Heart} text="Follow a company, tap › on its row, then tap the heart to favourite it." />)}
+
+        {seg === "watchlist" && (watchlist.length ? (
+          <div className="space-y-2.5">
+            {watchlist.map((c) => (
+              <CompanyListRow key={c.id} co={c} onOpen={() => openCo(c)} isFav={false} isWatch
+                actions={[
+                  { Icon: Heart, label: "Move to Favourites", bg: "#fb7185", run: (id) => { if (window.confirm(`Move ${c.name} to your Favourites?`)) listStore.setExclusive(id, "favourite"); } },
+                  { Icon: Trash2, label: "Remove from Watchlist", bg: "#e11d48", run: (id) => { if (window.confirm(`Remove ${c.name} from Watchlist?`)) listStore.set("watchlist", id, false); } },
+                ]} />
+            ))}
+            <p className="px-1 pt-1 text-center text-[10.5px] font-medium text-slate-400">Tap › to move to Favourites or remove.</p>
+          </div>
+        ) : <EmptyList Icon={Telescope} text="Follow a company, tap › on its row, then tap the telescope to watch it." />)}
       </div>
     </div>
   );
@@ -6038,60 +7335,213 @@ function ScanScreen({ onDetected, onClose }) {
 }
 
 /* ---------- MESSAGES (Instagram-style DMs) ---------- */
-// Seed conversations + a searchable people directory. Threads keep their state
-// locally so sending a message works end-to-end within the session.
-const DM_CONVOS = [
-  { id: "scott", name: "Scott Emerson", sub: "President, CEO · Kingsmen Resources", mono: "SE", c: "#0f766e", when: "2h", unread: 2,
-    seed: [
-      { from: "them", text: "Thanks for following Kingsmen — glad to have you on board." },
-      { from: "them", text: "Happy to answer anything on the drill program." },
-    ] },
-  { id: "maria", name: "Maria Velez", sub: "Analyst · Cordia Capital", mono: "MV", c: "#0d9488", when: "1d", unread: 0,
-    seed: [{ from: "them", text: "Our updated KNG note is out this week — I'll send it over." }] },
-  { id: "aurum", name: "Aurum Peak IR", sub: "Investor Relations · Aurum Peak Gold", mono: "AP", c: "#b45309", when: "3d", unread: 0,
-    seed: [{ from: "them", text: "The bought deal closed. Deck is on our profile." }] },
-  { id: "tom", name: "Tom Bradshaw", sub: "Analyst · Granite Equity", mono: "TB", c: "#7c3aed", when: "1w", unread: 0,
-    seed: [{ from: "me", text: "Appreciated the coverage note — thanks Tom." }, { from: "them", text: "Anytime. Speculative Buy maintained." }] },
-];
-
-// People you can start a new conversation with (companies, CEOs, analysts).
-const DM_PEOPLE = [
-  { id: "scott", name: "Scott Emerson", sub: "CEO · Kingsmen Resources", mono: "SE", c: "#0f766e" },
-  { id: "kingsmen", name: "Kingsmen Resources", sub: "Company · TSXV:KNG", mono: "KR", c: "#1e3a8a" },
-  { id: "aurum", name: "Aurum Peak Gold", sub: "Company · TSXV:AUP", mono: "AP", c: "#b45309" },
-  { id: "sierra", name: "Sierra Argent Mining", sub: "Company · TSXV:AGX", mono: "SA", c: "#0d9488" },
-  { id: "cordillera", name: "Cordillera Copper", sub: "Company · TSXV:CUP", mono: "CC", c: "#c2410c" },
-  { id: "maria", name: "Maria Velez", sub: "Analyst · Cordia Capital", mono: "MV", c: "#0d9488" },
-  { id: "david", name: "David Chen", sub: "Analyst · Northcrest Securities", mono: "DC", c: "#2563eb" },
-  { id: "tom", name: "Tom Bradshaw", sub: "Analyst · Granite Equity", mono: "TB", c: "#7c3aed" },
-];
+// Real messaging: an investor holds one thread per COMPANY. Sends persist to
+// Supabase and email the company's CEO; the CEO's email reply lands back in the
+// thread (see dmStore + /api/messages-send + /api/messages-inbound). The compose
+// roster is the live published-company DIRECTORY — investors message companies,
+// not mock people.
 
 // Shared, in-memory DM store so a message sent from anywhere (e.g. a CEO profile)
 // shows up on the Messages page too. Simple pub/sub keeps both views in sync.
-const dmStore = {
-  convos: [],   // fresh app — no conversations until the user starts one (honest empty state)
+// The active company's slug, read from the URL (?c=…) — the conversation key.
+const currentSlug = () => { try { return new URLSearchParams(window.location.search).get("c") || ""; } catch (_) { return ""; } };
+
+// Persistent Following / Favourites / Watchlist, keyed by company slug and saved to
+// the device so a real add/remove survives reload + app relaunch (works signed-in
+// or as a guest). Three "kinds" share one store + one pub/sub.
+const LIST_KEY = "mineex.lists.v1";
+const LIST_KINDS = ["following", "favourite", "watchlist"];
+
+// savedStore — bookmarked stories. DEVICE-LOCAL, stored as full snapshots (not just
+// ids) so the Saved list renders anywhere (e.g. Profile) and survives feed rotation.
+// Not synced to the cloud. newest-first by insertion order.
+const SAVED_KEY = "mineex.saved.v1";
+const savedStore = {
+  data: (() => { try { const r = JSON.parse(localStorage.getItem(SAVED_KEY) || "[]"); return Array.isArray(r) ? r : []; } catch (_) { return []; } })(),
   listeners: new Set(),
+  sub(fn) { this.listeners.add(fn); return () => this.listeners.delete(fn); },
+  emit() { try { localStorage.setItem(SAVED_KEY, JSON.stringify(this.data)); } catch (_) {} this.listeners.forEach((fn) => { try { fn(); } catch (_) {} }); },
+  has(id) { return !!id && this.data.some((x) => x.id === id); },
+  list() { return this.data; },
+  toggle(item) {
+    if (!item || !item.id) return;
+    if (this.has(item.id)) this.data = this.data.filter((x) => x.id !== item.id);
+    else { const { Icon, ...snap } = item; this.data = [snap, ...this.data]; } // drop non-serializable Icon ref
+    haptic();
+    this.emit();
+  },
+};
+const listStore = {
+  data: (() => {
+    const base = { following: [], favourite: [], watchlist: [] };
+    try {
+      const raw = JSON.parse(localStorage.getItem(LIST_KEY) || "{}");
+      for (const k of LIST_KINDS) if (Array.isArray(raw[k])) base[k] = raw[k];
+    } catch (_) {}
+    return base;
+  })(),
+  listeners: new Set(),
+  sub(fn) { this.listeners.add(fn); return () => this.listeners.delete(fn); },
+  emit() {
+    try { localStorage.setItem(LIST_KEY, JSON.stringify(this.data)); } catch (_) {}
+    this.listeners.forEach((fn) => { try { fn(); } catch (_) {} });
+  },
+  ids(kind) { return this.data[kind] || []; },
+  has(kind, id) { return !!id && (this.data[kind] || []).includes(id); },
+  set(kind, id, on) {
+    if (!id || !LIST_KINDS.includes(kind)) return;
+    const cur = this.data[kind] || [];
+    const next = on ? (cur.includes(id) ? cur : [id, ...cur]) : cur.filter((x) => x !== id);
+    if (next === cur) return;
+    const prev = this.data;
+    this.data = { ...this.data, [kind]: next };
+    haptic();
+    this.emit();
+    this._push(id, prev);
+  },
+  toggle(kind, id) { this.set(kind, id, !this.has(kind, id)); },
+  // Favourites & Watchlist are mutually exclusive: put id in `kind`, remove it from
+  // the other of the two. Following is untouched. One emit for both changes.
+  setExclusive(id, kind) {
+    if (!id || (kind !== "favourite" && kind !== "watchlist")) return;
+    const other = kind === "favourite" ? "watchlist" : "favourite";
+    const cur = this.data[kind] || [];
+    const otherCur = this.data[other] || [];
+    const prev = this.data;
+    this.data = { ...this.data, [kind]: cur.includes(id) ? cur : [id, ...cur], [other]: otherCur.filter((x) => x !== id) };
+    haptic();
+    this.emit();
+    this._push(id, prev);
+  },
+  // Persist the company's full relationship (following/fav/watch) to the cloud for a
+  // signed-in investor; guests are a no-op (localStorage only). On cloud failure, roll
+  // the local state back so the UI never permanently shows something that didn't save.
+  _push(slug, prev) {
+    if (!investorAuthed()) return;
+    const isF = this.has("following", slug), isFav = this.has("favourite", slug), isW = this.has("watchlist", slug);
+    const op = (!isF && !isFav && !isW)
+      ? investorData.deleteCompanyRelationship(slug)
+      : investorData.upsertCompanyRelationship(slug, { isFollowing: isF, isFavourite: isFav, isWatchlist: isW });
+    Promise.resolve(op).catch(() => { this.data = prev; this.emit(); });
+  },
+  // Replace local state with the investor's cloud relationships (authoritative).
+  hydrateFromCloud(rels) {
+    const d = { following: [], favourite: [], watchlist: [] };
+    for (const r of rels || []) {
+      if (r.isFollowing) d.following.push(r.companySlug);
+      if (r.isFavourite) d.favourite.push(r.companySlug);
+      if (r.isWatchlist) d.watchlist.push(r.companySlug);
+    }
+    this.data = d;
+    this.emit();
+  },
+  // Clear local state (sign-out / account switch → the next user starts clean).
+  reset() { this.data = { following: [], favourite: [], watchlist: [] }; this.emit(); },
+};
+
+// Real, persistent messaging store backed by Supabase + the email bridge.
+//   • a conversation is keyed by the COMPANY SLUG (one thread per company).
+//   • send → optimistic append + POST /api/messages-send (stores the row AND
+//     emails the CEO). The CEO replies to that email; /api/messages-inbound drops
+//     the reply in as a 'company' message, which we surface by POLLING while a
+//     thread is open — to the investor it looks like the company replied in-app.
+// `msgs` items are { from: "me"|"them", text, mid }. Falls back to a graceful
+// empty state (never throws) when signed out or before the tables/deploy exist.
+const dmStore = {
+  convos: [],
+  listeners: new Set(),
+  poll: null,
+  activeId: null,
+  sending: false,
   sub(fn) { this.listeners.add(fn); return () => this.listeners.delete(fn); },
   emit() { this.listeners.forEach((fn) => { try { fn(); } catch (_) {} }); },
   get(id) { return this.convos.find((c) => c.id === id); },
+
+  // Ensure a local convo entry (keyed by slug). No server round-trip until a send.
   ensure(p) {
     let c = this.get(p.id);
     if (!c) {
-      c = { id: p.id, name: p.name, sub: p.sub, mono: p.mono, c: p.c, when: "now", unread: 0, seed: p.seed ? [...p.seed] : [] };
+      c = { id: p.id, convId: p.convId || null, name: p.name, sub: p.sub, mono: p.mono, c: p.c, logo: p.logo || null, when: "", unread: 0, msgs: [], loaded: false };
       this.convos = [c, ...this.convos];
       this.emit();
+    } else {
+      if (p.name) c.name = p.name; if (p.sub) c.sub = p.sub;
+      if (p.mono) c.mono = p.mono; if (p.c) c.c = p.c; if (p.logo) c.logo = p.logo;
     }
     return c;
   },
-  send(id, text) {
+
+  // Load the signed-in investor's conversation list (for the inbox).
+  async loadAll() {
+    if (!getUser()) return;
+    try {
+      const headers = await authHeaders();
+      const r = await fetch(`${SUPABASE_URL}/rest/v1/conversations?select=id,company_slug,company_name,last_message_at&order=last_message_at.desc`, { headers });
+      if (!r.ok) return;
+      const rows = await r.json().catch(() => []);
+      for (const row of rows) {
+        const c = this.ensure({ id: row.company_slug, convId: row.id, name: row.company_name || row.company_slug, mono: (row.company_name || row.company_slug || "?").replace(/[^A-Za-z]/g, "").slice(0, 2).toUpperCase() || "•", c: "#1e3a8a" });
+        c.convId = row.id;
+        if (!c.loaded) this.loadMsgs(row.company_slug);
+      }
+      this.emit();
+    } catch (_) {}
+  },
+
+  // Pull the message history for one conversation. Skips a background refresh that
+  // lands mid-send so an optimistic bubble never flickers out.
+  async loadMsgs(id, force = false) {
+    const c = this.get(id);
+    if (!c || !c.convId) return;
+    if (this.sending && !force) return;
+    try {
+      const headers = await authHeaders();
+      const r = await fetch(`${SUPABASE_URL}/rest/v1/messages?conversation_id=eq.${c.convId}&select=id,sender,body,created_at&order=created_at.asc`, { headers });
+      if (!r.ok) return;
+      const rows = await r.json().catch(() => []);
+      c.msgs = rows.map((m) => ({ from: m.sender === "investor" ? "me" : "them", text: m.body, mid: m.id }));
+      c.when = "now";
+      c.loaded = true;
+      this.emit();
+    } catch (_) {}
+  },
+
+  async send(id, text) {
     const c = this.get(id);
     if (!c) return;
-    c.seed = [...(c.seed || []), { from: "me", text }];
-    c.when = "now";
-    c.unread = 0;
+    this.sending = true;
+    const temp = { from: "me", text, mid: "tmp-" + Math.random().toString(36).slice(2) };
+    c.msgs = [...c.msgs, temp];
+    c.when = "now"; c.unread = 0; c.error = "";
     this.convos = [c, ...this.convos.filter((x) => x.id !== id)];
     this.emit();
+    try {
+      const token = await getAccessToken();
+      if (!token) { c.error = "signin"; c.msgs = c.msgs.filter((m) => m.mid !== temp.mid); this.emit(); return; }
+      const r = await fetch(`${API_BASE}/api/messages`, {
+        method: "POST",
+        headers: { "content-type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ companySlug: id, body: text }),
+      });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok || !data.ok) { c.error = data.error || "send-failed"; this.emit(); return; }
+      if (data.conversationId) c.convId = data.conversationId;
+      this.sending = false;
+      await this.loadMsgs(id, true);   // reconcile with the stored truth
+    } catch (_) {
+      c.error = "network"; this.emit();
+    } finally {
+      this.sending = false;
+    }
   },
+
+  startPolling(id) {
+    this.activeId = id;
+    this.stopPolling();
+    this.loadMsgs(id, true);
+    this.poll = setInterval(() => { if (this.activeId === id) this.loadMsgs(id); }, 4000);
+  },
+  stopPolling() { if (this.poll) { clearInterval(this.poll); this.poll = null; } this.activeId = null; },
 };
 
 function Avatar({ mono, c, size = 52 }) {
@@ -6106,11 +7556,18 @@ function MessageThread({ convo, onBack }) {
   const [, setTick] = useState(0);
   const [text, setText] = useState("");
   const endRef = useRef(null);
-  // Back the thread with the shared store so anything sent here appears in the
-  // Messages inbox too.
-  useEffect(() => { dmStore.ensure(convo); return dmStore.sub(() => setTick((t) => t + 1)); }, [convo.id]);
+  const signedIn = !!(() => { try { return getUser(); } catch (_) { return null; } })();
+  // Back the thread with the shared store; open a poll so the CEO's emailed reply
+  // appears here live, and everything shows in the Messages inbox too.
+  useEffect(() => {
+    dmStore.ensure(convo);
+    dmStore.startPolling(convo.id);
+    const off = dmStore.sub(() => setTick((t) => t + 1));
+    return () => { off(); dmStore.stopPolling(); };
+  }, [convo.id]);
   const stored = dmStore.get(convo.id);
-  const msgs = (stored && stored.seed) || convo.seed || [];
+  const msgs = (stored && stored.msgs) || [];
+  const err = stored && stored.error;
   useEffect(() => { if (endRef.current) endRef.current.scrollIntoView({ block: "end" }); }, [msgs.length]);
   const send = () => {
     const t = text.trim();
@@ -6132,9 +7589,16 @@ function MessageThread({ convo, onBack }) {
       </div>
       {/* messages */}
       <div className="pp-scroll flex-1 space-y-2 overflow-y-auto px-4 py-4" style={{ overscrollBehaviorY: "contain" }}>
+        {msgs.length === 0 && (
+          <div className="grid place-items-center px-8 py-16 text-center">
+            <Avatar mono={convo.mono} c={convo.c} size={54} />
+            <p className="mt-3 text-[14px] font-bold tracking-tight text-slate-800">{convo.name}</p>
+            <p className="mt-1 text-[12px] font-medium leading-relaxed text-slate-400">Messages you send reach the company’s team directly. Replies land right here.</p>
+          </div>
+        )}
         {msgs.map((m, i) => (
-          <div key={i} className={"flex " + (m.from === "me" ? "justify-end" : "justify-start")}>
-            <div className="max-w-[76%] rounded-2xl px-3.5 py-2 text-[13.5px] leading-snug" style={m.from === "me"
+          <div key={m.mid || i} className={"flex " + (m.from === "me" ? "justify-end" : "justify-start")}>
+            <div className="max-w-[76%] whitespace-pre-wrap rounded-2xl px-3.5 py-2 text-[13.5px] leading-snug" style={m.from === "me"
               ? { background: "#0f172a", color: "#fff", borderBottomRightRadius: 6 }
               : { background: "#f1f5f9", color: "#0f172a", borderBottomLeftRadius: 6 }}>
               {m.text}
@@ -6143,17 +7607,23 @@ function MessageThread({ convo, onBack }) {
         ))}
         <div ref={endRef} />
       </div>
+      {err && (
+        <div className="flex-shrink-0 px-4 pb-1 text-center text-[11.5px] font-semibold text-rose-500">
+          {err === "signin" ? "Sign in to send messages." : err === "no-ceo-email" ? "This company hasn’t set up messaging yet." : "Couldn’t send — check your connection and try again."}
+        </div>
+      )}
       {/* composer */}
       <div className="flex flex-shrink-0 items-center gap-2 border-t border-slate-100 px-3 py-2.5" style={{ paddingBottom: "calc(10px + env(safe-area-inset-bottom, 0px))" }}>
         <input
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") send(); }}
-          placeholder="Message…"
-          className="h-10 flex-1 rounded-full px-4 text-[14px] outline-none"
+          placeholder={signedIn ? "Message…" : "Sign in to message"}
+          disabled={!signedIn}
+          className="h-10 flex-1 rounded-full px-4 text-[14px] outline-none disabled:opacity-60"
           style={{ background: "#f1f5f9" }}
         />
-        <button onClick={send} disabled={!text.trim()} aria-label="Send" className="grid h-10 w-10 flex-shrink-0 place-items-center rounded-full text-white transition active:scale-90 disabled:opacity-40" style={{ background: "#0f172a" }}>
+        <button onClick={send} disabled={!text.trim() || !signedIn} aria-label="Send" className="grid h-10 w-10 flex-shrink-0 place-items-center rounded-full text-white transition active:scale-90 disabled:opacity-40" style={{ background: "#0f172a" }}>
           <Send size={17} strokeWidth={2.2} />
         </button>
       </div>
@@ -6167,7 +7637,7 @@ function MessagesScreen() {
   const [composing, setComposing] = useState(false);
   const [query, setQuery] = useState("");
   const [, setTick] = useState(0);
-  useEffect(() => dmStore.sub(() => setTick((t) => t + 1)), []);
+  useEffect(() => { dmStore.loadAll(); const off = dmStore.sub(() => setTick((t) => t + 1)); return off; }, []);
 
   if (open) return <MessageThread convo={open} onBack={() => setOpen(null)} />;
 
@@ -6230,7 +7700,7 @@ function MessagesScreen() {
                 <span className="ml-auto flex-shrink-0 text-[11px] font-semibold text-slate-300">{c.when}</span>
               </div>
               <div className="mt-0.5 flex items-center gap-2">
-                <p className={"truncate text-[12.5px] " + (c.unread ? "font-bold text-slate-700" : "font-medium text-slate-400")}>{(c.seed[c.seed.length - 1] || {}).text}</p>
+                <p className={"truncate text-[12.5px] " + (c.unread ? "font-bold text-slate-700" : "font-medium text-slate-400")}>{(c.msgs[c.msgs.length - 1] || {}).text || "Start the conversation"}</p>
                 {c.unread > 0 && <span className="ml-auto flex-shrink-0 grid h-5 min-w-[20px] place-items-center rounded-full px-1.5 text-[10px] font-extrabold text-white" style={{ background: EM }}>{c.unread}</span>}
               </div>
             </div>
@@ -6353,84 +7823,616 @@ function NewsScreen({ onOpenCompany, onScan }) {
 }
 
 /* ---------- PROFILE ---------- */
+// iOS-style toggle switch, tinted with the brand accent when on.
+function PPSwitch({ on, onChange, label = "toggle" }) {
+  return (
+    <button type="button" role="switch" aria-checked={on} aria-label={label} onClick={onChange}
+      className="relative h-[26px] w-[44px] flex-shrink-0 rounded-full transition-colors"
+      style={{ background: on ? EM : "#e2e8f0" }}>
+      <span className="absolute top-[3px] h-[20px] w-[20px] rounded-full bg-white transition-all"
+        style={{ left: on ? 21 : 3, boxShadow: "0 1px 2px rgba(15,23,42,0.3)" }} />
+    </button>
+  );
+}
+
+// ---- Investor's own profile — private + customizable, saved on-device (keyed per
+// account so switching accounts shows the right one). First pass; can later sync to
+// the account to also power the DM "audience context" companies see.
+const investorProfileKey = (email) => `mineex.profile.v1.${email || "guest"}`;
+function loadInvestorProfile(email) {
+  try { return JSON.parse(localStorage.getItem(investorProfileKey(email)) || "{}") || {}; } catch (_) { return {}; }
+}
+function cacheInvestorProfile(email, data) {
+  try { localStorage.setItem(investorProfileKey(email), JSON.stringify(data || {})); } catch (_) {}
+}
+// Per-user "profile has an unsynced local edit" marker, so a save whose cloud write
+// failed is retried and never clobbered by a later hydrate. Keyed by user id so it
+// can't cross accounts.
+const profileDirtyKey = (uid) => `mineex.pdirty.${uid}`;
+// Public save (profile editor): update the local cache immediately, then write-through
+// to the cloud for signed-in investors. Mark unsynced until the cloud write confirms;
+// a network error never destroys the local edit. Deliberately does NOT touch onboarding.
+function saveInvestorProfile(email, data) {
+  cacheInvestorProfile(email, data);
+  const uid = investorAuthed();
+  if (uid) {
+    try { localStorage.setItem(profileDirtyKey(uid), "1"); } catch (_) {}
+    investorData.upsertInvestorProfile(data || {})
+      .then(() => { try { localStorage.removeItem(profileDirtyKey(uid)); } catch (_) {} })
+      .catch(() => {});
+  }
+}
+// Bus so the ProfileScreen re-reads after a background cloud hydrate.
+const profileBus = { listeners: new Set(), sub(fn) { this.listeners.add(fn); return () => this.listeners.delete(fn); }, emit() { this.listeners.forEach((fn) => { try { fn(); } catch (_) {} }); } };
+// Fold the investor's cloud profile into the local cache — cloud wins per NON-EMPTY
+// field so a partial/failed save is never blanked. Cache-only write (no re-upload).
+async function hydrateInvestorProfile(email) {
+  const uid = investorAuthed();
+  if (!uid) return;
+  try {
+    // A prior save didn't reach the cloud → retry it and keep the LOCAL edit as the
+    // source of truth (don't overwrite it with the older cloud copy). Clear the marker
+    // only once the retry confirms; if it fails again it stays dirty for next time.
+    if (localStorage.getItem(profileDirtyKey(uid))) {
+      await investorData.upsertInvestorProfile(loadInvestorProfile(email));
+      try { localStorage.removeItem(profileDirtyKey(uid)); } catch (_) {}
+      profileBus.emit();
+      return;
+    }
+    const cloud = await investorData.getInvestorProfile();
+    if (!cloud) return;
+    const merged = { ...loadInvestorProfile(email) };
+    for (const k of ["name", "website", "bio", "company", "industry", "role", "location", "investorType"]) {
+      if ((cloud[k] || "").trim()) merged[k] = cloud[k];
+    }
+    cacheInvestorProfile(email, merged);
+    profileBus.emit();
+  } catch (_) {}
+}
+// ============================ Investor account sync ============================
+// Wires the localStorage-cached investor state (profile / lists / likes / saves) to
+// Supabase for SIGNED-IN users only: a one-time reconciliation (local → cloud), then
+// cloud-authoritative hydration. Guests never reach here (every path is gated on
+// investorAuthed()), so signed-out behavior is byte-for-byte unchanged.
+const CACHE_OWNER_KEY = "mineex.cacheOwner";
+const migratedKey = (uid) => `mineex.migrated.${uid}`;
+let _investorSyncing = false;
+
+// One-time-per-account merge of existing local data into the cloud account. Rules:
+// profile → cloud wins if it has data, else upload local; lists → union with FAVOURITE
+// winning over Watchlist on conflict (never violates the DB check); likes/saves → union
+// deduped by (slug, post_key). Local is NEVER deleted here; the marker is only set after
+// every step succeeds, so a mid-way failure just retries next sign-in.
+async function reconcileInvestorData(uid, email) {
+  if (localStorage.getItem(migratedKey(uid))) return;
+  const KEYS = ["name", "bio", "company", "industry", "role", "location", "website", "investorType"];
+  // Profile
+  const cloudP = await investorData.getInvestorProfile();
+  const cloudHas = cloudP && KEYS.some((k) => (cloudP[k] || "").trim());
+  if (!cloudHas) {
+    const local = loadInvestorProfile(email);
+    if (KEYS.some((k) => String(local[k] || "").trim())) await investorData.upsertInvestorProfile(local);
+  }
+  // Relationships (union; favourite wins over watchlist)
+  const cloudRels = await investorData.getCompanyRelationships();
+  const byslug = new Map(cloudRels.map((r) => [r.companySlug, r]));
+  let local = {}; try { local = JSON.parse(localStorage.getItem(LIST_KEY) || "{}"); } catch (_) {}
+  const lf = new Set(local.following || []), lfav = new Set(local.favourite || []), lw = new Set(local.watchlist || []);
+  for (const slug of new Set([...byslug.keys(), ...lf, ...lfav, ...lw])) {
+    const c = byslug.get(slug) || {};
+    const following = !!c.isFollowing || lf.has(slug);
+    let favourite = !!c.isFavourite || lfav.has(slug);
+    let watchlist = !!c.isWatchlist || lw.has(slug);
+    if (favourite && watchlist) watchlist = false; // deterministic: FAVOURITE wins
+    const changed = !byslug.has(slug) || following !== !!c.isFollowing || favourite !== !!c.isFavourite || watchlist !== !!c.isWatchlist;
+    if (changed && (following || favourite || watchlist)) {
+      await investorData.upsertCompanyRelationship(slug, { isFollowing: following, isFavourite: favourite, isWatchlist: watchlist });
+    }
+  }
+  // Likes / saves (union, dedup by slug+key)
+  const cloudLikes = new Set((await investorData.getPostLikes()).map((r) => r.companySlug + "" + r.postKey));
+  const cloudSaves = new Set((await investorData.getPostSaves()).map((r) => r.companySlug + "" + r.postKey));
+  const migrateMedia = async (prefix, cloudSet, add) => {
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i); if (!key || !key.startsWith(prefix)) continue;
+      const slug = key.slice(prefix.length);
+      let arr = []; try { arr = JSON.parse(localStorage.getItem(key) || "[]"); } catch (_) {}
+      for (const pk of arr) if (!cloudSet.has(slug + "" + pk)) await add(slug, pk);
+    }
+  };
+  await migrateMedia("mineex.likes.", cloudLikes, investorData.likePost);
+  await migrateMedia("mineex.saves.", cloudSaves, investorData.savePost);
+  try { localStorage.setItem(migratedKey(uid), "1"); } catch (_) {}
+}
+
+// Sign-in: cross-account guard → reconcile once → hydrate from cloud (authoritative).
+async function syncInvestorAccount() {
+  const u = getUser(); const uid = u && u.id; const email = (u && u.email) || "";
+  if (!uid || _investorSyncing) return;
+  _investorSyncing = true;
+  try {
+    // If the shared caches belong to a DIFFERENT signed-in user, wipe them first so
+    // investor B never inherits investor A's following/likes/saves.
+    const owner = localStorage.getItem(CACHE_OWNER_KEY);
+    if (owner && owner !== uid && owner !== "guest") {
+      try { localStorage.removeItem(LIST_KEY); } catch (_) {}
+      clearMediaCache("mineex.likes."); clearMediaCache("mineex.saves.");
+      listStore.reset();
+    }
+    await reconcileInvestorData(uid, email).catch(() => {});
+    try { localStorage.setItem(CACHE_OWNER_KEY, uid); } catch (_) {}
+    const rels = await investorData.getCompanyRelationships().catch(() => []);
+    listStore.hydrateFromCloud(rels);
+    await hydrateMediaFromCloud();
+    await hydrateInvestorProfile(email);
+  } catch (_) {} finally { _investorSyncing = false; }
+}
+
+// Sign-out: clear the (non-namespaced) shared caches + in-memory lists so the next
+// user starts clean. The profile cache is email-namespaced, so it can't leak.
+function onInvestorSignOut() {
+  try { localStorage.removeItem(LIST_KEY); } catch (_) {}
+  clearMediaCache("mineex.likes."); clearMediaCache("mineex.saves.");
+  listStore.reset();
+  try { localStorage.setItem(CACHE_OWNER_KEY, "guest"); } catch (_) {}
+  profileBus.emit();
+}
+
+onAuthChange((user) => { if (user && user.id) syncInvestorAccount(); else onInvestorSignOut(); });
+// Initial sync for an already-restored session — deferred so all module consts above
+// are defined by the time it runs.
+if (typeof window !== "undefined") { setTimeout(() => { try { if (getUser() && getUser().id) syncInvestorAccount(); } catch (_) {} }, 0); }
+// ==============================================================================
+
+const normUrl = (u) => { const s = (u || "").trim(); return s ? (/^https?:\/\//i.test(s) ? s : `https://${s}`) : ""; };
+const dispUrl = (u) => (u || "").trim().replace(/^https?:\/\//i, "").replace(/\/$/, "");
+const INVESTOR_TYPES = ["Retail Investor", "Angel Investor", "Institutional", "Fund Manager", "Analyst", "Advisor", "Other"];
+
+// The current X (formerly Twitter) brand mark — lucide's `X` is a close icon, so we
+// inline the real logo. Takes a `size` prop so it drops into the same spots as a
+// lucide icon. Colour follows currentColor.
+function XLogo({ size = 15 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+    </svg>
+  );
+}
+
+// Edit sheet for the investor's own profile.
+function EditInvestorProfile({ initial, defaultName, onSave, onClose }) {
+  const [f, setF] = useState(() => ({ name: "", website: "", bio: "", company: "", industry: "", role: "", location: "", investorType: "Retail Investor", linkedin: "", twitter: "", instagram: "", ...initial }));
+  const set = (k) => (e) => setF((s) => ({ ...s, [k]: e.target.value }));
+  const field = ({ label, k, ph, Icon, textarea, maxLength }) => (
+    <label className="block">
+      <span className="mb-1.5 flex items-center gap-1.5 text-[10.5px] font-bold uppercase tracking-wider text-slate-400">{Icon && <Icon size={12} />}{label}</span>
+      {textarea
+        ? <textarea value={f[k]} onChange={set(k)} placeholder={ph} maxLength={maxLength} rows={3} className="w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-[13.5px] text-slate-800 outline-none transition focus:border-slate-300 focus:bg-white" />
+        : <input value={f[k]} onChange={set(k)} placeholder={ph} maxLength={maxLength} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-[13.5px] text-slate-800 outline-none transition focus:border-slate-300 focus:bg-white" />}
+    </label>
+  );
+  return (
+    <BottomSheet onClose={onClose} topBanner={
+      <div style={{ padding: "26px 20px 16px", background: "linear-gradient(120deg,#0e7a53,#0b3d2e)" }}>
+        <p className="text-[9.5px] font-extrabold uppercase tracking-[0.2em] text-white/75">Your profile</p>
+        <h3 className="text-[20px] font-extrabold tracking-tight text-white">Edit profile</h3>
+      </div>
+    }>
+      {(close) => (
+        <div className="space-y-4 pb-2">
+          {field({ label: "Display name", k: "name", ph: defaultName || "Your name", Icon: User, maxLength: 50 })}
+          {field({ label: "Website", k: "website", ph: "yourdomain.com", Icon: Globe, maxLength: 100 })}
+          {field({ label: "Bio", k: "bio", ph: "A sentence about you as an investor.", textarea: true, maxLength: 240 })}
+          {field({ label: "Company", k: "company", ph: "Where you work", Icon: Building2, maxLength: 60 })}
+          {field({ label: "Industry", k: "industry", ph: "e.g. Mining, Finance, Tech", Icon: Factory, maxLength: 60 })}
+          {field({ label: "Role", k: "role", ph: "e.g. Portfolio Manager", Icon: Briefcase, maxLength: 60 })}
+          {field({ label: "Location", k: "location", ph: "City, Country", Icon: MapPin, maxLength: 60 })}
+          <div>
+            <span className="mb-1.5 flex items-center gap-1.5 text-[10.5px] font-bold uppercase tracking-wider text-slate-400"><TrendingUp size={12} />Investor type</span>
+            <div className="flex flex-wrap gap-1.5">
+              {INVESTOR_TYPES.map((t) => {
+                const on = f.investorType === t;
+                return <button key={t} type="button" onClick={() => setF((s) => ({ ...s, investorType: t }))}
+                  className="rounded-full px-3 py-1.5 text-[12px] font-bold transition active:scale-95"
+                  style={on ? { background: EM, color: "#fff" } : { background: "#f1f5f9", color: "#475569" }}>{t}</button>;
+              })}
+            </div>
+          </div>
+          <button type="button" onClick={() => { haptic(); onSave(f); close(); }} className="mt-2 flex h-12 w-full items-center justify-center rounded-xl text-[13px] font-bold uppercase tracking-wide text-white transition active:scale-95" style={{ background: EM }}>Save profile</button>
+        </div>
+      )}
+    </BottomSheet>
+  );
+}
+
+// Shared chrome for a Settings sub-screen: a full-bleed panel (above the Settings
+// sheet) with a back button + title and a scrolling body. Portaled to the app frame.
+function SettingsSubPanel({ title, onBack, children }) {
+  return createPortal(
+    <div className="absolute inset-0 z-[97] flex flex-col pp-fade" style={{ background: "#f8fafc", paddingTop: "env(safe-area-inset-top, 0px)" }}>
+      <div className="flex flex-shrink-0 items-center gap-3 border-b border-slate-100 bg-white px-3 py-2.5">
+        <button onClick={onBack} aria-label="Back" className="grid h-9 w-9 place-items-center rounded-full text-slate-700 transition active:scale-90"><ChevronLeft size={22} /></button>
+        <p className="text-[15px] font-extrabold tracking-tight text-slate-900">{title}</p>
+      </div>
+      <div className="pp-scroll flex-1 overflow-y-auto px-5 pb-28 pt-1">{children}</div>
+    </div>, ppFrameEl || document.body);
+}
+
+// Notification categories, grouped. Keys map 1:1 to the notification_preferences table
+// columns (Stage 1). Delivery (APNs) isn't wired yet — these persist the user's intent.
+const NOTIF_GROUPS = [
+  { title: "Companies you follow", items: [
+    ["followed_company_news", "News & press releases", Newspaper],
+    ["followed_company_results", "Drill & assay results", Drill],
+    ["followed_company_financings", "Financings & raises", Landmark],
+    ["followed_company_media", "Media & updates", Camera],
+  ] },
+  { title: "Priority", items: [
+    ["favourite_priority", "Favourites — notify first", Star],
+    ["watchlist_alerts", "Watchlist alerts", Eye],
+  ] },
+  { title: "From MineEx", items: [
+    ["mineex_recommendations", "Recommended companies", Sparkles],
+    ["mineex_announcements", "Product announcements", Radio],
+  ] },
+];
+
+// Cloud-backed notification preferences (Stage 6). Loads/creates the row on open,
+// writes each toggle through optimistically with rollback + a toast on failure. When
+// push is off, the category groups dim and disable.
+function NotificationPrefs({ onBack, onToast }) {
+  const [prefs, setPrefs] = useState(null);
+  const [err, setErr] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    investorData.ensureNotificationPreferences()
+      .then((p) => { if (alive) setPrefs(p); })
+      .catch(() => { if (alive) setErr(true); });
+    return () => { alive = false; };
+  }, []);
+  const update = (key, val) => {
+    const prev = prefs;
+    setPrefs((p) => ({ ...p, [key]: val })); // optimistic
+    investorData.upsertNotificationPreferences({ [key]: val }).catch(() => {
+      setPrefs(prev);
+      onToast && onToast("Couldn't save — try again");
+    });
+  };
+  const pushOn = !!prefs?.push_enabled;
+  const flat = { boxShadow: "0 1px 2px rgba(15,23,42,0.04)" };
+  const skel = <div className="h-[26px] w-[44px] flex-shrink-0 animate-pulse rounded-full bg-slate-100" />;
+  return (
+    <SettingsSubPanel title="Notifications" onBack={onBack}>
+      <div className="mt-3 overflow-hidden rounded-2xl border border-slate-100 bg-white" style={flat}>
+        <div className="flex items-start gap-3 px-4 py-3.5">
+          <Bell size={18} className="mt-0.5 flex-shrink-0 text-slate-500" />
+          <div className="min-w-0 flex-1">
+            <p className="text-[13.5px] font-bold tracking-tight text-slate-800">Push notifications</p>
+            <p className="mt-0.5 text-[11.5px] font-medium leading-snug text-slate-400">Turn all MineEx notifications on or off.</p>
+          </div>
+          {prefs ? <PPSwitch on={pushOn} onChange={() => update("push_enabled", !pushOn)} label="Push notifications" /> : skel}
+        </div>
+      </div>
+      {err && <p className="mt-3 text-[12px] font-semibold text-rose-500">Couldn't load your settings. Check your connection and try again.</p>}
+      {NOTIF_GROUPS.map((g) => (
+        <div key={g.title} style={{ opacity: pushOn ? 1 : 0.4, pointerEvents: pushOn ? "auto" : "none", transition: "opacity .15s" }}>
+          <p className="px-1 pb-2 pt-5 text-[11px] font-bold uppercase tracking-widest text-slate-400">{g.title}</p>
+          <div className="overflow-hidden rounded-2xl border border-slate-100 bg-white" style={flat}>
+            {g.items.map(([key, label, Ic], i) => {
+              const on = !!prefs?.[key];
+              return (
+                <div key={key} className="flex items-center gap-3 px-4 py-3.5" style={i > 0 ? { borderTop: "1px solid #f1f5f9" } : {}}>
+                  <Ic size={18} className="flex-shrink-0 text-slate-500" />
+                  <span className="min-w-0 flex-1 text-[13.5px] font-bold tracking-tight text-slate-800">{label}</span>
+                  {prefs ? <PPSwitch on={on} onChange={() => update(key, !on)} label={label} /> : skel}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+      <p className="mt-6 px-1 text-[11px] font-medium leading-relaxed text-slate-400">Push delivery is rolling out soon — your preferences are saved and will apply as soon as it's live on your device.</p>
+    </SettingsSubPanel>
+  );
+}
+
+// INVESTOR PROFILE (V1) — private. Two jobs: (1) an Identity & Audience Context card
+// that rides along with direct messages to CEOs, and (2) a control center for tuning
+// the Today feed + notification/broadcast settings. Deliberately NOT a dashboard —
+// no holdings, watchlists, analytics, or public follower/social counts.
+// Saved — the user's bookmarked stories, opened from the Profile screen. Reads the
+// device-local savedStore snapshots (so items persist even after the feed rotates),
+// renders them as feed cards, and opens the same reader on tap.
+function SavedPanel({ onBack }) {
+  const [, bump] = useState(0);
+  useEffect(() => savedStore.sub(() => bump((x) => x + 1)), []);
+  const [reader, setReader] = useState(null);
+  const items = savedStore.list();
+  return (
+    <SettingsSubPanel title="Saved" onBack={onBack}>
+      {items.length ? (
+        <div className="mt-2 space-y-2.5">
+          {items.map((it) => isMedia(it.contentType)
+            ? <MediaTeaser key={it.id} it={it} onRead={setReader} />
+            : it.contentType === "NEWS"
+              ? <NewsCard key={it.id} it={it} onRead={setReader} size="med" />
+              : <PRCard key={it.id} it={it} onRead={setReader} />)}
+        </div>
+      ) : (
+        <div className="mt-10"><FeedEmpty Icon={Bookmark} title="Nothing saved yet" sub="Tap the bookmark on any story to save it here for later." /></div>
+      )}
+      {reader && <StoryReader it={reader} onClose={() => setReader(null)} />}
+    </SettingsSubPanel>
+  );
+}
+
 function ProfileScreen({ onScan }) {
   const [toast, setToast] = useState("");
   const [signingOut, setSigningOut] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const toastT = useRef(null);
   const soon = (label) => { haptic(); setToast(`${label} — coming soon`); clearTimeout(toastT.current); toastT.current = setTimeout(() => setToast(""), 1700); };
   const user = (() => { try { return getUser(); } catch { return null; } })();
   const email = user?.email || "";
-  const initials = (email ? email.trim()[0] : "?").toUpperCase();
+  // Investor's own profile — customizable, saved on-device (keyed per account).
+  const defaultName = email ? email.split("@")[0].replace(/[._-]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) : "Investor";
+  const [pf, setPf] = useState(() => loadInvestorProfile(email));
+  const [editing, setEditing] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
+  const [savedOpen, setSavedOpen] = useState(false);
+  const savedCount = savedStore.list().length;
+  const [pwSending, setPwSending] = useState(false);
+  const pushToast = (msg) => { setToast(msg); clearTimeout(toastT.current); toastT.current = setTimeout(() => setToast(""), 1900); };
+  // Re-read the cached profile when a background cloud hydrate/sign-out updates it.
+  useEffect(() => profileBus.sub(() => setPf(loadInvestorProfile(email))), [email]);
+  const name = (pf.name || "").trim() || defaultName;
+  const initials = name.trim().split(/\s+/).slice(0, 2).map((w) => w[0] || "").join("").toUpperCase() || "?";
+  const investorType = pf.investorType || "Retail Investor";
+  const location = (pf.location || "").trim();
+  const joined = user?.created_at ? new Date(user.created_at).toLocaleDateString(undefined, { month: "short", year: "numeric" }) : "";
+  const detailRows = [
+    { Icon: Briefcase, label: "Role", value: (pf.role || "").trim(), icBg: "rgba(14,139,168,0.12)", ic: "#0e8ba8" },
+    { Icon: Building2, label: "Company", value: (pf.company || "").trim(), icBg: "rgba(37,99,235,0.1)", ic: "#2563eb" },
+    { Icon: Factory, label: "Industry", value: (pf.industry || "").trim(), icBg: "rgba(91,87,201,0.11)", ic: "#5b57c9" },
+    { Icon: MapPin, label: "Location", value: location, icBg: "rgba(176,118,46,0.13)", ic: "#b0762e" },
+    { Icon: TrendingUp, label: "Investor type", value: investorType, icBg: "rgba(5,150,105,0.12)", ic: "#059669" },
+  ].filter((r) => r.value);
+
+  // Comms toggle (session-local for V1).
+  const [broadcasts, setBroadcasts] = useState(true);
+
   const doSignOut = async () => {
     if (signingOut) return;
     // Guest (viewing a shared/QR profile without an account) → send to sign-in.
     if (!user) { haptic(); window.location.assign("/app?signin=1"); return; }
-    if (!window.confirm("Sign out of Passport?")) return;
+    if (!window.confirm("Sign out of MineEx?")) return;
     haptic();
     setSigningOut(true);
     try { await signOut(); } catch {}
     // Return to the app's front door — logged out, this shows the sign-in screen.
     window.location.assign("/app");
   };
-  const ROWS = [
-    [{ Icon: Bell, label: "Notifications", hint: "Catalyst & company alerts" }, { Icon: TrendingUp, label: "Price Alerts", hint: "Target prices & moves" }],
-    [{ Icon: Wallet, label: "Holdings" }, { Icon: Search, label: "Saved Searches" }, { Icon: Telescope, label: "Watchlists" }],
-    [{ Icon: Activity, label: "Analytics" }, { Icon: Settings, label: "Settings" }, { Icon: Info, label: "About Passport" }],
-  ];
+
+  // Permanent account deletion (Apple 5.1.1(v)). Double-confirms, calls the
+  // security-definer RPC that wipes the user's data + auth identity, then exits.
+  const doDeleteAccount = async () => {
+    if (deleting || !user) return;
+    if (!window.confirm("Permanently delete your MineEx account?\n\nThis erases your profile and every message you've sent. It cannot be undone.")) return;
+    const typed = window.prompt('This is permanent. Type DELETE to confirm.');
+    if ((typed || "").trim().toUpperCase() !== "DELETE") return;
+    haptic();
+    setDeleting(true);
+    try {
+      const headers = await authHeaders();
+      const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/delete_own_account`, {
+        method: "POST", headers: { ...headers, "Content-Type": "application/json" }, body: "{}",
+      });
+      if (!r.ok) throw new Error("delete-failed");
+      try { await signOut(); } catch {}
+      window.location.assign("/app");
+    } catch (_) {
+      setDeleting(false);
+      setToast("Couldn't delete account — try again");
+      clearTimeout(toastT.current); toastT.current = setTimeout(() => setToast(""), 2200);
+    }
+  };
+
+  // Change password = email the user a secure reset link (reuses the /reset flow).
+  const doChangePassword = async () => {
+    if (pwSending || !email) return;
+    haptic();
+    setPwSending(true);
+    try { await requestPasswordReset(email); pushToast("Password reset link sent"); }
+    catch { pushToast("Couldn't send — try again"); }
+    finally { setPwSending(false); }
+  };
+
+  const cardBig = { boxShadow: "0 1px 2px rgba(15,23,42,0.04), 0 12px 26px -20px rgba(15,23,42,0.4)" };
+  const cardFlat = { boxShadow: "0 1px 2px rgba(15,23,42,0.04)" };
+  const sectionLabel = "px-1 pb-2 pt-5 text-[11px] font-bold uppercase tracking-widest text-slate-400";
+
   return (
     <div className="relative flex h-full flex-col">
-      <ScreenHead eyebrow="Account" title="Profile" onScan={onScan} />
+      <ScreenHead eyebrow="Account" title="Profile" onScan={onScan} trailing={
+        <button onClick={() => { haptic(); setSettingsOpen(true); }} aria-label="Settings" className="grid h-9 w-9 place-items-center text-slate-800 transition active:scale-90">
+          <Settings size={23} strokeWidth={2.1} />
+        </button>
+      } />
       <div className="pp-scroll flex-1 overflow-y-auto px-5 pb-28 pt-1">
-        <div className="flex items-center gap-3.5 rounded-2xl border border-slate-100 bg-white p-4" style={{ boxShadow: "0 1px 2px rgba(15,23,42,0.04), 0 12px 26px -20px rgba(15,23,42,0.4)" }}>
-          <div className="grid h-14 w-14 place-items-center rounded-full text-[18px] font-extrabold text-white" style={{ background: "linear-gradient(158deg,#0f172a,#334155)" }}>{initials}</div>
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-[16px] font-extrabold tracking-tight text-slate-900">{email || "Retail Investor"}</p>
-            <p className="mt-0.5 text-[12px] font-semibold text-slate-400">Passport member · Junior mining</p>
+
+        {/* 1 — IDENTITY: full-gradient hero, avatar sits fully on the gradient */}
+        <div className="relative overflow-hidden rounded-2xl p-5" style={{ background: "linear-gradient(135deg,#0e7a53 0%,#0b3d2e 100%)", ...cardBig }}>
+          <div className="absolute inset-0" style={{ background: "radial-gradient(120% 130% at 86% -12%, rgba(255,255,255,0.20) 0%, rgba(255,255,255,0) 46%)" }} />
+          <button onClick={() => { haptic(); setEditing(true); }} className="absolute right-3 top-3 flex items-center gap-1.5 rounded-full bg-white/20 px-3 py-1.5 text-[11.5px] font-bold text-white backdrop-blur transition active:scale-95">
+            <PenSquare size={12} /> Edit
+          </button>
+          <div className="relative">
+            <div className="grid h-[76px] w-[76px] place-items-center rounded-full text-[24px] font-extrabold text-white ring-4 ring-white/25" style={{ background: "linear-gradient(158deg,#0f172a,#334155)" }}>{initials}</div>
+            <p className="mt-3 text-[19px] font-extrabold tracking-tight text-white">{name}</p>
+            {pf.website && <a href={normUrl(pf.website)} target="_blank" rel="noreferrer" className="mt-0.5 inline-flex items-center gap-1 text-[12.5px] font-bold text-white/85"><Globe size={12} />{dispUrl(pf.website)}</a>}
+            <p className="mt-1 flex flex-wrap items-center gap-x-1.5 text-[12px] font-semibold text-white/70">
+              <span>{investorType}</span>{location && <><span className="text-white/40">·</span><span>{location}</span></>}
+            </p>
+            <div className="mt-2.5 inline-flex items-center gap-1 rounded-full bg-white/15 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-white/80"><Eye size={11} /> Private profile</div>
           </div>
-          <button onClick={() => soon("Edit profile")} className="rounded-full border border-slate-200 px-3 py-1.5 text-[11.5px] font-bold text-slate-600 transition active:scale-95">Edit</button>
         </div>
-        <div className="mt-3 grid grid-cols-3 gap-2">
-          {[{ v: "1", l: "Following" }, { v: "3", l: "Alerts" }, { v: "12", l: "Catalysts" }].map((s) => (
-            <div key={s.l} className="rounded-2xl border border-slate-100 bg-white py-3 text-center" style={{ boxShadow: "0 1px 2px rgba(15,23,42,0.04)" }}>
-              <p className="text-[19px] font-extrabold tabular-nums tracking-tight text-slate-900">{s.v}</p>
-              <p className="mt-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">{s.l}</p>
+
+        {/* 2 — INVESTOR CARD: bio + details, with a bit of colour */}
+        <div className="mt-3 rounded-2xl border p-4" style={{ borderColor: "#e4efe9", background: "linear-gradient(180deg, #f3faf6 0%, #ffffff 58%)", ...cardFlat }}>
+          <div className="mb-2.5 flex items-center gap-1.5">
+            <User size={12} style={{ color: EM_TEXT }} />
+            <p className="text-[10.5px] font-bold uppercase tracking-widest" style={{ color: EM_TEXT }}>Investor</p>
+          </div>
+          {pf.bio
+            ? <p className="text-[13px] leading-relaxed text-slate-600">{pf.bio}</p>
+            : <button onClick={() => { haptic(); setEditing(true); }} className="text-left text-[13px] italic leading-relaxed text-slate-400">Add a short bio so companies know who they’re speaking with →</button>}
+          {detailRows.length > 0 && (
+            <div className="mt-3.5 space-y-1.5">
+              {detailRows.map((r) => (
+                <div key={r.label} className="flex items-center justify-between gap-3 rounded-xl border border-slate-100 bg-white px-3 py-2.5">
+                  <span className="flex flex-shrink-0 items-center gap-2.5">
+                    <span className="grid h-7 w-7 place-items-center rounded-lg" style={{ background: r.icBg }}><r.Icon size={14} style={{ color: r.ic }} /></span>
+                    <span className="text-[12px] font-bold text-slate-500">{r.label}</span>
+                  </span>
+                  <span className="truncate text-right text-[12.5px] font-bold text-slate-800">{r.value}</span>
+                </div>
+              ))}
             </div>
-          ))}
+          )}
+          {joined && (
+            <div className="mt-3.5 flex items-center gap-1.5 text-[11px] font-semibold text-slate-400"><Clock size={12} />Joined {joined}</div>
+          )}
         </div>
-        {ROWS.map((group, gi) => (
-          <div key={gi} className="mt-3 overflow-hidden rounded-2xl border border-slate-100 bg-white" style={{ boxShadow: "0 1px 2px rgba(15,23,42,0.04)" }}>
-            {group.map((r, ri) => (
-              <button key={r.label} onClick={() => soon(r.label)} className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition active:bg-slate-50"
-                style={ri > 0 ? { borderTop: "1px solid #f1f5f9" } : {}}>
-                <r.Icon size={18} className="flex-shrink-0 text-slate-500" />
+
+        {/* SAVED — bookmarked stories, opens the full list */}
+        <button onClick={() => { haptic(); setSavedOpen(true); }} className="mt-3 flex w-full items-center gap-3 rounded-2xl border border-slate-100 bg-white p-4 text-left transition active:scale-[0.99]" style={cardFlat}>
+          <span className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-xl" style={{ background: "rgba(5,150,105,0.12)" }}><Bookmark size={17} style={{ color: EM_TEXT }} /></span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-[13.5px] font-bold tracking-tight text-slate-800">Saved</span>
+            <span className="block text-[11.5px] font-medium text-slate-400">Articles &amp; releases you’ve bookmarked</span>
+          </span>
+          {savedCount > 0 && <span className="flex-shrink-0 text-[12.5px] font-bold tabular-nums text-slate-400">{savedCount}</span>}
+          <ChevronRight size={17} className="flex-shrink-0 text-slate-300" />
+        </button>
+
+      </div>
+
+      {/* transient toast — portaled so it shows above the Settings sheet too */}
+      {toast && createPortal(
+        <div className="pointer-events-none absolute inset-x-0 z-[120] flex justify-center pp-fade" style={{ bottom: 96 }}>
+          <span className="rounded-full px-4 py-2 text-[12.5px] font-bold text-white" style={{ background: "rgba(15,23,42,0.92)", boxShadow: "0 8px 22px -8px rgba(15,23,42,0.5)" }}>{toast}</span>
+        </div>, ppFrameEl || document.body)}
+
+      {editing && <EditInvestorProfile initial={pf} defaultName={defaultName} onSave={(data) => { setPf(data); saveInvestorProfile(email, data); }} onClose={() => setEditing(false)} />}
+
+      {savedOpen && <SavedPanel onBack={() => setSavedOpen(false)} />}
+
+      {/* SETTINGS — communications, account, sign out, delete, legal (all behind the cog) */}
+      {settingsOpen && createPortal(
+        <div className="absolute inset-0 z-[95] flex flex-col pp-fade" style={{ background: "#f8fafc", paddingTop: "env(safe-area-inset-top, 0px)" }}>
+          <div className="flex flex-shrink-0 items-center gap-3 border-b border-slate-100 bg-white px-3 py-2.5">
+            <button onClick={() => setSettingsOpen(false)} aria-label="Back" className="grid h-9 w-9 place-items-center rounded-full text-slate-700 transition active:scale-90"><ChevronLeft size={22} /></button>
+            <p className="text-[15px] font-extrabold tracking-tight text-slate-900">Settings</p>
+          </div>
+          <div className="pp-scroll flex-1 overflow-y-auto px-5 pb-28 pt-1">
+            {/* Communication & Broadcasts */}
+            <p className={sectionLabel}>Communication & Broadcasts</p>
+            <div className="overflow-hidden rounded-2xl border border-slate-100 bg-white" style={cardFlat}>
+              <div className="flex items-start gap-3 px-4 py-3.5">
+                <Radio size={18} className="mt-0.5 flex-shrink-0 text-slate-500" />
                 <div className="min-w-0 flex-1">
-                  <p className="text-[13.5px] font-bold tracking-tight text-slate-800">{r.label}</p>
-                  {r.hint && <p className="text-[11px] font-medium text-slate-400">{r.hint}</p>}
+                  <p className="text-[13.5px] font-bold tracking-tight text-slate-800">Broadcast Messages</p>
+                  <p className="mt-0.5 text-[11.5px] font-medium leading-snug text-slate-400">Allow company updates & event follow-ups from companies you follow.</p>
+                </div>
+                <PPSwitch on={broadcasts} onChange={() => { haptic(); setBroadcasts((v) => !v); }} label="Broadcast messages" />
+              </div>
+              <button onClick={() => user ? setNotifOpen(true) : pushToast("Sign in to manage notifications")} className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition active:bg-slate-50" style={{ borderTop: "1px solid #f1f5f9" }}>
+                <Bell size={18} className="flex-shrink-0 text-slate-500" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-[13.5px] font-bold tracking-tight text-slate-800">Notification Preferences</p>
+                  <p className="mt-0.5 text-[11.5px] font-medium text-slate-400">Follows, results, financings, alerts</p>
                 </div>
                 <ChevronRight size={16} className="flex-shrink-0 text-slate-300" />
               </button>
-            ))}
+            </div>
+
+            {/* Account settings */}
+            <p className={sectionLabel}>Account</p>
+            <div className="overflow-hidden rounded-2xl border border-slate-100 bg-white" style={cardFlat}>
+              <button onClick={() => user ? setAccountOpen(true) : pushToast("Sign in to manage your account")} className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition active:bg-slate-50">
+                <ShieldCheck size={18} className="flex-shrink-0 text-slate-500" />
+                <span className="min-w-0 flex-1 text-[13.5px] font-bold tracking-tight text-slate-800">Account & Security</span>
+                <ChevronRight size={16} className="flex-shrink-0 text-slate-300" />
+              </button>
+              <a href="https://passport-xi-five.vercel.app/privacy.html" target="_blank" rel="noreferrer" className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition active:bg-slate-50" style={{ borderTop: "1px solid #f1f5f9" }}>
+                <Eye size={18} className="flex-shrink-0 text-slate-500" />
+                <span className="min-w-0 flex-1 text-[13.5px] font-bold tracking-tight text-slate-800">Privacy & Data</span>
+                <ArrowUpRight size={16} className="flex-shrink-0 text-slate-300" />
+              </a>
+            </div>
+
+            {/* Sign out */}
+            <button onClick={doSignOut} disabled={signingOut} className="mt-3 flex w-full items-center gap-3 rounded-2xl border border-slate-100 bg-white px-4 py-3.5 text-left transition active:bg-slate-50 disabled:opacity-60" style={cardFlat}>
+              <LogOut size={18} className={`flex-shrink-0 ${user ? "text-rose-500" : "text-emerald-500"}`} />
+              <div className="min-w-0 flex-1">
+                <p className={`text-[13.5px] font-bold tracking-tight ${user ? "text-rose-600" : "text-emerald-600"}`}>{signingOut ? "Signing out…" : user ? "Sign out" : "Sign in"}</p>
+                {email && <p className="truncate text-[11px] font-medium text-slate-400">{email}</p>}
+              </div>
+            </button>
+
+            {/* Permanent account deletion — required by the App Store when accounts exist. */}
+            {user && (
+              <button onClick={doDeleteAccount} disabled={deleting} className="mt-3 w-full py-2 text-center text-[12px] font-semibold text-slate-400 underline underline-offset-2 transition active:opacity-60 disabled:opacity-50">
+                {deleting ? "Deleting account…" : "Delete account"}
+              </button>
+            )}
+
+            {/* Legal */}
+            <div className="mt-8 border-t border-slate-100 pt-5">
+              <p className="text-[10.5px] font-medium leading-relaxed text-slate-400">
+                MineEx provides company information for educational and informational purposes only. Nothing here is investment, financial, legal, or tax advice, or an offer or solicitation to buy or sell any security. Company data — including AI-generated summaries — may contain errors. Always do your own research and consult a licensed advisor before investing.
+              </p>
+              <div className="mt-3 flex items-center gap-4">
+                <a href="https://passport-xi-five.vercel.app/privacy.html" target="_blank" rel="noreferrer" className="text-[11.5px] font-bold text-slate-500 underline underline-offset-2">Privacy Policy</a>
+                <a href="https://passport-xi-five.vercel.app/terms.html" target="_blank" rel="noreferrer" className="text-[11.5px] font-bold text-slate-500 underline underline-offset-2">Terms of Use</a>
+              </div>
+              <p className="mt-3 text-[10px] font-semibold uppercase tracking-widest text-slate-300">MineEx · v1.0</p>
+            </div>
           </div>
-        ))}
-        {/* Sign out — real: clears the session and returns to the sign-in screen. */}
-        <button
-          onClick={doSignOut}
-          disabled={signingOut}
-          className="mt-3 flex w-full items-center gap-3 rounded-2xl border border-slate-100 bg-white px-4 py-3.5 text-left transition active:bg-slate-50 disabled:opacity-60"
-          style={{ boxShadow: "0 1px 2px rgba(15,23,42,0.04)" }}
-        >
-          <LogOut size={18} className={`flex-shrink-0 ${user ? "text-rose-500" : "text-emerald-500"}`} />
-          <div className="min-w-0 flex-1">
-            <p className={`text-[13.5px] font-bold tracking-tight ${user ? "text-rose-600" : "text-emerald-600"}`}>{signingOut ? "Signing out…" : user ? "Sign out" : "Sign in"}</p>
-            {email && <p className="truncate text-[11px] font-medium text-slate-400">{email}</p>}
+        </div>, ppFrameEl || document.body)}
+
+      {/* Notification preferences — cloud-backed toggles (Stage 6) */}
+      {notifOpen && <NotificationPrefs onBack={() => setNotifOpen(false)} onToast={pushToast} />}
+
+      {/* Account & Security — email, change password, sign out */}
+      {accountOpen && (
+        <SettingsSubPanel title="Account & Security" onBack={() => setAccountOpen(false)}>
+          <p className={sectionLabel}>Signed in as</p>
+          <div className="rounded-2xl border border-slate-100 bg-white px-4 py-3.5" style={cardFlat}>
+            <div className="flex items-center gap-3">
+              <span className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-full text-[13px] font-extrabold text-white" style={{ background: "linear-gradient(158deg,#0f172a,#334155)" }}>{initials}</span>
+              <div className="min-w-0">
+                <p className="truncate text-[13.5px] font-bold text-slate-800">{name}</p>
+                {email && <p className="truncate text-[11.5px] font-medium text-slate-400">{email}</p>}
+              </div>
+            </div>
           </div>
-        </button>
-      </div>
-      {/* transient toast for not-yet-built settings */}
-      {toast && (
-        <div className="pointer-events-none absolute inset-x-0 z-50 flex justify-center pp-fade" style={{ bottom: 96 }}>
-          <span className="rounded-full px-4 py-2 text-[12.5px] font-bold text-white" style={{ background: "rgba(15,23,42,0.92)", boxShadow: "0 8px 22px -8px rgba(15,23,42,0.5)" }}>{toast}</span>
-        </div>
+          <p className={sectionLabel}>Security</p>
+          <button onClick={doChangePassword} disabled={pwSending} className="flex w-full items-center gap-3 rounded-2xl border border-slate-100 bg-white px-4 py-3.5 text-left transition active:bg-slate-50 disabled:opacity-60" style={cardFlat}>
+            <ShieldCheck size={18} className="flex-shrink-0 text-slate-500" />
+            <div className="min-w-0 flex-1">
+              <p className="text-[13.5px] font-bold tracking-tight text-slate-800">{pwSending ? "Sending…" : "Change password"}</p>
+              <p className="mt-0.5 text-[11.5px] font-medium text-slate-400">We'll email you a secure reset link.</p>
+            </div>
+            <ChevronRight size={16} className="flex-shrink-0 text-slate-300" />
+          </button>
+          <button onClick={doSignOut} disabled={signingOut} className="mt-3 flex w-full items-center gap-3 rounded-2xl border border-slate-100 bg-white px-4 py-3.5 text-left transition active:bg-slate-50 disabled:opacity-60" style={cardFlat}>
+            <LogOut size={18} className="flex-shrink-0 text-rose-500" />
+            <p className="text-[13.5px] font-bold tracking-tight text-rose-600">{signingOut ? "Signing out…" : "Sign out"}</p>
+          </button>
+        </SettingsSubPanel>
       )}
     </div>
   );
@@ -6497,8 +8499,70 @@ export function applyPP(pp) {
    a commodity-tinted hero + initial mark keep it looking populated until
    the company is fully onboarded.
    ============================================================ */
+// Correction / claim form for a basic listing — the legal-safety mechanism. Submits to
+// listing_reports (migration 0017): public INSERT only, operator reviews via service role.
+function ReportListingSheet({ slug, name, onClose }) {
+  const [kind, setKind] = useState("error"); // 'error' | 'claim'
+  const [message, setMessage] = useState("");
+  const [contact, setContact] = useState("");
+  const [state, setState] = useState("form"); // form | sending | done | error
+  const submit = async () => {
+    if (state === "sending") return;
+    setState("sending"); haptic();
+    let uid = null; try { uid = getUser()?.id || null; } catch (_) {}
+    try {
+      const r = await fetch(`${SUPABASE_URL}/rest/v1/listing_reports`, {
+        method: "POST",
+        headers: { apikey: SUPABASE_ANON, Authorization: `Bearer ${SUPABASE_ANON}`, "Content-Type": "application/json", Prefer: "return=minimal" },
+        body: JSON.stringify({ company_slug: slug, company_name: name, kind, message: message.trim(), contact: contact.trim(), user_id: uid }),
+      });
+      setState(r.ok ? "done" : "error");
+    } catch (_) { setState("error"); }
+  };
+  const seg = (v, label) => (
+    <button type="button" onClick={() => setKind(v)} className="flex-1 rounded-xl py-2 text-[12.5px] font-bold transition active:scale-95"
+      style={kind === v ? { background: EM, color: "#fff" } : { background: "#f1f5f9", color: "#475569" }}>{label}</button>
+  );
+  const inputCls = "w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-[13.5px] text-slate-800 outline-none transition focus:border-slate-300 focus:bg-white";
+  return (
+    <BottomSheet onClose={onClose} topBanner={
+      <div style={{ padding: "26px 20px 16px", background: "linear-gradient(120deg,#0e7a53,#0b3d2e)" }}>
+        <p className="text-[9.5px] font-extrabold uppercase tracking-[0.2em] text-white/75">{name}</p>
+        <h3 className="text-[20px] font-extrabold tracking-tight text-white">Report or claim</h3>
+      </div>
+    }>
+      {(close) => state === "done" ? (
+        <div className="py-6 text-center">
+          <div className="text-[38px]">✅</div>
+          <p className="mt-2 text-[16px] font-extrabold text-slate-900">Thanks — we've got it</p>
+          <p className="mt-1.5 text-[13px] leading-relaxed text-slate-500">We review every report and correct or remove listings promptly.</p>
+          <button onClick={close} className="mt-5 h-11 w-full rounded-xl text-[13px] font-bold uppercase tracking-wide text-white" style={{ background: EM }}>Done</button>
+        </div>
+      ) : (
+        <div className="space-y-3.5 pb-2">
+          <div className="flex gap-2">{seg("error", "Report an error")}{seg("claim", "Claim this company")}</div>
+          <p className="text-[12.5px] leading-relaxed text-slate-500">{kind === "claim"
+            ? "Are you the company? Tell us and we'll verify and hand you the profile."
+            : "Spotted something wrong or out of date? Tell us what to fix and we'll correct or remove it."}</p>
+          <textarea value={message} onChange={(e) => setMessage(e.target.value)} rows={3}
+            placeholder={kind === "claim" ? "Your name + role at the company" : "What's incorrect?"} className={inputCls + " resize-none"} />
+          <input value={contact} onChange={(e) => setContact(e.target.value)} placeholder="Email to reach you (optional)" className={inputCls} />
+          {state === "error" && <p className="text-[12.5px] font-semibold text-rose-500">Couldn't submit — please try again.</p>}
+          <button type="button" onClick={submit} disabled={state === "sending" || (!message.trim() && !contact.trim())}
+            className="h-12 w-full rounded-xl text-[13px] font-bold uppercase tracking-wide text-white transition active:scale-95 disabled:opacity-50" style={{ background: EM }}>
+            {state === "sending" ? "Sending…" : "Submit"}
+          </button>
+        </div>
+      )}
+    </BottomSheet>
+  );
+}
+
 function BasicListing({ onBack }) {
   const [following, setFollowing] = useState(false);
+  const [listing, setListing] = useState(null); // ticker → "Open in Yahoo Finance" prompt (matches the pro capital page)
+  const [reportOpen, setReportOpen] = useState(false);
+  const slug = (() => { try { return new URLSearchParams(location.search).get("c") || ""; } catch (_) { return ""; } })();
   const S = (x) => (x == null ? "" : String(x));
   const co = COMPANY || {};
   const pp = (typeof window !== "undefined" && window.__PP__) || {};
@@ -6511,16 +8575,28 @@ function BasicListing({ onBack }) {
     const url = x.url || (x.yahoo ? `https://finance.yahoo.com/quote/${x.yahoo}` : (x.sym ? `https://finance.yahoo.com/quote/${x.sym}` : ""));
     if (url) window.open(url, "_blank", "noopener");
   };
-  const hasLogo = S(AVATAR).trim() !== "";
-  const hasHero = S(STATUS_IMG).trim() !== "";
+  // Basic listings carry their own (usually empty) images in their pp — read them from
+  // pp, NOT the shared module globals, so a listing never inherits the previously-viewed
+  // company's logo/hero. Empty → initials + commodity-tinted hero.
+  const logoSrc = S(pp.AVATAR).trim();
+  const hasLogo = logoSrc !== "";
+  const heroSrc = S(pp.STATUS_IMG).trim();
+  const hasHero = heroSrc !== "";
   const initials = (S(co.name).trim().split(/\s+/).slice(0, 2).map((w) => w[0] || "").join("") || "?").toUpperCase();
+  // No logo → use the SAME identity colour as the feed/Explore monogram so a
+  // company's avatar is consistent everywhere (CoLogo seeds by slug/name too).
+  const av = avatarColor(slug || S(co.name) || initials);
   const stageLabel = co.stage ? S(co.stage).charAt(0).toUpperCase() + S(co.stage).slice(1) : "";
+  // Jurisdiction = where the mineral projects ARE (the investor-relevant mining
+  // jurisdiction, taken from the description). Headquarters = the corporate head office
+  // (from the exchange listing). Kept distinct so a Vancouver-HQ'd company exploring in
+  // Nevada reads "Jurisdiction: Nevada", not its office province. Empty cells drop out.
   const cells = [
-    { icon: MapPin, label: "Location", value: S(co.location) || S(co.jurisdiction) },
     { icon: Landmark, label: "Jurisdiction", value: S(co.jurisdiction) },
     { icon: Gem, label: "Commodity", value: S(co.commodity) },
     { icon: Mountain, label: "Stage", value: stageLabel },
-  ];
+    { icon: Building2, label: "Headquarters", value: S(co.headquarters) || S(co.location) },
+  ].filter((c) => c.value);
 
   return (
     <div className="flex h-full flex-col pp-fade" style={{ background: "#ffffff" }}>
@@ -6538,8 +8614,8 @@ function BasicListing({ onBack }) {
         {/* Hero — real photo if supplied, else a commodity-tinted gradient with a faint contour motif */}
         <div className="relative mx-4 overflow-hidden rounded-3xl" style={{ height: 168 }}>
           {hasHero
-            ? <img src={STATUS_IMG} alt="" className="h-full w-full object-cover" />
-            : <div className="h-full w-full" style={{ background: `linear-gradient(135deg, ${EM} 0%, ${EM_TEXT} 100%)` }} />}
+            ? <img src={heroSrc} alt="" className="h-full w-full object-cover" />
+            : <div className="h-full w-full" style={{ background: av }} />}
           {!hasHero && (
             <svg viewBox="0 0 400 168" preserveAspectRatio="none" className="absolute inset-0 h-full w-full" style={{ opacity: 0.16 }}>
               <path d="M0 130 L70 78 L120 108 L190 46 L250 96 L320 54 L400 100 L400 168 L0 168 Z" fill="#fff" />
@@ -6554,8 +8630,8 @@ function BasicListing({ onBack }) {
           <div className="relative z-10 -mt-9 flex items-end gap-3">
             <div className="h-[72px] w-[72px] flex-shrink-0 overflow-hidden rounded-2xl border-4 border-white bg-white shadow-sm">
               {hasLogo
-                ? <img src={AVATAR} alt="" className="h-full w-full object-cover" />
-                : <div className="grid h-full w-full place-items-center text-[22px] font-extrabold text-white" style={{ background: EM }}>{initials}</div>}
+                ? <img src={logoSrc} alt="" className="h-full w-full object-cover" />
+                : <div className="grid h-full w-full place-items-center text-[22px] font-extrabold text-white" style={{ background: av }}>{initials}</div>}
             </div>
             <div className="min-w-0 flex-1 pb-1" />
           </div>
@@ -6567,7 +8643,7 @@ function BasicListing({ onBack }) {
           {tickers.length > 0 && (
             <div className="mt-3 flex flex-wrap gap-2">
               {tickers.map((x) => (
-                <button key={x.sym} onClick={() => { haptic(); openTicker(x); }}
+                <button key={x.sym} onClick={() => { haptic(); setListing(x); }}
                   className="inline-flex items-center gap-2 rounded-2xl px-3.5 py-2 transition active:scale-[0.97]" style={{ background: "#0b0f17" }}>
                   <span className="flex flex-col items-start leading-none">
                     <span className="text-[8px] font-semibold uppercase tracking-wider" style={{ color: "#64748b" }}>{S(x.ex)}</span>
@@ -6577,6 +8653,13 @@ function BasicListing({ onBack }) {
                 </button>
               ))}
             </div>
+          )}
+          {/* Website — the company's own site (opens in a new tab) */}
+          {S(co.website) && (
+            <a href={normUrl(co.website)} target="_blank" rel="noreferrer"
+              className="mt-3 inline-flex items-center gap-1.5 text-[13px] font-bold transition active:scale-95" style={{ color: EM_TEXT }}>
+              <Globe size={13} /> {dispUrl(co.website)}
+            </a>
           )}
           {/* Contact links */}
           {(() => {
@@ -6628,11 +8711,135 @@ function BasicListing({ onBack }) {
           </div>
         )}
 
-        {/* Honest footer — this is a seeded listing, not a managed profile yet */}
-        <p className="mt-6 px-6 text-center text-[12px] leading-relaxed text-slate-400">
-          A basic Passport listing. The company hasn’t published a full profile yet.
-        </p>
+        {/* Honest, defensible disclaimer with the compiled source; the report/claim link
+            sits smaller + grey at the very bottom. */}
+        <div className="mt-6 px-6 text-center">
+          <p className="text-[11px] leading-relaxed text-slate-400">
+            Auto-generated community listing{pp.LISTING_SOURCE && pp.LISTING_SOURCE.label ? <> — compiled from {S(pp.LISTING_SOURCE.label)}{pp.LISTING_SOURCE.date ? ` · ${S(pp.LISTING_SOURCE.date)}` : ""}</> : ""}. Unverified, may be inaccurate or out of date, and not provided or endorsed by the company. Informational only — not investment advice.
+          </p>
+          <button onClick={() => { haptic(); setReportOpen(true); }} className="mt-3 text-[10.5px] font-semibold text-slate-400 underline underline-offset-2 transition active:scale-95">
+            Report an error · Claim this profile
+          </button>
+        </div>
       </div>
+
+      {/* Ticker → Open in Yahoo Finance (identical to the pro capital page) */}
+      {listing && (
+        <div className="absolute inset-0 z-[60] flex items-center justify-center px-6" style={{ background: "rgba(15,23,42,0.4)", backdropFilter: "blur(6px)" }} onClick={() => setListing(null)}>
+          <div className="w-full max-w-[300px] rounded-[26px] bg-white px-7 pb-6 pt-8" style={{ boxShadow: "0 24px 70px -16px rgba(15,23,42,0.5)" }} onClick={(e) => e.stopPropagation()}>
+            <div className="flex flex-col items-center text-center">
+              <span className="grid h-12 w-12 place-items-center rounded-2xl" style={{ background: "rgba(124,58,237,0.1)" }}>
+                <ArrowUpRight size={22} style={{ color: "#7c3aed" }} strokeWidth={2.6} />
+              </span>
+              <p className="mt-5 text-[9px] font-bold uppercase tracking-[0.2em] text-slate-400">{S(listing.ex)} · {S(listing.sym)}</p>
+              <p className="mt-2 text-[18px] font-extrabold leading-tight tracking-tight text-slate-900">Open in Yahoo Finance</p>
+              <p className="mt-2 text-[12.5px] font-medium leading-relaxed text-slate-500">View live market data for {S(listing.sym)} in your browser.</p>
+            </div>
+            <div className="mt-6 flex justify-center">
+              <a href={`https://finance.yahoo.com/quote/${listing.yahoo || listing.sym}`} target="_blank" rel="noopener noreferrer" onClick={() => setListing(null)}
+                className="inline-flex items-center justify-center rounded-full px-7 py-3 text-[13.5px] font-bold text-white transition active:scale-[0.97]" style={{ background: "#7c3aed" }}>
+                Open Live Market Data
+              </a>
+            </div>
+            <button onClick={() => setListing(null)} className="mt-1.5 w-full py-2.5 text-[13px] font-bold text-slate-400 transition active:scale-[0.97]">Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {reportOpen && <ReportListingSheet slug={slug} name={S(co.name)} onClose={() => setReportOpen(false)} />}
+    </div>
+  );
+}
+
+// Reusable Instagram-style paged swiper. Pages (keyed by tab id) follow the finger and
+// snap; the incoming element is reused on commit (no remount/flash); horizontal carousels
+// inside a page are excluded; a back-swipe past the FIRST tab fires onEdgeBack. onLead
+// fires the instant a swipe commits so an external indicator (nav/header) can lead.
+function SwipePager({ tabs, tab, setTab, render, pageClassName = "", onLead, onEdgeBack, onPageClickCapture }) {
+  const viewportRef = useRef(null);
+  const [nbrTab, setNbrTab] = useState(null);
+  const g = useRef({ x: 0, y: 0, t0: 0, axis: null, dir: 0, w: 0, skip: true, active: false, edge: false });
+
+  useEffect(() => {
+    const vp = viewportRef.current; if (!vp) return;
+    const now = () => (typeof performance !== "undefined" ? performance.now() : 0);
+    const setX = (el, x) => { if (el) el.style.transform = `translate3d(${x}px,0,0)`; };
+    const inHScroller = (target) => { let n = target; while (n && n !== vp) { if (n.nodeType === 1 && n.scrollWidth > n.clientWidth + 6) { const ox = getComputedStyle(n).overflowX; if (ox === "auto" || ox === "scroll") return true; } n = n.parentElement; } return false; };
+    const cur = () => vp.querySelector(`[data-page="${tab}"]`);
+    const nbr = () => { for (const el of vp.querySelectorAll("[data-page]")) if (el.getAttribute("data-page") !== tab) return el; return null; };
+    const DUR = 520, EASE = `transform ${DUR}ms cubic-bezier(0.22,1,0.36,1)`;
+    const start = (e) => {
+      const t = e.touches[0]; if (!t) return;
+      g.current = { x: t.clientX, y: t.clientY, t0: now(), axis: null, dir: 0, w: vp.clientWidth || 1, skip: inHScroller(e.target), active: true, edge: false };
+      const c = cur(); if (c) c.style.transition = "none";
+    };
+    const move = (e) => {
+      const st = g.current; if (!st.active || st.skip) return;
+      const t = e.touches[0]; if (!t) return;
+      const dx = t.clientX - st.x, dy = t.clientY - st.y;
+      if (!st.axis) {
+        if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+        if (Math.abs(dx) > Math.abs(dy) * 1.2) {
+          const dir = dx < 0 ? 1 : -1;
+          const target = tabs[tabs.indexOf(tab) + dir];
+          if (!target) {
+            if (dir === -1 && onEdgeBack) { st.axis = "h"; st.dir = -1; st.edge = true; }
+            else { st.axis = "v"; return; }
+          } else {
+            st.axis = "h"; st.dir = dir; st.edge = false;
+            flushSync(() => setNbrTab(target));
+            const n = nbr(); if (n) { n.style.transition = "none"; setX(n, dx + dir * st.w); }
+          }
+        } else { st.axis = "v"; return; }
+      }
+      if (st.axis === "h") {
+        e.preventDefault();
+        if (st.edge) { setX(cur(), Math.max(0, Math.min(st.w, dx)) * 0.5); }   // resistance drag toward exit
+        else { const ddx = st.dir === 1 ? Math.min(0, Math.max(-st.w, dx)) : Math.max(0, Math.min(st.w, dx)); setX(cur(), ddx); setX(nbr(), ddx + st.dir * st.w); }
+      }
+    };
+    const end = (e) => {
+      const st = g.current; if (!st.active) return; st.active = false;
+      if (st.axis !== "h") return;
+      const t = e.changedTouches[0]; const dx = t ? t.clientX - st.x : 0;
+      const dt = now() - st.t0, vx = dt > 0 ? dx / dt : 0;
+      const c = cur();
+      if (st.edge) {
+        // Past the threshold → hand straight off to the caller's exit animation (the App slides the
+        // whole profile off to reveal the feed); otherwise snap the peek back. No half-slide/pop.
+        if (dx > st.w * 0.25 || vx > 0.4) { haptic(); if (onEdgeBack) onEdgeBack(); }
+        else if (c) { c.style.transition = EASE; setX(c, 0); }
+        return;
+      }
+      const n = nbr();
+      const dirMatch = st.dir === 1 ? dx < 0 : dx > 0;
+      const commit = dirMatch && (Math.abs(dx) > st.w * 0.28 || Math.abs(vx) > 0.4);
+      if (c) c.style.transition = EASE; if (n) n.style.transition = EASE;
+      if (commit) {
+        setX(c, -st.dir * st.w); setX(n, 0);
+        const target = tabs[tabs.indexOf(tab) + st.dir];
+        if (onLead) onLead(target);
+        setTimeout(() => { haptic(); flushSync(() => { setTab(target); setNbrTab(null); }); const only = vp.querySelector("[data-page]"); if (only) { only.style.transition = "none"; only.style.transform = "translate3d(0,0,0)"; } }, DUR + 20);
+      } else {
+        setX(c, 0); setX(n, st.dir * st.w);
+        setTimeout(() => { setNbrTab(null); const only = vp.querySelector("[data-page]"); if (only) only.style.transition = "none"; }, DUR + 20);
+      }
+    };
+    vp.addEventListener("touchstart", start, { passive: true });
+    vp.addEventListener("touchmove", move, { passive: false });
+    vp.addEventListener("touchend", end, { passive: true });
+    vp.addEventListener("touchcancel", end, { passive: true });
+    return () => { vp.removeEventListener("touchstart", start); vp.removeEventListener("touchmove", move); vp.removeEventListener("touchend", end); vp.removeEventListener("touchcancel", end); };
+  }, [tab, tabs, onLead, onEdgeBack, setTab]);
+
+  return (
+    <div ref={viewportRef} className="relative h-full" style={{ overflow: "hidden" }}>
+      {(nbrTab ? [tab, nbrTab] : [tab]).map((t) => (
+        <div key={t} data-page={t} className={"pp-scroll absolute inset-0 overflow-y-auto " + pageClassName} style={{ overscrollBehaviorY: "contain", WebkitOverflowScrolling: "touch", willChange: "transform" }}
+          onClickCapture={onPageClickCapture ? (e) => onPageClickCapture(e, t) : undefined}>
+          {render(t)}
+        </div>
+      ))}
     </div>
   );
 }
@@ -6646,43 +8853,68 @@ export function CompanyProfile({ onBack, onScan, tab: controlledTab, onTabChange
   const tab = controlledTab ?? innerTab;
   const setTab = (t) => { if (onTabChange) onTabChange(t); else setInnerTab(t); };
   const [brief, setBrief] = useState(false);
-  const [following, setFollowing] = useState(true);
+  // Follow state is persisted per company via listStore (was a hardcoded `true`).
+  const listSlug = currentSlug() || "company";
+  const [, bumpList] = useState(0);
+  useEffect(() => listStore.sub(() => bumpList((x) => x + 1)), []);
+  const following = listStore.has("following", listSlug);
+  const setFollowing = (v) => listStore.set("following", listSlug, typeof v === "function" ? v(following) : v);
+  // Company Status flip state, persisted for the whole profile session so switching tabs and
+  // returning doesn't replay the intro; resets naturally when this component remounts (profile
+  // fully left and re-entered).
+  const [ovFlipped, setOvFlipped] = useState(false);
+  const ovIntroDone = useRef(false);
   const [bookmarked, setBookmarked] = useState(false);
   const [saved, setSaved] = useState([]);
   const [overlay, setOverlay] = useState(null);
   const [dm, setDm] = useState(false);
   const companyDm = {
-    id: "kingsmen",
+    id: currentSlug() || "company",
     name: COMPANY.name,
-    sub: "Investor Relations · TSXV:KNG",
-    mono: "KR",
-    c: "#1e3a8a",
-    seed: [{ from: "them", text: "Thanks for reaching out — how can the Kingsmen team help?" }],
+    sub: "Investor Relations",
+    mono: (COMPANY.name || "?").replace(/[^A-Za-z]/g, "").slice(0, 2).toUpperCase() || "•",
+    c: EM || "#1e3a8a",
   };
+
+  // Instagram-style paged swipe: the current page follows your finger and the neighbour
+  // page is revealed alongside it, snapping to the next/previous tab on release. Swipes
+  // that START inside a horizontal carousel (the Highlights carousel, a project image
+  // gallery, any overflow-x scroller) are ignored so those keep their own swipe behaviour.
+  const PAGE_TABS = ["overview", "projects", "timeline", "capital", "team", "updates"];
+  const [swipeTarget, setSwipeTarget] = useState(null);  // leads the header highlight the instant a swipe commits
+  useEffect(() => { setSwipeTarget(null); }, [tab]);   // once the tab actually settles, drop the lead
+  // The header morphs between the tall overview hero and the compact page bar. Drive BOTH its
+  // type and its highlight from swipeTarget so the whole header leads the swipe (not just the
+  // icon), and animate its height so the size change is a smooth morph — not the snap that read
+  // as a "glitch" at swipe-commit. Height is measured off the live header so it adapts to any
+  // company (longer slogans, contact rows, etc.).
+  // ONE consistent header on every tab (the tab highlight still leads via swipeTarget). A single
+  // fixed-height header means the content area never resizes when you swipe between tabs — so
+  // there's no header grow/shrink and no "card gets large then shrinks" reflow. Fully seamless.
+  const displayTab = swipeTarget ?? tab;
+
+  const renderTab = (t) => (
+    <div className={"pp-view " + (t === "timeline" ? "" : t === "overview" ? "h-full" : "min-h-full")}>
+      {t === "overview" && <Overview tab={t} goto={setTab} openBrief={() => setBrief(true)} following={following} setFollowing={setFollowing} bookmarked={bookmarked} setBookmarked={setBookmarked} saved={saved} openCompare={() => setOverlay("compare")} openWatchlist={() => setOverlay("watchlist")} openConference={() => setOverlay("conference")} initialFlipped={ovFlipped} introDone={ovIntroDone.current} onFlip={setOvFlipped} onIntroDone={() => { ovIntroDone.current = true; }} />}
+      {t === "projects" && <ProjectsView />}
+      {t === "timeline" && <TimelineView />}
+      {t === "capital" && <CapitalView />}
+      {t === "team" && <TeamView onOpenCompany={() => setTab("overview")} />}
+      {t === "updates" && <UpdatesView />}
+    </div>
+  );
 
   return (
     <div className="flex h-full flex-col pp-fade" style={{ background: "#ffffff" }}>
       <div className="flex-shrink-0" style={{ background: "linear-gradient(180deg, #F1F6FD 0%, #F8FBFE 55%, #FFFFFF 100%)" }}>
-        {tab === "overview"
-          ? <ProfileHeader onBack={onBack} onMessage={() => setDm(true)} tab={tab} setTab={setTab} following={following} setFollowing={setFollowing} />
-          : <PageBar onBack={onBack} tab={tab} setTab={setTab} following={following} setFollowing={setFollowing} />}
+        <ProfileHeader onBack={onBack} onMessage={() => setDm(true)} tab={displayTab} setTab={setTab} following={following} setFollowing={setFollowing} />
       </div>
-      <div key={tab} className={"pp-scroll flex-1 overflow-y-auto pb-24" + (INSPECT ? " pp-inspect" : "")} style={{ overscrollBehaviorY: "contain", WebkitOverflowScrolling: "touch" }}
-        onClickCapture={INSPECT ? (e) => {
-          // Intercept the tap: find the nearest field-tagged element, else fall back to
-          // the current section. Never let the tap trigger the widget's own action.
-          const el = e.target.closest("[data-fc]");
-          e.preventDefault(); e.stopPropagation();
-          fcPost(el ? el.getAttribute("data-fc") : "", TAB_SECTION[tab] || "");
-        } : undefined}>
-        <div className={"pp-view " + (tab === "timeline" ? "" : tab === "overview" ? "h-full" : "min-h-full")}>
-          {tab === "overview" && <Overview tab={tab} goto={setTab} openBrief={() => setBrief(true)} following={following} setFollowing={setFollowing} bookmarked={bookmarked} setBookmarked={setBookmarked} saved={saved} openCompare={() => setOverlay("compare")} openWatchlist={() => setOverlay("watchlist")} openConference={() => setOverlay("conference")} />}
-          {tab === "projects" && <ProjectsView />}
-          {tab === "timeline" && <TimelineView />}
-          {tab === "capital" && <CapitalView />}
-          {tab === "team" && <TeamView onOpenCompany={() => setTab("overview")} />}
-          {tab === "updates" && <UpdatesView />}
-        </div>
+      <div className="flex-1" style={{ minHeight: 0 }}>
+        <SwipePager
+          tabs={PAGE_TABS} tab={tab} setTab={setTab} render={renderTab} pageClassName="pb-24"
+          onLead={setSwipeTarget} onEdgeBack={onBack}
+          onPageClickCapture={INSPECT ? (e, t) => { if (t !== tab) return; const el = e.target.closest("[data-fc]"); e.preventDefault(); e.stopPropagation(); fcPost(el ? el.getAttribute("data-fc") : "", TAB_SECTION[tab] || ""); } : undefined}
+        />
       </div>
       {dm && <MessageThread convo={companyDm} onBack={() => setDm(false)} />}
       {brief && <BriefOverlay onClose={() => setBrief(false)} />}
@@ -7999,6 +10231,10 @@ export default function App({ guest = false } = {}) {
   const [focused, setFocused] = useState(() => {
     try { const p = new URLSearchParams(window.location.search); return p.has("qr") || p.get("view") === "card"; } catch (_) { return false; }
   });
+  // Leaving a profile SLIDES the whole profile off to the right to reveal the feed that's kept
+  // mounted behind it — instead of the old hard cut (drag the page halfway, then pop the feed in).
+  const [exiting, setExiting] = useState(false);
+  const beginExit = () => setExiting((e) => e || true);
   const [followed] = useState([]); // a fresh investor follows nobody yet (honest empty state)
   const [companyKey, setCompanyKey] = useState(0);   // bumped to remount CompanyProfile on an in-app company swap
   const [loadingCo, setLoadingCo] = useState(false); // brief overlay while a company's data loads
@@ -8077,6 +10313,20 @@ export default function App({ guest = false } = {}) {
     if (curSlug()) { try { window.history.pushState({}, "", "/app"); } catch (_) {} }
   };
   const goNav = (n) => { leaveCompany(); setNav(n); };
+
+  // Home-app horizontal paging: the bottom-nav tabs are swipeable in this fixed order
+  // (matching BottomNav). "scan" is a full-screen overlay reached from the header, not a
+  // page in the pager. navLead moves the bottom-nav highlight the instant a swipe commits.
+  const NAV_TABS = ["today", "explore", "messages", "following", "profile"];
+  const [navLead, setNavLead] = useState(null);
+  useEffect(() => { setNavLead(null); }, [nav]);   // drop the lead once the tab settles
+  const renderNav = (n) =>
+    n === "today" ? <TodayScreen onOpenCompany={openCompany} onScan={() => setNav("scan")} />
+    : n === "explore" ? <DiscoverScreen onOpenCompany={openCompany} onScan={() => setNav("scan")} />
+    : n === "messages" ? <MessagesScreen onOpenCompany={openCompany} />
+    : n === "following" ? <FollowingScreen followed={followed} onOpenCompany={openCompany} onScan={() => setNav("scan")} />
+    : n === "profile" ? <ProfileScreen onScan={() => setNav("scan")} />
+    : null;
 
   // Browser/OS back & forward: sync the view to the URL rather than reloading the page.
   useEffect(() => {
@@ -8159,16 +10409,21 @@ export default function App({ guest = false } = {}) {
             </div>
           )}
           <div className="relative flex-1 overflow-hidden">
-            {inCompany ? (
-              <CompanyProfile key={companyKey} onBack={leaveCompany} onScan={() => { leaveCompany(); setNav("scan"); }} />
+            {/* FEED layer — kept mounted behind the profile so an exit-swipe reveals it instantly */}
+            {nav === "scan" ? (
+              <div key="scan" className="absolute inset-0 h-full pp-fade">
+                <ScanScreen onDetected={() => { setNav("today"); openCompany(); }} onClose={() => setNav("today")} />
+              </div>
             ) : (
-              <div key={nav} className="h-full pp-fade">
-                {nav === "today" && <TodayScreen onOpenCompany={openCompany} onScan={() => setNav("scan")} />}
-                {nav === "explore" && <DiscoverScreen onOpenCompany={openCompany} onScan={() => setNav("scan")} />}
-                {nav === "following" && <FollowingScreen followed={followed} onOpenCompany={openCompany} onScan={() => setNav("scan")} />}
-                {nav === "scan" && <ScanScreen onDetected={() => { setNav("today"); openCompany(); }} onClose={() => setNav("today")} />}
-                {nav === "messages" && <MessagesScreen onOpenCompany={openCompany} />}
-                {nav === "profile" && <ProfileScreen onScan={() => setNav("scan")} />}
+              <div className="absolute inset-0">
+                <SwipePager tabs={NAV_TABS} tab={nav} setTab={setNav} render={renderNav} onLead={setNavLead} />
+              </div>
+            )}
+            {/* PROFILE layer — sits above the feed and slides off to the right on exit */}
+            {(inCompany || exiting) && (
+              <div className="absolute inset-0" style={{ background: "#ffffff", zIndex: 5, transform: exiting ? "translateX(100%)" : "translateX(0)", transition: exiting ? "transform .36s cubic-bezier(0.22,1,0.36,1)" : "none", boxShadow: "-10px 0 30px -14px rgba(15,23,42,0.28)", willChange: "transform" }}
+                onTransitionEnd={(e) => { if (exiting && e.propertyName === "transform") { setExiting(false); leaveCompany(); } }}>
+                <CompanyProfile key={companyKey} onBack={beginExit} onScan={() => { leaveCompany(); setNav("scan"); }} />
               </div>
             )}
             {loadingCo && (
@@ -8177,7 +10432,7 @@ export default function App({ guest = false } = {}) {
               </div>
             )}
           </div>
-          {!(focused && inCompany) && <BottomNav nav={inCompany ? null : nav} setNav={goNav} />}
+          {!(focused && inCompany) && <BottomNav nav={inCompany ? null : (navLead ?? nav)} setNav={goNav} />}
         </div>
       </div>
     </div>
