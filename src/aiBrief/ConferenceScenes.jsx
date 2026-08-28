@@ -31,6 +31,7 @@ import {
 const EASE = "cubic-bezier(0.22, 1, 0.36, 1)";
 const TRANS_MS = 500;          // section/beat transition duration = the lock window (fast, decisive)
 const WHEEL_TH = 28;           // trackpad/mouse-wheel accumulation threshold (light)
+const WHEEL_COOLDOWN = 560;    // fixed lock after a wheel step — swallows the trackpad's inertial tail
 const TOUCH_TH = 24;           // finger travel to trigger — a small, deliberate flick is enough
 
 export function ConferenceScenes() {
@@ -310,11 +311,8 @@ export function ConferenceScenes() {
   const [index, setIndexState] = useState(0);
   totalRef.current = total;
 
-  const bumpIdle = useCallback(() => {
-    clearTimeout(idleRef.current);
-    const ms = (Number(conf.kioskIdleTimeout) > 0 ? Number(conf.kioskIdleTimeout) : 45) * 1000;
-    idleRef.current = setTimeout(() => { if (idxRef.current !== 0 && !lockRef.current) { lockRef.current = true; idxRef.current = 0; setIndexState(0); clearTimeout(unlockRef.current); unlockRef.current = setTimeout(() => { lockRef.current = false; }, TRANS_MS); } }, ms);
-  }, [conf.kioskIdleTimeout]);
+  // Idle attract-reset intentionally disabled: the deck stays wherever the presenter left it.
+  const bumpIdle = useCallback(() => {}, []);
 
   const commit = useCallback((next) => {
     const cur = idxRef.current;
@@ -329,19 +327,23 @@ export function ConferenceScenes() {
 
   useEffect(() => {
     const root = rootRef.current; if (!root) return;
-    // Momentum-aware wheel: one intentional gesture = one state. After a step fires we stay
-    // `wheelLocked` until wheel events actually STOP for a quiet gap — so a hard flick's inertial
-    // tail can't fire a second step once the transition lock releases. Only a fresh, deliberate
-    // scroll (after the quiet gap) advances again.
-    let wheelAccum = 0, wheelIdle = null, wheelLocked = false, ty = null, consumed = false;
+    // Momentum-aware wheel: one intentional gesture = one state. After a step fires we hold a SHORT
+    // FIXED cooldown (not "until events stop") — a trackpad's inertial tail keeps firing events, so a
+    // stop-based lock would never release until you physically tap to cancel the inertia. The fixed
+    // cooldown swallows the tail, then the next deliberate swipe advances immediately. A separate quiet
+    // gap resets the accumulator so slow drift doesn't creep across gestures.
+    let wheelAccum = 0, wheelAccumIdle = null, wheelCd = null, wheelLocked = false, ty = null, consumed = false;
     const onWheel = (e) => {
       e.preventDefault();
-      clearTimeout(wheelIdle);
-      wheelIdle = setTimeout(() => { wheelLocked = false; wheelAccum = 0; }, 140);
-      if (wheelLocked || lockRef.current) { wheelAccum = 0; return; }
+      clearTimeout(wheelAccumIdle);
+      wheelAccumIdle = setTimeout(() => { wheelAccum = 0; }, 120);
+      if (wheelLocked || lockRef.current) return;
       wheelAccum += e.deltaY;
-      if (Math.abs(wheelAccum) > WHEEL_TH) { const d = wheelAccum > 0 ? 1 : -1; wheelAccum = 0; wheelLocked = true; go(d); }
-      bumpIdle();
+      if (Math.abs(wheelAccum) > WHEEL_TH) {
+        const d = wheelAccum > 0 ? 1 : -1; wheelAccum = 0; wheelLocked = true;
+        clearTimeout(wheelCd); wheelCd = setTimeout(() => { wheelLocked = false; }, WHEEL_COOLDOWN);
+        go(d);
+      }
     };
     // Touch: accept the swipe the MOMENT intent is clear (mid-gesture), then take control and
     // animate — the finger never has to drag the page or reach the bottom to "release" the step.
@@ -372,7 +374,7 @@ export function ConferenceScenes() {
       root.removeEventListener("wheel", onWheel); root.removeEventListener("touchstart", onTS);
       root.removeEventListener("touchmove", onTM); root.removeEventListener("touchend", onTE);
       window.removeEventListener("keydown", onKey);
-      clearTimeout(wheelIdle); clearTimeout(unlockRef.current); clearTimeout(idleRef.current);
+      clearTimeout(wheelAccumIdle); clearTimeout(wheelCd); clearTimeout(unlockRef.current); clearTimeout(idleRef.current);
     };
   }, [go, goTo, bumpIdle]);
 
