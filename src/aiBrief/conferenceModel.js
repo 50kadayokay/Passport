@@ -78,6 +78,32 @@ const GEO_COUNTRIES = {
 const _sortByLen = (obj) => Object.entries(obj).sort((a, b) => b[0].length - a[0].length);
 const _GEO_REGIONS_S = _sortByLen(GEO_REGIONS);
 const _GEO_COUNTRIES_S = _sortByLen(GEO_COUNTRIES);
+// Exact project-site coordinates for the fly-to's final destination + marker. Keyed by
+// normalized project name; `sat` names an embedded ESRI terrain crop (renderer side). This
+// is the PROJECT (e.g. El Quevar, ~300km NW of Salta city), NOT the province centroid —
+// so the camera lands on the real deposit, not the capital. Explicit lat/lng in the project
+// data always wins over this table.
+const KNOWN_SITES = {
+  "el quevar": { lat: -24.3356, lng: -66.7825, sat: "elquevar" },
+};
+const _num = (v) => { const n = Number(v); return Number.isFinite(n) ? n : null; };
+function resolveProjectSite(projects, region) {
+  const norm = (s) => S(s).toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
+  for (const p of projects) {
+    if (!p) continue;
+    const name = clean(p.name); if (!name) continue;
+    // 1) explicit coordinates in the data
+    const c = p.coordinates || p.coords || {};
+    const lat = _num(p.latitude) ?? _num(p.lat) ?? _num(c.lat) ?? _num(c.latitude);
+    const lng = _num(p.longitude) ?? _num(p.lng) ?? _num(c.lng) ?? _num(c.longitude);
+    if (lat != null && lng != null) return { lat, lng, name, region: clean(region), sat: null };
+    // 2) known project site
+    const k = KNOWN_SITES[norm(name)];
+    if (k) return { lat: k.lat, lng: k.lng, name, region: clean(region), sat: k.sat || null };
+  }
+  return null;
+}
+
 // Canonicalize a region key to the key used in PROVINCE_SHAPES (renderer side).
 const _GEO_CANON = { cuzco: "cusco", labrador: "newfoundland" };
 function resolveJurisdictionCoords(candidates) {
@@ -269,10 +295,12 @@ export function buildConferenceModel(ctx = {}) {
     co.jurisdiction, co.location, conf.region, conf.jurisdiction,
     flagship.locationFull, flagship.location,
   ]);
+  const jurSite = resolveProjectSite([flagship, ...projects.filter((p) => p !== flagship)], co.jurisdiction);
   const jurisdiction = {
     eyebrow: "Jurisdiction",
     title: clean(co.jurisdiction) || "The District",
     coords: jurCoords,
+    site: jurSite,
     narrative: jurNarrative,
     districtContext: clean(conf.districtContext),
     regionalGeology: clean(conf.regionalGeology),
