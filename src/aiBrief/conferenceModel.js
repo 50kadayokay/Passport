@@ -78,17 +78,22 @@ const GEO_COUNTRIES = {
 const _sortByLen = (obj) => Object.entries(obj).sort((a, b) => b[0].length - a[0].length);
 const _GEO_REGIONS_S = _sortByLen(GEO_REGIONS);
 const _GEO_COUNTRIES_S = _sortByLen(GEO_COUNTRIES);
+// Canonicalize a region key to the key used in PROVINCE_SHAPES (renderer side).
+const _GEO_CANON = { cuzco: "cusco", labrador: "newfoundland" };
 function resolveJurisdictionCoords(candidates) {
   const norm = (s) =>
     S(s).toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "")
       .replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
   const text = (candidates || []).map(norm).filter(Boolean).join(" , ");
   if (!text) return null;
-  for (const table of [_GEO_REGIONS_S, _GEO_COUNTRIES_S]) {
-    for (const [key, ll] of table) {
-      const re = new RegExp("\\b" + key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\b");
-      if (re.test(text)) return { lng: ll[0], lat: ll[1] };
-    }
+  // Regions first (returns a `key` the renderer maps to a province outline); then countries (no key).
+  for (const [key, ll] of _GEO_REGIONS_S) {
+    const re = new RegExp("\\b" + key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\b");
+    if (re.test(text)) return { lng: ll[0], lat: ll[1], key: _GEO_CANON[key] || key };
+  }
+  for (const [key, ll] of _GEO_COUNTRIES_S) {
+    const re = new RegExp("\\b" + key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\b");
+    if (re.test(text)) return { lng: ll[0], lat: ll[1], key: null };
   }
   return null;
 }
