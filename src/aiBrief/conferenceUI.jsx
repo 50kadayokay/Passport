@@ -205,7 +205,8 @@ function SectionPanel({ tone, count, local, active, reduce, render }) {
             // Beats slide vertically too (active at 0, later beats below, earlier above) so every
             // swipe — within a topic or between topics — is a consistent page slide-up.
             transform: `translateY(${(i - lc) * 100}%)`,
-            transition: reduce ? "none" : `transform 480ms ${EASE}`,
+            // Match the section slide: long, smooth ease-in-out glide (not the snappy content ease).
+            transition: reduce ? "none" : `transform 780ms cubic-bezier(0.76,0,0.24,1)`,
             pointerEvents: on ? "auto" : "none",
             willChange: "transform",
           }}>

@@ -28,11 +28,11 @@ import {
   STATUS, STATUS_IMG, TEAM_MEMBERS,
 } from "./PassportProto.jsx";
 
-const EASE = "cubic-bezier(0.22, 1, 0.36, 1)";
-const TRANS_MS = 500;          // section/beat transition duration = the lock window (fast, decisive)
-const WHEEL_TH = 28;           // trackpad/mouse-wheel accumulation threshold (light)
-const WHEEL_COOLDOWN = 560;    // fixed lock after a wheel step — swallows the trackpad's inertial tail
-const TOUCH_TH = 24;           // finger travel to trigger — a small, deliberate flick is enough
+const EASE = "cubic-bezier(0.76, 0, 0.24, 1)"; // smooth ease-in-out glide (accelerate → settle), premium
+const TRANS_MS = 780;          // slide duration = the lock window — long & deliberate, not snappy
+const WHEEL_TH = 58;           // trackpad/mouse-wheel accumulation threshold — needs a fuller, deliberate scroll
+const WHEEL_COOLDOWN = 860;    // fixed lock after a wheel step — outlasts the slide + swallows the inertial tail
+const TOUCH_TH = 52;           // finger travel to trigger — a real, deliberate swipe, not a twitch
 
 export function ConferenceScenes() {
   const S = (x) => (x == null ? "" : String(x));
@@ -409,7 +409,7 @@ export function ConferenceScenes() {
             // Pages slide vertically: the active page sits at 0, later pages wait one screen below,
             // earlier ones one screen above. Advancing a topic slides the page UP. Pure slide (no fade).
             transform: `translateY(${(si - activeSection) * 100}%)`,
-            transition: reduce ? "none" : `transform 500ms ${EASE}`,
+            transition: reduce ? "none" : `transform ${TRANS_MS}ms ${EASE}`,
             pointerEvents: isActive ? "auto" : "none",
             willChange: "transform",
           }}>
