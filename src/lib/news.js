@@ -17,7 +17,12 @@ const USE_FIXTURES = (import.meta && import.meta.env && import.meta.env.VITE_NEW
 export async function fetchLiveNews(limit = 60) {
   if (USE_FIXTURES) return newsFixtures.slice(0, limit);
   try {
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/news_public?select=*&order=published_at.desc&limit=${limit}`, { headers: anon });
+    // Recency safeguard: only surface news from the last 30 days so stale items can
+    // never fill the feed (matches the company-release cutoff in main.jsx).
+    const cutoff = new Date(Date.now() - 30 * 86400000).toISOString();
+    // cache:"no-store" forces a fresh network hit so pull-to-refresh surfaces newly
+    // published stories (a URL cache-buster param is rejected by PostgREST → don't add one).
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/news_public?select=*&published_at=gte.${encodeURIComponent(cutoff)}&order=published_at.desc&limit=${limit}`, { headers: anon, cache: "no-store" });
     if (!res.ok) return [];
     const rows = await res.json().catch(() => []);
     return Array.isArray(rows) ? rows : [];

@@ -6,7 +6,7 @@ import { ScreenHeader, ScanButton, SectionLabel, MonoTile, Pct } from "../compon
 const ACT_ICON = { drill: Pickaxe, market: TrendingUp, doc: FileText, globe: Globe, video: Video };
 const KIND_STYLE = {
   COMPANY: "text-indigo-500 bg-indigo-50",
-  MARKET: "text-emerald-600 bg-emerald-50",
+  MARKET: "text-blue-600 bg-blue-50",
   INDUSTRY: "text-amber-600 bg-amber-50",
 };
 
@@ -87,7 +87,7 @@ export default function Today({ onOpen }) {
                 <div className="flex items-center gap-2">
                   <span className={`rounded-md px-1.5 py-0.5 text-[11px] font-bold uppercase tracking-wider ${KIND_STYLE[a.kind]}`}>{a.kind}</span>
                   <span className="truncate text-[14px] font-semibold text-slate-700">{a.who}</span>
-                  {a.verified && <BadgeCheck size={15} className="flex-shrink-0 text-emerald-500" />}
+                  {a.verified && <BadgeCheck size={15} className="flex-shrink-0 text-blue-500" />}
                   <span className="ml-auto flex-shrink-0 text-[13px] font-medium text-slate-400">{a.time}</span>
                 </div>
                 <p className="mt-1 text-[16px] font-bold leading-snug text-slate-900">{a.title}</p>

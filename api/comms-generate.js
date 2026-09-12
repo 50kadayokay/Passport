@@ -15,8 +15,11 @@
 
 import { requireFeature } from "./_entitlement.js";
 
-const MODEL = process.env.AI_MODEL || "claude-sonnet-5";
-const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
+// OpenAI (same provider + billing as the news pipeline). gpt-4o-mini is ~$0.001 per
+// generation; override per-deploy with COMMS_MODEL (e.g. gpt-4o) if a channel needs
+// sharper prose. Kept independent of the news AI_MODEL so tuning one never breaks the other.
+const MODEL = process.env.COMMS_MODEL || "gpt-4o-mini";
+const OPENAI_URL = "https://api.openai.com/v1/chat/completions";
 
 // Each destination the engine can draft for, with the shape its content takes and
 // the feature that unlocks it. Passport (the profile itself) and push are always
@@ -86,8 +89,8 @@ export const config = { maxDuration: 60 };
 
 export default async function handler(req, res) {
   if (req.method !== "POST") return bad(res, 405, "Method not allowed");
-  const key = process.env.ANTHROPIC_API_KEY;
-  if (!key) return bad(res, 500, "Server not configured: ANTHROPIC_API_KEY is missing.");
+  const key = process.env.OPENAI_API_KEY;
+  if (!key) return bad(res, 500, "Server not configured: OPENAI_API_KEY is missing.");
 
   let body = req.body;
   if (typeof body === "string") { try { body = JSON.parse(body); } catch { return bad(res, 400, "Invalid JSON body"); } }
@@ -120,16 +123,19 @@ export default async function handler(req, res) {
     `Return one draft per destination plus which profile sections to review.`;
 
   try {
-    const r = await fetch(ANTHROPIC_URL, {
+    const r = await fetch(OPENAI_URL, {
       method: "POST",
-      headers: { "content-type": "application/json", "x-api-key": key, "anthropic-version": "2023-06-01" },
+      headers: { "content-type": "application/json", authorization: `Bearer ${key}` },
       body: JSON.stringify({
         model: MODEL,
         max_tokens: 3000,
-        system: SYSTEM,
-        tools: [DETECT_TOOL],
-        tool_choice: { type: "tool", name: DETECT_TOOL.name },
-        messages: [{ role: "user", content: userMsg }],
+        messages: [
+          { role: "system", content: SYSTEM },
+          { role: "user", content: userMsg },
+        ],
+        // Force the structured plan via a function call (same trick the news pipeline uses).
+        tools: [{ type: "function", function: { name: DETECT_TOOL.name, description: DETECT_TOOL.description, parameters: DETECT_TOOL.input_schema } }],
+        tool_choice: { type: "function", function: { name: DETECT_TOOL.name } },
       }),
     });
     if (!r.ok) {
@@ -137,10 +143,10 @@ export default async function handler(req, res) {
       return bad(res, 502, `AI provider error (${r.status}): ${detail.slice(0, 300)}`);
     }
     const data = await r.json();
-    const block = (data.content || []).find((b) => b.type === "tool_use");
-    if (!block || !block.input) return bad(res, 502, "AI returned no plan.");
-
-    const plan = block.input;
+    const call = data && data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.tool_calls && data.choices[0].message.tool_calls[0];
+    if (!call || !call.function || !call.function.arguments) return bad(res, 502, "AI returned no plan.");
+    let plan;
+    try { plan = JSON.parse(call.function.arguments); } catch { return bad(res, 502, "AI returned an unparseable plan."); }
     // Only hand back drafts for channels we actually requested (defends against
     // the model inventing a destination).
     plan.drafts = (plan.drafts || []).filter((d) => channels.includes(d.destination));

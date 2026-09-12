@@ -158,14 +158,26 @@ export function activityOf(co) {
 // be a separate, labelled boost, not folded into this organic score.)
 export function recommendedScore(co) {
   let s = 0;
-  if (co.tier !== "listing") s += 1000;              // claimed/rich profiles first
+  // Paid placement — an explicit, LABELLED boost (surfaced as "Featured" in the UI),
+  // deliberately separate from the organic completeness signal below.
+  if (co.tier === "pro") s += 3000;
+  else if (co.tier === "basic") s += 2000;
+  else if (co.tier && co.tier !== "listing") s += 1500; // any other claimed tier
+  // Profile completeness — real, populated profiles surface above thin shells.
   if (co.commodity) s += 6;
   if (co.region) s += 6;
+  if (co.stage) s += 4;
+  if (co.headquarters) s += 3;
   if (co.website) s += 5;
-  if (co.brief && !/^.+ is a TSX Venture-listed mineral exploration company\.$/.test(co.brief)) s += 5; // non-generic description
+  if (co.logo) s += 4;
+  // A real, non-generic description (not the "…is a CSE/TSXV-listed mineral company"
+  // or "Auto-listed from a press release" fallbacks).
+  if (co.brief && !/is a (TSX Venture|TSXV|CSE)[- ]listed mineral( exploration)? company\.?\s*$/i.test(co.brief) && !/Auto-listed from a press release/i.test(co.brief)) s += 8;
   s += activityOf(co).length;                        // some visible activity
   return s;
 }
+// Is this a paid/claimed profile that should carry the "Featured" label?
+export function isFeatured(co) { return !!(co && co.tier && co.tier !== "listing"); }
 
 /* ============================ shared helpers ============================ */
 // Build [{ value, count }] options for a facet, sorted by count desc.

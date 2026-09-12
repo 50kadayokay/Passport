@@ -13,7 +13,7 @@ export default function Following({ onOpen }) {
     <div className="pp-fade pb-6">
       <div className="flex items-start justify-between px-5 pt-3 pb-1">
         <div>
-          <p className="text-[13px] font-bold uppercase tracking-[0.16em] text-emerald-600">Your Workspace</p>
+          <p className="text-[13px] font-bold uppercase tracking-[0.16em] text-blue-600">Your Workspace</p>
           <h1 className="mt-1 text-[34px] font-extrabold leading-none tracking-tight text-slate-900">Following</h1>
         </div>
         <div className="flex items-center gap-2.5">

@@ -3,6 +3,7 @@ import { createPortal, flushSync } from "react-dom";
 import { fetchCompany, SUPABASE_URL, SUPABASE_ANON } from "../lib/supabase.js";
 import { API_BASE } from "../lib/platform.js";
 import QRCode from "qrcode";
+import jsQR from "jsqr"; // pure-JS QR decode — works on iOS WebKit (BarcodeDetector doesn't)
 import { buildCompanyIdentity } from "./proHighlights.js";
 
 // The app's outermost frame element. Full-screen overlays (e.g. the CEO profile)
@@ -11,6 +12,16 @@ import { buildCompanyIdentity } from "./proHighlights.js";
 // landscape it's the counter-rotated container, so portaled overlays stay locked
 // to portrait too.
 let ppFrameEl = null;
+// Lets an embedder (e.g. the portal's live profile preview) route the app's portaled
+// bottom-sheets into ITS OWN phone frame instead of document.body — otherwise a sheet's
+// `absolute inset-0` resolves against the body and fills the whole browser window. Pass the
+// preview's positioned frame element on mount, and null on unmount so the real app reclaims it.
+export function setPpFrame(el) { ppFrameEl = el || null; }
+// Preview-only: when an embedder (the portal editor) turns this on, the profile skips its
+// one-time intro (the status-card fade + auto-flip) so it can be re-rendered live on every
+// keystroke without a washed-out re-animation. Defaults OFF → the real app is unaffected.
+let ppPreviewLive = false;
+export function setPpPreviewLive(v) { ppPreviewLive = !!v; }
 import {
   Home, Clock, Map as MapIcon, PieChart, Users,
   BadgeCheck, Bookmark, Plus, Check, Zap, X,
@@ -25,10 +36,12 @@ import {
   Trash2, Briefcase, Instagram, Share2
 } from "lucide-react";
 import { signOut, getUser, getAccessToken, authHeaders, onAuthChange, requestPasswordReset } from "../lib/auth.js";
+import { registerPush } from "../lib/push.js"; // native push registration (no-op on web)
 import * as investorData from "../lib/investorData.js";
 import * as discovery from "../lib/discovery.js";
 import { mockEnabled, buildMockNewsroom, disableMock } from "./mockNewsroom.js"; // DEV-ONLY Mock Newsroom (delete to remove)
 import { fetchLiveNews } from "../lib/news.js"; // approved real news (public view)
+import { fetchCompanyFeedPosts, recordPostEvent } from "../lib/feed.js"; // company posts (press releases + media), server-ranked + engagement
 import PullToRefresh from "./PullToRefresh.jsx"; // swipe-down refresh on the feed
 import { resolveWidgets, resolveProjectWidgets, widgetText } from "../lib/conferenceWidgets.js";
 import { ConferenceScenes } from "./ConferenceScenes.jsx";
@@ -39,8 +52,8 @@ import { ConferenceScenes } from "./ConferenceScenes.jsx";
    ============================================================ */
 
 // Brand accent — defaults to emerald, overridden by the company's BRAND colour (via pp / applyPP).
-export let EM = ((typeof window !== "undefined" && window.__PP__ && window.__PP__.BRAND) || "#059669");
-export let EM_TEXT = ((typeof window !== "undefined" && window.__PP__ && window.__PP__.BRAND_TEXT) || "#047857");
+export let EM = ((typeof window !== "undefined" && window.__PP__ && window.__PP__.BRAND) || "#2563eb");
+export let EM_TEXT = ((typeof window !== "undefined" && window.__PP__ && window.__PP__.BRAND_TEXT) || "#1d4ed8");
 
 // ---- Icon registry --------------------------------------------------------
 // Project data arrives from Supabase as JSON, which cannot carry a React
@@ -71,7 +84,7 @@ const withIcon = (o, fallback = Info) => ({ ...o, Icon: resolveIcon(o && (o.Icon
 // ---- Section identity system (subtle accents over white/black) ----
 // Each section reads as a distinct "environment" while emerald stays the brand.
 const THEME = {
-  overview: { key: "Company",     c: "#10b981", t: "#0f9b73", g: ["#06281d", "#0f3d2e"], soft: "rgba(16,185,129,0.10)" }, // emerald
+  overview: { key: "Company",     c: "#3b82f6", t: "#1d4ed8", g: ["#0a1f38", "#0f2f4d"], soft: "rgba(37,99,235,0.10)" }, // emerald
   timeline: { key: "Progress",    c: "#2563eb", t: "#1d4ed8", g: ["#0b1f4d", "#10306e"], soft: "rgba(37,99,235,0.10)" },  // electric blue
   projects: { key: "Assets",      c: "#ea580c", t: "#c2410c", g: ["#3a2606", "#5c3d0f"], soft: "rgba(234,88,12,0.12)" }, // warm orange
   capital:  { key: "Financials",  c: "#7c3aed", t: "#6d28d9", g: ["#2a1259", "#3b1d7a"], soft: "rgba(124,58,237,0.10)" }, // premium purple
@@ -125,6 +138,10 @@ function TypeIn({ text, speed = 16 }) {
 
 // Live company data injected from Supabase before mount; falls back to the built-in reference data.
 const _PP = (typeof window !== "undefined" && window.__PP__) || {};
+// Account plan tier (free/basic/pro) — gates how much of the profile investors see. Free
+// renders the compact BasicListing (pp.TIER==="listing"); BASIC = Overview + Timeline only;
+// PRO (or unknown, so existing companies are unaffected) = the full tabbed profile.
+let ACCOUNT_TIER = String(_PP.ACCOUNT_TIER || "").toLowerCase();
 
 // FACT-CHECK INSPECT MODE — when the app is embedded in the admin preview with
 // ?inspect=1, clicking any widget posts its field key up to the admin, which opens
@@ -298,7 +315,7 @@ const CAP_STATES = {
   "Strategic Acquisition Funding": "info",
 };
 const CAP_TONE = {
-  ok:   { dot: "#10b981", text: "#0f9b73", ring: "#10b981" },
+  ok:   { dot: "#3b82f6", text: "#1d4ed8", ring: "#3b82f6" },
   warn: { dot: "#f59e0b", text: "#b45309", ring: "#f59e0b" },
   info: { dot: "#2563eb", text: "#1d4ed8", ring: "#2563eb" },
 };
@@ -438,7 +455,7 @@ const CAP_CTX = {
 
 // Impact rating → colour. Reserved emerald only for the very top tier.
 const IMPACT_STYLE = {
-  Transformational: { c: "#0f9b73", bg: "rgba(16,185,129,0.12)", dot: "#10b981" },
+  Transformational: { c: "#1d4ed8", bg: "rgba(37,99,235,0.12)", dot: "#3b82f6" },
   High:             { c: "#b45309", bg: "rgba(245,158,11,0.14)", dot: "#f59e0b" },
   Moderate:         { c: "#1d4ed8", bg: "rgba(37,99,235,0.10)",  dot: "#3b82f6" },
   Low:              { c: "#475569", bg: "rgba(100,116,139,0.10)", dot: "#94a3b8" },
@@ -446,7 +463,7 @@ const IMPACT_STYLE = {
 
 // News category → colour + label.
 const CAT_STYLE = {
-  Discovery:         { c: "#0f9b73", bg: "rgba(16,185,129,0.10)" }, // emerald
+  Discovery:         { c: "#1d4ed8", bg: "rgba(37,99,235,0.10)" }, // emerald
   Drilling:          { c: "#1d4ed8", bg: "rgba(37,99,235,0.10)" },  // blue
   Financing:         { c: "#6d28d9", bg: "rgba(124,58,237,0.10)" }, // purple
   Permitting:        { c: "#c2410c", bg: "rgba(234,88,12,0.10)" },  // orange
@@ -739,7 +756,7 @@ function StageTracker() {
       {/* Stationary dot row — no scrolling, nothing clipped */}
       <div className="relative mt-7">
         <div className="absolute h-[2px] bg-slate-200" style={{ left: `${lineLeft}%`, top: 14, width: `${lineWidth}%` }} />
-        <div className="absolute h-[2px] bg-emerald-500 transition-all duration-500" style={{ left: `${lineLeft}%`, top: 14, width: `${progressWidth}%` }} />
+        <div className="absolute h-[2px] bg-blue-500 transition-all duration-500" style={{ left: `${lineLeft}%`, top: 14, width: `${progressWidth}%` }} />
 
         <div className="relative flex">
           {STAGES.map((s, i) => {
@@ -749,11 +766,11 @@ function StageTracker() {
 
             let dotStyle;
             if (done) dotStyle = { background: EM };
-            else if (now) dotStyle = { background: EM, boxShadow: "0 0 12px rgba(16,185,129,0.55)" };
+            else if (now) dotStyle = { background: EM, boxShadow: "0 0 12px rgba(37,99,235,0.55)" };
             else dotStyle = { background: "#ffffff", border: "2px solid #cbd5e1" };
 
             if (selected) {
-              const ring = "0 0 0 4px rgba(16,185,129,0.2)";
+              const ring = "0 0 0 4px rgba(37,99,235,0.2)";
               dotStyle = { ...dotStyle, boxShadow: dotStyle.boxShadow ? `${dotStyle.boxShadow}, ${ring}` : ring };
             }
 
@@ -783,7 +800,7 @@ function StageTracker() {
             className="rounded-full px-2 py-0.5 text-[8px] font-bold uppercase tracking-wider"
             style={
               sel === STAGE_NOW
-                ? { background: "rgba(16,185,129,0.12)", color: EM_TEXT, border: "1px solid rgba(16,185,129,0.25)" }
+                ? { background: "rgba(37,99,235,0.12)", color: EM_TEXT, border: "1px solid rgba(37,99,235,0.25)" }
                 : sel < STAGE_NOW
                 ? { background: "rgba(148,163,184,0.12)", color: "#64748b", border: "1px solid rgba(148,163,184,0.25)" }
                 : { background: "rgba(15,23,42,0.04)", color: "#475569", border: "1px solid #e2e8f0" }
@@ -801,16 +818,24 @@ function StageTracker() {
 /* ============================================================
    OVERVIEW
    ============================================================ */
+// The profile's page tabs, gated by account tier: BASIC = Overview + Timeline only; PRO (and
+// unknown, so existing companies keep the full profile) = all six. Reads the live tier.
+const ALL_PROFILE_PAGES = [
+  { id: "overview", Icon: Home },
+  { id: "projects", Icon: Pickaxe },
+  { id: "timeline", Icon: Clock },
+  { id: "capital", Icon: PieChart },
+  { id: "team", Icon: Users },
+  { id: "updates", Icon: Radio },
+];
+function profilePagesForTier() {
+  const t = String((typeof window !== "undefined" && window.__PP__ && window.__PP__.ACCOUNT_TIER) || ACCOUNT_TIER || "").toLowerCase();
+  return t === "basic" ? ALL_PROFILE_PAGES.filter((p) => p.id === "overview" || p.id === "timeline") : ALL_PROFILE_PAGES;
+}
+
 /* Compact page bar — shown on every page except home: small avatar + company name + page tabs */
 function PageBar({ tab, setTab, following, setFollowing, onBack }) {
-  const pages = [
-    { id: "overview", Icon: Home },
-    { id: "projects", Icon: Pickaxe },
-    { id: "timeline", Icon: Clock },
-    { id: "capital", Icon: PieChart },
-    { id: "team", Icon: Users },
-    { id: "updates", Icon: Radio },
-  ];
+  const pages = profilePagesForTier();
   return (
     <div className="flex-shrink-0 border-b border-slate-200 px-5 pt-1.5 pb-1">
       {/* back arrow — plain, on its own line above the company row */}
@@ -861,14 +886,7 @@ function PageBar({ tab, setTab, following, setFollowing, onBack }) {
    PROFILE HEADER  —  static Kingsmen banner shown on every page
    ============================================================ */
 function ProfileHeader({ tab, setTab, following, setFollowing, onBack, onMessage }) {
-  const pages = [
-    { id: "overview", Icon: Home },
-    { id: "projects", Icon: Pickaxe },
-    { id: "timeline", Icon: Clock },
-    { id: "capital", Icon: PieChart },
-    { id: "team", Icon: Users },
-    { id: "updates", Icon: Radio },
-  ];
+  const pages = profilePagesForTier();
   return (
     <div className="flex-shrink-0 px-5 pt-1">
       {/* plain back arrow sitting above the avatar (no circle, not touching it) */}
@@ -971,13 +989,13 @@ function ProfileHeader({ tab, setTab, following, setFollowing, onBack, onMessage
 function ScenarioGlassButton({ variant, Icon, selected, dimmed, onClick, compact }) {
   const press = (e) => { e.currentTarget.style.transform = "scale(0.96)"; };
   const release = (e) => { e.currentTarget.style.transform = selected ? "translateY(-2px) scale(1.02)" : "none"; };
-  const liftedShadowGreen = "0 8px 18px -8px rgba(26,196,150,0.8), 0 0 8px -3px rgba(74,224,166,0.5)";
+  const liftedShadowGreen = "0 8px 18px -8px rgba(37,99,235,0.8), 0 0 8px -3px rgba(96,165,250,0.5)";
   const liftedShadowRed = "0 8px 18px -8px rgba(233,60,55,0.78), 0 0 8px -3px rgba(255,120,120,0.45)";
   const dimStyle = { opacity: dimmed ? 0.6 : 1, transition: "opacity .28s ease, transform .18s ease, box-shadow .25s ease, filter .28s ease", filter: dimmed ? "saturate(0.85)" : selected ? "brightness(1.08) saturate(1.08)" : "none" };
 
   const liftedShadowBlue = "0 8px 18px -8px rgba(47,102,223,0.8), 0 0 8px -3px rgba(120,160,250,0.5)";
   const cfg = variant === "green"
-    ? { body: "linear-gradient(155deg, #d9f1c2 0%, #82d196 42%, #24b08f 100%)", glow: "0 6px 14px -9px rgba(40,176,140,0.55)", lift: liftedShadowGreen, icon: "#ffffff", rim: "rgba(255,255,255,0.55)" }
+    ? { body: "linear-gradient(155deg, #dce9fd 0%, #6ba3f5 42%, #2f7ff0 100%)", glow: "0 6px 14px -9px rgba(37,99,235,0.55)", lift: liftedShadowGreen, icon: "#ffffff", rim: "rgba(255,255,255,0.55)" }
     : variant === "iris"
     ? { body: "linear-gradient(155deg, #cfe0ff 0%, #6e9ff6 46%, #2f66df 100%)", glow: "0 6px 14px -9px rgba(47,102,223,0.55)", lift: liftedShadowBlue, icon: "#ffffff", rim: "rgba(255,255,255,0.55)" }
     : { body: "linear-gradient(155deg, #ffbaba 0%, #ff6d6d 46%, #e7322f 100%)", glow: "0 6px 14px -9px rgba(233,60,55,0.55)", lift: liftedShadowRed, icon: "#ffffff", rim: "rgba(255,255,255,0.62)" };
@@ -1049,8 +1067,8 @@ function Overview({ tab, goto, openBrief, following, setFollowing, bookmarked, s
   const [pTarget, setPTarget] = useState(0);
   const progressW = useTween(pTarget, 1100);
 
-  const [snapIn, setSnapIn] = useState(false);
-  useEffect(() => { const t = setTimeout(() => setSnapIn(true), 40); return () => clearTimeout(t); }, []);
+  const [snapIn, setSnapIn] = useState(ppPreviewLive);
+  useEffect(() => { if (ppPreviewLive) return; const t = setTimeout(() => setSnapIn(true), 40); return () => clearTimeout(t); }, []);
 
   // "Why it matters" expandable.
   const [whyOpen, setWhyOpen] = useState(false);
@@ -1061,17 +1079,17 @@ function Overview({ tab, goto, openBrief, following, setFollowing, bookmarked, s
   // already played on a previous visit to this tab — so we restore the last flip state WITHOUT
   // re-animating. It resets only when the profile is fully left and re-entered (CompanyProfile
   // remounts). Manual/auto flips are pushed back up via onFlip / onIntroDone.
-  const [flipped, setFlipped] = useState(introDone ? initialFlipped : false); // false = image face, true = status face
-  const [imgIn, setImgIn] = useState(introDone);
+  const [flipped, setFlipped] = useState(ppPreviewLive ? true : (introDone ? initialFlipped : false)); // false = image face, true = status face
+  const [imgIn, setImgIn] = useState(introDone || ppPreviewLive);
   const [logoIn, setLogoIn] = useState(false);
-  const [showLogo, setShowLogo] = useState(!introDone);   // logo only during the intro
+  const [showLogo, setShowLogo] = useState(ppPreviewLive ? false : !introDone);   // logo only during the intro
   // Don't start the intro until the hero image is actually decoded — otherwise the
   // timed fade runs against an unloaded network image (Storage URL), the CEO sees a
   // black flash, and the image pops in AFTER the animation finished. Preload + decode
   // first (with a safety cap so a slow/broken image never hangs the card).
-  const [imgReady, setImgReady] = useState(() => introDone || !STATUS_IMG);
+  const [imgReady, setImgReady] = useState(() => introDone || ppPreviewLive || !STATUS_IMG);
   useEffect(() => {
-    if (introDone || !STATUS_IMG) return;    // no intro to run → skip the decode gate
+    if (introDone || ppPreviewLive || !STATUS_IMG) return;    // no intro to run → skip the decode gate
     let done = false;
     const finish = () => { if (!done) { done = true; setImgReady(true); } };
     const img = new Image();
@@ -1082,7 +1100,7 @@ function Overview({ tab, goto, openBrief, following, setFollowing, bookmarked, s
     return () => { done = true; clearTimeout(cap); };
   }, []);
   useEffect(() => {
-    if (introDone) return;                    // already played this session → don't re-animate
+    if (introDone || ppPreviewLive) return;   // already played (or preview) → don't re-animate
     if (!imgReady) return;                    // hold the whole sequence until decoded
     const t1 = setTimeout(() => setImgIn(true), 60);      // image fades in
     const t2 = setTimeout(() => setLogoIn(true), 680);    // logo fades in after
@@ -1192,7 +1210,7 @@ function Overview({ tab, goto, openBrief, following, setFollowing, bookmarked, s
     { label: "Flagship Project",value: identity.flagship && identity.flagship.projectName, Icon: Mountain,   icBg: "rgba(37,99,235,0.11)",  ic: "#2563eb" }, // Passport blue
     { label: "Stage",           value: identity.stage,                                     Icon: TrendingUp, icBg: "rgba(99,91,201,0.12)",  ic: "#5b57c9" }, // indigo
     { label: "Projects",        value: identity.meta && identity.meta.projects,           Icon: Layers,     icBg: "rgba(14,139,168,0.12)", ic: "#0e8ba8" }, // cyan
-    { label: "Current Focus",   value: identity.meta && identity.meta.focus,              Icon: Activity,   icBg: "rgba(5,150,105,0.13)",  ic: "#059669", live: true }, // emerald / activity
+    { label: "Current Focus",   value: identity.meta && identity.meta.focus,              Icon: Activity,   icBg: "rgba(37,99,235,0.13)",  ic: "#2563eb", live: true }, // emerald / activity
   ];
 
   return (
@@ -1216,7 +1234,10 @@ function Overview({ tab, goto, openBrief, following, setFollowing, bookmarked, s
                       ticker strip. The flagship image is an ABSOLUTE background layer, so the header
                       keeps its exact height; a controlled overlay preserves text contrast and the
                       very bottom fades into the grid surface. No image → the original clean header. */}
-                  <div style={{ flex: "0 0 auto", position: "relative", overflow: "hidden", padding: "14px 18px 13px", background: idBanner ? "#0b1220" : "linear-gradient(180deg, #ffffff 0%, #f8fafd 100%)" }}>
+                  {/* Header bg resolves to the grid's light colour at its very bottom so the flip
+                      card's clip boundary can't show a 1px dark seam (WebKit preserve-3d AA) below
+                      the photo. The image still fully covers it; the dark tone stays where the text sits. */}
+                  <div style={{ flex: "0 0 auto", position: "relative", overflow: "hidden", padding: "14px 18px 13px", background: idBanner ? "linear-gradient(180deg, #0b1220 0%, #0b1220 88%, #f4f7fb 100%)" : "linear-gradient(180deg, #ffffff 0%, #f8fafd 100%)" }}>
                     {idBanner && (
                       <>
                         <img src={idBanner} alt="" aria-hidden="true" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", objectPosition: "50% 30%" }} />
@@ -1270,7 +1291,7 @@ function Overview({ tab, goto, openBrief, following, setFollowing, bookmarked, s
                   {/* status grid — six equal "fact modules" on a light tray, each a subtly
                       raised surface so separation reads from surface contrast, not spreadsheet
                       lines. One unified neutral icon system; no manufactured primary cell. */}
-                  <div style={{ flex: "1 1 auto", minHeight: 0, background: "linear-gradient(180deg,#f4f7fb,#eef3f9)", borderTop: "1px solid #e7ecf3", padding: 8, display: "grid", gridTemplateColumns: "1fr 1fr", gridTemplateRows: "repeat(3, 1fr)", gap: 6 }}>
+                  <div style={{ flex: "1 1 auto", minHeight: 0, marginTop: -1, position: "relative", zIndex: 1, background: "linear-gradient(180deg,#f4f7fb,#eef3f9)", borderTop: "1px solid #e7ecf3", padding: 8, display: "grid", gridTemplateColumns: "1fr 1fr", gridTemplateRows: "repeat(3, 1fr)", gap: 6 }}>
                     {idCells.map((c, i) => {
                       const Ic = c.Icon;
                       return (
@@ -1283,7 +1304,7 @@ function Overview({ tab, goto, openBrief, following, setFollowing, bookmarked, s
                           <div style={{ minWidth: 0, flex: 1 }}>
                             <p className="font-bold uppercase" style={{ fontSize: 8, letterSpacing: "0.04em", color: "#94a3b8", lineHeight: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.label}</p>
                             <p className="tracking-tight" style={{ marginTop: 3, fontSize: 13.5, fontWeight: 700, lineHeight: 1.1, color: "#0f172a", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
-                              {c.live && c.value && <span style={{ display: "inline-block", width: 5.5, height: 5.5, borderRadius: 9999, background: "#10b981", marginRight: 5, verticalAlign: "middle", position: "relative", top: -1, boxShadow: "0 0 0 2px rgba(16,185,129,0.16)" }} />}
+                              {c.live && c.value && <span style={{ display: "inline-block", width: 5.5, height: 5.5, borderRadius: 9999, background: "#3b82f6", marginRight: 5, verticalAlign: "middle", position: "relative", top: -1, boxShadow: "0 0 0 2px rgba(37,99,235,0.16)" }} />}
                               {c.value || "—"}
                             </p>
                           </div>
@@ -1357,7 +1378,7 @@ function Overview({ tab, goto, openBrief, following, setFollowing, bookmarked, s
       {/* ===== WHY IT MATTERS — popup card ===== */}
       {whyOpen && (
         <BottomSheet onClose={() => setWhyOpen(false)}>
-          <SheetHeader kicker="Why It Matters" title="High-Grade Extensions" accent={EM_TEXT} icon={Sparkles} iconBg="rgba(16,185,129,0.12)" />
+          <SheetHeader kicker="Why It Matters" title="High-Grade Extensions" accent={EM_TEXT} icon={Sparkles} iconBg="rgba(37,99,235,0.12)" />
           <p className="mt-4 text-[14px] font-semibold leading-relaxed text-slate-800">Kingsmen is testing extensions of the high-grade silver mineralization identified during its 2025 discovery campaign.</p>
           <p className="mt-2.5 text-[12.5px] font-medium leading-relaxed text-slate-500">
             Each new hole that ties zones together adds tonnage and grade to a system that already has historic production behind it. Confirming continuity is the difference between isolated hits and a resource a market can value — which is what drives a re-rate at this stage.
@@ -1385,7 +1406,7 @@ function Overview({ tab, goto, openBrief, following, setFollowing, bookmarked, s
               {SITE_PHOTO && <img src={SITE_PHOTO} alt={COMPANY.name || ""} className="block w-full" />}
             </div>
             <div className="mt-3 flex items-center gap-1.5 px-1 text-white">
-              <Pickaxe size={13} className="text-emerald-400" />
+              <Pickaxe size={13} className="text-blue-400" />
               <span className="text-[13px] font-bold tracking-tight">Las Coloradas</span>
               <span className="text-white/40">·</span>
               <MapPin size={12} className="text-white/60" />
@@ -1512,7 +1533,7 @@ function TimelineView() {
             aria-pressed={highOnly}
             className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-full transition active:scale-90"
             style={highOnly
-              ? { background: EM, boxShadow: "0 4px 12px -5px rgba(16,185,129,0.75)" }
+              ? { background: EM, boxShadow: "0 4px 12px -5px rgba(37,99,235,0.75)" }
               : { background: "#fff", border: "1px solid #e2e8f0" }}
           >
             <Gem size={14} style={{ color: highOnly ? "#fff" : EM }} strokeWidth={2.4} />
@@ -1564,8 +1585,8 @@ function TimelineView() {
                           className="relative flex w-full items-stretch gap-3 py-1.5 text-left transition active:scale-[0.99]"
                         >
                           <span className="relative z-10 flex flex-shrink-0 justify-center pt-4" style={{ width: 25 }}>
-                            <span className="grid place-items-center rounded-full" style={{ height: 20, width: 20, background: EM, boxShadow: "0 0 0 4px rgba(16,185,129,0.15)" }}>
-                              <Gem size={11} style={{ color: "#06281d" }} />
+                            <span className="grid place-items-center rounded-full" style={{ height: 20, width: 20, background: EM, boxShadow: "0 0 0 4px rgba(37,99,235,0.15)" }}>
+                              <Gem size={11} style={{ color: "#0a1f38" }} />
                             </span>
                           </span>
                           <span className="min-w-0 flex-1 rounded-2xl border border-slate-100 bg-white p-3" style={{ boxShadow: "0 1px 2px rgba(15,23,42,0.04), 0 10px 24px -18px rgba(15,23,42,0.35)" }}>
@@ -1640,7 +1661,7 @@ function TimelineView() {
                   >
                     <span className="text-[13px] font-extrabold tracking-tight" style={{ color: isExp ? "#fff" : "#1e293b" }}>{grp.quarter} {yr.year}</span>
                     <span className="text-[11px] font-medium" style={{ color: isExp ? "rgba(255,255,255,0.7)" : "#94a3b8" }}>· {items.length} release{items.length > 1 ? "s" : ""}</span>
-                    {hasKey && <Gem size={11} style={{ color: isExp ? "#6ee7b7" : EM }} />}
+                    {hasKey && <Gem size={11} style={{ color: isExp ? "#93c5fd" : EM }} />}
                     <ChevronRight size={15} className="ml-auto flex-shrink-0 transition-transform duration-200" style={{ color: isExp ? "rgba(255,255,255,0.85)" : "#cbd5e1", transform: isExp ? "rotate(90deg)" : "rotate(0deg)" }} />
                   </button>
 
@@ -1688,11 +1709,11 @@ function TimelineView() {
                                 style={{
                                   height: it.key ? 20 : 14, width: it.key ? 20 : 14,
                                   ...(it.key
-                                    ? { background: EM, boxShadow: "0 0 0 4px rgba(16,185,129,0.15)" }
+                                    ? { background: EM, boxShadow: "0 0 0 4px rgba(37,99,235,0.15)" }
                                     : { background: "#fff", border: `2px solid ${cs.c}` }),
                                 }}
                               >
-                                {it.key && <Gem size={11} style={{ color: "#06281d" }} />}
+                                {it.key && <Gem size={11} style={{ color: "#0a1f38" }} />}
                               </span>
                             </span>
                             {/* content card */}
@@ -1799,10 +1820,10 @@ function SummaryContent({ item, cat, impact, hasFull, onReadFull }) {
           <div className="mt-2 flex items-center gap-2">
             <span className="rounded-lg bg-slate-100 px-2.5 py-1.5 text-[11px] font-bold tracking-tight text-slate-500">{stage[0]}</span>
             <ArrowUpRight size={15} className="flex-shrink-0" style={{ color: EM }} />
-            <span className="rounded-lg px-2.5 py-1.5 text-[11px] font-bold tracking-tight" style={{ background: "rgba(16,185,129,0.12)", color: EM_TEXT }}>{stage[1]}</span>
+            <span className="rounded-lg px-2.5 py-1.5 text-[11px] font-bold tracking-tight" style={{ background: "rgba(37,99,235,0.12)", color: EM_TEXT }}>{stage[1]}</span>
           </div>
         </div>
-        <div className="rounded-2xl p-3.5" style={{ background: "rgba(16,185,129,0.07)", border: "1px solid rgba(16,185,129,0.2)" }}>
+        <div className="rounded-2xl p-3.5" style={{ background: "rgba(37,99,235,0.07)", border: "1px solid rgba(37,99,235,0.2)" }}>
           <span className="text-[10px] font-extrabold uppercase tracking-[0.16em]" style={{ color: EM_TEXT }}>Investor Takeaway</span>
           <p className="mt-1.5 text-[13px] font-semibold leading-relaxed text-slate-700">{TAKEAWAY_BY_IMPACT[impact]}</p>
         </div>
@@ -2134,7 +2155,7 @@ function SheetSection({ title, children, className = "mt-5" }) {
 // company data — a published company must never inherit Chihuahua. The values
 // below are the Kingsmen defaults; a company supplies its own via __PP__.
 let MAP_SITES = _PP.MAP_SITES ?? [
-  { key: "lc", name: "Las Coloradas", lat: 27.05, lon: -105.45, tone: EM, fill: "rgba(16,185,129,0.25)" },
+  { key: "lc", name: "Las Coloradas", lat: 27.05, lon: -105.45, tone: EM, fill: "rgba(37,99,235,0.25)" },
   { key: "alm", name: "Almoloya", lat: 26.75, lon: -105.50, tone: "#f59e0b", fill: "rgba(245,158,11,0.25)" },
 ];
 // PARRAL is the "nearby town" reference marker. null = the company gave none.
@@ -2339,7 +2360,7 @@ function PeekModal({ site, onClose, onOpenProjects }) {
           ))}
         </div>
         <p className="mt-3 text-[12px] leading-relaxed text-slate-500">{p.intro}</p>
-        <div className="mt-3 rounded-xl px-3 py-2" style={{ background: "#ecfdf5", border: "1px solid rgba(16,185,129,0.2)" }}>
+        <div className="mt-3 rounded-xl px-3 py-2" style={{ background: "#eff6ff", border: "1px solid rgba(37,99,235,0.2)" }}>
           <span className="text-[8px] font-bold uppercase tracking-wider" style={{ color: EM_TEXT }}>Commodities</span>
           <p className="text-[11px] font-semibold text-slate-700 mt-0.5">{p.commodities}</p>
         </div>
@@ -2363,7 +2384,7 @@ function PeekModal({ site, onClose, onOpenProjects }) {
 // ===== Updates — the company's live operational feed =====
 // Timeline = permanent history. Updates = what's happening today.
 const UPDATE_CATS = {
-  Drilling:   { Icon: Drill,         c: "#0f9b73", bg: "rgba(16,185,129,0.10)" },
+  Drilling:   { Icon: Drill,         c: "#1d4ed8", bg: "rgba(37,99,235,0.10)" },
   Lab:        { Icon: FlaskConical,  c: "#6d28d9", bg: "rgba(124,58,237,0.10)" },
   Field:      { Icon: Mountain,      c: "#0f766e", bg: "rgba(13,148,136,0.10)" },
   Corporate:  { Icon: Building2,     c: "#1e3a8a", bg: "rgba(30,58,138,0.10)" },
@@ -2656,10 +2677,13 @@ function MediaViewer({ posts, start, onClose }) {
 function UpdatesView() {
   const [viewer, setViewer] = useState(null);  // media viewer start index
 
-  // v1 media page: ONLY media posts (photos + videos). No text updates, no reposts —
+  // v1 media page: ONLY media posts (photos + videos). No text/operational updates —
   // material news lives on the Timeline; this page is the company's photo/video wall.
+  // A "has an image" test alone let text updates (Drilling/Lab/etc.) that carry a photo leak
+  // in and read like press releases; gate on an explicit media category / video flag instead.
   const posts = Array.isArray(UPDATE_POSTS) ? UPDATE_POSTS : [];
-  const mediaPosts = posts.filter((p) => updateImg(p) != null);
+  const isMediaPost = (p) => !!(p && (p.video || p.cat === "Photo" || p.cat === "Video" || p.cat === "Media" || p.type === "media" || p.post_type === "media"));
+  const mediaPosts = posts.filter((p) => isMediaPost(p) && updateImg(p) != null);
 
   if (!mediaPosts.length) {
     return (
@@ -2852,11 +2876,11 @@ function FinanceRow({ r, open, onToggle, last, newest }) {
   return (
     <div className="relative pl-7">
       {!last && <span className="absolute w-px" style={{ left: 5, top: 6, bottom: -4, background: "#e7ebf0" }} />}
-      <span className="absolute rounded-full border-2 border-white" style={{ left: 0, top: 5, height: 11, width: 11, background: node, boxShadow: newest ? "0 0 0 4px rgba(16,185,129,0.16)" : "none" }} />
+      <span className="absolute rounded-full border-2 border-white" style={{ left: 0, top: 5, height: 11, width: 11, background: node, boxShadow: newest ? "0 0 0 4px rgba(37,99,235,0.16)" : "none" }} />
       <button onClick={onToggle} className={`block w-full appearance-none text-left ${last ? "pb-1" : "pb-7"}`} style={{ border: "none", background: "transparent", outline: "none" }}>
         <p className="font-bold tracking-tight tabular-nums" style={{ color: newest ? EM_TEXT : "#0f172a", fontSize: newest ? 18 : 15.5 }}>{r.v}</p>
         <p className="mt-0.5 text-[12px] font-medium text-slate-500">{r.type}</p>
-        <p className="mt-1 text-[10px] font-bold uppercase tracking-wider" style={{ color: newest ? "rgba(15,157,115,0.75)" : "#94a3b8" }}>{r.d}</p>
+        <p className="mt-1 text-[10px] font-bold uppercase tracking-wider" style={{ color: newest ? "rgba(37,99,235,0.75)" : "#94a3b8" }}>{r.d}</p>
         <div className="grid transition-all duration-300 ease-out" style={{ gridTemplateRows: open ? "1fr" : "0fr" }}>
           <div className="overflow-hidden">
             <div className="mt-3 space-y-2 border-t border-slate-100 pt-3">
@@ -3828,7 +3852,7 @@ const AM_BRIEF = {
 };
 
 // Marker tones by type
-const MK_TONE = { drill: "#2563eb", historic: "#64748b", target: "#10b981", explore: "#f59e0b" };
+const MK_TONE = { drill: "#2563eb", historic: "#64748b", target: "#3b82f6", explore: "#f59e0b" };
 const MK_LABEL = { drill: "Active Drilling", historic: "Historic Mine", target: "Drill Target", explore: "Exploration Target" };
 
 // Interactive Leaflet map embedded directly in the Projects page.
@@ -4184,8 +4208,8 @@ function RockSchematic({ accent }) {
 }
 const STATUS_TONE = {
   "Drilling": ["#1d4ed8", "rgba(37,99,235,0.10)"],
-  "Drill-ready": ["#059669", "rgba(16,185,129,0.12)"],
-  "Drill Ready": ["#059669", "rgba(16,185,129,0.12)"],
+  "Drill-ready": ["#2563eb", "rgba(37,99,235,0.12)"],
+  "Drill Ready": ["#2563eb", "rgba(37,99,235,0.12)"],
   "Planned": ["#b45309", "rgba(245,158,11,0.14)"],
   "Generating": ["#7c3aed", "rgba(124,58,237,0.12)"],
   "Untested": ["#475569", "rgba(100,116,139,0.12)"],
@@ -4500,13 +4524,13 @@ function ProjectsView() {
   // content folded in) so a company's projects can be swapped in as plain JSON.
   const KINGSMEN_PROJ = {
     lc: {
-      key: "lc", name: "Las Coloradas", tone: "#0f9b73", toneText: "#0f766e", toneSoft: "rgba(16,185,129,0.08)",
+      key: "lc", name: "Las Coloradas", tone: "#1d4ed8", toneText: "#0f766e", toneSoft: "rgba(37,99,235,0.08)",
       snap: LC_SNAP, stageInfo: LC_STAGE, unique: LC_UNIQUE, content: LC_CARDS,
       gallery: LC_SITE_GALLERY,
-      status: { label: "Active \u00b7 2026 Drill Program", tone: "#0f9b73" },
+      status: { label: "Active \u00b7 2026 Drill Program", tone: "#1d4ed8" },
       locationFull: "Parral District, Chihuahua, Mexico",
       stageName: "Discovery-Stage Drilling",
-      statusStrip: { tone: "#0f9b73", state: "Active \u00b7 Drilling", pills: ["26-Hole Program", "14 / 26 Complete", "Next: Assays"] },
+      statusStrip: { tone: "#1d4ed8", state: "Active \u00b7 Drilling", pills: ["26-Hole Program", "14 / 26 Complete", "Next: Assays"] },
       districtMaps: [],
       snapshot: [
         { Icon: MapPin, label: "Location", value: "Parral District" },
@@ -4668,9 +4692,12 @@ function ProjectsView() {
     },
   };
 
-  // A company's own projects override the built-ins. Anything absent degrades to
-  // an empty structure rather than crashing or leaking Kingsmen content.
-  const PROJ = PROJECTS_FULL || KINGSMEN_PROJ;
+  // A company's own projects override the built-ins. The KINGSMEN_PROJ prototype is a
+  // demo-only fallback: it renders ONLY for the actual Kingsmen demo (module-default COMPANY,
+  // i.e. pp/PROJECTS_FULL absent). Any OTHER company with no PROJECTS_FULL degrades to an empty
+  // structure — never leaks Kingsmen content onto an unrelated profile.
+  const IS_KINGSMEN_DEMO = !!(COMPANY && (COMPANY.name === "Kingsmen Resources" || /kingsmenresources\.com/i.test(String(COMPANY.website || ""))));
+  const PROJ = PROJECTS_FULL || (IS_KINGSMEN_DEMO ? KINGSMEN_PROJ : {});
   const keys = Object.keys(PROJ);
   const activeKey = PROJ[sel] ? sel : keys[0];
   const p = PROJ[activeKey] || {};
@@ -4681,7 +4708,7 @@ function ProjectsView() {
   // Per-project value-driver scenarios (Bull / Bear / Next Validation).
   const SC = CARDS.scenarios || {};
   const SCENARIOS = [
-    { key: "bull", label: "Bull Case", short: "Bull", Icon: TrendingUp, c: "#0f9b73", bg: "rgba(16,185,129,0.10)", bd: "rgba(16,185,129,0.25)", text: SC.bull && SC.bull.text },
+    { key: "bull", label: "Bull Case", short: "Bull", Icon: TrendingUp, c: "#1d4ed8", bg: "rgba(37,99,235,0.10)", bd: "rgba(37,99,235,0.25)", text: SC.bull && SC.bull.text },
     { key: "bear", label: "Bear Case", short: "Bear", Icon: TrendingDown, c: "#dc2626", bg: "rgba(220,38,38,0.07)", bd: "rgba(220,38,38,0.2)", text: SC.bear && SC.bear.text },
     { key: "next", label: "Next Validation Point", short: "Validation", Icon: Crosshair, c: "#1d4ed8", bg: "rgba(37,99,235,0.07)", bd: "rgba(37,99,235,0.2)", text: SC.next && SC.next.text },
   ];
@@ -4710,7 +4737,7 @@ function ProjectsView() {
   const SNAP4 = [
     snapCell("Location & Jurisdiction", "Location", MapPin),
     snapCell("Primary Commodity", "Commodities", Gem),
-    drillTargets.length ? { Icon: Crosshair, label: "Drill Targets", value: `${drillTargets.length} Identified`, value2: null, onClick: () => setShowTargets(true) } : null,
+    (drillTargets.length || (CARDS.targets && (CARDS.targets.priority || []).length)) ? { Icon: Crosshair, label: "Drill Targets", value: `${drillTargets.length || (CARDS.targets.priority || []).length} Identified`, value2: null, onClick: () => setShowTargets(true) } : null,
     snapCell("Deposit Type", "Deposit Type", Mountain),
     snapCell("Land Package", "Land Position", Layers),
     snapCell("Ownership", "Ownership", Layers),
@@ -5440,10 +5467,10 @@ function CompareSheet({ onClose }) {
 
       <div className="pp-scroll flex-1 overflow-y-auto px-5 pb-8 pt-4">
         <div className="grid grid-cols-2 gap-2.5">
-          <div className="rounded-2xl p-3.5" style={{ background: "linear-gradient(135deg,#06281d,#0f3d2e)" }}>
+          <div className="rounded-2xl p-3.5" style={{ background: "linear-gradient(135deg,#0a1f38,#0f2f4d)" }}>
             <div className="h-9 w-9 overflow-hidden rounded-lg bg-white"><img src={LOGO} alt="" className="h-full w-full object-contain" /></div>
             <p className="mt-2 text-[13px] font-extrabold tracking-tight text-white">{shortCo(COMPANY.name)}</p>
-            <p className="text-[10px] font-semibold text-emerald-300">TSX.V: KNG</p>
+            <p className="text-[10px] font-semibold text-blue-300">TSX.V: KNG</p>
           </div>
           <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 p-3.5">
             <span className="grid h-9 w-9 place-items-center rounded-full bg-slate-100"><Plus size={18} className="text-slate-300" /></span>
@@ -5484,21 +5511,21 @@ function ConferenceMode({ following, setFollowing, saved, openWatchlist, onViewC
   ];
   return (
     <div className="absolute inset-0 z-50 flex flex-col bg-white pp-fade">
-      <div className="relative overflow-hidden px-6 pb-6 pt-7 text-center" style={{ background: "linear-gradient(160deg,#06281d,#0f3d2e)" }}>
+      <div className="relative overflow-hidden px-6 pb-6 pt-7 text-center" style={{ background: "linear-gradient(160deg,#0a1f38,#0f2f4d)" }}>
         <button onClick={onClose} className="absolute right-4 top-4 grid h-8 w-8 place-items-center rounded-full bg-white/10 text-white active:scale-90"><X size={16} /></button>
-        <span className="text-[9px] font-extrabold uppercase tracking-[0.22em] text-emerald-300">Conference Mode</span>
+        <span className="text-[9px] font-extrabold uppercase tracking-[0.22em] text-blue-300">Conference Mode</span>
         <div className="mx-auto mt-3 h-16 w-16 overflow-hidden rounded-2xl border border-white/15 bg-white"><img src={LOGO} alt="" className="h-full w-full object-contain" /></div>
         <h2 className="mt-3 text-[22px] font-extrabold tracking-tight text-white">{COMPANY.name}</h2>
-        <p className="text-[11px] font-semibold tracking-wide text-emerald-100/70">Silver-Gold Explorer · TSX.V: KNG · Parral, Mexico</p>
+        <p className="text-[11px] font-semibold tracking-wide text-blue-100/70">Silver-Gold Explorer · TSX.V: KNG · Parral, Mexico</p>
 
         <button
           onClick={() => setFollowing(true)}
           className="mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-2xl text-[14px] font-bold tracking-tight transition active:scale-95"
-          style={following ? { background: "rgba(255,255,255,0.14)", color: "#fff" } : { background: EM, color: "#06281d" }}
+          style={following ? { background: "rgba(255,255,255,0.14)", color: "#fff" } : { background: EM, color: "#0a1f38" }}
         >
           {following ? <><Check size={16} strokeWidth={2.8} /> Following — alerts on</> : <><Plus size={16} strokeWidth={2.8} /> Follow Kingsmen</>}
         </button>
-        <p className="mt-2 text-[10.5px] font-medium text-emerald-100/60">Unlocks catalyst alerts, timeline updates & your feed</p>
+        <p className="mt-2 text-[10.5px] font-medium text-blue-100/60">Unlocks catalyst alerts, timeline updates & your feed</p>
       </div>
 
       <div className="pp-scroll flex-1 overflow-y-auto p-4">
@@ -5593,7 +5620,7 @@ const DIRECTORY = (typeof window !== "undefined" && Array.isArray(window.__DIREC
 // Deterministic avatar colour so companies WITHOUT an uploaded logo still read as
 // distinct (previously every monogram was the same slate). Seeded by identity, so a
 // company's colour is stable across the app. An explicit brand colour still wins.
-const AVATAR_COLORS = ["#4f46e5", "#0891b2", "#0d9488", "#059669", "#65a30d", "#ca8a04", "#d97706", "#ea580c", "#dc2626", "#e11d48", "#db2777", "#9333ea", "#7c3aed", "#2563eb", "#0284c7", "#0f766e"];
+const AVATAR_COLORS = ["#4f46e5", "#0891b2", "#0d9488", "#2563eb", "#65a30d", "#ca8a04", "#d97706", "#ea580c", "#dc2626", "#e11d48", "#db2777", "#9333ea", "#7c3aed", "#2563eb", "#0284c7", "#0f766e"];
 function avatarColor(seed) {
   const s = String(seed || "?"); let h = 0;
   for (let k = 0; k < s.length; k++) h = (h * 31 + s.charCodeAt(k)) >>> 0;
@@ -5629,7 +5656,7 @@ function CompanyRow({ co, onOpen }) {
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
           <span className="truncate text-[14px] font-bold tracking-tight text-slate-900">{co.name}</span>
-          {co.live && <BadgeCheck size={13} style={{ color: EM }} className="flex-shrink-0" />}
+          {discovery.isFeatured(co) && <BadgeCheck size={13} style={{ color: "#0ea5e9" }} fill="rgba(14,165,233,0.15)" className="flex-shrink-0" />}
         </div>
         <div className="mt-0.5 flex items-center gap-1.5 text-[11px] font-semibold tracking-tight text-slate-400">
           <span>{co.ticker}</span><span className="text-slate-300">·</span><span className="truncate">{co.commodity}</span>
@@ -5693,7 +5720,7 @@ function AnalystRow({ a, onOpenCompany }) {
           <span className="rounded-md px-1.5 py-0.5 text-[9px] font-bold tabular-nums text-slate-500" style={{ background: "#f1f5f9" }}>{a.covers} covered</span>
           <span className="rounded-md px-1.5 py-0.5 text-[9px] font-extrabold uppercase tracking-wider" style={{ background: "rgba(15,23,42,0.06)", color: "#0f172a" }}>{a.rating}</span>
           {a.coversKng && (
-            <button onClick={() => { haptic(); onOpenCompany(); }} className="rounded-md px-1.5 py-0.5 text-[9px] font-extrabold uppercase tracking-wider transition active:scale-95" style={{ background: "rgba(16,185,129,0.12)", color: EM_TEXT }}>
+            <button onClick={() => { haptic(); onOpenCompany(); }} className="rounded-md px-1.5 py-0.5 text-[9px] font-extrabold uppercase tracking-wider transition active:scale-95" style={{ background: "rgba(37,99,235,0.12)", color: EM_TEXT }}>
               Covers KNG
             </button>
           )}
@@ -5742,12 +5769,29 @@ const CO_UPDATES = [
 
 // TODAY activity — real: the most recent press releases across published companies.
 const FEED = (typeof window !== "undefined" && Array.isArray(window.__FEED__)) ? window.__FEED__ : [];
+// Accepts a date-only string (YYYY-MM-DD, e.g. company PRs that carry no clock time)
+// OR a full ISO timestamp (news published_at). Full timestamps show minute/hour
+// granularity so a story from a few hours ago reads "5h", not a misleading "1d".
 const relTime = (iso) => {
-  const d = new Date(String(iso) + "T00:00:00");
+  const s = String(iso || "");
+  const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(s);
+  const d = dateOnly ? new Date(s + "T00:00:00") : new Date(s);
   if (isNaN(d)) return "";
-  const days = Math.max(0, Math.round((Date.now() - d.getTime()) / 86400000));
-  if (days <= 0) return "today";
-  if (days === 1) return "1d";
+  const ms = Date.now() - d.getTime();
+  if (dateOnly) {
+    const days = Math.max(0, Math.round(ms / 86400000));
+    if (days <= 0) return "today";
+    if (days < 7) return days + "d";
+    if (days < 30) return Math.round(days / 7) + "w";
+    if (days < 365) return Math.round(days / 30) + "mo";
+    return Math.round(days / 365) + "y";
+  }
+  const mins = Math.max(0, Math.floor(ms / 60000));
+  if (mins < 1) return "now";
+  if (mins < 60) return mins + "m";
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return hours + "h";
+  const days = Math.floor(hours / 24);
   if (days < 7) return days + "d";
   if (days < 30) return Math.round(days / 7) + "w";
   if (days < 365) return Math.round(days / 30) + "mo";
@@ -5792,7 +5836,7 @@ const EVENT_TYPES = {
   "DRILL RESULTS":   { label: "Drill Results",   c: "#b45309", b: "rgba(180,83,9,0.10)",   Icon: Drill },
   "ASSAYS":          { label: "Assays",          c: "#0d9488", b: "rgba(13,148,136,0.10)", Icon: FlaskConical },
   "RESOURCE UPDATE": { label: "Resource Update", c: "#7c3aed", b: "rgba(124,58,237,0.10)", Icon: Layers },
-  "FINANCING":       { label: "Financing",       c: "#059669", b: "rgba(5,150,105,0.10)",  Icon: Wallet },
+  "FINANCING":       { label: "Financing",       c: "#2563eb", b: "rgba(37,99,235,0.10)",  Icon: Wallet },
   "EXPLORATION":     { label: "Exploration",     c: "#2563eb", b: "rgba(37,99,235,0.10)",  Icon: Telescope },
   "ACQUISITION":     { label: "Acquisition",     c: "#db2777", b: "rgba(219,39,119,0.10)", Icon: Landmark },
   "PERMITTING":      { label: "Permitting",      c: "#0891b2", b: "rgba(8,145,178,0.10)",  Icon: ShieldCheck },
@@ -5998,7 +6042,7 @@ function ActivityRow({ it, onOpen }) {
         </div>
         {readable
           ? <ChevronDown size={16} className="mt-0.5 flex-shrink-0 text-slate-300" style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform .25s ease" }} />
-          : (it.live && <BadgeCheck size={14} style={{ color: EM }} className="mt-0.5 flex-shrink-0" />)}
+          : (discovery.isFeatured(it) && <BadgeCheck size={14} style={{ color: "#0ea5e9" }} fill="rgba(14,165,233,0.15)" className="mt-0.5 flex-shrink-0" />)}
       </button>
 
       {/* Inline reader — expands in place */}
@@ -6074,10 +6118,82 @@ function coverStyle(tone, seedStr, scene) {
   const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='400' height='260'>${inner}</svg>`;
   return { background: `url("data:image/svg+xml,${encodeURIComponent(svg)}"), linear-gradient(${ang}deg, ${a}, ${b})`, backgroundSize: "cover, cover", backgroundPosition: "center" };
 }
-// Card-facing cover: real image first, then the story's scene, then MineEx fallback.
+// Editorial classification — maps a story's event_type/category to a COLOR-CODED
+// bucket (distinct hue + short label + scene). Real feeds carry no images and most
+// items collapse to "General News", so without this every card reads as the same
+// dark block; a colored hue + word is what the eye actually registers as "new".
+const NEWS_CLASS = {
+  drill:      { label: "Drill Results", color: "#2563eb", g: ["#0b8a63", "#053a2b"], scene: "core" },
+  explore:    { label: "Exploration",  color: "#0d9488", g: ["#0d8a80", "#053733"], scene: "geomap" },
+  resource:   { label: "Resource",     color: "#7c3aed", g: ["#6d3ad1", "#2a1259"], scene: "geomap" },
+  finance:    { label: "Financing",    color: "#d97706", g: ["#b5730d", "#3d2604"], scene: "processing" },
+  ma:         { label: "Acquisition",  color: "#2563eb", g: ["#2760c9", "#0c1f4a"], scene: "landscape" },
+  permit:     { label: "Permitting",   color: "#0891b2", g: ["#0e7fa8", "#053442"], scene: "landscape" },
+  production: { label: "Production",   color: "#ea580c", g: ["#d1560f", "#3f1904"], scene: "processing" },
+  corporate:  { label: "Corporate",    color: "#4f46e5", g: ["#4a45c9", "#171546"], scene: "interview" },
+  market:     { label: "Market",       color: "#e11d48", g: ["#c31844", "#440818"], scene: "market" },
+  update:     { label: "Update",       color: "#475569", g: ["#3a4a63", "#0f172a"], scene: "topo" },
+};
+function classifyNews(it) {
+  const s = `${(it && it.eventType) || ""} ${(it && it.category) || ""}`.toLowerCase();
+  if (/drill|assay/.test(s)) return NEWS_CLASS.drill;
+  if (/resource|mre|feasib|\bpea\b|reserve/.test(s)) return NEWS_CLASS.resource;
+  if (/explor/.test(s)) return NEWS_CLASS.explore;
+  if (/financ|placement|offering|bought deal|raise|warrant/.test(s)) return NEWS_CLASS.finance;
+  if (/acquis|merger|option|earn-in|joint venture|\bjv\b|\bm&a\b/.test(s)) return NEWS_CLASS.ma;
+  if (/permit/.test(s)) return NEWS_CLASS.permit;
+  if (/production|pour|mill|commission/.test(s)) return NEWS_CLASS.production;
+  if (/corporate|management|appoint|director|board|\bceo\b/.test(s)) return NEWS_CLASS.corporate;
+  if (/macro|market/.test(s)) return NEWS_CLASS.market;
+  return NEWS_CLASS.update;
+}
+// Colored category pill — the primary at-a-glance "what kind of story is this" signal.
+function NewsTag({ it, onDark }) {
+  const c = classifyNews(it);
+  return (
+    <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[9.5px] font-extrabold uppercase tracking-wide"
+      style={onDark ? { background: "rgba(255,255,255,0.22)", color: "#fff" } : { background: `${c.color}1a`, color: c.color }}>
+      {c.label}
+    </span>
+  );
+}
+// Card-facing cover BASE: always the color-coded editorial graphic. A real photo,
+// when one exists and actually loads, is layered on top by <CoverImg> — so the
+// graphic is a guaranteed, never-blank floor beneath every card.
 function coverFor(it) {
-  if (it && it.image) return { backgroundImage: `url("${it.image}")`, backgroundSize: "cover", backgroundPosition: "center" };
+  // News stories get the category-colored gradient; other content keeps commodity tone.
+  if (it && (it.eventType || it.category)) {
+    const c = classifyNews(it), h = hashSeed(it && it.id);
+    const ang = [125, 140, 160, 115][h % 4];
+    const inner = (SCENE_SVG[c.scene] || SCENE_SVG.topo)(h);
+    const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='400' height='260'>${inner}</svg>`;
+    return { background: `url("data:image/svg+xml,${encodeURIComponent(svg)}"), linear-gradient(${ang}deg, ${c.g[0]}, ${c.g[1]})`, backgroundSize: "cover, cover", backgroundPosition: "center" };
+  }
   return coverStyle(it && (it.commodity || it.contentType), it && it.id, (it && it.scene) || "mineex");
+}
+// Feeds embed tracking beacons (1×1 pixels, click-redirect gifs) as media refs.
+// Reject known beacon hosts up front so we don't even request them; anything that
+// slips through is caught at load time by the natural-size check in <CoverImg>.
+const IMG_BEACON = /globenewswire\.com\/newsroom\/ti|ml\.globenewswire|rt\.newswire|thenewswire\.com\/api\/apps|accessnewswire\.com\/img\.ashx|newsfilecorp\.com\/newsinfo|cts\.businesswire|\/rt\.gif/i;
+function displayImage(url) {
+  const u = String(url || "");
+  if (!/^https:\/\//i.test(u)) return "";
+  if (IMG_BEACON.test(u)) return "";
+  return u;
+}
+// Real photo overlaid on the graphic base. Hides itself on load error OR when the
+// decoded image is tiny (a tracking pixel) — revealing the graphic underneath, so
+// a card is never a broken/smeared image. Parent must be position:relative.
+function CoverImg({ it }) {
+  const [ok, setOk] = useState(true);
+  const src = displayImage(it && it.image);
+  if (!src || !ok) return null;
+  return (
+    <img src={src} alt="" loading="lazy" aria-hidden
+      onLoad={(e) => { if (e.currentTarget.naturalWidth < 80 || e.currentTarget.naturalHeight < 60) setOk(false); }}
+      onError={() => setOk(false)}
+      className="absolute inset-0 h-full w-full object-cover" style={{ zIndex: 0 }} />
+  );
 }
 const isMedia = (t) => t === "VIDEO" || t === "INTERVIEW";
 
@@ -6096,7 +6212,16 @@ function FollowingChip({ dark }) {
 function StoryReader({ it, onOpen, onClose }) {
   const [playing, setPlaying] = useState(false);
   const [saved, setSaved] = useState(() => savedStore.has(it && it.id));
-  const toggleSave = () => { if (it) savedStore.toggle(it); setSaved((s) => !s); };
+  // Swipe-down-to-dismiss (in addition to the X). Drag the header/handle down; release
+  // past ~90px to close, otherwise it snaps back.
+  const [dragY, setDragY] = useState(0);
+  const [dragging, setDragging] = useState(false);
+  const startY = useRef(null);
+  const everDragged = useRef(false);
+  const onDragStart = (e) => { startY.current = e.touches[0].clientY; setDragging(true); everDragged.current = true; };
+  const onDragMove = (e) => { if (startY.current == null) return; setDragY(Math.max(0, e.touches[0].clientY - startY.current)); };
+  const onDragEnd = () => { setDragging(false); startY.current = null; if (dragY > 90) { haptic(); onClose(); } else setDragY(0); };
+  const toggleSave = () => { if (it) savedStore.toggle(it); if (it && it.postId && !saved) recordPostEvent(it.postId, "save"); setSaved((s) => !s); };
   const shareStory = async () => {
     haptic();
     // Share a MineEx URL for news (branded card via /n/<id> OG tags); fall back to the
@@ -6121,9 +6246,9 @@ function StoryReader({ it, onOpen, onClose }) {
     <div className="absolute inset-0 z-[110] flex flex-col justify-end pp-fade" onClick={onClose}>
       <style>{"@keyframes mxUp{from{transform:translateY(100%)}to{transform:translateY(0)}}"}</style>
       <div className="absolute inset-0" style={{ background: "rgba(15,23,42,0.4)", backdropFilter: "blur(2px)" }} />
-      <div onClick={(e) => e.stopPropagation()} className="relative flex h-[92%] flex-col rounded-t-[26px] bg-white" style={{ animation: "mxUp .3s cubic-bezier(.2,.8,.2,1)", boxShadow: "0 -12px 40px -12px rgba(15,23,42,0.35)" }}>
-        <div className="flex-shrink-0 px-5 pt-3">
-          <div className="mx-auto mb-2 h-1 w-9 rounded-full bg-slate-200" />
+      <div onClick={(e) => e.stopPropagation()} className="relative flex h-[92%] flex-col rounded-t-[26px] bg-white" style={{ animation: everDragged.current ? "none" : "mxUp .3s cubic-bezier(.2,.8,.2,1)", transform: `translateY(${dragY}px)`, transition: dragging ? "none" : "transform .25s cubic-bezier(.2,.8,.2,1)", boxShadow: "0 -12px 40px -12px rgba(15,23,42,0.35)" }}>
+        <div className="flex-shrink-0 px-5 pt-3" onTouchStart={onDragStart} onTouchMove={onDragMove} onTouchEnd={onDragEnd} style={{ touchAction: "none" }}>
+          <div className="mx-auto mb-2 h-1.5 w-10 rounded-full bg-slate-300" />
           <div className="flex items-center justify-between">
             <TypeBadge type={it.badge || it.contentType} />
             <div className="flex items-center gap-2">
@@ -6136,6 +6261,7 @@ function StoryReader({ it, onOpen, onClose }) {
         <div className="pp-scroll min-h-0 flex-1 overflow-y-auto px-5 pb-6 pt-3">
           {media && (
             <button onClick={() => { haptic(); setPlaying((v) => !v); }} className="relative mb-4 block h-52 w-full overflow-hidden rounded-2xl" style={coverFor(it)}>
+              <CoverImg it={it} />
               <span className="absolute inset-0 grid place-items-center">
                 <span className="grid h-14 w-14 place-items-center rounded-full bg-white/90">{playing ? <span className="flex gap-1"><span className="h-4 w-1.5 rounded-sm bg-slate-900" /><span className="h-4 w-1.5 rounded-sm bg-slate-900" /></span> : <Play size={22} className="ml-0.5 text-slate-900" />}</span>
               </span>
@@ -6200,7 +6326,7 @@ function StoryReader({ it, onOpen, onClose }) {
         <div className="flex-shrink-0 border-t border-slate-100 px-5 py-3" style={{ paddingBottom: "calc(env(safe-area-inset-bottom,0px) + 12px)" }}>
           <div className="flex items-center gap-2.5">
             {it.live && onOpen && <button onClick={() => { haptic(); onClose(); onOpen(it); }} className={`h-12 rounded-2xl border border-slate-200 px-4 text-[13px] font-bold text-slate-700 active:scale-95 ${isBrief ? "flex-1" : "flex-shrink-0"}`}>Open Company</button>}
-            {!isBrief && <button onClick={() => { haptic(); try { window.open(it.fullUrl, "_blank", "noopener"); } catch {} }} className="flex h-12 flex-1 items-center justify-center gap-1.5 rounded-2xl text-[14px] font-bold text-white active:scale-[0.98]" style={{ background: EM }}>{origLabel} <ArrowUpRight size={15} /></button>}
+            {!isBrief && <button onClick={() => { haptic(); try { window.open(it.fullUrl, "_blank", "noopener"); } catch {} }} className="flex h-12 flex-1 items-center justify-center gap-1.5 rounded-2xl text-[14px] font-bold text-white active:scale-[0.98]" style={{ background: "#2563eb" }}>{origLabel} <ArrowUpRight size={15} /></button>}
           </div>
         </div>
       </div>
@@ -6211,9 +6337,10 @@ function StoryReader({ it, onOpen, onClose }) {
 function LeadStory({ it, onRead, reason }) {
   return (
     <button onClick={() => { haptic(); onRead(it); }} className="w-full overflow-hidden rounded-3xl border border-slate-100 bg-white text-left transition active:scale-[0.99]" style={{ boxShadow: "0 1px 2px rgba(15,23,42,0.04), 0 18px 34px -22px rgba(15,23,42,0.5)" }}>
-      <div className="relative h-52 w-full" style={coverFor(it)}>
+      <div className="relative h-52 w-full overflow-hidden" style={coverFor(it)}>
+        <CoverImg it={it} />
         <div className="absolute inset-0" style={{ background: "linear-gradient(180deg, rgba(15,23,42,0) 35%, rgba(15,23,42,0.82))" }} />
-        <div className="absolute left-4 top-4 flex items-center gap-2"><TypeBadge type={it.badge || it.contentType} />{it.followed && <FollowingChip dark />}</div>
+        <div className="absolute left-4 top-4 flex items-center gap-2">{it.contentType === "NEWS" ? <NewsTag it={it} onDark /> : <TypeBadge type={it.badge || it.contentType} />}{it.followed && <FollowingChip dark />}</div>
         {isMedia(it.contentType) && <span className="absolute inset-0 grid place-items-center"><span className="grid h-12 w-12 place-items-center rounded-full bg-white/85"><Play size={18} className="ml-0.5 text-slate-900" /></span></span>}
         <div className="absolute inset-x-4 bottom-3.5">
           <p className="text-[19px] font-extrabold leading-tight tracking-tight text-white" style={{ textShadow: "0 1px 14px rgba(0,0,0,0.45)" }}>{it.headline}</p>
@@ -6234,7 +6361,7 @@ function LeadStory({ it, onRead, reason }) {
 function TopStory({ it, onRead }) {
   return (
     <button onClick={() => { haptic(); onRead(it); }} className="flex w-full items-stretch gap-3 rounded-2xl border border-slate-100 bg-white p-2.5 text-left transition active:scale-[0.99]" style={{ boxShadow: "0 1px 2px rgba(15,23,42,0.04), 0 12px 26px -20px rgba(15,23,42,0.4)" }}>
-      <div className="relative h-[74px] w-[74px] flex-shrink-0 overflow-hidden rounded-xl" style={coverFor(it)}>
+      <div className="relative h-[74px] w-[74px] flex-shrink-0 overflow-hidden rounded-xl" style={coverFor(it)}><CoverImg it={it} />
         {isMedia(it.contentType) && <span className="absolute inset-0 grid place-items-center"><span className="grid h-7 w-7 place-items-center rounded-full bg-white/85"><Play size={12} className="ml-0.5 text-slate-900" /></span></span>}
       </div>
       <div className="flex min-w-0 flex-1 flex-col justify-center">
@@ -6267,28 +6394,47 @@ function PRCard({ it, onRead }) {
 }
 
 // News card — editorial, with imagery. size: "lead" | "med" | "sm".
+// A small "NEW" pill for stories published since the reader's last visit.
+function NewDot() {
+  return <span className="ml-1.5 inline-flex items-center rounded-full px-1.5 py-[1px] text-[8.5px] font-extrabold uppercase tracking-wide" style={{ background: "#eff6ff", color: "#1d4ed8" }}>New</span>;
+}
 function NewsCard({ it, onRead, size = "med" }) {
   if (size === "lead") return <LeadStory it={it} onRead={onRead} />;
+  const cls = classifyNews(it);
   if (size === "sm") return (
-    <button onClick={() => { haptic(); onRead(it); }} className="flex w-full items-center gap-3 rounded-2xl border border-slate-100 bg-white p-3 text-left transition active:scale-[0.995]" style={{ boxShadow: "0 1px 2px rgba(15,23,42,0.04), 0 12px 26px -20px rgba(15,23,42,0.4)" }}>
+    <button onClick={() => { haptic(); onRead(it); }} className="flex w-full items-center gap-3 overflow-hidden rounded-2xl border border-slate-100 bg-white p-3 text-left transition active:scale-[0.995]" style={{ boxShadow: "0 1px 2px rgba(15,23,42,0.04), 0 12px 26px -20px rgba(15,23,42,0.4)", borderLeft: `3px solid ${cls.color}` }}>
       <div className="min-w-0 flex-1">
-        <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">{it.source} · {it.when}</p>
+        <div className="mb-1 flex items-center gap-1.5"><NewsTag it={it} /><span className="truncate text-[10px] font-bold uppercase tracking-wider text-slate-400">{it.source} · {it.when}</span>{it.isNew && <NewDot />}</div>
         <p className="line-clamp-2 text-[13.5px] font-bold leading-snug tracking-tight text-slate-900">{it.headline}</p>
       </div>
-      <div className="h-14 w-14 flex-shrink-0 rounded-xl" style={coverFor(it)} />
+      <div className="relative h-14 w-14 flex-shrink-0 overflow-hidden rounded-xl" style={coverFor(it)}><CoverImg it={it} /></div>
     </button>
   );
   return (
     <button onClick={() => { haptic(); onRead(it); }} className="w-full overflow-hidden rounded-2xl border border-slate-100 bg-white text-left transition active:scale-[0.99]" style={{ boxShadow: "0 1px 2px rgba(15,23,42,0.04), 0 14px 28px -22px rgba(15,23,42,0.45)" }}>
-      <div className="h-32 w-full" style={coverFor(it)} />
+      <div className="relative h-32 w-full overflow-hidden" style={coverFor(it)}>
+        <CoverImg it={it} />
+        <div className="absolute left-3 top-3" style={{ zIndex: 1 }}><NewsTag it={it} onDark /></div>
+      </div>
       <div className="p-3.5">
-        <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">{it.source} · {it.when}{it.commodity ? ` · ${it.commodity}` : ""}</p>
+        <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">{it.source} · {it.when}{it.commodity ? ` · ${it.commodity}` : ""}{it.isNew && <NewDot />}</p>
         <p className="text-[14.5px] font-extrabold leading-snug tracking-tight text-slate-900">{it.headline}</p>
         {it.dek && <p className="mt-1 line-clamp-2 text-[12.5px] font-medium leading-snug text-slate-500">{it.dek}</p>}
       </div>
     </button>
   );
 }
+// Recency bucket for time-grouped feed sections.
+function timeBucket(iso) {
+  const t = new Date(iso).getTime();
+  if (!isFinite(t)) return "Earlier";
+  const h = (Date.now() - t) / 3600e3;
+  if (h < 4) return "Just in";
+  if (h < 24) return "Today";
+  if (h < 168) return "This week";
+  return "Earlier";
+}
+const BUCKET_ORDER = ["Just in", "Today", "This week", "Earlier"];
 
 // MineEx Brief — distinct editorial treatment (accent rule, MineEx wordmark).
 function BriefCard({ it, onRead, reason }) {
@@ -6306,7 +6452,7 @@ function BriefCard({ it, onRead, reason }) {
 function MediaTeaser({ it, onRead }) {
   return (
     <button onClick={() => { haptic(); onRead(it); }} className="flex w-full items-stretch gap-3 overflow-hidden rounded-2xl border border-slate-100 bg-white p-2.5 text-left transition active:scale-[0.99]" style={{ boxShadow: "0 1px 2px rgba(15,23,42,0.04), 0 12px 26px -20px rgba(15,23,42,0.4)" }}>
-      <div className="relative h-[74px] w-[110px] flex-shrink-0 overflow-hidden rounded-xl" style={coverFor(it)}>
+      <div className="relative h-[74px] w-[110px] flex-shrink-0 overflow-hidden rounded-xl" style={coverFor(it)}><CoverImg it={it} />
         <span className="absolute inset-0 grid place-items-center"><span className="grid h-8 w-8 place-items-center rounded-full bg-white/85"><Play size={13} className="ml-0.5 text-slate-900" /></span></span>
         {it.duration && <span className="absolute bottom-1 right-1 rounded bg-black/50 px-1 text-[9px] font-bold text-white">{it.duration}</span>}
       </div>
@@ -6338,19 +6484,23 @@ function CompanyRecCard({ co, reason, onOpen }) {
 }
 
 // MEDIA TAB — vertical, swipeable, video-first (Reels/TikTok interaction, MineEx skin).
-function Reels({ items, onOpen, followed }) {
-  const [followSet, setFollowSet] = useState(() => new Set(followed || []));
+function Reels({ items, onOpen }) {
+  const [, bumpFollow] = useState(0);
+  // Follows here write to the SAME persistent store as the profile Follow button, so a
+  // follow made from Media sticks and shows up on the Following page (was ephemeral).
+  useEffect(() => listStore.sub(() => bumpFollow((x) => x + 1)), []);
   const [playing, setPlaying] = useState({});
   if (!items.length) return <FeedEmpty Icon={Play} title="No media yet" sub="Pro companies will publish interviews and site footage here." />;
-  const toggleFollow = (slug) => { haptic(); setFollowSet((s) => { const n = new Set(s); n.has(slug) ? n.delete(slug) : n.add(slug); return n; }); };
+  const toggleFollow = (slug) => { if (slug) listStore.set("following", slug, !listStore.has("following", slug)); };
   return (
     <div className="pp-scroll h-full snap-y snap-mandatory overflow-y-auto" style={{ scrollbarWidth: "none" }}>
       {items.map((it) => {
-        const isFollowing = followSet.has(it.companyId);
+        const isFollowing = listStore.has("following", it.companyId);
         const play = !!playing[it.id];
         return (
           <div key={it.id} className="relative flex h-full snap-start snap-always items-stretch justify-center px-3 py-3">
             <div className="relative w-full overflow-hidden rounded-3xl" style={coverFor(it)}>
+              <CoverImg it={it} />
               <div className="absolute inset-0" style={{ background: "linear-gradient(180deg, rgba(15,23,42,0.35) 0%, rgba(15,23,42,0) 30%, rgba(15,23,42,0) 55%, rgba(15,23,42,0.85) 100%)" }} />
               {/* play control */}
               <button onClick={() => { haptic(); setPlaying((p) => ({ ...p, [it.id]: !p[it.id] })); }} className="absolute inset-0 grid place-items-center">
@@ -6401,7 +6551,7 @@ function Reels({ items, onOpen, followed }) {
 // deliberately transparent — real signals only (follows + followed-commodity
 // relevance + recency + a modest Pro boost) — structured so a smarter backend
 // can replace it without changing the cards.
-function TodayScreen({ onOpenCompany, onScan }) {
+export function TodayScreen({ onOpenCompany, onScan }) {
   const [tab, setTab] = useState("foryou");
   const [, bump] = useState(0);
   useEffect(() => listStore.sub(() => bump((x) => x + 1)), []);
@@ -6422,15 +6572,25 @@ function TodayScreen({ onOpenCompany, onScan }) {
 
   // Approved REAL news (public view). Loaded only in the real path; mock uses its own data.
   const [liveNews, setLiveNews] = useState([]);
+  // Company posts (press releases + media) published via the spine — server-ranked (balanced).
+  const [livePosts, setLivePosts] = useState([]);
   // `newsLoaded` gates the first paint: until the live news has come back we don't
   // render the feed at all, so the built-in company/activity items (window.__FEED__)
   // never flash + re-rank when the real news arrives a moment later.
   const [newsLoaded, setNewsLoaded] = useState(false);
+  // "NEW since your last visit" baseline — captured ONCE per mount (before we stamp the
+  // new visit time), so stories published since last time carry a NEW pill this session.
+  const NEWS_SEEN_KEY = "mineex.newsSeen.v1";
+  const seenAtRef = useRef(null);
+  if (seenAtRef.current == null) { try { seenAtRef.current = Number(localStorage.getItem(NEWS_SEEN_KEY)) || 0; } catch { seenAtRef.current = 0; } }
   // Re-fetch the approved public feed. Called on mount and on pull-to-refresh.
   const refreshNews = React.useCallback(async () => {
     if (mockOn) { setNewsLoaded(true); return; }
-    try { const rows = await fetchLiveNews(60); setLiveNews(rows); } catch { /* ignore */ }
-    finally { setNewsLoaded(true); }
+    try {
+      const [news, posts] = await Promise.all([fetchLiveNews(60), fetchCompanyFeedPosts(30)]);
+      setLiveNews(news); setLivePosts(posts);
+    } catch { /* ignore */ }
+    finally { setNewsLoaded(true); try { localStorage.setItem(NEWS_SEEN_KEY, String(Date.now())); } catch {} }
   }, [mockOn]);
   useEffect(() => { refreshNews(); }, [refreshNews]);
   const feedReady = mockOn || newsLoaded;
@@ -6449,9 +6609,32 @@ function TodayScreen({ onOpenCompany, onScan }) {
     originalHeadline: n.title, fullUrl: n.canonical_url, whatHappened: "", why: "", takeaways: [],
     image: n.image_url || "", scene: NEWS_SCENE[n.event_type] || "market",
     materiality: n.materiality_score || 50, companyTier: "free", isFeatured: false,
-    src: "Industry", Icon: Newspaper, co: n.source_name || "Industry", when: relTime(String(n.published_at).slice(0, 10)),
+    src: "Industry", Icon: Newspaper, co: n.source_name || "Industry", when: relTime(n.published_at),
     live: !!n.company_slug, slug: n.company_slug || "", logo: "", key: false,
   })), [liveNews]);
+
+  // Company posts → the SAME normalized feed-object shape as news, so they flow through the
+  // exact same ranking/interleave. Press releases become editorial-feed items (UPDATE); media
+  // becomes VIDEO (routes to the Media/Reels tab). materiality + companyTier carry through so
+  // the balanced ranking (follow > interest > materiality, News never pay-ranked) applies.
+  const liveCompanyObjects = useMemo(() => (livePosts || []).map((p) => {
+    const co = p.company || {};
+    const slug = co.slug || "";
+    const media = p.post_type === "media";
+    const isVid = media && p.media_url && /\.(mp4|mov|webm|m4v)(\?|#|$)/i.test(p.media_url);
+    return {
+      id: "post-" + p.id, postId: p.id, contentType: media ? "VIDEO" : "UPDATE", badge: media ? "VIDEO" : "UPDATE",
+      companyId: slug, companyName: co.name || "", ticker: co.primary_ticker || "",
+      commodity: co.commodity || "", jurisdiction: co.jurisdiction || "",
+      publishedAt: p.published_at, source: co.name || "Company", headline: p.title || "", t: p.title || "",
+      dek: p.summary ? String(p.summary).slice(0, 150) : "", summary: p.summary || "", summaryLong: p.summary || "", mineex_summary: p.summary || "",
+      materiality: p.materiality_score || 50, companyTier: accountTier({ tier: co.tier }), isFeatured: false,
+      src: "Company", Icon: media ? Play : Radio, co: co.name || "", when: relTime(p.published_at),
+      live: true, slug, logo: (co.brand && co.brand.logo) || "", key: (p.materiality_label === "Transformational" || p.materiality_label === "High"),
+      image: p.thumbnail_url || "", videoSrc: isVid ? p.media_url : undefined,
+      whatHappened: p.summary || "", why: "", takeaways: [],
+    };
+  }), [livePosts]);
 
   const followedIds = mockOn ? (activeInv ? activeInv.following : []) : listStore.ids("following");
   const followKey = followedIds.join(",");
@@ -6466,17 +6649,17 @@ function TodayScreen({ onOpenCompany, onScan }) {
 
   // Annotate each object with the signals ranking needs (following / relevance / Pro).
   const objects = useMemo(() => {
-    const base = mockOn ? mock.stories : [...FEED_OBJECTS, ...liveObjects];
+    const base = mockOn ? mock.stories : [...FEED_OBJECTS, ...liveObjects, ...liveCompanyObjects];
     const rel = (o) => interest.size > 0 && !!o.commodity && discovery.commoditiesOf({ commodity: o.commodity }).some((v) => interest.has(v));
     return base.map((o) => {
       const followed = followedIds.includes(o.companyId);
       return { ...o, followed, pro: o.companyTier === "pro", relevant: !followed && rel(o) };
     });
-  }, [mockOn, mock, liveObjects, followKey, interest, mockInv]);
+  }, [mockOn, mock, liveObjects, liveCompanyObjects, followKey, interest, mockInv]);
 
   // Shared rich reader + subtle "why you're seeing this" context.
   const [reader, setReader] = useState(null);
-  const openStory = (it) => { haptic(); setReader(it); };
+  const openStory = (it) => { haptic(); setReader(it); if (it && it.postId) recordPostEvent(it.postId, "open"); };
   const matchCommodity = (o) => { for (const v of discovery.commoditiesOf({ commodity: o.commodity })) if (interest.has(v)) return v; return null; };
   const reasonFor = (o) => {
     if (o.followed) return null;                                   // Following chip already says it
@@ -6595,13 +6778,24 @@ function TodayScreen({ onOpenCompany, onScan }) {
 
           {tab === "news" && (
             <div className="pt-2">
-              {news.length ? (<>
-                <NewsCard it={news[0]} onRead={openStory} size="lead" />
-                {news.length > 1 && (<>
-                  <p className="px-1 pb-2 pt-5 text-[11px] font-bold uppercase tracking-widest text-slate-400">Latest News</p>
-                  <div className="space-y-2.5">{news.slice(1).map((it, idx) => <NewsCard key={it.id} it={it} onRead={openStory} size={idx < 2 ? "med" : "sm"} />)}</div>
-                </>)}
-              </>) : (
+              {news.length ? (() => {
+                // Tag "NEW" (since last visit) + group the rest under recency headers so the
+                // feed reads as fresh and varied — a lead card, then dated sections.
+                const withNew = news.map((it) => ({ ...it, isNew: new Date(it.publishedAt).getTime() > (seenAtRef.current || 0) }));
+                const rest = withNew.slice(1);
+                const groups = {};
+                for (const it of rest) { const b = timeBucket(it.publishedAt); (groups[b] = groups[b] || []).push(it); }
+                const LABEL = { "Just in": "Just in", "Today": "Earlier today", "This week": "This week", "Earlier": "Earlier" };
+                return (<>
+                  <NewsCard it={withNew[0]} onRead={openStory} size="lead" />
+                  {BUCKET_ORDER.filter((b) => groups[b] && groups[b].length).map((b) => (
+                    <div key={b}>
+                      <p className="px-1 pb-2 pt-5 text-[11px] font-bold uppercase tracking-widest text-slate-400">{LABEL[b]}</p>
+                      <div className="space-y-2.5">{groups[b].map((it, idx) => <NewsCard key={it.id} it={it} onRead={openStory} size={idx === 0 && (b === "Just in" || b === "Today") ? "med" : "sm"} />)}</div>
+                    </div>
+                  ))}
+                </>);
+              })() : (
                 <FeedEmpty Icon={Globe} title="Industry news is on the way" sub="We're connecting editorial and RSS mining news here — ranked by relevance, never by payment. Press releases are in their own tab." />
               )}
             </div>
@@ -6732,12 +6926,12 @@ function CarouselCard({ co, onOpen, tag }) {
       style={{ boxShadow: "0 1px 2px rgba(15,23,42,0.04), 0 12px 26px -20px rgba(15,23,42,0.4)" }}>
       <div className="flex items-center">
         <CoLogo co={co} size={34} />
-        {co.live && <BadgeCheck size={13} style={{ color: EM }} className="ml-auto flex-shrink-0" />}
+        {discovery.isFeatured(co) && <BadgeCheck size={13} style={{ color: "#0ea5e9" }} fill="rgba(14,165,233,0.15)" className="ml-auto flex-shrink-0" />}
       </div>
       <p className="mt-2 truncate text-[13px] font-bold tracking-tight text-slate-900">{co.name}</p>
       <p className="mt-0.5 truncate text-[10.5px] font-semibold text-slate-400">{co.ticker}</p>
       <div className="mt-1.5 flex flex-wrap gap-1">
-        {com && <span className="rounded-full px-2 py-0.5 text-[9.5px] font-bold" style={{ background: "#ecfdf5", color: EM_TEXT }}>{com}</span>}
+        {com && <span className="rounded-full px-2 py-0.5 text-[9.5px] font-bold" style={{ background: "#eff6ff", color: EM_TEXT }}>{com}</span>}
         {country && <span className="rounded-full bg-slate-50 px-2 py-0.5 text-[9.5px] font-bold text-slate-500">{country}</span>}
       </div>
       {tag && <span className="mt-1.5 text-[9px] font-bold uppercase tracking-wide" style={{ color: "#b45309" }}>{tag}</span>}
@@ -6802,16 +6996,20 @@ function DiscoverScreen({ onOpenCompany, onScan }) {
   const countFor = (facet) => (pending) =>
     ALL.filter((co) => matchQuery(co) && FKEYS.every((k) => matchers[k](co, k === facet ? pending : filters[k]))).length;
 
-  // facet option counts (over the whole directory) — built once
+  // facet option counts — computed over the companies matching the OTHER active
+  // filters (every facet except the one being shown) + the text query, so each
+  // option's number reflects how many companies remain if you add it, and options
+  // that would leave zero matches drop off the list entirely (true faceted search).
   const counts = useMemo(() => {
-    const mk = (vof) => { const m = new Map(); for (const co of ALL) for (const v of vof(co)) if (v) m.set(v, (m.get(v) || 0) + 1); return m; };
+    const base = ALL.filter((co) => matchQuery(co) && FKEYS.filter((k) => k !== facet).every((k) => matchers[k](co, filters[k])));
+    const mk = (vof) => { const m = new Map(); for (const co of base) for (const v of vof(co)) if (v) m.set(v, (m.get(v) || 0) + 1); return m; };
     return {
       commodity: mk(discovery.commoditiesOf), country: mk(discovery.countriesOf),
       provCA: mk((co) => discovery.provincesOf(co, "Canada")), provUS: mk((co) => discovery.provincesOf(co, "United States")),
       stage: mk((co) => { const s = discovery.stageOf(co); return s ? [s] : []; }), activity: mk(discovery.activityOf),
       funding: mk((co) => co.funding ? [co.funding] : []),
     };
-  }, []);
+  }, [facet, filters, query]);
 
   // Options for the active facet, rendered INLINE in the one Advanced Search card
   // (no more second sheet). Commodity/Location are grouped w/ counts; Location
@@ -6903,7 +7101,7 @@ function DiscoverScreen({ onOpenCompany, onScan }) {
               <div className="absolute right-1 top-9 z-[71] w-44 overflow-hidden rounded-2xl border border-slate-100 bg-white py-1" style={{ boxShadow: "0 12px 34px -10px rgba(15,23,42,0.35)" }}>
                 {SORTS.map(([v, label]) => (
                   <button key={v} onClick={() => { haptic(); setSort(v); setSortOpen(false); }} className="flex w-full items-center justify-between px-4 py-2.5 text-left text-[13px] font-semibold text-slate-700 active:bg-slate-50">
-                    {label}{sort === v && <Check size={15} style={{ color: EM }} />}
+                    {label}{sort === v && <Check size={15} style={{ color: "#0f172a" }} />}
                   </button>
                 ))}
               </div>
@@ -6924,7 +7122,7 @@ function DiscoverScreen({ onOpenCompany, onScan }) {
             <Compass size={26} className="text-slate-300" />
             <p className="mt-2 text-[13.5px] font-bold text-slate-500">No companies match these filters.</p>
             <p className="mt-0.5 max-w-[240px] text-[12px] font-medium text-slate-400">Try removing a filter to broaden your search.</p>
-            {hasFilters && <button onClick={clearAll} className="mt-4 rounded-full px-4 py-2 text-[12.5px] font-bold text-white active:scale-95" style={{ background: EM }}>Clear filters</button>}
+            {hasFilters && <button onClick={clearAll} className="mt-4 rounded-full px-4 py-2 text-[12.5px] font-bold text-white active:scale-95" style={{ background: "#0f172a" }}>Clear filters</button>}
           </div>
         )}
       </div>
@@ -6995,7 +7193,7 @@ function DiscoverScreen({ onOpenCompany, onScan }) {
                   const sel = filters[k].length;
                   return (
                     <button key={k} onClick={() => { haptic(); setFacet(k); setAdvExpanded({}); }} className="rounded-full border px-4 py-1.5 text-[12.5px] font-bold tracking-tight transition active:scale-95"
-                      style={on ? { background: EM, borderColor: EM, color: "#fff" } : { background: "#fff", borderColor: "#e2e8f0", color: "#475569" }}>
+                      style={on ? { background: "#0f172a", borderColor: "#0f172a", color: "#fff" } : { background: "#fff", borderColor: "#e2e8f0", color: "#475569" }}>
                       {name}{sel ? ` · ${sel}` : ""}
                     </button>
                   );
@@ -7013,7 +7211,7 @@ function DiscoverScreen({ onOpenCompany, onScan }) {
                       <div key={r.value}>
                         <div className="flex items-center">
                           <button onClick={() => advToggle(r.value)} className="flex min-w-0 flex-1 items-center gap-3 py-2.5 px-1">
-                            <span className="grid h-[22px] w-[22px] flex-shrink-0 place-items-center rounded-md border transition" style={filters[facet].includes(r.value) ? { background: EM, borderColor: EM } : { borderColor: "#cbd5e1" }}>
+                            <span className="grid h-[22px] w-[22px] flex-shrink-0 place-items-center rounded-md border transition" style={filters[facet].includes(r.value) ? { background: "#0f172a", borderColor: "#0f172a" } : { borderColor: "#cbd5e1" }}>
                               {filters[facet].includes(r.value) && <Check size={14} className="text-white" strokeWidth={3} />}
                             </span>
                             <span className="min-w-0 flex-1 truncate text-left text-[14px] font-semibold tracking-tight text-slate-800">{r.value}</span>
@@ -7027,7 +7225,7 @@ function DiscoverScreen({ onOpenCompany, onScan }) {
                         </div>
                         {r.sub && advExpanded[r.value] && r.sub.map((s) => (
                           <button key={s.value} onClick={() => advToggle(s.value)} className="flex w-full items-center gap-3 py-2.5 pl-9 pr-1">
-                            <span className="grid h-[22px] w-[22px] flex-shrink-0 place-items-center rounded-md border transition" style={filters[facet].includes(s.value) ? { background: EM, borderColor: EM } : { borderColor: "#cbd5e1" }}>
+                            <span className="grid h-[22px] w-[22px] flex-shrink-0 place-items-center rounded-md border transition" style={filters[facet].includes(s.value) ? { background: "#0f172a", borderColor: "#0f172a" } : { borderColor: "#cbd5e1" }}>
                               {filters[facet].includes(s.value) && <Check size={14} className="text-white" strokeWidth={3} />}
                             </span>
                             <span className="min-w-0 flex-1 truncate text-left text-[14px] font-semibold tracking-tight text-slate-800">{s.value}</span>
@@ -7046,7 +7244,7 @@ function DiscoverScreen({ onOpenCompany, onScan }) {
             <div className="flex-shrink-0 border-t border-slate-100 px-5 py-3" style={{ paddingBottom: "calc(env(safe-area-inset-bottom,0px) + 12px)" }}>
               <div className="flex items-center gap-3">
                 {hasFilters && <button onClick={clearAll} className="flex-shrink-0 text-[13.5px] font-bold text-slate-500 active:scale-95">Clear</button>}
-                <button onClick={() => { haptic(); setFilterOpen(false); }} className="h-12 flex-1 rounded-2xl text-[14px] font-bold text-white transition active:scale-[0.98]" style={{ background: EM }}>Show {filtered.length} {filtered.length === 1 ? "company" : "companies"}</button>
+                <button onClick={() => { haptic(); setFilterOpen(false); }} className="h-12 flex-1 rounded-2xl text-[14px] font-bold text-white transition active:scale-[0.98]" style={{ background: "#0f172a" }}>Show {filtered.length} {filtered.length === 1 ? "company" : "companies"}</button>
               </div>
             </div>
           </div>
@@ -7070,7 +7268,7 @@ function CompanyListRow({ co, onOpen, isFav, isWatch, actions }) {
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
             <span className="truncate text-[14px] font-bold tracking-tight text-slate-900">{co.name}</span>
-            {co.live && <BadgeCheck size={13} style={{ color: EM }} className="flex-shrink-0" />}
+            {discovery.isFeatured(co) && <BadgeCheck size={13} style={{ color: "#0ea5e9" }} fill="rgba(14,165,233,0.15)" className="flex-shrink-0" />}
             {isFav && <Heart size={11} className="flex-shrink-0" fill="#e11d48" style={{ color: "#e11d48" }} />}
             {isWatch && <Telescope size={11} className="flex-shrink-0" style={{ color: "#1d4ed8" }} />}
           </div>
@@ -7137,15 +7335,49 @@ function FollowingScreen({ followed, onOpenCompany, onScan }) {
 
   const openCo = (c) => onOpenCompany(c);
 
+  // Safety net: a saved company might not be in the local published DIRECTORY (followed
+  // from a shared link, a news stub, or beyond the directory's first page). Fetch those
+  // on demand and merge; until then a readable stub stands in — so nothing a user saved
+  // ever silently disappears from this page.
+  const [extras, setExtras] = useState({});
+  const knownIds = useMemo(() => new Set(DIRECTORY.map((c) => c.id)), []);
+  const savedKey = [companyIds.join(","), favIds.join(","), watchIds.join(",")].join("|");
+  useEffect(() => {
+    const allIds = [...new Set([...companyIds, ...favIds, ...watchIds])];
+    const missing = allIds.filter((id) => id && !knownIds.has(id) && !extras[id]);
+    if (!missing.length) return;
+    let cancelled = false;
+    (async () => {
+      const found = {};
+      for (const slug of missing) {
+        try {
+          const row = await fetchCompany(slug);
+          const pp = (row && row.profile && (row.profile.pp || row.profile)) || {};
+          const co = pp.COMPANY || {};
+          const brand = (row && row.profile && row.profile.brand) || {};
+          const name = (row && row.name) || co.name || slug;
+          const mono = String(name).trim().split(/\s+/).slice(0, 2).map((w) => w[0] || "").join("").toUpperCase() || "?";
+          found[slug] = { id: slug, slug, name, ticker: (row && row.primary_ticker) || co.ticker || "", commodity: co.commodity || "", region: co.jurisdiction || co.region || "", mono, logo: brand.logo || "", c: brand.accent || brand.color || "", live: true };
+        } catch (_) { /* leave for the stub below */ }
+      }
+      if (!cancelled && Object.keys(found).length) setExtras((e) => ({ ...e, ...found }));
+    })();
+    return () => { cancelled = true; };
+  }, [savedKey, knownIds]);
+
+  const stubFor = (id) => { const name = String(id).replace(/[-_]+/g, " ").replace(/\b\w/g, (m) => m.toUpperCase()); return { id, slug: id, name, ticker: "", commodity: "", region: "", mono: name.replace(/\s+/g, "").slice(0, 2).toUpperCase() || "?", logo: "", c: "" }; };
+  const resolve = (id) => DIR_BY_SLUG[id] || extras[id] || stubFor(id);
+
   const byOrder = (list, order) => [...list].sort((a, b) => order.indexOf(b.id) - order.indexOf(a.id));
   const byName = (list) => [...list].sort((a, b) => a.name.localeCompare(b.name));
   const sortCos = (list, order) => (sortBy === "alpha" ? byName(list) : byOrder(list, order));
   const query = q.trim().toLowerCase();
-  const match = (c) => !query || c.name.toLowerCase().includes(query) || c.ticker.toLowerCase().includes(query);
+  const match = (c) => !query || c.name.toLowerCase().includes(query) || (c.ticker || "").toLowerCase().includes(query);
+  const cosFor = (ids) => ids.map(resolve).filter(match);
 
-  const following = sortCos(DIRECTORY.filter((c) => companyIds.includes(c.id) && match(c)), companyIds);
-  const favourites = sortCos(DIRECTORY.filter((c) => favIds.includes(c.id) && match(c)), favIds);
-  const watchlist = sortCos(DIRECTORY.filter((c) => watchIds.includes(c.id) && match(c)), watchIds);
+  const following = sortCos(cosFor(companyIds), companyIds);
+  const favourites = sortCos(cosFor(favIds), favIds);
+  const watchlist = sortCos(cosFor(watchIds), watchIds);
 
   const nounFor = { following: "following", favourites: "favourites", watchlist: "in watchlist" };
   const countFor = { following: following.length, favourites: favourites.length, watchlist: watchlist.length };
@@ -7226,9 +7458,11 @@ function FollowingScreen({ followed, onOpenCompany, onScan }) {
 function ScanScreen({ onDetected, onClose }) {
   const videoRef = useRef(null);
   const streamRef = useRef(null);
+  const canvasRef = useRef(null);
   const rafRef = useRef(0);
   const [state, setState] = useState("idle"); // idle | starting | live | denied | unsupported
   const [result, setResult] = useState(null);
+  const [hint, setHint] = useState(""); // transient "no code found" feedback on manual Capture
 
   // A captured QR opens that company's profile. Real QR payloads carry a company
   // slug; until more companies exist every scan resolves to the demo profile.
@@ -7240,23 +7474,59 @@ function ScanScreen({ onDetected, onClose }) {
   };
   // Always release the camera when leaving the screen.
   useEffect(() => stopCamera, []);
+  // Once the camera has been granted, it STAYS on: on every later visit we open it
+  // automatically instead of making the user tap "Enable Camera" again.
+  const CAM_OK_KEY = "mineex.cameraOk.v1";
+  useEffect(() => {
+    let ok = false; try { ok = localStorage.getItem(CAM_OK_KEY) === "1"; } catch {}
+    if (ok) start();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  // Decode loop — only where the browser ships a BarcodeDetector (Chrome/Android).
-  // Elsewhere the live camera still opens; decoding just isn't available yet.
+  // One-shot decode of the current video frame. Prefers the native BarcodeDetector
+  // (Chrome/Android) and falls back to jsQR on a canvas (iOS WebKit / everywhere else,
+  // where BarcodeDetector doesn't exist). Returns the decoded string or null.
+  const detectorRef = useRef(undefined);
+  const decodeFrame = async () => {
+    const v = videoRef.current;
+    if (!v || !v.videoWidth) return null;
+    // native path
+    if (detectorRef.current === undefined) {
+      try { detectorRef.current = ("BarcodeDetector" in window) ? new window.BarcodeDetector({ formats: ["qr_code"] }) : null; } catch { detectorRef.current = null; }
+    }
+    if (detectorRef.current) {
+      try { const codes = await detectorRef.current.detect(v); if (codes && codes.length && codes[0].rawValue) return codes[0].rawValue; } catch { /* frame not ready */ }
+    }
+    // jsQR fallback (canvas pixels)
+    try {
+      const c = canvasRef.current || (canvasRef.current = document.createElement("canvas"));
+      c.width = v.videoWidth; c.height = v.videoHeight;
+      const ctx = c.getContext("2d", { willReadFrequently: true });
+      ctx.drawImage(v, 0, 0, c.width, c.height);
+      const img = ctx.getImageData(0, 0, c.width, c.height);
+      const code = jsQR(img.data, img.width, img.height, { inversionAttempts: "dontInvert" });
+      if (code && code.data) return code.data;
+    } catch { /* ignore */ }
+    return null;
+  };
+
+  // Continuous decode loop — auto-captures the moment a QR lands in frame.
   const runDetect = () => {
-    if (!("BarcodeDetector" in window)) return;
-    let det;
-    try { det = new window.BarcodeDetector({ formats: ["qr_code"] }); } catch { return; }
     const tick = async () => {
-      const v = videoRef.current;
-      if (!v || !streamRef.current) return;
-      try {
-        const codes = await det.detect(v);
-        if (codes && codes.length && codes[0].rawValue) { openScanned(codes[0].rawValue); return; }
-      } catch { /* frame not ready */ }
+      if (!videoRef.current || !streamRef.current) return;
+      const hit = await decodeFrame();
+      if (hit) { openScanned(hit); return; }
       rafRef.current = requestAnimationFrame(tick);
     };
     rafRef.current = requestAnimationFrame(tick);
+  };
+
+  // Manual capture — decode this frame; if nothing found, nudge the user.
+  const manualCapture = async () => {
+    const hit = await decodeFrame();
+    if (hit) { openScanned(hit); return; }
+    haptic(); setHint("No QR detected — line it up in the frame and hold steady.");
+    setTimeout(() => setHint(""), 2600);
   };
 
   const start = async () => {
@@ -7268,6 +7538,7 @@ function ScanScreen({ onDetected, onClose }) {
       streamRef.current = stream;
       if (videoRef.current) { videoRef.current.srcObject = stream; try { await videoRef.current.play(); } catch {} }
       setState("live");
+      try { localStorage.setItem(CAM_OK_KEY, "1"); } catch {} // remember it's granted → auto-open next time
       runDetect();
     } catch (e) {
       setState(e && e.name === "NotAllowedError" ? "denied" : "unsupported");
@@ -7278,57 +7549,61 @@ function ScanScreen({ onDetected, onClose }) {
   return (
     <div className="flex h-full flex-col">
       <ScreenHead eyebrow="Conference Mode" title="Scan" />
-      <div className="flex flex-1 flex-col items-center justify-center px-8 pb-28">
-        <div className="relative grid place-items-center overflow-hidden rounded-[32px]" style={{ width: 230, height: 230, background: live ? "#000" : "linear-gradient(160deg, rgba(15,23,42,0.06), rgba(15,23,42,0.02))" }}>
-          {/* live camera feed */}
-          <video
-            ref={videoRef}
-            playsInline
-            muted
-            autoPlay
-            style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: live ? 1 : 0, transition: "opacity .25s ease" }}
-          />
-          {/* corner brackets */}
-          {[
-            "left-0 top-0 border-l-[3px] border-t-[3px] rounded-tl-[28px]",
-            "right-0 top-0 border-r-[3px] border-t-[3px] rounded-tr-[28px]",
-            "left-0 bottom-0 border-l-[3px] border-b-[3px] rounded-bl-[28px]",
-            "right-0 bottom-0 border-r-[3px] border-b-[3px] rounded-br-[28px]",
-          ].map((p) => <span key={p} className={"absolute h-12 w-12 " + p} style={{ borderColor: live ? "#ffffff" : "#0f172a", zIndex: 2 }} />)}
-          {!live && (
-            <div className="grid h-16 w-16 place-items-center rounded-2xl" style={{ background: "linear-gradient(155deg,#334155,#0f172a)", boxShadow: "0 12px 30px -8px rgba(15,23,42,0.5)" }}>
-              <Scan size={30} className="text-white" strokeWidth={2.1} />
-            </div>
+      <div className="flex flex-1 flex-col px-6 pt-2" style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 96px)" }}>
+        {/* Scanner — vertically centered in the available space */}
+        <div className="flex flex-1 flex-col items-center justify-center">
+          <div className="relative grid aspect-square w-full max-w-[288px] place-items-center overflow-hidden rounded-[34px]" style={{ background: live ? "#000" : "radial-gradient(120% 120% at 50% 0%, #1e293b 0%, #0b0f17 100%)", boxShadow: "0 30px 70px -32px rgba(15,23,42,0.6), inset 0 0 0 1px rgba(255,255,255,0.06)" }}>
+            <video ref={videoRef} playsInline muted autoPlay style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: live ? 1 : 0, transition: "opacity .3s ease" }} />
+            {live && <div className="pointer-events-none absolute inset-0" style={{ boxShadow: "inset 0 0 100px 28px rgba(0,0,0,0.4)" }} />}
+            {[
+              "left-5 top-5 border-l-[3px] border-t-[3px] rounded-tl-[20px]",
+              "right-5 top-5 border-r-[3px] border-t-[3px] rounded-tr-[20px]",
+              "left-5 bottom-5 border-l-[3px] border-b-[3px] rounded-bl-[20px]",
+              "right-5 bottom-5 border-r-[3px] border-b-[3px] rounded-br-[20px]",
+            ].map((p) => <span key={p} className={"absolute h-10 w-10 " + p} style={{ borderColor: live ? "#ffffff" : "#60a5fa", opacity: live ? 0.95 : 0.7, zIndex: 2 }} />)}
+            {!live && (
+              <div className="grid h-[68px] w-[68px] place-items-center rounded-[20px]" style={{ background: "rgba(52,211,153,0.14)", border: "1px solid rgba(52,211,153,0.28)" }}>
+                <Scan size={32} strokeWidth={2} style={{ color: "#60a5fa" }} />
+              </div>
+            )}
+          </div>
+
+          <p className="mt-8 text-[20px] font-extrabold tracking-tight text-slate-900">
+            {live ? "Point at a QR code" : "Scan a QR code"}
+          </p>
+          <p className="mt-2 max-w-[260px] text-center text-[13px] font-medium leading-relaxed text-slate-500">
+            {state === "denied"
+              ? "Camera access is off. Turn it on in Settings → MineEx → Camera, then try again."
+              : state === "unsupported"
+              ? "This device can't open the camera here."
+              : live
+              ? (hint || "Hold steady — it captures automatically.")
+              : "Open a company's MineEx profile instantly by scanning their code."}
+          </p>
+
+          {live ? (
+            <button onClick={manualCapture} className="mt-7 flex items-center gap-2 rounded-full px-8 py-3.5 text-[14.5px] font-bold text-white transition active:scale-95" style={{ background: "#2563eb", boxShadow: "0 10px 24px -10px rgba(37,99,235,0.6)" }}>
+              <Focus size={16} /> Capture
+            </button>
+          ) : (
+            <button onClick={start} disabled={state === "starting"} className="mt-7 flex items-center gap-2 rounded-full px-8 py-3.5 text-[14.5px] font-bold text-white transition active:scale-95 disabled:opacity-60" style={{ background: "#2563eb", boxShadow: "0 10px 24px -10px rgba(37,99,235,0.6)" }}>
+              <Camera size={16} /> {state === "starting" ? "Opening…" : state === "denied" ? "Try again" : "Enable Camera"}
+            </button>
+          )}
+          {onClose && (
+            <button onClick={() => { stopCamera(); onClose(); }} className="mt-3.5 text-[13px] font-bold text-slate-400 transition active:scale-95">
+              Cancel
+            </button>
           )}
         </div>
 
-        <p className="mt-8 text-center text-[15px] font-bold tracking-tight text-slate-900">
-          {live ? "Point at a company QR code" : "Scan a company QR code"}
-        </p>
-        <p className="mt-1.5 max-w-[260px] text-center text-[12.5px] font-medium leading-relaxed text-slate-500">
-          {state === "denied"
-            ? "Camera access was blocked. Enable it for this site in your browser settings, then try again."
-            : state === "unsupported"
-            ? "This browser can't open the camera here. Try Safari or Chrome on your phone."
-            : live
-            ? ("BarcodeDetector" in window ? "Hold steady — the code captures automatically, or tap Capture." : "Line up the QR in the frame, then tap Capture.")
-            : "Instantly pull up a company's Passport profile by scanning their QR."}
-        </p>
-
-        {live ? (
-          <button onClick={() => openScanned(null)} className="mt-6 flex items-center gap-2 rounded-full px-6 py-2.5 text-[13px] font-bold text-white transition active:scale-95" style={{ background: "#0f172a" }}>
-            <Focus size={15} /> Capture
-          </button>
-        ) : (
-          <button onClick={start} disabled={state === "starting"} className="mt-6 flex items-center gap-2 rounded-full px-5 py-2.5 text-[13px] font-bold text-white transition active:scale-95 disabled:opacity-60" style={{ background: "#0f172a" }}>
-            <Camera size={15} /> {state === "starting" ? "Opening…" : state === "denied" ? "Try again" : "Enable Camera"}
-          </button>
-        )}
-        {onClose && (
-          <button onClick={() => { stopCamera(); onClose(); }} className="mt-3 text-[12.5px] font-bold text-slate-400 transition active:scale-95">
-            Cancel
-          </button>
-        )}
+        {/* Explainer — sits in the padded footer, clear of the bottom nav */}
+        <div className="w-full rounded-2xl border border-slate-100 bg-slate-50/80 px-4 py-3">
+          <p className="flex items-start gap-2.5 text-[12px] font-medium leading-relaxed text-slate-500">
+            <Scan size={15} className="mt-0.5 flex-shrink-0 text-blue-500" strokeWidth={2.2} />
+            <span><span className="font-bold text-slate-700">At a conference?</span> Scan a company's QR code from their booth or materials to instantly open their MineEx profile and follow them.</span>
+          </p>
+        </div>
       </div>
     </div>
   );
@@ -7393,11 +7668,10 @@ const listStore = {
     const cur = this.data[kind] || [];
     const next = on ? (cur.includes(id) ? cur : [id, ...cur]) : cur.filter((x) => x !== id);
     if (next === cur) return;
-    const prev = this.data;
     this.data = { ...this.data, [kind]: next };
     haptic();
     this.emit();
-    this._push(id, prev);
+    this._push(id);
   },
   toggle(kind, id) { this.set(kind, id, !this.has(kind, id)); },
   // Favourites & Watchlist are mutually exclusive: put id in `kind`, remove it from
@@ -7407,33 +7681,57 @@ const listStore = {
     const other = kind === "favourite" ? "watchlist" : "favourite";
     const cur = this.data[kind] || [];
     const otherCur = this.data[other] || [];
-    const prev = this.data;
     this.data = { ...this.data, [kind]: cur.includes(id) ? cur : [id, ...cur], [other]: otherCur.filter((x) => x !== id) };
     haptic();
     this.emit();
-    this._push(id, prev);
+    this._push(id);
   },
-  // Persist the company's full relationship (following/fav/watch) to the cloud for a
-  // signed-in investor; guests are a no-op (localStorage only). On cloud failure, roll
-  // the local state back so the UI never permanently shows something that didn't save.
-  _push(slug, prev) {
+  // Persist the company's relationship (following/fav/watch) to the cloud for a signed-in
+  // investor; guests are a no-op (localStorage only). LOCAL-FIRST: the local change is
+  // already saved and is the user's intent — a cloud hiccup must NEVER undo it, or a
+  // follow silently vanishes. So we retry with backoff and, on persistent failure, leave
+  // local intact (the next sign-in sync pushes it up). Each attempt re-reads the CURRENT
+  // local state, so rapid toggles converge on the latest value.
+  _push(slug, attempt = 0) {
     if (!investorAuthed()) return;
     const isF = this.has("following", slug), isFav = this.has("favourite", slug), isW = this.has("watchlist", slug);
     const op = (!isF && !isFav && !isW)
       ? investorData.deleteCompanyRelationship(slug)
       : investorData.upsertCompanyRelationship(slug, { isFollowing: isF, isFavourite: isFav, isWatchlist: isW });
-    Promise.resolve(op).catch(() => { this.data = prev; this.emit(); });
+    Promise.resolve(op).catch(() => { if (attempt < 3) setTimeout(() => this._push(slug, attempt + 1), 500 * (attempt + 1)); });
   },
-  // Replace local state with the investor's cloud relationships (authoritative).
-  hydrateFromCloud(rels) {
-    const d = { following: [], favourite: [], watchlist: [] };
+  // Merge the investor's cloud relationships INTO local (union). Unlike a replace, this
+  // never drops a local follow the cloud is missing — so a follow made just before its
+  // cloud write landed (or during a transient outage) survives, and a failed cloud READ
+  // can't wipe the list. We bias toward never losing follows; cross-device removals
+  // reconcile on the device where the unfollow happens.
+  mergeFromCloud(rels) {
+    const d = {
+      following: [...(this.data.following || [])],
+      favourite: [...(this.data.favourite || [])],
+      watchlist: [...(this.data.watchlist || [])],
+    };
+    const add = (arr, id) => { if (id && !arr.includes(id)) arr.push(id); };
     for (const r of rels || []) {
-      if (r.isFollowing) d.following.push(r.companySlug);
-      if (r.isFavourite) d.favourite.push(r.companySlug);
-      if (r.isWatchlist) d.watchlist.push(r.companySlug);
+      if (r.isFollowing) add(d.following, r.companySlug);
+      if (r.isFavourite) add(d.favourite, r.companySlug);
+      if (r.isWatchlist) add(d.watchlist, r.companySlug);
     }
+    d.watchlist = d.watchlist.filter((x) => !d.favourite.includes(x)); // fav wins (DB CHECK)
     this.data = d;
     this.emit();
+  },
+  // After merging, push up any local relationship the cloud doesn't already reflect, so
+  // the cloud catches up to follows made locally that never synced. Best-effort.
+  syncUpMissing(rels) {
+    if (!investorAuthed()) return;
+    const cloud = new Map((rels || []).map((r) => [r.companySlug, r]));
+    const slugs = new Set([...(this.data.following || []), ...(this.data.favourite || []), ...(this.data.watchlist || [])]);
+    for (const slug of slugs) {
+      const c = cloud.get(slug);
+      const isF = this.has("following", slug), isFav = this.has("favourite", slug), isW = this.has("watchlist", slug);
+      if (!c || !!c.isFollowing !== isF || !!c.isFavourite !== isFav || !!c.isWatchlist !== isW) this._push(slug);
+    }
   },
   // Clear local state (sign-out / account switch → the next user starts clean).
   reset() { this.data = { following: [], favourite: [], watchlist: [] }; this.emit(); },
@@ -7808,7 +8106,7 @@ function NewsScreen({ onOpenCompany, onScan }) {
                 </div>
                 <p className="mt-1.5 text-[13.5px] font-bold leading-snug tracking-tight text-slate-900">{s.title}</p>
               </div>
-              {s.live && <BadgeCheck size={14} style={{ color: EM }} className="mt-0.5 flex-shrink-0" />}
+              {discovery.isFeatured(s) && <BadgeCheck size={14} style={{ color: "#0ea5e9" }} fill="rgba(14,165,233,0.15)" className="mt-0.5 flex-shrink-0" />}
             </button>
           );
         })}
@@ -7961,8 +8259,11 @@ async function syncInvestorAccount() {
     }
     await reconcileInvestorData(uid, email).catch(() => {});
     try { localStorage.setItem(CACHE_OWNER_KEY, uid); } catch (_) {}
-    const rels = await investorData.getCompanyRelationships().catch(() => []);
-    listStore.hydrateFromCloud(rels);
+    // Non-destructive: union cloud INTO local (never wipes local-only follows), then push
+    // anything the cloud is missing back up. On a read failure (null) we skip entirely so
+    // a transient outage can't clear the user's list.
+    const rels = await investorData.getCompanyRelationships().catch(() => null);
+    if (rels) { listStore.mergeFromCloud(rels); listStore.syncUpMissing(rels); }
     await hydrateMediaFromCloud();
     await hydrateInvestorProfile(email);
   } catch (_) {} finally { _investorSyncing = false; }
@@ -8197,7 +8498,7 @@ function ProfileScreen({ onScan }) {
     { Icon: Building2, label: "Company", value: (pf.company || "").trim(), icBg: "rgba(37,99,235,0.1)", ic: "#2563eb" },
     { Icon: Factory, label: "Industry", value: (pf.industry || "").trim(), icBg: "rgba(91,87,201,0.11)", ic: "#5b57c9" },
     { Icon: MapPin, label: "Location", value: location, icBg: "rgba(176,118,46,0.13)", ic: "#b0762e" },
-    { Icon: TrendingUp, label: "Investor type", value: investorType, icBg: "rgba(5,150,105,0.12)", ic: "#059669" },
+    { Icon: TrendingUp, label: "Investor type", value: investorType, icBg: "rgba(37,99,235,0.12)", ic: "#2563eb" },
   ].filter((r) => r.value);
 
   // Comms toggle (session-local for V1).
@@ -8308,7 +8609,7 @@ function ProfileScreen({ onScan }) {
 
         {/* SAVED — bookmarked stories, opens the full list */}
         <button onClick={() => { haptic(); setSavedOpen(true); }} className="mt-3 flex w-full items-center gap-3 rounded-2xl border border-slate-100 bg-white p-4 text-left transition active:scale-[0.99]" style={cardFlat}>
-          <span className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-xl" style={{ background: "rgba(5,150,105,0.12)" }}><Bookmark size={17} style={{ color: EM_TEXT }} /></span>
+          <span className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-xl" style={{ background: "rgba(37,99,235,0.12)" }}><Bookmark size={17} style={{ color: EM_TEXT }} /></span>
           <span className="min-w-0 flex-1">
             <span className="block text-[13.5px] font-bold tracking-tight text-slate-800">Saved</span>
             <span className="block text-[11.5px] font-medium text-slate-400">Articles &amp; releases you’ve bookmarked</span>
@@ -8375,9 +8676,9 @@ function ProfileScreen({ onScan }) {
 
             {/* Sign out */}
             <button onClick={doSignOut} disabled={signingOut} className="mt-3 flex w-full items-center gap-3 rounded-2xl border border-slate-100 bg-white px-4 py-3.5 text-left transition active:bg-slate-50 disabled:opacity-60" style={cardFlat}>
-              <LogOut size={18} className={`flex-shrink-0 ${user ? "text-rose-500" : "text-emerald-500"}`} />
+              <LogOut size={18} className={`flex-shrink-0 ${user ? "text-rose-500" : "text-blue-500"}`} />
               <div className="min-w-0 flex-1">
-                <p className={`text-[13.5px] font-bold tracking-tight ${user ? "text-rose-600" : "text-emerald-600"}`}>{signingOut ? "Signing out…" : user ? "Sign out" : "Sign in"}</p>
+                <p className={`text-[13.5px] font-bold tracking-tight ${user ? "text-rose-600" : "text-blue-600"}`}>{signingOut ? "Signing out…" : user ? "Sign out" : "Sign in"}</p>
                 {email && <p className="truncate text-[11px] font-medium text-slate-400">{email}</p>}
               </div>
             </button>
@@ -8455,8 +8756,8 @@ export function applyPP(pp) {
   if (pp.STATUS_IMG !== undefined) STATUS_IMG = pp.STATUS_IMG;
   if (pp.STATUS_LOGO !== undefined) STATUS_LOGO = pp.STATUS_LOGO;
   if (pp.CARD_MEDIA !== undefined) CARD_MEDIA = pp.CARD_MEDIA || {};
-  if (pp.BRAND !== undefined) EM = pp.BRAND || "#10b981";
-  if (pp.BRAND_TEXT !== undefined) EM_TEXT = pp.BRAND_TEXT || "#0f9b73";
+  if (pp.BRAND !== undefined) EM = pp.BRAND || "#3b82f6";
+  if (pp.BRAND_TEXT !== undefined) EM_TEXT = pp.BRAND_TEXT || "#1d4ed8";
   if (pp.COMPANY !== undefined) COMPANY = pp.COMPANY;
   if (pp.TEAM_MEMBERS !== undefined) TEAM_MEMBERS = pp.TEAM_MEMBERS;
   if (pp.CAP !== undefined) CAP = pp.CAP;
@@ -8490,6 +8791,7 @@ export function applyPP(pp) {
   if (pp.TRACK !== undefined) TRACK = pp.TRACK;
   if (pp.PR_YEARS !== undefined) PR_YEARS = pp.PR_YEARS;
   if (pp.FULL !== undefined) FULL = pp.FULL;
+  if (pp.ACCOUNT_TIER !== undefined) ACCOUNT_TIER = String(pp.ACCOUNT_TIER || "").toLowerCase();
 }
 
 /* ============================================================
@@ -8559,15 +8861,24 @@ function ReportListingSheet({ slug, name, onClose }) {
 }
 
 function BasicListing({ onBack }) {
-  const [following, setFollowing] = useState(false);
+  const [, bumpFollow] = useState(0);
   const [listing, setListing] = useState(null); // ticker → "Open in Yahoo Finance" prompt (matches the pro capital page)
   const [reportOpen, setReportOpen] = useState(false);
   const slug = (() => { try { return new URLSearchParams(location.search).get("c") || ""; } catch (_) { return ""; } })();
+  // Follow persists to the SAME store as the full profile + Following page (was local-only
+  // useState, so follows on a basic listing — most companies — never saved).
+  useEffect(() => listStore.sub(() => bumpFollow((x) => x + 1)), []);
+  const following = listStore.has("following", slug);
+  const setFollowing = (v) => { if (slug) listStore.set("following", slug, typeof v === "function" ? v(following) : v); };
   const S = (x) => (x == null ? "" : String(x));
   const co = COMPANY || {};
   const pp = (typeof window !== "undefined" && window.__PP__) || {};
   const brief = S(pp.LISTING_BRIEF) || S(ONE_LINER);
-  const tickers = (Array.isArray(EXCHANGES) ? EXCHANGES : []).filter((x) => x && x.sym);
+  // Yahoo Finance needs the exchange suffix (CSE→.CN, TSXV→.V, TSX→.TO …); auto-created
+  // listings only carry {ex, sym}, so derive the proper quote symbol when it's missing.
+  const YSUF = { TSXV: ".V", "TSX.V": ".V", "TSX-V": ".V", TSX: ".TO", CSE: ".CN", CNSX: ".CN", NEO: ".NE", CBOE: ".NE", ASX: ".AX", LSE: ".L", FSE: ".F", FRA: ".F" };
+  const yahooSym = (x) => x.yahoo || (x.sym ? x.sym.replace(/\.[A-Za-z]+$/, "") + (YSUF[String(x.ex || "").toUpperCase().replace(/\s+/g, "")] || "") : "");
+  const tickers = (Array.isArray(EXCHANGES) ? EXCHANGES : []).filter((x) => x && x.sym).map((x) => ({ ...x, yahoo: yahooSym(x) }));
   // Tap a ticker → open the live quote on Yahoo Finance (same behaviour as the capital
   // page). Enabled on basic listings too — a live, tappable ticker makes the directory
   // feel real and is the hook that pulls investors in.
@@ -8605,7 +8916,7 @@ function BasicListing({ onBack }) {
         <button onClick={onBack} aria-label="Back" className="grid h-9 w-9 place-items-center rounded-full text-slate-700 transition active:scale-90"><ChevronLeft size={24} strokeWidth={2.2} /></button>
         <button onClick={() => setFollowing((v) => !v)}
           className="inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-[13px] font-bold transition active:scale-95"
-          style={following ? { background: "#eef2f6", color: "#334155" } : { background: EM, color: "#fff" }}>
+          style={following ? { background: "#eef2f6", color: "#334155" } : { background: "#2563eb", color: "#fff" }}>
           {following ? <><Check size={14} /> Following</> : <><Plus size={14} /> Follow</>}
         </button>
       </div>
@@ -8880,7 +9191,10 @@ export function CompanyProfile({ onBack, onScan, tab: controlledTab, onTabChange
   // page is revealed alongside it, snapping to the next/previous tab on release. Swipes
   // that START inside a horizontal carousel (the Highlights carousel, a project image
   // gallery, any overflow-x scroller) are ignored so those keep their own swipe behaviour.
-  const PAGE_TABS = ["overview", "projects", "timeline", "capital", "team", "updates"];
+  // BASIC tier = a controlled overview + a press-release timeline only. PRO (and unknown, so
+  // existing/live companies keep the full profile) = every tab. Free never reaches here (it
+  // renders the compact BasicListing above).
+  const PAGE_TABS = profilePagesForTier().map((p) => p.id);
   const [swipeTarget, setSwipeTarget] = useState(null);  // leads the header highlight the instant a swipe commits
   useEffect(() => { setSwipeTarget(null); }, [tab]);   // once the tab actually settles, drop the lead
   // The header morphs between the tall overview hero and the compact page bar. Drive BOTH its
@@ -9278,7 +9592,7 @@ export function BoothTimeline({ years, scrollToEl, dark }) {
 
   const Card = ({ it, yr }) => (
     <div style={{ position: "relative", paddingLeft: 30 }}>
-      <span style={{ position: "absolute", left: 0, top: 6, height: 14, width: 14, borderRadius: 99, background: it.key ? EM : T.dotNonKey, border: it.key ? "none" : T.dotNonKeyBorder, boxShadow: `0 0 0 4px ${T.dotRing}`, display: "grid", placeItems: "center" }}>{it.key && <span style={{ height: 4, width: 4, borderRadius: 99, background: "#06281d" }} />}</span>
+      <span style={{ position: "absolute", left: 0, top: 6, height: 14, width: 14, borderRadius: 99, background: it.key ? EM : T.dotNonKey, border: it.key ? "none" : T.dotNonKeyBorder, boxShadow: `0 0 0 4px ${T.dotRing}`, display: "grid", placeItems: "center" }}>{it.key && <span style={{ height: 4, width: 4, borderRadius: 99, background: "#0a1f38" }} />}</span>
       <div style={{ fontSize: 11.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.1em", color: it.key ? (dark ? EM : EM_TEXT) : (dark ? "#8493a8" : "#8b97a6") }}>{S(it.d)}{yr ? `, ${yr}` : ""}</div>
       <div style={{ fontSize: 20, fontWeight: 800, lineHeight: 1.22, marginTop: 5, letterSpacing: "-0.02em", color: T.cardTitle }}>{S(it.headline || it.label)}</div>
       {S(it.why) && <div style={{ fontSize: 15, color: T.cardWhy, marginTop: 8, lineHeight: 1.6, maxWidth: 780 }}>{S(it.why)}</div>}
@@ -9308,7 +9622,7 @@ export function BoothTimeline({ years, scrollToEl, dark }) {
                 <button ref={setHdr("k-" + g.year)} onClick={() => clickKeyYear(g.year)} style={hdrStyle(open)}>
                   <span style={{ fontSize: 16, fontWeight: 900, color: open ? "#fff" : T.titleClosed }}>{g.year}</span>
                   <span style={{ fontSize: 12.5, fontWeight: 700, color: open ? "rgba(255,255,255,0.6)" : T.subClosed }}>· {g.items.length} milestone{g.items.length > 1 ? "s" : ""}</span>
-                  <Gem size={12} style={{ color: open ? "#6ee7b7" : EM }} />
+                  <Gem size={12} style={{ color: open ? "#93c5fd" : EM }} />
                   <span style={chev(open)}><ChevronRight size={18} /></span>
                 </button>
                 {open && <div style={bodyWrap}>{g.items.map((it, i) => <Reveal key={i} v="card" order={Math.min(i, 4)}><Card it={it} yr={g.year} /></Reveal>)}</div>}
@@ -9330,7 +9644,7 @@ export function BoothTimeline({ years, scrollToEl, dark }) {
                 <button ref={setHdr("q-" + mkey)} onClick={() => clickQuarter(mkey)} style={hdrStyle(open)}>
                   <span style={{ fontSize: 16, fontWeight: 900, color: open ? "#fff" : T.titleClosed }}>{grp.quarter} {yearObj.year}</span>
                   <span style={{ fontSize: 12.5, fontWeight: 700, color: open ? "rgba(255,255,255,0.6)" : T.subClosed }}>· {grp.items.length} release{grp.items.length > 1 ? "s" : ""}</span>
-                  {hasKey && <Gem size={12} style={{ color: open ? "#6ee7b7" : EM }} />}
+                  {hasKey && <Gem size={12} style={{ color: open ? "#93c5fd" : EM }} />}
                   <span style={chev(open)}><ChevronRight size={18} /></span>
                 </button>
                 {open && <div style={bodyWrap}>{grp.items.map(({ it }, i) => <Reveal key={i} v="card" order={Math.min(i, 4)}><Card it={it} yr={yearObj.year} /></Reveal>)}</div>}
@@ -9352,8 +9666,8 @@ function EmailCapture({ dark }) {
   const valid = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim());
   const submit = () => { if (valid) setDone(true); };
   if (done) return (
-    <div style={{ display: "inline-flex", alignItems: "center", gap: 10, background: dark ? "rgba(16,185,129,0.14)" : "#ecfdf5", border: `1px solid ${EM}`, borderRadius: 14, padding: "15px 22px" }}>
-      <Check size={20} style={{ color: dark ? EM : EM_TEXT }} strokeWidth={2.6} /><span style={{ fontSize: 15, fontWeight: 800, color: dark ? "#d1fae5" : EM_TEXT }}>You’re on the list — updates going to {email.trim()}.</span>
+    <div style={{ display: "inline-flex", alignItems: "center", gap: 10, background: dark ? "rgba(37,99,235,0.14)" : "#eff6ff", border: `1px solid ${EM}`, borderRadius: 14, padding: "15px 22px" }}>
+      <Check size={20} style={{ color: dark ? EM : EM_TEXT }} strokeWidth={2.6} /><span style={{ fontSize: 15, fontWeight: 800, color: dark ? "#dbeafe" : EM_TEXT }}>You’re on the list — updates going to {email.trim()}.</span>
     </div>
   );
   return (
@@ -9489,7 +9803,7 @@ function ConferenceFixa() {
           {/* bottom bar */}
           <div style={{ position: "absolute", left: 28, right: 28, bottom: 26, display: "flex", flexWrap: "wrap", gap: 16, alignItems: "center", justifyContent: "space-between", color: "#fff" }}>
             <div style={{ fontFamily: FX_SANS, fontWeight: 500, fontSize: "clamp(14px,1.5vw,18px)", maxWidth: 560, opacity: 0.92 }}>{S(st.detail) || S(st.latest) || (ex.length ? ex.map((e) => `${e.ex}: ${e.sym}`).join("  ·  ") : "")}</div>
-            <a href={qrUrl} style={{ ...pill, background: "#fff", color: FXC.ink }}>Follow on Passport</a>
+            <a href={qrUrl} style={{ ...pill, background: "#fff", color: FXC.ink }}>Follow on MineEx</a>
           </div>
         </div>
       </section>
@@ -9500,7 +9814,7 @@ function ConferenceFixa() {
           {NAV.map((n) => (
             <button key={n.id} onClick={() => go(n.id)} style={{ position: "relative", background: "none", border: "none", cursor: "pointer", padding: "10px 16px", fontFamily: FX_SANS, fontSize: 15, fontWeight: active === n.id ? 800 : 600, letterSpacing: "-0.01em", color: active === n.id ? FXC.ink : "#9b9a94", transition: "color .2s, font-weight .2s" }}>
               {n.label}
-              {active === n.id && <span style={{ position: "absolute", left: 16, right: 16, bottom: -1, height: 3, borderRadius: 3, background: "#047857" }} />}
+              {active === n.id && <span style={{ position: "absolute", left: 16, right: 16, bottom: -1, height: 3, borderRadius: 3, background: "#1d4ed8" }} />}
             </button>
           ))}
         </div>
@@ -9632,7 +9946,7 @@ function ConferenceFixa() {
           <div>
             <Reveal v="eyebrow"><div style={eyebrow}>Continue the story</div></Reveal>
             <Reveal v="head"><AccentHead text="Never miss another result" style={{ ...bigHead, fontSize: "clamp(34px,4.6vw,68px)", marginTop: 16 }} /></Reveal>
-            <Reveal v="body" order={1}><div style={{ fontFamily: FX_SANS, fontWeight: 500, fontSize: "clamp(16px,1.8vw,22px)", color: FXC.mute, marginTop: 18, maxWidth: 560 }}>Follow {ticker ? `$${ticker}` : shortCo(co.name)} on Passport and get every release the moment it drops.</div></Reveal>
+            <Reveal v="body" order={1}><div style={{ fontFamily: FX_SANS, fontWeight: 500, fontSize: "clamp(16px,1.8vw,22px)", color: FXC.mute, marginTop: 18, maxWidth: 560 }}>Follow {ticker ? `$${ticker}` : shortCo(co.name)} on MineEx and get every release the moment it drops.</div></Reveal>
           </div>
           <Reveal v="card"><div className="fixa-pulse" style={{ background: "#fff", border: `1px solid ${FXC.hair}`, borderRadius: 26, padding: 20 }}><div style={{ height: 240, width: 240 }} dangerouslySetInnerHTML={{ __html: qr || "" }} /></div></Reveal>
         </div>
@@ -10192,6 +10506,16 @@ function ConferenceProfile() {
 // falls back to the free investor signup, the closest actionable CTA.
 const APP_STORE_URL = "";
 export default function App({ guest = false } = {}) {
+  // Register for push on a device: once now (covers an already-signed-in relaunch)
+  // and again whenever auth flips to signed-in (covers signing in after first launch —
+  // otherwise the mount-time call bails because no user exists yet). registerPush is
+  // idempotent + self-gating (native + signed-in only), so extra calls are harmless.
+  useEffect(() => {
+    if (guest) return;
+    registerPush();
+    const off = onAuthChange((u) => { if (u && u.id) registerPush(); });
+    return off;
+  }, [guest]);
   // Conference / iPad booth mode — a full-screen landscape dashboard, reached at
   // /app?c=<slug>&ipad=1 (or &mode=booth). Bypasses the phone frame + nav entirely.
   const isBooth = (() => { try { const p = new URLSearchParams(window.location.search); return p.has("ipad") || p.get("mode") === "booth"; } catch (_) { return false; } })();

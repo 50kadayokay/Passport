@@ -4,9 +4,9 @@ import { signIn, signUp } from "../lib/auth.js";
 
 // Email/password auth card. `title`/`subtitle` let callers reframe it
 // (e.g. company hub vs. admin). onSuccess fires after a session is established.
-export default function LoginScreen({ onSuccess, title = "Sign in to Passport", subtitle = "Manage your company profile" }) {
-  const [mode, setMode] = useState("signin"); // signin | signup
-  const [email, setEmail] = useState("");
+export default function LoginScreen({ onSuccess, title = "Sign in to Passport", subtitle = "Manage your company profile", brand = null, lockedEmail = "", defaultMode = "signin" }) {
+  const [mode, setMode] = useState(defaultMode); // signin | signup
+  const [email, setEmail] = useState(lockedEmail || "");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -34,10 +34,10 @@ export default function LoginScreen({ onSuccess, title = "Sign in to Passport", 
     return (
       <Shell>
         <div className="text-center">
-          <div className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-2xl bg-emerald-50 text-emerald-500"><CheckCircle2 size={28} /></div>
+          <div className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-2xl bg-blue-50 text-blue-500"><CheckCircle2 size={28} /></div>
           <h1 className="text-[22px] font-extrabold text-slate-900">Check your email</h1>
           <p className="mt-2 text-[14px] leading-relaxed text-slate-500">We sent a confirmation link to <b>{email}</b>. Click it, then come back and sign in.</p>
-          <button onClick={() => { setConfirm(false); setMode("signin"); }} className="mt-6 text-[14px] font-bold text-emerald-600">Back to sign in</button>
+          <button onClick={() => { setConfirm(false); setMode("signin"); }} className="mt-6 text-[14px] font-bold text-blue-600">Back to sign in</button>
         </div>
       </Shell>
     );
@@ -45,12 +45,23 @@ export default function LoginScreen({ onSuccess, title = "Sign in to Passport", 
 
   return (
     <Shell>
-      <p className="text-[13px] font-bold uppercase tracking-[0.16em] text-emerald-600">Passport</p>
-      <h1 className="mt-1 text-[26px] font-extrabold tracking-tight text-slate-900">{mode === "signup" ? "Create your account" : title}</h1>
-      <p className="mt-1.5 text-[14px] text-slate-500">{mode === "signup" ? "Start building your company profile." : subtitle}</p>
+      {brand ? (
+        <div className="mb-5 flex flex-col items-center text-center">
+          <span className="mb-3 grid h-14 w-14 place-items-center overflow-hidden rounded-2xl bg-slate-100 text-slate-400">
+            {brand.logo ? <img src={brand.logo} alt="" className="h-full w-full object-cover" /> : null}
+          </span>
+          <p className="text-[12px] font-bold uppercase tracking-[0.16em] text-blue-600">You've been invited</p>
+          <h1 className="mt-1 text-[22px] font-extrabold tracking-tight text-slate-900">Manage {brand.name} on MineEx</h1>
+          <p className="mt-1.5 text-[13.5px] text-slate-500">{mode === "signup" ? "Create your MineEx company account to continue." : "Sign in to your MineEx company account to continue."}</p>
+        </div>
+      ) : (<>
+        <p className="text-[13px] font-bold uppercase tracking-[0.16em] text-blue-600">Passport</p>
+        <h1 className="mt-1 text-[26px] font-extrabold tracking-tight text-slate-900">{mode === "signup" ? "Create your account" : title}</h1>
+        <p className="mt-1.5 text-[14px] text-slate-500">{mode === "signup" ? "Start building your company profile." : subtitle}</p>
+      </>)}
 
       <form onSubmit={submit} className="mt-6 space-y-3.5">
-        <Field icon={Mail}><input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@company.com" autoComplete="email" className="w-full bg-transparent text-[15px] text-slate-800 placeholder:text-slate-400 outline-none" /></Field>
+        <Field icon={Mail}><input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} disabled={!!lockedEmail} placeholder="you@company.com" autoComplete="email" className={`w-full bg-transparent text-[15px] text-slate-800 placeholder:text-slate-400 outline-none ${lockedEmail ? "cursor-not-allowed text-slate-500" : ""}`} /></Field>
         <Field icon={Lock}><input type="password" required minLength={6} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" autoComplete={mode === "signup" ? "new-password" : "current-password"} className="w-full bg-transparent text-[15px] text-slate-800 placeholder:text-slate-400 outline-none" /></Field>
 
         {error && <div className="flex items-start gap-2 rounded-xl bg-rose-50 px-3.5 py-2.5 text-[13px] font-medium text-rose-600"><AlertTriangle size={16} className="mt-0.5 flex-shrink-0" />{error}</div>}
@@ -63,7 +74,7 @@ export default function LoginScreen({ onSuccess, title = "Sign in to Passport", 
 
       <p className="mt-5 text-center text-[13.5px] text-slate-500">
         {mode === "signup" ? "Already have an account? " : "Don't have an account? "}
-        <button onClick={() => { setMode(mode === "signup" ? "signin" : "signup"); setError(""); }} className="font-bold text-emerald-600">
+        <button onClick={() => { setMode(mode === "signup" ? "signin" : "signup"); setError(""); }} className="font-bold text-blue-600">
           {mode === "signup" ? "Sign in" : "Create one"}
         </button>
       </p>
@@ -81,7 +92,7 @@ function Shell({ children }) {
 
 function Field({ icon: Icon, children }) {
   return (
-    <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 focus-within:border-emerald-400">
+    <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 focus-within:border-blue-400">
       <Icon size={18} className="flex-shrink-0 text-slate-400" />
       {children}
     </div>

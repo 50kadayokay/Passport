@@ -12,7 +12,7 @@
 //   curl -X POST ".../api/news-process?limit=25" -H "x-news-secret: $NEWS_PULL_SECRET"
 import { serviceConfigured, serviceRest } from "./_service.js";
 import { checkNewsAuth, isCronRequest } from "./_news.js";
-import { fetchArticleText, analyzeItem, buildCompanyIndex, matchCompany, clusterItems, PROCESSING_VERSION, normTicker, normName } from "./_newsAI.js";
+import { fetchArticleText, analyzeItem, buildCompanyIndex, matchCompany, clusterItems, PROCESSING_VERSION, normTicker, normName, enrichCompany, verifyTicker } from "./_newsAI.js";
 import { recordUsage, daySpendUSD, dailyLimitUSD, estimateBatch } from "./_aiUsage.js";
 
 export const config = { maxDuration: 300 };
@@ -39,23 +39,42 @@ const slugify = (s) => String(s || "").toLowerCase().normalize("NFKD").replace(/
 async function createListingStub(a, idx) {
   const pc = a.primary_company || {};
   const name = String(pc.name || "").trim();
-  const rawTicker = String(pc.ticker || "").trim();
-  if (!name || !rawTicker) return null;                 // need a real name + ticker
-  const tkey = normTicker(rawTicker);
-  if (!tkey || idx.byTicker.has(tkey)) return null;      // exists (or unusable ticker)
+  if (!name) return null;                                // must have a company name
   const nkey = normName(name);
-  if (nkey && idx.byName.has(nkey)) return null;         // name-dup safety
+  if (nkey && idx.byName.has(nkey)) return null;         // name-dup safety (cheap, pre-enrich)
+  let rawTicker = String(pc.ticker || "").trim();
+  let ex = String(pc.exchange || "").trim().toUpperCase();
+  // Fast path: the analysis already gave a ticker that exists → skip (no paid enrichment).
+  if (rawTicker && idx.byTicker.has(normTicker(rawTicker))) return null;
+  // Enrich from the live web (grounded, never invented) → a real Canstar-quality profile.
+  // This ALSO resolves the ticker/exchange when the article carried none (e.g. JMN, whose
+  // article body we can't fetch): the AI web-verifies the stock symbol from the company
+  // name, so a press release with a clear name still becomes a real, verified profile
+  // instead of being dropped. If the ticker still can't be verified, we skip — never guess.
+  const e = await enrichCompany(name, rawTicker, ex).catch(() => ({}));
+  if (!rawTicker && e.ticker) rawTicker = String(e.ticker).trim();
+  if (!ex && e.exchange) ex = String(e.exchange).trim().toUpperCase();
+  if (!rawTicker) return null;                           // no ticker at all → don't create
+  const tkey = normTicker(rawTicker);
+  if (!tkey || idx.byTicker.has(tkey)) return null;      // resolved ticker already exists
+  // ACCURACY GATE: confirm the ticker is a REAL listed security before we publish it. If
+  // Yahoo can't resolve it, we refuse to create the profile — better no listing than one
+  // pointing investors at a wrong/nonexistent stock. `ysym` is the verified quote symbol.
+  const ysym = await verifyTicker(rawTicker, ex);
+  if (!ysym) return null;
   const slug = slugify(name);
   if (!slug) return null;
-  const ex = String(pc.exchange || "").trim().toUpperCase();
-  const commodity = a.commodity || (Array.isArray(a.commodities) && a.commodities[0]) || "";
-  const jurisdiction = Array.isArray(a.jurisdictions) ? a.jurisdictions.slice(0, 2).join(", ") : "";
+  const commodity = e.commodity || a.commodity || (Array.isArray(a.commodities) && a.commodities[0]) || "";
+  const jurisdiction = e.jurisdiction || (Array.isArray(a.jurisdictions) ? a.jurisdictions.slice(0, 2).join(", ") : "");
   const pp = {
     TIER: "listing",
-    COMPANY: { name, ticker: (ex ? `${ex}: ` : "") + rawTicker, commodity, jurisdiction },
-    EXCHANGES: [{ ex, sym: rawTicker }],
-    LISTING_BRIEF: `${name} — ${commodity ? commodity + " " : ""}exploration${jurisdiction ? `, ${jurisdiction}` : ""}. Auto-listed from a press release.`,
+    COMPANY: { name, ticker: (ex ? `${ex}: ` : "") + rawTicker, commodity, jurisdiction,
+      stage: e.stage || "", headquarters: e.headquarters || "", website: e.website || "" },
+    EXCHANGES: [{ ex, sym: rawTicker, yahoo: ysym, url: `https://finance.yahoo.com/quote/${ysym}` }],
+    LISTING_BRIEF: e.description || `${name} — ${commodity ? commodity + " " : ""}exploration${jurisdiction ? `, ${jurisdiction}` : ""}. Auto-listed from a press release.`,
     AUTO_CREATED: true,
+    ENRICHED: !!e.description,
+    TICKER_VERIFIED: ysym,        // audit trail: the security this listing was confirmed against
   };
   const row = { name, slug, primary_ticker: rawTicker, status: "published", tier: "listing", managed_by_admin: true, profile: { pp } };
   const r = await serviceRest("companies?on_conflict=slug", { method: "POST", body: [row], prefer: "resolution=ignore-duplicates,return=representation" });
@@ -150,11 +169,13 @@ async function processItem(item, idx, reprocess, operation) {
     if (!m && !macro && autoCreateEnabled() && a.is_press_release) {
       m = await createListingStub(a, idx);
     }
-    // PAID GATE: linking a release to a company (feed attribution + a public timeline) is
-    // a paid feature. Only basic/pro companies get news_item_companies rows; free/listing
-    // profiles (incl. auto-created stubs) stay passive, release-free directory entries.
-    const paid = m && (m.tier === "basic" || m.tier === "pro");
-    if (m && paid && (!macro || m.method === "ticker")) {
+    // Link any confident company match so the story is tappable → that company's profile
+    // (the app sets news_public.company_slug from this). This is DISCOVERY: every matched
+    // company — the 970 factual TSXV listings, auto-created mentions, and paid accounts —
+    // becomes reachable from the story. It never fabricates a release timeline on a free
+    // listing (profiles render from their own pp blob), and the paid feed gate (main.jsx,
+    // company PR_YEARS → basic/pro only) stays separate and unchanged.
+    if (m && (!macro || m.method === "ticker" || m.method === "auto-created")) {
       await serviceRest("news_item_companies?on_conflict=news_item_id,company_id", {
         method: "POST",
         body: [{ news_item_id: item.id, company_id: m.company_id, company_slug: m.company_slug, confidence: m.confidence, method: m.method }],
@@ -268,7 +289,7 @@ export default async function handler(req, res) {
   if (!process.env.OPENAI_API_KEY) return res.status(500).json({ error: "OPENAI_API_KEY missing" });
 
   // Load the company directory once for deterministic linking (no AI).
-  const cr = await serviceRest("companies?status=eq.published&select=id,name,slug,primary_ticker,tier&limit=3000");
+  const cr = await serviceRest("companies?status=eq.published&select=id,name,slug,primary_ticker,tier,exsym:profile->pp->COMPANY->>ticker&limit=5000");
   if (!cr.ok) return res.status(500).json({ error: `companies query HTTP ${cr.status}` });
   const idx = buildCompanyIndex(await cr.json().catch(() => []));
 
@@ -325,11 +346,27 @@ export default async function handler(req, res) {
     if (c.cluster_size > 1) clustered++;
   }
 
+  // CHAIN → fan out follower pushes for the newly-live items, then drain the queue to
+  // APNs. Guarded: a push failure never fails processing. Skipped on reprocess / no secret.
+  let pushChain = null;
+  if (!reprocess && process.env.NEWS_PULL_SECRET) {
+    try {
+      const proto = req.headers["x-forwarded-proto"] || "https";
+      const host = req.headers["x-forwarded-host"] || req.headers.host;
+      const base = process.env.PUBLIC_BASE_URL || `${proto}://${host}`;
+      const hdr = { "x-news-secret": process.env.NEWS_PULL_SECRET, "content-type": "application/json" };
+      const notify = await fetch(`${base}/api/news-notify`, { method: "POST", headers: hdr }).then((r) => r.json()).catch(() => null);
+      const send = await fetch(`${base}/api/news-push-send`, { method: "POST", headers: hdr }).then((r) => r.json()).catch(() => null);
+      pushChain = { notify, send };
+    } catch (e) { pushChain = { error: String((e && e.message) || e).slice(0, 150) }; }
+  }
+
   const relevantCount = results.filter((r) => r.relevant).length;
   const clusterGroups = new Set([...clusters.values()].filter((c) => c.cluster_size > 1).map((c) => c.cluster_key)).size;
   return res.status(200).json({
     ok: true,
     model: MODEL,
+    push: pushChain,
     batch: batch.length,
     processed: results.length,
     relevant: relevantCount,

@@ -17,10 +17,11 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import QRCode from "qrcode";
 import { resolveWidgets, resolveProjectWidgets, widgetText } from "../lib/conferenceWidgets.js";
-import { buildConferenceModel } from "./conferenceModel.js";
+import { buildConferenceModel, buildAttractModel } from "./conferenceModel.js";
 import {
   CMStyles, TONES, BeatDots, CMChapter, CurtainReveal,
   CMOverview, CMHighlights, CMJurisdiction, CMProject, CMCapital, CMLeadership, CMWhyInvest, CMFollow, CMEndCap,
+  AttractMode,
 } from "./conferenceUI.jsx";
 import {
   EM, prefersReduce, shortCo,
@@ -33,6 +34,7 @@ const TRANS_MS = 780;          // slide duration = the lock window — long & de
 const WHEEL_TH = 58;           // trackpad/mouse-wheel accumulation threshold — needs a fuller, deliberate scroll
 const WHEEL_COOLDOWN = 860;    // fixed lock after a wheel step — outlasts the slide + swallows the inertial tail
 const TOUCH_TH = 52;           // finger travel to trigger — a real, deliberate swipe, not a twitch
+const IDLE_MS = 45000;         // unattended booth → Attract Mode after this idle window (easy to tune)
 
 export function ConferenceScenes() {
   const S = (x) => (x == null ? "" : String(x));
@@ -41,20 +43,25 @@ export function ConferenceScenes() {
   const capStatus = (() => { try { return (window.__PP__ && window.__PP__.CAPSTATUS) || {}; } catch (_) { return {}; } })();
   const reduce = prefersReduce();
 
-  // ── Handoff QR + profile URL (both point at the live Passport profile) ──────────
+  // ── Handoff QR + profile URL (both point at the live MineEx profile) ──────────
   let slug = "", previewToken = "";
   try { const p = new URLSearchParams(window.location.search); slug = p.get("c") || ""; previewToken = p.get("preview") || ""; } catch (_) {}
+  // DEV-ONLY scene jump for visual QA. `&scene=<id>` (optionally `id.localBeat`) starts the deck on
+  // that section. Guarded by import.meta.env.DEV, so Vite dead-code-eliminates the whole branch from
+  // production — impossible to trigger in a real booth. It only seeds the initial index; the state
+  // machine, navigation and beat model are untouched.
+  const devScene = import.meta.env.DEV ? (() => { try { return new URLSearchParams(window.location.search).get("scene") || ""; } catch (_) { return ""; } })() : "";
   let origin = "https://passport-xi-five.vercel.app";
   try { if (window.location.origin && /^https?:/.test(window.location.origin)) origin = window.location.origin; } catch (_) {}
   const utm = S(conf.boothQrUtm) || "booth";
   const qrUrl = `${origin}/app?c=${encodeURIComponent(slug)}&utm_campaign=${encodeURIComponent(utm)}`;
-  // Phone-frame profile (no ipad=1 → the real mobile Passport profile). Carries the
+  // Phone-frame profile (no ipad=1 → the real mobile MineEx profile). Carries the
   // preview token so unpublished companies still render in the frame.
   const profileUrl = `${origin}/app?c=${encodeURIComponent(slug)}${previewToken ? `&preview=${encodeURIComponent(previewToken)}` : ""}&qr=1`;
   const [qr, setQr] = useState("");
   useEffect(() => { let live = true; QRCode.toString(qrUrl, { type: "svg", errorCorrectionLevel: "H", margin: 0 }).then((s) => { if (live) setQr(s); }).catch(() => {}); return () => { live = false; }; }, [qrUrl]);
   // Curtain-reveal opening — plays once on load, then reveals the deck.
-  const [intro, setIntro] = useState(true);
+  const [intro, setIntro] = useState(!devScene);
 
   // ── "Add to Home Screen" → launch THIS booth, not the app feed ──────────────────
   // iOS uses the manifest's start_url for an installed PWA. The app's static manifest points
@@ -66,7 +73,7 @@ export function ConferenceScenes() {
   useEffect(() => {
     let objUrl = "", link = null, prevHref = null, created = false, titleEl = null, prevTitle = null;
     try {
-      const label = shortCo(co.name) || S(co.name) || "Passport";
+      const label = shortCo(co.name) || S(co.name) || "MineEx";
       const manifest = {
         name: S(co.name) ? `${S(co.name)} — Conference` : "Conference Mode",
         short_name: label,
@@ -235,12 +242,19 @@ export function ConferenceScenes() {
 
   // ── Follow data ──────────────────────────────────────────────────────────────────
   const followData = {
-    eyebrow: "Continue on Passport",
-    headline: S(conf.follow && conf.follow.headline) || `Follow ${shortCo(co.name)} on Passport`,
-    body: S(conf.follow && conf.follow.body) || `Conference Mode is the summary. Scan to open ${shortCo(co.name)} on Passport — every update, delivered.`,
+    eyebrow: "Continue on MineEx",
+    headline: S(conf.follow && conf.follow.headline) || `Follow ${shortCo(co.name)} on MineEx`,
+    body: S(conf.follow && conf.follow.body) || `Conference Mode is the summary. Scan to open ${shortCo(co.name)} on MineEx — every update, delivered.`,
     qr, qrLabel: S(conf.follow && conf.follow.qrLabel) || "Scan to follow", profileUrl,
     bg: (() => { const g = conf.gallery && Array.isArray(conf.gallery.follow) && conf.gallery.follow[0]; const src = g ? (typeof g === "string" ? g : S(g.src)) : ""; return src ? `linear-gradient(rgba(5,7,13,0.78), rgba(5,7,13,0.94)), url("${src}") center/cover` : ""; })(),
   };
+
+  // ── Attract Mode model (unattended booth loop) — pure selection from what exists ──
+  const attractModel = buildAttractModel({
+    co, conf, hero: cmModel.hero, highlights: cmModel.highlights, jurisdiction: cmModel.jurisdiction,
+    projectStories: cmModel.projectStories, resultsModel, fundingStatus: capitalModel.fundingStatus,
+    catalysts, statusHeadline: S(st.state), shortName: shortCo(co.name), qr,
+  });
 
   // ── SECTION MANIFEST ─────────────────────────────────────────────────────────────
   // Each major topic is preceded by a dramatic Chapter transition (its own dark 1-beat section),
@@ -294,21 +308,23 @@ export function ConferenceScenes() {
   }
 
   SECTIONS.push({ id: "follow", label: "Follow", tone: CMFollow.tone, count: 1, render: (l, a, armed) => <CMFollow data={followData} local={l} active={a} reduce={reduce} armed={armed} /> });
-  SECTIONS.push({ id: "endcap", label: "", tone: CMEndCap.tone, count: 1, render: (l, a) => <CMEndCap name={co.name} ticker={tickerLabel} active={a} /> });
+  SECTIONS.push({ id: "endcap", label: "", tone: CMEndCap.tone, count: 1, render: (l, a) => <CMEndCap name={shortCo(co.name) || co.name} ticker={tickerLabel} active={a} /> });
 
   // Flatten → ordered beats + per-section start indices.
   const steps = [], starts = [];
   { let acc = 0; SECTIONS.forEach((sec, si) => { starts.push(acc); for (let l = 0; l < sec.count; l++) steps.push({ si, l }); acc += sec.count; }); }
   const total = Math.max(1, steps.length);
+  const devJump = devScene ? (() => { const [id, ln] = String(devScene).split("."); const si = SECTIONS.findIndex((x) => x.id === id); return si < 0 ? 0 : Math.min(total - 1, starts[si] + (parseInt(ln, 10) || 0)); })() : 0;
 
   // ── DECK CONTROLLER ──────────────────────────────────────────────────────────────
   const rootRef = useRef(null);
-  const idxRef = useRef(0);
+  const idxRef = useRef(devJump);
   const lockRef = useRef(false);
   const totalRef = useRef(total);
   const unlockRef = useRef(null);
   const idleRef = useRef(null);
-  const [index, setIndexState] = useState(0);
+  const [index, setIndexState] = useState(devJump);
+  const [mode, setMode] = useState("guided"); // "guided" | "attract"
   totalRef.current = total;
 
   // Idle attract-reset intentionally disabled: the deck stays wherever the presenter left it.
@@ -327,6 +343,7 @@ export function ConferenceScenes() {
 
   useEffect(() => {
     const root = rootRef.current; if (!root) return;
+    if (mode !== "guided") return; // Attract Mode owns input while it's running
     // Momentum-aware wheel: one intentional gesture = one state. After a step fires we hold a SHORT
     // FIXED cooldown (not "until events stop") — a trackpad's inertial tail keeps firing events, so a
     // stop-based lock would never release until you physically tap to cancel the inertia. The fixed
@@ -376,7 +393,22 @@ export function ConferenceScenes() {
       window.removeEventListener("keydown", onKey);
       clearTimeout(wheelAccumIdle); clearTimeout(wheelCd); clearTimeout(unlockRef.current); clearTimeout(idleRef.current);
     };
-  }, [go, goTo, bumpIdle]);
+  }, [go, goTo, bumpIdle, mode]);
+
+  // ── Idle → Attract Mode ─────────────────────────────────────────────────────
+  // Only runs in Guided. Any deliberate input re-arms the timer; after IDLE_MS with no
+  // input the unattended booth enters Attract. On entry we snap Guided to the hero (index 0)
+  // so no globe/section is left running underneath the attract overlay. One timer, cleaned up.
+  useEffect(() => {
+    if (mode !== "guided") return;
+    let t;
+    const arm = () => { clearTimeout(t); t = setTimeout(() => { commit(0); setMode("attract"); }, IDLE_MS); };
+    const onAct = () => arm();
+    const evs = ["pointerdown", "keydown", "wheel", "touchstart"];
+    evs.forEach((e) => window.addEventListener(e, onAct, { passive: true }));
+    arm();
+    return () => { clearTimeout(t); evs.forEach((e) => window.removeEventListener(e, onAct)); };
+  }, [mode, commit]);
 
   const cur = steps[index] || { si: 0, l: 0 };
   const activeSection = cur.si, activeLocal = cur.l;
@@ -394,7 +426,7 @@ export function ConferenceScenes() {
   const progress = total > 1 ? index / (total - 1) : 0;
 
   return (
-    <div ref={rootRef} className="cm-root" style={{ position: "fixed", inset: 0, overflow: "hidden", background: activeTone.bg, color: activeTone.fg, fontFamily: "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif", touchAction: "none", transition: reduce ? "none" : `background 520ms ${EASE}`, WebkitUserSelect: "none", userSelect: "none" }}>
+    <div ref={rootRef} className="cm-root" style={{ position: "fixed", inset: 0, overflow: "hidden", background: activeTone.bg, color: activeTone.fg, fontFamily: "'Switzer', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif", touchAction: "none", transition: reduce ? "none" : `background 520ms ${EASE}`, WebkitUserSelect: "none", userSelect: "none" }}>
       <CMStyles />
       {intro && <CurtainReveal name={S(co.name)} accent={EM} onDone={() => setIntro(false)} />}
 
@@ -462,6 +494,13 @@ export function ConferenceScenes() {
         <div style={{ position: "fixed", right: 16, bottom: 16, zIndex: 55, opacity: 0.62, background: "#fff", borderRadius: 9, padding: 4, boxShadow: "0 8px 20px -14px rgba(0,0,0,0.5)", transition: reduce ? "none" : `opacity 400ms ${EASE}` }}>
           <div style={{ height: 38, width: 38 }} dangerouslySetInnerHTML={{ __html: qr }} />
         </div>
+      )}
+
+      {/* Attract Mode overlay — unattended booth loop. Covers all guided chrome; any deliberate
+          interaction cross-dissolves out while the parent snaps Guided to the hero (commit(0)). */}
+      {mode === "attract" && (
+        <AttractMode model={attractModel} reduce={reduce}
+          onExitStart={() => commit(0)} onExitDone={() => setMode("guided")} />
       )}
     </div>
   );

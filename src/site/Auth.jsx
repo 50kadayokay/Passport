@@ -48,10 +48,10 @@ export default function Auth({ mode }) {
 
       {confirm ? (
         <div className="mt-8 rounded-2xl border border-slate-200 bg-white p-6 text-center">
-          <div className="mx-auto mb-3 grid h-12 w-12 place-items-center rounded-xl bg-emerald-50 text-emerald-500"><CheckCircle2 size={24} /></div>
+          <div className="mx-auto mb-3 grid h-12 w-12 place-items-center rounded-xl bg-blue-50 text-blue-500"><CheckCircle2 size={24} /></div>
           <p className="text-[16px] font-bold text-slate-900">Check your email</p>
           <p className="mt-1.5 text-[14px] text-slate-500">Confirm <b>{email}</b>, then sign in.</p>
-          <a href="/login" className="mt-4 inline-block text-[14px] font-bold text-emerald-600">Go to sign in</a>
+          <a href="/login" className="mt-4 inline-block text-[14px] font-bold text-blue-600">Go to sign in</a>
         </div>
       ) : (
         <form onSubmit={submit} className="mt-8 space-y-4">
@@ -69,7 +69,7 @@ export default function Auth({ mode }) {
       {!confirm && (
         <p className="mt-6 text-center text-[14px] text-slate-500">
           {isSignup ? "Already have an account? " : "New to Passport? "}
-          <a href={isSignup ? "/login" : "/signup"} className="font-bold text-emerald-600">{isSignup ? "Sign in" : "Create one"}</a>
+          <a href={isSignup ? "/login" : "/signup"} className="font-bold text-blue-600">{isSignup ? "Sign in" : "Create one"}</a>
         </p>
       )}
     </div>
@@ -111,10 +111,10 @@ export function ResetPassword() {
   );
 
   if (done) return wrap(
-    <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-6 text-center">
-      <CheckCircle2 size={26} className="mx-auto text-emerald-500" />
+    <div className="rounded-2xl border border-blue-200 bg-blue-50 p-6 text-center">
+      <CheckCircle2 size={26} className="mx-auto text-blue-500" />
       <p className="mt-2 text-[16px] font-bold text-slate-900">Password updated</p>
-      <a href="/login" className="mt-3 inline-block text-[14px] font-bold text-emerald-600">Sign in</a>
+      <a href="/login" className="mt-3 inline-block text-[14px] font-bold text-blue-600">Sign in</a>
     </div>
   );
   if (recovery) return wrap(<>
@@ -127,7 +127,7 @@ export function ResetPassword() {
   </>);
   if (sent) return wrap(
     <div className="rounded-2xl border border-slate-200 bg-white p-6 text-center">
-      <CheckCircle2 size={26} className="mx-auto text-emerald-500" />
+      <CheckCircle2 size={26} className="mx-auto text-blue-500" />
       <p className="mt-2 text-[16px] font-bold text-slate-900">Check your email</p>
       <p className="mt-1.5 text-[14px] text-slate-500">If an account exists for <b>{email}</b>, a reset link is on its way.</p>
     </div>
@@ -140,7 +140,7 @@ export function ResetPassword() {
       {error && <p className="text-[13px] font-medium text-rose-600">{error}</p>}
       <button type="submit" disabled={busy} className="flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 py-3.5 text-[15px] font-bold text-white disabled:opacity-60">{busy && <Loader2 size={16} className="animate-spin" />}Send reset link</button>
     </form>
-    <p className="mt-6 text-center text-[14px] text-slate-500"><a href="/login" className="font-bold text-emerald-600">Back to sign in</a></p>
+    <p className="mt-6 text-center text-[14px] text-slate-500"><a href="/login" className="font-bold text-blue-600">Back to sign in</a></p>
   </>);
 }
 

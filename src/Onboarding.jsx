@@ -114,13 +114,13 @@ async function fetchMyCompany() {
    Inspired by Apple, Wealthsimple, & Arc Browser
    ============================================================ */
 
-const EM = "#10b981";       // emerald — active / live states only
-const EM_TEXT = "#0f9b73";  // slightly deeper emerald for small text on white
+const EM = "#3b82f6";       // emerald — active / live states only
+const EM_TEXT = "#1d4ed8";  // slightly deeper emerald for small text on white
 
 // ---- Section identity system (subtle accents over white/black) ----
 // Each section reads as a distinct "environment" while emerald stays the brand.
 const THEME = {
-  overview: { key: "Company",     c: "#10b981", t: "#0f9b73", g: ["#06281d", "#0f3d2e"], soft: "rgba(16,185,129,0.10)" }, // emerald
+  overview: { key: "Company",     c: "#3b82f6", t: "#1d4ed8", g: ["#0a1f38", "#0f2f4d"], soft: "rgba(37,99,235,0.10)" }, // emerald
   timeline: { key: "Progress",    c: "#2563eb", t: "#1d4ed8", g: ["#0b1f4d", "#10306e"], soft: "rgba(37,99,235,0.10)" },  // electric blue
   projects: { key: "Assets",      c: "#ea580c", t: "#c2410c", g: ["#3a2606", "#5c3d0f"], soft: "rgba(234,88,12,0.12)" }, // warm orange
   capital:  { key: "Financials",  c: "#7c3aed", t: "#6d28d9", g: ["#2a1259", "#3b1d7a"], soft: "rgba(124,58,237,0.10)" }, // premium purple
@@ -233,7 +233,7 @@ const CAP_STATES = {
   "Strategic Acquisition Funding": "info",
 };
 const CAP_TONE = {
-  ok:   { dot: "#10b981", text: "#0f9b73", ring: "#10b981" },
+  ok:   { dot: "#3b82f6", text: "#1d4ed8", ring: "#3b82f6" },
   warn: { dot: "#f59e0b", text: "#b45309", ring: "#f59e0b" },
   info: { dot: "#2563eb", text: "#1d4ed8", ring: "#2563eb" },
 };
@@ -298,7 +298,7 @@ const EDU = {
 
 // Impact rating → colour. Reserved emerald only for the very top tier.
 const IMPACT_STYLE = {
-  Transformational: { c: "#0f9b73", bg: "rgba(16,185,129,0.12)", dot: "#10b981" },
+  Transformational: { c: "#1d4ed8", bg: "rgba(37,99,235,0.12)", dot: "#3b82f6" },
   High:             { c: "#b45309", bg: "rgba(245,158,11,0.14)", dot: "#f59e0b" },
   Moderate:         { c: "#1d4ed8", bg: "rgba(37,99,235,0.10)",  dot: "#3b82f6" },
   Low:              { c: "#475569", bg: "rgba(100,116,139,0.10)", dot: "#94a3b8" },
@@ -306,7 +306,7 @@ const IMPACT_STYLE = {
 
 // News category → colour + label.
 const CAT_STYLE = {
-  Discovery:         { c: "#0f9b73", bg: "rgba(16,185,129,0.10)" }, // emerald
+  Discovery:         { c: "#1d4ed8", bg: "rgba(37,99,235,0.10)" }, // emerald
   Drilling:          { c: "#1d4ed8", bg: "rgba(37,99,235,0.10)" },  // blue
   Financing:         { c: "#6d28d9", bg: "rgba(124,58,237,0.10)" }, // purple
   Permitting:        { c: "#c2410c", bg: "rgba(234,88,12,0.10)" },  // orange
@@ -560,7 +560,7 @@ function StageTracker() {
       {/* Stationary dot row — no scrolling, nothing clipped */}
       <div className="relative mt-7">
         <div className="absolute h-[2px] bg-slate-200" style={{ left: `${lineLeft}%`, top: 14, width: `${lineWidth}%` }} />
-        <div className="absolute h-[2px] bg-emerald-500 transition-all duration-500" style={{ left: `${lineLeft}%`, top: 14, width: `${progressWidth}%` }} />
+        <div className="absolute h-[2px] bg-blue-500 transition-all duration-500" style={{ left: `${lineLeft}%`, top: 14, width: `${progressWidth}%` }} />
 
         <div className="relative flex">
           {STAGES.map((s, i) => {
@@ -570,11 +570,11 @@ function StageTracker() {
 
             let dotStyle;
             if (done) dotStyle = { background: EM };
-            else if (now) dotStyle = { background: EM, boxShadow: "0 0 12px rgba(16,185,129,0.55)" };
+            else if (now) dotStyle = { background: EM, boxShadow: "0 0 12px rgba(37,99,235,0.55)" };
             else dotStyle = { background: "#ffffff", border: "2px solid #cbd5e1" };
 
             if (selected) {
-              const ring = "0 0 0 4px rgba(16,185,129,0.2)";
+              const ring = "0 0 0 4px rgba(37,99,235,0.2)";
               dotStyle = { ...dotStyle, boxShadow: dotStyle.boxShadow ? `${dotStyle.boxShadow}, ${ring}` : ring };
             }
 
@@ -604,7 +604,7 @@ function StageTracker() {
             className="rounded-full px-2 py-0.5 text-[8px] font-bold uppercase tracking-wider"
             style={
               sel === STAGE_NOW
-                ? { background: "rgba(16,185,129,0.12)", color: EM_TEXT, border: "1px solid rgba(16,185,129,0.25)" }
+                ? { background: "rgba(37,99,235,0.12)", color: EM_TEXT, border: "1px solid rgba(37,99,235,0.25)" }
                 : sel < STAGE_NOW
                 ? { background: "rgba(148,163,184,0.12)", color: "#64748b", border: "1px solid rgba(148,163,184,0.25)" }
                 : { background: "rgba(15,23,42,0.04)", color: "#475569", border: "1px solid #e2e8f0" }
@@ -642,7 +642,7 @@ function PageBar({ tab, setTab, following, setFollowing }) {
           onClick={() => setFollowing && setFollowing((f) => !f)}
           className="ml-auto flex h-6 flex-shrink-0 items-center justify-center gap-1 rounded-full border px-2.5 text-[10px] font-bold tracking-wide transition-all active:scale-[0.97]"
           style={following
-            ? { background: "rgba(16,185,129,0.08)", color: EM_TEXT, borderColor: "rgba(16,185,129,0.35)" }
+            ? { background: "rgba(37,99,235,0.08)", color: EM_TEXT, borderColor: "rgba(37,99,235,0.35)" }
             : { background: "#ffffff", color: "#334155", borderColor: "#e2e8f0" }}
           aria-pressed={!!following}
         >
@@ -760,7 +760,7 @@ function ProfileHeader({ tab, setTab, following, setFollowing, onField }) {
 function ScenarioGlassButton({ variant, Icon, selected, dimmed, onClick }) {
   const press = (e) => { e.currentTarget.style.transform = "scale(0.96)"; };
   const release = (e) => { e.currentTarget.style.transform = selected ? "translateY(-2px) scale(1.02)" : "none"; };
-  const liftedShadowGreen = "0 8px 18px -8px rgba(26,196,150,0.8), 0 0 8px -3px rgba(74,224,166,0.5)";
+  const liftedShadowGreen = "0 8px 18px -8px rgba(37,99,235,0.8), 0 0 8px -3px rgba(96,165,250,0.5)";
   const liftedShadowRed = "0 8px 18px -8px rgba(233,60,55,0.78), 0 0 8px -3px rgba(255,120,120,0.45)";
   const dimStyle = { opacity: dimmed ? 0.6 : 1, transition: "opacity .28s ease, transform .18s ease, box-shadow .25s ease, filter .28s ease", filter: dimmed ? "saturate(0.85)" : selected ? "brightness(1.08) saturate(1.08)" : "none" };
 
@@ -786,7 +786,7 @@ function ScenarioGlassButton({ variant, Icon, selected, dimmed, onClick }) {
   }
 
   const cfg = variant === "green"
-    ? { body: "linear-gradient(155deg, #d9f1c2 0%, #82d196 42%, #24b08f 100%)", glow: "0 6px 14px -9px rgba(40,176,140,0.55)", lift: liftedShadowGreen, icon: "#2f9e5e", innerBg: "rgba(255,255,255,0.30)", innerBorder: "rgba(255,255,255,0.6)", rim: "rgba(255,255,255,0.55)" }
+    ? { body: "linear-gradient(155deg, #dce9fd 0%, #6ba3f5 42%, #2f7ff0 100%)", glow: "0 6px 14px -9px rgba(37,99,235,0.55)", lift: liftedShadowGreen, icon: "#2563eb", innerBg: "rgba(255,255,255,0.30)", innerBorder: "rgba(255,255,255,0.6)", rim: "rgba(255,255,255,0.55)" }
     : { body: "linear-gradient(155deg, #ffbaba 0%, #ff6d6d 46%, #e7322f 100%)", glow: "0 6px 14px -9px rgba(233,60,55,0.55)", lift: liftedShadowRed, icon: "#e23b3b", innerBg: "rgba(255,255,255,0.34)", innerBorder: "rgba(255,255,255,0.65)", rim: "rgba(255,255,255,0.62)" };
 
   return (
@@ -898,7 +898,7 @@ function Overview({ ov = BLANK_OV, activeSpot, tab, goto, openBrief, following, 
   const QUICK_ICONS = [MapPin, Pickaxe, Wallet, Clock];
   const QUICK = (ov.quick || []).map((q, i) => ({ Icon: QUICK_ICONS[i % QUICK_ICONS.length], label: q.label, sub: q.sub }));
   const CASE_META = {
-    bull: { label: "Bull Case", Icon: TrendingUp, c: "#0f9b73", bg: "rgba(16,185,129,0.10)", bd: "rgba(16,185,129,0.25)", short: "Bull" },
+    bull: { label: "Bull Case", Icon: TrendingUp, c: "#1d4ed8", bg: "rgba(37,99,235,0.10)", bd: "rgba(37,99,235,0.25)", short: "Bull" },
     bear: { label: "Bear Case", Icon: TrendingDown, c: "#dc2626", bg: "rgba(220,38,38,0.07)", bd: "rgba(220,38,38,0.2)", short: "Bear" },
   };
   const CASES = (ov.cases || []).map((x) => ({ ...(CASE_META[x.key] || CASE_META.bull), key: x.key, text: x.text, detail: x.detail }));
@@ -967,7 +967,7 @@ function Overview({ ov = BLANK_OV, activeSpot, tab, goto, openBrief, following, 
                           height: 22,
                           background: on ? EM : "#ffffff",
                           border: on ? `2px solid ${EM}` : "2px solid #cbd5e1",
-                          boxShadow: on ? "0 2px 7px -1px rgba(16,185,129,0.55)" : "none",
+                          boxShadow: on ? "0 2px 7px -1px rgba(37,99,235,0.55)" : "none",
                           transition: "background .3s ease, border-color .3s ease, box-shadow .3s ease",
                           transitionDelay: `${delay}ms`,
                         }}
@@ -1033,7 +1033,7 @@ function Overview({ ov = BLANK_OV, activeSpot, tab, goto, openBrief, following, 
       {whyOpen && (
         <BottomSheet onClose={() => setWhyOpen(false)}>
           <div className="flex items-center gap-2 border-b border-slate-200 pb-3 pr-9">
-            <span className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-lg" style={{ background: "rgba(16,185,129,0.12)" }}>
+            <span className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-lg" style={{ background: "rgba(37,99,235,0.12)" }}>
               <Sparkles size={14} style={{ color: EM_TEXT }} strokeWidth={2.4} />
             </span>
             <span className="text-[10px] font-extrabold uppercase tracking-[0.18em]" style={{ color: EM_TEXT }}>Why It Matters</span>
@@ -1065,7 +1065,7 @@ function Overview({ ov = BLANK_OV, activeSpot, tab, goto, openBrief, following, 
               <img src={SITE_PHOTO} alt="Project photo" className="block w-full" />
             </div>
             <div className="mt-3 flex items-center gap-1.5 px-1 text-white">
-              <Pickaxe size={13} className="text-emerald-400" />
+              <Pickaxe size={13} className="text-blue-400" />
               <span className="text-[13px] font-bold tracking-tight">Project 1</span>
               <span className="text-white/40">·</span>
               <MapPin size={12} className="text-white/60" />
@@ -1243,7 +1243,7 @@ function TimelineView() {
             aria-pressed={highOnly}
             className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-full transition active:scale-90"
             style={highOnly
-              ? { background: EM, boxShadow: "0 4px 12px -5px rgba(16,185,129,0.75)" }
+              ? { background: EM, boxShadow: "0 4px 12px -5px rgba(37,99,235,0.75)" }
               : { background: "#fff", border: "1px solid #e2e8f0" }}
           >
             <Gem size={14} style={{ color: highOnly ? "#fff" : EM }} strokeWidth={2.4} />
@@ -1294,8 +1294,8 @@ function TimelineView() {
                           className="relative flex w-full items-stretch gap-3 py-1.5 text-left transition active:scale-[0.99]"
                         >
                           <span className="relative z-10 flex flex-shrink-0 justify-center pt-4" style={{ width: 25 }}>
-                            <span className="grid place-items-center rounded-full" style={{ height: 20, width: 20, background: EM, boxShadow: "0 0 0 4px rgba(16,185,129,0.15)" }}>
-                              <Gem size={11} style={{ color: "#06281d" }} />
+                            <span className="grid place-items-center rounded-full" style={{ height: 20, width: 20, background: EM, boxShadow: "0 0 0 4px rgba(37,99,235,0.15)" }}>
+                              <Gem size={11} style={{ color: "#0a1f38" }} />
                             </span>
                           </span>
                           <span className="min-w-0 flex-1 rounded-2xl border border-slate-100 bg-white p-3" style={{ boxShadow: "0 1px 2px rgba(15,23,42,0.04), 0 10px 24px -18px rgba(15,23,42,0.35)" }}>
@@ -1370,7 +1370,7 @@ function TimelineView() {
                   >
                     <span className="text-[13px] font-extrabold tracking-tight" style={{ color: isExp ? "#fff" : "#1e293b" }}>{grp.quarter} {yr.year}</span>
                     <span className="text-[11px] font-medium" style={{ color: isExp ? "rgba(255,255,255,0.7)" : "#94a3b8" }}>· {items.length} release{items.length > 1 ? "s" : ""}</span>
-                    {hasKey && <Gem size={11} style={{ color: isExp ? "#6ee7b7" : EM }} />}
+                    {hasKey && <Gem size={11} style={{ color: isExp ? "#93c5fd" : EM }} />}
                     <ChevronRight size={15} className="ml-auto flex-shrink-0 transition-transform duration-200" style={{ color: isExp ? "rgba(255,255,255,0.85)" : "#cbd5e1", transform: isExp ? "rotate(90deg)" : "rotate(0deg)" }} />
                   </button>
 
@@ -1417,11 +1417,11 @@ function TimelineView() {
                                 style={{
                                   height: it.key ? 20 : 14, width: it.key ? 20 : 14,
                                   ...(it.key
-                                    ? { background: EM, boxShadow: "0 0 0 4px rgba(16,185,129,0.15)" }
+                                    ? { background: EM, boxShadow: "0 0 0 4px rgba(37,99,235,0.15)" }
                                     : { background: "#fff", border: `2px solid ${cs.c}` }),
                                 }}
                               >
-                                {it.key && <Gem size={11} style={{ color: "#06281d" }} />}
+                                {it.key && <Gem size={11} style={{ color: "#0a1f38" }} />}
                               </span>
                             </span>
                             {/* content card */}
@@ -1526,10 +1526,10 @@ function SummaryContent({ item, cat, impact, onReadFull }) {
           <div className="mt-2 flex items-center gap-2">
             <span className="rounded-lg bg-slate-100 px-2.5 py-1.5 text-[11px] font-bold tracking-tight text-slate-500">{stage[0]}</span>
             <ArrowUpRight size={15} className="flex-shrink-0" style={{ color: EM }} />
-            <span className="rounded-lg px-2.5 py-1.5 text-[11px] font-bold tracking-tight" style={{ background: "rgba(16,185,129,0.12)", color: EM_TEXT }}>{stage[1]}</span>
+            <span className="rounded-lg px-2.5 py-1.5 text-[11px] font-bold tracking-tight" style={{ background: "rgba(37,99,235,0.12)", color: EM_TEXT }}>{stage[1]}</span>
           </div>
         </div>
-        <div className="rounded-2xl p-3.5" style={{ background: "rgba(16,185,129,0.07)", border: "1px solid rgba(16,185,129,0.2)" }}>
+        <div className="rounded-2xl p-3.5" style={{ background: "rgba(37,99,235,0.07)", border: "1px solid rgba(37,99,235,0.2)" }}>
           <span className="text-[10px] font-extrabold uppercase tracking-[0.16em]" style={{ color: EM_TEXT }}>Investor Takeaway</span>
           <p className="mt-1.5 text-[13px] font-semibold leading-relaxed text-slate-700">{TAKEAWAY_BY_IMPACT[impact]}</p>
         </div>
@@ -1743,7 +1743,7 @@ const MAP_BBOX = { latMin: 26.62, latMax: 27.18, lonMin: -105.82, lonMax: -105.2
 const geoX = (lon) => ((lon - MAP_BBOX.lonMin) / (MAP_BBOX.lonMax - MAP_BBOX.lonMin)) * 100;
 const geoY = (lat) => ((MAP_BBOX.latMax - lat) / (MAP_BBOX.latMax - MAP_BBOX.latMin)) * 100;
 const MAP_SITES = [
-  { key: "lc", name: "Project 1", lat: 27.05, lon: -105.45, tone: EM, fill: "rgba(16,185,129,0.25)" },
+  { key: "lc", name: "Project 1", lat: 27.05, lon: -105.45, tone: EM, fill: "rgba(37,99,235,0.25)" },
   { key: "alm", name: "Project 2", lat: 26.75, lon: -105.50, tone: "#f59e0b", fill: "rgba(245,158,11,0.25)" },
 ];
 
@@ -1938,11 +1938,11 @@ function FinanceRow({ r, open, onToggle, last, newest }) {
   return (
     <div className="relative pl-7">
       {!last && <span className="absolute w-px" style={{ left: 5, top: 6, bottom: -4, background: "#e7ebf0" }} />}
-      <span className="absolute rounded-full border-2 border-white" style={{ left: 0, top: 5, height: 11, width: 11, background: node, boxShadow: newest ? "0 0 0 4px rgba(16,185,129,0.16)" : "none" }} />
+      <span className="absolute rounded-full border-2 border-white" style={{ left: 0, top: 5, height: 11, width: 11, background: node, boxShadow: newest ? "0 0 0 4px rgba(37,99,235,0.16)" : "none" }} />
       <button onClick={onToggle} className={`block w-full appearance-none text-left ${last ? "pb-1" : "pb-7"}`} style={{ border: "none", background: "transparent", outline: "none" }}>
         <p className="font-bold tracking-tight tabular-nums" style={{ color: newest ? EM_TEXT : "#0f172a", fontSize: newest ? 18 : 15.5 }}>{r.v}</p>
         <p className="mt-0.5 text-[12px] font-medium text-slate-500">{r.type}</p>
-        <p className="mt-1 text-[10px] font-bold uppercase tracking-wider" style={{ color: newest ? "rgba(15,157,115,0.75)" : "#94a3b8" }}>{r.d}</p>
+        <p className="mt-1 text-[10px] font-bold uppercase tracking-wider" style={{ color: newest ? "rgba(37,99,235,0.75)" : "#94a3b8" }}>{r.d}</p>
         <div className="grid transition-all duration-300 ease-out" style={{ gridTemplateRows: open ? "1fr" : "0fr" }}>
           <div className="overflow-hidden">
             <div className="mt-3 space-y-2 border-t border-slate-100 pt-3">
@@ -2733,7 +2733,7 @@ const AM_SITE_GALLERY = [];
 const AM_BRIEF = {};
 
 // Marker tones by type
-const MK_TONE = { drill: "#2563eb", historic: "#64748b", target: "#10b981", explore: "#f59e0b" };
+const MK_TONE = { drill: "#2563eb", historic: "#64748b", target: "#3b82f6", explore: "#f59e0b" };
 const MK_LABEL = { drill: "Active Drilling", historic: "Historic Mine", target: "Drill Target", explore: "Exploration Target" };
 
 // Interactive Leaflet map embedded directly in the Projects page.
@@ -2929,7 +2929,7 @@ function ProjectsView({ spot, projects } = {}) {
   const selProj = enabled.find((x) => x.id === selId) || enabled[0] || {};
   const p = {
     name: selProj.name || "",
-    tone: "#10b981", toneText: "#0f766e", toneSoft: "rgba(16,185,129,0.08)",
+    tone: "#3b82f6", toneText: "#0f766e", toneSoft: "rgba(37,99,235,0.08)",
     gallery: (selProj.gallery && selProj.gallery.length) ? selProj.gallery : null,
     stageIdx: (typeof selProj.stageIdx === "number" ? selProj.stageIdx : -1),
     cards: selProj.cards || [],
@@ -3449,7 +3449,7 @@ function TeamView({ onOpenCompany }) {
                     onClick={() => setCeoFollow((f) => !f)}
                     className="flex h-8 flex-1 items-center justify-center gap-1 rounded-full border text-[11px] font-bold tracking-wide transition-all active:scale-[0.97]"
                     style={ceoFollow
-                      ? { background: "rgba(16,185,129,0.08)", color: EM_TEXT, borderColor: "rgba(16,185,129,0.35)" }
+                      ? { background: "rgba(37,99,235,0.08)", color: EM_TEXT, borderColor: "rgba(37,99,235,0.35)" }
                       : { background: "#ffffff", color: "#334155", borderColor: "#e2e8f0" }}
                     aria-pressed={ceoFollow}
                   >
@@ -3533,7 +3533,7 @@ function TeamView({ onOpenCompany }) {
                   onClick={() => setCeoFollow((f) => !f)}
                   className="flex h-9 flex-1 items-center justify-center gap-1.5 rounded-lg border text-[12px] font-bold tracking-wide transition-all active:scale-[0.98]"
                   style={ceoFollow
-                    ? { background: "rgba(16,185,129,0.08)", color: EM_TEXT, borderColor: "rgba(16,185,129,0.35)" }
+                    ? { background: "rgba(37,99,235,0.08)", color: EM_TEXT, borderColor: "rgba(37,99,235,0.35)" }
                     : { background: "#0f172a", color: "#fff", borderColor: "#0f172a" }}
                   aria-pressed={ceoFollow}
                 >
@@ -3731,7 +3731,7 @@ function AnalystRow({ a, onOpenCompany }) {
           <span className="rounded-md px-1.5 py-0.5 text-[9px] font-bold tabular-nums text-slate-500" style={{ background: "#f1f5f9" }}>{a.covers} covered</span>
           <span className="rounded-md px-1.5 py-0.5 text-[9px] font-extrabold uppercase tracking-wider" style={{ background: "rgba(15,23,42,0.06)", color: "#0f172a" }}>{a.rating}</span>
           {a.coversKng && (
-            <button onClick={() => { haptic(); onOpenCompany(); }} className="rounded-md px-1.5 py-0.5 text-[9px] font-extrabold uppercase tracking-wider transition active:scale-95" style={{ background: "rgba(16,185,129,0.12)", color: EM_TEXT }}>
+            <button onClick={() => { haptic(); onOpenCompany(); }} className="rounded-md px-1.5 py-0.5 text-[9px] font-extrabold uppercase tracking-wider transition active:scale-95" style={{ background: "rgba(37,99,235,0.12)", color: EM_TEXT }}>
               Coverage
             </button>
           )}
@@ -4123,14 +4123,14 @@ function App() { return null; }
 const SNAP_FIELD = { "Cash": "cp-cash", "Working Capital": "cp-cash", "Basic Shares": "cp-basic", "Fully Diluted": "cp-fd", "Market Cap": "cp-mktcap" };
 
 const OB_THEME = {
-  overview: { key: "Overview", t: "#059669", c: "#10b981", soft: "#ecfdf5" },
+  overview: { key: "Overview", t: "#2563eb", c: "#3b82f6", soft: "#eff6ff" },
   projects: { key: "Projects", t: "#b45309", c: "#d97706", soft: "#fffbeb" },
   timeline: { key: "Timeline", t: "#2563eb", c: "#2563eb", soft: "#eff6ff" },
   capital:  { key: "Capital",  t: "#7c3aed", c: "#7c3aed", soft: "#f5f3ff" },
   team:     { key: "Team",     t: "#1e3a8a", c: "#1e3a8a", soft: "#eef2ff" },
   media:    { key: "Media",    t: "#e11d48", c: "#e11d48", soft: "#fff1f2" },
 };
-const PROV = { "company-confirmed": "#10b981", "ai-extracted": "#7c3aed", "ai-derived": "#2563eb", "company-upload": "#64748b" };
+const PROV = { "company-confirmed": "#3b82f6", "ai-extracted": "#7c3aed", "ai-derived": "#2563eb", "company-upload": "#64748b" };
 
 function EmptyTabScaffold({ kicker, title, note, onClick, tone = "#94a3b8" }) {
   return (
@@ -4450,7 +4450,7 @@ async function buildStatusExtractionContent(files, pasteText, instruction) {
 // Confidence display metadata (editor-only; never rendered on the card/profile).
 const STATUS_REVIEW_KEYS = ["statusHeadline", "statusHeadlineSubtext", "latestUpdate", "nextCatalyst", "expected", "investmentImpact", "progressBar"];
 const CONF_META = {
-  high:   { label: "High",   c: "#0f9b73", bg: "rgba(16,185,129,0.10)", bd: "rgba(16,185,129,0.30)" },
+  high:   { label: "High",   c: "#1d4ed8", bg: "rgba(37,99,235,0.10)", bd: "rgba(37,99,235,0.30)" },
   medium: { label: "Medium", c: "#b45309", bg: "rgba(245,158,11,0.12)", bd: "rgba(245,158,11,0.38)" },
   low:    { label: "Low",    c: "#be123c", bg: "rgba(244,63,94,0.10)",  bd: "rgba(244,63,94,0.32)" },
 };
@@ -4638,7 +4638,7 @@ function Editor({ field, th, onUpdate }) {
             {field.confidence > 0 && <span style={{ fontSize: 11, color: "#94a3b8", fontWeight: 600 }}>confidence {Math.round(field.confidence * 100)}%</span>}
           </div>
         </div>
-        {field.state === "approved" && <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, fontWeight: 700, color: "#0f9b73" }}><Check size={14} strokeWidth={3} /> approved</span>}
+        {field.state === "approved" && <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, fontWeight: 700, color: "#1d4ed8" }}><Check size={14} strokeWidth={3} /> approved</span>}
       </div>
 
       {field.conflict && (
@@ -4706,7 +4706,7 @@ function Editor({ field, th, onUpdate }) {
       <div style={{ marginTop: 28, paddingTop: 18, borderTop: "1px solid #eef2f6", display: "flex", alignItems: "center", gap: 10 }}>
         {field.state === "approved"
           ? <button onClick={() => onUpdate({ state: "pending" })} style={{ fontSize: 13, fontWeight: 600, padding: "10px 16px", borderRadius: 10, border: "1px solid #e2e8f0", background: "#fff", color: "#64748b", cursor: "pointer", display: "flex", alignItems: "center", gap: 7 }}><RotateCcw size={14} /> Un-approve</button>
-          : <button onClick={() => onUpdate({ state: "approved" })} disabled={!text} style={{ fontSize: 14, fontWeight: 700, padding: "11px 22px", borderRadius: 10, border: "none", background: text ? "#10b981" : "#e2e8f0", color: text ? "#fff" : "#94a3b8", cursor: text ? "pointer" : "not-allowed", display: "flex", alignItems: "center", gap: 8 }}><Check size={16} strokeWidth={2.6} /> Approve field</button>}
+          : <button onClick={() => onUpdate({ state: "approved" })} disabled={!text} style={{ fontSize: 14, fontWeight: 700, padding: "11px 22px", borderRadius: 10, border: "none", background: text ? "#3b82f6" : "#e2e8f0", color: text ? "#fff" : "#94a3b8", cursor: text ? "pointer" : "not-allowed", display: "flex", alignItems: "center", gap: 8 }}><Check size={16} strokeWidth={2.6} /> Approve field</button>}
         <span style={{ fontSize: 11, color: "#94a3b8", fontWeight: 500 }}>approving is what lets it publish</span>
       </div>
     </div>
@@ -4930,10 +4930,10 @@ function FlipStatusCard({ hero, logo, status = {}, flipped = false, logoIn = tru
         </div>
         {showProgress && (
         <div style={{ marginTop: 20 }}>
-          <div style={{ height: 8, borderRadius: 999, background: "#e2e8f0", overflow: "hidden" }}><div style={{ height: "100%", width: `${pct}%`, borderRadius: 999, background: "linear-gradient(90deg,#10b981,#34d399)" }} /></div>
+          <div style={{ height: 8, borderRadius: 999, background: "#e2e8f0", overflow: "hidden" }}><div style={{ height: "100%", width: `${pct}%`, borderRadius: 999, background: "linear-gradient(90deg,#3b82f6,#60a5fa)" }} /></div>
           <div style={{ marginTop: 6, display: "flex", justifyContent: "space-between" }}>
             <span style={{ fontSize: 9.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".08em", color: "#94a3b8" }}>{ph(status.progressLabel, "Progress")}</span>
-            <span style={{ fontSize: 9.5, fontWeight: 800, color: "#0f9b73" }}>{pct}%</span>
+            <span style={{ fontSize: 9.5, fontWeight: 800, color: "#1d4ed8" }}>{pct}%</span>
           </div>
         </div>
         )}
@@ -4982,7 +4982,7 @@ function StatusReview({ brand, seed, onNext, onBack, onSkip }) {
     <div style={{ minHeight: "100vh", height: "100vh", display: "grid", gridTemplateColumns: "1fr 1fr", background: "#f6f8fb" }}>
       <style>{OB_KEYFRAMES}</style>
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 20, padding: 40, background: "radial-gradient(700px 500px at 50% 0%,#fff,#eef2f7)" }}>
-        <span style={{ ...eyebrow, color: "#10b981" }}>Live preview</span>
+        <span style={{ ...eyebrow, color: "#3b82f6" }}>Live preview</span>
         <FlipStatusCard hero={brand.hero} logo={brand.logo} status={st} flipped={flipped} />
         <p style={{ fontSize: 11.5, color: "#94a3b8", maxWidth: 300, textAlign: "center" }}>Your hero card flips to reveal the status card. Edits on the right update it live.</p>
       </div>
@@ -5053,7 +5053,7 @@ function Branding({ onNext }) {
 
       {/* LEFT — live preview */}
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 26, padding: 40, background: "radial-gradient(700px 500px at 50% 0%,#ffffff,#eef2f7)" }}>
-        <span style={{ ...eyebrow, color: "#10b981" }}>Live preview</span>
+        <span style={{ ...eyebrow, color: "#3b82f6" }}>Live preview</span>
 
         {/* avatar */}
         <div
@@ -5207,7 +5207,7 @@ const SECTION_ORDER = [
    ============================================================================ */
 
 // One rounded box whose huge box-shadow spread dims everything around it.
-const SPOT_SHADOW = "0 0 0 2px rgba(16,185,129,0.75), 0 0 24px 6px rgba(16,185,129,0.30), 0 0 0 9999px rgba(15,23,42,0.58)";
+const SPOT_SHADOW = "0 0 0 2px rgba(37,99,235,0.75), 0 0 24px 6px rgba(37,99,235,0.30), 0 0 0 9999px rgba(15,23,42,0.58)";
 const SPOT_BASE = {
   position: "absolute", top: 0, left: 0, width: 0, height: 0,
   pointerEvents: "none", opacity: 0, borderRadius: 16, boxShadow: SPOT_SHADOW,
@@ -5291,11 +5291,11 @@ function ScenarioSpotlight({ spot }) {
           <path d={d.path} fill="#000" />
         </mask>
         <filter id="scenglow" x="-20%" y="-20%" width="140%" height="140%">
-          <feDropShadow dx="0" dy="0" stdDeviation="5" floodColor="#10b981" floodOpacity="0.45" />
+          <feDropShadow dx="0" dy="0" stdDeviation="5" floodColor="#3b82f6" floodOpacity="0.45" />
         </filter>
       </defs>
       <rect x="0" y="0" width={d.w} height={d.h} fill="rgba(15,23,42,0.58)" mask="url(#scenmask)" />
-      <path d={d.path} fill="none" stroke="rgba(16,185,129,0.85)" strokeWidth="2" filter="url(#scenglow)" />
+      <path d={d.path} fill="none" stroke="rgba(37,99,235,0.85)" strokeWidth="2" filter="url(#scenglow)" />
     </svg>
   );
 }
@@ -5481,7 +5481,7 @@ function FieldBorderOverlay({ containerRef, fieldSpot, tab }) {
     }), 40);
     return () => { cancelled = true; clearTimeout(timer); };
   }, [fieldSpot, tab]);
-  return <div ref={ref} aria-hidden="true" style={{ position: "absolute", top: 0, left: 0, display: "none", border: "2px solid #10b981", borderRadius: 10, boxShadow: "0 0 0 3px rgba(16,185,129,0.16)", pointerEvents: "none", zIndex: 55, transition: "transform .2s cubic-bezier(.4,0,.2,1), width .2s cubic-bezier(.4,0,.2,1), height .2s cubic-bezier(.4,0,.2,1)", willChange: "transform" }} />;
+  return <div ref={ref} aria-hidden="true" style={{ position: "absolute", top: 0, left: 0, display: "none", border: "2px solid #3b82f6", borderRadius: 10, boxShadow: "0 0 0 3px rgba(37,99,235,0.16)", pointerEvents: "none", zIndex: 55, transition: "transform .2s cubic-bezier(.4,0,.2,1), width .2s cubic-bezier(.4,0,.2,1), height .2s cubic-bezier(.4,0,.2,1)", willChange: "transform" }} />;
 }
 
 /* Compact per-field AI confidence review. Rendered ONLY inside the onboarding
@@ -5645,13 +5645,13 @@ function SectionEditor({ spot, def, getVal, getStatus, onText, onIdentity, onSta
 
             {st.type === "photos" && (<>
               <label
-                onDragOver={(e) => { e.preventDefault(); e.currentTarget.style.borderColor = "#10b981"; e.currentTarget.style.background = "rgba(16,185,129,0.06)"; }}
+                onDragOver={(e) => { e.preventDefault(); e.currentTarget.style.borderColor = "#3b82f6"; e.currentTarget.style.background = "rgba(37,99,235,0.06)"; }}
                 onDragLeave={(e) => { e.currentTarget.style.borderColor = "#cbd5e1"; e.currentTarget.style.background = "#fff"; }}
                 onDrop={(e) => { e.preventDefault(); e.currentTarget.style.borderColor = "#cbd5e1"; e.currentTarget.style.background = "#fff"; if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) addFiles(pr.id, e.dataTransfer.files); }}
                 style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10, aspectRatio: "1 / 0.8", border: "2px dashed #cbd5e1", borderRadius: 16, cursor: "pointer", background: "#fff", transition: "border-color .15s, background .15s" }}>
                 <input type="file" accept="image/*" multiple onChange={(e) => { addFiles(pr.id, e.target.files); e.target.value = ""; }} style={{ display: "none" }} />
                 <span style={{ display: "grid", placeItems: "center", width: 52, height: 52, borderRadius: 16, background: "#f1f5f9", pointerEvents: "none" }}><ImageIcon size={26} style={{ color: "#94a3b8" }} /></span>
-                <span style={{ fontSize: 15, fontWeight: 800, color: "#334155", pointerEvents: "none" }}>Drag &amp; drop photos, or <span style={{ color: "#10b981" }}>browse</span></span>
+                <span style={{ fontSize: 15, fontWeight: 800, color: "#334155", pointerEvents: "none" }}>Drag &amp; drop photos, or <span style={{ color: "#3b82f6" }}>browse</span></span>
                 <span style={{ fontSize: 12, color: "#cbd5e1", pointerEvents: "none" }}>Tap to select · they upload straight to the carousel</span>
               </label>
               {uploadErr && <p style={{ fontSize: 12, fontWeight: 600, color: "#e11d48", margin: "8px 0 0" }}>{uploadErr}</p>}
@@ -5664,7 +5664,7 @@ function SectionEditor({ spot, def, getVal, getStatus, onText, onIdentity, onSta
                       onDragOver={(e) => e.preventDefault()}
                       onDrop={() => { moveImg(pr.id, dragIdx, gi); setDragIdx(null); }}
                       onDragEnd={() => setDragIdx(null)}
-                      style={{ position: "relative", aspectRatio: "1", borderRadius: 10, overflow: "hidden", border: dragIdx === gi ? "2px solid #10b981" : "1px solid #e2e8f0", background: "#f8fafc", cursor: "grab", opacity: dragIdx === gi ? 0.6 : 1 }}>
+                      style={{ position: "relative", aspectRatio: "1", borderRadius: 10, overflow: "hidden", border: dragIdx === gi ? "2px solid #3b82f6" : "1px solid #e2e8f0", background: "#f8fafc", cursor: "grab", opacity: dragIdx === gi ? 0.6 : 1 }}>
                       {g.src ? <img src={g.src} alt={g.label || ""} draggable={false} style={{ width: "100%", height: "100%", objectFit: "cover", pointerEvents: "none" }} /> : <div style={{ width: "100%", height: "100%", display: "grid", placeItems: "center" }}><ImageIcon size={18} style={{ color: "#cbd5e1" }} /></div>}
                       <button onClick={() => rmImg(pr.id, gi)} title="Remove photo" style={{ position: "absolute", top: 4, right: 4, width: 22, height: 22, borderRadius: 999, border: "none", background: "rgba(15,23,42,0.7)", color: "#fff", cursor: "pointer", display: "grid", placeItems: "center", fontSize: 13, lineHeight: 1 }}>×</button>
                     </div>
@@ -5939,7 +5939,7 @@ function SectionEditor({ spot, def, getVal, getStatus, onText, onIdentity, onSta
               <label style={{ display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", marginBottom: 14 }}>
                 <span style={miniLabel}>Show Progress Bar</span>
                 <button onClick={() => setPB({ enabled: !pb.enabled })} role="switch" aria-checked={!!pb.enabled}
-                  style={{ position: "relative", width: 42, height: 24, borderRadius: 999, border: "none", cursor: "pointer", flexShrink: 0, background: pb.enabled ? "#10b981" : "#e2e8f0", transition: "background .16s" }}>
+                  style={{ position: "relative", width: 42, height: 24, borderRadius: 999, border: "none", cursor: "pointer", flexShrink: 0, background: pb.enabled ? "#3b82f6" : "#e2e8f0", transition: "background .16s" }}>
                   <span style={{ position: "absolute", top: 3, left: pb.enabled ? 21 : 3, width: 18, height: 18, borderRadius: 999, background: "#fff", boxShadow: "0 1px 3px rgba(15,23,42,0.3)", transition: "left .16s" }} />
                 </button>
               </label>
@@ -5963,7 +5963,7 @@ function SectionEditor({ spot, def, getVal, getStatus, onText, onIdentity, onSta
               </div>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "#f8fafc", border: "1px solid #eef2f6", borderRadius: 10, padding: "10px 13px" }}>
                 <span style={miniLabel}>Percentage <span style={{ fontWeight: 600, color: "#cbd5e1" }}>· auto-calculated</span></span>
-                <span style={{ fontSize: 15, fontWeight: 800, color: pbPct == null ? "#cbd5e1" : "#0f9b73" }}>{pbPct == null ? "—" : pbPct + "%"}</span>
+                <span style={{ fontSize: 15, fontWeight: 800, color: pbPct == null ? "#cbd5e1" : "#1d4ed8" }}>{pbPct == null ? "—" : pbPct + "%"}</span>
               </div>
               <StatusReviewNote review={reviewOf("progressBar")} edited={editedOf("progressBar")} />
             </div>
@@ -6112,7 +6112,7 @@ function SectionEditor({ spot, def, getVal, getStatus, onText, onIdentity, onSta
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
       <div style={{ marginBottom: 18 }}>
-        <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: ".16em", textTransform: "uppercase", color: "#10b981" }}>{idx >= 0 ? `Step ${idx + 1} of ${total}` : "Edit"}</span>
+        <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: ".16em", textTransform: "uppercase", color: "#3b82f6" }}>{idx >= 0 ? `Step ${idx + 1} of ${total}` : "Edit"}</span>
         <h2 style={{ fontSize: 20, fontWeight: 800, color: "#0f172a", margin: "5px 0 0", letterSpacing: "-.01em" }}>{def.label}</h2>
         <p style={{ fontSize: 12.5, color: "#94a3b8", marginTop: 5 }}>Edit below — the preview updates live. Or click any dimmed section to jump there.</p>
       </div>
@@ -6183,7 +6183,7 @@ function SectionEditor({ spot, def, getVal, getStatus, onText, onIdentity, onSta
   );
 }
 
-export default function Onboarding({ embedded = false }) {
+export default function Onboarding({ embedded = false, companySlug = null }) {
   // When embedded in the Company Console, screens fill their container instead
   // of the full viewport (the console provides the sidebar + top bar).
   const _vh = embedded ? "100%" : "100vh";
@@ -6283,7 +6283,11 @@ export default function Onboarding({ embedded = false }) {
   useEffect(() => {
     const params = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : new URLSearchParams();
     const fresh = params.get("new") === "1";
-    const editSlug = params.get("company"); // admin editing a specific company by slug
+    // The company to edit: the portal-selected one (prop) wins, then an explicit
+    // ?company= link, then the user's own owned company. Without the prop, the portal
+    // could load the wrong company (e.g. an admin who owns a different draft) — the
+    // sidebar says one company while the editor loads another.
+    const editSlug = companySlug || params.get("company");
     // New company → skip the (AI-extract) intake and drop straight into the
     // guided, step-by-step builder where Next/Previous navigation lives.
     // New company → land on the intake screen (drop docs -> AI extract), which itself
@@ -6304,7 +6308,24 @@ export default function Onboarding({ embedded = false }) {
         row = await fetchMyCompany().catch(() => null);
       }
       if (alive && row && row.profile) {
-        setProfile((p) => ({ ...p, ...row.profile }));
+        const loaded = { ...row.profile };
+        // A profile built elsewhere (migrated/seeded, e.g. Kingsmen) stores its data as
+        // `pp` but not in the editor's model. The preview reads the full pp; here we also
+        // seed the editor's core identity fields from pp.COMPANY so Step 1 shows the real
+        // values instead of blank. (Only when not already set, so a fresh build is untouched.)
+        const co = (loaded.pp && loaded.pp.COMPANY) || null;
+        setProfile((p) => {
+          const merged = { ...p, ...loaded };
+          if (co && !(merged.company && merged.company.name)) {
+            merged.company = {
+              ...(merged.company || {}),
+              name: co.name || "", ticker: co.ticker || "", website: co.website || "",
+              slogan: co.slogan || "", commodity: co.commodity || "", jurisdiction: co.jurisdiction || "",
+              stage: co.stage || "", headquarters: co.headquarters || "", location: co.location || "",
+            };
+          }
+          return merged;
+        });
         if (row.profile.brand) setBrand(row.profile.brand);
         setSavedSlug(row.slug);
         setScreen("review"); setSpot("co"); setTab("overview");
@@ -6631,7 +6652,7 @@ export default function Onboarding({ embedded = false }) {
   if (hydrating) return (
     <div style={{ minHeight: _vh, display: "grid", placeItems: "center", background: "#f6f8fb" }}>
       <div style={{ textAlign: "center", color: "#94a3b8" }}>
-        <Loader2 size={30} className="animate-spin" color="#10b981" style={{ margin: "0 auto" }} />
+        <Loader2 size={30} className="animate-spin" color="#3b82f6" style={{ margin: "0 auto" }} />
         <p style={{ marginTop: 12, fontSize: 14 }}>Loading your workspace…</p>
       </div>
     </div>
@@ -6644,7 +6665,7 @@ export default function Onboarding({ embedded = false }) {
     <div style={{ minHeight: _vh, maxHeight: _vh, overflowY: "auto", background: "radial-gradient(1000px 600px at 50% -10%,#fff,#eef2f7 60%,#e2e8f0)", display: "flex", alignItems: "flex-start", justifyContent: "center", padding: 32, boxSizing: "border-box" }}>
       <style>{OB_KEYFRAMES}</style>
       <div style={{ width: "100%", maxWidth: 620, background: "#fff", borderRadius: 24, border: "1px solid #e9eef5", boxShadow: "0 30px 80px -30px rgba(15,23,42,0.3)", padding: "34px 34px 30px" }}>
-        <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: ".2em", textTransform: "uppercase", color: "#10b981" }}>Passport onboarding</span>
+        <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: ".2em", textTransform: "uppercase", color: "#3b82f6" }}>Passport onboarding</span>
         <h1 style={{ fontSize: 25, fontWeight: 800, letterSpacing: "-.02em", color: "#0f172a", margin: "8px 0 0" }}>Build your company profile</h1>
         <p style={{ fontSize: 13.5, color: "#64748b", marginTop: 10, lineHeight: 1.5 }}>Drop in your filings, presentations and news releases — or paste text. Everything you upload is filed to this company&rsquo;s permanent record, so it&rsquo;s saved for good.</p>
         <div style={{ marginTop: 18 }}>
@@ -6656,9 +6677,9 @@ export default function Onboarding({ embedded = false }) {
         <div onClick={() => inputRef.current?.click()} onDragOver={(e) => { e.preventDefault(); setDrag(true); }} onDragLeave={() => setDrag(false)}
           onDrop={async (e) => { e.preventDefault(); setDrag(false); const fs = await filesFromDrop(e.dataTransfer); if (fs && fs.length) addFiles(fs); }}
           style={{ marginTop: 22, borderRadius: 18, cursor: "pointer", padding: "40px 20px", textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-            border: `2px dashed ${drag ? "#10b981" : "#e2e8f0"}`, background: drag ? "rgba(16,185,129,0.05)" : "#fff", transition: "all .16s" }}>
-          <div style={{ width: 56, height: 56, borderRadius: 16, background: drag ? "#10b981" : "#f1f5f9", display: "grid", placeItems: "center", marginBottom: 18 }}>
-            <Upload size={24} color={drag ? "#fff" : "#10b981"} strokeWidth={2.2} />
+            border: `2px dashed ${drag ? "#3b82f6" : "#e2e8f0"}`, background: drag ? "rgba(37,99,235,0.05)" : "#fff", transition: "all .16s" }}>
+          <div style={{ width: 56, height: 56, borderRadius: 16, background: drag ? "#3b82f6" : "#f1f5f9", display: "grid", placeItems: "center", marginBottom: 18 }}>
+            <Upload size={24} color={drag ? "#fff" : "#3b82f6"} strokeWidth={2.2} />
           </div>
           <p style={{ fontSize: 18, fontWeight: 700, margin: 0, color: "#0f172a", letterSpacing: "-.01em" }}>{drag ? "Release to add" : "Drag files or a folder here, or click to browse"}</p>
           <p style={{ fontSize: 12.5, color: "#94a3b8", marginTop: 8 }}>PDFs, decks, press releases — everything at once</p>
@@ -6669,7 +6690,7 @@ export default function Onboarding({ embedded = false }) {
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
               <span style={{ fontSize: 12, fontWeight: 700, color: "#0f172a" }}>{files.length} file{files.length === 1 ? "" : "s"} ready</span>
               <div style={{ display: "flex", gap: 14 }}>
-                <button onClick={() => inputRef.current?.click()} style={{ fontSize: 11.5, fontWeight: 700, color: "#10b981", background: "none", border: "none", cursor: "pointer" }}>+ Add more</button>
+                <button onClick={() => inputRef.current?.click()} style={{ fontSize: 11.5, fontWeight: 700, color: "#3b82f6", background: "none", border: "none", cursor: "pointer" }}>+ Add more</button>
                 <button onClick={() => setFiles([])} style={{ fontSize: 11.5, fontWeight: 700, color: "#94a3b8", background: "none", border: "none", cursor: "pointer" }}>Clear all</button>
               </div>
             </div>
@@ -6714,7 +6735,7 @@ export default function Onboarding({ embedded = false }) {
     <div style={{ minHeight: _vh, background: "radial-gradient(1000px 600px at 50% -10%,#fff,#eef2f7 60%,#e2e8f0)", display: "flex", alignItems: "center", justifyContent: "center" }}>
       <style>{OB_KEYFRAMES}</style>
       <div style={{ textAlign: "center" }}>
-        <Loader2 size={40} className="pp-spin" color="#10b981" />
+        <Loader2 size={40} className="pp-spin" color="#3b82f6" />
         <p style={{ fontSize: 18, fontWeight: 700, color: "#0f172a", marginTop: 18 }}>{extractMsg || "Reading your documents…"}</p>
         <p style={{ fontSize: 13, color: "#94a3b8", marginTop: 10 }}>structuring releases · sorting by date · scoring impact</p>
       </div>
@@ -6725,7 +6746,7 @@ export default function Onboarding({ embedded = false }) {
     <div style={{ minHeight: _vh, background: "radial-gradient(1000px 600px at 50% -10%,#fff,#eef2f7 60%,#e2e8f0)", display: "flex", alignItems: "center", justifyContent: "center" }}>
       <style>{OB_KEYFRAMES}</style>
       <div style={{ textAlign: "center", maxWidth: 360 }}>
-        <CheckCircle2 size={54} color="#10b981" />
+        <CheckCircle2 size={54} color="#3b82f6" />
         <p style={{ fontSize: 22, fontWeight: 800, color: "#0f172a", marginTop: 16 }}>Profile complete</p>
         <p style={{ fontSize: 13.5, color: "#64748b", marginTop: 8, lineHeight: 1.5 }}>It's in your <b>Ready for Publish</b> folder. Preview it, then publish it live from the admin dashboard whenever you're ready.</p>
         <a href="/admin" style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 20, background: "#0f172a", color: "#fff", fontSize: 13.5, fontWeight: 700, padding: "11px 20px", borderRadius: 11, textDecoration: "none" }}>Back to admin →</a>
@@ -6736,7 +6757,7 @@ export default function Onboarding({ embedded = false }) {
   // ---- review (split screen) ----
   const th = OB_THEME[(sel && sel.tab) || tab];
   const _saveLabel = { idle: "Save", saving: "Saving…", saved: "Saved", error: "Retry save" }[saveState];
-  const _saveBg = { idle: "#0f172a", saving: "#64748b", saved: "#10b981", error: "#e11d48" }[saveState];
+  const _saveBg = { idle: "#0f172a", saving: "#64748b", saved: "#3b82f6", error: "#e11d48" }[saveState];
   const saveBar = (
     <div style={{ position: "fixed", left: 20, bottom: 20, zIndex: 1000, display: "flex", alignItems: "center", gap: 10 }}>
       <button onClick={doSave} disabled={saveState === "saving"}
@@ -6746,14 +6767,14 @@ export default function Onboarding({ embedded = false }) {
         {_saveLabel}
       </button>
       {saveState === "saved" && (
-        <span style={{ fontSize: 12, fontWeight: 600, color: "#10b981" }}>Saved to Supabase</span>
+        <span style={{ fontSize: 12, fontWeight: 600, color: "#3b82f6" }}>Saved to Supabase</span>
       )}
       {saveState === "error" && (
         <span style={{ fontSize: 12, fontWeight: 600, color: "#e11d48", maxWidth: 280 }}>{saveMsg}</span>
       )}
       {saveState !== "saving" && saveState !== "error" && autosavedAt && (
         <span style={{ fontSize: 11.5, fontWeight: 600, color: "#94a3b8", display: "inline-flex", alignItems: "center", gap: 5 }}>
-          <CheckCircle2 size={12} color="#10b981" /> Autosaved
+          <CheckCircle2 size={12} color="#3b82f6" /> Autosaved
         </span>
       )}
     </div>
@@ -6772,7 +6793,8 @@ export default function Onboarding({ embedded = false }) {
       )}
       {/* LEFT — live preview, rendered by the SAME component the app uses */}
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 14, padding: 24, overflow: "auto" }}>
-        <div style={{ width: 392, height: 788, maxHeight: "84vh", background: "#fff", borderRadius: 44, overflow: "hidden", border: "1px solid #e9eef5", boxShadow: "0 40px 90px -30px rgba(15,23,42,0.4)", display: "flex", flexDirection: "column", flexShrink: 0 }}>
+        {/* Exact iPhone 15/16 logical size (393 x 852) so the preview matches the real device 1:1. */}
+        <div style={{ width: 393, height: 852, maxHeight: "88vh", aspectRatio: "393 / 852", background: "#fff", borderRadius: 44, overflow: "hidden", border: "1px solid #e9eef5", boxShadow: "0 40px 90px -30px rgba(15,23,42,0.4)", display: "flex", flexDirection: "column", flexShrink: 0 }}>
           <AppStatusBar />
           <div style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
             <RealAppPreview
@@ -6796,7 +6818,7 @@ export default function Onboarding({ embedded = false }) {
           </div>
           <button onClick={async () => { const ok = await doSave("ready"); if (ok) setScreen("published"); }} disabled={!canPublish || saveState === "saving"}
             title={!statusComplete ? "Company Status needs: " + _csMissing.join(", ") : (approved === 0 ? "Approve at least one field to complete" : "")}
-            style={{ fontSize: 13.5, fontWeight: 700, padding: "10px 18px", borderRadius: 11, border: "none", cursor: (canPublish && saveState !== "saving") ? "pointer" : "not-allowed", background: canPublish ? "#059669" : "#e2e8f0", color: canPublish ? "#fff" : "#94a3b8", display: "inline-flex", alignItems: "center", gap: 6 }}>
+            style={{ fontSize: 13.5, fontWeight: 700, padding: "10px 18px", borderRadius: 11, border: "none", cursor: (canPublish && saveState !== "saving") ? "pointer" : "not-allowed", background: canPublish ? "#2563eb" : "#e2e8f0", color: canPublish ? "#fff" : "#94a3b8", display: "inline-flex", alignItems: "center", gap: 6 }}>
             {saveState === "saving" ? "Saving…" : <><Check size={15} strokeWidth={3} /> Complete</>}
           </button>
         </div>
@@ -6806,7 +6828,7 @@ export default function Onboarding({ embedded = false }) {
               onScenario={spotScenario} onThesis={spotThesis} onNext={nextSpot} onPrev={prevSpot} onGotoSpot={(id) => { setFieldSpot(null); setSpot(id); setTab((SECTION_DEFS[id] && SECTION_DEFS[id].tab) || "projects"); }} first={ordIdx(spot) === 0} idx={ordIdx(spot)} total={SECTION_ORDER.length} last={ordIdx(spot) === SECTION_ORDER.length - 1} onFocusField={setFieldSpot} projects={profile.projects} setProjects={setProjects} timeline={profile.timeline} setTimeline={setTimeline} team={profile.team} setTeam={setTeam} company={profile.company} setCompany={setCompany} capital={profile.capital} setCapital={setCapital} companyStatus={profile.companyStatus} setCompanyStatus={setCompanyStatus} companyStatusReview={profile.companyStatusReview} companyStatusAI={profile.companyStatusAI} companyBrief={profile.companyBrief} setCompanyBrief={setCompanyBrief} companyBriefReview={profile.companyBriefReview} companyBriefAI={profile.companyBriefAI} />
           ) : (
             <div style={{ height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center", gap: 12 }}>
-              <div style={{ width: 48, height: 48, borderRadius: 14, background: "#f1f5f9", display: "grid", placeItems: "center" }}><Check size={22} color="#10b981" /></div>
+              <div style={{ width: 48, height: 48, borderRadius: 14, background: "#f1f5f9", display: "grid", placeItems: "center" }}><Check size={22} color="#3b82f6" /></div>
               <p style={{ fontSize: 16, fontWeight: 700, color: "#0f172a", margin: 0 }}>All sections reviewed</p>
               <p style={{ fontSize: 13, color: "#94a3b8", maxWidth: 320 }}>Click any section in the preview to edit it again, or Publish when you're ready.</p>
             </div>

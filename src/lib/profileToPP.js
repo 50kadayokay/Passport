@@ -24,6 +24,23 @@ const darken = (hex, amt = 0.16) => {
 const initialsOf = (name) =>
   str(name).trim().split(/\s+/).slice(0, 2).map((w) => w[0] || "").join("").toUpperCase() || "?";
 
+// Deep "fill empties only" merge for canonical project data. Preserves every non-empty
+// EXISTING value (so portal-authored edits always win) and takes an incoming value ONLY
+// where the existing slot is empty. `isEmptyVal` is a hoisted function declaration below.
+// This is what lets "Re-analyze from memory" refresh a company WITHOUT clobbering edits
+// (Phase 4B: profile.projects is canonical, so re-extraction must never destroy it).
+function fillEmptyDeep(existing, incoming) {
+  if (isEmptyVal(existing)) return incoming;               // nothing worth preserving → take incoming
+  if (isEmptyVal(incoming)) return existing;               // nothing to add → keep existing
+  if (Array.isArray(existing) || Array.isArray(incoming)) return existing; // non-empty existing array wins
+  if (typeof existing === "object" && typeof incoming === "object") {
+    const out = { ...existing };
+    Object.keys(incoming).forEach((k) => { out[k] = fillEmptyDeep(existing[k], incoming[k]); });
+    return out;
+  }
+  return existing;                                         // non-empty scalar → keep existing
+}
+
 // Merge extraction output (timeline + company facts + projects) into a profile.
 // Shared by onboarding and "re-analyze from memory" so both apply results the
 // SAME way — no drift between the two paths.
@@ -53,8 +70,26 @@ export function mergeExtraction(profile, { timelineEntries, company, projects, c
     next.team = co.team.map((m, i) => ({ id: "member-" + (i + 1), enabled: true, name: str(m.name), role: str(m.role), short: str(m.short), full: str(m.full) }));
   }
 
+  // Projects: MERGE BY KEY, preserving existing project data + portal edits. Phase 4B made
+  // profile.projects the canonical source, so a wholesale replace here would destroy portal-
+  // authored rich data (and the pp derived from it). Existing projects keep every non-empty
+  // field and only gain values where a slot is currently empty; genuinely new projects are
+  // added. (Once field-level provenance exists, re-extraction could safely UPDATE non-edited
+  // fields; until then the safe rule is fill-gaps-only. Sibling mergeIncremental behaves the
+  // same for "Analyze new".)
   const pj = (projects && projects.projects) || [];
-  if (pj.length) next.projects = pj.map((p, i) => ({ ...p, id: p.key || `project-${i + 1}`, enabled: true }));
+  if (pj.length) {
+    const curProj = Array.isArray(next.projects) ? next.projects.slice() : [];
+    const byKey = new Map(curProj.map((p, i) => [str(p.key || p.id), i]));
+    pj.forEach((p, i) => {
+      const k = str(p.key || `project-${i + 1}`);
+      const incoming = { ...p, id: p.key || k, enabled: true };
+      const at = byKey.get(k);
+      if (at == null) { byKey.set(k, curProj.length); curProj.push(incoming); } // genuinely new → add
+      else curProj[at] = fillEmptyDeep(curProj[at], incoming);                  // existing → preserve edits
+    });
+    next.projects = curProj;
+  }
 
   return next;
 }
@@ -246,18 +281,19 @@ function mapOneProject(p, i) {
     cards.push({ icon: "Layers", label: "Geology", sub: "Structures · Mineralization", kind: "geology",
       body: str(geology.body), points: list(geology.points) });
   }
-  if (list(history.timeline).length) {
+  if (has(history.body) || list(history.timeline).length) {
     cards.push({ icon: "Clock", label: "Exploration History", sub: "Operators · discoveries", kind: "history",
-      timeline: list(history.timeline) });
+      body: str(history.body), timeline: list(history.timeline) });
   }
   if (list(drills.rows).length) {
     cards.push({ icon: "Drill", label: "Best Drill Results", sub: "Intercepts · assays", kind: "drills",
-      rows: list(drills.rows) });
+      body: str(drills.body), rows: list(drills.rows) });
   } else {
     // Pre-drill is a real, meaningful state for a junior — say so rather than
     // hiding the card, which would read as "we're not telling you".
-    cards.push({ icon: "Drill", label: "Best Drill Results", sub: "Pre-drilling", kind: "drills", empty: true,
-      emptyMsg: "No drill results disclosed for this project yet." });
+    cards.push({ icon: "Drill", label: "Best Drill Results", sub: "Pre-drilling", kind: "drills",
+      body: str(drills.body), empty: true,
+      emptyMsg: str(drills.emptyMsg) || "No drill results disclosed for this project yet." });
   }
 
   // --- the sheet content behind the cards
@@ -267,7 +303,8 @@ function mapOneProject(p, i) {
     // stage roadmap still shows but isn't tappable (no empty sheet).
     stage: clean({
       current: str(stg.current), summary: str(stg.summary), program: str(stg.program),
-      activity: str(stg.activity), completed: list(stg.completed).map(str).filter(has), closing: str(stg.closing),
+      activity: str(stg.activity), next: str(stg.next), timing: str(stg.timing),
+      completed: list(stg.completed).map(str).filter(has), closing: str(stg.closing),
     }),
     brief: clean({
       overview: str(brief.overview), thesis: str(brief.thesis), focus: str(brief.focus),
@@ -281,7 +318,9 @@ function mapOneProject(p, i) {
     }),
     targets: clean({
       summary: str(targets.summary),
-      priority: list(targets.priority).map(obj).map((x) => ({ name: str(x.name), why: str(x.why) })).filter((x) => has(x.name)),
+      // Canonical shape is {name, status, objective}. Legacy source used {name, why} — read it
+      // tolerantly (objective ← why) so old data still renders; new writes use the canonical shape.
+      priority: list(targets.priority).map(obj).map((x) => ({ name: str(x.name), status: str(x.status), objective: str(x.objective || x.why) })).filter((x) => has(x.name)),
       evidence: list(targets.evidence).map(str).filter(has),
       closing: str(targets.closing),
     }),
@@ -434,12 +473,40 @@ export function mergeIncremental(profile, { timelineEntries, company, projects }
       const at = byKey.get(k);
       const mapped = { ...p, id: p.key || k, enabled: true };
       if (at == null) { byKey.set(k, curProj.length); curProj.push(mapped); }
-      else curProj[at] = { ...curProj[at], ...mapped };   // update existing project with new detail
+      // Preserve existing project data (incl. portal edits) and only fill EMPTY slots — a shallow
+      // spread would replace a whole edited section (e.g. stage) with a re-extracted stub. Same
+      // fill-gaps-only rule as mergeExtraction (Phase 4B: profile.projects is canonical).
+      else curProj[at] = fillEmptyDeep(curProj[at], mapped);
     });
     if (curProj.length) next.projects = curProj;
   }
 
   return next;
+}
+
+// "Empty" = nothing the editor actually filled in: undefined/null/""/[]/{}. Used so an
+// unloaded editor field never overwrites real data from an existing profile.
+function isEmptyVal(v) {
+  if (v === undefined || v === null || v === "") return true;
+  if (Array.isArray(v)) return v.length === 0;
+  if (typeof v === "object") return Object.keys(v).length === 0;
+  return false;
+}
+// Deep-merge `over` onto `base`, but only where `over` has a REAL value. Plain objects
+// merge recursively; arrays and scalars replace atomically when non-empty, else keep base.
+// This is what lets the editor open an existing rich profile without wiping the sections
+// its guided fields haven't reverse-loaded yet.
+function mergeNonEmpty(base, over) {
+  if (!base || typeof base !== "object" || Array.isArray(base)) return isEmptyVal(over) ? base : over;
+  const out = { ...base };
+  for (const k of Object.keys(over || {})) {
+    const ov = over[k], bv = base[k];
+    if (isEmptyVal(ov)) continue;
+    out[k] = (ov && typeof ov === "object" && !Array.isArray(ov) && bv && typeof bv === "object" && !Array.isArray(bv))
+      ? mergeNonEmpty(bv, ov)
+      : ov;
+  }
+  return out;
 }
 
 export function mapProfileToPP(profile = {}) {
@@ -629,7 +696,7 @@ export function mapProfileToPP(profile = {}) {
   // onboarding (media is added in-app once live), so [] — never Kingsmen's posts.
   const UPDATE_POSTS = Array.isArray(profile.media) ? profile.media : [];
 
-  return {
+  const built = {
     COMPANY, STATUS, ONE_LINER, THESIS, WHY: THESIS, BRIEF_SECTIONS, TEAM_MEMBERS,
     STAGES, STAGE_NOW, STAGE_DESC, RAISES, UPDATE_POSTS,
     PROJECTS_FULL, PROJECTS_DATA, MAP_SITES,
@@ -689,4 +756,10 @@ export function mapProfileToPP(profile = {}) {
     // from the normalized data above. Never read by Conference Mode. Absent → app derives.
     PRO_HIGHLIGHTS: (profile.passport && typeof profile.passport === "object" && profile.passport.proHighlights) || null,
   };
+  // If this profile carries an existing rich `pp` (built elsewhere — a migrated/seeded
+  // company like Kingsmen), keep that pp as the base and layer only the editor's REAL
+  // edits on top. This makes opening an existing profile non-destructive (a blank guided
+  // field can't wipe a section) AND makes the preview show the full profile. A brand-new
+  // profile (no base pp) is returned exactly as before — onboarding is byte-for-byte unchanged.
+  return profile.pp ? mergeNonEmpty(profile.pp, built) : built;
 }

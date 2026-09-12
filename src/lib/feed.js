@@ -112,7 +112,7 @@ export async function companiesInfo(ids) {
   if (!list.length) return {};
   try {
     const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/companies?id=in.(${list.join(",")})&select=id,slug,name,primary_ticker,brand:profile->brand`,
+      `${SUPABASE_URL}/rest/v1/companies?id=in.(${list.join(",")})&select=id,slug,name,primary_ticker,tier,brand:profile->brand,commodity:profile->pp->COMPANY->>commodity,jurisdiction:profile->pp->COMPANY->>jurisdiction`,
       { headers: anon }
     );
     if (!res.ok) return {};
@@ -121,6 +121,18 @@ export async function companiesInfo(ids) {
     for (const r of rows) map[r.id] = r;
     return map;
   } catch { return {}; }
+}
+
+// Company posts for the investor Today feed — server-RANKED by feed_discover (materiality +
+// engagement + follow boost + recency + per-company diversity cap; personalized by auth.uid()),
+// then hydrated with each company's display info. Returns [] on any failure (feed still renders).
+export async function fetchCompanyFeedPosts(limit = 30) {
+  try {
+    const posts = await feedDiscover({ limit });
+    if (!Array.isArray(posts) || !posts.length) return [];
+    const info = await companiesInfo(posts.map((p) => p.company_id));
+    return posts.map((p) => ({ ...p, company: info[p.company_id] || null })).filter((p) => p.company);
+  } catch { return []; }
 }
 
 // One post by id (post detail / deep link). Public read via RLS.

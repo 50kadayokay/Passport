@@ -98,10 +98,10 @@ function CompanyStatus({ status, name }) {
               {pct != null && (
                 <div className="mt-7">
                   <div className="relative flex h-4 items-center">
-                    <div className="relative h-2 w-full overflow-hidden rounded-full bg-slate-200"><div className="absolute inset-y-0 left-0 rounded-full" style={{ width: `${w}%`, background: "linear-gradient(90deg, #10b981, #34d399)", transition: "width 0.9s cubic-bezier(0.22,1,0.36,1)" }} /></div>
-                    <div className="absolute z-10 h-4 w-4 rounded-full" style={{ left: `${w}%`, transform: "translateX(-50%)", background: "#047857", boxShadow: "#fff 0px 0px 0px 2.5px, rgba(4,120,87,0.35) 0px 0px 0px 4.5px, rgba(0,0,0,0.25) 0px 2px 6px -1px", transition: "left 0.9s cubic-bezier(0.22,1,0.36,1)" }} />
+                    <div className="relative h-2 w-full overflow-hidden rounded-full bg-slate-200"><div className="absolute inset-y-0 left-0 rounded-full" style={{ width: `${w}%`, background: "linear-gradient(90deg, #3b82f6, #60a5fa)", transition: "width 0.9s cubic-bezier(0.22,1,0.36,1)" }} /></div>
+                    <div className="absolute z-10 h-4 w-4 rounded-full" style={{ left: `${w}%`, transform: "translateX(-50%)", background: "#1d4ed8", boxShadow: "#fff 0px 0px 0px 2.5px, rgba(4,120,87,0.35) 0px 0px 0px 4.5px, rgba(0,0,0,0.25) 0px 2px 6px -1px", transition: "left 0.9s cubic-bezier(0.22,1,0.36,1)" }} />
                   </div>
-                  <div className="mt-1.5 flex justify-between"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{pb.current} / {pb.total} {pb.unit || pb.label}</span><span className="text-[10px] font-extrabold tabular-nums tracking-wider" style={{ color: "#0f9b73" }}>{pct}%</span></div>
+                  <div className="mt-1.5 flex justify-between"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{pb.current} / {pb.total} {pb.unit || pb.label}</span><span className="text-[10px] font-extrabold tabular-nums tracking-wider" style={{ color: "#1d4ed8" }}>{pct}%</span></div>
                 </div>
               )}
             </div>
@@ -155,11 +155,11 @@ function Overview({ profile }) {
           <div className="overflow-hidden">
             <div className="relative px-4 pb-4" style={{ paddingTop: 20 }}>
               {drivers.length ? (<>
-                <span aria-hidden style={{ position: "absolute", left: 26, top: 31, bottom: 24, width: 2, borderRadius: 9999, background: "linear-gradient(#10b981, #34d399)" }} />
+                <span aria-hidden style={{ position: "absolute", left: 26, top: 31, bottom: 24, width: 2, borderRadius: 9999, background: "linear-gradient(#3b82f6, #60a5fa)" }} />
                 <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
                   {drivers.map((d, i) => (
                     <div key={i} className="relative flex items-center" style={{ gap: 14 }}>
-                      <span className="relative z-10 grid flex-shrink-0 place-items-center rounded-full" style={{ width: 22, height: 22, background: "#fff", border: "2px solid #10b981", boxShadow: "0 0 0 3px rgba(16,185,129,0.12)" }}><Check size={12} strokeWidth={2.6} style={{ color: "#0f9b73" }} /></span>
+                      <span className="relative z-10 grid flex-shrink-0 place-items-center rounded-full" style={{ width: 22, height: 22, background: "#fff", border: "2px solid #3b82f6", boxShadow: "0 0 0 3px rgba(37,99,235,0.12)" }}><Check size={12} strokeWidth={2.6} style={{ color: "#1d4ed8" }} /></span>
                       <span className="font-semibold leading-snug tracking-tight" style={{ fontSize: 13, color: "#334155" }}>{d}</span>
                     </div>
                   ))}
@@ -233,7 +233,7 @@ function Projects({ projects }) {
       {list.length > 1 && (
         <div className="flex rounded-2xl bg-slate-100 p-1">
           {list.map((pr, i) => (
-            <button key={pr.id || i} onClick={() => setIdx(i)} className={`flex-1 rounded-xl py-2.5 text-[15px] font-bold transition ${i === idx ? "bg-emerald-500 text-white shadow-sm" : "text-slate-500"}`}>{pr.name}</button>
+            <button key={pr.id || i} onClick={() => setIdx(i)} className={`flex-1 rounded-xl py-2.5 text-[15px] font-bold transition ${i === idx ? "bg-blue-500 text-white shadow-sm" : "text-slate-500"}`}>{pr.name}</button>
           ))}
         </div>
       )}
@@ -268,8 +268,8 @@ function Projects({ projects }) {
         <div className="flex items-center gap-1">
           {STAGES.map((s, i) => (
             <div key={s} className="flex-1">
-              <div className={`h-1.5 rounded-full ${stageIdx >= 0 && i <= stageIdx ? "bg-emerald-500" : "bg-slate-200"}`} />
-              <p className={`mt-2 text-center text-[10.5px] font-bold ${i === stageIdx ? "text-emerald-600" : "text-slate-400"}`}>{s}</p>
+              <div className={`h-1.5 rounded-full ${stageIdx >= 0 && i <= stageIdx ? "bg-blue-500" : "bg-slate-200"}`} />
+              <p className={`mt-2 text-center text-[10.5px] font-bold ${i === stageIdx ? "text-blue-600" : "text-slate-400"}`}>{s}</p>
             </div>
           ))}
         </div>
@@ -313,9 +313,9 @@ function Capital({ capital, company }) {
       {funded && (
         <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white" style={{ boxShadow: CARD_SHADOW }}>
           <div className="px-5 pb-5 pt-5">
-            <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1" style={{ border: "1px solid #10b981", background: "transparent" }}>
-              <span className="relative flex h-1.5 w-1.5"><span className="pp-ping absolute inline-flex h-full w-full rounded-full opacity-75" style={{ background: "#10b981" }} /><span className="relative inline-flex h-1.5 w-1.5 rounded-full" style={{ background: "#10b981" }} /></span>
-              <span className="font-extrabold uppercase" style={{ fontSize: 9, letterSpacing: "0.14em", color: "#0f9b73" }}>{c.state || "Fully Funded"}</span>
+            <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1" style={{ border: "1px solid #3b82f6", background: "transparent" }}>
+              <span className="relative flex h-1.5 w-1.5"><span className="pp-ping absolute inline-flex h-full w-full rounded-full opacity-75" style={{ background: "#3b82f6" }} /><span className="relative inline-flex h-1.5 w-1.5 rounded-full" style={{ background: "#3b82f6" }} /></span>
+              <span className="font-extrabold uppercase" style={{ fontSize: 9, letterSpacing: "0.14em", color: "#1d4ed8" }}>{c.state || "Fully Funded"}</span>
             </span>
             <h2 className="font-extrabold tracking-tight text-slate-900" style={{ marginTop: 13, fontSize: 25, lineHeight: 1.06 }}>{c.headline || c.state}</h2>
             {has(c.summary) && <p className="font-medium text-slate-500" style={{ marginTop: 9, fontSize: 12.5, lineHeight: 1.4 }}>{c.summary}</p>}
@@ -370,7 +370,7 @@ function Capital({ capital, company }) {
 
 /* ============================ UPDATES ============================ */
 const UPD_TONE = {
-  drilling: "text-emerald-600 bg-emerald-50", lab: "text-purple-600 bg-purple-50",
+  drilling: "text-blue-600 bg-blue-50", lab: "text-purple-600 bg-purple-50",
   financing: "text-indigo-600 bg-indigo-50", corporate: "text-slate-600 bg-slate-100", default: "text-slate-600 bg-slate-100",
 };
 function Updates({ media, company = {} }) {

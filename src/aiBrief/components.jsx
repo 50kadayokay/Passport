@@ -85,7 +85,7 @@ export function ScreenHeader({ eyebrow, title, right }) {
   return (
     <div className="flex items-start justify-between px-5 pt-3 pb-1">
       <div>
-        <p className="text-[13px] font-bold uppercase tracking-[0.16em] text-emerald-600">{eyebrow}</p>
+        <p className="text-[13px] font-bold uppercase tracking-[0.16em] text-blue-600">{eyebrow}</p>
         <h1 className="mt-1 text-[34px] font-extrabold leading-none tracking-tight text-slate-900">{title}</h1>
       </div>
       {right}
@@ -94,7 +94,7 @@ export function ScreenHeader({ eyebrow, title, right }) {
 }
 
 export function Pct({ up, children }) {
-  return <span className={up ? "text-emerald-600" : "text-rose-500"}>{children}</span>;
+  return <span className={up ? "text-blue-600" : "text-rose-500"}>{children}</span>;
 }
 
 /* Initials from a company name, dropping legal suffixes. "Kingsmen Resources Ltd." → "KR" */
@@ -150,7 +150,7 @@ export function CompanyRow({ c, onOpen }) {
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
           <p className="truncate text-[19px] font-bold text-slate-900">{c.name}</p>
-          {c.verified && <BadgeCheck size={17} className="flex-shrink-0 text-emerald-500" />}
+          {c.verified && <BadgeCheck size={17} className="flex-shrink-0 text-blue-500" />}
         </div>
         <p className="mt-0.5 truncate text-[13.5px] font-medium text-slate-400">
           {c.exchange}: {c.ticker} · {c.commodities.join(" · ")}

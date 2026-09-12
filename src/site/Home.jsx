@@ -7,7 +7,7 @@ export default function Home() {
     <div>
       {/* HERO */}
       <section className="mx-auto max-w-5xl px-6 pb-16 pt-20 text-center sm:pt-28">
-        <span className="inline-block rounded-full border border-slate-200 bg-white px-3.5 py-1.5 text-[12.5px] font-bold uppercase tracking-wider text-emerald-600">{HERO.eyebrow}</span>
+        <span className="inline-block rounded-full border border-slate-200 bg-white px-3.5 py-1.5 text-[12.5px] font-bold uppercase tracking-wider text-blue-600">{HERO.eyebrow}</span>
         <h1 className="mx-auto mt-6 max-w-3xl text-[40px] font-extrabold leading-[1.05] tracking-tight text-slate-900 sm:text-[56px]">{HERO.headline}</h1>
         <p className="mx-auto mt-6 max-w-2xl text-[18px] leading-relaxed text-slate-500">{HERO.sub}</p>
         <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
@@ -38,7 +38,7 @@ export default function Home() {
           <div className="mt-12 grid gap-x-8 gap-y-10 sm:grid-cols-2 lg:grid-cols-4">
             {FEATURES.map((f) => (
               <div key={f.title}>
-                <div className="mb-3 h-1 w-8 rounded-full bg-emerald-500" />
+                <div className="mb-3 h-1 w-8 rounded-full bg-blue-500" />
                 <h3 className="text-[16px] font-bold text-slate-900">{f.title}</h3>
                 <p className="mt-1.5 text-[14px] leading-relaxed text-slate-500">{f.body}</p>
               </div>
@@ -57,7 +57,7 @@ export default function Home() {
           <div className="mt-12 grid gap-5 lg:grid-cols-3">
             {PLANS.map((p) => <PlanCard key={p.id} plan={p} annual={false} />)}
           </div>
-          <p className="mt-6 text-center text-[14px] text-slate-400"><a href="/pricing" className="font-bold text-emerald-600">Compare all plans →</a></p>
+          <p className="mt-6 text-center text-[14px] text-slate-400"><a href="/pricing" className="font-bold text-blue-600">Compare all plans →</a></p>
         </div>
       </section>
 
@@ -87,7 +87,7 @@ export function PlanCard({ plan, annual }) {
   const price = annual ? plan.annual : plan.monthly;
   return (
     <div className={`rounded-3xl border bg-white p-7 ${plan.recommended ? "border-slate-900 shadow-[0_30px_70px_-40px_rgba(15,23,42,0.5)]" : "border-slate-200"}`}>
-      {plan.recommended && <span className="mb-3 inline-block rounded-full bg-emerald-500 px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-white">Recommended</span>}
+      {plan.recommended && <span className="mb-3 inline-block rounded-full bg-blue-500 px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-white">Recommended</span>}
       <h3 className="text-[20px] font-extrabold text-slate-900">{plan.name}</h3>
       <p className="mt-1 text-[13.5px] text-slate-400">{plan.tagline}</p>
       <div className="mt-5">
@@ -98,7 +98,7 @@ export function PlanCard({ plan, annual }) {
       <a href={plan.cta.href} className={`mt-5 block rounded-xl py-3 text-center text-[14px] font-bold ${plan.recommended ? "bg-slate-900 text-white" : "border border-slate-200 text-slate-800"}`}>{plan.cta.label}</a>
       <ul className="mt-6 space-y-2.5">
         {plan.features.map((f) => (
-          <li key={f} className="flex items-start gap-2.5 text-[14px] text-slate-600"><Check size={17} className="mt-0.5 flex-shrink-0 text-emerald-500" /> {f}</li>
+          <li key={f} className="flex items-start gap-2.5 text-[14px] text-slate-600"><Check size={17} className="mt-0.5 flex-shrink-0 text-blue-500" /> {f}</li>
         ))}
       </ul>
     </div>

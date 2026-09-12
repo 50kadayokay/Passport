@@ -19,7 +19,7 @@
 // Motion is one consistent language: heading rise+blur → staggered copy → numbers
 // reveal (tabular, no layout shift) → media establish. No bounce, no overshoot.
 // ─────────────────────────────────────────────────────────────────────────────
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { EM, EM_TEXT, prefersReduce } from "./PassportProto.jsx";
 // three.js + the embedded satellite imagery (~3MB) are lazy-loaded as a SEPARATE chunk so they
 // never bloat the main app bundle; they're fetched the moment the Jurisdiction globe mounts.
@@ -31,6 +31,13 @@ function loadGlobeLib() {
 
 // ── Design tokens ────────────────────────────────────────────────────────────
 const FONT = "'Switzer', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
+// Register B display serif — used with RESTRAINT for a few high-impact display moments only
+// (chapter dividers, the Why-Invest thesis lines, the Follow headline). Never for functional/
+// dense/factual text, labels, metrics, nav, captions or project data — those stay Switzer.
+// Instrument Serif ships a single ~400 weight, so serif display sites set fontWeight 400 and
+// relax the tight sans letter-spacing (a serif set at -0.04em looks cramped).
+const SERIF = "'Instrument Serif', Georgia, 'Times New Roman', serif";
+const serifDisplay = { fontFamily: SERIF, fontWeight: 400, letterSpacing: "-0.005em" };
 const EASE = "cubic-bezier(0.22, 1, 0.36, 1)";      // quick out, gentle settle
 const EASE_MEDIA = "cubic-bezier(0.16, 1, 0.3, 1)"; // slower, filmic for media
 
@@ -349,13 +356,13 @@ export function CMChapter({ number, kicker, title, subtitle, image, tone, varian
       )}
       {/* Giant section-number watermark */}
       {number && (
-        <div aria-hidden style={{ position: "absolute", top: "clamp(44px,9vh,132px)", right: "clamp(16px,4vw,72px)", fontSize: "clamp(150px,27vw,440px)", fontWeight: 700, letterSpacing: "-0.06em", lineHeight: 0.8, color: isData ? t.accent : "#fff", pointerEvents: "none", fontVariantNumeric: "tabular-nums", transform: shown ? "none" : "translateY(28px)", opacity: shown ? (isData ? 0.2 : 0.16) : 0, transition: reduce ? "none" : `transform 1000ms ${EASE} 80ms, opacity 900ms ${EASE} 80ms` }}>{number}</div>
+        <div aria-hidden style={{ position: "absolute", top: "clamp(44px,9vh,132px)", right: "clamp(16px,4vw,72px)", fontSize: "clamp(150px,27vw,440px)", fontWeight: 700, letterSpacing: "-0.06em", lineHeight: 0.8, color: isData ? t.accent : "#fff", pointerEvents: "none", fontVariantNumeric: "tabular-nums", transform: shown ? "none" : "translateY(28px)", opacity: shown ? (isData ? 0.32 : 0.16) : 0, transition: reduce ? "none" : `transform 1000ms ${EASE} 80ms, opacity 900ms ${EASE} 80ms` }}>{number}</div>
       )}
       {/* Foreground — lower-left editorial block */}
       <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", justifyContent: "flex-end", padding: "clamp(52px,9vh,124px) clamp(28px,5vw,84px)", boxSizing: "border-box" }}>
         <div style={{ maxWidth: 1120 }}>
-          {kicker && <Rise on={active} kind="copy"><div style={{ ...T.label, fontSize: 13, color: t.accent, marginBottom: "clamp(12px,1.8vh,20px)" }}>{kicker}</div></Rise>}
-          {title && <Rise on={active} kind="heading" delay={140}><div style={{ fontSize: "clamp(52px,10.5vw,158px)", fontWeight: 700, letterSpacing: "-0.045em", lineHeight: 0.92, color: "#fff" }}>{title}</div></Rise>}
+          {kicker && String(kicker).toLowerCase() !== String(title || "").toLowerCase() && <Rise on={active} kind="copy"><div style={{ ...T.label, fontSize: 13, color: t.accent, marginBottom: "clamp(12px,1.8vh,20px)" }}>{kicker}</div></Rise>}
+          {title && <Rise on={active} kind="heading" delay={140}><div style={{ ...serifDisplay, fontSize: "clamp(52px,10.5vw,158px)", lineHeight: 0.94, color: "#fff" }}>{title}</div></Rise>}
           {subtitle && <Rise on={active} kind="copy" order={1}><div style={{ fontSize: "clamp(18px,2.2vw,32px)", fontWeight: 500, color: "rgba(255,255,255,0.82)", marginTop: "clamp(16px,2.2vh,26px)", maxWidth: "36ch", lineHeight: 1.3 }}>{subtitle}</div></Rise>}
         </div>
       </div>
@@ -402,7 +409,15 @@ function OverviewCarousel({ slides, index, active, tone, reduce }) {
             {slides.map((sl, i) => (
               <div key={i} aria-hidden={i !== index} style={{ position: i === index ? "relative" : "absolute", top: 0, left: 0, right: 0, opacity: i === index ? 1 : 0, transform: i === index ? "none" : "translateY(12px)", transition: reduce ? "none" : `opacity 440ms ${EASE}, transform 440ms ${EASE}`, pointerEvents: i === index ? "auto" : "none" }}>
                 {sl.kicker && <div style={{ ...T.label, fontSize: 12, color: tone.accent, marginBottom: 12 }}>{sl.kicker}</div>}
-                {sl.headline && <div style={{ fontSize: "clamp(30px,4.4vw,64px)", fontWeight: 700, letterSpacing: "-0.035em", lineHeight: 1.03, color: tone.fg, textTransform: sl.capitalize ? "capitalize" : "none", maxWidth: "15ch" }}>{sl.headline}</div>}
+                {sl.headline && (() => {
+                  // Length-adaptive display size: a punchy hook stays huge; a full-sentence hook
+                  // steps down and widens its measure so it reads as a confident lead paragraph
+                  // rather than a 7-line wall. Universal — driven by character count, not company.
+                  const L = String(sl.headline).length;
+                  const fs = L > 68 ? "clamp(23px,3.1vw,44px)" : L > 44 ? "clamp(27px,3.7vw,54px)" : "clamp(30px,4.4vw,64px)";
+                  const mw = L > 44 ? "24ch" : "15ch";
+                  return <div style={{ fontSize: fs, fontWeight: 700, letterSpacing: "-0.03em", lineHeight: 1.08, color: tone.fg, textTransform: sl.capitalize ? "capitalize" : "none", maxWidth: mw }}>{sl.headline}</div>;
+                })()}
                 {sl.body && <div style={{ ...T.lead, color: tone.dim, marginTop: "clamp(16px,2.2vh,24px)", maxWidth: "40ch" }}>{sl.body}</div>}
               </div>
             ))}
@@ -565,9 +580,9 @@ function getGlobeTextures(THREE, A) {
   return _tex;
 }
 
-export function CMGlobe({ coords, site, on, reduce, tone }) {
+export function CMGlobe({ coords, site, geo, on, reduce, tone }) {
   const mountRef = useRef(null), boxRef = useRef(null);
-  const argRef = useRef(null), saltaRef = useRef(null), markerRef = useRef(null), finalRef = useRef(null);
+  const argRef = useRef(null), saltaRef = useRef(null), markerRef = useRef(null), finalRef = useRef(null), geoRef = useRef(null);
   const S = useRef({});
   const rafRef = useRef(0);
   const tLat = site ? site.lat : coords ? coords.lat : 0;
@@ -589,7 +604,12 @@ export function CMGlobe({ coords, site, on, reduce, tone }) {
       const targetVec = ll(tLat, tLng, 1);
       const targetDir = targetVec.clone().normalize();
       const startDir = ll(-8, tLng + 62, 1).normalize();
-      const START_DIST = 4.2, END_DIST = 1.02;
+      // Zoom depth is tied to imagery resolution: only zoom to satellite scale when a REAL
+      // high-res patch exists; otherwise stop at a crisp region/country scale (Blue Marble holds
+      // up, and the sharp vector outline + labels carry the detail) — never fill the frame with
+      // upscaled global texture. This is the fix for the over-zoom blur.
+      const hasPatch = siteSat && A.SITE_PATCHES[siteSat];
+      const START_DIST = 4.2, END_DIST = hasPatch ? 1.02 : 1.62;
 
       if (!st.built) {
         const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: "high-performance" });
@@ -642,6 +662,19 @@ export function CMGlobe({ coords, site, on, reduce, tone }) {
           if (patchDef.regionUrl) region = makePatch(patchDef.regionUrl, patchDef.regionHalfM || 300000, 1.0004);
           patch = makePatch(patchDef.url, patchDef.halfM || 55000, 1.0008);
         }
+        // Crisp vector outline of the target state/province (resolution-independent — stays sharp
+        // where the raster softens). Drawn from the embedded PROVINCE_SHAPES, glowing in the accent.
+        let outline = null;
+        const shp = geo && geo.regionKey ? PROVINCE_SHAPES[geo.regionKey] : null;
+        if (shp && Array.isArray(shp.rings)) {
+          const pos = [];
+          shp.rings.forEach((ring) => { for (let i = 0; i < ring.length - 1; i++) { const a = ll(ring[i][1], ring[i][0], 1.004), b = ll(ring[i + 1][1], ring[i + 1][0], 1.004); pos.push(a.x, a.y, a.z, b.x, b.y, b.z); } });
+          if (pos.length) {
+            const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+            outline = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: new THREE.Color("#8fbaff"), transparent: true, opacity: 0, depthTest: false, blending: THREE.AdditiveBlending }));
+            outline.renderOrder = 6; scene.add(outline);
+          }
+        }
         const resize = () => {
           const r = box.getBoundingClientRect(), w = Math.round(r.width), h = Math.round(r.height);
           if (w < 5 || h < 5) return;
@@ -651,9 +684,9 @@ export function CMGlobe({ coords, site, on, reduce, tone }) {
           if (st.frame) st.frame(st.lastP || 0);
         };
         const ro = new ResizeObserver(resize); ro.observe(box); resize();
-        Object.assign(st, { built: true, renderer, scene, camera, earth, region, patch, ro });
+        Object.assign(st, { built: true, renderer, scene, camera, earth, region, patch, outline, ro });
       }
-      const { renderer, scene, camera, region, patch } = st;
+      const { renderer, scene, camera, region, patch, outline } = st;
 
       const easeOutCubic = (x) => 1 - Math.pow(1 - x, 3);
       const easeInOutQuint = (x) => (x < 0.5 ? 16 * x * x * x * x * x : 1 - Math.pow(-2 * x + 2, 5) / 2);
@@ -666,6 +699,7 @@ export function CMGlobe({ coords, site, on, reduce, tone }) {
         camera.up.set(0, 1, 0); camera.lookAt(0, 0, 0);
         if (region) region.material.opacity = cl((p - 0.5) / 0.14);    // regional layer (appears once large/close)
         if (patch) patch.material.opacity = cl((p - 0.66) / 0.14);     // detail layer resolves at the destination
+        if (outline) outline.material.opacity = cl((p - 0.5) / 0.22) * 0.95; // province outline draws in as we settle
       };
       const band = (p, a, b) => { const f = 0.05; if (p < a - f || p > b + f) return 0; if (p < a) return (p - (a - f)) / f; if (p > b) return 1 - (p - b) / f; return 1; };
       const overlays = (p) => {
@@ -673,6 +707,7 @@ export function CMGlobe({ coords, site, on, reduce, tone }) {
         if (saltaRef.current) saltaRef.current.style.opacity = band(p, 0.58, 0.76);
         if (markerRef.current) markerRef.current.style.opacity = cl((p - 0.9) / 0.08);
         if (finalRef.current) finalRef.current.style.opacity = cl((p - 0.94) / 0.06);
+        if (geoRef.current) geoRef.current.style.opacity = cl((p - 0.8) / 0.12);
       };
       const frame = (p) => { pose(p); overlays(p); if (st.w > 4) renderer.render(scene, camera); };
       st.frame = frame; st.lastP = st.lastP || 0;
@@ -732,8 +767,14 @@ export function CMGlobe({ coords, site, on, reduce, tone }) {
     <div style={{ position: "absolute", inset: 0, background: "#03040a" }}>
       <div ref={boxRef} style={{ position: "absolute", inset: 0, overflow: "hidden", background: "#03040a" }}>
         <div ref={mountRef} style={{ position: "absolute", inset: 0 }} />
-        <div ref={argRef} style={{ position: "absolute", left: 0, right: 0, top: "15%", textAlign: "center", opacity: 0, pointerEvents: "none", color: "#fff", fontFamily: FONT, fontSize: "clamp(15px,1.5vw,22px)", fontWeight: 700, letterSpacing: "0.42em", textShadow: "0 2px 20px rgba(0,0,0,0.65)" }}>ARGENTINA</div>
-        <div ref={saltaRef} style={{ position: "absolute", left: 0, right: 0, top: "15%", textAlign: "center", opacity: 0, pointerEvents: "none", color: "#fff", fontFamily: FONT, fontSize: "clamp(13px,1.3vw,19px)", fontWeight: 700, letterSpacing: "0.42em", textShadow: "0 2px 20px rgba(0,0,0,0.65)" }}>SALTA PROVINCE</div>
+        {geo && (geo.district || geo.region) && (
+          <div ref={geoRef} style={{ position: "absolute", left: "clamp(28px,5vw,76px)", bottom: "clamp(40px,7vh,88px)", opacity: 0, pointerEvents: "none", maxWidth: "72%" }}>
+            <div style={{ color: "#fff", fontFamily: FONT, fontWeight: 800, letterSpacing: "-0.02em", lineHeight: 0.98, fontSize: "clamp(30px,4.6vw,72px)", textShadow: "0 2px 30px rgba(0,0,0,0.72)" }}>{String(geo.district || geo.region).toUpperCase()}</div>
+            {(() => { const sub = (geo.district ? [geo.region, geo.country] : [geo.country]).filter(Boolean).join("  ·  "); return sub ? <div style={{ marginTop: "clamp(8px,1.4vh,16px)", color: "rgba(255,255,255,0.86)", fontFamily: FONT, fontWeight: 600, fontSize: "clamp(15px,1.6vw,24px)", textShadow: "0 1px 14px rgba(0,0,0,0.6)" }}>{sub}</div> : null; })()}
+          </div>
+        )}
+        <div ref={argRef} style={{ position: "absolute", left: 0, right: 0, top: "15%", textAlign: "center", opacity: 0, pointerEvents: "none", color: "#fff", fontFamily: FONT, fontSize: "clamp(15px,1.5vw,22px)", fontWeight: 700, letterSpacing: "0.42em", textShadow: "0 2px 20px rgba(0,0,0,0.65)" }}>{(geo && geo.country) ? String(geo.country).toUpperCase() : ""}</div>
+        <div ref={saltaRef} style={{ position: "absolute", left: 0, right: 0, top: "15%", textAlign: "center", opacity: 0, pointerEvents: "none", color: "#fff", fontFamily: FONT, fontSize: "clamp(13px,1.3vw,19px)", fontWeight: 700, letterSpacing: "0.42em", textShadow: "0 2px 20px rgba(0,0,0,0.65)" }}>{(geo && (geo.district || geo.region)) ? String(geo.district || geo.region).toUpperCase() : ""}</div>
         {site && (
           <div ref={markerRef} style={{ position: "absolute", left: "50%", top: "50%", opacity: 0, pointerEvents: "none", filter: "drop-shadow(0 1px 3px rgba(0,0,0,0.65))" }}>
             <span className="cm-geo-pulse" style={{ borderColor: "#ffffff" }} />
@@ -788,7 +829,7 @@ export function CMJurisdiction({ jurisdiction, active, local, reduce }) {
     return (
       <div style={{ position: "absolute", inset: 0, background: "#03040a", overflow: "hidden" }}>
         <div style={{ position: "absolute", top: 0, bottom: 0, left: 0, width: split ? "54%" : "100%", transition: reduce ? "none" : "width 820ms cubic-bezier(0.76,0,0.24,1)" }}>
-          <CMGlobe coords={j.coords} site={j.site} on={active} reduce={reduce} tone={tone} />
+          <CMGlobe coords={j.coords} site={j.site} geo={j.geo} on={active} reduce={reduce} tone={tone} />
           <div style={{ position: "absolute", top: "clamp(20px,3.6vh,42px)", left: "clamp(24px,5vw,76px)", pointerEvents: "none" }}>
             <Eyebrow on={active} color="rgba(255,255,255,0.72)">{j.eyebrow || "Jurisdiction"}</Eyebrow>
           </div>
@@ -952,8 +993,15 @@ CMProject.tone = TONES.ink;
 // ════════════════════════════════════════════════════════════════════════════
 function capitalBeats({ capital }) {
   const c = capital || {};
-  const beats = ["snapshot"];
-  if (c.intro || (c.notes && c.notes.length) || c.fundingStatus) beats.push("context");
+  // Beat-level presence: only emit "snapshot" when it actually has something to show
+  // (a hero stat, real figures, or a ≥2-segment ownership split). Otherwise the beat
+  // would render an eyebrow over empty space — so it collapses and the section opens on
+  // whatever beat does carry content.
+  const hasSnapshot = !!(c.heroStat || (c.figures && c.figures.length) || (c.ownership && c.ownership.length >= 2));
+  const hasContext = !!(c.intro || (c.notes && c.notes.length) || c.fundingStatus);
+  const beats = [];
+  if (hasSnapshot) beats.push("snapshot");
+  if (hasContext) beats.push("context");
   if (c.securities && c.securities.length) beats.push("securities");
   return beats;
 }
@@ -986,6 +1034,7 @@ export function CMCapital({ capital, active, local, reduce }) {
   const tone = TONES.ink;
   const c = capital || {};
   const beats = capitalBeats({ capital });
+  if (!beats.length) return null;
   const segs = c.ownership || [];
   const primary = c.figures || [];
 
@@ -995,12 +1044,15 @@ export function CMCapital({ capital, active, local, reduce }) {
       {c.heroStat && <Rise on={on} kind="copy"><div style={{ fontSize: "clamp(20px,2.4vw,34px)", fontWeight: 700, letterSpacing: "-0.02em", lineHeight: 1.2, color: "#fff", marginTop: "clamp(14px,2vh,22px)", borderLeft: `3px solid ${tone.accent}`, paddingLeft: 16, maxWidth: "26ch" }}>{c.heroStat}</div></Rise>}
       {primary.length > 0 && (
         <div style={{ marginTop: "clamp(30px,4.5vh,58px)", display: "flex", flexWrap: "wrap", gap: "clamp(28px,4vw,72px)" }}>
-          {primary.slice(0, 3).map((f, i) => (
-            <div key={i} style={{ minWidth: "clamp(160px, 16vw, 240px)" }}>
-              <Rise on={on} kind="stat" order={i}><ConfCountUp value={f.value} run={on} style={{ display: "block", fontSize: "clamp(36px,5vw,76px)", fontWeight: 700, letterSpacing: "-0.035em", lineHeight: 1.0, color: "#fff", whiteSpace: "nowrap" }} /></Rise>
+          {primary.slice(0, 3).filter((f) => f && String(f.value).trim()).map((f, i) => (
+            // Each figure enters as ONE unit — value, rule and label share a single fade so a label
+            // never appears before its number. Value fades in at its FINAL figure (no count-from-0),
+            // matching the Highlights cards, so there is never a "0"/empty reading mid-reveal.
+            <Rise key={i} on={on} kind="stat" order={i} style={{ minWidth: "clamp(160px, 16vw, 240px)" }}>
+              <ConfCountUp value={f.value} run={on} countUp={false} style={{ display: "block", fontSize: "clamp(36px,5vw,76px)", fontWeight: 700, letterSpacing: "-0.035em", lineHeight: 1.0, color: "#fff", whiteSpace: "nowrap" }} />
               <DrawRule on={on} color={tone.accent} delay={260 + i * 120} style={{ marginTop: "clamp(12px,1.6vh,20px)" }} />
               <div style={{ ...T.label, fontSize: 12, color: tone.mute, marginTop: 14, textTransform: f.cap ? "capitalize" : "uppercase" }}>{f.label}</div>
-            </div>
+            </Rise>
           ))}
         </div>
       )}
@@ -1179,7 +1231,7 @@ export function CMWhyInvest({ data, active, local, reduce }) {
           <div style={{ display: "grid", gridTemplateColumns: "clamp(56px, 8vw, 120px) 1fr", gap: "clamp(20px,3vw,48px)", alignItems: "start", marginTop: "clamp(28px,4vh,54px)" }}>
             <Rise on={on} kind="heading"><div style={{ fontSize: "clamp(30px,4vw,60px)", fontWeight: 700, color: tone.accent, letterSpacing: "-0.02em", lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{String(b.i + 1).padStart(2, "0")}</div></Rise>
             <div>
-              <Heading on={on} size="h1" delay={90} color="#fff" style={{ maxWidth: "20ch" }}>{r.reason}</Heading>
+              <Heading on={on} size="h1" delay={90} color="#fff" style={{ maxWidth: "20ch", ...serifDisplay }}>{r.reason}</Heading>
               <DrawRule on={on} color={tone.accent} delay={360} w="clamp(80px, 16%, 200px)" h={2} style={{ marginTop: "clamp(18px,2.4vh,26px)" }} />
               {r.evidence && <Lead on={on} order={1} color={tone.dim} style={{ marginTop: "clamp(18px,2.4vh,26px)", maxWidth: "58ch" }}>{r.evidence}</Lead>}
               {r.standsOutBecause && <Rise on={on} kind="copy" order={2}><div style={{ fontSize: "clamp(14px,1.05vw,16px)", color: tone.mute, marginTop: 16, maxWidth: "56ch", lineHeight: 1.5, paddingLeft: 16, borderLeft: `2px solid ${EM}66` }}>{r.standsOutBecause}</div></Rise>}
@@ -1246,8 +1298,8 @@ export function CMFollow({ data, active, local, reduce, armed }) {
       <Beat maxW={1240} style={{ position: "absolute" }}>
         <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) auto", gap: "clamp(32px,6vw,90px)", alignItems: "center" }}>
           <div>
-            <Eyebrow on={on} color={tone.accent}>{d.eyebrow || "Continue on Passport"}</Eyebrow>
-            <Heading on={on} size="xl" delay={90} color="#fff" style={{ marginTop: "clamp(14px,2vh,22px)", maxWidth: "15ch" }}>{d.headline}</Heading>
+            <Eyebrow on={on} color={tone.accent}>{d.eyebrow || "Continue on MineEx"}</Eyebrow>
+            <Heading on={on} size="xl" delay={90} color="#fff" style={{ marginTop: "clamp(14px,2vh,22px)", maxWidth: "15ch", ...serifDisplay }}>{d.headline}</Heading>
             {d.body && <Lead on={on} order={1} color={tone.dim} style={{ marginTop: "clamp(16px,2.2vh,26px)", maxWidth: "42ch" }}>{d.body}</Lead>}
             {d.qr && (
               <Rise on={on} kind="media" delay={280}>
@@ -1260,14 +1312,14 @@ export function CMFollow({ data, active, local, reduce, armed }) {
               </Rise>
             )}
           </div>
-          {/* iPhone device frame showing the REAL Passport profile via iframe (no code coupling). */}
+          {/* iPhone device frame showing the REAL MineEx profile via iframe (no code coupling). */}
           <Rise on={on} kind="media" delay={220}>
             <div className={reduce ? "" : "cm-float"} style={{ position: "relative", width: "clamp(240px, 26vw, 320px)", aspectRatio: "9 / 19.3", borderRadius: 46, background: "#0a0a0c", padding: 11, boxShadow: "0 60px 120px -50px rgba(0,0,0,0.75), 0 0 0 2px rgba(255,255,255,0.06) inset" }}>
               <div style={{ position: "relative", width: "100%", height: "100%", borderRadius: 36, overflow: "hidden", background: "#fff" }}>
                 {/* dynamic island */}
                 <div style={{ position: "absolute", top: 9, left: "50%", transform: "translateX(-50%)", width: "34%", height: 22, background: "#0a0a0c", borderRadius: 99, zIndex: 3 }} />
                 {(armed && d.profileUrl)
-                  ? <iframe title="Passport profile" src={d.profileUrl} loading="lazy" scrolling="no" style={{ position: "absolute", top: -46, left: 0, width: "100%", height: "calc(100% + 46px)", border: "none", background: "#fff" }} />
+                  ? <iframe title="MineEx profile" src={d.profileUrl} loading="lazy" scrolling="no" style={{ position: "absolute", top: -46, left: 0, width: "100%", height: "calc(100% + 46px)", border: "none", background: "#fff" }} />
                   : <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", background: "#f2efe8" }}>{/* fallback */}</div>}
                 {/* top fade so the clipped app chrome reads as bezel, not a cut */}
                 <div aria-hidden style={{ position: "absolute", top: 0, left: 0, right: 0, height: 30, background: "linear-gradient(#fff, rgba(255,255,255,0))", pointerEvents: "none", zIndex: 2 }} />
@@ -1296,7 +1348,7 @@ export function CMEndCap({ name, ticker, active }) {
     <div style={{ position: "absolute", inset: 0, background: CM.ink, overflow: "hidden", display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", fontFamily: FONT }}>
       <div aria-hidden className="cm-endcap-glow" style={{ position: "absolute", inset: "-25%", background: `radial-gradient(45% 45% at 50% 52%, ${accent}2b, transparent 68%)`, pointerEvents: "none" }} />
       <div style={{ position: "relative", width: "100%", textAlign: "center" }}>
-        <div className="cm-endcap-type" style={{ display: "inline-block", whiteSpace: "nowrap", fontSize: "clamp(72px, 20vw, 380px)", fontWeight: 700, letterSpacing: "-0.05em", lineHeight: 0.9, backgroundImage: grad, backgroundSize: "230% 100%", backgroundPosition: "0% 50%", WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent", WebkitTextFillColor: "transparent", padding: "0.08em 0.06em" }}>{nm}</div>
+        <div className="cm-endcap-type" style={{ display: "inline-block", fontSize: (nm.length > 16 ? "clamp(46px,9vw,150px)" : nm.length > 9 ? "clamp(60px,13vw,240px)" : "clamp(72px,20vw,380px)"), fontWeight: 700, letterSpacing: "-0.05em", lineHeight: 0.9, maxWidth: "13ch", textWrap: "balance", backgroundImage: grad, backgroundSize: "230% 100%", backgroundPosition: "0% 50%", WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent", WebkitTextFillColor: "transparent", padding: "0.08em 0.06em" }}>{nm}</div>
       </div>
       {ticker && <div style={{ position: "relative", marginTop: "clamp(14px,2vh,28px)", ...T.label, fontSize: 12.5, color: CM.mute, letterSpacing: "0.26em" }}>{ticker}</div>}
     </div>
@@ -1304,3 +1356,138 @@ export function CMEndCap({ name, ticker, active }) {
 }
 CMEndCap.beats = () => [0];
 CMEndCap.tone = TONES.ink;
+
+// ════════════════════════════════════════════════════════════════════════════
+// ATTRACT MODE — the unattended booth loop (built by buildAttractModel).
+// One dominant idea per beat, huge distance-readable type, crossfade + subtle Ken
+// Burns, a persistent QR + a big Follow closer. No nav chrome, no globe. A single
+// advance timer, images decoded once (all beats mounted, opacity crossfade), paused
+// when the tab is hidden. Any deliberate interaction cross-dissolves out; the parent
+// moves Guided to the hero. Register: Switzer, for legibility at distance.
+// ════════════════════════════════════════════════════════════════════════════
+const A_INK = "#04060c";
+function AttractHuge({ children, size = "clamp(52px,9.5vw,150px)", style }) {
+  return <div style={{ fontFamily: FONT, fontWeight: 800, letterSpacing: "-0.035em", lineHeight: 0.98, color: "#fff", textShadow: "0 2px 40px rgba(0,0,0,0.45)", ...style, fontSize: size }}>{children}</div>;
+}
+function AttractLabel({ children, style }) {
+  return <div style={{ ...T.label, fontSize: "clamp(12px,1.3vw,17px)", color: EM_TEXT, ...style }}>{children}</div>;
+}
+
+function AttractBeat({ beat, on, reduce }) {
+  const b = beat || {};
+  const showImg = !!b.image;
+  const kb = (on && !reduce)
+    ? { transform: "scale(1.07)", transition: `transform ${(b.ms || 6000) + 900}ms linear` }
+    : { transform: "scale(1)", transition: "none" };
+  const scrim = "linear-gradient(180deg, rgba(4,6,12,0.30) 0%, rgba(4,6,12,0.10) 38%, rgba(4,6,12,0.92) 100%)";
+  const Backdrop = showImg ? (
+    <div aria-hidden style={{ position: "absolute", inset: 0, overflow: "hidden" }}>
+      <img src={b.image} alt="" loading="eager" decoding="async" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", ...kb }} />
+      <div style={{ position: "absolute", inset: 0, background: scrim }} />
+    </div>
+  ) : (
+    <div aria-hidden style={{ position: "absolute", inset: 0, background: `radial-gradient(130% 120% at 18% -5%, ${EM}26, transparent 60%), ${A_INK}` }} />
+  );
+
+  const centred = b.kind === "number" || b.kind === "follow";
+  let content = null;
+  if (b.kind === "identity") {
+    content = (<div>
+      {b.commodity && <AttractLabel>{b.commodity}</AttractLabel>}
+      <AttractHuge style={{ marginTop: 14, maxWidth: "16ch" }}>{b.name}</AttractHuge>
+      {b.ticker && <div style={{ marginTop: "clamp(16px,2vh,26px)", display: "inline-flex", fontSize: "clamp(15px,1.5vw,22px)", fontWeight: 700, letterSpacing: "0.04em", color: "#fff", background: "rgba(255,255,255,0.10)", border: "1px solid rgba(255,255,255,0.22)", borderRadius: 999, padding: "9px 20px" }}>{b.ticker}</div>}
+    </div>);
+  } else if (b.kind === "opportunity" || b.kind === "whynow") {
+    content = <AttractHuge size="clamp(44px,7vw,112px)" style={{ maxWidth: "18ch" }}>{b.line}</AttractHuge>;
+  } else if (b.kind === "number") {
+    content = (<div style={{ textAlign: "center" }}>
+      <AttractHuge size="clamp(74px,17vw,300px)" style={{ letterSpacing: "-0.05em", lineHeight: 0.9 }}>{b.value}</AttractHuge>
+      {b.label && <AttractLabel style={{ marginTop: "clamp(18px,2.6vh,34px)", color: "rgba(255,255,255,0.66)", fontSize: "clamp(14px,1.6vw,22px)" }}>{b.label}</AttractLabel>}
+    </div>);
+  } else if (b.kind === "where") {
+    content = (<div>
+      <AttractLabel>Where</AttractLabel>
+      <AttractHuge size="clamp(50px,9vw,150px)" style={{ marginTop: 14, textTransform: "uppercase", maxWidth: "15ch" }}>{b.place}</AttractHuge>
+      {b.sub && <div style={{ marginTop: "clamp(12px,1.6vh,20px)", fontSize: "clamp(18px,2.2vw,34px)", fontWeight: 600, color: "rgba(255,255,255,0.82)" }}>{b.sub}</div>}
+    </div>);
+  } else if (b.kind === "flagship") {
+    content = (<div>
+      <AttractLabel>Flagship</AttractLabel>
+      <AttractHuge style={{ marginTop: 14, maxWidth: "15ch" }}>{b.name}</AttractHuge>
+      {b.sub && <div style={{ marginTop: "clamp(12px,1.6vh,20px)", fontSize: "clamp(17px,2vw,30px)", fontWeight: 600, color: "rgba(255,255,255,0.82)" }}>{b.sub}</div>}
+    </div>);
+  } else if (b.kind === "follow") {
+    content = (<div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+      {b.qr && <div style={{ background: "#fff", borderRadius: 24, padding: "clamp(16px,1.8vw,24px)", boxShadow: "0 40px 90px -50px rgba(0,0,0,0.7)" }}><div style={{ height: "clamp(150px,20vw,240px)", width: "clamp(150px,20vw,240px)" }} dangerouslySetInnerHTML={{ __html: b.qr }} /></div>}
+      <AttractHuge size="clamp(30px,4vw,60px)" style={{ marginTop: "clamp(26px,3.4vh,44px)", maxWidth: "20ch", textAlign: "center" }}>{b.cta}</AttractHuge>
+      {b.name && <AttractLabel style={{ marginTop: 16, color: "rgba(255,255,255,0.6)" }}>{b.name}</AttractLabel>}
+    </div>);
+  }
+
+  return (
+    <div aria-hidden={!on} style={{ position: "absolute", inset: 0, opacity: on ? 1 : 0, transition: `opacity 820ms ${EASE_MEDIA}`, pointerEvents: "none" }}>
+      {Backdrop}
+      <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", justifyContent: centred ? "center" : "flex-end", alignItems: centred ? "center" : "flex-start", padding: "clamp(56px,9vh,120px) clamp(32px,6vw,110px)", boxSizing: "border-box" }}>
+        <div style={{ width: "100%", maxWidth: 1500, margin: centred ? "0 auto" : 0, transform: on ? "none" : "translateY(14px)", transition: `transform 820ms ${EASE_MEDIA}` }}>{content}</div>
+      </div>
+    </div>
+  );
+}
+
+export function AttractMode({ model, onExitStart, onExitDone, reduce }) {
+  const beats = (model && model.beats) || [];
+  const n = Math.max(1, beats.length);
+  const [idx, setIdx] = useState(0);
+  const [paused, setPaused] = useState(false);
+  const [leaving, setLeaving] = useState(false);
+  const R = reduce || prefersReduce();
+
+  // ONE advance timer at a time; re-armed per beat; cleared on change/unmount.
+  useEffect(() => {
+    if (paused || leaving || n <= 1) return;
+    const t = setTimeout(() => setIdx((i) => (i + 1) % n), (beats[idx] && beats[idx].ms) || 6000);
+    return () => clearTimeout(t);
+  }, [idx, paused, leaving, n]);
+
+  // pause the loop entirely while the booth tab is backgrounded
+  useEffect(() => {
+    const onVis = () => setPaused(!!document.hidden);
+    document.addEventListener("visibilitychange", onVis);
+    setPaused(!!document.hidden);
+    return () => document.removeEventListener("visibilitychange", onVis);
+  }, []);
+
+  // any deliberate interaction → calm cross-dissolve; parent moves Guided to the hero
+  const exit = useCallback(() => {
+    setLeaving((L) => {
+      if (L) return true;
+      onExitStart && onExitStart();
+      window.setTimeout(() => onExitDone && onExitDone(), 520);
+      return true;
+    });
+  }, [onExitStart, onExitDone]);
+  // Detect ANY deliberate input on window (native listeners are the most reliable across
+  // touch / pointer / mouse / wheel / keyboard on a kiosk). exit() is idempotent.
+  useEffect(() => {
+    const h = () => exit();
+    const evs = ["pointerdown", "mousedown", "touchstart", "wheel", "keydown"];
+    evs.forEach((e) => window.addEventListener(e, h, { passive: true }));
+    return () => evs.forEach((e) => window.removeEventListener(e, h));
+  }, [exit]);
+
+  const followQr = (beats.find((b) => b.kind === "follow") || {}).qr || "";
+  const showPersistentQr = followQr && beats[idx] && beats[idx].kind !== "follow";
+
+  return (
+    <div
+      style={{ position: "fixed", inset: 0, zIndex: 120, background: A_INK, color: "#fff", fontFamily: FONT, overflow: "hidden", cursor: "pointer", opacity: leaving ? 0 : 1, transition: `opacity 500ms ${EASE}` }}>
+      {beats.map((b, i) => <AttractBeat key={i} beat={b} on={i === idx && !leaving} reduce={R} />)}
+      {showPersistentQr && (
+        <div style={{ position: "fixed", right: "clamp(22px,3vw,44px)", bottom: "clamp(22px,3vw,44px)", zIndex: 130, display: "flex", alignItems: "center", gap: 14 }}>
+          <div style={{ ...T.label, fontSize: "clamp(11px,1vw,13px)", color: "rgba(255,255,255,0.72)" }}>Scan to follow</div>
+          <div style={{ background: "#fff", borderRadius: 12, padding: 8 }}><div style={{ height: "clamp(58px,6vw,78px)", width: "clamp(58px,6vw,78px)" }} dangerouslySetInnerHTML={{ __html: followQr }} /></div>
+        </div>
+      )}
+    </div>
+  );
+}

@@ -178,7 +178,7 @@ export function buildConferenceModel(ctx = {}) {
   // overrides, else the auto-derived value. Only populated facts survive.
   const ovW = conf.overviewWidgets || {};
   const ov = (k, auto) => clean(ovW[k]) || clean(auto);
-  const facts = [
+  const factsRaw = [
     { label: "Headquarters", value: ov("headquarters", co.headquarters || co.location) },
     { label: "Jurisdiction", value: ov("jurisdiction", co.jurisdiction) },
     { label: "Assets", value: ov("assets", projects.length ? String(projects.length) : "") },
@@ -187,6 +187,9 @@ export function buildConferenceModel(ctx = {}) {
     { label: "Stage", value: ov("stage", co.stage), capitalize: true },
     { label: "Current Activity", value: ov("currentActivity", conf.currentActivity), accent: true },
   ].filter((f) => clean(f.value));
+  // Drop Headquarters when it's the same place as Jurisdiction — no point showing "Nevada" twice.
+  const _jurVal = clean((factsRaw.find((f) => f.label === "Jurisdiction") || {}).value).toLowerCase();
+  const facts = factsRaw.filter((f) => !(f.label === "Headquarters" && _jurVal && clean(f.value).toLowerCase() === _jurVal));
 
   // Company media = an explicit overview/company gallery image ONLY. We intentionally
   // do NOT fall back to the hero image here (it renders one screen earlier); with no
@@ -221,12 +224,16 @@ export function buildConferenceModel(ctx = {}) {
   // strongest company facts each paired with an image. Every slide is data-present; renders only
   // what exists. The renderer shows it as a focus-carousel (image right, text left).
   const overviewCarousel = (() => {
-    const out = [];
-    if (title || overview) out.push({ kicker: "Company", headline: title, body: overview, image: ovImgs[0] || "" });
-    facts.filter((f) => clean(f.value) && f.label !== "Current Activity").slice(0, 4).forEach((f, i) => {
-      out.push({ kicker: clean(f.label), headline: clean(f.value), body: "", capitalize: !!f.capitalize, image: ovImgs.length ? ovImgs[(i + 1) % ovImgs.length] : "" });
-    });
-    return out;
+    // No imagery → fall to the typographic fact rail (see CMOverview).
+    if (!ovImgs.length) return [];
+    // Overview establishes the STORY, not a fact dump. Keep only the positioning beat (thesis +
+    // overview paragraph), and only when real positioning copy exists — a hook or an overview, not
+    // just the company name (already on the cover). Orienting facts, jurisdiction, projects and the
+    // numbers are presented far better in their own sections, so they are NOT stretched into extra
+    // full-screen Overview slides (that was pure repetition — e.g. a "Jurisdiction: Chihuahua" slide
+    // one screen before the Jurisdiction section itself). Universal: no company-specific logic.
+    if (!(clean(conf.hook) || clean(overview))) return [];
+    return [{ kicker: "Company", headline: title, body: overview, image: ovImgs[0] || "" }];
   })();
 
   const company = {
@@ -296,9 +303,21 @@ export function buildConferenceModel(ctx = {}) {
     flagship.locationFull, flagship.location,
   ]);
   const jurSite = resolveProjectSite([flagship, ...projects.filter((p) => p !== flagship)], co.jurisdiction);
+  // Geographic hierarchy (data-driven, no hardcoded geography): parse "Region, Country" and
+  // pick up an explicit district. Used by the globe for its country→region→district labels and
+  // to choose the crisp vector outline. Missing levels simply degrade the sequence.
+  const jurParts = clean(co.jurisdiction).split(/\s*,\s*/).filter(Boolean);
+  const jurGeo = {
+    country: jurParts.length > 1 ? jurParts[jurParts.length - 1] : (jurParts[0] || ""),
+    region: jurParts.length > 1 ? jurParts.slice(0, -1).join(", ") : "",
+    district: clean(conf.jurisdictionWidgets && conf.jurisdictionWidgets.district),
+    regionKey: jurCoords && jurCoords.key ? jurCoords.key : "",   // → PROVINCE_SHAPES outline (renderer)
+    hasSite: !!jurSite,                                            // real project coords vs jurisdiction-only
+  };
   const jurisdiction = {
     eyebrow: "Jurisdiction",
     title: clean(co.jurisdiction) || "The District",
+    geo: jurGeo,
     coords: jurCoords,
     site: jurSite,
     narrative: jurNarrative,
@@ -386,4 +405,294 @@ export function buildConferenceModel(ctx = {}) {
   }).filter((p) => p.name && p.states.length);
 
   return { hero, company, highlights, jurisdiction, projectsOverview, projectStories };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ATTRACT MODE model — the unattended booth loop.
+// Pure selector: from whatever the company actually has, pick the strongest 4–7
+// "moments" that make a passer-by stop. Identity + Follow are mandatory; every
+// other beat competes for inclusion and is dropped when its data is weak/absent.
+// More data does NOT mean more beats. No globe, no company-specific logic, no
+// invented claims. Timing/rendering live in the AttractMode component.
+// ─────────────────────────────────────────────────────────────────────────────
+const ATTRACT_MS = { identity: 6000, opportunity: 5500, number: 5500, where: 6000, flagship: 6000, whynow: 5500, follow: 7000 };
+
+// Trim a positioning hook to a punchy display line (or "" if it can't be made short).
+function shortHook(h) {
+  let s = clean(h).replace(/^(a|an|the)\s+/i, "");
+  s = s.split(/\s*(?:—|–|·|,|\.|:|;)\s*/)[0];            // first clause
+  if (s.length > 52) s = s.split(/ in | across | featuring | with /i)[0];
+  s = clean(s);
+  if (!s || s.length > 52) return "";
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+export function buildAttractModel(ctx = {}) {
+  const {
+    co = {}, conf = {}, hero = {}, highlights = {}, jurisdiction = {},
+    projectStories = [], resultsModel = null, fundingStatus = "",
+    catalysts = [], statusHeadline = "", shortName = "", qr = "",
+  } = ctx;
+
+  const beats = [];
+  const heroImage = hero.media && hero.media.type === "image" ? clean(hero.media.src) : "";
+  const anyImage = heroImage || clean(jurisdiction.image) || "";
+
+  // 1) IDENTITY (mandatory)
+  const t0 = (hero.tickers && hero.tickers[0]) || null;
+  beats.push({
+    kind: "identity", ms: ATTRACT_MS.identity, image: heroImage,
+    name: clean(co.name),
+    ticker: t0 ? (clean(t0.ex) ? `${clean(t0.ex)}: ${clean(t0.sym)}` : clean(t0.sym)) : "",
+    commodity: clean(co.commodity),
+  });
+
+  // 2) OPPORTUNITY — short hook only (skipped if it can't be made punchy)
+  const opp = shortHook(conf.hook);
+  if (opp) beats.push({ kind: "opportunity", ms: ATTRACT_MS.opportunity, line: opp, image: anyImage });
+
+  // 3) STRONGEST NUMBER — featured highlight → hero statistic → results featured
+  const num = (() => {
+    const feat = (highlights.cards || []).find((c) => c && clean(c.value)); // cards are featured-first
+    if (feat) return { value: clean(feat.value), label: clean(feat.label) };
+    if (conf.heroStatistic && clean(conf.heroStatistic.value)) return { value: clean(conf.heroStatistic.value), label: clean(conf.heroStatistic.label) };
+    if (resultsModel && resultsModel.featured) {
+      const f = resultsModel.featured;
+      if (f.kind === "grade" && clean(f.value)) return { value: clean(f.value), label: clean(resultsModel.eyebrow) || "Peak drill intercept" };
+      if (f.kind === "metric" && clean(f.value)) return { value: clean(f.value), label: clean(f.label) };
+    }
+    return null;
+  })();
+  if (num) beats.push({ kind: "number", ms: ATTRACT_MS.number, value: num.value, label: num.label, image: "" });
+
+  // 4) WHERE (no globe) — district/jurisdiction over a district image, or typographic
+  const district = clean(conf.jurisdictionWidgets && conf.jurisdictionWidgets.district);
+  const place = district || clean(co.jurisdiction);
+  if (place) beats.push({
+    kind: "where", ms: ATTRACT_MS.where, place,
+    sub: (district && clean(co.jurisdiction) && district.toLowerCase() !== clean(co.jurisdiction).toLowerCase()) ? clean(co.jurisdiction) : "",
+    image: clean(jurisdiction.image) || "",
+  });
+
+  // 5) FLAGSHIP
+  const story = projectStories[0];
+  if (story && clean(story.name)) {
+    const img = (story.states || []).map((s) => clean(s.media)).find(Boolean) || "";
+    beats.push({ kind: "flagship", ms: ATTRACT_MS.flagship, name: clean(story.name), sub: clean(story.stage) || "Flagship project", image: img });
+  }
+
+  // 6) WHY NOW — funding status → nearest catalyst → current activity
+  const cat0 = (catalysts || []).find((c) => c && clean(c.label));
+  const whynow = clean(fundingStatus) || (cat0 ? [clean(cat0.label), clean(cat0.timing)].filter(Boolean).join(" · ") : "") || clean(conf.currentActivity);
+  if (whynow) beats.push({ kind: "whynow", ms: ATTRACT_MS.whynow, line: whynow, image: anyImage });
+
+  // 7) FOLLOW (mandatory) — adaptive benefit CTA, never an invented stage claim
+  const stage = clean(co.stage).toLowerCase();
+  const hasDrill = !!(resultsModel && ((resultsModel.intercepts || []).length || (resultsModel.featured && resultsModel.featured.kind === "grade")))
+    || /drill/i.test(clean(conf.evidenceType)) || /drill/i.test(clean(statusHeadline));
+  const cta = (/explor/.test(stage) && hasDrill) ? "Follow for every drill result."
+    : /develop/.test(stage) ? "Follow for every project update."
+    : /produc/.test(stage) ? "Follow for every company update."
+    : "Follow for every company update.";
+  beats.push({ kind: "follow", ms: ATTRACT_MS.follow, cta, name: clean(co.name) || clean(shortName), qr });
+
+  const totalMs = beats.reduce((a, b) => a + (b.ms || 6000), 0);
+  return { beats, totalMs };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CONFERENCE DERIVATION LAYER (Stage 9)
+// Turns APPROVED source facts (company / projects / capital / team / timeline /
+// companyBrief / companyStatus — the shape the ingestion pipeline produces) into a
+// presentation-oriented `conference` block, WITHOUT inventing anything. Every derived
+// field is grounded in a source field and tagged in `provenance`. Where a fact can't be
+// grounded it is left absent, and Conference Mode's sparse-collapse handles it.
+//
+//   source facts  →  deriveConference()  →  { conference, catalysts, provenance }
+//
+// This is what makes Conference Mode a repeatable product rather than a hand-prepared
+// demo: run it at ingestion (build-from-website) so an unprepared company gets a booth.
+// Presentation derivations are kept separate from the source facts they cite.
+// ─────────────────────────────────────────────────────────────────────────────
+const _slug = (s) => clean(s).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+const _numOf = (v) => { const m = S(v).replace(/,/g, "").match(/-?\d+(?:\.\d+)?/); return m ? parseFloat(m[0]) : null; };
+const _nonZero = (v) => { const n = _numOf(v); return n != null && n !== 0; };
+// Pull the strongest disclosed grade ("N g/t …") out of drill rows and news headlines.
+const _peakGrade = (projects, timeline) => {
+  let best = null;
+  const consider = (text, source, extra) => {
+    const re = /([\d,]+(?:\.\d+)?)\s*(g\/t)\s*([A-Za-z/]+)?/gi; let m;
+    while ((m = re.exec(S(text)))) {
+      const val = parseFloat(m[1].replace(/,/g, "")); if (!isFinite(val)) continue;
+      if (!best || val > best.num) best = { num: val, value: `${m[1]} ${m[2]}${m[3] ? " " + m[3] : ""}`.trim(), source, ...extra };
+    }
+  };
+  (projects || []).forEach((p) => (p && p.drillResults && Array.isArray(p.drillResults.rows) ? p.drillResults.rows : []).forEach((r) => consider(`${r.grade || ""}`, `projects.${_slug(p.name)}.drillResults`, { interval: clean(r.interval), note: clean(r.note) })));
+  (timeline || []).forEach((t) => { if (t && t.key !== false) consider(t.title || t.headline, `timeline.${clean(t.date)}`, { context: clean(t.summary || t.whyItMatters) }); });
+  return best;
+};
+
+// Metal name → symbol, for compact display of disclosed figures.
+const _METAL = { gold: "Au", silver: "Ag", copper: "Cu", zinc: "Zn", lead: "Pb", nickel: "Ni", cobalt: "Co", au: "Au", ag: "Ag", cu: "Cu", zn: "Zn", pb: "Pb", ni: "Ni", co: "Co" };
+// Lift the headline CONTAINED-METAL figure out of a disclosed resource/reserve statement — the
+// single most material number a resource-stage company has (e.g. "7.94 million ounces gold at
+// 1.21 g/t Au Measured & Indicated in 204 million tonnes"). Everything is transcribed verbatim
+// from the source text; NOTHING is computed. When several figures appear, the largest wins (M&I
+// typically ≥ Inferred) and its category is read from the surrounding words. Returns null when the
+// source discloses no contained-metal figure — the caller then falls back to peak drill grade.
+const _resourceStat = (projects, commodity) => {
+  for (const p of (projects || [])) {
+    const r = p && p.resource; if (!r) continue;
+    const rows = Array.isArray(r.rows) ? r.rows : [];
+    const text = [S(r.summary), ...rows.map((x) => `${x.category || ""} ${x.tonnes || ""} ${x.grade || ""} ${x.contained || ""}`)].join("  ").replace(/\s+/g, " ");
+    if (!text.trim()) continue;
+    const re = /([\d,]+(?:\.\d+)?)\s*(million|billion)\s+(ounces|oz|pounds|lbs)\s*(?:of\s+)?(gold|silver|copper|zinc|lead|nickel|cobalt)?/gi;
+    let m, best = null;
+    while ((m = re.exec(text))) {
+      const n = parseFloat(m[1].replace(/,/g, "")); if (!isFinite(n)) continue;
+      const isLb = /pound|lb/i.test(m[3]);
+      const rank = n * (/^b/i.test(m[2]) ? 1000 : 1) * (isLb ? 0.02 : 1); // rough parity so a Moz outranks a Mlb
+      const unit = (isLb ? (/^b/i.test(m[2]) ? "Blb" : "Mlb") : (/^b/i.test(m[2]) ? "Boz" : "Moz"));
+      const metal = _METAL[(m[4] || commodity || "").toLowerCase()] || "";
+      const around = text.slice(m.index, m.index + 90).toLowerCase();
+      const pre = text.slice(Math.max(0, m.index - 40), m.index).toLowerCase();
+      const cat = /measured|indicated|m&i|m & i/.test(around + " " + pre) ? "M&I"
+        : /proven|probable|reserve/.test(around + " " + pre) ? "Reserve"
+        : /inferred/.test(around + " " + pre) ? "Inferred" : "";
+      if (!best || rank > best.rank) best = { rank, value: `${m[1]} ${unit}${metal ? " " + metal : ""}`, cat, idx: m.index };
+    }
+    if (!best) continue;
+    // Grade that goes WITH the chosen figure ("7.94 Moz gold at 1.21 g/t Au"): look right after it
+    // first, so we don't grab an unrelated cut-off/descriptor grade elsewhere in the sentence.
+    const GRADE = /([\d,]+(?:\.\d+)?)\s*g\/t\s*(Au|Ag|Cu|gold|silver|copper)?/i;
+    const g = text.slice(best.idx, best.idx + 90).match(GRADE) || text.match(GRADE);
+    const grade = g ? `${g[1]} g/t${g[2] ? " " + (_METAL[g[2].toLowerCase()] || g[2]) : ""}` : "";
+    const t = text.match(/([\d,]+(?:\.\d+)?)\s*million\s*tonnes/i);
+    const tonnes = t ? `${t[1]} Mt` : "";
+    return { value: best.value, label: best.cat ? `Mineral resource (${best.cat})` : "Mineral resource",
+      context: [grade, tonnes].filter(Boolean).join(" · "), source: `projects.${_slug(p.name)}.resource` };
+  }
+  return null;
+};
+
+export function deriveConference(profile = {}) {
+  const co = profile.company || {};
+  const projects = (Array.isArray(profile.projects) ? profile.projects : []).filter((p) => p && clean(p.name));
+  const cap = profile.capital || {};
+  const brief = profile.companyBrief || {};
+  const status = profile.companyStatus || {};
+  const timeline = Array.isArray(profile.timeline) ? profile.timeline : [];
+  const prov = {};
+  const stage = clean(co.stage).toLowerCase();
+
+  // ── Flagship: the project carrying the most evidence (drills → resource → first) ──
+  const flag = projects.find((p) => p.drillResults && (p.drillResults.rows || []).length)
+    || projects.find((p) => p.resource) || projects[0] || {};
+  const flagKey = clean(flag.id) || _slug(flag.name);
+  if (flagKey) prov.featuredProjectKey = flag.drillResults ? "project with drill results" : "first project";
+
+  // ── Positioning prose (grounded in the approved brief; never fabricated) ──────────
+  const hook = clean(brief.headline) || clean(brief.shortSummary);
+  if (hook) prov.hook = clean(brief.headline) ? "companyBrief.headline" : "companyBrief.shortSummary";
+  const overview = clean(brief.shortSummary) || clean(brief.businessDescription);
+  if (overview) prov.overview = clean(brief.shortSummary) ? "companyBrief.shortSummary" : "companyBrief.businessDescription";
+
+  // ── Strongest supported numbers → highlights (each grounded) ──────────────────────
+  const peak = _peakGrade(projects, timeline);
+  const resStat = _resourceStat(projects, clean(co.commodity)); // headline contained metal, if disclosed
+  const highlights = [];
+  // A disclosed mineral resource is the single most material figure — lead with it.
+  if (resStat) { highlights.push({ value: resStat.value, label: resStat.label, context: resStat.context, featured: true }); prov.resource = resStat.source; }
+  if (peak) { highlights.push({ value: peak.value, label: "Peak drill grade", context: peak.interval ? `Over ${peak.interval}` : clean(peak.context), featured: !resStat }); prov.peakGrade = peak.source; }
+  const fin = Array.isArray(cap.financing) ? "" : clean(cap.financing);
+  if (_nonZero(fin)) { highlights.push({ value: fin, label: "Recent financing", context: clean(cap.financingNote) || clean(cap.headline) }); prov.financing = "capital.financing"; }
+  const pb = status.progressBar || {};
+  if (_numOf(pb.total)) { highlights.push({ value: `${clean(pb.current) || 0} of ${clean(pb.total)}`, label: `${clean(pb.unit) || pb.label || "milestones"} complete`, context: clean(status.statusHeadline) }); prov.progress = "companyStatus.progressBar"; }
+  if (_nonZero(cap.marketCap)) { highlights.push({ value: clean(cap.marketCap), label: "Market capitalization", context: clean(cap.outstanding) ? `${clean(cap.outstanding)} shares` : "" }); prov.marketCap = "capital.marketCap"; }
+  if (projects.length >= 2) { const land = projects.map((p) => (p.snapshot && p.snapshot.land) || "").filter(Boolean); highlights.push({ value: `${projects.length} projects`, label: "Portfolio", context: land.slice(0, 2).join(" + ") }); prov.assets = "projects[]"; }
+  const orderedH = highlights.slice(0, 5);
+
+  // ── Hero statistic + evidence ─────────────────────────────────────────────────────
+  // Prefer the disclosed resource (the headline number); else the peak drill grade, labelled
+  // honestly by what it is; else the strongest available highlight. Never a hardcoded metal.
+  const heroStatistic = resStat ? { value: resStat.value, label: resStat.label, context: resStat.context }
+    : peak ? { value: peak.value, label: "Peak drill grade", context: peak.interval ? `Over ${peak.interval}` : clean(peak.context) }
+    : (orderedH[0] ? { value: orderedH[0].value, label: orderedH[0].label, context: orderedH[0].context } : null);
+  const stageMap = { exploration: "drill_results", explorer: "drill_results", developer: "economics", development: "economics", producer: "production", production: "production" };
+  const evidenceType = stageMap[stage] || (peak ? "drill_results" : "");
+  const featuredGrade = peak ? { grade: peak.value, width: peak.interval, location: clean(flag.name), context: clean(peak.context) } : null;
+
+  // ── Jurisdiction hierarchy (district from project geo/snapshot — no invented precision) ──
+  // snapshot.location may be a raw string OR a { value } wrapper from the ingestion snapshot —
+  // unwrap it, else clean() stringifies the object to a literal "[object Object]".
+  const locRaw = flag.snapshot && flag.snapshot.location;
+  const locStr = clean(locRaw && typeof locRaw === "object" ? locRaw.value : locRaw);
+  const district = clean(flag.geo && flag.geo.district) || locStr || "";
+  const regionFirst = clean(co.jurisdiction).split(/\s*,\s*/)[0];
+  const rawDistrict = district ? district.split(/\s*,\s*/)[0] : "";
+  // Only a genuine sub-jurisdiction counts as a district — never echo the state back as its own district.
+  const districtName = (rawDistrict && rawDistrict.toLowerCase() !== regionFirst.toLowerCase()) ? rawDistrict : "";
+  if (districtName) prov.district = "project.geo.district";
+
+  // ── Investment case (grounded in approved thesis points) ──────────────────────────
+  const keyPoints = (Array.isArray(brief.keyPoints) ? brief.keyPoints : []).map(clean).filter(Boolean);
+  const investmentCase = keyPoints.slice(0, 4).map((p, i) => ({ reason: p, featured: i === 0 }));
+  if (investmentCase.length) prov.investmentCase = "companyBrief.keyPoints";
+
+  // ── Momentum / catalysts (only if disclosed — never a fabricated future) ──────────
+  const catalysts = [];
+  if (clean(status.nextCatalyst)) { catalysts.push({ timing: clean(status.expected).replace(/^expected\s+/i, ""), label: clean(status.nextCatalyst), impact: clean(status.investmentImpact) }); prov.catalysts = "companyStatus.nextCatalyst"; }
+  const capitalHeroStat = clean(cap.headline) || (cap.state ? clean(cap.state) : "");
+  const currentActivity = clean(status.statusHeadline);
+
+  // ── Imagery ───────────────────────────────────────────────────────────────────────
+  // Preferred path: a pre-classified media library from ingestion (profile.media, produced by
+  // _imageIngest) — already filtered, classified, ranked and provenance-tagged, so we route its
+  // categories straight into the scene slots. Fallback: the older filename-hint heuristic over
+  // whatever galleries the profile already carries. Either way we invent no images and never
+  // force a weak asset into a slot (an empty slot degrades to the premium typographic fallback).
+  const gallery = {};
+  const gset = (k, u) => { if (u) gallery[k] = [u]; };
+  const projectGallery = {};
+  const media = profile.media && typeof profile.media === "object" ? profile.media : null;
+  if (media && media.photos) {
+    const first = (arr) => (Array.isArray(arr) && arr[0] ? gsrc(arr[0].url || arr[0]) : "");
+    gset("jurisdiction", first(media.photos.jurisdiction));
+    gset("results", first(media.photos.results));
+    gset("overview", first(media.photos.overview) || (media.hero && gsrc(media.hero.url)));
+    gset("follow", first(media.photos.follow) || (media.hero && gsrc(media.hero.url)));
+    const projPhotos = (media.photos.project || []).map((a) => gsrc(a.url || a)).filter(Boolean);
+    if (projPhotos.length) projectGallery[flagKey] = projPhotos;
+    if (media.all && media.all.length) prov.imagery = "ingested first-party imagery (classified + ranked; see profile.media)";
+  } else {
+    const galleriesOf = (p) => (Array.isArray(p.gallery) ? p.gallery.map(gsrc).filter(Boolean) : []);
+    const allImgs = []; projects.forEach((p) => galleriesOf(p).forEach((u) => allImgs.push(u)));
+    const brandHero = gsrc(profile.brand && profile.brand.hero);
+    const pick = (re) => allImgs.find((u) => re.test(u));
+    gset("jurisdiction", pick(/district|terrain|panorama|overview|aerial|ridge|valley|mountain/i) || allImgs[Math.min(3, allImgs.length - 1)]);
+    gset("results", pick(/drill|rig|core|sampling/i) || allImgs[0]);
+    gset("overview", pick(/field|review|surface|workings/i) || allImgs[1] || allImgs[0]);
+    gset("follow", pick(/colonial|historic|adit|shaft|workings/i) || brandHero || allImgs[0]);
+    projects.forEach((p) => { const g = galleriesOf(p); if (g.length) projectGallery[clean(p.id) || _slug(p.name)] = g; });
+    if (allImgs.length) prov.imagery = "profile project galleries (classified by asset hint)";
+  }
+
+  const conference = {
+    enabled: true,
+    featuredProjectKey: flagKey,
+    ...(hook ? { hook } : {}),
+    ...(overview ? { overview } : {}),
+    ...(heroStatistic ? { heroStatistic } : {}),
+    ...(orderedH.length ? { highlights: orderedH } : {}),
+    ...(districtName ? { jurisdictionWidgets: { district: districtName, provinceState: clean(co.jurisdiction), commodity: clean(co.commodity) } } : {}),
+    ...(evidenceType ? { evidenceType } : {}),
+    ...(featuredGrade ? { featuredGrade } : {}),
+    ...(investmentCase.length ? { investmentCase } : {}),
+    ...(capitalHeroStat ? { capitalHeroStat } : {}),
+    ...(currentActivity ? { currentActivity } : {}),
+    ...(Object.keys(gallery).length ? { gallery } : {}),
+    ...(Object.keys(projectGallery).length ? { projectGallery } : {}),
+    _derived: true,
+  };
+  return { conference, catalysts, provenance: prov };
 }

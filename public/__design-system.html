@@ -1,0 +1,458 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MineEx Design System</title>
+  <!-- Tailwind Play CDN: default theme === the app's build (app uses no custom tokens) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Register B fonts (same as index.html) -->
+  <link rel="preconnect" href="https://api.fontshare.com" crossorigin />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=switzer@400,500,600,700&display=swap" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap" />
+  <!-- lucide icons (real library, so stroke weight is faithful) -->
+  <script src="https://cdn.jsdelivr.net/npm/lucide@0.469.0/dist/umd/lucide.min.js"></script>
+  <style>
+    :root { --em: #2563eb; }
+    body { -webkit-font-smoothing: antialiased; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+    .font-switzer { font-family: "Switzer", -apple-system, BlinkMacSystemFont, sans-serif; }
+    .font-serif-ed { font-family: "Instrument Serif", Georgia, "Times New Roman", serif; }
+    /* Signature card elevation (slate-tinted, layered) */
+    .shadow-card { box-shadow: 0 1px 2px rgba(15,23,42,.04), 0 12px 26px -20px rgba(15,23,42,.40); }
+    .shadow-card-deep { box-shadow: 0 1px 2px rgba(15,23,42,.04), 0 12px 26px -22px rgba(15,23,42,.45); }
+    .shadow-contact { box-shadow: 0 1px 2px rgba(15,23,42,.04); }
+    /* Motion (ported from src/index.css) */
+    @keyframes pp-fade { from { opacity:0; transform:translateY(8px) } to { opacity:1; transform:none } }
+    @keyframes pp-slide-up { from { opacity:0; transform:translateY(26px) } to { opacity:1; transform:none } }
+    @keyframes pp-pop { from { opacity:0; transform:scale(.96) } to { opacity:1; transform:scale(1) } }
+    @keyframes pp-spin { to { transform:rotate(360deg) } }
+    @keyframes pp-pulse { 0%,100% { opacity:1 } 50% { opacity:.45 } }
+    .pp-fade { animation: pp-fade .34s cubic-bezier(.22,1,.36,1) both }
+    .pp-slide-up { animation: pp-slide-up .32s cubic-bezier(.22,1,.36,1) both }
+    .pp-pop { animation: pp-pop .24s cubic-bezier(.22,1,.36,1) both }
+    .pp-spin { animation: pp-spin .8s linear infinite }
+    .pp-skel { animation: pp-pulse 1.4s ease-in-out infinite }
+    .replay:hover .pp-fade, .replay:hover .pp-slide-up, .replay:hover .pp-pop { animation: none }
+    .press { transition: transform .12s ease }
+    .press:active { transform: scale(.97) }
+    .press-card { transition: transform .12s ease }
+    .press-card:active { transform: scale(.99) }
+    .noscroll::-webkit-scrollbar { display:none }
+    .noscroll { scrollbar-width:none }
+    /* section anchor spacing */
+    .sec { scroll-margin-top: 84px; }
+  </style>
+</head>
+<body class="bg-white text-slate-900">
+
+  <!-- ===== Top bar ===== -->
+  <header class="sticky top-0 z-40 border-b border-slate-100 bg-white/85 backdrop-blur-sm">
+    <div class="mx-auto flex max-w-5xl items-center justify-between px-6 py-3">
+      <div class="flex items-center gap-2.5">
+        <span class="grid h-8 w-8 place-items-center rounded-xl bg-slate-900 text-[13px] font-extrabold text-white">M</span>
+        <div>
+          <div class="text-[14px] font-extrabold tracking-tight leading-none">MineEx Design System</div>
+          <div class="text-[10.5px] font-semibold text-slate-400">v1.0 · extracted from the live investor app</div>
+        </div>
+      </div>
+      <nav class="hidden items-center gap-1 md:flex text-[11px] font-bold text-slate-500">
+        <a href="#color" class="rounded-full px-2.5 py-1 hover:bg-slate-100">Color</a>
+        <a href="#type" class="rounded-full px-2.5 py-1 hover:bg-slate-100">Type</a>
+        <a href="#foundations" class="rounded-full px-2.5 py-1 hover:bg-slate-100">Foundations</a>
+        <a href="#components" class="rounded-full px-2.5 py-1 hover:bg-slate-100">Components</a>
+        <a href="#states" class="rounded-full px-2.5 py-1 hover:bg-slate-100">States</a>
+        <a href="#register-b" class="rounded-full px-2.5 py-1 hover:bg-slate-100 text-blue-600">Register B</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="mx-auto max-w-5xl px-6 pb-32">
+
+    <!-- ===== Hero ===== -->
+    <section class="py-10">
+      <div class="text-[13px] font-bold uppercase tracking-[0.16em] text-blue-600">Source of truth</div>
+      <h1 class="mt-1 text-[38px] font-extrabold leading-none tracking-tight">The MineEx visual language</h1>
+      <p class="mt-3 max-w-xl text-[13.5px] leading-relaxed text-slate-500">
+        A premium investor / mining information product — not a SaaS dashboard. Slate + cobalt,
+        heavy-but-tight type, soft layered elevation, fully-rounded interactive elements. Information
+        can be dense; the interface never feels dense.
+      </p>
+      <div class="mt-4 flex flex-wrap gap-2 text-[11px] font-bold">
+        <span class="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 text-slate-500">Slate neutrals</span>
+        <span class="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-2.5 py-1 text-blue-600">Cobalt #2563EB</span>
+        <span class="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 text-slate-500">System + Switzer/Instrument Serif</span>
+        <span class="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 text-slate-500">lucide · heavy stroke</span>
+        <span class="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 text-slate-500">No dark mode (this sprint)</span>
+      </div>
+    </section>
+
+    <!-- ===== COLOR ===== -->
+    <section id="color" class="sec border-t border-slate-100 py-10">
+      <div class="mb-6 flex items-baseline gap-3">
+        <h2 class="text-[22px] font-extrabold tracking-tight">Color</h2>
+        <span class="text-[11px] font-semibold text-slate-400">slate family · one cobalt accent</span>
+      </div>
+
+      <div class="mb-3 text-[13px] font-bold uppercase tracking-[0.14em] text-slate-400">Neutral ramp — SLATE</div>
+      <div class="grid grid-cols-3 gap-2 sm:grid-cols-6 lg:grid-cols-9">
+        <!-- swatches -->
+        <div><div class="h-14 rounded-xl border border-slate-100 bg-white shadow-contact"></div><div class="mt-1.5 text-[11px] font-bold">white</div><div class="text-[10px] text-slate-400">canvas + card</div></div>
+        <div><div class="h-14 rounded-xl bg-slate-50"></div><div class="mt-1.5 text-[11px] font-bold">slate-50</div><div class="text-[10px] text-slate-400">tinted field</div></div>
+        <div><div class="h-14 rounded-xl bg-slate-100"></div><div class="mt-1.5 text-[11px] font-bold">slate-100</div><div class="text-[10px] text-slate-400">hairline · fill</div></div>
+        <div><div class="h-14 rounded-xl bg-slate-200"></div><div class="mt-1.5 text-[11px] font-bold">slate-200</div><div class="text-[10px] text-slate-400">borders</div></div>
+        <div><div class="h-14 rounded-xl bg-slate-300"></div><div class="mt-1.5 text-[11px] font-bold">slate-300</div><div class="text-[10px] text-slate-400">faint text</div></div>
+        <div><div class="h-14 rounded-xl bg-slate-400"></div><div class="mt-1.5 text-[11px] font-bold">slate-400</div><div class="text-[10px] text-slate-400">muted/meta</div></div>
+        <div><div class="h-14 rounded-xl bg-slate-500"></div><div class="mt-1.5 text-[11px] font-bold">slate-500</div><div class="text-[10px] text-slate-400">secondary</div></div>
+        <div><div class="h-14 rounded-xl bg-slate-700"></div><div class="mt-1.5 text-[11px] font-bold">slate-700</div><div class="text-[10px] text-slate-400">emphasis-2</div></div>
+        <div><div class="h-14 rounded-xl bg-slate-900"></div><div class="mt-1.5 text-[11px] font-bold">slate-900</div><div class="text-[10px] text-slate-400">primary · dark</div></div>
+      </div>
+
+      <div class="mt-8 grid gap-6 md:grid-cols-2">
+        <div>
+          <div class="mb-3 text-[13px] font-bold uppercase tracking-[0.14em] text-slate-400">Accent — cobalt</div>
+          <div class="grid grid-cols-3 gap-2">
+            <div><div class="h-14 rounded-xl bg-blue-600"></div><div class="mt-1.5 text-[11px] font-bold">blue-600</div><div class="text-[10px] text-slate-400">#2563EB · primary</div></div>
+            <div><div class="h-14 rounded-xl bg-blue-500"></div><div class="mt-1.5 text-[11px] font-bold">blue-500</div><div class="text-[10px] text-slate-400">active/dot</div></div>
+            <div><div class="h-14 rounded-xl border border-blue-100 bg-blue-50"></div><div class="mt-1.5 text-[11px] font-bold">blue-50</div><div class="text-[10px] text-slate-400">tint</div></div>
+          </div>
+        </div>
+        <div>
+          <div class="mb-3 text-[13px] font-bold uppercase tracking-[0.14em] text-slate-400">Semantic — meaning only</div>
+          <div class="grid grid-cols-3 gap-2">
+            <div><div class="h-14 rounded-xl bg-rose-500"></div><div class="mt-1.5 text-[11px] font-bold">rose-500</div><div class="text-[10px] text-slate-400">negative</div></div>
+            <div><div class="h-14 rounded-xl bg-amber-50 border border-amber-200 grid place-items-center text-[11px] font-bold text-amber-600">Aa</div><div class="mt-1.5 text-[11px] font-bold">amber</div><div class="text-[10px] text-slate-400">industry</div></div>
+            <div><div class="h-14 rounded-xl bg-indigo-50 border border-indigo-100 grid place-items-center text-[11px] font-bold text-indigo-500">Aa</div><div class="mt-1.5 text-[11px] font-bold">indigo</div><div class="text-[10px] text-slate-400">company</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-8">
+        <div class="mb-3 text-[13px] font-bold uppercase tracking-[0.14em] text-slate-400">Materiality badges (news impact)</div>
+        <div class="flex flex-wrap gap-2">
+          <span class="rounded-full px-2 py-0.5 text-[9.5px] font-extrabold uppercase tracking-wider" style="color:#7c3aed;background:#f5f3ff">Transformational</span>
+          <span class="rounded-full px-2 py-0.5 text-[9.5px] font-extrabold uppercase tracking-wider" style="color:#0f766e;background:#eff6ff">High</span>
+          <span class="rounded-full px-2 py-0.5 text-[9.5px] font-extrabold uppercase tracking-wider" style="color:#1d4ed8;background:#eff6ff">Moderate</span>
+          <span class="rounded-full px-2 py-0.5 text-[9.5px] font-extrabold uppercase tracking-wider" style="color:#64748b;background:#f8fafc">Low</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== TYPOGRAPHY ===== -->
+    <section id="type" class="sec border-t border-slate-100 py-10">
+      <div class="mb-6 flex items-baseline gap-3">
+        <h2 class="text-[22px] font-extrabold tracking-tight">Typography</h2>
+        <span class="text-[11px] font-semibold text-slate-400">arbitrary-px scale · heavy weights · tight tracking</span>
+      </div>
+
+      <div class="grid gap-8 lg:grid-cols-2">
+        <div>
+          <div class="mb-3 text-[13px] font-bold uppercase tracking-[0.14em] text-slate-400">Scale (Register A — system)</div>
+          <div class="space-y-3">
+            <div class="flex items-baseline gap-4"><span class="w-16 shrink-0 text-[10px] font-semibold text-slate-400">34px</span><span class="text-[34px] font-extrabold leading-none tracking-tight">Screen title</span></div>
+            <div class="flex items-baseline gap-4"><span class="w-16 shrink-0 text-[10px] font-semibold text-slate-400">22px</span><span class="text-[22px] font-extrabold tracking-tight">Subhead / price</span></div>
+            <div class="flex items-baseline gap-4"><span class="w-16 shrink-0 text-[10px] font-semibold text-slate-400">15px</span><span class="text-[15px] font-bold">Primary body / chip</span></div>
+            <div class="flex items-baseline gap-4"><span class="w-16 shrink-0 text-[10px] font-semibold text-slate-400">14.5px</span><span class="text-[14.5px] font-extrabold leading-snug tracking-tight">Card title</span></div>
+            <div class="flex items-baseline gap-4"><span class="w-16 shrink-0 text-[10px] font-semibold text-slate-400">13px</span><span class="text-[13px] font-bold">Label workhorse</span></div>
+            <div class="flex items-baseline gap-4"><span class="w-16 shrink-0 text-[10px] font-semibold text-slate-400">12.5px</span><span class="text-[12.5px] leading-relaxed text-slate-500">Secondary body & summaries</span></div>
+            <div class="flex items-baseline gap-4"><span class="w-16 shrink-0 text-[10px] font-semibold text-slate-400">10.5px</span><span class="text-[10.5px] font-semibold text-slate-400">Caption / meta</span></div>
+            <div class="flex items-baseline gap-4"><span class="w-16 shrink-0 text-[10px] font-semibold text-slate-400">9px</span><span class="text-[9px] font-bold uppercase tracking-wider text-slate-400">Micro badge</span></div>
+          </div>
+        </div>
+
+        <div>
+          <div class="mb-3 text-[13px] font-bold uppercase tracking-[0.14em] text-slate-400">Canonical patterns</div>
+          <div class="space-y-4 rounded-2xl border border-slate-100 bg-white p-5 shadow-card">
+            <div>
+              <div class="text-[13px] font-bold uppercase tracking-[0.16em] text-blue-600">Flagship project</div>
+              <div class="text-[34px] font-extrabold leading-none tracking-tight">Warintza</div>
+            </div>
+            <hr class="border-slate-100" />
+            <div>
+              <div class="text-[14.5px] font-extrabold leading-snug tracking-tight text-slate-900">Solaris drills 1,010 m of 0.79% CuEq at Warintza</div>
+              <div class="mt-1 text-[12.5px] leading-relaxed text-slate-500">One of the highest-grade porphyry intercepts reported this year, extending the resource envelope to the east.</div>
+              <div class="mt-2 flex items-center gap-2 text-[10.5px] font-semibold text-slate-400"><span>TSX: SLS</span><span class="text-slate-300">·</span><span>2h ago</span></div>
+            </div>
+          </div>
+          <div class="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3 font-mono text-[11px] leading-relaxed text-slate-600">
+            weight: bold default · extrabold titles/prices<br/>
+            tracking-tight headings · uppercase = wide tracking<br/>
+            leading: none (display) · snug (titles) · relaxed (body)
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== FOUNDATIONS ===== -->
+    <section id="foundations" class="sec border-t border-slate-100 py-10">
+      <div class="mb-6 flex items-baseline gap-3">
+        <h2 class="text-[22px] font-extrabold tracking-tight">Foundations</h2>
+        <span class="text-[11px] font-semibold text-slate-400">spacing · radii · borders · elevation · motion · icons</span>
+      </div>
+
+      <div class="grid gap-8 md:grid-cols-2">
+        <!-- Radii -->
+        <div>
+          <div class="mb-3 text-[13px] font-bold uppercase tracking-[0.14em] text-slate-400">Radii</div>
+          <div class="flex flex-wrap items-end gap-4">
+            <div class="text-center"><div class="h-16 w-16 rounded-full bg-slate-100"></div><div class="mt-1.5 text-[10.5px] font-bold">full</div><div class="text-[10px] text-slate-400">interactive</div></div>
+            <div class="text-center"><div class="h-16 w-16 rounded-2xl bg-slate-100"></div><div class="mt-1.5 text-[10.5px] font-bold">2xl</div><div class="text-[10px] text-slate-400">cards</div></div>
+            <div class="text-center"><div class="h-16 w-16 rounded-3xl bg-slate-100"></div><div class="mt-1.5 text-[10.5px] font-bold">3xl</div><div class="text-[10px] text-slate-400">roomy rows</div></div>
+            <div class="text-center"><div class="h-16 w-16 rounded-xl bg-slate-100"></div><div class="mt-1.5 text-[10.5px] font-bold">xl</div><div class="text-[10px] text-slate-400">inputs</div></div>
+          </div>
+        </div>
+
+        <!-- Elevation -->
+        <div>
+          <div class="mb-3 text-[13px] font-bold uppercase tracking-[0.14em] text-slate-400">Elevation (slate-tinted, layered)</div>
+          <div class="flex flex-wrap gap-4">
+            <div class="text-center"><div class="h-16 w-24 rounded-2xl bg-white shadow-contact"></div><div class="mt-1.5 text-[10.5px] font-bold">contact</div></div>
+            <div class="text-center"><div class="h-16 w-24 rounded-2xl bg-white shadow-card"></div><div class="mt-1.5 text-[10.5px] font-bold">card</div></div>
+            <div class="text-center"><div class="h-16 w-24 rounded-2xl bg-white shadow-card-deep"></div><div class="mt-1.5 text-[10.5px] font-bold">card-deep</div></div>
+          </div>
+          <div class="mt-3 font-mono text-[10.5px] leading-relaxed text-slate-500">0 1px 2px rgba(15,23,42,.04),<br/>0 12px 26px -20px rgba(15,23,42,.40)</div>
+        </div>
+
+        <!-- Spacing -->
+        <div>
+          <div class="mb-3 text-[13px] font-bold uppercase tracking-[0.14em] text-slate-400">Spacing rhythm · gutter px-5</div>
+          <div class="space-y-1.5">
+            <div class="flex items-center gap-3"><span class="w-10 text-[10px] font-semibold text-slate-400">1.5</span><div class="h-3 bg-blue-500/80" style="width:6px"></div></div>
+            <div class="flex items-center gap-3"><span class="w-10 text-[10px] font-semibold text-slate-400">2</span><div class="h-3 bg-blue-500/80" style="width:8px"></div></div>
+            <div class="flex items-center gap-3"><span class="w-10 text-[10px] font-semibold text-slate-400">2.5</span><div class="h-3 bg-blue-500/80" style="width:10px"></div></div>
+            <div class="flex items-center gap-3"><span class="w-10 text-[10px] font-semibold text-slate-400">3</span><div class="h-3 bg-blue-500/80" style="width:12px"></div></div>
+            <div class="flex items-center gap-3"><span class="w-10 text-[10px] font-semibold text-slate-400">3.5</span><div class="h-3 bg-blue-500/80" style="width:14px"></div></div>
+            <div class="flex items-center gap-3"><span class="w-10 text-[10px] font-semibold text-slate-400">5</span><div class="h-3 bg-blue-500" style="width:20px"></div><span class="text-[10px] text-slate-400">screen gutter</span></div>
+          </div>
+        </div>
+
+        <!-- Icons -->
+        <div>
+          <div class="mb-3 text-[13px] font-bold uppercase tracking-[0.14em] text-slate-400">Icons — lucide, heavy stroke</div>
+          <div class="flex flex-wrap items-center gap-4 text-slate-700">
+            <i data-lucide="sparkles" style="width:22px;height:22px"></i>
+            <i data-lucide="compass" style="width:22px;height:22px"></i>
+            <i data-lucide="star" style="width:22px;height:22px"></i>
+            <i data-lucide="trending-up" style="width:22px;height:22px"></i>
+            <i data-lucide="map-pin" style="width:22px;height:22px"></i>
+            <i data-lucide="badge-check" style="width:22px;height:22px" class="text-blue-500"></i>
+            <i data-lucide="qr-code" style="width:22px;height:22px"></i>
+            <i data-lucide="bell" style="width:22px;height:22px"></i>
+          </div>
+          <div class="mt-2 text-[10.5px] text-slate-400">size 13–16 inline · 24 nav · stroke-width 2.2–2.8</div>
+        </div>
+
+        <!-- Motion -->
+        <div class="md:col-span-2">
+          <div class="mb-3 text-[13px] font-bold uppercase tracking-[0.14em] text-slate-400">Motion — one easing <span class="font-mono normal-case text-slate-500">cubic-bezier(.22,1,.36,1)</span></div>
+          <div class="replay flex flex-wrap items-center gap-3">
+            <div class="pp-fade rounded-2xl border border-slate-100 bg-white px-4 py-3 text-[12px] font-bold shadow-card">pp-fade</div>
+            <div class="pp-slide-up rounded-2xl border border-slate-100 bg-white px-4 py-3 text-[12px] font-bold shadow-card">pp-slide-up</div>
+            <div class="pp-pop rounded-2xl border border-slate-100 bg-white px-4 py-3 text-[12px] font-bold shadow-card">pp-pop</div>
+            <button onclick="document.querySelectorAll('.replay .pp-fade,.replay .pp-slide-up,.replay .pp-pop').forEach(el=>{el.style.animation='none';el.offsetHeight;el.style.animation=''})" class="press rounded-full bg-slate-900 px-4 py-2 text-[12px] font-bold text-white">Replay ▸</button>
+            <span class="text-[10.5px] text-slate-400">all reduced-motion safe · 0.24–0.34s</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== COMPONENTS ===== -->
+    <section id="components" class="sec border-t border-slate-100 py-10">
+      <div class="mb-6 flex items-baseline gap-3">
+        <h2 class="text-[22px] font-extrabold tracking-tight">Components</h2>
+        <span class="text-[11px] font-semibold text-slate-400">the real patterns, live</span>
+      </div>
+
+      <!-- Buttons -->
+      <div class="mb-8">
+        <div class="mb-3 text-[13px] font-bold uppercase tracking-[0.14em] text-slate-400">Buttons</div>
+        <div class="flex flex-wrap items-center gap-3">
+          <button class="press inline-flex items-center gap-1.5 rounded-full bg-blue-600 px-4 py-1.5 text-[13px] font-bold text-white"><i data-lucide="plus" style="width:14px;height:14px"></i>Follow</button>
+          <button class="press rounded-full bg-slate-900 px-5 py-2.5 text-[15px] font-bold text-white">Primary action</button>
+          <button class="press inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-bold text-slate-600"><i data-lucide="sliders-horizontal" style="width:13px;height:13px"></i>Filter</button>
+          <button class="press inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-4 py-1.5 text-[13px] font-bold text-slate-600"><i data-lucide="check" style="width:14px;height:14px"></i>Following</button>
+          <button class="press grid h-11 w-11 place-items-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-sm"><i data-lucide="qr-code" style="width:18px;height:18px"></i></button>
+          <button disabled class="inline-flex items-center gap-1.5 rounded-full bg-slate-300 px-4 py-1.5 text-[13px] font-bold text-white cursor-not-allowed">Disabled</button>
+        </div>
+      </div>
+
+      <!-- Inputs -->
+      <div class="mb-8 grid gap-6 md:grid-cols-2">
+        <div>
+          <div class="mb-3 text-[13px] font-bold uppercase tracking-[0.14em] text-slate-400">Search</div>
+          <div class="flex items-center gap-3 rounded-2xl bg-slate-100 px-4 py-3.5">
+            <i data-lucide="search" style="width:20px;height:20px" class="text-slate-400"></i>
+            <input class="w-full bg-transparent text-[15px] text-slate-700 placeholder:text-slate-400 outline-none" placeholder="Search companies, projects, tickers" />
+          </div>
+        </div>
+        <div>
+          <div class="mb-3 text-[13px] font-bold uppercase tracking-[0.14em] text-slate-400">Form field</div>
+          <input class="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-[13.5px] text-slate-800 outline-none transition focus:border-slate-300 focus:bg-white" placeholder="Company website" value="solarisresources.com" />
+          <div class="mt-2 flex items-center gap-2 text-[12.5px] font-medium text-slate-600"><input type="checkbox" class="accent-blue-600" checked /> I am authorized to accept on behalf of this company</div>
+        </div>
+      </div>
+
+      <!-- Cards -->
+      <div class="mb-8">
+        <div class="mb-3 text-[13px] font-bold uppercase tracking-[0.14em] text-slate-400">Cards</div>
+        <div class="grid gap-3 md:grid-cols-2">
+          <!-- news card -->
+          <button class="press-card w-full rounded-2xl border border-slate-100 bg-white p-4 text-left shadow-card">
+            <div class="flex items-center gap-2">
+              <span class="rounded-full px-2 py-0.5 text-[9.5px] font-extrabold uppercase tracking-wider" style="color:#1d4ed8;background:#eff6ff">Moderate</span>
+              <span class="text-[10.5px] font-semibold text-slate-400">TSX: SLS · 2h ago</span>
+            </div>
+            <div class="mt-2 text-[14.5px] font-extrabold leading-snug tracking-tight text-slate-900">Solaris extends Warintza resource with 1,010 m intercept</div>
+            <div class="mt-1 text-[12.5px] leading-relaxed text-slate-500">Assays confirm continuity to the east; management flags a resource update in Q4.</div>
+          </button>
+          <!-- roomy company row -->
+          <div class="flex w-full items-center gap-3.5 rounded-3xl border border-slate-100 bg-white p-3.5 shadow-contact">
+            <span class="grid h-12 w-12 shrink-0 place-items-center rounded-full font-extrabold text-white" style="background:#0d9488">SR</span>
+            <div class="min-w-0 flex-1">
+              <div class="text-[14px] font-extrabold tracking-tight text-slate-900">Solaris Resources</div>
+              <div class="text-[11px] font-semibold text-slate-400">Copper · Ecuador · TSX: SLS</div>
+            </div>
+            <button class="press inline-flex items-center gap-1.5 rounded-full bg-blue-600 px-3.5 py-1.5 text-[12px] font-bold text-white">Follow</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Pills / badges -->
+      <div class="mb-8">
+        <div class="mb-3 text-[13px] font-bold uppercase tracking-[0.14em] text-slate-400">Pills · badges · chips</div>
+        <div class="flex flex-wrap items-center gap-2">
+          <span class="rounded-full bg-slate-900 px-5 py-2.5 text-[15px] font-bold text-white">All</span>
+          <span class="rounded-full border border-slate-200 bg-white px-5 py-2.5 text-[15px] font-bold text-slate-600">Copper</span>
+          <span class="rounded-full border border-slate-200 bg-white px-5 py-2.5 text-[15px] font-bold text-slate-600">Gold</span>
+          <span class="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 text-[11.5px] font-bold text-slate-500"><i data-lucide="map-pin" style="width:12px;height:12px"></i>Ecuador</span>
+          <span class="rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-indigo-500 bg-indigo-50">Company</span>
+          <span class="rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-amber-600 bg-amber-50">Industry</span>
+          <span class="inline-flex items-center gap-1"><span class="h-2 w-2 rounded-full bg-blue-500"></span><span class="text-[11px] font-bold text-slate-500">Unread</span></span>
+        </div>
+      </div>
+
+      <!-- Navigation -->
+      <div class="mb-8 grid gap-6 lg:grid-cols-2">
+        <div>
+          <div class="mb-3 text-[13px] font-bold uppercase tracking-[0.14em] text-slate-400">Screen header</div>
+          <div class="rounded-2xl border border-slate-100 bg-white shadow-card">
+            <div class="flex items-start justify-between px-5 pt-4 pb-3">
+              <div>
+                <div class="text-[13px] font-bold uppercase tracking-[0.16em] text-blue-600">Today</div>
+                <div class="text-[34px] font-extrabold leading-none tracking-tight">For you</div>
+              </div>
+              <button class="press grid h-11 w-11 place-items-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-sm"><i data-lucide="qr-code" style="width:18px;height:18px"></i></button>
+            </div>
+            <!-- segmented tabs -->
+            <div class="relative grid grid-cols-4 border-b border-slate-200 px-2 text-[12px] font-bold">
+              <div class="py-2.5 text-center text-slate-900">For you</div>
+              <div class="py-2.5 text-center text-slate-400">News</div>
+              <div class="py-2.5 text-center text-slate-400">Updates</div>
+              <div class="py-2.5 text-center text-slate-400">Media</div>
+              <div class="absolute -bottom-px left-[12.5%] h-[2px] w-[18%] -translate-x-1/2 rounded-full bg-slate-900"></div>
+            </div>
+          </div>
+        </div>
+        <div>
+          <div class="mb-3 text-[13px] font-bold uppercase tracking-[0.14em] text-slate-400">Bottom tab bar</div>
+          <div class="mx-auto max-w-xs rounded-2xl border border-slate-100 bg-white shadow-card">
+            <div class="flex items-center justify-around border-t border-slate-100 px-6 pt-2.5 pb-4">
+              <div class="grid h-11 w-14 place-items-center rounded-2xl bg-slate-100 text-slate-900"><i data-lucide="sparkles" style="width:24px;height:24px"></i></div>
+              <div class="grid h-11 w-14 place-items-center rounded-2xl text-slate-400"><i data-lucide="compass" style="width:24px;height:24px"></i></div>
+              <div class="grid h-11 w-14 place-items-center rounded-2xl text-slate-400"><i data-lucide="star" style="width:24px;height:24px"></i></div>
+              <div class="grid h-11 w-14 place-items-center rounded-2xl text-slate-400"><i data-lucide="user" style="width:24px;height:24px"></i></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Avatars -->
+      <div class="mb-2">
+        <div class="mb-3 text-[13px] font-bold uppercase tracking-[0.14em] text-slate-400">Avatars & logos — deterministic fallback</div>
+        <div class="flex flex-wrap items-center gap-5">
+          <div class="text-center"><span class="grid h-12 w-12 place-items-center rounded-full border border-slate-200 bg-white font-extrabold text-white" style="background:#2563eb">WA</span><div class="mt-1.5 text-[10px] text-slate-400">CoLogo · round</div></div>
+          <div class="text-center"><span class="grid h-10 w-10 place-items-center rounded-xl font-extrabold text-white" style="background:#0f172a">SL</span><div class="mt-1.5 text-[10px] text-slate-400">Logo · squircle</div></div>
+          <div class="text-center"><span class="grid h-14 w-14 place-items-center rounded-full bg-slate-900 font-extrabold text-white" style="letter-spacing:-.03em">EK</span><div class="mt-1.5 text-[10px] text-slate-400">Person · initials</div></div>
+          <div class="text-center"><span class="grid h-12 w-12 place-items-center rounded-full font-extrabold text-white" style="background:#ea580c">NX</span><div class="mt-1.5 text-[10px] text-slate-400">hash palette</div></div>
+          <div class="text-center"><span class="grid h-12 w-12 place-items-center rounded-full font-extrabold text-white" style="background:#0891b2">AR</span><div class="mt-1.5 text-[10px] text-slate-400">hash palette</div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== STATES ===== -->
+    <section id="states" class="sec border-t border-slate-100 py-10">
+      <div class="mb-6 flex items-baseline gap-3">
+        <h2 class="text-[22px] font-extrabold tracking-tight">States</h2>
+        <span class="text-[11px] font-semibold text-slate-400">loading · empty · success · error</span>
+      </div>
+      <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <!-- loading -->
+        <div class="rounded-2xl border border-slate-100 bg-white p-5 shadow-card">
+          <div class="text-[10.5px] font-bold uppercase tracking-[0.14em] text-slate-400">Loading</div>
+          <div class="mt-3 flex items-center gap-2 text-[13px] font-bold text-slate-500"><i data-lucide="loader-circle" style="width:16px;height:16px" class="pp-spin text-blue-600"></i>Extracting…</div>
+          <div class="mt-4 space-y-2">
+            <div class="pp-skel h-3 w-3/4 rounded-full bg-slate-100"></div>
+            <div class="pp-skel h-3 w-full rounded-full bg-slate-100"></div>
+            <div class="pp-skel h-3 w-2/3 rounded-full bg-slate-100"></div>
+          </div>
+        </div>
+        <!-- empty -->
+        <div class="rounded-2xl border border-slate-100 bg-white p-5 text-center shadow-card">
+          <div class="mx-auto grid h-11 w-11 place-items-center rounded-full bg-slate-100 text-slate-400"><i data-lucide="inbox" style="width:20px;height:20px"></i></div>
+          <div class="mt-2 text-[14px] font-bold text-slate-900">No projects yet</div>
+          <div class="mt-1 text-[12px] leading-relaxed text-slate-500">Add a project or import from the company website.</div>
+          <button class="press mt-3 rounded-full bg-blue-600 px-4 py-1.5 text-[12px] font-bold text-white">Add project</button>
+        </div>
+        <!-- success -->
+        <div class="rounded-2xl border border-slate-100 bg-white p-5 shadow-card">
+          <div class="text-[10.5px] font-bold uppercase tracking-[0.14em] text-slate-400">Success</div>
+          <div class="mt-3 inline-flex items-center gap-2 rounded-full bg-slate-900 px-3.5 py-2 text-[12.5px] font-bold text-white"><i data-lucide="check" style="width:15px;height:15px"></i>Published</div>
+          <div class="mt-3 text-[12px] leading-relaxed text-slate-500">Confirmation is a slate toast + Check — no green chrome.</div>
+        </div>
+        <!-- error -->
+        <div class="rounded-2xl border border-slate-100 bg-white p-5 shadow-card">
+          <div class="text-[10.5px] font-bold uppercase tracking-[0.14em] text-slate-400">Error</div>
+          <div class="mt-3">
+            <input class="w-full rounded-xl border border-rose-300 bg-slate-50 px-3 py-2.5 text-[13.5px] text-slate-800 outline-none" value="not-a-url" />
+            <div class="mt-1.5 text-[12.5px] font-semibold text-rose-500">Enter a valid website (https://…).</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== REGISTER B ===== -->
+    <section id="register-b" class="sec border-t border-slate-100 py-10">
+      <div class="mb-6 flex items-baseline gap-3">
+        <h2 class="text-[22px] font-extrabold tracking-tight">Register B — editorial / cinematic</h2>
+        <span class="text-[11px] font-semibold text-slate-400">Conference Mode & sales site</span>
+      </div>
+      <p class="mb-5 max-w-2xl text-[13px] leading-relaxed text-slate-500">
+        Same foundations (slate + cobalt, layered elevation, one easing) — but a different voice:
+        <span class="font-switzer font-semibold text-slate-900">Switzer</span> for UI and
+        <span class="font-serif-ed text-[15px] text-slate-900">Instrument Serif</span> for display, larger scale, more air, orchestrated motion.
+      </p>
+      <div class="overflow-hidden rounded-3xl border border-slate-800 bg-slate-900 text-white shadow-card-deep">
+        <div class="relative p-10" style="background:radial-gradient(120% 120% at 20% 0%, #1e293b 0%, #0f172a 60%)">
+          <div class="font-switzer text-[12px] font-semibold uppercase tracking-[0.22em] text-blue-300">Solaris Resources · TSX: SLS</div>
+          <div class="mt-3 font-serif-ed text-[46px] leading-[1.02] tracking-tight">A tier-one copper story<br/>in the making.</div>
+          <div class="mt-4 max-w-md font-switzer text-[14px] leading-relaxed text-slate-300">Warintza hosts one of the largest undeveloped copper-gold porphyry systems in the Americas — open in multiple directions.</div>
+          <div class="mt-6 flex items-center gap-3">
+            <span class="font-switzer inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-[13px] font-semibold text-slate-900">Explore the project <i data-lucide="arrow-right" style="width:15px;height:15px"></i></span>
+            <span class="font-switzer inline-flex items-center gap-2 rounded-full border border-white/20 px-4 py-2 text-[13px] font-semibold text-white"><i data-lucide="qr-code" style="width:15px;height:15px"></i>Follow on MineEx</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== Footer ===== -->
+    <footer class="border-t border-slate-100 pt-8 text-[11px] font-semibold text-slate-400">
+      MineEx Design System · derived read-only from <span class="font-mono text-slate-500">src/aiBrief/</span> · see <span class="font-mono text-slate-500">MINEEX_DESIGN_SYSTEM.md</span>
+    </footer>
+  </main>
+
+  <script>
+    // render lucide with the app's heavy stroke
+    lucide.createIcons({ attrs: { "stroke-width": 2.4 } });
+  </script>
+</body>
+</html>

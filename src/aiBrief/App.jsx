@@ -65,7 +65,7 @@ export default function App() {
     if (realOpen && data.loading) {
       body = (
         <div className="flex h-full flex-col items-center justify-center gap-3 text-slate-400">
-          <Loader2 size={30} className="animate-spin text-emerald-500" />
+          <Loader2 size={30} className="animate-spin text-blue-500" />
           <p className="text-[14px] font-medium">Loading profile from Supabase…</p>
         </div>
       );

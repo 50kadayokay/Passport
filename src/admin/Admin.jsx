@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { Loader2, AlertTriangle, Search, ExternalLink, CheckCircle2, Circle, Lock, RefreshCw, X, Plus, LogOut, UserPlus, Copy, Check, FileJson, Download, Trash2, ShieldCheck, Newspaper, Pencil, ClipboardCheck, ArrowUpCircle, ListChecks, QrCode, Printer, Link2, Tablet } from "lucide-react";
+import { Loader2, AlertTriangle, Search, ExternalLink, CheckCircle2, Circle, Lock, RefreshCw, X, Plus, LogOut, UserPlus, Copy, Check, FileJson, Download, Trash2, ShieldCheck, Newspaper, Pencil, ClipboardCheck, ArrowUpCircle, ListChecks, QrCode, Printer, Link2, Tablet, Sparkles } from "lucide-react";
 import QRCode from "qrcode";
 import { fetchCompanies, updateCompany, createCompany, deleteCompany } from "../lib/supabase.js";
 import { authHeaders, signOut, getUser } from "../lib/auth.js";
@@ -89,6 +89,73 @@ function InviteOwner({ company }) {
             </button>
           </div>
           <p className="mt-2 text-[11.5px] text-slate-400">Valid 14 days. They must sign in with exactly this email.</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Phase 7 — ADMIN-ONLY "Build from website": crawl the company's site + extract identity/projects
+// (OpenAI) → merge into the canonical profile as a DRAFT. Backend concierge tool; never publishes.
+function BuildFromWebsite({ company }) {
+  const [open, setOpen] = useState(false);
+  const [url, setUrl] = useState((company.profile && company.profile.company && company.profile.company.website) || "");
+  const [dryRun, setDryRun] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState(null);
+  const [err, setErr] = useState("");
+
+  const run = async () => {
+    setErr(""); setResult(null); setBusy(true);
+    try {
+      const h = await authHeaders();
+      const res = await fetch("/api/build-from-website", {
+        method: "POST", headers: { ...h, "content-type": "application/json" },
+        body: JSON.stringify({ companyId: company.id, url: url.trim(), dryRun }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) { setErr(j.error || `Failed (${res.status})`); return; }
+      setResult(j);
+    } catch (e) { setErr(String(e.message || e)); }
+    finally { setBusy(false); }
+  };
+
+  if (!open) {
+    return (
+      <button onClick={() => setOpen(true)} className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-4 py-2.5 text-[14px] font-bold text-slate-600 hover:text-slate-900">
+        <Sparkles size={15} /> Build from website
+      </button>
+    );
+  }
+  const s = result && result.summary;
+  return (
+    <div className="absolute right-7 top-16 z-20 w-[460px] rounded-2xl border border-slate-200 bg-white p-4 shadow-xl">
+      <div className="flex items-center justify-between">
+        <p className="text-[14px] font-extrabold text-slate-900">Build from website</p>
+        <button onClick={() => { setOpen(false); setResult(null); setErr(""); }} className="text-slate-300 hover:text-slate-600"><X size={16} /></button>
+      </div>
+      <p className="mt-1 text-[12.5px] text-slate-500">Crawls the site and drafts <b>{company.name}</b>'s profile (identity + projects). Saves a <b>draft</b> — review in the editor before handing off. Never publishes.</p>
+      <div className="mt-3 flex items-center gap-2">
+        <input value={url} onChange={(e) => setUrl(e.target.value)} type="url" placeholder="https://company.com"
+          className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-[13.5px] outline-none focus:border-slate-400" />
+        <button onClick={run} disabled={busy || !/^https?:\/\//.test(url.trim())}
+          className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3.5 py-2 text-[13px] font-bold text-white disabled:opacity-40">
+          {busy ? <Loader2 size={14} className="animate-spin" /> : (dryRun ? "Preview" : "Build draft")}
+        </button>
+      </div>
+      <label className="mt-2 flex items-center gap-2 text-[12.5px] text-slate-600">
+        <input type="checkbox" checked={dryRun} onChange={(e) => setDryRun(e.target.checked)} />
+        Preview only (extract without saving)
+      </label>
+      {err && <p className="mt-2 text-[12.5px] font-semibold text-rose-600">{err}</p>}
+      {s && (
+        <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3 text-[12.5px] text-slate-700">
+          <p className="font-bold text-slate-900">{result.saved ? "Draft saved ✓" : "Preview (not saved)"}</p>
+          <p className="mt-1">Company: <b>{s.company || "—"}</b></p>
+          <p>Projects ({s.projectCount}): {s.projects.join(", ") || "—"}</p>
+          <p className="mt-1 text-slate-500">Read {s.corpus.pages} source(s), {(s.corpus.chars / 1000).toFixed(0)}k chars{s.corpus.truncated ? " (truncated)" : ""} · est. ${s.costUsd}</p>
+          {s.notFound && s.notFound.length > 0 && <p className="mt-1 text-amber-600">Needs manual review: {s.notFound.slice(0, 6).join("; ")}</p>}
+          {result.saved && <p className="mt-1 text-slate-500">Open the profile editor to review, then hand off.</p>}
         </div>
       )}
     </div>
@@ -1303,6 +1370,7 @@ export default function Admin() {
                 <CopyPrompt variant="conference" className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-4 py-2.5 text-[14px] font-bold text-slate-600 hover:text-slate-900" />
                 <CopyProfileJson profile={sel.profile} />
                 <ImportProfile company={sel} onImported={load} />
+                {sel.id && <BuildFromWebsite company={sel} />}
                 {sel.id && <InviteOwner company={sel} />}
                 <a href={`/portal?company=${encodeURIComponent(sel.slug)}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2.5 text-[14px] font-bold text-white hover:bg-indigo-700">Open dashboard <ExternalLink size={15} /></a>
                 <a href={`/app?c=${encodeURIComponent(sel.slug)}${sel.preview_token ? `&preview=${sel.preview_token}` : ""}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-4 py-2.5 text-[14px] font-bold text-slate-600 hover:text-slate-900">Open in app <ExternalLink size={15} /></a>

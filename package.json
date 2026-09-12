@@ -6,13 +6,19 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit -p src/studio/tsconfig.json",
+    "check:anchors": "esbuild src/studio/dev/anchorCheck.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/studio-anchorCheck.mjs --log-level=error && node node_modules/.cache/studio-anchorCheck.mjs"
   },
   "dependencies": {
+    "@aparajita/capacitor-secure-storage": "^8.0.0",
     "@capacitor/cli": "^8.5.0",
     "@capacitor/core": "^8.5.0",
     "@capacitor/ios": "^8.5.0",
+    "@capacitor/push-notifications": "^8.1.2",
+    "@capgo/capacitor-social-login": "^8.5.0",
     "@vercel/og": "^0.6.0",
+    "jsqr": "^1.4.0",
     "lucide-react": "^0.469.0",
     "pdfjs-dist": "^4.7.76",
     "qrcode": "^1.5.4",
@@ -21,11 +27,14 @@
     "three": "^0.185.1"
   },
   "devDependencies": {
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.20",
     "postcss": "^8.4.49",
     "sharp": "^0.35.3",
     "tailwindcss": "^3.4.17",
+    "typescript": "^5.7.2",
     "vite": "^5.4.11"
   }
 }

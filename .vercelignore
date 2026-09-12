@@ -1,0 +1,10 @@
+# Native app + build artifacts — not part of the Vercel (web/api) deployment.
+ios
+android
+*.xcarchive
+# Company data-pipeline working files (not needed at runtime).
+companies
+backups
+__acct
+# Scratch / logs
+*.log

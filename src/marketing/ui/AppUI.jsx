@@ -25,9 +25,9 @@ import { CO, PROJECTS, TEAM, RELEASES, DIRECTORY, IMG } from "../data.js";
 // The product's own accent. These are app screens, so they keep the colour the
 // app actually ships — the marketing page around them is monochrome by design, and
 // the product is what supplies the colour.
-const EM = "#059669";
-const EM_TEXT = "#047857";
-const EM_SOFT = "#ecfdf5";
+const EM = "#2563eb";
+const EM_TEXT = "#1d4ed8";
+const EM_SOFT = "#eff6ff";
 
 const APP_BG = "#f4f5f7";
 const INK = "#0f172a";
@@ -161,7 +161,7 @@ const FACT_TINT = {
   mountain: ["rgba(59,130,246,0.11)", "#3b82f6"],
   trend: ["rgba(139,92,246,0.11)", "#8b5cf6"],
   layers: ["rgba(14,165,233,0.11)", "#0ea5e9"],
-  activity: ["rgba(5,150,105,0.11)", "#059669"],
+  activity: ["rgba(37,99,235,0.11)", "#2563eb"],
 };
 
 function FactTile({ f }) {
@@ -333,7 +333,7 @@ function TabProjects() {
 const CAT_TINT = {
   Exploration: ["#eff6ff", "#2563eb"],
   Acquisition: ["#f5f3ff", "#7c3aed"],
-  Financing: ["#ecfdf5", "#047857"],
+  Financing: ["#eff6ff", "#1d4ed8"],
   Drilling: ["#fff7ed", "#c2410c"],
 };
 
@@ -590,7 +590,7 @@ function ReleaseScreenBase({ release = RELEASES[3] }) {
 
           <div style={{ background: EM_SOFT, borderRadius: 16, padding: 14, marginTop: 16 }}>
             <p style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.14em", textTransform: "uppercase", color: EM_TEXT }}>Why this matters</p>
-            <p style={{ fontSize: 14, lineHeight: 1.5, marginTop: 7, color: "#0f3d2e" }}>{release.why}</p>
+            <p style={{ fontSize: 14, lineHeight: 1.5, marginTop: 7, color: "#0f2f4d" }}>{release.why}</p>
           </div>
 
           <p style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.14em", textTransform: "uppercase", color: MUTE, marginTop: 20 }}>Key takeaways</p>

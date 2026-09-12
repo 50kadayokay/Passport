@@ -21,6 +21,8 @@
   ],
   "crons": [
     { "path": "/api/news-pull", "schedule": "0 */3 * * *" },
-    { "path": "/api/news-process", "schedule": "30 */6 * * *" }
+    { "path": "/api/news-process", "schedule": "30 */6 * * *" },
+    { "path": "/api/news-notify", "schedule": "45 */6 * * *" },
+    { "path": "/api/news-push-send", "schedule": "20 * * * *" }
   ]
 }

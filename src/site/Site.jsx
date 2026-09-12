@@ -115,7 +115,7 @@ function Features() {
         {FEATURES.map((f, i) => (
           <div key={f.title} className="grid items-center gap-6 sm:grid-cols-2">
             <div className={i % 2 ? "sm:order-2" : ""}>
-              <div className="mb-3 h-1 w-10 rounded-full bg-emerald-500" />
+              <div className="mb-3 h-1 w-10 rounded-full bg-blue-500" />
               <h2 className="text-[24px] font-extrabold tracking-tight text-slate-900">{f.title}</h2>
               <p className="mt-2 text-[15.5px] leading-relaxed text-slate-500">{f.body}</p>
             </div>
@@ -199,8 +199,8 @@ function LeadForm({ table, fields, button, success }) {
     finally { setBusy(false); }
   };
   if (done) return (
-    <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-6 text-center">
-      <CheckCircle2 size={26} className="mx-auto text-emerald-500" />
+    <div className="rounded-2xl border border-blue-200 bg-blue-50 p-6 text-center">
+      <CheckCircle2 size={26} className="mx-auto text-blue-500" />
       <p className="mt-2 text-[15px] font-bold text-slate-900">{success}</p>
     </div>
   );

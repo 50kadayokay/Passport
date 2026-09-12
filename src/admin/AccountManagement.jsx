@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { Circle, Layers, Crown, ChevronLeft, Loader2, Search, Pencil, ExternalLink, AlertTriangle, Lock, Send } from "lucide-react";
+import { Circle, Layers, Crown, ChevronLeft, Loader2, Search, Pencil, ExternalLink, AlertTriangle, Lock, Send, CreditCard, X } from "lucide-react";
 import { SUPABASE_URL } from "../lib/supabase.js";
 import { saveProfileSafely, isProtectedSlug } from "../lib/profileSafety.js";
 import { authHeaders } from "../lib/auth.js";
@@ -139,7 +139,7 @@ function TierCard({ tier, count, onOpen }) {
 
 /* ------------------------------ company list ----------------------------- */
 
-function CompanyRow({ c, sub, tier, onEdit, onPublish }) {
+function CompanyRow({ c, sub, tier, onEdit, onPublish, onBilling }) {
   const logo = logoOf(c);
   const status = statusOf(c);
   // Only paying accounts publish — a Free row is an unclaimed community listing.
@@ -180,6 +180,10 @@ function CompanyRow({ c, sub, tier, onEdit, onPublish }) {
           <Send size={13} /> Publish
         </button>
       )}
+      <button onClick={(e) => { e.stopPropagation(); onBilling(c); }} title="Billing — plan, status & paid-through (manual/e-transfer)"
+        className="inline-flex flex-shrink-0 items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-[12px] font-bold text-slate-600 hover:border-slate-400">
+        <CreditCard size={13} /> Billing
+      </button>
       <button onClick={(e) => { e.stopPropagation(); onEdit(c); }}
         className="inline-flex flex-shrink-0 items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-[12px] font-bold text-slate-600 hover:border-slate-400">
         <Pencil size={13} /> Edit
@@ -189,6 +193,57 @@ function CompanyRow({ c, sub, tier, onEdit, onPublish }) {
         className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-lg text-slate-300 hover:text-slate-700">
         <ExternalLink size={15} />
       </a>
+    </div>
+  );
+}
+
+/* -------- manual billing (e-transfer/cash): set plan, status & paid-through -------- */
+function BillingModal({ company, sub, onClose, onSaved }) {
+  const curTier = (sub && sub.rank != null) ? (sub.rank >= 30 ? "pro" : "basic") : (company.tier || "free");
+  const [tier, setTier] = useState(curTier);
+  const [status, setStatus] = useState((sub && sub.status) || "active");
+  const [paidThrough, setPaidThrough] = useState(sub && sub.renews_at ? String(sub.renews_at).slice(0, 10) : "");
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
+  const plusYear = () => { const d = new Date(); d.setFullYear(d.getFullYear() + 1); setPaidThrough(d.toISOString().slice(0, 10)); setStatus("active"); };
+  const save = async () => {
+    setBusy(true); setMsg("");
+    try {
+      const h = await authHeaders();
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/admin_set_billing`, {
+        method: "POST", headers: { ...h, "Content-Type": "application/json" },
+        body: JSON.stringify({ p_company: company.id, p_tier: tier, p_status: status, p_renews_at: paidThrough ? new Date(paidThrough + "T23:59:59Z").toISOString() : null }),
+      });
+      const j = await res.json().catch(() => null);
+      if (res.ok && j && j.ok) { setMsg("Saved."); if (onSaved) await onSaved(); setTimeout(onClose, 500); }
+      else setMsg((j && (j.error || j.message)) || "Save failed.");
+    } catch (_) { setMsg("Couldn't reach the server."); } finally { setBusy(false); }
+  };
+  const sel = { width: "100%", borderRadius: 10, border: "1px solid #e2e8f0", padding: "9px 11px", fontSize: 13.5, background: "#fff" };
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 60, background: "rgba(15,23,42,0.45)", display: "grid", placeItems: "center", padding: 20 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ width: 420, maxWidth: "100%", background: "#fff", borderRadius: 18, padding: 22, boxShadow: "0 30px 80px -20px rgba(15,23,42,0.5)" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+          <p style={{ fontSize: 15.5, fontWeight: 800, color: "#0f172a" }}>Billing · {company.name || company.slug}</p>
+          <button onClick={onClose} style={{ border: "none", background: "none", color: "#94a3b8", cursor: "pointer" }}><X size={18} /></button>
+        </div>
+        <p style={{ fontSize: 12, color: "#94a3b8", marginBottom: 16 }}>Manual / e-transfer billing. Access locks when paid-through passes.</p>
+        <label style={{ fontSize: 11, fontWeight: 800, letterSpacing: ".05em", textTransform: "uppercase", color: "#94a3b8" }}>Tier</label>
+        <select value={tier} onChange={(e) => setTier(e.target.value)} style={{ ...sel, marginTop: 5, marginBottom: 14 }}>
+          <option value="free">Free (listing)</option><option value="basic">Basic</option><option value="pro">Pro</option>
+        </select>
+        <label style={{ fontSize: 11, fontWeight: 800, letterSpacing: ".05em", textTransform: "uppercase", color: "#94a3b8" }}>Status</label>
+        <select value={status} onChange={(e) => setStatus(e.target.value)} style={{ ...sel, marginTop: 5, marginBottom: 14 }}>
+          <option value="active">Active</option><option value="past_due">Past due</option><option value="cancelled">Cancelled</option>
+        </select>
+        <label style={{ fontSize: 11, fontWeight: 800, letterSpacing: ".05em", textTransform: "uppercase", color: "#94a3b8" }}>Paid through</label>
+        <div style={{ display: "flex", gap: 8, marginTop: 5, marginBottom: 18 }}>
+          <input type="date" value={paidThrough} onChange={(e) => setPaidThrough(e.target.value)} style={{ ...sel, flex: 1 }} />
+          <button onClick={plusYear} style={{ whiteSpace: "nowrap", borderRadius: 10, border: "1px solid #e2e8f0", background: "#f8fafc", padding: "0 12px", fontSize: 12.5, fontWeight: 700, color: "#475569", cursor: "pointer" }}>Mark paid · +1 yr</button>
+        </div>
+        {msg && <p style={{ fontSize: 12.5, fontWeight: 600, color: msg === "Saved." ? "#059669" : "#e11d48", marginBottom: 10 }}>{msg}</p>}
+        <button onClick={save} disabled={busy} style={{ width: "100%", background: "#059669", color: "#fff", border: "none", borderRadius: 11, padding: "11px", fontSize: 14, fontWeight: 800, cursor: busy ? "default" : "pointer" }}>{busy ? "Saving…" : "Save billing"}</button>
+      </div>
     </div>
   );
 }
@@ -203,6 +258,7 @@ export default function AccountManagement({ companies = [], loading = false, rel
   const [q, setQ] = useState("");
   const [editing, setEditing] = useState(null);   // the company whose profile is open
   const [publishing, setPublishing] = useState(null); // the company being published to
+  const [billing, setBilling] = useState(null);    // the company whose billing modal is open
 
   useEffect(() => {
     let alive = true;
@@ -293,9 +349,16 @@ export default function AccountManagement({ companies = [], loading = false, rel
           </div>
         ) : (
           <div className="mt-7 flex flex-col gap-2.5 pb-10">
-            {filtered.map((c) => <CompanyRow key={c.slug} c={c} sub={subs[c.id]} tier={tier} onEdit={setEditing} onPublish={setPublishing} />)}
+            {filtered.map((c) => <CompanyRow key={c.slug} c={c} sub={subs[c.id]} tier={tier} onEdit={setEditing} onPublish={setPublishing} onBilling={setBilling} />)}
           </div>
         )
+      )}
+
+      {/* ---------- billing ---------- */}
+      {billing && (
+        <BillingModal company={billing} sub={subs[billing.id]}
+          onClose={() => setBilling(null)}
+          onSaved={async () => { if (reload) await reload(); }} />
       )}
 
       {/* ---------- publish ---------- */}

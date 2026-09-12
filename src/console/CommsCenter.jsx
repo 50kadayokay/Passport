@@ -41,7 +41,7 @@ function pubStatusPill(state) {
   if (!state) return null;
   const map = {
     publishing: { t: "Publishing…", c: "bg-blue-50 text-blue-600" },
-    published:  { t: "Published",   c: "bg-emerald-50 text-emerald-600" },
+    published:  { t: "Published",   c: "bg-blue-50 text-blue-600" },
     pending:    { t: "Queued",      c: "bg-slate-100 text-slate-500" },
     failed:     { t: "Failed",      c: "bg-rose-50 text-rose-600" },
   };
@@ -246,7 +246,7 @@ export default function CommsCenter({ company }) {
                 const Icon = meta.Icon || FileText;
                 const isApproved = approved.has(d.destination);
                 return (
-                  <div key={d.destination} className={`rounded-2xl border bg-white p-5 ${isApproved ? "border-emerald-300" : "border-slate-200"}`}>
+                  <div key={d.destination} className={`rounded-2xl border bg-white p-5 ${isApproved ? "border-blue-300" : "border-slate-200"}`}>
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <Icon size={16} className="text-slate-500" />
@@ -256,7 +256,7 @@ export default function CommsCenter({ company }) {
                       </div>
                       <button onClick={() => setApproved((s) => { const n = new Set(s); n.has(d.destination) ? n.delete(d.destination) : n.add(d.destination); return n; })}
                         disabled={!!savedUpdateId}
-                        className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12.5px] font-bold disabled:opacity-50 ${isApproved ? "bg-emerald-500 text-white" : "border border-slate-200 text-slate-600"}`}>
+                        className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12.5px] font-bold disabled:opacity-50 ${isApproved ? "bg-blue-500 text-white" : "border border-slate-200 text-slate-600"}`}>
                         {isApproved ? <><CheckCircle2 size={13} /> Approved</> : <><Circle size={13} /> Approve</>}
                       </button>
                     </div>
@@ -275,7 +275,7 @@ export default function CommsCenter({ company }) {
             {/* Step 4 — save to the review queue */}
             <div className="mt-5 flex items-center gap-3">
               <button onClick={saveDrafts} disabled={!!savedUpdateId}
-                className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 text-[14px] font-bold text-white disabled:opacity-50">
+                className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-[14px] font-bold text-white disabled:opacity-50">
                 {savedUpdateId ? <><Check size={16} /> Saved · approved published</> : <><Send size={16} /> Save & publish {approved.size} approved</>}
               </button>
               <p className="text-[12.5px] text-slate-400">Approved Passport-timeline drafts go live now. External connectors are queued until connected.</p>

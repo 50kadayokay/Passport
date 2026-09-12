@@ -68,5 +68,16 @@
 	<true/>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<key>NSCameraUsageDescription</key>
+	<string>MineEx uses the camera to scan company QR codes so you can jump straight to a company's profile.</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.871146667116-5n20tj4gp1ajp1ssrj1e75er7534i2q5</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

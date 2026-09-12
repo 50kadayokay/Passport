@@ -17,7 +17,7 @@ import { logActivity } from "../lib/portal.js";
 // Category catalogue — order defines how groups are stacked. `match` keys map the
 // documents.kind values (and a couple of synonyms) onto these buckets.
 const CATS = [
-  { id: "press_release",    label: "Press releases",    c: "#0f766e", bg: "#ecfdf5" },
+  { id: "press_release",    label: "Press releases",    c: "#0f766e", bg: "#eff6ff" },
   { id: "deck",             label: "Presentations",     c: "#7c3aed", bg: "#f5f3ff" },
   { id: "technical_report", label: "Technical reports", c: "#b45309", bg: "#fffbeb" },
   { id: "financial",        label: "Financials",        c: "#1d4ed8", bg: "#eff6ff" },
@@ -122,8 +122,8 @@ export default function Documents({ company }) {
       <div onClick={() => inputRef.current?.click()}
         onDragOver={(e) => { e.preventDefault(); setDrag(true); }} onDragLeave={() => setDrag(false)}
         onDrop={(e) => { e.preventDefault(); setDrag(false); if (e.dataTransfer.files?.length) addFiles(e.dataTransfer.files); }}
-        className={`flex cursor-pointer flex-col items-center gap-2 rounded-2xl border-2 border-dashed p-6 text-center transition ${drag ? "border-emerald-400 bg-emerald-50/50" : "border-slate-200 hover:border-slate-300"}`}>
-        {busy ? <Loader2 size={22} className="animate-spin text-emerald-500" /> : <Upload size={22} className="text-emerald-500" />}
+        className={`flex cursor-pointer flex-col items-center gap-2 rounded-2xl border-2 border-dashed p-6 text-center transition ${drag ? "border-blue-400 bg-blue-50/50" : "border-slate-200 hover:border-slate-300"}`}>
+        {busy ? <Loader2 size={22} className="animate-spin text-blue-500" /> : <Upload size={22} className="text-blue-500" />}
         <p className="text-[13.5px] font-bold text-slate-700">{busy || "Upload documents"}</p>
         <p className="text-[12px] text-slate-400">Drop files or click — press releases, decks, technical reports, financials, photos. Deduped automatically.</p>
         <input ref={inputRef} type="file" multiple className="hidden" onChange={(e) => { addFiles(e.target.files); e.target.value = ""; }} />

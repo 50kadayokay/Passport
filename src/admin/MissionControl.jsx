@@ -12,6 +12,8 @@ import NewsReview from "./NewsReview.jsx";
 import Admin from "./Admin.jsx";
 import AudienceCard from "./AudienceCard.jsx";
 import OnboardingEngine from "./onboarding/OnboardingEngine.jsx";
+import OnboardingWorkspace from "./onboarding/OnboardingWorkspace.jsx";
+import ConferenceStudio from "./ConferenceStudio.jsx";
 import BlueprintReview from "./BlueprintReview.jsx";
 import AccountManagement from "./AccountManagement.jsx";
 import Blueprints from "./blueprints/Blueprints.jsx";  // full Conference Blueprint workbench (pools/evidence/approval)
@@ -21,6 +23,8 @@ import Blueprints from "./blueprints/Blueprints.jsx";  // full Conference Bluepr
 const NAV = [
   { group: "Mission Control", items: [
     { id: "home", label: "Home", Icon: LayoutDashboard, ready: true },
+    { id: "onboard", label: "Add Company", Icon: Plus, ready: true },
+    { id: "conf-studio", label: "Conference Studio", Icon: Presentation, ready: true },
     { id: "sales", label: "Sales", Icon: TrendingUp, need: "Stripe billing + CRM" },
     { id: "publish", label: "Ready for Publish", Icon: Inbox, ready: true },
     { id: "card", label: "Audience Card", Icon: Film, ready: true },
@@ -36,7 +40,7 @@ const NAV = [
     { id: "ai", label: "AI Workspace", Icon: Sparkles, need: "the AI generation pipeline" },
     { id: "pulse", label: "News Review", Icon: Radio, ready: true },
     { id: "featured", label: "Featured Companies", Icon: Star, need: "a featured-slots table" },
-    { id: "notifications", label: "Notifications", Icon: Bell, need: "push + a broadcasts table" },
+    { id: "notifications", label: "Notifications", Icon: Bell, ready: true },
   ]},
   { group: "Business", items: [
     { id: "accounts", label: "Account Management", Icon: UserCog, ready: true },
@@ -52,7 +56,7 @@ const NAV = [
     { id: "settings", label: "Settings", Icon: Settings, need: "a platform-config table" },
   ]},
 ];
-const READY = new Set(["home", "publish", "card", "companies", "review-conference", "review-app", "onboarding", "users", "operations", "pulse", "accounts"]);
+const READY = new Set(["home", "onboard", "conf-studio", "publish", "card", "companies", "review-conference", "review-app", "onboarding", "users", "operations", "pulse", "accounts"]);
 const flat = (id) => NAV.flatMap((g) => g.items).find((i) => i.id === id) || {};
 
 const isPublished = (c) => (c.status || "").toLowerCase() === "published";
@@ -129,7 +133,11 @@ export default function MissionControl() {
         </header>
 
         <div className="min-h-0 flex-1 overflow-hidden">
-          {section === "companies" ? <Admin /> : section === "onboarding" ? (
+          {section === "companies" ? <Admin /> : section === "onboard" ? (
+            <div className="h-full"><OnboardingWorkspace companies={companies} reload={loadData} go={go} /></div>
+          ) : section === "conf-studio" ? (
+            <div className="h-full"><ConferenceStudio companies={companies} reload={loadData} /></div>
+          ) : section === "onboarding" ? (
             <div className="h-full"><OnboardingEngine companies={companies} /></div>
           ) : section === "review-conference" ? (
             <div className="h-full"><BlueprintReview key="conf" mode="conference" companies={companies} onReload={loadData} /></div>
@@ -144,6 +152,7 @@ export default function MissionControl() {
               {section === "pulse" && <NewsReview />}
               {section === "users" && <UsersSection users={users} loading={loading} />}
               {section === "accounts" && <AccountManagement companies={companies} loading={loading} reload={loadData} />}
+              {section === "notifications" && <NotificationsSection />}
               {section === "sales" && <SalesEmpty />}
               {!READY.has(section) && <Stub id={section} />}
             </div>
@@ -455,6 +464,72 @@ function Operations({ companies, reload, go }) {
   );
 }
 function Done({ text }) { return <div className="flex items-center gap-2 px-5 py-8 text-slate-400"><CheckCircle2 size={18} className="text-emerald-400" /><span className="text-[14px]">{text}</span></div>; }
+
+/* ================= NOTIFICATIONS / BROADCAST ================= */
+// Followers already get alerts automatically when a company they follow publishes.
+// THIS is the paid "greater reach" lever: push one company's story to EVERY device.
+// Calls /api/news-broadcast (admin-authed); the payload carries a "Sponsored" label.
+function NotificationsSection() {
+  const [news, setNews] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(null);
+  const [result, setResult] = useState(null);
+  useEffect(() => {
+    (async () => {
+      try {
+        const h = await authHeaders();
+        const r = await fetch(`${SUPABASE_URL}/rest/v1/news_public?select=id,title,company_slug,source_name,published_at&company_slug=not.is.null&order=published_at.desc&limit=40`, { headers: h });
+        setNews(r.ok ? await r.json() : []);
+      } catch { setNews([]); } finally { setLoading(false); }
+    })();
+  }, []);
+  const broadcast = async (item) => {
+    if (!window.confirm(`Broadcast "${item.title}" to ALL users' devices?\n\nThis sends a push notification to everyone with the app installed. It carries a "Sponsored" label. Use only for a paying company.`)) return;
+    setBusy(item.id); setResult(null);
+    try {
+      const h = await authHeaders();
+      const r = await fetch(`/api/news-broadcast`, { method: "POST", headers: { ...h, "content-type": "application/json" }, body: JSON.stringify({ news_item_id: item.id }) });
+      const j = await r.json().catch(() => ({}));
+      setResult(r.ok ? { ok: true, title: item.title, devices: j.devices, queued: j.queued } : { error: j.error || `HTTP ${r.status}` });
+    } catch (e) { setResult({ error: String((e && e.message) || e) }); } finally { setBusy(null); }
+  };
+  return (
+    <div className="mx-auto max-w-[860px]">
+      <h1 className="text-[26px] font-extrabold tracking-tight">Notifications</h1>
+      <p className="mt-1.5 max-w-[620px] text-[14px] leading-relaxed text-slate-500">
+        Followers are alerted automatically whenever a company they follow appears in the news — that's free and needs no action here.
+        <b className="text-slate-700"> Broadcast</b> is the paid <i>“greater reach”</i> lever: push a company’s story to <b>every</b> device, follower or not. Each broadcast is labelled <b>“Sponsored”</b>. Use it only for a company that has paid.
+      </p>
+      {result && (
+        <div className={`mt-4 rounded-xl px-4 py-3 text-[13.5px] font-semibold ${result.ok ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}`}>
+          {result.ok ? `Broadcast sent: “${result.title}” → queued to ${result.queued} device${result.queued === 1 ? "" : "s"}.` : `Couldn’t broadcast: ${result.error}`}
+        </div>
+      )}
+      <div className="mt-5">
+        <p className="mb-2 text-[11px] font-bold uppercase tracking-widest text-slate-400">Recent company stories</p>
+        {loading ? <Centered><Loader2 size={24} className="animate-spin text-emerald-500" /></Centered> : (
+          news.length === 0 ? <Done text="No company-linked stories yet." /> : (
+            <div className="space-y-2">
+              {news.map((it) => (
+                <div key={it.id} className="flex items-center gap-3 rounded-xl border border-slate-100 bg-white p-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[14px] font-bold tracking-tight text-slate-900">{it.title}</p>
+                    <p className="mt-0.5 text-[11.5px] font-semibold text-slate-400">{it.source_name || "News"} · {String(it.published_at || "").slice(0, 10)}</p>
+                  </div>
+                  <button onClick={() => broadcast(it)} disabled={busy === it.id}
+                    className="flex-shrink-0 rounded-full px-3.5 py-2 text-[12.5px] font-bold text-white transition active:scale-95 disabled:opacity-60"
+                    style={{ background: "#0f172a" }}>
+                    {busy === it.id ? "Sending…" : "Broadcast to all"}
+                  </button>
+                </div>
+              ))}
+            </div>
+          )
+        )}
+      </div>
+    </div>
+  );
+}
 
 /* ================= USERS ================= */
 function UsersSection({ users, loading }) {

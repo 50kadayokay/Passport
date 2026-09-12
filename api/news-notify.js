@@ -48,11 +48,13 @@ export default async function handler(req, res) {
 
   for (const it of items) {
     const links = Array.isArray(it.news_item_companies) ? it.news_item_companies : [];
-    // Keep only links to a PAID company (basic/pro). Free/listing companies never push.
-    const paid = links.filter((l) => l.companies && PAID_TIERS.has(String(l.companies.tier || "")));
+    // Follower push is the FREE baseline: everyone who follows a linked company gets it,
+    // regardless of the company's tier. (Paid "greater reach" = broadcast to ALL users,
+    // handled separately in news-broadcast.js.)
+    const targets = links.filter((l) => l.company_slug || (l.companies && l.companies.slug));
     let itemQueued = 0;
 
-    for (const l of paid) {
+    for (const l of targets) {
       const slug = l.company_slug || (l.companies && l.companies.slug);
       const coName = (l.companies && l.companies.name) || "A company you follow";
       if (!slug) continue;
@@ -94,12 +96,12 @@ export default async function handler(req, res) {
       }
     }
 
-    if (!paid.length) skippedFree++;
+    if (!targets.length) skippedFree++;
     // Stamp fanned-out regardless (0 tokens today = nothing to send; we never
     // retro-push old news once the client ships and tokens exist).
     await serviceRest(`news_items?id=eq.${it.id}`, { method: "PATCH", body: { push_notified_at: new Date().toISOString() }, prefer: "return=minimal" });
     queued += itemQueued;
-    report.push({ id: it.id, title: clip(it.title, 60), paid_companies: paid.length, queued: itemQueued });
+    report.push({ id: it.id, title: clip(it.title, 60), followed_companies: targets.length, queued: itemQueued });
   }
 
   return res.status(200).json({ ok: true, items: items.length, queued, skipped_free_only: skippedFree, report });

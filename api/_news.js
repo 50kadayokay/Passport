@@ -75,9 +75,21 @@ export function titleSimilar(a, b) {
   return inter / Math.max(A.size, B.size);
 }
 
+// Full HTML-entity decode: numeric (&#8217; / &#x2019;) AND named. RSS titles are
+// riddled with these (&#8217;=’, &#038;=&, &#8211;=–, &nbsp;) and un-decoded they
+// look broken in the feed. Decode &amp; LAST so we don't double-unescape.
+const NAMED = { nbsp: " ", amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", "#39": "'",
+  lsquo: "‘", rsquo: "’", sbquo: "‚", ldquo: "“", rdquo: "”", bdquo: "„",
+  mdash: "—", ndash: "–", hellip: "…", middot: "·", bull: "•",
+  trade: "™", reg: "®", copy: "©", deg: "°", frac12: "½",
+  eacute: "é", egrave: "è", agrave: "à", uuml: "ü", ouml: "ö", auml: "ä", ntilde: "ñ", ccedil: "ç" };
+const cp = (n) => { try { return (n >= 0 && n <= 0x10ffff) ? String.fromCodePoint(n) : ""; } catch { return ""; } };
 const unesc = (s) => String(s || "")
   .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")
-  .replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&#0?39;|&apos;/g, "'").replace(/&quot;/g, '"').replace(/&amp;/g, "&")
+  .replace(/&#x([0-9a-fA-F]+);/g, (_, h) => cp(parseInt(h, 16)))
+  .replace(/&#(\d+);/g, (_, d) => cp(parseInt(d, 10)))
+  .replace(/&([a-zA-Z][a-zA-Z0-9]*);/g, (m, name) => (Object.prototype.hasOwnProperty.call(NAMED, name.toLowerCase()) ? NAMED[name.toLowerCase()] : m))
+  .replace(/&amp;/g, "&")
   .trim();
 const tag = (xml, name) => {
   const m = new RegExp(`<${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:\\s[^>]*)?>([\\s\\S]*?)</${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}>`, "i").exec(xml);

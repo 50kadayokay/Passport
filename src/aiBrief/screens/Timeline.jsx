@@ -3,7 +3,7 @@ import { Clock, ChevronRight, X, Gem, ArrowUpRight, ExternalLink } from "lucide-
 
 /* Category → colour. */
 const CAT_STYLE = {
-  Discovery: { c: "#0f9b73", bg: "rgba(16,185,129,0.10)" },
+  Discovery: { c: "#1d4ed8", bg: "rgba(37,99,235,0.10)" },
   Drilling: { c: "#1d4ed8", bg: "rgba(37,99,235,0.10)" },
   Financing: { c: "#6d28d9", bg: "rgba(124,58,237,0.10)" },
   Permitting: { c: "#c2410c", bg: "rgba(234,88,12,0.10)" },
@@ -13,7 +13,7 @@ const CAT_STYLE = {
   Corporate: { c: "#64748b", bg: "rgba(100,116,139,0.08)" },
 };
 const IMPACT_STYLE = {
-  Transformational: { c: "#0f9b73", dot: "#10b981" },
+  Transformational: { c: "#1d4ed8", dot: "#3b82f6" },
   High: { c: "#b45309", dot: "#f59e0b" },
   Moderate: { c: "#1d4ed8", dot: "#3b82f6" },
   Low: { c: "#64748b", dot: "#94a3b8" },
@@ -70,7 +70,7 @@ function EntryCard({ e, onOpen, diamond }) {
       {/* timeline rail */}
       <span className="absolute left-[7px] top-0 h-full w-px bg-slate-200" />
       <span className="absolute left-0 top-4 grid h-3.5 w-3.5 place-items-center rounded-full bg-white ring-2" style={{ ringColor: catStyle(e.category).c }}>
-        {diamond ? <Gem size={9} style={{ color: "#0f9b73" }} /> : <span className="h-1.5 w-1.5 rounded-full" style={{ background: catStyle(e.category).c }} />}
+        {diamond ? <Gem size={9} style={{ color: "#1d4ed8" }} /> : <span className="h-1.5 w-1.5 rounded-full" style={{ background: catStyle(e.category).c }} />}
       </span>
       <button onClick={() => onOpen(e)} className="mb-3 w-full rounded-2xl border border-slate-100 bg-white p-4 text-left shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition active:scale-[0.99]">
         <div className="flex items-center gap-2">
@@ -102,7 +102,7 @@ function DetailSheet({ e, onClose }) {
               <p className="mt-1.5 text-[14px] font-medium leading-relaxed text-slate-600">{e.summary}</p>
             </div>
           )}
-          <div className="mt-5 rounded-2xl p-4" style={{ background: "rgba(16,185,129,0.07)", border: "1px solid rgba(16,185,129,0.2)" }}>
+          <div className="mt-5 rounded-2xl p-4" style={{ background: "rgba(37,99,235,0.07)", border: "1px solid rgba(37,99,235,0.2)" }}>
             <span className="text-[10px] font-extrabold uppercase tracking-[0.16em]" style={{ color: "#0f766e" }}>Investor Takeaway</span>
             <p className="mt-1.5 text-[14px] font-semibold leading-relaxed text-slate-700">{TAKEAWAY[impact]}</p>
           </div>
@@ -143,7 +143,7 @@ export default function Timeline({ timeline }) {
 
       {/* year / key-milestone selector */}
       <div className="flex items-center gap-2 overflow-x-auto pb-1">
-        <button onClick={() => setView("key")} className={`inline-flex flex-shrink-0 items-center gap-1.5 rounded-full px-3.5 py-2 text-[13.5px] font-bold transition ${showKey ? "bg-emerald-500 text-white" : "bg-slate-100 text-slate-500"}`}>
+        <button onClick={() => setView("key")} className={`inline-flex flex-shrink-0 items-center gap-1.5 rounded-full px-3.5 py-2 text-[13.5px] font-bold transition ${showKey ? "bg-blue-500 text-white" : "bg-slate-100 text-slate-500"}`}>
           <Gem size={14} /> Key
         </button>
         <span className="h-5 w-px flex-shrink-0 bg-slate-200" />

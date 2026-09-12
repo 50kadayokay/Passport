@@ -17,7 +17,7 @@ import { fetchFeatures, FEATURES } from "../lib/features.js";
 const Loader = ({ label = "Loading your portal…" }) => (
   <div className="grid min-h-[100dvh] place-items-center bg-slate-50 text-slate-400">
     <div className="flex flex-col items-center gap-3">
-      <Loader2 size={26} className="animate-spin text-emerald-500" />
+      <Loader2 size={26} className="animate-spin text-blue-500" />
       <span className="text-[13px] font-medium">{label}</span>
     </div>
   </div>
@@ -170,14 +170,14 @@ export default function PortalGate({ render }) {
               <button
                 key={c.id}
                 onClick={() => enter(c)}
-                className="group flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3.5 text-left transition hover:border-emerald-300 hover:shadow-sm"
+                className="group flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3.5 text-left transition hover:border-blue-300 hover:shadow-sm"
               >
                 <span className="grid h-10 w-10 place-items-center rounded-xl bg-slate-100 text-slate-500"><Building2 size={18} /></span>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-[15px] font-bold text-slate-900">{c.name || c.slug}</span>
                   <span className="block text-[12.5px] font-medium capitalize text-slate-400">{c.role || "owner"} · {c.status || "draft"}</span>
                 </span>
-                <ArrowRight size={17} className="text-slate-300 transition group-hover:text-emerald-500" />
+                <ArrowRight size={17} className="text-slate-300 transition group-hover:text-blue-500" />
               </button>
             ))}
           </div>

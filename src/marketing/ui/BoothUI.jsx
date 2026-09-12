@@ -13,9 +13,9 @@ import { CO, IMG } from "../data.js";
 // The product's own accent. These are app screens, so they keep the colour the
 // app actually ships — the marketing page around them is monochrome by design, and
 // the product is what supplies the colour.
-const EM = "#059669";
-const EM_TEXT = "#047857";
-const EM_SOFT = "#ecfdf5";
+const EM = "#2563eb";
+const EM_TEXT = "#1d4ed8";
+const EM_SOFT = "#eff6ff";
 
 const SHEET = "#f2efe8";
 const ONLIGHT = "#141821";

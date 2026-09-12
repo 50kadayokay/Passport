@@ -4,6 +4,7 @@
 // PostgREST calls; falls back to the anon key when signed out.
 import { SUPABASE_URL, SUPABASE_ANON } from "./supabase.js";
 import { isNativeApp, API_BASE } from "./platform.js";
+import { SocialLogin } from "@capgo/capacitor-social-login";
 
 const AUTH = `${SUPABASE_URL}/auth/v1`;
 const KEY = "pp.session";
@@ -59,6 +60,51 @@ export async function signIn(email, password) {
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(errText(data));
   return save(data);
+}
+
+// ---- Social sign-in (native iOS only) ----------------------------------------
+// Apple + Google via @capgo/capacitor-social-login. The native flow returns a
+// provider id_token; we exchange it for a Supabase session through the GoTrue
+// id_token grant, which yields the same session shape as email/password.
+// GOOGLE_IOS_CLIENT_ID is the *iOS OAuth client ID* from Google Cloud (public, not
+// a secret). Apple needs no client id here — native audience = the app bundle id.
+const GOOGLE_IOS_CLIENT_ID = "871146667116-5n20tj4gp1ajp1ssrj1e75er7534i2q5.apps.googleusercontent.com";
+export function googleConfigured() { return !!GOOGLE_IOS_CLIENT_ID; }
+
+let _socialReady = null;
+function socialInit() {
+  if (!_socialReady) {
+    _socialReady = SocialLogin.initialize({
+      apple: {},
+      ...(GOOGLE_IOS_CLIENT_ID ? { google: { iOSClientId: GOOGLE_IOS_CLIENT_ID } } : {}),
+    }).then(() => SocialLogin).catch((e) => { _socialReady = null; throw e; });
+  }
+  return _socialReady;
+}
+
+async function exchangeIdToken(provider, id_token) {
+  const res = await fetch(`${AUTH}/token?grant_type=id_token`, { method: "POST", headers: base, body: JSON.stringify({ provider, id_token }) });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(errText(data));
+  return save(data);
+}
+
+export async function signInWithApple() {
+  const S = await socialInit();
+  const r = await S.login({ provider: "apple", options: { scopes: ["email", "name"] } });
+  const res = (r && r.result) || {};
+  const token = res.idToken || (res.accessToken && res.accessToken.token);
+  if (!token) throw new Error("Apple sign-in was cancelled.");
+  return exchangeIdToken("apple", token);
+}
+
+export async function signInWithGoogle() {
+  if (!GOOGLE_IOS_CLIENT_ID) throw new Error("Google sign-in isn't set up yet.");
+  const S = await socialInit();
+  const r = await S.login({ provider: "google", options: { scopes: ["email", "profile"] } });
+  const res = (r && r.result) || {};
+  if (!res.idToken) throw new Error("Google sign-in was cancelled.");
+  return exchangeIdToken("google", res.idToken);
 }
 
 async function refresh() {
@@ -155,6 +201,20 @@ export async function updatePassword(newPassword) {
   const res = await fetch(`${AUTH}/user`, {
     method: "PUT", headers: { ...base, Authorization: `Bearer ${s.access_token}` },
     body: JSON.stringify({ password: newPassword }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(errText(data));
+  return true;
+}
+
+// Change the signed-in user's email. GoTrue sends a confirmation link to the NEW address; the
+// change only takes effect once that link is clicked. Requires a live session.
+export async function updateEmail(newEmail) {
+  const s = await getSession();
+  if (!s?.access_token) throw new Error("Sign in required.");
+  const res = await fetch(`${AUTH}/user`, {
+    method: "PUT", headers: { ...base, Authorization: `Bearer ${s.access_token}` },
+    body: JSON.stringify({ email: String(newEmail || "").trim() }),
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(errText(data));

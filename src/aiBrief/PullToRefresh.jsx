@@ -63,7 +63,7 @@ export default function PullToRefresh({ onRefresh, className = "", style = {}, c
     >
       <div style={{ position: "absolute", top: 0, left: 0, right: 0, display: "flex", justifyContent: "center", pointerEvents: "none", zIndex: 5, transform: `translateY(${offset - 36}px)`, transition: settling ? "transform .25s ease" : "none" }}>
         <span style={{ display: "grid", placeItems: "center", width: 32, height: 32, borderRadius: 9999, background: "#fff", boxShadow: "0 2px 8px rgba(15,23,42,0.14)", opacity: showSpinner ? 1 : 0, transition: "opacity .2s ease" }}>
-          <Loader2 size={17} strokeWidth={2.5} className={refreshing ? "pp-spin" : ""} style={{ color: "#059669", transform: refreshing ? "none" : `rotate(${progress * 270}deg)` }} />
+          <Loader2 size={17} strokeWidth={2.5} className={refreshing ? "pp-spin" : ""} style={{ color: "#2563eb", transform: refreshing ? "none" : `rotate(${progress * 270}deg)` }} />
         </span>
       </div>
       <div style={{ transform: `translateY(${offset}px)`, transition: settling ? "transform .25s ease" : "none" }}>

@@ -42,7 +42,7 @@ export async function loadPortalCompany(companyId) {
   try {
     const h = await authHeaders();
     const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/companies?id=eq.${companyId}&select=id,slug,name,status,owner_id,profile,updated_at&limit=1`,
+      `${SUPABASE_URL}/rest/v1/companies?id=eq.${companyId}&select=id,slug,name,status,owner_id,tier,profile,updated_at&limit=1`,
       { headers: h }
     );
     if (!res.ok) return null;
@@ -60,7 +60,7 @@ export async function loadPortalCompanyBySlug(slug) {
   try {
     const h = await authHeaders();
     const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/companies?slug=eq.${encodeURIComponent(slug)}&select=id,slug,name,status,owner_id,profile,updated_at&limit=1`,
+      `${SUPABASE_URL}/rest/v1/companies?slug=eq.${encodeURIComponent(slug)}&select=id,slug,name,status,owner_id,tier,profile,updated_at&limit=1`,
       { headers: h }
     );
     if (!res.ok) return null;
@@ -161,6 +161,52 @@ export async function companyStats(companyId) {
   return { documents, updates, publications, published };
 }
 
+// Real follower count for a company (company_follows / company_follower_count RPC, migration
+// 0009). Read-only; returns 0 on any failure so the UI degrades gracefully.
+export async function fetchFollowerCount(companyId) {
+  if (!companyId) return 0;
+  try {
+    const h = await authHeaders();
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/company_follower_count`, {
+      method: "POST",
+      headers: { ...h, "content-type": "application/json" },
+      body: JSON.stringify({ cid: companyId }),
+    });
+    if (!res.ok) return 0;
+    const out = await res.json().catch(() => 0);
+    return typeof out === "number" ? out : Number(out) || 0;
+  } catch { return 0; }
+}
+
+// Recent published/queued content for the Home "recent content" list. Reads the existing
+// publications rows (destination passport) newest-first; maps to a light shape the UI renders.
+// Read-only — no writes, no new tables.
+export async function fetchRecentContent(companyId, limit = 6) {
+  if (!companyId) return [];
+  try {
+    const h = await authHeaders();
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/publications?company_id=eq.${companyId}&destination_id=eq.passport` +
+        `&select=id,status,created_at,content&order=created_at.desc&limit=${limit}`,
+      { headers: h }
+    );
+    if (!res.ok) return [];
+    const rows = await res.json().catch(() => []);
+    return (Array.isArray(rows) ? rows : []).map((r) => {
+      const c = r.content || {};
+      const isMedia = c.post_type === "media";
+      return {
+        id: r.id,
+        status: r.status || "draft",
+        createdAt: r.created_at,
+        type: isMedia ? "media" : "press_release",
+        title: c.headline || c.title || (isMedia ? "Media post" : "Press release"),
+        thumb: c.thumbnail_url || c.media_url || null,
+      };
+    });
+  } catch { return []; }
+}
+
 // Create an invitation for a company owner (admin only — enforced server-side).
 // Returns { id, token } or null. The console turns the token into a link.
 export async function createInvitation(companyId, email, role = "owner") {
@@ -196,6 +242,70 @@ export async function acceptInvitation(token) {
   } catch {
     return { ok: false, error: "request_failed" };
   }
+}
+
+// ---- Phase 6B: agreement + go-live + invite peek --------------------------
+// All three are thin wrappers over SECURITY DEFINER RPCs (server enforces the gates).
+
+// Read-only invite display info for a branded landing (no accept). anon-allowed.
+export async function peekInvitation(token) {
+  if (!token) return { ok: false, error: "invalid" };
+  try {
+    const h = await authHeaders();   // falls back to anon when signed out — RPC is granted to anon
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/peek_company_invitation`, {
+      method: "POST", headers: { ...h, "content-type": "application/json" },
+      body: JSON.stringify({ p_token: token }),
+    });
+    if (!res.ok) return { ok: false, error: "request_failed" };
+    const out = await res.json().catch(() => null);
+    return out && typeof out === "object" ? out : { ok: false, error: "request_failed" };
+  } catch { return { ok: false, error: "request_failed" }; }
+}
+
+// Record the signed-in user's acceptance of the company agreement (versioned). Server verifies
+// the caller can touch the company. Returns { ok, accepted_at } or { ok:false, error }.
+export async function recordAgreement(companyId, version) {
+  if (!companyId || !version) return { ok: false, error: "invalid" };
+  try {
+    const h = await authHeaders();
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/record_company_agreement`, {
+      method: "POST", headers: { ...h, "content-type": "application/json" },
+      body: JSON.stringify({ p_company_id: companyId, p_version: version }),
+    });
+    if (!res.ok) return { ok: false, error: "request_failed" };
+    const out = await res.json().catch(() => null);
+    return out && typeof out === "object" ? out : { ok: false, error: "request_failed" };
+  } catch { return { ok: false, error: "request_failed" }; }
+}
+
+// Has this company accepted the current agreement (or been grandfathered)? boolean.
+export async function hasAgreement(companyId, version) {
+  if (!companyId || !version) return false;
+  try {
+    const h = await authHeaders();
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/company_has_agreement`, {
+      method: "POST", headers: { ...h, "content-type": "application/json" },
+      body: JSON.stringify({ p_company_id: companyId, p_version: version }),
+    });
+    if (!res.ok) return false;
+    return (await res.json().catch(() => false)) === true;
+  } catch { return false; }
+}
+
+// Owner self-serve first publication. Server enforces owner + agreement + entitlement + a
+// minimally-complete profile. Returns { ok, status } or { ok:false, error }.
+export async function goLive(companyId, version) {
+  if (!companyId || !version) return { ok: false, error: "invalid" };
+  try {
+    const h = await authHeaders();
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/company_go_live`, {
+      method: "POST", headers: { ...h, "content-type": "application/json" },
+      body: JSON.stringify({ p_company_id: companyId, p_version: version }),
+    });
+    if (!res.ok) return { ok: false, error: "request_failed" };
+    const out = await res.json().catch(() => null);
+    return out && typeof out === "object" ? out : { ok: false, error: "request_failed" };
+  } catch { return { ok: false, error: "request_failed" }; }
 }
 
 // Recent audit-trail rows for a company (newest first).

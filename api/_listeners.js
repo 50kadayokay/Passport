@@ -48,6 +48,10 @@ async function feedProjectionV1(event, db) {
     category: content.category ? String(content.category) : null,
     title: (content.headline && String(content.headline).trim()) || "Company update",
     summary: content.body || null,
+    // The actual media source (photo or video). Without this, a video post has nothing
+    // to play. Photos set thumbnail_url = the image; videos set media_url = the video and
+    // thumbnail_url = a poster frame.
+    media_url: content.media_url || null,
     // A media post's media_url is the video itself, so prefer an explicit thumbnail.
     thumbnail_url: content.thumbnail_url || content.media_url || null,
     source_url: content.source_url || pub.external_url || null,

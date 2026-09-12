@@ -3,17 +3,31 @@ import ReactDOM from "react-dom/client";
 import "./index.css";
 import { SUPABASE_URL, SUPABASE_ANON } from "./lib/supabase.js";
 import { useAuth } from "./auth/useAuth.js";
-import { signIn, signUp, requestPasswordReset, consumeHashSession, updatePassword, getUser } from "./lib/auth.js";
+import { signIn, signUp, requestPasswordReset, consumeHashSession, updatePassword, getUser, signInWithApple, signInWithGoogle, googleConfigured } from "./lib/auth.js";
 import * as investorData from "./lib/investorData.js";
 import { isNativeApp } from "./lib/platform.js";
+import { SecureStorage } from "@aparajita/capacitor-secure-storage"; // iOS Keychain for "Remember me"
 
 // Surfaces are code-split so the marketing bundle stays lean:
 const Onboarding = React.lazy(() => import("./console/CompanyConsole.jsx")); // company console (wraps the builder)
 const Admin = React.lazy(() => import("./admin/MissionControl.jsx"));         // Mission Control
 const Portal = React.lazy(() => import("./portal/Portal.jsx"));               // Company Portal (desktop, paying companies)
+const Studio = React.lazy(() => import("./studio/Studio.tsx"));                // Story Studio (desktop, admin) — release → carousel/video
 const PortalGate = React.lazy(() => import("./portal/PortalGate.jsx"));       // resolves company + entitlement
+const EditorDemo = React.lazy(() => import("./portal/EditorDemo.jsx"));       // localhost-only editor harness
+const FeedDemo = React.lazy(() => import("./aiBrief/FeedDemo.jsx"));          // localhost-only Today-feed harness
+const PortalDemo = React.lazy(() => import("./portal/PortalDemo.jsx"));       // localhost-only portal-shell harness
 const PostDetailRoute = React.lazy(() => import("./aiBrief/Feed.jsx").then((m) => ({ default: m.PostDetailRoute }))); // /p/<id> deep link
 const BlueprintDemo = React.lazy(() => import("./admin/blueprints/BlueprintDemo.jsx")); // /bpdemo — dev harness (no auth/DB), removable
+const OnboardDemo = React.lazy(() => import("./admin/onboarding/OnboardDemo.jsx")); // /onboarddemo — dev harness (no auth), removable
+const ConferenceV3Demo = React.lazy(() => import("./aiBrief/conferenceV3/ConferenceV3Demo.jsx")); // /confv3demo — dev harness (no auth), removable
+const ConferenceBooth = React.lazy(() => import("./aiBrief/conferenceV3/ConferenceV3Booth.jsx")); // /conference — PRODUCTION standalone iPad booth
+const ShowcaseTemplates = React.lazy(() => import("./marketing/ShowcaseTemplates.jsx")); // /templatesdemo — template showcase gallery (dev), removable
+// /studiodemo — dev harness (no auth/DB), removable. The lazy import is behind an
+// import.meta.env.DEV guard so a production build drops the chunk entirely, taking
+// the sample releases with it. Without the guard Rollup emits them as a fetchable
+// chunk even though the route never renders in production.
+const StudioDemo = import.meta.env.DEV ? React.lazy(() => import("./studio/dev/StudioDemo.tsx")) : null;
 // The public MineEx marketing site at /site — an isolated, code-split surface, so
 // none of it ships in the app bundle. The previous marketing pages stay reachable
 // at /site/legacy.
@@ -66,16 +80,33 @@ const path = typeof window !== "undefined" ? window.location.pathname : "/";
 const isOnboarding = path.startsWith("/onboarding");
 const isAdmin = path.startsWith("/admin");
 const isPortal = path.startsWith("/portal");
+const isStudio = path.startsWith("/studio");
 const isPost = /^\/p\/[^/]+/.test(path);
 const postId = isPost ? decodeURIComponent(path.replace(/^\/p\//, "").split(/[/?#]/)[0]) : null;
 // In the native iOS/Android shell the app boots at "/", so treat native as the app.
 const isApp = isNativeApp || path === "/app" || path.startsWith("/app/") || path.startsWith("/app?");
+// Standalone Conference Mode booth — PRODUCTION (not dev-gated). A self-contained iPad kiosk that
+// renders one company's chosen template full-screen, independent of the investor app, and QR-links
+// visitors to that company's Pro profile. Reached at /conference?c=<slug> on the booth's own host.
+const isConference = path === "/conference" || path.startsWith("/conference/") || path.startsWith("/conference?");
 const isReset = path === "/reset" || path.startsWith("/reset");
 // Blueprint workspace dev harness — LOCALHOST ONLY. In production /bpdemo falls through
 // to the normal app (never renders sample Blueprint content publicly).
-const isBpDemo = path.startsWith("/bpdemo") && (() => {
+const isLocalhost = (() => {
   try { const h = window.location.hostname; return h === "localhost" || h === "127.0.0.1"; } catch (_) { return false; }
 })();
+const isBpDemo = path.startsWith("/bpdemo") && isLocalhost;
+const isOnboardDemo = path.startsWith("/onboarddemo") && isLocalhost && import.meta.env.DEV;
+const isConfV3Demo = path.startsWith("/confv3demo") && isLocalhost && import.meta.env.DEV;
+const isTemplatesDemo = path.startsWith("/templatesdemo") && isLocalhost && import.meta.env.DEV;
+// Story Studio pipeline harness — LOCALHOST ONLY, same rule as /bpdemo. In production
+// /studiodemo falls through to the normal app and never renders sample releases.
+const isStudioDemo = path.startsWith("/studiodemo") && isLocalhost && import.meta.env.DEV;
+// Profile-editor visual harness — LOCALHOST ONLY. Renders the portal ProfileEditor against a
+// real draft company's pp with no auth, so the editor UI/interactions can be tested directly.
+const isEditorDemo = path.startsWith("/editordemo") && isLocalhost && import.meta.env.DEV;
+const isFeedDemo = path.startsWith("/feeddemo") && isLocalhost && import.meta.env.DEV;
+const isPortalDemo = path.startsWith("/portaldemo") && isLocalhost && import.meta.env.DEV;
 // The marketing homepage is no longer the front door for the app domain (that's the
 // login-gated app now); it stays reachable at /site. BUT on the public marketing
 // domain (mineex.ca) the ROOT is the marketing site — the website front door — while
@@ -101,7 +132,7 @@ const root = ReactDOM.createRoot(document.getElementById("root"));
 // Splash only plays on the first view per app load (splashSeen) so returning from the
 // form via "back" doesn't replay the intro.
 let splashSeen = false;
-const WELCOME_GREEN = "#059669";
+const WELCOME_GREEN = "#2563eb";
 // Splash logo reveal: the icon tile rises in large and centred, then dissolves down
 // into the "M" (same slot) while "ineEx" completes the wordmark — so the logo "merges"
 // into the M of MineEx. mxLockup nudges the whole lockup left (~38px ≈ half of "ineEx")
@@ -149,7 +180,7 @@ function WelcomeIntro({ onChoose }) {
       <div style={frame} key="start">
         <style>{WELCOME_KF}</style>
         <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center", animation: "mxFade .45s both" }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 200, height: 200, borderRadius: "50%", background: "radial-gradient(circle at 50% 45%, #d1fae5 0%, #ffffff 70%)" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 200, height: 200, borderRadius: "50%", background: "radial-gradient(circle at 50% 45%, #dbeafe 0%, #ffffff 70%)" }}>
             <img src="/icon-512.png" alt="" style={{ width: 148, height: 148, borderRadius: 34, boxShadow: "0 18px 50px rgba(15,23,42,.16)" }} />
           </div>
           <h1 style={h1}>Every junior miner,<br />in one feed.</h1>
@@ -176,13 +207,30 @@ function WelcomeIntro({ onChoose }) {
 }
 
 function InvestorAuth({ onSuccess, initialMode, onBack }) {
+  const REMEMBER_KEY = "mineex.rememberEmail.v1";
   const [mode, setMode] = useState(initialMode || "signin"); // signin | signup | forgot
-  const [email, setEmail] = useState("");
+  // Remember the last email across logout so users don't retype it (the password is
+  // left to iOS Keychain autofill via the autoComplete attrs — never stored by us).
+  const [email, setEmail] = useState(() => { try { return localStorage.getItem(REMEMBER_KEY) || ""; } catch { return ""; } });
+  const [remember, setRemember] = useState(true);
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [confirm, setConfirm] = useState(false); // signup: confirmation email sent
   const [sent, setSent] = useState(false);        // forgot: reset link sent
+
+  // "Remember me" credential: on a device we keep email+password in the iOS Keychain
+  // (encrypted, sandboxed) via SecureStorage; on web we only ever remember the email.
+  const CRED_KEY = "mineex.cred.v1";
+  useEffect(() => {
+    if (!isNativeApp) return;
+    (async () => {
+      try {
+        const c = await SecureStorage.get(CRED_KEY);
+        if (c && typeof c === "object") { if (c.email) setEmail(c.email); if (c.password) setPassword(c.password); }
+      } catch { /* nothing stored yet */ }
+    })();
+  }, []);
 
   const go = (m) => { setMode(m); setError(""); };
 
@@ -201,6 +249,15 @@ function InvestorAuth({ onSuccess, initialMode, onBack }) {
       } else {
         await signIn(email.trim(), password);
       }
+      try {
+        if (remember) {
+          localStorage.setItem(REMEMBER_KEY, email.trim());
+          if (isNativeApp) await SecureStorage.set(CRED_KEY, { email: email.trim(), password });
+        } else {
+          localStorage.removeItem(REMEMBER_KEY);
+          if (isNativeApp) await SecureStorage.remove(CRED_KEY);
+        }
+      } catch {}
       onSuccess && onSuccess();
     } catch (err) {
       setError((err && err.message) || "Something went wrong. Please try again.");
@@ -209,9 +266,24 @@ function InvestorAuth({ onSuccess, initialMode, onBack }) {
     }
   };
 
+  // Native social sign-in (Apple / Google). Cancellations are silent.
+  const social = async (provider) => {
+    setError(""); setBusy(true);
+    try {
+      if (provider === "apple") await signInWithApple();
+      else await signInWithGoogle();
+      onSuccess && onSuccess();
+    } catch (err) {
+      const m = (err && err.message) || "Sign-in failed";
+      if (!/cancel/i.test(m)) setError(m);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const wrap = { minHeight: "100dvh", display: "flex", flexDirection: "column", justifyContent: "center", padding: "28px 24px", background: "#ffffff", maxWidth: 460, margin: "0 auto" };
   const input = { height: 50, borderRadius: 14, border: "1px solid #e2e8f0", padding: "0 16px", fontSize: 15, outline: "none", background: "#f8fafc" };
-  const link = { background: "none", border: "none", color: "#059669", fontWeight: 700, cursor: "pointer", padding: 0, fontSize: 13.5 };
+  const link = { background: "none", border: "none", color: "#2563eb", fontWeight: 700, cursor: "pointer", padding: 0, fontSize: 13.5 };
 
   if (confirm || sent) {
     const isConfirm = confirm;
@@ -239,7 +311,7 @@ function InvestorAuth({ onSuccess, initialMode, onBack }) {
   return (
     <div style={wrap}>
       {onBack && <button type="button" onClick={onBack} aria-label="Back" style={{ position: "absolute", top: "calc(env(safe-area-inset-top, 0px) + 14px)", left: 18, background: "none", border: "none", fontSize: 26, lineHeight: 1, color: "#0f172a", cursor: "pointer", padding: "2px 6px" }}>‹</button>}
-      <p style={{ fontSize: 12, fontWeight: 800, letterSpacing: "0.18em", textTransform: "uppercase", color: "#059669" }}>MineEx</p>
+      <p style={{ fontSize: 12, fontWeight: 800, letterSpacing: "0.18em", textTransform: "uppercase", color: "#2563eb" }}>MineEx</p>
       <h1 style={{ fontSize: 27, fontWeight: 800, letterSpacing: "-0.02em", color: "#0f172a", marginTop: 6 }}>{title}</h1>
       <p style={{ fontSize: 14, color: "#64748b", marginTop: 6 }}>{sub}</p>
 
@@ -249,7 +321,11 @@ function InvestorAuth({ onSuccess, initialMode, onBack }) {
           <input type="password" autoComplete={mode === "signup" ? "new-password" : "current-password"} required placeholder="Password" minLength={6} value={password} onChange={(e) => setPassword(e.target.value)} style={input} />
         )}
         {mode === "signin" && (
-          <div style={{ textAlign: "right", marginTop: -2 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: -2 }}>
+            <label style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12.5, color: "#475569", fontWeight: 600, cursor: "pointer" }}>
+              <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} style={{ width: 16, height: 16, accentColor: "#0f172a" }} />
+              Remember me
+            </label>
             <button type="button" onClick={() => go("forgot")} style={{ ...link, color: "#64748b", fontSize: 12.5 }}>Forgot password?</button>
           </div>
         )}
@@ -258,6 +334,24 @@ function InvestorAuth({ onSuccess, initialMode, onBack }) {
           {busy ? "Please wait…" : mode === "signup" ? "Create account" : mode === "forgot" ? "Send reset link" : "Sign in"}
         </button>
       </form>
+
+      {isNativeApp && mode !== "forgot" && (
+        <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ flex: 1, height: 1, background: "#e2e8f0" }} />
+            <span style={{ fontSize: 12, color: "#94a3b8", fontWeight: 600 }}>or</span>
+            <div style={{ flex: 1, height: 1, background: "#e2e8f0" }} />
+          </div>
+          <button type="button" onClick={() => social("apple")} disabled={busy} style={{ height: 50, borderRadius: 12, border: "none", background: "#0f172a", color: "#fff", fontSize: 15, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, opacity: busy ? 0.6 : 1 }}>
+             Continue with Apple
+          </button>
+          {googleConfigured() && (
+            <button type="button" onClick={() => social("google")} disabled={busy} style={{ height: 50, borderRadius: 12, border: "1px solid #e2e8f0", background: "#fff", color: "#0f172a", fontSize: 15, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, opacity: busy ? 0.6 : 1 }}>
+              <span style={{ fontSize: 16, fontWeight: 800, color: "#4285F4" }}>G</span> Continue with Google
+            </button>
+          )}
+        </div>
+      )}
 
       <p style={{ marginTop: 20, textAlign: "center", fontSize: 13.5, color: "#64748b" }}>
         {mode === "signin" && <>New to MineEx? <button type="button" onClick={() => go("signup")} style={link}>Create an account</button></>}
@@ -304,7 +398,7 @@ function ResetPassword() {
   );
   return (
     <div style={wrap}>
-      <p style={{ fontSize: 12, fontWeight: 800, letterSpacing: "0.18em", textTransform: "uppercase", color: "#059669" }}>MineEx</p>
+      <p style={{ fontSize: 12, fontWeight: 800, letterSpacing: "0.18em", textTransform: "uppercase", color: "#2563eb" }}>MineEx</p>
       <h1 style={{ fontSize: 27, fontWeight: 800, letterSpacing: "-0.02em", color: "#0f172a", marginTop: 6 }}>Set a new password</h1>
       <form onSubmit={submit} style={{ marginTop: 22, display: "flex", flexDirection: "column", gap: 12 }}>
         <input type="password" autoComplete="new-password" required placeholder="New password" minLength={6} value={pw} onChange={(e) => setPw(e.target.value)} style={input} />
@@ -313,7 +407,7 @@ function ResetPassword() {
           {busy ? "Please wait…" : "Update password"}
         </button>
       </form>
-      <p style={{ marginTop: 18, textAlign: "center", fontSize: 13.5 }}><a href="/app" style={{ color: "#059669", fontWeight: 700, textDecoration: "none" }}>Back to sign in</a></p>
+      <p style={{ marginTop: 18, textAlign: "center", fontSize: 13.5 }}><a href="/app" style={{ color: "#2563eb", fontWeight: 700, textDecoration: "none" }}>Back to sign in</a></p>
     </div>
   );
 }
@@ -373,7 +467,7 @@ function InvestorOnboarding({ onDone }) {
   const cta = (dis) => ({ height: 56, borderRadius: 9999, border: "none", background: "#0f172a", color: "#fff", fontSize: 16, fontWeight: 700, opacity: dis ? 0.4 : 1, cursor: dis ? "default" : "pointer", width: "100%" });
   const skip = { background: "none", border: "none", color: "#64748b", fontWeight: 600, fontSize: 14, cursor: "pointer", padding: "12px 0 2px", width: "100%" };
   const label = { fontSize: 11.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "#94a3b8", marginTop: 22, marginBottom: 9, display: "block" };
-  const chip = (on) => ({ padding: "9px 15px", borderRadius: 9999, fontSize: 14, fontWeight: 700, cursor: "pointer", border: on ? "1px solid #059669" : "1px solid #e5e9f0", background: on ? "#059669" : "#fff", color: on ? "#fff" : "#475569", transition: "all .12s" });
+  const chip = (on) => ({ padding: "9px 15px", borderRadius: 9999, fontSize: 14, fontWeight: 700, cursor: "pointer", border: on ? "1px solid #2563eb" : "1px solid #e5e9f0", background: on ? "#2563eb" : "#fff", color: on ? "#fff" : "#475569", transition: "all .12s" });
   const chipRow = { display: "flex", flexWrap: "wrap", gap: 8 };
   const title = { fontSize: 27, fontWeight: 800, color: "#0f172a", margin: "16px 0 0", letterSpacing: "-0.01em", lineHeight: 1.12 };
   const sub = { fontSize: 14.5, color: "#64748b", marginTop: 8, lineHeight: 1.45 };
@@ -387,7 +481,7 @@ function InvestorOnboarding({ onDone }) {
   const frame = (content, footer) => (
     <div style={{ minHeight: "100dvh", display: "flex", flexDirection: "column", background: "#fff", maxWidth: 480, margin: "0 auto", boxSizing: "border-box", paddingLeft: 22, paddingRight: 22, paddingTop: "calc(env(safe-area-inset-top, 0px) + 22px)", paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 18px)" }}>
       <div style={{ display: "flex", gap: 6 }}>
-        {[0, 1, 2].map((i) => <span key={i} style={{ height: 5, flex: 1, borderRadius: 9999, background: i <= step ? "#059669" : "#e8edf2", transition: "background .2s" }} />)}
+        {[0, 1, 2].map((i) => <span key={i} style={{ height: 5, flex: 1, borderRadius: 9999, background: i <= step ? "#2563eb" : "#e8edf2", transition: "background .2s" }} />)}
       </div>
       <div style={{ flex: 1, overflowY: "auto", paddingTop: 8, WebkitOverflowScrolling: "touch" }}>{content}</div>
       <div style={{ paddingTop: 14 }}>{footer}</div>
@@ -398,7 +492,7 @@ function InvestorOnboarding({ onDone }) {
     const canNext = name.trim() && type;
     return frame(
       <>
-        <p style={{ fontSize: 12, fontWeight: 800, letterSpacing: "0.18em", textTransform: "uppercase", color: "#059669", margin: "8px 0 0" }}>Welcome to MineEx</p>
+        <p style={{ fontSize: 12, fontWeight: 800, letterSpacing: "0.18em", textTransform: "uppercase", color: "#2563eb", margin: "8px 0 0" }}>Welcome to MineEx</p>
         <h1 style={title}>Complete your profile</h1>
         <p style={sub}>This is shared with companies when you message them — you can edit it anytime.</p>
         <label style={label}>Your name</label>
@@ -435,7 +529,7 @@ function InvestorOnboarding({ onDone }) {
 
   return frame(
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center", height: "100%", padding: "0 8px" }}>
-      <div style={{ width: 84, height: 84, borderRadius: 24, background: "#ecfdf5", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 40, marginBottom: 22 }}>🔔</div>
+      <div style={{ width: 84, height: 84, borderRadius: 24, background: "#eff6ff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 40, marginBottom: 22 }}>🔔</div>
       <h1 style={{ ...title, marginTop: 0, textAlign: "center" }}>Never miss an update</h1>
       <p style={{ ...sub, marginTop: 12, maxWidth: 320 }}>Get notified when the companies you follow release drill results, financings, and news.</p>
       {error && <p style={{ fontSize: 13, color: "#dc2626", fontWeight: 600, marginTop: 14 }}>{error}</p>}
@@ -445,6 +539,43 @@ function InvestorOnboarding({ onDone }) {
       <button type="button" onClick={finish} disabled={busy} style={skip}>Not now</button>
     </>
   );
+}
+
+// Merge a company's REAL published posts (from the `posts` table, via the publish spine)
+// into the profile's pp so publishing actually shows on the profile: media → UPDATE_POSTS
+// (the Media tab), press releases → PR_YEARS (the Timeline). Static pp entries are kept;
+// real posts are prepended/merged newest-first. Best-effort — never blocks the render.
+async function mergeCompanyPosts(coId, base) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/posts?company_id=eq.${coId}&removed_at=is.null&select=post_type,title,summary,media_url,thumbnail_url,published_at&order=published_at.desc&limit=60`, { headers: base });
+  if (!res.ok) return;
+  const rows = await res.json().catch(() => []);
+  if (!Array.isArray(rows) || !rows.length) return;
+  const pp = window.__PP__ || (window.__PP__ = {});
+  const isVid = (u) => !!u && /\.(mp4|mov|webm|m4v)(\?|#|$)/i.test(u);
+  const rel = (d) => { const t = Date.parse(d); if (!t) return ""; const s = (Date.now() - t) / 1000; if (s < 3600) return Math.max(1, Math.round(s / 60)) + "m ago"; if (s < 86400) return Math.round(s / 3600) + "h ago"; const days = Math.round(s / 86400); return days <= 1 ? "Yesterday" : days + "d ago"; };
+  // MEDIA → UPDATE_POSTS (Media tab)
+  const media = rows.filter((r) => r.post_type === "media").map((r) => ({
+    post_type: "media", cat: isVid(r.media_url) ? "Video" : "Photo", video: isVid(r.media_url),
+    videoSrc: isVid(r.media_url) ? r.media_url : undefined,
+    img: r.thumbnail_url || r.media_url || "", title: r.title || "", desc: r.summary || "", ts: rel(r.published_at),
+  }));
+  if (media.length) pp.UPDATE_POSTS = [...media, ...(Array.isArray(pp.UPDATE_POSTS) ? pp.UPDATE_POSTS : [])];
+  // PRESS RELEASES → PR_YEARS (Timeline)
+  const prs = rows.filter((r) => r.post_type !== "media" && r.title);
+  if (prs.length) {
+    const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const flat = [];
+    (Array.isArray(pp.PR_YEARS) ? pp.PR_YEARS : []).forEach((y) => (y.items || []).forEach((it) => flat.push(it)));
+    prs.forEach((r) => {
+      const id = String(r.published_at || "").slice(0, 10);
+      const m = id.match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (flat.some((e) => String(e.id) === id && e.headline === r.title)) return; // de-dupe
+      flat.push({ id, d: m ? `${MON[+m[2] - 1] || ""} ${+m[3]}` : "", headline: r.title, label: r.title, why: r.summary || "", key: false, takeaways: [] });
+    });
+    const by = {};
+    flat.forEach((e) => { const yr = (String(e.id || "").match(/^(\d{4})/) || [])[1] || String(new Date().getFullYear()); (by[yr] = by[yr] || []).push(e); });
+    pp.PR_YEARS = Object.keys(by).sort((a, b) => b - a).map((y) => ({ year: y, items: by[y].sort((a, b) => String(b.id || "").localeCompare(String(a.id || ""))) }));
+  }
 }
 
 // Gate for the investor app: shows the sign-in/up card until a session exists,
@@ -504,6 +635,7 @@ function AppRoot() {
       let ok = false;
       try {
         const base = { apikey: SUPABASE_ANON, Authorization: `Bearer ${SUPABASE_ANON}` };
+        let coId = null;
         if (previewToken) {
           // Admin preview of an unpublished (ready/archived) company — the token-gated
           // RPC bypasses the "published only" RLS so the profile renders in the iframe.
@@ -513,15 +645,15 @@ function AppRoot() {
             body: JSON.stringify({ p_slug: slug, p_token: previewToken }),
           });
           const row = await res.json().catch(() => null);
-          if (row && row.profile && row.profile.pp) { window.__PP__ = row.profile.pp; ok = true; }
+          if (row && row.profile && row.profile.pp) { window.__PP__ = row.profile.pp; try { window.__PP__.ACCOUNT_TIER = row.tier; } catch (_) {} coId = row.id || null; ok = true; }
         } else {
           const res = await fetch(
-            `${SUPABASE_URL}/rest/v1/companies?slug=eq.${encodeURIComponent(slug)}&select=pp:profile->pp`,
+            `${SUPABASE_URL}/rest/v1/companies?slug=eq.${encodeURIComponent(slug)}&select=id,tier,pp:profile->pp`,
             { headers: base }
           );
           const rows = await res.json().catch(() => []);
           if (rows && rows[0] && rows[0].pp) {
-            window.__PP__ = rows[0].pp; ok = true;
+            window.__PP__ = rows[0].pp; try { window.__PP__.ACCOUNT_TIER = rows[0].tier; } catch (_) {} coId = rows[0].id || null; ok = true;
           } else if (rows && rows[0] && slug === "kingsmen-resources") {
             // The published Kingsmen row exists but carries no `pp`. Kingsmen is the app's
             // built-in flagship: PassportProto ships the full original profile as its
@@ -531,6 +663,8 @@ function AppRoot() {
             ok = true;
           }
         }
+        // Surface the company's real published posts (press releases + media) on the profile.
+        if (ok && coId && window.__PP__) { try { await mergeCompanyPosts(coId, base); } catch (_) {} }
       } catch (_) { /* handled below */ }
 
       // Load published companies → Explore/search directory + the Today feed (their
@@ -563,6 +697,10 @@ function AppRoot() {
             };
           });
           const feed = [];
+          // RECENCY SAFEGUARD: only releases from the last N days reach the feed, so a
+          // company's back-catalogue of old press releases can never flood it.
+          const FEED_MAX_AGE_DAYS = 30;
+          const feedCutoff = new Date(Date.now() - FEED_MAX_AGE_DAYS * 86400000).toISOString().slice(0, 10);
           for (const r of drows) {
             // Releases in the feed are a PAID feature (basic/pro). Free/listing companies —
             // incl. demo profiles like Argenta — don't push their profile press releases here.
@@ -570,6 +708,7 @@ function AppRoot() {
             const logo = (r.brand && (r.brand.avatar || r.brand.logo)) || "";
             for (const y of (Array.isArray(r.pr) ? r.pr : [])) for (const it of (y.items || [])) {
               if (!it.id) continue;
+              if (String(it.id).slice(0, 10) < feedCutoff) continue; // stale release — keep off the feed
               feed.push({
                 coId: r.slug, slug: r.slug, co: r.name, logo, date: it.id,
                 headline: it.headline || it.label || "", key: !!it.key,
@@ -639,9 +778,34 @@ function ProfileUnavailable() {
   );
 }
 
-if (isBpDemo) {
+if (isEditorDemo) {
+  // Dev-only profile-editor harness (no auth). Additive; safe to remove.
+  root.render(<React.Suspense fallback={lazyFallback("editor")}><EditorDemo /></React.Suspense>);
+} else if (isFeedDemo) {
+  // Dev-only Today-feed harness (no auth). Additive; safe to remove.
+  root.render(<React.Suspense fallback={lazyFallback("feed")}><FeedDemo /></React.Suspense>);
+} else if (isPortalDemo) {
+  // Dev-only portal-shell harness (no auth). Additive; safe to remove.
+  root.render(<React.Suspense fallback={lazyFallback("portal")}><PortalDemo /></React.Suspense>);
+} else if (isStudioDemo) {
+  // Dev-only Story Studio harness (no auth, no DB). Additive; safe to remove.
+  root.render(<React.Suspense fallback={lazyFallback("Story Studio")}><StudioDemo /></React.Suspense>);
+} else if (isBpDemo) {
   // Dev-only Blueprint workspace harness (no auth, no DB). Additive; safe to remove.
   root.render(<React.Suspense fallback={lazyFallback("app")}><BlueprintDemo /></React.Suspense>);
+} else if (isOnboardDemo) {
+  // Dev-only onboarding-workspace harness (loads a real draft via preview token; no auth bypass). Additive; safe to remove.
+  root.render(<React.Suspense fallback={lazyFallback("app")}><OnboardDemo /></React.Suspense>);
+} else if (isConference) {
+  // PRODUCTION standalone Conference Mode booth — its own page, no investor-app bundle. Renders a
+  // company's chosen template by ?c=<slug> and QR-links to its Pro profile.
+  root.render(<React.Suspense fallback={lazyFallback("app")}><ConferenceBooth /></React.Suspense>);
+} else if (isConfV3Demo) {
+  // Dev-only Conference V3 harness (real data via preview token; no auth bypass). Additive; safe to remove.
+  root.render(<React.Suspense fallback={lazyFallback("app")}><ConferenceV3Demo /></React.Suspense>);
+} else if (isTemplatesDemo) {
+  // Dev-only Conference Mode template showcase gallery. Additive; safe to remove.
+  root.render(<React.Suspense fallback={lazyFallback("app")}><ShowcaseTemplates /></React.Suspense>);
 } else if (isPost) {
   // Public deep link to a single release (shared links, notification taps).
   root.render(<React.Suspense fallback={lazyFallback("release")}><PostDetailRoute postId={postId} /></React.Suspense>);
@@ -664,6 +828,12 @@ if (isBpDemo) {
         <DesktopOnly>
           <AuthGate title="Sign in to your company" subtitle="Build and manage your Passport profile">
             <React.Suspense fallback={lazyFallback("onboarding")}><Onboarding /></React.Suspense>
+          </AuthGate>
+        </DesktopOnly>
+      ) : isStudio ? (
+        <DesktopOnly>
+          <AuthGate requireAdmin title="Sign in to Story Studio" subtitle="Turn a press release into a designed carousel">
+            <React.Suspense fallback={lazyFallback("Story Studio")}><Studio /></React.Suspense>
           </AuthGate>
         </DesktopOnly>
       ) : isAdmin ? (

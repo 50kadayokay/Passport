@@ -2,11 +2,12 @@ import React, { useState, useEffect } from "react";
 import { Loader2, ShieldAlert } from "lucide-react";
 import { useAuth } from "./useAuth.js";
 import { getMyRole, signOut } from "../lib/auth.js";
+import { peekInvitation } from "../lib/portal.js";
 import LoginScreen from "./LoginScreen.jsx";
 
 const Loader = () => (
   <div className="grid min-h-[100dvh] place-items-center bg-slate-50 text-slate-400">
-    <Loader2 size={26} className="animate-spin text-emerald-500" />
+    <Loader2 size={26} className="animate-spin text-blue-500" />
   </div>
 );
 
@@ -14,13 +15,31 @@ const Loader = () => (
 export default function AuthGate({ children, title, subtitle, requireAdmin = false }) {
   const { signedIn, ready } = useAuth();
   const [role, setRole] = useState(undefined); // undefined = checking
+  const [invite, setInvite] = useState(null);  // peeked ?invite → brand the login as a company account
 
   useEffect(() => {
     if (signedIn && requireAdmin) { setRole(undefined); getMyRole().then((r) => setRole(r || "company")); }
   }, [signedIn, requireAdmin]);
 
+  // When a handoff link is open and the user isn't signed in yet, peek the invite (no accept)
+  // so the sign-in card is company-branded with the email prefilled + locked. The DB still
+  // enforces the email match on accept; this is pure UX.
+  useEffect(() => {
+    if (ready && !signedIn) {
+      let token = ""; try { token = new URLSearchParams(window.location.search).get("invite") || ""; } catch (_) {}
+      if (token) peekInvitation(token).then((r) => { if (r && r.ok) setInvite(r); });
+    }
+  }, [ready, signedIn]);
+
   if (!ready) return <Loader />;
-  if (!signedIn) return <LoginScreen title={title} subtitle={subtitle} />;
+  if (!signedIn) return (
+    <LoginScreen
+      title={title} subtitle={subtitle}
+      brand={invite ? { name: invite.company_name, logo: invite.logo } : null}
+      lockedEmail={invite ? invite.email : ""}
+      defaultMode={invite ? "signup" : "signin"}
+    />
+  );
 
   if (requireAdmin) {
     if (role === undefined) return <Loader />;

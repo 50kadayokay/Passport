@@ -17,7 +17,7 @@ import { SUPABASE_URL } from "../lib/supabase.js";
 import { authHeaders, getAccessToken } from "../lib/auth.js";
 
 const KINDS = {
-  press_release: { label: "Press release", c: "#0f766e", bg: "#ecfdf5" },
+  press_release: { label: "Press release", c: "#0f766e", bg: "#eff6ff" },
   deck: { label: "Deck", c: "#7c3aed", bg: "#f5f3ff" },
   technical_report: { label: "Technical report", c: "#b45309", bg: "#fffbeb" },
   financial: { label: "Financial", c: "#1d4ed8", bg: "#eff6ff" },
@@ -171,14 +171,14 @@ export default function CompanyMemory({ company }) {
         <div className="mt-5 grid grid-cols-3 gap-3">
           <Stat label="Documents on file" value={docs === null ? "—" : docs.length} />
           <Stat label="Searchable (text captured)" value={docs === null ? "—" : withText} />
-          <Stat label="Status" value="Permanent" accent="#059669" />
+          <Stat label="Status" value="Permanent" accent="#2563eb" />
         </div>
 
         {/* analyze NEW documents — the incremental, edit-preserving path */}
         {newCount > 0 && (
-          <div className="mt-4 flex flex-wrap items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50/40 p-4">
+          <div className="mt-4 flex flex-wrap items-center gap-3 rounded-2xl border border-blue-200 bg-blue-50/40 p-4">
             <button onClick={analyzeNew} disabled={!!busy}
-              className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-[13.5px] font-bold text-white disabled:opacity-40">
+              className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-[13.5px] font-bold text-white disabled:opacity-40">
               {busy === "analyzeNew" ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />} Analyze {newCount} new document{newCount === 1 ? "" : "s"}
             </button>
             <p className="flex-1 text-[12.5px] text-slate-600">
@@ -197,14 +197,14 @@ export default function CompanyMemory({ company }) {
             {(busy === "reanalyze" && reMsg) || "Full rebuild from every stored document. Use this to re-do the whole profile; it replaces the timeline and re-derives every section."}
           </p>
         </div>
-        {reDone && <p className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-emerald-50 px-3 py-2 text-[12.5px] font-semibold text-emerald-700"><Check size={13} /> {reDone}</p>}
+        {reDone && <p className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-blue-50 px-3 py-2 text-[12.5px] font-semibold text-blue-700"><Check size={13} /> {reDone}</p>}
 
         {/* add more — the persistent entry point */}
         <div onClick={() => inputRef.current?.click()}
           onDragOver={(e) => { e.preventDefault(); setDrag(true); }} onDragLeave={() => setDrag(false)}
           onDrop={(e) => { e.preventDefault(); setDrag(false); if (e.dataTransfer.files?.length) addFiles(e.dataTransfer.files); }}
-          className={`mt-4 flex cursor-pointer flex-col items-center gap-2 rounded-2xl border-2 border-dashed p-6 text-center transition ${drag ? "border-emerald-400 bg-emerald-50/50" : "border-slate-200 hover:border-slate-300"}`}>
-          {busy ? <Loader2 size={22} className="animate-spin text-emerald-500" /> : <Upload size={22} className="text-emerald-500" />}
+          className={`mt-4 flex cursor-pointer flex-col items-center gap-2 rounded-2xl border-2 border-dashed p-6 text-center transition ${drag ? "border-blue-400 bg-blue-50/50" : "border-slate-200 hover:border-slate-300"}`}>
+          {busy ? <Loader2 size={22} className="animate-spin text-blue-500" /> : <Upload size={22} className="text-blue-500" />}
           <p className="text-[13.5px] font-bold text-slate-700">{busy || "Add documents to this company's file"}</p>
           <p className="text-[12px] text-slate-400">Drop files or click — they're filed permanently and deduped automatically.</p>
           <input ref={inputRef} type="file" multiple className="hidden" onChange={(e) => { addFiles(e.target.files); e.target.value = ""; }} />

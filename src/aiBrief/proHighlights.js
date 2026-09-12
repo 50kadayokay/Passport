@@ -379,7 +379,10 @@ function deriveFocus(ctx, archetype) {
 
 export function buildCompanyIdentity(ctx = {}) {
   const co = ctx.COMPANY || {};
-  const proj = pickFlagship(ctx, ctx.featuredKey);
+  // Honor explicit editor overrides (COMPANY.flagshipKey/stage/focus/projectsLabel) so what a
+  // company types in the editor is exactly what shows on the status card. Falls back to the
+  // derived values when an override isn't set — existing companies are unaffected.
+  const proj = pickFlagship(ctx, ctx.featuredKey || co.flagshipKey);
   const archetype = detectArchetype(ctx, proj);
 
   // Tickers — prefer the structured EXCHANGES list; else parse COMPANY.ticker ("TSXV: KNG").
@@ -403,13 +406,13 @@ export function buildCompanyIdentity(ctx = {}) {
   const count = countNamedProjects(ctx);
   return prune({
     tickers,
-    stage: ARCHETYPE_BADGE[archetype] || "",
+    stage: S(co.stage) || ARCHETYPE_BADGE[archetype] || "",
     flagship: { projectName: S(proj && proj.name), location, ownership, image },
     meta: {
-      commodity: cleanCommodityList(snapVal(proj || {}, "commodity") || co.commodity || (proj && proj.commodities)),
-      jurisdiction: primaryJurisdiction(co.jurisdiction || location),
-      projects: count ? (count === 1 ? "1 Project" : `${count} Projects`) : "",
-      focus: deriveFocus(ctx, archetype),
+      commodity: S(co.commodity) || cleanCommodityList(snapVal(proj || {}, "commodity") || (proj && proj.commodities)),
+      jurisdiction: S(co.jurisdiction) || primaryJurisdiction(location),
+      projects: S(co.projectsLabel) || (count ? (count === 1 ? "1 Project" : `${count} Projects`) : ""),
+      focus: S(co.focus) || deriveFocus(ctx, archetype),
     },
   });
 }

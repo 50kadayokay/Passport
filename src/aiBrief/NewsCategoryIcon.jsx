@@ -28,7 +28,7 @@ export const CATEGORY_STYLE = {
 const TYPE_STYLE = {
   VIDEO:     { Icon: Film,      color: "#be123c", tint: "rgba(190,18,60,0.10)" },   // rose
   INTERVIEW: { Icon: Film,      color: "#be123c", tint: "rgba(190,18,60,0.10)" },
-  UPDATE:    { Icon: Radio,     color: "#059669", tint: "rgba(5,150,105,0.12)" },   // emerald
+  UPDATE:    { Icon: Radio,     color: "#2563eb", tint: "rgba(37,99,235,0.12)" },   // emerald
 };
 const FALLBACK = CATEGORY_STYLE["General News"];
 

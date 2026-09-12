@@ -22,7 +22,7 @@ const MODES = [
 
 const MAT = {
   Transformational: { c: "#7c3aed", bg: "#f5f3ff" },
-  High: { c: "#0f766e", bg: "#ecfdf5" },
+  High: { c: "#0f766e", bg: "#eff6ff" },
   Moderate: { c: "#1d4ed8", bg: "#eff6ff" },
   Low: { c: "#64748b", bg: "#f8fafc" },
 };
@@ -175,7 +175,7 @@ export function FollowButton({ companyId, size = "sm" }) {
   if (following === null) return null;
   return (
     <button onClick={toggle}
-      className={`inline-flex items-center gap-1 rounded-full font-bold transition ${big ? "px-4 py-2 text-[13px]" : "px-3 py-1 text-[11px]"} ${following ? "bg-slate-100 text-slate-600" : "bg-emerald-600 text-white"}`}>
+      className={`inline-flex items-center gap-1 rounded-full font-bold transition ${big ? "px-4 py-2 text-[13px]" : "px-3 py-1 text-[11px]"} ${following ? "bg-slate-100 text-slate-600" : "bg-blue-600 text-white"}`}>
       {following ? <Check size={big ? 14 : 11} strokeWidth={2.8} /> : <Plus size={big ? 14 : 11} strokeWidth={2.8} />}
       {following ? "Following" : "Follow"}
     </button>
@@ -247,7 +247,7 @@ function NotificationCenter({ onClose, onOpenPost }) {
           <button onClick={onClose} className="grid h-9 w-9 place-items-center rounded-full text-slate-500 hover:bg-slate-100"><X size={18} /></button>
           <p className="text-[15px] font-extrabold tracking-tight text-slate-900">Notifications</p>
         </div>
-        <button onClick={allRead} className="text-[12px] font-bold text-emerald-600">Mark all read</button>
+        <button onClick={allRead} className="text-[12px] font-bold text-blue-600">Mark all read</button>
       </div>
 
       <div className="pp-scroll flex-1 overflow-y-auto pb-24">
@@ -257,7 +257,7 @@ function NotificationCenter({ onClose, onOpenPost }) {
             <p className="text-[10.5px] font-bold uppercase tracking-widest text-slate-400">Preferences</p>
             <label className="mt-2 flex items-center justify-between">
               <span className="flex items-center gap-2 text-[13.5px] font-semibold text-slate-700"><BellOff size={15} className="text-slate-400" /> Mute all notifications</span>
-              <input type="checkbox" checked={!!pref.muted} onChange={(e) => savePref({ muted: e.target.checked })} className="h-4 w-4 accent-emerald-600" />
+              <input type="checkbox" checked={!!pref.muted} onChange={(e) => savePref({ muted: e.target.checked })} className="h-4 w-4 accent-blue-600" />
             </label>
             <label className="mt-2 flex items-center justify-between">
               <span className="text-[13.5px] font-semibold text-slate-700">Only notify me about</span>
@@ -281,7 +281,7 @@ function NotificationCenter({ onClose, onOpenPost }) {
             {rows.map((n) => (
               <li key={n.id}>
                 <button onClick={() => open(n)} className="flex w-full items-start gap-3 px-5 py-3.5 text-left hover:bg-slate-50">
-                  <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${n.read_at ? "bg-transparent" : "bg-emerald-500"}`} />
+                  <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${n.read_at ? "bg-transparent" : "bg-blue-500"}`} />
                   <span className="min-w-0 flex-1">
                     <span className="block text-[13.5px] font-bold text-slate-900">{n.title}</span>
                     {n.body && <span className="block truncate text-[12.5px] text-slate-500">{n.body}</span>}

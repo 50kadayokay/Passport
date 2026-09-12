@@ -118,7 +118,7 @@ PAID STATUS: a company's paid tier must NEVER affect wording, interpretation, ma
 
 RELEVANCE (consistent): RELEVANT = any company exploration/development/production event, or a market/supply development that moves a commodity or the sector (relevant even for large producers). NOT RELEVANT = opinion/op-eds, podcasts, HR/scandal, human-interest with no market/asset consequence, boilerplate, unrelated, thin duplication. Same event from two sources → both relevant (clustering dedups later).
 
-COMPANY: set primary_company ONLY when the item is specifically ABOUT that company; leave empty for macro/opinion pieces.
+COMPANY: set primary_company ONLY when the item is specifically ABOUT that company; leave empty for macro/opinion pieces. When it IS about one company (e.g. a company press release — its name almost always leads the headline), ALWAYS fill primary_company.name, taking it from the headline if the body is unavailable. Fill primary_company.ticker/exchange ONLY when you actually see them in the text — leave them "" rather than guessing; a downstream step verifies the ticker from the web when it's missing.
 
 CLASSIFY for the app card: category = the single best label from [Drill Results, Financing, MRE/Resource, Management, Property Acquisition, General News]; commodity = the single primary metal (Gold, Silver, Copper, Lithium, Uranium, Zinc, Nickel, …) or "" if none/macro. These are labels only and must NEVER change the factual wording of the sections.
 
@@ -191,21 +191,102 @@ export function normTicker(t) {
   if (s.includes(":")) s = s.split(":").pop();
   return s.replace(/\.(V|TO|CN|NE|C)\b/g, "").replace(/\b(TSXV|TSX|CSE|NYSE|NASDAQ|OTC|OTCQB|OTCQX|LSE|ASX)\b/g, "").replace(/[^A-Z0-9]/g, "").trim();
 }
+// Web-search enrichment for an auto-created company — grounded profile fields pulled
+// live from the web (its own site / filings preferred), NEVER invented. Uses the
+// OpenAI Responses API web_search tool. Returns {} on any failure so the caller can
+// fall back to the bare, analysis-derived stub.
+export async function enrichCompany(name, ticker, exchange) {
+  if (!process.env.OPENAI_API_KEY || !name) return {};
+  const ex = String(exchange || "").trim();
+  const prompt = `Research the mining company ${name}${ticker ? ` (${ex ? ex + ": " : ""}${ticker})` : ""}. Using ONLY facts you find on the web (prefer the company's own website or regulatory filings), reply with ONLY a JSON object: {"description": one or two COMPLETE, natural sentences on what the company does — its main commodity focus and where it operates; name the flagship project ONLY if you actually find its name, otherwise don't mention a flagship at all, "commodity": primary metal(s) e.g. "Gold" or "Gold, Copper", "stage": one of Explorer/Developer/Producer/Royalty, "jurisdiction": where their projects are (region, country), "headquarters": city, province/state, "website": official website url, "ticker": the company's PRIMARY stock symbol WITHOUT any exchange prefix (e.g. "ZAU"), "exchange": the exchange it trades on as an abbreviation (TSXV, TSX, CSE, NEO, or ASX)}. The ticker and exchange must be the REAL ones you verify on the web for THIS exact company — never guess or invent them; if you cannot verify the ticker with confidence, set both "ticker" and "exchange" to "". Never invent projects, grades, or places, and NEVER write empty quotation marks or placeholders in the prose — omit anything you cannot verify. Use "" only for a whole field you cannot verify.`;
+  try {
+    const res = await fetch("https://api.openai.com/v1/responses", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}`, "content-type": "application/json" },
+      body: JSON.stringify({ model: AI_MODEL(), tools: [{ type: "web_search_preview" }], input: prompt }),
+    });
+    if (!res.ok) return {};
+    const j = await res.json();
+    let txt = "";
+    for (const o of j.output || []) if (o.type === "message") for (const c of o.content || []) if (c.type === "output_text") txt += c.text || "";
+    const m = txt.match(/\{[\s\S]*\}/);
+    if (!m) return {};
+    try { return JSON.parse(m[0]); } catch { return {}; }
+  } catch { return {}; }
+}
+
+// Yahoo Finance exchange suffixes (same map the app uses to build tappable quote links).
+const YSUF = { TSXV: ".V", "TSX-V": ".V", "TSX.V": ".V", TSX: ".TO", CSE: ".CN", CNSX: ".CN", NEO: ".NE", CBOE: ".NE", ASX: ".AX", LSE: ".L", FSE: ".F", FRA: ".F", NYSE: "", NASDAQ: "", OTC: "", OTCQB: "", OTCQX: "" };
+// Confirm a ticker is a REAL, currently-listed security before we ever publish it — a
+// wrong ticker is the highest-harm error (it sends investors to the wrong stock, and a
+// disclaimer covers that case least well). Checks Yahoo's public chart endpoint (free, no
+// key). Tries the resolved exchange's suffix first, then the common Canadian junior-board
+// suffixes (these are almost all TSXV/CSE names). Returns the VERIFIED Yahoo symbol, or ""
+// if nothing resolves — in which case the caller must NOT create the profile.
+export async function verifyTicker(ticker, exchange) {
+  const t = String(ticker || "").trim().toUpperCase().replace(/\.[A-Z]+$/, "");
+  if (!t || !/^[A-Z0-9.\-]{1,8}$/.test(t)) return "";
+  const ex = String(exchange || "").trim().toUpperCase().replace(/\s+/g, "");
+  const cands = [];
+  if (ex in YSUF) cands.push(t + YSUF[ex]);          // the resolved exchange wins
+  for (const s of [".V", ".CN", ".TO", ".NE", ""]) if (!cands.includes(t + s)) cands.push(t + s);
+  for (const sym of cands) {
+    try {
+      const r = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?range=1d&interval=1d`, { headers: { "User-Agent": "Mozilla/5.0" } });
+      if (!r.ok) continue;
+      const j = await r.json();
+      const res = j && j.chart && j.chart.result;
+      if (res && res[0] && res[0].meta && res[0].meta.symbol) return res[0].meta.symbol;
+    } catch { /* try next candidate */ }
+  }
+  return "";
+}
+
+const EXCH_RE = /\b(TSXV|TSX|CSE|CNSX|NEO|NYSE|NASDAQ|OTCQB|OTCQX|OTC|LSE|ASX|FSE)\b/i;
+// Exchange for a company row — from its primary_ticker prefix ("TSXV: AME") or the
+// exsym we select from profile->pp->COMPANY->ticker ("CSE: AGC").
+export function exchOf(c) {
+  const m = String((c && (c.primary_ticker || c.exsym)) || "").match(EXCH_RE);
+  return m ? m[1].toUpperCase() : "";
+}
+// Exchange-aware index: byExch keys "EXCH|TICKER" for exact cross-exchange matching;
+// byTicker keeps EVERY company per bare ticker so we can detect ambiguous collisions.
 export function buildCompanyIndex(rows) {
-  const byTicker = new Map(), byName = new Map();
+  const byTicker = new Map(), byName = new Map(), byExch = new Map();
   for (const c of rows || []) {
-    const t = normTicker(c.primary_ticker); if (t && !byTicker.has(t)) byTicker.set(t, c);
+    const t = normTicker(c.primary_ticker);
+    if (t) {
+      if (!byTicker.has(t)) byTicker.set(t, []);
+      byTicker.get(t).push(c);
+      const ex = exchOf(c); if (ex) byExch.set(ex + "|" + t, c);
+    }
     const n = normName(c.name); if (n && !byName.has(n)) byName.set(n, c);
   }
-  return { byTicker, byName, rows: rows || [] };
+  return { byTicker, byName, byExch, rows: rows || [] };
 }
 export function matchCompany(analysis, idx) {
+  const pc = analysis.primary_company || {};
   const tickers = [];
-  if (analysis.primary_company && analysis.primary_company.ticker) tickers.push(analysis.primary_company.ticker);
-  for (const o of analysis.other_companies || []) if (o.ticker) tickers.push(o.ticker);
-  for (const t of tickers) { const key = normTicker(t); if (key && idx.byTicker.has(key)) { const c = idx.byTicker.get(key); return { company_id: c.id, company_slug: c.slug, tier: c.tier, confidence: 0.97, method: "ticker" }; } }
+  if (pc.ticker) tickers.push({ t: pc.ticker, ex: pc.exchange || "" });
+  for (const o of analysis.other_companies || []) if (o.ticker) tickers.push({ t: o.ticker, ex: o.exchange || "" });
+  for (const { t, ex } of tickers) {
+    const key = normTicker(t); if (!key) continue;
+    const em = String(ex || "").match(EXCH_RE);
+    // 1) exchange-qualified exact match — beats cross-exchange ticker collisions
+    if (em && idx.byExch.has(em[1].toUpperCase() + "|" + key)) {
+      const c = idx.byExch.get(em[1].toUpperCase() + "|" + key);
+      return { company_id: c.id, company_slug: c.slug, tier: c.tier, confidence: 0.98, method: "ticker" };
+    }
+    // 2) bare-ticker match ONLY when exactly one company has it (unambiguous)
+    const arr = idx.byTicker.get(key);
+    if (arr && arr.length === 1) {
+      const c = arr[0];
+      return { company_id: c.id, company_slug: c.slug, tier: c.tier, confidence: 0.95, method: "ticker" };
+    }
+    // ambiguous bare ticker with no exchange → do NOT guess; fall through to name
+  }
   const names = [];
-  if (analysis.primary_company && analysis.primary_company.name) names.push(analysis.primary_company.name);
+  if (pc.name) names.push(pc.name);
   for (const o of analysis.other_companies || []) if (o.name) names.push(o.name);
   for (const nm of names) { const key = normName(nm); if (key && idx.byName.has(key)) { const c = idx.byName.get(key); return { company_id: c.id, company_slug: c.slug, tier: c.tier, confidence: 0.9, method: "name-exact" }; } }
   // FIX 4: dropped the fuzzy "name-partial" match — it produced loose false links on

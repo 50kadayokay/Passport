@@ -204,7 +204,7 @@ const CARD_COMPONENTS = { flagship: FlagshipCard, program: ProgramCard, standout
 // Renders ONLY the swipeable card track (fills its container like the classic status
 // card). Page dots live in the parent as a sibling row — matching the classic layout —
 // so this reports its active index via onActiveChange and exposes goTo() through a ref.
-const ProHighlightsCarousel = forwardRef(function ProHighlightsCarousel({ data, following, setFollowing, accent = "#10b981", accentText = "#0f9b73", onActiveChange }, ref) {
+const ProHighlightsCarousel = forwardRef(function ProHighlightsCarousel({ data, following, setFollowing, accent = "#3b82f6", accentText = "#1d4ed8", onActiveChange }, ref) {
   const cards = (data && Array.isArray(data.cards)) ? data.cards : [];
   const scrollRef = useRef(null);
   // Full-width cards → one card per viewport, no next-card peek. Step = the viewport width.

@@ -1,0 +1,41 @@
+{
+  // TypeScript is scoped to Story Studio and nothing else. The rest of the app is
+  // long-standing JSX and is deliberately NOT type-checked here — adding it would
+  // produce thousands of pre-existing errors and drown the signal from new code.
+  // `allowJs` + `checkJs:false` lets studio modules import existing .js helpers
+  // (supabase.js, auth.js, pdfText.js) with inferred types but without auditing them.
+  //
+  // It lives in src/studio rather than the repo root because esbuild applies the
+  // NEAREST tsconfig's compilerOptions to every file it transforms, ignoring
+  // `include`. Keeping it here means these options can only ever reach studio
+  // files. (Measured: with this config at the root, the existing app's emitted
+  // code was unchanged — but the blast radius was repo-wide, and it need not be.)
+  //
+  // Vite/esbuild strips types at build time and never type-checks; `npm run typecheck`
+  // is the gate.
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "types": ["vite/client"],
+
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "exactOptionalPropertyTypes": false,
+
+    "allowJs": true,
+    "checkJs": false,
+    "resolveJsonModule": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "isolatedModules": true,
+    "noEmit": true
+  },
+  "include": ["."]
+}

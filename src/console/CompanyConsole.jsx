@@ -104,7 +104,7 @@ export default function CompanyConsole() {
         <header className="flex flex-shrink-0 items-center justify-between border-b border-slate-200 bg-white px-6 py-3">
           <div className="flex items-center gap-3">
             <span className="text-[16px] font-extrabold tracking-tight">{name}</span>
-            <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[12px] font-bold ${isPublished(company) ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600"}`}>
+            <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[12px] font-bold ${isPublished(company) ? "bg-blue-50 text-blue-600" : "bg-amber-50 text-amber-600"}`}>
               {isPublished(company) ? <CheckCircle2 size={12} /> : <Circle size={12} />} {isPublished(company) ? "Published" : "Draft"}
             </span>
           </div>
@@ -139,7 +139,7 @@ function DashboardSection({ company, go }) {
         <h1 className="text-[26px] font-extrabold tracking-tight">Welcome back{company?.name ? `, ${company.name}` : ""}.</h1>
         <p className="mt-1 text-[14px] text-slate-400">Here's your Passport at a glance.</p>
         <div className="mt-6 grid grid-cols-3 gap-3">
-          <Card label="Status" value={published ? "Published" : "Draft"} accent={published ? "#059669" : "#d97706"} />
+          <Card label="Status" value={published ? "Published" : "Draft"} accent={published ? "#2563eb" : "#d97706"} />
           <Card label="Projects" value={projects} />
           <Card label="Profile" value={company ? "Started" : "Not started"} />
         </div>
