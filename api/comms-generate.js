@@ -25,7 +25,20 @@ const OPENAI_URL = "https://api.openai.com/v1/chat/completions";
 // the feature that unlocks it. Passport (the profile itself) and push are always
 // available on the base plan; the rest gate on their publish feature.
 const CHANNELS = {
-  passport:   { label: "Passport timeline", feature: "communications_center", shape: "A timeline entry: a headline (<= 70 chars) and a 1-2 sentence body." },
+  // The MineEx timeline entry is the PUBLISHED PRESS RELEASE, and every release renders in
+  // the same four-part shape on the investor profile (SummaryContent reads exactly these
+  // keys). Asking for a loose "headline and body" produced entries the profile could only
+  // half-render, so the shape is spelled out here.
+  passport:   { label: "MineEx timeline", feature: "communications_center", shape: [
+    "A press release in the house format. Return an object with EXACTLY these keys:",
+    "  headline        - <= 70 chars, factual, no hype, no trailing period.",
+    "  label           - 2-4 word category tag, e.g. 'Drill Results' or 'Financing'.",
+    "  whatHappened    - 1-2 sentences. Only what the source states. No inference.",
+    "  why             - 1-2 sentences on why it matters to an investor.",
+    "  whatHappensNext - 1 sentence on the stated next step. Omit if the source gives none.",
+    "  takeaways       - array of 2-4 short bullet strings, each <= 90 chars.",
+    "Use ONLY figures present in the source. Never invent grades, depths, dates or dollar amounts.",
+  ].join("\n") },
   push:       { label: "Push notification", feature: "push_publish",          shape: "A push notification: title (<= 40 chars) and body (<= 110 chars)." },
   website:    { label: "Website article",   feature: "website_publish",       shape: "A short news article: title, dek (1 sentence), and 2-3 short paragraphs." },
   linkedin:   { label: "LinkedIn post",     feature: "linkedin_publish",      shape: "A LinkedIn post: 2-4 short paragraphs, professional, 1-2 relevant hashtags max." },
@@ -94,10 +107,19 @@ export default async function handler(req, res) {
 
   let body = req.body;
   if (typeof body === "string") { try { body = JSON.parse(body); } catch { return bad(res, 400, "Invalid JSON body"); } }
-  const { companyId = "", update = "", occurredOn = "", destinations = [], context = null } = body || {};
+  const {
+    companyId = "", update = "", occurredOn = "", destinations = [], context = null,
+    // Revision loop: the reviewer keeps the drafts they already have and says what to change.
+    // `revise` is their instruction, `previous` the drafts being revised.
+    revise = "", previous = null,
+    // A press release transcribed from an uploaded PDF. Longer than a typed update and
+    // authoritative — the model must summarise ONLY from this, never embellish it.
+    sourceText = "",
+  } = body || {};
 
   if (!companyId) return bad(res, 400, "companyId is required.");
-  if (!update || update.trim().length < 4) return bad(res, 400, "Write an update first.");
+  const source = String(sourceText || "").trim();
+  if (!source && (!update || update.trim().length < 4)) return bad(res, 400, "Write an update first.");
 
   // The Communications Center itself is the gate. Individual destinations are
   // filtered by their own feature below, so a company can draft for what it pays
@@ -116,9 +138,22 @@ export default async function handler(req, res) {
 
   const channelSpec = channels.map((d) => `- ${d} (${CHANNELS[d].label}): ${CHANNELS[d].shape}`).join("\n");
   const ctx = context ? `\n\nCompany context:\n${JSON.stringify(context).slice(0, 4000)}` : "";
+  // A transcribed release is the authoritative source and replaces the CEO's typed note;
+  // it is passed verbatim (truncated only for length) so nothing is paraphrased twice.
+  const sourceBlock = source
+    ? `Full press release issued by the company${occurredOn ? ` (${occurredOn})` : ""}. Summarise ONLY from this text — every figure, date and name must appear in it:\n"""\n${source.slice(0, 14000)}\n"""`
+    : `Company update from the CEO${occurredOn ? ` (occurred ${occurredOn})` : ""}:\n"""\n${String(update).slice(0, 4000)}\n"""`;
+
+  // On a revision, show the model what it produced and what the reviewer wants changed,
+  // so it edits rather than starting over and losing the parts they were happy with.
+  const reviseBlock = (revise && previous)
+    ? `\n\nYou previously produced these drafts:\n"""\n${JSON.stringify(previous).slice(0, 6000)}\n"""\n` +
+      `The reviewer wants them revised. Their instruction:\n"""\n${String(revise).slice(0, 1200)}\n"""\n` +
+      `Apply it and return the FULL set of drafts again. Keep everything they did not ask you to change.`
+    : "";
+
   const userMsg =
-    `Company update from the CEO${occurredOn ? ` (occurred ${occurredOn})` : ""}:\n"""\n${String(update).slice(0, 4000)}\n"""` +
-    ctx +
+    sourceBlock + ctx + reviseBlock +
     `\n\nDraft for exactly these destinations, in this order:\n${channelSpec}\n\n` +
     `Return one draft per destination plus which profile sections to review.`;
 

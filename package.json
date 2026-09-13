@@ -8,7 +8,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit -p src/studio/tsconfig.json",
-    "check:anchors": "esbuild src/studio/dev/anchorCheck.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/studio-anchorCheck.mjs --log-level=error && node node_modules/.cache/studio-anchorCheck.mjs"
+    "check:anchors": "esbuild src/studio/dev/anchorCheck.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/studio-anchorCheck.mjs --log-level=error && node node_modules/.cache/studio-anchorCheck.mjs",
+    "check:leak": "node scripts/check-prototype-leak.mjs"
   },
   "dependencies": {
     "@aparajita/capacitor-secure-storage": "^8.0.0",

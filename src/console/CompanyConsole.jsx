@@ -71,7 +71,7 @@ export default function CompanyConsole() {
       <aside className="flex w-56 flex-shrink-0 flex-col border-r border-slate-200 bg-white">
         <div className="flex items-center gap-2 px-5 py-4">
           <div className="grid h-8 w-8 place-items-center rounded-lg bg-slate-900 text-[14px] font-extrabold text-white">P</div>
-          <span className="text-[15px] font-extrabold tracking-tight">Passport</span>
+          <span className="text-[15px] font-extrabold tracking-tight">MineEx</span>
         </div>
         {isAdmin && (
           <a href="/admin" className="mx-3 mb-2 flex items-center gap-2 rounded-lg border border-slate-200 px-2.5 py-2 text-[13px] font-bold text-slate-600 hover:bg-slate-50 hover:text-slate-900">
@@ -137,7 +137,7 @@ function DashboardSection({ company, go }) {
     <div className="h-full overflow-y-auto px-8 py-8">
       <div className="mx-auto max-w-4xl">
         <h1 className="text-[26px] font-extrabold tracking-tight">Welcome back{company?.name ? `, ${company.name}` : ""}.</h1>
-        <p className="mt-1 text-[14px] text-slate-400">Here's your Passport at a glance.</p>
+        <p className="mt-1 text-[14px] text-slate-400">Here's your MineEx profile at a glance.</p>
         <div className="mt-6 grid grid-cols-3 gap-3">
           <Card label="Status" value={published ? "Published" : "Draft"} accent={published ? "#2563eb" : "#d97706"} />
           <Card label="Projects" value={projects} />

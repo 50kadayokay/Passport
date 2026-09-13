@@ -5,17 +5,21 @@ import {
   ScrollText, CreditCard, Settings as SettingsIcon, ExternalLink, LogOut,
   ChevronDown, ChevronRight, CheckCircle2, AlertCircle, ArrowRight, Sparkles, Loader2,
   Plus, Trash2, Clock, TrendingUp, FileText, Radio as RadioIcon, Check, ArrowLeft,
-  Megaphone, QrCode, HelpCircle, Copy, Download, Eye,
+  Megaphone, QrCode, HelpCircle, Copy, Download, Eye, Upload,
 } from "lucide-react";
 import { getUser, signOut, authHeaders, updatePassword, updateEmail } from "../lib/auth.js";
+import { profileUrl, companyLogo, companyMonogram, placardLogo } from "../lib/brand.js";
+import { buildPlacardSvg, splitQrSvg, CARD_W, CARD_H, PLACARD_FONT } from "../lib/qrPlacard.js";
 import {
   portalReadiness, listActivity, loadPortalCompany, updateCompanyProfile,
   companyStats, logActivity, fetchRecentContent,
 } from "../lib/portal.js";
 import { fetchPlan, fetchFeatures } from "../lib/features.js";
+import { uploadCompanyLogo } from "../lib/storage.js";
 import { computeHealth } from "./health.js";
 import { visibleProfileSections } from "./profileNav.js";
 import OnboardingPanel from "./OnboardingPanel.jsx";
+import { MineExLockup, CompanyMark } from "./BrandMarks.jsx";
 
 // Heavy, already-built surfaces are reused wholesale (never duplicated) and lazily
 // loaded so the portal shell stays lean:
@@ -50,13 +54,19 @@ const NAV_GROUPS = [
 const NAV = NAV_GROUPS.flatMap((g) => g.items);
 
 // Shared surface: white card on the soft canvas, hairline ring + a whisper of depth.
-const CARD = "rounded-2xl bg-white ring-1 ring-slate-200/70 shadow-[0_1px_2px_rgba(15,23,42,.04),0_4px_16px_-8px_rgba(15,23,42,.08)]";
+// Design-system card: white on white, lifted by a hairline + the layered slate shadow.
+const CARD = "rounded-2xl border border-slate-100 bg-white shadow-[0_1px_2px_rgba(15,23,42,.04),0_12px_26px_-20px_rgba(15,23,42,.4)]";
 
 const SectionLoader = () => (
   <div className="grid min-h-[60vh] place-items-center text-slate-300"><Loader2 size={24} className="animate-spin text-blue-500" /></div>
 );
 
-export default function Portal({ company: initial, switchCompany, adminMode = false }) {
+// `injectedProfile` is for the LOCALHOST harness only (/portaldemo): it loads a draft row
+// through a token RPC that bypasses RLS, then hands the profile straight to the editor.
+// Without it the editor re-fetches by slug with the anon key, RLS returns nothing for a
+// draft, and the editor renders empty. The real portal never passes it — there the user's
+// own JWT reads their company normally.
+export default function Portal({ company: initial, switchCompany, adminMode = false, injectedProfile = null, devFeatures = null }) {
   const [section, setSection] = useState("home");
   const [company, setCompany] = useState(initial);
   // Company Profile editor navigation, lifted here so the sidebar's expandable "Company Profile"
@@ -79,7 +89,7 @@ export default function Portal({ company: initial, switchCompany, adminMode = fa
   const active = NAV.find((n) => n.id === section);
 
   return (
-    <div className="flex min-h-[100dvh] bg-[#eef1f0] text-slate-900">
+    <div className="flex min-h-[100dvh] bg-white text-slate-900">
       <Sidebar section={section} setSection={setSection} company={company} switchCompany={switchCompany}
         profileNav={{ tab: profTab, step: profStep, go: goProfile }} />
       <main className="flex h-[100dvh] flex-1 flex-col overflow-hidden">
@@ -94,8 +104,8 @@ export default function Portal({ company: initial, switchCompany, adminMode = fa
         {bare ? (
           <div className="min-h-0 flex-1 overflow-y-auto">
             <Suspense fallback={<SectionLoader />}>
-              {(section === "press" || section === "broadcast") && <CommsCenter company={company} />}
-              {section === "profile"   && <Suspense fallback={<SectionLoader />}><ProfileEditor company={company} navTab={profTab} navStep={profStep} onNav={(t, s) => { setProfTab(t); setProfStep(s); }} /></Suspense>}
+              {(section === "press" || section === "broadcast") && <CommsCenter company={company} devFeatures={devFeatures} />}
+              {section === "profile"   && <Suspense fallback={<SectionLoader />}><ProfileEditor company={company} injectedProfile={injectedProfile} navTab={profTab} navStep={profStep} onNav={(t, s) => { setProfTab(t); setProfStep(s); }} /></Suspense>}
             </Suspense>
           </div>
         ) : (
@@ -119,115 +129,96 @@ export default function Portal({ company: initial, switchCompany, adminMode = fa
 
 /* ---------------------------------------------------------------- Sidebar */
 
-function Sidebar({ section, setSection, company, switchCompany, collapsed = false, profileNav = null }) {
-  const initials = (company?.name || company?.slug || "Co")
-    .split(/[\s-]+/).filter(Boolean).slice(0, 2).map((w) => w[0]?.toUpperCase()).join("") || "Co";
-  const bg = { backgroundImage: "linear-gradient(178deg,#0d1a15 0%,#0a1210 60%,#090f0d 100%)" };
-
-  // Collapsed icon rail — used inside the Company Profile editor so its section navigator is the
-  // single text menu (no competing double-sidebar). Same items, icon-only with tooltips.
-  if (collapsed) {
-    return (
-      <aside className="sticky top-0 flex h-[100dvh] w-[60px] shrink-0 flex-col items-center bg-[#0b1512] text-slate-300" style={bg}>
-        <span className="mt-6 grid h-7 w-7 place-items-center rounded-md bg-blue-500/15 text-blue-400 ring-1 ring-blue-400/25">
-          <span className="h-2 w-2 rounded-[3px] bg-blue-400" />
-        </span>
-        <button onClick={switchCompany || undefined} disabled={!switchCompany} title={company?.name || company?.slug || "Company"}
-          className="mt-5 grid h-9 w-9 place-items-center rounded-lg bg-gradient-to-br from-blue-400 to-blue-600 text-[12px] font-extrabold text-white shadow-sm">{initials}</button>
-        <nav className="mt-4 flex flex-1 flex-col items-center gap-1 overflow-y-auto py-2">
-          {NAV.map(({ id, label, Icon }) => {
-            const on = section === id;
-            return (
-              <button key={id} onClick={() => setSection(id)} title={label} aria-label={label}
-                className={`relative grid h-10 w-10 place-items-center rounded-lg transition ${on ? "bg-white/[0.08] text-blue-400" : "text-slate-400 hover:bg-white/[0.05] hover:text-slate-200"}`}>
-                {on && <span className="absolute left-0 top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-r bg-blue-400" />}
-                <Icon size={18} />
-              </button>
-            );
-          })}
-        </nav>
-        <div className="flex w-full flex-col items-center gap-1 border-t border-white/[0.07] py-3">
-          <a href="mailto:support@mineex.ca?subject=MineEx%20Portal%20—%20help" title="Help & support"
-             className="grid h-9 w-9 place-items-center rounded-lg text-slate-400 transition hover:bg-white/[0.05] hover:text-slate-200"><HelpCircle size={16} /></a>
-          <button onClick={() => signOut()} title="Sign out"
-            className="grid h-9 w-9 place-items-center rounded-lg text-slate-400 transition hover:bg-white/[0.05] hover:text-white"><LogOut size={16} /></button>
-        </div>
-      </aside>
-    );
-  }
+// Built to MINEEX_DESIGN_SYSTEM.md: slate neutrals on white, cobalt #2563eb as the one
+// accent, hairline borders, rounded-2xl hit areas, heavy lucide strokes. It previously used
+// a green-black gradient panel with vivid blue gradient tiles — off-system on every count.
+// (The unused `collapsed` icon-rail branch was removed with this rebuild; nothing passed it.)
+function Sidebar({ section, setSection, company, switchCompany, profileNav = null }) {
+  const navRef = React.useRef(null);
+  const activeKey = `${section}:${profileNav ? profileNav.tab : ""}:${profileNav ? profileNav.step : ""}`;
+  React.useEffect(() => {
+    const el = navRef.current && navRef.current.querySelector("[data-navactive='1']");
+    if (!el) return;
+    const box = navRef.current;
+    const br = box.getBoundingClientRect(), er = el.getBoundingClientRect();
+    if (er.top < br.top + 8 || er.bottom > br.bottom - 8) {
+      try { el.scrollIntoView({ block: "nearest", behavior: "smooth" }); } catch (_) {}
+    }
+  }, [activeKey]);
 
   return (
-    <aside className="sticky top-0 flex h-[100dvh] w-[248px] shrink-0 flex-col bg-[#0b1512] text-slate-300"
-           style={bg}>
-      {/* Wordmark */}
-      <div className="flex items-center gap-2 px-6 pt-6">
-        <span className="grid h-6 w-6 place-items-center rounded-md bg-blue-500/15 text-blue-400 ring-1 ring-blue-400/25">
-          <span className="h-2 w-2 rounded-[3px] bg-blue-400" />
-        </span>
-        <span className="text-[15px] font-bold tracking-tight text-white">Passport</span>
-        <span className="ml-auto rounded-full bg-white/[0.06] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-300 ring-1 ring-white/10">Portal</span>
+    <aside className="sticky top-0 flex h-[100dvh] w-[252px] shrink-0 flex-col border-r border-slate-100 bg-white">
+      {/* MineEx lockup — the mark sits left of the M at the same height. */}
+      <div className="flex items-center px-5 pt-6">
+        <MineExLockup size={30} />
       </div>
 
-      {/* Company switcher */}
-      <div className="px-4 pt-5">
+      {/* The company being managed, carrying ITS OWN logo. */}
+      <div className="px-3 pt-5">
         <button
           onClick={switchCompany || undefined}
           disabled={!switchCompany}
-          className={`flex w-full items-center gap-2.5 rounded-xl bg-white/[0.05] px-3 py-2.5 text-left ring-1 ring-white/10 transition ${switchCompany ? "hover:bg-white/[0.08] hover:ring-white/20" : "cursor-default"}`}
+          className={`flex w-full items-center gap-2.5 rounded-2xl border border-slate-100 bg-white px-2.5 py-2.5 text-left shadow-[0_1px_2px_rgba(15,23,42,.04)] transition ${
+            switchCompany ? "hover:border-slate-200 active:scale-[0.99]" : "cursor-default"
+          }`}
         >
-          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-gradient-to-br from-blue-400 to-blue-600 text-[13px] font-extrabold text-white shadow-sm">{initials}</span>
+          <CompanyMark company={company} size={36} />
           <span className="min-w-0 flex-1">
-            <span className="block truncate text-[13.5px] font-bold text-white">{company?.name || company?.slug || "Company"}</span>
-            <span className="block text-[11px] font-medium capitalize text-slate-400">{company?.role || "owner"}</span>
+            <span className="block truncate text-[13.5px] font-extrabold leading-snug tracking-tight text-slate-900">
+              {company?.name || company?.slug || "Company"}
+            </span>
+            <span className="block text-[10.5px] font-semibold capitalize text-slate-400">{company?.role || "owner"}</span>
           </span>
-          {switchCompany && <ChevronDown size={15} className="text-slate-500" />}
+          {switchCompany && <ChevronDown size={15} strokeWidth={2.4} className="shrink-0 text-slate-400" />}
         </button>
       </div>
 
-      {/* Grouped nav */}
-      <nav className="mt-4 flex-1 overflow-y-auto px-3 pb-3">
+      {/* Grouped nav. Scrolls when Company Profile is expanded — the sub-tree makes it taller
+          than the viewport — so the selected item is scrolled into view, otherwise the user
+          loses track of where they are and items near the bottom look clipped. */}
+      <nav ref={navRef} className="mt-5 flex-1 overflow-y-auto px-3 pb-3">
         {NAV_GROUPS.map((group) => (
-          <div key={group.title} className="mt-4 first:mt-2">
-            <p className="px-3 pb-1.5 text-[10.5px] font-bold uppercase tracking-[0.14em] text-slate-500">{group.title}</p>
+          <div key={group.title} className="mt-5 first:mt-0">
+            <p className="px-3 pb-1.5 text-[10.5px] font-bold uppercase tracking-[0.16em] text-slate-400">{group.title}</p>
             <div className="space-y-0.5">
               {group.items.map(({ id, label, Icon }) => {
                 const isProfile = id === "profile";
                 const on = section === id;
                 const expanded = isProfile && section === "profile" && profileNav;
-                // The Company Profile parent shows an OPEN state when expanded (brighter text +
-                // chevron) but never the strong active pill — that's reserved for the one
-                // selected sub-page, so only a single item reads as active.
+                // The Company Profile parent shows an OPEN state when expanded but never the
+                // accent pill — that is reserved for the one selected sub-page, so exactly one
+                // item ever reads as active.
                 const parentStrong = on && !isProfile;
                 return (
                   <div key={id}>
                     <button
                       onClick={() => setSection(id)}
-                      className={`group relative flex w-full items-center gap-3 rounded-lg px-3 py-2 text-[13.5px] font-semibold transition ${
-                        parentStrong ? "bg-white/[0.08] text-white"
-                        : expanded ? "text-white"
-                        : "text-slate-400 hover:bg-white/[0.04] hover:text-slate-200"
+                      data-navactive={parentStrong ? "1" : undefined}
+                      className={`group flex w-full items-center gap-3 rounded-2xl px-3 py-2 text-[13.5px] font-bold tracking-tight transition active:scale-[0.99] ${
+                        parentStrong ? "bg-blue-50 text-blue-600"
+                        : expanded ? "text-slate-900"
+                        : "text-slate-600 hover:bg-slate-50"
                       }`}
                     >
-                      {parentStrong && <span className="absolute left-0 top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-r bg-white/70" />}
-                      <Icon size={16.5} className={parentStrong ? "text-white" : expanded ? "text-slate-200" : "text-slate-500 group-hover:text-slate-300"} />
+                      <Icon size={16.5} strokeWidth={parentStrong ? 2.4 : 2.2}
+                        className={parentStrong ? "text-blue-600" : expanded ? "text-slate-700" : "text-slate-400 group-hover:text-slate-600"} />
                       <span className="flex-1 text-left">{label}</span>
                       {isProfile && (expanded
-                        ? <ChevronDown size={15} className="text-slate-400" />
-                        : <ChevronRight size={15} className="text-slate-500 group-hover:text-slate-400" />)}
+                        ? <ChevronDown size={15} strokeWidth={2.4} className="text-slate-400" />
+                        : <ChevronRight size={15} strokeWidth={2.4} className="text-slate-300 group-hover:text-slate-400" />)}
                     </button>
 
                     {expanded && (
-                      // 3-level hierarchy carried by TYPOGRAPHY, not tiny labels: parent (icon)
-                      // → major area (semibold, brighter, clickable) → sub-pages (quieter,
-                      // indented). Selected sub-page gets a subtle neutral background only.
+                      // Hierarchy carried by TYPOGRAPHY: parent (icon) → major area (bold) →
+                      // sub-pages (quieter, indented). The selected sub-page takes the accent.
                       <div className="mb-1.5 mt-1 space-y-2">
                         {visibleProfileSections(company?.tier).map((sec) => {
                           const secActive = profileNav.tab === sec.key;
                           return (
                             <div key={sec.key}>
                               <button onClick={() => profileNav.go(sec.key, 0)}
-                                className={`flex w-full items-center rounded-md py-1.5 pl-7 pr-3 text-left text-[13.5px] font-semibold transition ${
-                                  secActive ? "text-white" : "text-slate-300 hover:text-white"
+                                className={`flex w-full items-center rounded-xl py-1.5 pl-7 pr-3 text-left text-[13px] font-bold tracking-tight transition ${
+                                  secActive ? "text-slate-900" : "text-slate-500 hover:text-slate-900"
                                 }`}>
                                 {sec.label}
                               </button>
@@ -236,8 +227,8 @@ function Sidebar({ section, setSection, company, switchCompany, collapsed = fals
                                   const stepOn = secActive && profileNav.step === i;
                                   return (
                                     <button key={s.key} onClick={() => profileNav.go(sec.key, i)}
-                                      className={`flex w-full items-center rounded-md py-1.5 pl-3 pr-2.5 text-left text-[12.5px] transition ${
-                                        stepOn ? "bg-white/[0.07] font-medium text-white" : "font-normal text-slate-400 hover:bg-white/[0.035] hover:text-slate-200"
+                                      className={`flex w-full items-center rounded-xl py-1.5 pl-3 pr-2.5 text-left text-[12.5px] transition ${
+                                        stepOn ? "bg-blue-50 font-bold text-blue-600" : "font-medium text-slate-500 hover:bg-slate-50 hover:text-slate-700"
                                       }`}>
                                       <span className="min-w-0 flex-1 truncate">{s.title}</span>
                                     </button>
@@ -258,22 +249,22 @@ function Sidebar({ section, setSection, company, switchCompany, collapsed = fals
       </nav>
 
       {/* Footer */}
-      <div className="border-t border-white/[0.07] px-4 py-4">
+      <div className="border-t border-slate-100 px-3 py-4">
         {company?.slug && company?.status === "published" && (
-          <a href={`/app?c=${encodeURIComponent(company.slug)}`} target="_blank" rel="noreferrer"
-             className="mb-2 flex items-center gap-1.5 rounded-lg bg-white/[0.05] px-3 py-2 text-[12.5px] font-bold text-slate-200 ring-1 ring-white/10 transition hover:bg-white/[0.08]">
-            <ExternalLink size={13} /> View live profile
+          <a href={profileUrl(company.slug)} target="_blank" rel="noreferrer"
+             className="mb-1 flex items-center gap-2 rounded-2xl px-3 py-2 text-[12.5px] font-bold text-slate-600 transition hover:bg-slate-50 active:scale-[0.99]">
+            <ExternalLink size={14} strokeWidth={2.4} className="text-slate-400" /> View live profile
           </a>
         )}
         <a href="mailto:support@mineex.ca?subject=MineEx%20Portal%20—%20help"
-           className="mb-3 flex items-center gap-2 rounded-lg px-3 py-2 text-[12.5px] font-semibold text-slate-400 transition hover:bg-white/[0.04] hover:text-slate-200">
-          <HelpCircle size={14} /> Help &amp; support
+           className="flex items-center gap-2 rounded-2xl px-3 py-2 text-[12.5px] font-bold text-slate-600 transition hover:bg-slate-50 active:scale-[0.99]">
+          <HelpCircle size={14} strokeWidth={2.4} className="text-slate-400" /> Help &amp; support
         </a>
-        <div className="min-w-0 truncate px-1 pb-2 text-[11.5px] text-slate-500">{getUser()?.email}</div>
-        <button onClick={() => signOut()} title="Sign out"
-          className="flex w-full items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-[12.5px] font-bold text-slate-400 ring-1 ring-white/10 transition hover:bg-white/[0.05] hover:text-white">
-          <LogOut size={14} /> Sign out
+        <button onClick={() => signOut()}
+          className="mt-0.5 flex w-full items-center gap-2 rounded-2xl px-3 py-2 text-[12.5px] font-bold text-slate-600 transition hover:bg-slate-50 active:scale-[0.99]">
+          <LogOut size={14} strokeWidth={2.4} className="text-slate-400" /> Sign out
         </button>
+        <div className="min-w-0 truncate px-3 pt-2.5 text-[10.5px] font-semibold text-slate-400">{getUser()?.email}</div>
       </div>
     </aside>
   );
@@ -309,7 +300,10 @@ function HomeView({ company, go, goProfile, onPublished }) {
   const hour = new Date().getHours();
   const partOfDay = hour < 12 ? "morning" : hour < 18 ? "afternoon" : "evening";
   const published = company?.status === "published";
-  const profileUrl = company?.slug ? `/app?c=${encodeURIComponent(company.slug)}` : null;
+  // The canonical public URL — NOT window.location.origin, which showed "localhost:5180/app?c=…"
+  // in dev and a preview host on a preview deploy. (Named liveUrl so it does not shadow the
+  // imported profileUrl helper.)
+  const liveUrl = profileUrl(company?.slug) || null;
 
   // First-login onboarding: until the company is live, Home IS the guided welcome/checklist.
   // Once published, Home reverts to the normal control center below. (Sidebar stays available
@@ -324,11 +318,11 @@ function HomeView({ company, go, goProfile, onPublished }) {
       <p className="mt-1.5 text-[15px] text-slate-500">Your control center for how investors experience <span className="font-semibold text-slate-700">{company?.name || "your company"}</span> on MineEx.</p>
 
       {ready && !ready.ready && (
-        <div className="mt-6 flex items-center gap-3 rounded-2xl border border-amber-200 bg-gradient-to-r from-amber-50 to-amber-50/40 px-5 py-4">
+        <div className="mt-6 flex items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4">
           <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-amber-100 text-amber-600"><AlertCircle size={19} /></span>
           <div>
             <p className="text-[14.5px] font-bold text-amber-900">Portal needs attention</p>
-            <p className="text-[13px] text-amber-700">Missing: {(ready.missing || []).join(", ")}. Contact Passport if this persists.</p>
+            <p className="text-[13px] text-amber-700">Missing: {(ready.missing || []).join(", ")}. Contact MineEx if this persists.</p>
           </div>
         </div>
       )}
@@ -339,14 +333,14 @@ function HomeView({ company, go, goProfile, onPublished }) {
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <p className="truncate text-[15.5px] font-bold text-slate-900">{company?.name || company?.slug}</p>
-            <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11.5px] font-bold ${published ? "bg-emerald-50 text-emerald-600" : "bg-slate-100 text-slate-500"}`}>
-              <span className={`h-1.5 w-1.5 rounded-full ${published ? "bg-emerald-500" : "bg-slate-400"}`} /> {published ? "Live on MineEx" : "Draft"}
+            <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11.5px] font-bold ${published ? "bg-blue-50 text-blue-600" : "bg-slate-100 text-slate-500"}`}>
+              <span className={`h-1.5 w-1.5 rounded-full ${published ? "bg-blue-500" : "bg-slate-400"}`} /> {published ? "Live on MineEx" : "Draft"}
             </span>
           </div>
-          <p className="mt-0.5 text-[12.5px] text-slate-400">{profileUrl ? `${(typeof window !== "undefined" ? window.location.origin : "").replace(/^https?:\/\//, "")}${profileUrl}` : "No public URL yet"}</p>
+          <p className="mt-0.5 text-[12.5px] text-slate-400">{liveUrl ? liveUrl.replace(/^https?:\/\//, "") : "No public URL yet"}</p>
         </div>
-        {profileUrl && (
-          <a href={profileUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-4 py-2 text-[13px] font-bold text-slate-700 hover:border-slate-300">
+        {liveUrl && (
+          <a href={liveUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-4 py-2 text-[13px] font-bold text-slate-700 hover:border-slate-300">
             <Eye size={15} /> {published ? "View profile" : "Preview"}
           </a>
         )}
@@ -392,7 +386,7 @@ function HomeView({ company, go, goProfile, onPublished }) {
                   <span className="block truncate text-[13.5px] font-semibold text-slate-800">{r.title}</span>
                   <span className="block text-[12px] text-slate-400">{r.type === "media" ? "Media" : "Press release"} · {fmtDate(r.createdAt)}</span>
                 </span>
-                <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10.5px] font-bold uppercase ${r.status === "published" ? "bg-emerald-50 text-emerald-600" : "bg-slate-100 text-slate-500"}`}>{r.status}</span>
+                <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10.5px] font-bold uppercase ${r.status === "published" ? "bg-blue-50 text-blue-600" : "bg-slate-100 text-slate-500"}`}>{r.status}</span>
               </li>
             ))}
           </ul>
@@ -463,7 +457,7 @@ function Stat({ label, value, accent, hint, Icon }) {
         <p className="text-[12px] font-semibold text-slate-400">{label}</p>
         {Icon && <span className="grid h-7 w-7 place-items-center rounded-lg bg-slate-50 text-slate-400 ring-1 ring-slate-100"><Icon size={14} /></span>}
       </div>
-      <p className={`mt-2 text-[26px] font-extrabold tracking-tight tabular-nums ${accent === "emerald" ? "text-blue-600" : "text-slate-900"}`}>{value}</p>
+      <p className={`mt-2 text-[26px] font-extrabold tracking-tight tabular-nums ${accent === "accent" ? "text-blue-600" : "text-slate-900"}`}>{value}</p>
       {hint && <p className="mt-0.5 text-[11px] text-slate-400">{hint}</p>}
     </div>
   );
@@ -484,24 +478,125 @@ function Action({ title, body, Icon, onClick }) {
 
 /* ---------------------------------------------------------------- QR & Share */
 
+/* ---- printable placard -------------------------------------------------- */
+
+// Real rendered text widths, so the footer lockups lay out exactly. Guessing a width
+// overflowed the right margin and clipped "MineEx" off the printed card.
+function textWidth(text, px, weight = 800) {
+  try {
+    const ctx = document.createElement("canvas").getContext("2d");
+    ctx.font = `${weight} ${px}px ${PLACARD_FONT}`;
+    return ctx.measureText(String(text || "")).width;
+  } catch (_) {
+    return String(text || "").length * px * 0.58;
+  }
+}
+
+// Inline a remote image so the placard is SELF-CONTAINED: an <image href="https://…">
+// would break the moment the file is opened offline or handed to a print shop, and it
+// would taint the canvas during PNG rasterisation. Returns "" if it can't be inlined.
+async function inlineImage(src) {
+  const s = String(src || "").trim();
+  if (!s) return "";
+  if (s.startsWith("data:")) return s;
+  try {
+    const r = await fetch(s, { mode: "cors" });
+    if (!r.ok) return "";
+    const blob = await r.blob();
+    return await new Promise((res) => {
+      const fr = new FileReader();
+      fr.onload = () => res(String(fr.result || ""));
+      fr.onerror = () => res("");
+      fr.readAsDataURL(blob);
+    });
+  } catch (_) { return ""; }
+}
+
+// Rasterise the placard. The SVG is fully self-contained (data: URLs only), so the
+// canvas is never tainted and toDataURL succeeds.
+function placardToPng(svgStr, scale = 2) {
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(new Blob([svgStr], { type: "image/svg+xml;charset=utf-8" }));
+    const img = new Image();
+    img.onload = () => {
+      const cv = document.createElement("canvas");
+      cv.width = CARD_W * scale; cv.height = CARD_H * scale;
+      const ctx = cv.getContext("2d");
+      ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, cv.width, cv.height);
+      ctx.drawImage(img, 0, 0, cv.width, cv.height);
+      URL.revokeObjectURL(url);
+      let out = ""; try { out = cv.toDataURL("image/png"); } catch (_) {}
+      resolve(out);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(""); };
+    img.src = url;
+  });
+}
+
 function QRShareView({ company }) {
-  const origin = (typeof window !== "undefined" && window.location.origin) || "";
   const slug = company?.slug || "";
-  const url = slug ? `${origin}/app?c=${encodeURIComponent(slug)}` : "";
-  const [png, setPng] = useState("");
-  const [svg, setSvg] = useState("");
+  // Derived from THIS company's slug against the canonical origin — never the current
+  // window's origin, so a placard generated from a preview deploy or localhost still
+  // prints a link to the live profile.
+  const url = profileUrl(slug);
+  const name = company?.name || slug;
+  const [placard, setPlacard] = useState("");   // placard SVG string
+  const [png, setPng] = useState("");           // rasterised placard
   const [copied, setCopied] = useState(false);
+  // A company can upload a dedicated PRINT logo for the placard — the profile avatar is
+  // often small or cropped for a screen and prints poorly. Persisted on profile.brand.qrLogo.
+  const [logoSrc, setLogoSrc] = useState(() => placardLogo(company));
+  const [logoBusy, setLogoBusy] = useState("");
+  useEffect(() => { setLogoSrc(placardLogo(company)); }, [company]);
+
+  // A QR for an unpublished company resolves to "Profile not available" when scanned. Say
+  // so plainly rather than handing someone a code to print that cannot work yet.
+  const isLive = company?.status === "published";
+
+  const pickLogo = async (file) => {
+    if (!file) return;
+    setLogoBusy("Uploading…");
+    try {
+      const url = await uploadCompanyLogo(file);
+      if (!url) { setLogoBusy("Upload failed"); setTimeout(() => setLogoBusy(""), 2600); return; }
+      const nextProfile = { ...(company.profile || {}), brand: { ...((company.profile || {}).brand || {}), qrLogo: url } };
+      const saved = await updateCompanyProfile(company.id, nextProfile);
+      setLogoSrc(url);
+      setLogoBusy(saved ? "Saved" : "Saved for this download only");
+      setTimeout(() => setLogoBusy(""), 2600);
+    } catch (_) {
+      setLogoBusy("Upload failed"); setTimeout(() => setLogoBusy(""), 2600);
+    }
+  };
+  const clearLogo = async () => {
+    const nextProfile = { ...(company.profile || {}), brand: { ...((company.profile || {}).brand || {}), qrLogo: "" } };
+    await updateCompanyProfile(company.id, nextProfile).catch(() => null);
+    setLogoSrc(companyLogo(company));
+  };
 
   useEffect(() => {
     let alive = true;
     if (!url) return;
-    // Reuse the app's existing `qrcode` dependency — same generator Admin uses.
-    QRCode.toDataURL(url, { width: 640, margin: 1, color: { dark: "#0f172a", light: "#ffffff" } })
-      .then((d) => { if (alive) setPng(d); }).catch(() => {});
-    QRCode.toString(url, { type: "svg", margin: 1, color: { dark: "#0f172a", light: "#ffffff" } })
-      .then((s) => { if (alive) setSvg(s); }).catch(() => {});
+    (async () => {
+      // Reuse the app's existing `qrcode` dependency — same generator Admin uses.
+      const qr = await QRCode.toString(url, {
+        type: "svg", margin: 0, errorCorrectionLevel: "M",
+        color: { dark: "#0f172a", light: "#ffffff" },
+      }).catch(() => "");
+      if (!qr || !alive) return;
+      const { viewBox, inner } = splitQrSvg(qr);
+      const logo = await inlineImage(logoSrc);
+      if (!alive) return;
+      const svgStr = buildPlacardSvg({
+        qrInner: inner, qrViewBox: viewBox, name,
+        logo, monogram: companyMonogram(company), measure: textWidth,
+      });
+      setPlacard(svgStr);
+      const raster = await placardToPng(svgStr);
+      if (alive) setPng(raster);
+    })();
     return () => { alive = false; };
-  }, [url]);
+  }, [url, name, company, logoSrc]);
 
   const copy = async () => {
     try { await navigator.clipboard.writeText(url); setCopied(true); setTimeout(() => setCopied(false), 1600); } catch (_) {}
@@ -512,9 +607,12 @@ function QRShareView({ company }) {
     document.body.appendChild(a); a.click(); a.remove();
   };
   const downloadSvg = () => {
-    if (!svg) return;
-    download(`data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`, "svg");
+    if (!placard) return;
+    download(`data:image/svg+xml;charset=utf-8,${encodeURIComponent(placard)}`, "svg");
   };
+  const previewSrc = placard
+    ? `data:image/svg+xml;charset=utf-8,${encodeURIComponent(placard)}`
+    : "";
 
   if (!slug) {
     return (
@@ -529,21 +627,58 @@ function QRShareView({ company }) {
     <div>
       <PageTitle title="QR & Share" sub="Drive investors to your MineEx profile and encourage them to follow your company." />
 
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[300px_1fr]">
-        {/* QR preview */}
+      {!isLive && (
+        <div className="mb-5 flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4">
+          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-amber-100 text-amber-600"><AlertCircle size={19} strokeWidth={2.4} /></span>
+          <div>
+            <p className="text-[14.5px] font-bold text-amber-900">This code won't work yet</p>
+            <p className="text-[13px] leading-relaxed text-amber-700">
+              Your profile isn't live, so anyone scanning this sees "Profile not available". Publish from
+              Home and the same code starts working — the link never changes, so it's safe to print ahead of time.
+            </p>
+          </div>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[340px_1fr]">
+        {/* Placard preview */}
         <div className={`flex flex-col items-center p-6 ${CARD}`}>
-          <div className="grid h-[240px] w-[240px] place-items-center rounded-2xl bg-white ring-1 ring-slate-200/70">
-            {png ? <img src={png} alt="Profile QR code" className="h-[224px] w-[224px]" /> : <Loader2 size={22} className="animate-spin text-blue-500" />}
+          <div className="grid w-full place-items-center rounded-2xl bg-white p-3 ring-1 ring-slate-200/70">
+            {previewSrc
+              ? <img src={previewSrc} alt={`${name} profile QR placard`} className="w-full max-w-[260px]" />
+              : <div className="grid h-[320px] w-full place-items-center"><Loader2 size={22} className="animate-spin text-blue-500" /></div>}
           </div>
           <div className="mt-4 flex w-full gap-2">
             <button onClick={() => png && download(png, "png")} disabled={!png}
               className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-slate-900 px-3 py-2.5 text-[13px] font-bold text-white hover:bg-slate-800 disabled:opacity-50">
               <Download size={14} /> PNG
             </button>
-            <button onClick={downloadSvg} disabled={!svg}
+            <button onClick={downloadSvg} disabled={!placard}
               className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-[13px] font-bold text-slate-700 hover:border-slate-300 disabled:opacity-50">
               <Download size={14} /> SVG
             </button>
+          </div>
+          <p className="mt-3 text-center text-[12px] text-slate-400">SVG stays sharp at any size — use it for banners and large prints.</p>
+
+          {/* Placard logo — upload a dedicated print version if the profile one isn't right. */}
+          <div className="mt-5 w-full border-t border-slate-100 pt-4">
+            <p className="text-[10.5px] font-bold uppercase tracking-[0.16em] text-slate-400">Logo on the placard</p>
+            <div className="mt-2.5 flex items-center gap-3">
+              {logoSrc
+                ? <img src={logoSrc} alt="" className="h-11 w-11 shrink-0 rounded-xl border border-slate-200 bg-white object-cover" />
+                : <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-slate-900 text-[14px] font-extrabold text-white">{companyMonogram(company)}</span>}
+              <div className="min-w-0 flex-1">
+                <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-bold text-slate-600 transition hover:border-slate-300 active:scale-95">
+                  <Upload size={13} strokeWidth={2.4} /> {logoSrc ? "Replace" : "Upload"}
+                  <input type="file" accept="image/png,image/jpeg,image/svg+xml,image/webp" className="hidden"
+                    onChange={(e) => { pickLogo(e.target.files && e.target.files[0]); e.target.value = ""; }} />
+                </label>
+                {logoSrc && placardLogo(company) !== companyLogo(company) && (
+                  <button onClick={clearLogo} className="ml-2 text-[11px] font-bold text-slate-400 transition hover:text-slate-600">Use profile logo</button>
+                )}
+                <p className="mt-1 text-[11px] text-slate-400">{logoBusy || "PNG, JPG or SVG. A square, high-resolution version prints best."}</p>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -560,6 +695,10 @@ function QRShareView({ company }) {
             <a href={url} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-1.5 text-[13px] font-bold text-blue-600 hover:text-blue-700">
               Open profile <ExternalLink size={13} />
             </a>
+            <p className="mt-3 text-[12.5px] leading-relaxed text-slate-500">
+              <CheckCircle2 size={14} strokeWidth={2.4} className="mr-1.5 inline-block align-[-2px] text-blue-600" />
+              This code is unique to <span className="font-bold text-slate-700">{name}</span> and always opens your profile — never another company's.
+            </p>
           </div>
 
           <div className={`p-6 ${CARD}`}>
@@ -745,7 +884,7 @@ function ActivityView({ company }) {
                   <span className="block text-[13.5px] font-semibold text-slate-800">{ACTION_LABEL[r.action] || r.action}{r.entity ? <span className="font-normal text-slate-400"> · {r.entity}</span> : null}</span>
                   {r.reason && <span className="block truncate text-[12.5px] text-slate-400">{r.reason}</span>}
                 </span>
-                {r.actor_kind === "admin" && <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-bold uppercase text-indigo-500">Passport</span>}
+                {r.actor_kind === "admin" && <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-bold uppercase text-indigo-500">MineEx</span>}
                 <span className="shrink-0 text-[12px] text-slate-400">{fmtDate(r.created_at)}</span>
               </li>
             ))}
@@ -769,7 +908,7 @@ function BillingView({ company }) {
   }, [company.id]);
 
   const status = plan?.status || "—";
-  const statusTone = status === "active" ? "emerald" : status === "past_due" ? "rose" : "slate";
+  const statusTone = status === "active" ? "accent" : status === "past_due" ? "rose" : "slate";
 
   const [busy, setBusy] = useState("");
   const [payErr, setPayErr] = useState("");
@@ -806,7 +945,7 @@ function BillingView({ company }) {
 
   return (
     <div>
-      <PageTitle title="Billing" sub="Your Passport subscription and what it includes." />
+      <PageTitle title="Billing" sub="Your MineEx subscription and what it includes." />
 
       <div className={`p-6 ${CARD}`}>
         {plan === undefined ? (
@@ -814,7 +953,7 @@ function BillingView({ company }) {
         ) : plan === null ? (
           <div className="flex items-center gap-3">
             <AlertCircle size={20} className="text-amber-500" />
-            <p className="text-[14.5px] text-slate-600">No active subscription found. Contact Passport to activate your plan.</p>
+            <p className="text-[14.5px] text-slate-600">No active subscription found. Contact MineEx to activate your plan.</p>
           </div>
         ) : (
           <div className="flex items-start justify-between">
@@ -824,9 +963,9 @@ function BillingView({ company }) {
               {plan.renews_at && <p className="mt-1 text-[13px] text-slate-500">Renews {fmtDate(plan.renews_at)}</p>}
             </div>
             <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[12.5px] font-bold ${
-              statusTone === "emerald" ? "bg-blue-50 text-blue-600" : statusTone === "rose" ? "bg-rose-50 text-rose-600" : "bg-slate-100 text-slate-500"
+              statusTone === "accent" ? "bg-blue-50 text-blue-600" : statusTone === "rose" ? "bg-rose-50 text-rose-600" : "bg-slate-100 text-slate-500"
             }`}>
-              <span className={`h-1.5 w-1.5 rounded-full ${statusTone === "emerald" ? "bg-blue-500" : statusTone === "rose" ? "bg-rose-500" : "bg-slate-400"}`} /> {cap(status)}
+              <span className={`h-1.5 w-1.5 rounded-full ${statusTone === "accent" ? "bg-blue-500" : statusTone === "rose" ? "bg-rose-500" : "bg-slate-400"}`} /> {cap(status)}
             </span>
           </div>
         )}
@@ -873,14 +1012,14 @@ function BillingView({ company }) {
           <CreditCard size={15} /> {busy === "manage" ? "Opening…" : "Manage / cancel card"}
         </button>
       )}
-      <p className="mt-4 text-[13px] text-slate-400">Prefer e-transfer or wire? <span className="font-semibold text-slate-500">Contact us and we'll invoice you.</span> Managed plans are arranged directly with Passport.</p>
+      <p className="mt-4 text-[13px] text-slate-400">Prefer e-transfer or wire? <span className="font-semibold text-slate-500">Contact us and we'll invoice you.</span> Managed plans are arranged directly with MineEx.</p>
     </div>
   );
 }
 
 const FEATURE_LABEL = {
   portal_access: "Company Portal access",
-  passport_profile: "Passport investor profile",
+  passport_profile: "MineEx investor profile",
   company_memory: "Company memory (documents)",
   communications_center: "Communications Center",
   website_publish: "Website publishing",
@@ -900,7 +1039,7 @@ function SettingsView({ company }) {
       <PageTitle title="Settings" />
       <div className="space-y-4">
         <Field label="Company name" value={company?.name || "—"} />
-        <Field label="Profile URL" value={company?.slug ? `passport.app/app?c=${company.slug}` : "—"} />
+        <Field label="Profile URL" value={profileUrl(company?.slug) || "—"} />
         <Field label="Your role" value={cap(company?.role || "owner")} />
         <Field label="Signed in as" value={getUser()?.email || "—"} />
       </div>
@@ -949,7 +1088,7 @@ function AccountCard({ title, hint, fields, cta, onSubmit }) {
           {busy ? <Loader2 size={14} className="animate-spin" /> : cta}
         </button>
       </div>
-      {msg && <p className="mt-2 text-[12.5px] font-semibold text-emerald-600">{msg}</p>}
+      {msg && <p className="mt-2 inline-flex items-center gap-1.5 text-[12.5px] font-bold text-slate-900"><Check size={13} strokeWidth={2.6} className="text-blue-600" />{msg}</p>}
       {err && <p className="mt-2 text-[12.5px] font-semibold text-rose-500">{err}</p>}
     </form>
   );

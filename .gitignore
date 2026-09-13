@@ -18,3 +18,8 @@ Passport_ai_brief__1_.html
 companies/keys.env
 backups/
 __acct.*
+
+# Worktree symlinks to the main checkout (the trailing-slash patterns above do not
+# match a symlink, so these showed as untracked and could be committed by accident).
+/.node
+/node_modules

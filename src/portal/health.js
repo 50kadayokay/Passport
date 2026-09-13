@@ -1,4 +1,4 @@
-// Company Health Score — Passport's signature "what should I do today?" signal.
+// Company Health Score — MineEx's signature "what should I do today?" signal.
 //
 // A score out of 100 from signals we can actually measure from the profile + a few
 // counts. Deliberately MOTIVATING, not punitive: every missing point comes with a

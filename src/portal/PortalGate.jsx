@@ -112,7 +112,7 @@ export default function PortalGate({ render }) {
     return (
       <Denied
         title="No company portal on this account"
-        body="The Company Portal is for junior mining companies on a Passport subscription. If you're an investor, use the Passport app to follow companies. If you represent a company, contact Passport to get set up."
+        body="The Company Portal is for junior mining companies on a MineEx subscription. If you're an investor, use the MineEx app to follow companies. If you represent a company, contact MineEx to get set up."
         cta={<a href="/app" className="inline-flex items-center gap-1.5 rounded-full bg-slate-900 px-5 py-2.5 text-[14px] font-bold text-white">Open the app <ArrowRight size={15} /></a>}
       />
     );
@@ -122,7 +122,7 @@ export default function PortalGate({ render }) {
     return (
       <Denied
         title="Subscription needed"
-        body={`${state.company?.name || "This company"} doesn't have an active Passport subscription, so the portal is locked. Once billing is active the portal opens automatically — nothing else to set up.`}
+        body={`${state.company?.name || "This company"} doesn't have an active MineEx subscription, so the portal is locked. Once billing is active the portal opens automatically — nothing else to set up.`}
         cta={null}
       />
     );
@@ -143,7 +143,7 @@ export default function PortalGate({ render }) {
     return (
       <Denied
         title="Invitation unavailable"
-        body={`${msg} Ask Passport to send you a fresh invitation link.`}
+        body={`${msg} Ask MineEx to send you a fresh invitation link.`}
         cta={null}
       />
     );

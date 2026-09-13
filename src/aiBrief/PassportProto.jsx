@@ -138,6 +138,27 @@ function TypeIn({ text, speed = 16 }) {
 
 // Live company data injected from Supabase before mount; falls back to the built-in reference data.
 const _PP = (typeof window !== "undefined" && window.__PP__) || {};
+
+// ---- Kingsmen prototype gate ---------------------------------------------
+// Every constant below defaults to Kingsmen Resources' REAL data (team, cap table,
+// ownership, press releases, photos). That is correct for the built-in prototype and
+// catastrophic for anyone else: a company whose `pp` is missing a key would render
+// Kingsmen's content under its own name. Guard it here, ONCE, from the RAW pp.
+//
+// Deliberately NOT derived from the COMPANY constant below — COMPANY itself falls back
+// to Kingsmen, so asking "is COMPANY Kingsmen?" answers "yes" in exactly the broken case
+// and opens the gate. (That is the bug in ProjectsView's local IS_KINGSMEN_DEMO.)
+//
+// DEMO is true only when NO company was supplied at all (the /editordemo + marketing
+// harnesses, and the Kingsmen flagship row, whose pp is deliberately unset), or when the
+// company supplied IS Kingsmen. A real company — even one with an empty pp `{}` — is
+// never shown another company's data; it gets clean empty states instead.
+const _RAW_CO = (_PP && typeof _PP.COMPANY === "object" && _PP.COMPANY) || null;
+const IS_KINGSMEN = !!_RAW_CO && (
+  String(_RAW_CO.name || "").trim() === "Kingsmen Resources" ||
+  /kingsmenresources\.com/i.test(String(_RAW_CO.website || ""))
+);
+const DEMO = (typeof window === "undefined" || !window.__PP__) || IS_KINGSMEN;
 // Account plan tier (free/basic/pro) — gates how much of the profile investors see. Free
 // renders the compact BasicListing (pp.TIER==="listing"); BASIC = Overview + Timeline only;
 // PRO (or unknown, so existing companies are unaffected) = the full tabbed profile.
@@ -3008,10 +3029,6 @@ function CapitalView() {
   const [listing, setListing] = useState(null);
   const [metricKey, setMetricKey] = useState(null);
   const [eduKey, setEduKey] = useState(null);
-  const [runwayTarget, setRunwayTarget] = useState(0);
-  const runwayW = useTween(runwayTarget, 1100);
-  useEffect(() => { const t = setTimeout(() => setRunwayTarget(CAPSTATUS.runwayPct), 200); return () => clearTimeout(t); }, []);
-
   const raises = Array.isArray(RAISES) ? RAISES : [];
   const hasRaise = raises.length > 0;
   const r0 = raises[0] || {};   // safe: an empty file has no financing, so never index a missing raise
@@ -3123,19 +3140,26 @@ function CapitalView() {
           </div>
           <h2 className="font-extrabold tracking-tight text-slate-900" style={{ marginTop: 13, fontSize: 25, lineHeight: 1.06 }}>{CAPSTATUS.headline}</h2>
           <p className="font-medium text-slate-500" style={{ marginTop: 9, fontSize: 12.5, lineHeight: 1.4 }}>{CAPSTATUS.summary}</p>
-          <div style={{ marginTop: 22 }}>
-            <p className="px-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">Funding Runway</p>
-            <div className="relative mt-3 flex h-5 items-center px-1">
-              <div className="relative h-2 w-full rounded-full bg-slate-200">
-                <div className="absolute inset-y-0 left-0 rounded-full" style={{ width: `${runwayW}%`, background: "linear-gradient(90deg, #2563eb, #60a5fa)" }} />
-                <div className="absolute z-10 h-4 w-4 rounded-full" style={{ left: `${runwayW}%`, top: "50%", transform: "translate(-50%, -50%)", background: "#1d4ed8", boxShadow: "0 0 0 2.5px #fff, 0 0 0 4.5px rgba(37,99,235,0.35), 0 2px 6px -1px rgba(0,0,0,0.25)" }} />
+          {/* Funding position as a FACT, not a slider.
+              The bar implied a measured percentage of runway consumed, which no company
+              actually reports — runwayPct was a hand-set number and the animation made an
+              editorial guess look like data. The dates are the real, checkable fact.
+              (Reads runwayEnd/runwayStart, falling back to the older runwayRight/runwayLeft
+              spelling: the compiler emits the first pair, this card used to read the second,
+              so the labels came out blank for every compiled company.) */}
+          {(() => {
+            const endLbl = CAPSTATUS.runwayEnd || CAPSTATUS.runwayRight || "";
+            const startLbl = CAPSTATUS.runwayStart || CAPSTATUS.runwayLeft || "";
+            if (!endLbl && !startLbl) return null;
+            return (
+              <div className="mt-5 flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-3">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Funding Runway</span>
+                <span className="text-[13.5px] font-extrabold tracking-tight text-slate-900">
+                  {endLbl || startLbl}
+                </span>
               </div>
-            </div>
-            <div className="mt-1.5 flex justify-between px-1">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{CAPSTATUS.runwayLeft}</span>
-              <span className="text-[10px] font-extrabold uppercase tracking-wider" style={{ color: "#2563eb" }}>{CAPSTATUS.runwayRight}</span>
-            </div>
-          </div>
+            );
+          })()}
         </div>
       </div>
 
@@ -3516,6 +3540,77 @@ let UPDATE_POSTS = _PP.UPDATE_POSTS ?? [
     desc: "Interim financial statements and MD&A filed on SEDAR+.",
     body: "The company filed its Q1 2026 interim financial statements and management discussion and analysis on SEDAR+, reporting a cash balance of C$4.2M." },
 ];
+
+/* ============================================================
+   NEUTRALISE THE PROTOTYPE FOR REAL COMPANIES
+   ------------------------------------------------------------
+   Runs once, at module load, immediately after every constant above has been
+   initialised. When a real company is being rendered (DEMO === false), any value
+   its `pp` did not supply is reset from Kingsmen's data to a clean empty — the same
+   shape mapProfileToPP emits for a company with no data, so every block falls through
+   to its existing empty state instead of showing another company's content.
+
+   Only keys whose default is Kingsmen-SPECIFIC are reset. Genuinely generic defaults
+   (STAGES' lifecycle labels, the empty CEO_NOTE/CONTACT/CARD_MEDIA) are left alone.
+   ============================================================ */
+if (!DEMO) {
+  const u = (k) => _PP[k] === undefined;   // did the company's pp omit this key?
+
+  // Identity + imagery
+  if (u("COMPANY"))      COMPANY = { name: "", website: "", slogan: "", ticker: "", commodity: "", jurisdiction: "", stage: "" };
+  if (u("LOGO"))         LOGO = "";
+  if (u("AVATAR"))       AVATAR = "";
+  if (u("SITE_PHOTO"))   SITE_PHOTO = "";
+  if (u("KR_AVATAR"))    KR_AVATAR = "";
+  if (u("STATUS_IMG"))   STATUS_IMG = "";
+  if (u("STATUS_LOGO"))  STATUS_LOGO = "";
+
+  // Narrative
+  if (u("ONE_LINER"))      ONE_LINER = "";
+  if (u("THESIS"))         THESIS = [];
+  if (u("WHY"))            WHY_ITEMS = [];
+  if (u("BRIEF_SECTIONS")) BRIEF_SECTIONS = [];
+
+  // People
+  if (u("TEAM_MEMBERS")) TEAM_MEMBERS = [];
+
+  // Capital — shapes mirror mapProfileToPP's "no data" output exactly.
+  if (u("CAP"))           CAP = { outstanding: "", fd: "", debt: "$0", rows: [] };
+  if (u("EXCHANGES"))     EXCHANGES = [];
+  if (u("OWNERSHIP"))     OWNERSHIP = [];
+  if (u("RAISES"))        RAISES = [];
+  if (u("FUNDING"))       FUNDING = { funded: false, label: "", note: "", cautionLabel: "", cautionNote: "" };
+  if (u("CAPSTATUS"))     CAPSTATUS = { hasData: false, state: "", tone: "#64748b", headline: "", summary: "", runwayStart: "", runwayEnd: "" };
+  if (u("METRIC_DETAIL")) METRIC_DETAIL = {};
+
+  // Status card — hasData:false is what drives the existing empty state.
+  if (u("STATUS")) STATUS = {
+    hasData: false, state: "", tone: "#10b981", detail: "",
+    progressLabel: "", progressDone: 0, progressTotal: 0,
+    latest: "", impact: "", next: "", nextCatalyst: "", eta: "", photo: "",
+  };
+
+  // Lifecycle position (the STAGES labels themselves are generic — kept).
+  if (u("STAGE_NOW"))  STAGE_NOW = 0;
+  if (u("STAGE_DESC")) STAGE_DESC = STAGES.map(() => "");
+  if (u("HEALTH"))     HEALTH = [];
+  if (u("TRACK"))      TRACK = [];
+
+  // Timeline / press releases
+  if (u("PR_YEARS")) PR_YEARS = [];
+  if (u("FULL"))     FULL = {};
+
+  // Media feed
+  if (u("UPDATE_POSTS")) UPDATE_POSTS = [];
+
+  // Projects + map. PROJECTS_FULL = {} (not null) is what tells ProjectsView
+  // "this company supplied projects and has none" — null would re-open the fallback.
+  if (u("PROJECTS_FULL")) PROJECTS_FULL = {};
+  if (u("PROJECTS_DATA")) PROJECTS_DATA = {};
+  if (u("MAP_SITES"))     MAP_SITES = [];
+  if (u("MAP_TOWN"))      PARRAL = null;
+  if (u("MAP_BBOX"))      MAP_BBOX = computeBbox(MAP_SITES, PARRAL);
+}
 
 
 const AM_GALLERY = [
@@ -4696,6 +4791,16 @@ function ProjectsView() {
   // demo-only fallback: it renders ONLY for the actual Kingsmen demo (module-default COMPANY,
   // i.e. pp/PROJECTS_FULL absent). Any OTHER company with no PROJECTS_FULL degrades to an empty
   // structure — never leaks Kingsmen content onto an unrelated profile.
+  // Show the built-in Kingsmen projects ONLY for the actual prototype.
+  //
+  // This reads the CURRENT COMPANY (post-applyPP) on purpose — the module-level DEMO flag
+  // is fixed at load and would be wrong here, since the editor/preview harnesses boot with
+  // no window.__PP__ (DEMO true) and only then applyPP a real company.
+  //
+  // It is trustworthy now only because COMPANY can no longer lie: it used to fall back to
+  // Kingsmen's identity, so a company whose pp omitted COMPANY was misread as the demo and
+  // shown Kingsmen's projects. The prototype gate above blanks COMPANY for real companies,
+  // so "is this Kingsmen?" is an honest question again.
   const IS_KINGSMEN_DEMO = !!(COMPANY && (COMPANY.name === "Kingsmen Resources" || /kingsmenresources\.com/i.test(String(COMPANY.website || ""))));
   const PROJ = PROJECTS_FULL || (IS_KINGSMEN_DEMO ? KINGSMEN_PROJ : {});
   const keys = Object.keys(PROJ);
@@ -8747,51 +8852,86 @@ function ProfileScreen({ onScan }) {
 // calls this — its data stays sourced from window.__PP__ exactly as before. Only the
 // fields provided are overwritten, so a partial object still works. Remount the
 // component (change its key) after calling this to pick up the new data.
+// Load ONE company's data into the module singletons.
+//
+// This REPLACES whatever was loaded before — it is not a merge. Previously it assigned
+// only the keys present on `pp`, which meant swapping company A → B (the in-app company
+// switcher, the portal editor preview, the conference booth) left A's team, cap table,
+// ownership and press releases standing wherever B's pp happened to omit a key. On the
+// first load it left Kingsmen's. Absent keys now reset to the same clean empties
+// mapProfileToPP emits for a company with no data, so a partial profile renders empty
+// states — never another company's content.
+//
+// Callers pass a COMPLETE compiled pp (mapProfileToPP always emits every key), so the
+// replace semantics cost nothing; a caller wanting to patch one field should compile.
 export function applyPP(pp) {
   if (!pp || typeof pp !== "object") return;
-  if (pp.LOGO !== undefined) LOGO = pp.LOGO;
-  if (pp.AVATAR !== undefined) AVATAR = pp.AVATAR;
-  if (pp.SITE_PHOTO !== undefined) SITE_PHOTO = pp.SITE_PHOTO;
-  if (pp.KR_AVATAR !== undefined) KR_AVATAR = pp.KR_AVATAR;
-  if (pp.STATUS_IMG !== undefined) STATUS_IMG = pp.STATUS_IMG;
-  if (pp.STATUS_LOGO !== undefined) STATUS_LOGO = pp.STATUS_LOGO;
-  if (pp.CARD_MEDIA !== undefined) CARD_MEDIA = pp.CARD_MEDIA || {};
-  if (pp.BRAND !== undefined) EM = pp.BRAND || "#3b82f6";
-  if (pp.BRAND_TEXT !== undefined) EM_TEXT = pp.BRAND_TEXT || "#1d4ed8";
-  if (pp.COMPANY !== undefined) COMPANY = pp.COMPANY;
-  if (pp.TEAM_MEMBERS !== undefined) TEAM_MEMBERS = pp.TEAM_MEMBERS;
-  if (pp.CAP !== undefined) CAP = pp.CAP;
-  if (pp.EXCHANGES !== undefined) EXCHANGES = pp.EXCHANGES;
-  if (pp.PROJECTS_DATA !== undefined) PROJECTS_DATA = pp.PROJECTS_DATA;
-  if (pp.PROJECTS_FULL !== undefined) PROJECTS_FULL = pp.PROJECTS_FULL;
-  if (pp.RAISES !== undefined) RAISES = pp.RAISES;
-  if (pp.UPDATE_POSTS !== undefined) UPDATE_POSTS = pp.UPDATE_POSTS;
-  if (pp.MAP_SITES !== undefined) {
-    MAP_SITES = pp.MAP_SITES || [];
-    // Reframe on the new pins unless an explicit bbox came with them.
-    if (pp.MAP_BBOX === undefined) MAP_BBOX = computeBbox(MAP_SITES, pp.MAP_TOWN !== undefined ? pp.MAP_TOWN : PARRAL);
-  }
-  if (pp.MAP_TOWN !== undefined) PARRAL = pp.MAP_TOWN;
-  if (pp.MAP_BBOX !== undefined) MAP_BBOX = pp.MAP_BBOX;
-  if (pp.THESIS !== undefined) THESIS = pp.THESIS;
-  if (pp.WHY !== undefined) WHY_ITEMS = pp.WHY;
-  if (pp.STAGES !== undefined) STAGES = pp.STAGES;
-  if (pp.STAGE_NOW !== undefined) STAGE_NOW = pp.STAGE_NOW;
-  if (pp.STAGE_DESC !== undefined) STAGE_DESC = pp.STAGE_DESC;
-  if (pp.ONE_LINER !== undefined) ONE_LINER = pp.ONE_LINER;
-  if (pp.CEO_NOTE !== undefined) CEO_NOTE = pp.CEO_NOTE || { text: "", name: "", title: "CEO", photo: "" };
-  if (pp.CONTACT !== undefined) CONTACT = pp.CONTACT || { phone: "", email: "", twitter: "", linkedin: "" };
-  if (pp.BRIEF_SECTIONS !== undefined) BRIEF_SECTIONS = pp.BRIEF_SECTIONS;
-  if (pp.FUNDING !== undefined) FUNDING = pp.FUNDING;
-  if (pp.CAPSTATUS !== undefined) CAPSTATUS = pp.CAPSTATUS;
-  if (pp.METRIC_DETAIL !== undefined) METRIC_DETAIL = pp.METRIC_DETAIL;
-  if (pp.OWNERSHIP !== undefined) OWNERSHIP = pp.OWNERSHIP;
-  if (pp.STATUS !== undefined) STATUS = pp.STATUS;
-  if (pp.HEALTH !== undefined) HEALTH = pp.HEALTH;
-  if (pp.TRACK !== undefined) TRACK = pp.TRACK;
-  if (pp.PR_YEARS !== undefined) PR_YEARS = pp.PR_YEARS;
-  if (pp.FULL !== undefined) FULL = pp.FULL;
-  if (pp.ACCOUNT_TIER !== undefined) ACCOUNT_TIER = String(pp.ACCOUNT_TIER || "").toLowerCase();
+  const v = (k, empty) => (pp[k] !== undefined ? pp[k] : empty);
+
+  // Imagery — an omitted image must blank, not inherit the previous company's photo.
+  LOGO        = v("LOGO", "");
+  AVATAR      = v("AVATAR", "");
+  SITE_PHOTO  = v("SITE_PHOTO", "");
+  KR_AVATAR   = v("KR_AVATAR", "");
+  STATUS_IMG  = v("STATUS_IMG", "");
+  STATUS_LOGO = v("STATUS_LOGO", "");
+  CARD_MEDIA  = v("CARD_MEDIA", {}) || {};
+
+  // Brand accent falls back to the app default, never the previous company's colour.
+  EM      = pp.BRAND ? pp.BRAND : "#3b82f6";
+  EM_TEXT = pp.BRAND_TEXT ? pp.BRAND_TEXT : "#1d4ed8";
+
+  // Identity + narrative
+  COMPANY        = v("COMPANY", { name: "", website: "", slogan: "", ticker: "", commodity: "", jurisdiction: "", stage: "" });
+  ONE_LINER      = v("ONE_LINER", "");
+  THESIS         = v("THESIS", []);
+  WHY_ITEMS      = v("WHY", []);
+  BRIEF_SECTIONS = v("BRIEF_SECTIONS", []);
+  CEO_NOTE       = v("CEO_NOTE", null) || { text: "", name: "", title: "CEO", photo: "" };
+  CONTACT        = v("CONTACT", null) || { phone: "", email: "", twitter: "", linkedin: "" };
+
+  // People
+  TEAM_MEMBERS = v("TEAM_MEMBERS", []);
+
+  // Capital
+  CAP           = v("CAP", { outstanding: "", fd: "", debt: "$0", rows: [] });
+  EXCHANGES     = v("EXCHANGES", []);
+  OWNERSHIP     = v("OWNERSHIP", []);
+  RAISES        = v("RAISES", []);
+  FUNDING       = v("FUNDING", { funded: false, label: "", note: "", cautionLabel: "", cautionNote: "" });
+  CAPSTATUS     = v("CAPSTATUS", { hasData: false, state: "", tone: "#64748b", headline: "", summary: "", runwayStart: "", runwayEnd: "" });
+  METRIC_DETAIL = v("METRIC_DETAIL", {});
+
+  // Status card — hasData:false drives the existing empty state.
+  STATUS = v("STATUS", {
+    hasData: false, state: "", tone: "#10b981", detail: "",
+    progressLabel: "", progressDone: 0, progressTotal: 0,
+    latest: "", impact: "", next: "", nextCatalyst: "", eta: "", photo: "",
+  });
+
+  // Lifecycle
+  STAGES     = v("STAGES", ["Acquisition", "Validation", "Target Gen", "Drilling", "Discovery", "Production"]);
+  STAGE_NOW  = v("STAGE_NOW", 0);
+  STAGE_DESC = v("STAGE_DESC", STAGES.map(() => ""));
+  HEALTH     = v("HEALTH", []);
+  TRACK      = v("TRACK", []);
+
+  // Timeline / press releases / media
+  PR_YEARS     = v("PR_YEARS", []);
+  FULL         = v("FULL", {});
+  UPDATE_POSTS = v("UPDATE_POSTS", []);
+
+  // Projects. `{}` (not null) tells ProjectsView "supplied, and empty" — null would
+  // re-open the built-in prototype fallback.
+  PROJECTS_FULL = v("PROJECTS_FULL", {});
+  PROJECTS_DATA = v("PROJECTS_DATA", {});
+
+  // Map — reframe on the new pins unless an explicit bbox came with them.
+  MAP_SITES = v("MAP_SITES", []) || [];
+  PARRAL    = v("MAP_TOWN", null);
+  MAP_BBOX  = pp.MAP_BBOX !== undefined ? pp.MAP_BBOX : computeBbox(MAP_SITES, PARRAL);
+
+  ACCOUNT_TIER = String(v("ACCOUNT_TIER", "") || "").toLowerCase();
 }
 
 /* ============================================================

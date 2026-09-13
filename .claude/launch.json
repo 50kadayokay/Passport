@@ -2,15 +2,37 @@
   "version": "0.0.1",
   "configurations": [
     {
+      "name": "portal-dev-5180",
+      "runtimeExecutable": "/Users/leifer/Claude Projects/Passport V1/.node/node-v24.18.0-darwin-arm64/bin/node",
+      "runtimeArgs": [
+        "node_modules/vite/bin/vite.js",
+        "--host",
+        "--port",
+        "5180"
+      ],
+      "port": 5180
+    },
+    {
       "name": "passport-dev",
       "runtimeExecutable": "/Users/leifer/Claude Projects/Passport V1/.node/node-v24.18.0-darwin-arm64/bin/node",
-      "runtimeArgs": ["node_modules/vite/bin/vite.js", "--host", "--port", "5173"],
+      "runtimeArgs": [
+        "node_modules/vite/bin/vite.js",
+        "--host",
+        "--port",
+        "5173"
+      ],
       "port": 5173
     },
     {
       "name": "passport-preview",
       "runtimeExecutable": "/Users/leifer/Claude Projects/Passport V1/.node/node-v24.18.0-darwin-arm64/bin/node",
-      "runtimeArgs": ["node_modules/vite/bin/vite.js", "preview", "--host", "--port", "4173"],
+      "runtimeArgs": [
+        "node_modules/vite/bin/vite.js",
+        "preview",
+        "--host",
+        "--port",
+        "4173"
+      ],
       "port": 4173
     }
   ]

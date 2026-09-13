@@ -53,6 +53,8 @@ const AREA = { ...INPUT, minHeight: 66, resize: "vertical", lineHeight: 1.45, fo
 const ADD_BTN = { fontSize: 12, fontWeight: 700, color: "#334155", background: "#f1f4f8", border: "none", borderRadius: 8, padding: "5px 11px", cursor: "pointer" };
 const DEL_BTN = { width: 28, height: 28, borderRadius: 7, border: "none", background: "transparent", color: "#a3adba", cursor: "pointer", fontWeight: 600, flexShrink: 0, lineHeight: 1 };
 const CARD = { border: "1px solid #eef2f6", borderRadius: 12, padding: 12, marginBottom: 10, scrollMarginTop: 8 };
+// Up/down reorder control — small, quiet, sits beside the delete button.
+const ORDER_BTN = { width: 24, height: 20, borderRadius: 6, border: "1px solid #e2e8f0", background: "#fff", color: "#64748b", fontSize: 11, lineHeight: 1, padding: 0, fontWeight: 700 };
 // Major content-group heading inside the editor — stronger than a field LABEL so structure reads at a glance.
 const SECTION_TITLE = { fontSize: 13, fontWeight: 800, letterSpacing: ".06em", textTransform: "uppercase", color: "#0f172a", display: "block", marginBottom: 12 };
 
@@ -414,6 +416,19 @@ export default function ProfileEditor({ company, injectedProfile, navTab, navSte
     if (near("VALUE DRIVER") || near("CORE VALUE")) return { tab: "overview", field: "valuedrivers" };
     if (near("CURRENT FOCUS") || near("FOCUS")) return { tab: "overview", field: "focus" };
     if (near("FLAGSHIP")) return { tab: "overview", field: "flagship" };
+    // An exact project-name match wins over the generic "PROJECTS" rule below — the pills
+    // live under an "ASSETS / Projects" heading, so that rule used to swallow them.
+    {
+      const keys = Object.keys(pp.PROJECTS_DATA || {});
+      for (const L of labels) {
+        for (const k of keys) {
+          const nm = (pp.PROJECTS_DATA[k] || {}).name;
+          if (nm && L.trim() === String(nm).trim().toUpperCase()) {
+            return { tab: "projects", projectKey: k, selector: `[data-proj="${k}"]` };
+          }
+        }
+      }
+    }
     if (near("PROJECTS")) return { tab: "overview", field: "projectscount" };
     const t = activeTab;
     if (t === "projects") {
@@ -438,9 +453,116 @@ export default function ProfileEditor({ company, injectedProfile, navTab, navSte
     if (near("FOLLOW") || near("MESSAGE")) return { tab: "overview", field: "name" };
     return { tab: "overview" };
   };
+  /* ---- editor → preview -------------------------------------------------------------
+     The phone already drives the editor (click a widget, land on its field). This is the
+     other direction: move in the editor and the phone follows, so the user can always see
+     what they are changing. Matched on the widget's own label text — the same heuristic
+     resolvePreviewTarget uses in reverse — so it needs no change to the investor renderer. */
+  const previewRef = useRef(null);
+  const syntheticClickRef = useRef(false);
+
+  // Scroll INSIDE the phone, never the editor page. scrollIntoView would drag the whole
+  // desktop layout around when the widget is off-screen.
+  const scrollWithin = (el) => {
+    let box = el.parentElement;
+    while (box && box !== previewRef.current && !(box.scrollHeight > box.clientHeight + 4)) box = box.parentElement;
+    if (!box || box === previewRef.current) return;
+    const br = box.getBoundingClientRect(), er = el.getBoundingClientRect();
+    const delta = (er.top + er.height / 2) - (br.top + br.height / 2);
+    try { box.scrollTo({ top: box.scrollTop + delta, behavior: "smooth" }); } catch (_) { box.scrollTop += delta; }
+  };
+  const flashPreview = (el) => {
+    scrollWithin(el);
+    const prev = el.style.boxShadow;
+    el.style.transition = "box-shadow .3s ease";
+    el.style.boxShadow = "0 0 0 2px rgba(37,99,235,.5)";
+    setTimeout(() => { el.style.boxShadow = prev; }, 1100);
+  };
+  // Find the SMALLEST element whose text carries one of these labels — the widget itself
+  // rather than the card or screen containing it.
+  const showInPreview = (needles) => {
+    const root = previewRef.current;
+    if (!root || !needles || !needles.length) return false;
+    const want = needles.map((n) => n.toUpperCase());
+    let best = null, bestLen = Infinity;
+    root.querySelectorAll("div,span,section,button,p,h1,h2,h3,li").forEach((el) => {
+      const tx = (el.textContent || "").trim().toUpperCase();
+      if (!tx || tx.length > 90 || tx.length >= bestLen) return;
+      if (want.some((w) => tx.includes(w))) { best = el; bestLen = tx.length; }
+    });
+    if (best) { flashPreview(best); return true; }
+    return false;
+  };
+
+  // What each editor step / field points at in the phone.
+  const STEP_ANCHORS = {
+    "overview:0": ["FOLLOW"],                                   // Images — the header
+    "overview:1": ["COMPANY STATUS"],
+    "overview:2": ["AI BRIEF", "60 SECONDS"],
+    "capital:0": ["CAPITAL SNAPSHOT", "SHARE STRUCTURE"],
+    "capital:1": ["FUNDING RUNWAY", "FULLY FUNDED", "CAPITAL STATUS"],
+    "capital:2": ["OWNERSHIP"],
+    "team:0": ["BOARD", "LEADERSHIP"],
+    "timeline:0": ["TIMELINE", "PRESS RELEASES", "RECENT"],
+  };
+  const FIELD_ANCHORS = {
+    commodity: ["COMMODITY"], jurisdiction: ["JURISDICTION"], headquarters: ["HEADQUARTERS"],
+    stage: ["STAGE"], focus: ["CURRENT FOCUS"], flagship: ["FLAGSHIP PROJECT"],
+    projectscount: ["PROJECTS"], ticker: ["TRADED AS"], website: [".COM", ".CA"],
+    brief: ["AI BRIEF", "60 SECONDS"],
+  };
+
+  // #6 — changing tab or section moves the phone to the matching part of the profile. The
+  // delay lets the preview finish re-rendering after a tab switch before we hunt for it.
+  useEffect(() => {
+    const t = setTimeout(() => {
+      showInPreview(STEP_ANCHORS[`${activeTab}:${activeStep}`] || []);
+    }, 260);
+    return () => clearTimeout(t);
+  }, [activeTab, activeStep]);
+
+  // #7 — focusing a field moves the phone to the widget that field feeds.
+  const onEditorFocus = (e) => {
+    const holder = e.target && e.target.closest && e.target.closest("[data-field]");
+    const f = holder && holder.getAttribute("data-field");
+    if (f && FIELD_ANCHORS[f]) showInPreview(FIELD_ANCHORS[f]);
+  };
+
+  // #13 — selecting a project in the editor selects the SAME project in the phone. The
+  // investor renderer owns which project is showing, and its pills are real buttons, so the
+  // matching pill is clicked rather than reaching into its state (the renderer stays
+  // untouched). Falls back to just scrolling to the project if no pill is found.
+  const syncPreviewProject = (key) => {
+    const root = previewRef.current;
+    const name = ((pp && pp.PROJECTS_DATA && pp.PROJECTS_DATA[key]) || {}).name;
+    if (!root || !name) return;
+    const want = String(name).trim().toUpperCase();
+    const pill = [...root.querySelectorAll("button")].find(
+      (b) => (b.textContent || "").trim().toUpperCase() === want
+    );
+    if (pill) {
+      syntheticClickRef.current = true;
+      pill.click();
+      setTimeout(() => { syntheticClickRef.current = false; }, 0);
+      setTimeout(() => showInPreview([want]), 140);
+    }
+    else showInPreview([want]);
+  };
+  // Runs whenever the selected project changes, including via Previous/Next and "+ Add site".
+  useEffect(() => {
+    if (activeTab !== "projects" || !activeProj) return;
+    const t = setTimeout(() => syncPreviewProject(activeProj), 260);
+    return () => clearTimeout(t);
+  }, [activeProj, activeTab]);
+
   const lastTabRef = useRef("overview");
   const handlePreviewClick = (e) => {
+    // syncPreviewProject clicks a pill inside the phone to change its project. That click
+    // would otherwise come straight back through this handler as if the USER had tapped the
+    // phone, and route the editor somewhere else entirely.
+    if (syntheticClickRef.current) return;
     const tgt = resolvePreviewTarget(e.target);
+    if (tgt.projectKey) { setActiveProj(tgt.projectKey); setOpenSec("images"); }
     setTimeout(() => jump(tgt.tab, tgt.field, tgt.selector), 0);
   };
 
@@ -470,6 +592,10 @@ export default function ProfileEditor({ company, injectedProfile, navTab, navSte
     try { return buildCompanyIdentity({ COMPANY: pp.COMPANY || {}, STATUS: pp.STATUS, STATUS_IMG: pp.STATUS_IMG, PROJECTS_FULL: pp.PROJECTS_FULL, PROJECTS_DATA: pp.PROJECTS_DATA, EXCHANGES: pp.EXCHANGES, STAGES: pp.STAGES, STAGE_NOW: pp.STAGE_NOW }) || {}; }
     catch { return {}; }
   }, [pp]);
+  // buildCompanyIdentity nests these four under `meta`; reading them off the top level
+  // returned undefined, so the fields showed a grey placeholder instead of the value the
+  // profile is actually displaying.
+  const idMeta = (identity && identity.meta) || {};
 
   // Keep the active tab valid for the plan (BASIC only edits Overview + Timeline). This MUST
   // run unconditionally, before the `if (!pp) return` guard below — otherwise the hook is
@@ -521,14 +647,27 @@ export default function ProfileEditor({ company, injectedProfile, navTab, navSte
       return out;
     });
   };
+  // Add a project from the Status card and immediately make it the flagship, then jump to
+  // the Projects tab so the new site can be filled in.
+  const addFlagshipSite = () => {
+    const key = addProject();
+    if (key) { setCo("flagshipKey", key); setActiveProj(key); setNav("projects", 0); }
+  };
+
   const addProject = () => {
     dirty();
+    // The key is derived from the CURRENT pp before dispatching, not inside the updater:
+    // React may run an updater later or twice, so a value assigned in there can't be
+    // returned reliably to the caller that needs to select the new project.
+    const existing = (pp && pp.PROJECTS_DATA) || {};
+    let k = "new-project", i = 1; while (existing[k]) k = "new-project-" + (++i);
     setPp((p) => {
       const pd = { ...(p.PROJECTS_DATA || {}) };
-      let k = "new-project", i = 1; while (pd[k]) k = "new-project-" + (++i);
+      if (pd[k]) return p;                      // already added (e.g. a double dispatch)
       pd[k] = { key: k, name: "New Project", tag: "", coord: "", intro: "", stats: [], highlights: [], sections: [] };
       return { ...p, PROJECTS_DATA: pd };
     });
+    return k;
   };
 
   // ---- Rich project authoring: writes PROJECTS_FULL[key], the exact structure the investor
@@ -586,6 +725,19 @@ export default function ProfileEditor({ company, injectedProfile, navTab, navSte
       arr[idx] = next; return { ...p, TEAM_MEMBERS: arr };
     });
   };
+  // Team order IS the display order on the profile, so it needs to be editable — a board
+  // is a hierarchy, not a list in whatever order it was typed.
+  const moveMember = (i, dir) => {
+    const j = i + dir;
+    setPp((p) => {
+      const arr = [...(p.TEAM_MEMBERS || [])];
+      if (j < 0 || j >= arr.length) return p;
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+      return { ...p, TEAM_MEMBERS: arr };
+    });
+    dirty();
+  };
+
   const addMember = () => { dirty(); setPp((p) => ({ ...p, TEAM_MEMBERS: [...(p.TEAM_MEMBERS || []), { name: "New Member", role: "", short: "", full: "", photo: "", initials: "NM" }] })); };
 
   // Timeline (PR_YEARS grouped by year; edit a FLAT list and regroup)
@@ -656,7 +808,7 @@ export default function ProfileEditor({ company, injectedProfile, navTab, navSte
     { key: "images", title: "Images", fields: [], node: (
       <section>
         <span style={SECTION_TITLE}>Company images</span>
-        <p style={{ fontSize: 12, color: "#94a3b8", margin: "-2px 0 14px" }}>The logo and status image as they appear on your Passport profile card.</p>
+        <p style={{ fontSize: 12, color: "#94a3b8", margin: "-2px 0 14px" }}>The logo and status image as they appear on your MineEx profile card.</p>
         <ProfileImages
           heroUrl={pp.SITE_PHOTO || pp.STATUS_IMG} logoUrl={pp.AVATAR || pp.LOGO} companyName={co.name}
           busyHero={busyImg === "hero"} busyLogo={busyImg === "avatar"}
@@ -685,53 +837,37 @@ export default function ProfileEditor({ company, injectedProfile, navTab, navSte
           ))}
         </div>
         <div style={{ display: "flex", gap: 12 }}>
-          <F label="Commodity" field="commodity" value={co.commodity || identity.commodity || ""} onChange={(v) => setCo("commodity", v)} />
+          <F label="Commodity" field="commodity" value={co.commodity || idMeta.commodity || ""} onChange={(v) => setCo("commodity", v)} />
           <Sel label="Stage" field="stage" value={co.stage || identity.stage || ""} onChange={(v) => setCo("stage", v)} options={[...new Set([identity.stage, ...STAGE_OPTIONS].filter(Boolean))]} ph="Select stage…" />
         </div>
-        <F label="Jurisdiction" field="jurisdiction" value={co.jurisdiction || identity.jurisdiction || ""} onChange={(v) => setCo("jurisdiction", v)} />
+        <F label="Jurisdiction" field="jurisdiction" value={co.jurisdiction || idMeta.jurisdiction || ""} onChange={(v) => setCo("jurisdiction", v)} />
         <F label="Headquarters" field="headquarters" value={co.headquarters} onChange={(v) => setCo("headquarters", v)} />
       </section>
       <section style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         <span style={{ ...SECTION_TITLE, marginBottom: 0 }}>Status card</span>
         <div style={{ fontSize: 11.5, color: "#94a3b8", marginTop: -6 }}>The six tiles under Company Status on the profile.</div>
-        <Sel label="Flagship project" field="flagship" value={co.flagshipKey || Object.keys(pp.PROJECTS_DATA || {})[0] || ""}
-          onChange={(v) => setCo("flagshipKey", v)} ph="First project (default)"
-          options={Object.keys(pp.PROJECTS_DATA || {}).map((k) => ({ value: k, label: (pp.PROJECTS_DATA[k] || {}).name || k }))} />
-        <F label="Current focus" field="focus" value={co.focus || identity.focus || ""} onChange={(v) => setCo("focus", v)} ph="e.g. Active Drilling" />
-        <F label="Projects label" field="projectscount" value={co.projectsLabel || identity.projects || ""} onChange={(v) => setCo("projectsLabel", v)} ph={`Auto: ${Object.keys(pp.PROJECTS_DATA || {}).length} Projects`} />
+        {/* The flagship can only be chosen from projects that exist, so offer a way to add
+            one right here rather than sending the user to the Projects tab and back. */}
+        <div style={{ display: "flex", alignItems: "flex-end", gap: 8 }}>
+          <Sel label="Flagship project" field="flagship" value={co.flagshipKey || Object.keys(pp.PROJECTS_DATA || {})[0] || ""}
+            onChange={(v) => setCo("flagshipKey", v)} ph="First project (default)"
+            options={Object.keys(pp.PROJECTS_DATA || {}).map((k) => ({ value: k, label: (pp.PROJECTS_DATA[k] || {}).name || k }))} />
+          <button onClick={addFlagshipSite} style={{ ...ADD_BTN, height: 36, whiteSpace: "nowrap" }}
+            title="Add a project and make it the flagship">+ Add site</button>
+        </div>
+        <F label="Current focus" field="focus" value={co.focus || idMeta.focus || ""} onChange={(v) => setCo("focus", v)} ph="e.g. Active Drilling" />
+        <F label="Projects label" field="projectscount" value={co.projectsLabel || idMeta.projects || ""} onChange={(v) => setCo("projectsLabel", v)} ph={`Auto: ${Object.keys(pp.PROJECTS_DATA || {}).length} Projects`} />
       </section>
       </>
     ) },
-    { key: "brief", title: "Investment story", fields: ["thesis", "valuedrivers", "brief"], node: (
+    { key: "brief", title: "Investment story", fields: ["brief"], node: (
       <>
-      <section data-field="thesis">
-        <SecHead title="Investment thesis" onAdd={() => setKey("THESIS", [...(pp.THESIS || []), ""])} />
-        <div style={{ fontSize: 11.5, color: "#94a3b8", marginTop: -6, marginBottom: 10 }}>Shown on the expanded / desktop profile — not the AI Brief card.</div>
-        {(pp.THESIS || []).map((t, i) => (
-          <div key={i} style={{ display: "flex", gap: 8, marginBottom: 8, alignItems: "flex-start" }}>
-            <Grow value={t} onChange={(v) => setThesis(i, v)} />
-            <button onClick={() => setThesis(i, null)} title="Remove" style={DEL_BTN}>✕</button>
-          </div>
-        ))}
-      </section>
-      <section data-field="valuedrivers">
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-          <span style={{ ...SECTION_TITLE, marginBottom: 0 }}>Value drivers</span>
-          <label style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700, color: whyOn ? "#2563eb" : "#94a3b8", cursor: "pointer" }}>
-            <input type="checkbox" checked={whyOn} onChange={(e) => toggleWhy(e.target.checked)} /> {whyOn ? "On" : "Off"}
-          </label>
-        </div>
-        <div style={{ fontSize: 11.5, color: "#94a3b8", marginTop: -4, marginBottom: 10 }}>The swipe card next to Company Status on the profile.</div>
-        {whyOn ? (<>
-          {(pp.WHY || []).map((w, i) => (
-            <div key={i} style={{ display: "flex", gap: 8, marginBottom: 8, alignItems: "center" }}>
-              <input style={INPUT} value={w || ""} placeholder="A concise value driver" onChange={(e) => setWhy(i, e.target.value)} />
-              <button onClick={() => setWhy(i, null)} title="Remove" style={DEL_BTN}>✕</button>
-            </div>
-          ))}
-          <button onClick={addWhy} style={{ ...ADD_BTN, marginTop: 2 }}>+ Add driver</button>
-        </>) : <div style={{ fontSize: 12, color: "#94a3b8" }}>Hidden on the profile. Toggle on to show value drivers.</div>}
-      </section>
+      {/* Investment thesis (pp.THESIS) and Value drivers (pp.WHY) were edited here but
+          render on NEITHER a Pro nor a Basic investor profile: THESIS appears only in
+          Conference Mode, and the derived WHY array in PassportProto is computed and never
+          consumed at all. Editing them here implied they were investor-facing. The DATA is
+          untouched (setThesis/setWhy and the values on pp still exist) — only the fields
+          are gone, so nothing is lost if they need a home later. */}
       <section data-field="brief">
         <SecHead title="AI Brief sections" onAdd={addBrief} />
         <div style={{ fontSize: 11.5, color: "#94a3b8", marginTop: -6, marginBottom: 10 }}>This is the AI Brief card (What They Do, Why It Matters, Competitive Advantages…).</div>
@@ -741,7 +877,8 @@ export default function ProfileEditor({ company, injectedProfile, navTab, navSte
               <input style={{ ...INPUT, fontWeight: 700 }} value={b.k || ""} placeholder="Section heading" onChange={(e) => setBrief(i, { k: e.target.value })} />
               <button onClick={() => setBrief(i, null)} title="Remove" style={DEL_BTN}>✕</button>
             </div>
-            <Grow value={b.v} onChange={(v) => setBrief(i, { v })} />
+            {/* These carry the longest prose in the editor — give them real room. */}
+            <Grow value={b.v} onChange={(v) => setBrief(i, { v })} min={168} />
           </div>
         ))}
       </section>
@@ -842,35 +979,15 @@ export default function ProfileEditor({ company, injectedProfile, navTab, navSte
           </div>
         </EditorSection>
 
-        {/* PROJECT STAGE — content.stage + stageIdx. */}
-        <EditorSection title="Project stage" hint="The Project Stage widget and its detail sheet on the investor profile." filled={filled.stage} open={openSec === "stage"} onToggle={() => toggle("stage")}>
-          <Sel label="Lifecycle position" value={typeof pfk.stageIdx === "number" ? (STAGE_NAMES[pfk.stageIdx] || "") : ""}
-            onChange={(v) => { const i = STAGE_NAMES.indexOf(v); setProjectFull(k, { stageIdx: i < 0 ? undefined : i }); }}
-            options={STAGE_NAMES} ph="Select lifecycle position…" />
-          <div style={{ display: "flex", gap: 12, marginTop: 12 }}>
-            <F label="Development stage" value={st.current} onChange={(v) => setContent(k, "stage", { current: v })} ph="e.g. Discovery" />
-            <F label="Expected timeline" value={st.timing} onChange={(v) => setContent(k, "stage", { timing: v })} ph="e.g. H2 2026" />
-          </div>
-          <div style={{ marginTop: 12 }}><TA label="Stage summary" value={st.summary} onChange={(v) => setContent(k, "stage", { summary: v })} /></div>
-          <div style={{ marginTop: 12 }}><F label="Current program" value={st.program} onChange={(v) => setContent(k, "stage", { program: v })} ph="e.g. 26-hole diamond drill program" /></div>
-          <div style={{ marginTop: 12 }}><TA label="Current activity" value={st.activity} onChange={(v) => setContent(k, "stage", { activity: v })} /></div>
-          <div style={{ marginTop: 12 }}><TA label="Next technical milestone" value={st.next} onChange={(v) => setContent(k, "stage", { next: v })} /></div>
-          <div style={{ marginTop: 12 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-              <span style={{ ...LABEL, marginBottom: 0 }}>Recently completed</span>
-              <button onClick={() => setCompleted([...completed, ""])} style={ADD_BTN}>+ Add</button>
-            </div>
-            {completed.map((c, i) => (
-              <div key={i} style={{ display: "flex", gap: 8, marginBottom: 8, alignItems: "center" }}>
-                <input style={INPUT} value={c || ""} placeholder="A recently completed milestone" onChange={(e) => { const a = [...completed]; a[i] = e.target.value; setCompleted(a); }} />
-                <button onClick={() => { const a = [...completed]; a.splice(i, 1); setCompleted(a); }} title="Remove" style={DEL_BTN}>✕</button>
-              </div>
-            ))}
-          </div>
-          <div style={{ marginTop: 12 }}><TA label="What must happen next" value={st.closing} onChange={(v) => setContent(k, "stage", { closing: v })} /></div>
+        <EditorSection title="60-second project brief" hint="The 'Understand this project in 60 seconds' sheet." filled={filled.brief} open={openSec === "brief"} onToggle={() => toggle("brief")}>
+          <div style={{ marginBottom: 12 }}><TA label="Project summary / introduction" value={brief.overview} onChange={(v) => setContent(k, "brief", { overview: v })} /></div>
+          <div style={{ marginBottom: 12 }}><TA label="Discovery thesis" value={brief.thesis} onChange={(v) => setContent(k, "brief", { thesis: v })} /></div>
+          <div style={{ marginBottom: 12 }}><TA label="Current technical focus" value={brief.focus} onChange={(v) => setContent(k, "brief", { focus: v })} /></div>
+          <div style={{ marginBottom: 12 }}><TA label="What makes this project different" value={brief.different} onChange={(v) => setContent(k, "brief", { different: v })} /></div>
+          <div style={{ marginBottom: 12 }}><TA label="Key technical risks" value={brief.risks} onChange={(v) => setContent(k, "brief", { risks: v })} /></div>
+          <div><TA label="What this means" value={brief.means} onChange={(v) => setContent(k, "brief", { means: v })} /></div>
         </EditorSection>
 
-        {/* PROJECT SNAPSHOT — PROJECTS_FULL[k].snap. */}
         <EditorSection title="Project snapshot" hint="The fundamentals shown as Project Snapshot cards. A card appears on the profile only when it has a headline." filled={filled.snapshot} open={openSec === "snapshot"} onToggle={() => toggle("snapshot")}>
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {SNAP_CARDS.map((cfg) => (
@@ -879,7 +996,6 @@ export default function ProfileEditor({ company, injectedProfile, navTab, navSte
           </div>
         </EditorSection>
 
-        {/* DRILL TARGETS / EXPLORATION FOCUS — content.targets. */}
         <EditorSection title="Drill targets / exploration focus" hint="The Exploration Focus sheet. The tile shows on the profile once at least one priority target is added." filled={filled.targets} open={openSec === "targets"} onToggle={() => toggle("targets")}>
           <TA label="Section intro" value={tg.summary} onChange={(v) => setContent(k, "targets", { summary: v })} />
           <div style={{ marginTop: 12 }}>
@@ -914,7 +1030,33 @@ export default function ProfileEditor({ company, injectedProfile, navTab, navSte
           <div style={{ marginTop: 12 }}><TA label="Why these targets matter" value={tg.closing} onChange={(v) => setContent(k, "targets", { closing: v })} /></div>
         </EditorSection>
 
-        {/* TECHNICAL INTELLIGENCE — PROJECTS_FULL[k].cards[] by kind. */}
+        <EditorSection title="Project stage" hint="The Project Stage widget and its detail sheet on the investor profile." filled={filled.stage} open={openSec === "stage"} onToggle={() => toggle("stage")}>
+          <Sel label="Lifecycle position" value={typeof pfk.stageIdx === "number" ? (STAGE_NAMES[pfk.stageIdx] || "") : ""}
+            onChange={(v) => { const i = STAGE_NAMES.indexOf(v); setProjectFull(k, { stageIdx: i < 0 ? undefined : i }); }}
+            options={STAGE_NAMES} ph="Select lifecycle position…" />
+          <div style={{ display: "flex", gap: 12, marginTop: 12 }}>
+            <F label="Development stage" value={st.current} onChange={(v) => setContent(k, "stage", { current: v })} ph="e.g. Discovery" />
+            <F label="Expected timeline" value={st.timing} onChange={(v) => setContent(k, "stage", { timing: v })} ph="e.g. H2 2026" />
+          </div>
+          <div style={{ marginTop: 12 }}><TA label="Stage summary" value={st.summary} onChange={(v) => setContent(k, "stage", { summary: v })} /></div>
+          <div style={{ marginTop: 12 }}><F label="Current program" value={st.program} onChange={(v) => setContent(k, "stage", { program: v })} ph="e.g. 26-hole diamond drill program" /></div>
+          <div style={{ marginTop: 12 }}><TA label="Current activity" value={st.activity} onChange={(v) => setContent(k, "stage", { activity: v })} /></div>
+          <div style={{ marginTop: 12 }}><TA label="Next technical milestone" value={st.next} onChange={(v) => setContent(k, "stage", { next: v })} /></div>
+          <div style={{ marginTop: 12 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+              <span style={{ ...LABEL, marginBottom: 0 }}>Recently completed</span>
+              <button onClick={() => setCompleted([...completed, ""])} style={ADD_BTN}>+ Add</button>
+            </div>
+            {completed.map((c, i) => (
+              <div key={i} style={{ display: "flex", gap: 8, marginBottom: 8, alignItems: "center" }}>
+                <input style={INPUT} value={c || ""} placeholder="A recently completed milestone" onChange={(e) => { const a = [...completed]; a[i] = e.target.value; setCompleted(a); }} />
+                <button onClick={() => { const a = [...completed]; a.splice(i, 1); setCompleted(a); }} title="Remove" style={DEL_BTN}>✕</button>
+              </div>
+            ))}
+          </div>
+          <div style={{ marginTop: 12 }}><TA label="What must happen next" value={st.closing} onChange={(v) => setContent(k, "stage", { closing: v })} /></div>
+        </EditorSection>
+
         <EditorSection title="Technical intelligence" hint="The four intelligence cards. A card appears on the profile only when it has content." filled={filled.tech} open={openSec === "tech"} onToggle={() => toggle("tech")}>
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {TECH_CARDS.map((cfg) => (
@@ -923,7 +1065,6 @@ export default function ProfileEditor({ company, injectedProfile, navTab, navSte
           </div>
         </EditorSection>
 
-        {/* WHAT SETS THIS PROJECT APART — content.unique. */}
         <EditorSection title="What sets this project apart" hint="The Final Synthesis sheet on the investor profile." filled={filled.unique} open={openSec === "unique"} onToggle={() => toggle("unique")}>
           <TA label="Main synthesis" value={uq.summary} onChange={(v) => setContent(k, "unique", { summary: v })} />
           <div style={{ marginTop: 12 }}>
@@ -957,21 +1098,10 @@ export default function ProfileEditor({ company, injectedProfile, navTab, navSte
           <div style={{ marginTop: 12 }}><TA label="Why it matters" value={uq.takeaway} onChange={(v) => setContent(k, "unique", { takeaway: v })} /></div>
         </EditorSection>
 
-        {/* VALUE DRIVERS — content.scenarios. */}
         <EditorSection title="Value drivers" hint="Three distinct investor-facing cards (bull / bear / next). Each shows only when it has text." filled={filled.drivers} open={openSec === "drivers"} onToggle={() => toggle("drivers")}>
           <div style={{ marginBottom: 12 }}><TA label="Bull case" value={sc.bull && sc.bull.text} onChange={(v) => setScenario("bull", v)} /></div>
           <div style={{ marginBottom: 12 }}><TA label="Bear case" value={sc.bear && sc.bear.text} onChange={(v) => setScenario("bear", v)} /></div>
           <div><TA label="Next validation point" value={sc.next && sc.next.text} onChange={(v) => setScenario("next", v)} /></div>
-        </EditorSection>
-
-        {/* 60-SECOND PROJECT BRIEF — content.brief. */}
-        <EditorSection title="60-second project brief" hint="The 'Understand this project in 60 seconds' sheet." filled={filled.brief} open={openSec === "brief"} onToggle={() => toggle("brief")}>
-          <div style={{ marginBottom: 12 }}><TA label="Project summary / introduction" value={brief.overview} onChange={(v) => setContent(k, "brief", { overview: v })} /></div>
-          <div style={{ marginBottom: 12 }}><TA label="Discovery thesis" value={brief.thesis} onChange={(v) => setContent(k, "brief", { thesis: v })} /></div>
-          <div style={{ marginBottom: 12 }}><TA label="Current technical focus" value={brief.focus} onChange={(v) => setContent(k, "brief", { focus: v })} /></div>
-          <div style={{ marginBottom: 12 }}><TA label="What makes this project different" value={brief.different} onChange={(v) => setContent(k, "brief", { different: v })} /></div>
-          <div style={{ marginBottom: 12 }}><TA label="Key technical risks" value={brief.risks} onChange={(v) => setContent(k, "brief", { risks: v })} /></div>
-          <div><TA label="What this means" value={brief.means} onChange={(v) => setContent(k, "brief", { means: v })} /></div>
         </EditorSection>
 
         {/* Move between projects. */}
@@ -1035,7 +1165,11 @@ export default function ProfileEditor({ company, injectedProfile, navTab, navSte
         <TA label="Summary" rows={2} value={cs.summary} onChange={(v) => setCapStatus({ summary: v })} />
         <div style={{ display: "flex", gap: 12 }}>
           <F label="State" value={cs.state} onChange={(v) => setCapStatus({ state: v })} ph="Fully Funded" />
-          <F label="Runway left" value={cs.runwayLeft} onChange={(v) => setCapStatus({ runwayLeft: v })} />
+          {/* The capital card shows ONE runway fact (the end of the funded period) since the
+              slider was removed; it reads runwayEnd, falling back to the older runwayRight.
+              This used to edit "Runway left", which the card no longer displays at all. */}
+          <F label="Funding runway" value={cs.runwayEnd || cs.runwayRight || ""}
+            onChange={(v) => setCapStatus({ runwayEnd: v })} ph="e.g. Through 2026" />
         </div>
         <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, fontWeight: 600, color: "#475569" }}>
           <input type="checkbox" checked={!!cs.funded} onChange={(e) => setCapStatus({ funded: e.target.checked })} /> Fully funded
@@ -1072,6 +1206,12 @@ export default function ProfileEditor({ company, injectedProfile, navTab, navSte
               <input style={{ ...INPUT, fontWeight: 700 }} value={m.name || ""} placeholder="Name" onChange={(e) => setMember(i, { name: e.target.value })} />
               <input style={INPUT} value={m.role || ""} placeholder="Role / title" onChange={(e) => setMember(i, { role: e.target.value })} />
             </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 2, flexShrink: 0 }}>
+              <button onClick={() => moveMember(i, -1)} disabled={i === 0} title="Move up"
+                style={{ ...ORDER_BTN, opacity: i === 0 ? 0.3 : 1, cursor: i === 0 ? "default" : "pointer" }}>↑</button>
+              <button onClick={() => moveMember(i, 1)} disabled={i === (pp.TEAM_MEMBERS || []).length - 1} title="Move down"
+                style={{ ...ORDER_BTN, opacity: i === (pp.TEAM_MEMBERS || []).length - 1 ? 0.3 : 1, cursor: i === (pp.TEAM_MEMBERS || []).length - 1 ? "default" : "pointer" }}>↓</button>
+            </div>
             <button onClick={() => { if (window.confirm("Remove this member?")) setMember(i, null); }} title="Remove" style={DEL_BTN}>✕</button>
           </div>
           <div style={{ marginTop: 8 }}><span style={{ ...LABEL, fontSize: 9.5 }}>Short bio</span><input style={INPUT} value={m.short || ""} onChange={(e) => setMember(i, { short: e.target.value })} /></div>
@@ -1098,7 +1238,7 @@ export default function ProfileEditor({ company, injectedProfile, navTab, navSte
   const STEP_DESC = {
     images: "The logo and status image investors see on your MineEx profile card.",
     details: "The core information investors see across the top of your profile.",
-    brief: "Your investment thesis, value drivers and the AI Brief card.",
+    brief: "The AI Brief card investors read first.",
     projects: "Your projects — the flagship shows first on your profile.",
     timeline: "Milestones and updates shown on your profile timeline.",
     shares: "Share structure and capital rows.",
@@ -1111,7 +1251,7 @@ export default function ProfileEditor({ company, injectedProfile, navTab, navSte
     try {
       if (sk === "images") return !!(pp.AVATAR || pp.LOGO) && !!(pp.STATUS_IMG || pp.SITE_PHOTO);
       if (sk === "details") return !!(co.name);
-      if (sk === "brief") return (pp.BRIEF_SECTIONS || []).length > 0 || (pp.THESIS || []).length > 0;
+      if (sk === "brief") return (pp.BRIEF_SECTIONS || []).length > 0;
       if (sk === "projects") return Object.keys(pp.PROJECTS_DATA || {}).length > 0;
       if (sk === "timeline") return (pp.PR_YEARS || []).some((y) => (y.items || []).length);
       if (sk === "shares") return !!(pp.CAP && Object.keys(pp.CAP).length);
@@ -1201,7 +1341,7 @@ export default function ProfileEditor({ company, injectedProfile, navTab, navSte
         </div>
 
         {/* scrolling form — constrained to a comfortable reading width, aligned left */}
-        <div key={activeTab + "-" + step} ref={scrollWrapRef} className="ed-scroll" style={{ flex: 1, overflow: "auto", padding: "24px 32px 40px", display: "flex", flexDirection: "column", gap: 30 }}>
+        <div key={activeTab + "-" + step} ref={scrollWrapRef} onFocusCapture={onEditorFocus} className="ed-scroll" style={{ flex: 1, overflow: "auto", padding: "24px 32px 40px", display: "flex", flexDirection: "column", gap: 30 }}>
           {cur.node}
         </div>
 
@@ -1222,7 +1362,7 @@ export default function ProfileEditor({ company, injectedProfile, navTab, navSte
           click-to-edit routing and data bindings — only its placement changed. */}
       {showPreview && (
         <div style={{ flexShrink: 0, borderLeft: "1px solid #eef2f7", background: "#f6f8fb", padding: "24px 20px", display: "flex", alignItems: "flex-start", justifyContent: "center", gap: 16, overflow: "hidden" }}>
-          <div onClickCapture={handlePreviewClick} style={{ width: 372, height: 806, maxHeight: "calc(100vh - 48px)", aspectRatio: "393 / 852", background: "#fff", borderRadius: 42,
+          <div ref={previewRef} onClickCapture={handlePreviewClick} style={{ width: 372, height: 806, maxHeight: "calc(100vh - 48px)", aspectRatio: "393 / 852", background: "#fff", borderRadius: 42,
             overflow: "hidden", border: "1px solid #e9eef5", boxShadow: "0 40px 90px -30px rgba(15,23,42,0.4)", transform: "translateZ(0)", flexShrink: 0 }}>
             <AppPreview pp={debPp} popupEl={popupEl} tab={activeTab} tier={tier}
               onTab={(t) => { lastTabRef.current = t; setNav(PROFILE_TO_EDITOR[t] || "overview", 0); }} />

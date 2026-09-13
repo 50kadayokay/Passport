@@ -16,8 +16,18 @@ export const EMPTY_FIXTURE = {
   },
 };
 
-// Kingsmen-demo test: mimics the pp-absent default (COMPANY = Kingsmen, PROJECTS_FULL null).
-// The prototype (KINGSMEN_PROJ) MUST still render here.
+// Kingsmen-demo test — narrow scope: it proves ONLY that the PROJECTS fallback still
+// fires for the Kingsmen demo (Las Coloradas + Almoloya must render in the Projects tab).
+//
+// EXPECTED: every OTHER part of the profile renders BLANK here — no logo, no hero, dashes
+// in the status tiles. That is correct, not breakage. The fixture supplies just a COMPANY
+// block, and since applyPP replaces rather than merges, "supplied COMPANY and nothing
+// else" means exactly that. It used to look fully populated only because every missing
+// field silently inherited Kingsmen's real data — the leak that had to go.
+//
+// To LOOK at the real Kingsmen profile use /editordemo (no ?fixture), which loads the
+// actual kingsmen-sandbox row. The live flagship (/app?c=kingsmen-resources) is unaffected
+// either way: its pp is NULL, so applyPP never runs and the built-in prototype renders.
 export const KINGSMEN_PROTO_FIXTURE = {
   pp: { COMPANY: { name: "Kingsmen Resources", website: "https://www.kingsmenresources.com" }, PROJECTS_DATA: {}, PROJECTS_FULL: null },
 };
