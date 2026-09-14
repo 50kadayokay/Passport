@@ -196,37 +196,159 @@ ${THEME_KEYS.filter((k) => k !== "obsidian").map((k) => `.cv3[data-variant="${k}
 .cv3 .kn-scene .knscrim{position:absolute;inset:0;background:radial-gradient(120% 100% at 50% 50%,transparent 30%,var(--bg) 92%)}
 .cv3 .kn-scene .ticker{margin-top:28px}
 /* Terminal */
-.cv3 .term{font-family:var(--mono)}
-.cv3 .term .tape{border-bottom:1px solid var(--line);overflow:hidden;white-space:nowrap;padding:12px 0;margin-top:76px}
-.cv3 .term .tape .run{display:inline-block;animation:cv3tape 34s linear infinite}
-@keyframes cv3tape{from{transform:translateX(0)}to{transform:translateX(-50%)}}
-.cv3 .term .tape span{font-size:12.5px;letter-spacing:.06em;color:var(--dim);padding:0 26px}
-.cv3 .term .tape b{color:var(--accent);font-weight:600}
-.cv3 .term-head{padding:clamp(40px,7vh,80px) 0 30px}
-.cv3 .term-head .st{font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:var(--accent)}
-.cv3 .term-head h1{font-family:var(--font);font-size:clamp(38px,6vw,80px);font-weight:800;letter-spacing:-.03em;line-height:.98;margin:16px 0 0}
-.cv3 .term-head h1 .cur{display:inline-block;width:.5em;height:.9em;background:var(--accent);margin-left:6px;vertical-align:-8%;animation:cv3blink 1.1s step-end infinite}
-@keyframes cv3blink{50%{opacity:0}}
-.cv3 .term-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);border:1px solid var(--line)}
-.cv3 .term-grid .t{background:var(--bg);padding:22px 20px}
-.cv3 .term-grid .t .tk{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim)}
-.cv3 .term-grid .t .tv{font-size:clamp(22px,3vw,36px);font-weight:600;letter-spacing:-.01em;margin-top:12px;color:var(--ink);font-variant-numeric:tabular-nums;font-family:var(--font)}
-.cv3 .term-grid .t .td{font-size:11px;color:var(--faint);margin-top:8px}
-.cv3 .term-log{margin-top:1px;border:1px solid var(--line);border-top:none}
-.cv3 .term-log .lr{display:grid;grid-template-columns:130px 1fr auto;gap:16px;padding:13px 20px;border-top:1px solid var(--line);font-size:13px;align-items:center}
-.cv3 .term-log .lr .c1{color:var(--dim)}.cv3 .term-log .lr .c3{color:var(--accent);font-weight:600;font-variant-numeric:tabular-nums}
-.cv3 .term-log .lr.h{color:var(--faint);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;border-top:none}
-@media(max-width:820px){.cv3 .term-grid{grid-template-columns:repeat(2,1fr)}}
-.cv3 .term-sub{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);padding:34px 0 12px}
-.cv3 .term-tbl{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:13px;border:1px solid var(--line)}
-.cv3 .term-tbl th{text-align:left;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);padding:10px 14px;font-weight:500;border-bottom:1px solid var(--line);background:var(--bg2)}
-.cv3 .term-tbl td{padding:13px 14px;border-bottom:1px solid var(--line)}
-.cv3 .term-tbl tr:last-child td{border-bottom:none}.cv3 .term-tbl td.nm{color:var(--ink);font-weight:600}.cv3 .term-tbl td.ac{color:var(--accent)}
-.cv3 .term-read{border:1px solid var(--line);font-family:var(--mono)}
-.cv3 .term-read .rr{display:flex;justify-content:space-between;gap:20px;padding:12px 16px;border-bottom:1px solid var(--line);font-size:13px}
-.cv3 .term-read .rr:last-child{border-bottom:none}
-.cv3 .term-read .rr .k{color:var(--dim);letter-spacing:.06em;text-transform:uppercase;font-size:11px;white-space:nowrap}
-.cv3 .term-read .rr .v{color:var(--ink);font-weight:600;font-variant-numeric:tabular-nums;text-align:right}
+/* ══ Template 06 · TERMINAL — investor intelligence system. Obsidian ground + champagne gold + mono.
+   A persistent instrument HUD frames a workspace of full-viewport STATES (vertical scroll-snap). Modules
+   mount via clip-wipes + a scan sweep; assets and geography are interactive. Namespace: trm. ══ */
+/* base palette = Obsidian · champagne gold (default). Each theme variant re-tokens the whole instrument
+   below — dark grounds keep the terminal aesthetic; light grounds (graphite / porcelain / harbor) flip
+   it to a bright console. All Terminal colour comes through these tokens, so every variant stays legible. */
+.cv3 .trm{--bg:#0a0a0c;--panel:#111116;--panel2:#17171d;--ink:#f0efe9;--dim:#9a988f;--faint:#5c5a54;--acc:#caa96b;--acc2:#e6cf9c;--line:rgba(240,239,233,.10);--line2:rgba(240,239,233,.20);--grid:rgba(240,239,233,.04);--g1:#131319;--g2:#0b0b0e;
+  position:relative;height:100vh;overflow-y:auto;overflow-x:hidden;scroll-snap-type:y mandatory;-webkit-overflow-scrolling:touch;scrollbar-width:none;background:var(--bg);color:var(--ink);font-family:var(--mono)}
+.cv3 .trm::-webkit-scrollbar{display:none}
+/* ── Terminal colour options (pick via ?theme= / Studio) ── */
+.cv3[data-variant="meridian"] .trm{--bg:#0a0e14;--panel:#111721;--panel2:#161d29;--ink:#eaeef4;--dim:#8c94a2;--faint:#4e5666;--acc:#5fb2cf;--acc2:#9bd6e8;--line:rgba(234,238,244,.10);--line2:rgba(234,238,244,.20);--grid:rgba(234,238,244,.04);--g1:#131a26;--g2:#0c1017}
+.cv3[data-variant="cellar"] .trm{--bg:#100d0b;--panel:#1a1511;--panel2:#201a15;--ink:#f1eae2;--dim:#a89a8c;--faint:#675c50;--acc:#cf7043;--acc2:#e39b73;--line:rgba(241,234,226,.10);--line2:rgba(241,234,226,.20);--grid:rgba(241,234,226,.04);--g1:#1c1610;--g2:#0d0a08}
+.cv3[data-variant="pine"] .trm{--bg:#0b0f0c;--panel:#121a14;--panel2:#172013;--ink:#eaf0ea;--dim:#92a396;--faint:#55625a;--acc:#c2a15c;--acc2:#ddc389;--line:rgba(234,240,234,.10);--line2:rgba(234,240,234,.20);--grid:rgba(234,240,234,.04);--g1:#121a16;--g2:#0a0d0b}
+.cv3[data-variant="amethyst"] .trm{--bg:#0d0b12;--panel:#16121d;--panel2:#1b1624;--ink:#efebf3;--dim:#a099ab;--faint:#605a6c;--acc:#a690d8;--acc2:#c8b6ec;--line:rgba(239,235,243,.10);--line2:rgba(239,235,243,.20);--grid:rgba(239,235,243,.04);--g1:#161020;--g2:#0b0810}
+/* light grounds — the original grey + orange (graphite) the user first presented, plus two more */
+.cv3[data-variant="graphite"] .trm{--bg:#eceef1;--panel:#e4e7ea;--panel2:#dbdfe4;--ink:#14171c;--dim:#5b6069;--faint:#9aa1ab;--acc:#ff7a1a;--acc2:#ff9d4d;--line:rgba(20,23,28,.12);--line2:rgba(20,23,28,.22);--grid:rgba(20,23,28,.05);--g1:#f3f5f7;--g2:#e7eaee}
+.cv3[data-variant="porcelain"] .trm{--bg:#f5f5f6;--panel:#ecedee;--panel2:#e4e5e7;--ink:#1a1a1d;--dim:#64666b;--faint:#a8abb0;--acc:#b5482f;--acc2:#d06b52;--line:rgba(26,26,29,.12);--line2:rgba(26,26,29,.22);--grid:rgba(26,26,29,.05);--g1:#fafafb;--g2:#eff0f1}
+.cv3[data-variant="harbor"] .trm{--bg:#eef1f1;--panel:#e5e9e9;--panel2:#dde2e2;--ink:#12191a;--dim:#566063;--faint:#9aa6a7;--acc:#1f6b66;--acc2:#2f8f88;--line:rgba(18,25,26,.12);--line2:rgba(18,25,26,.22);--grid:rgba(18,25,26,.05);--g1:#f3f6f6;--g2:#e9eded}
+.cv3 .trm-ground{position:fixed;inset:0;z-index:0;pointer-events:none;background:radial-gradient(130% 90% at 50% -8%,var(--g1) 0%,var(--g2) 55%,var(--bg) 100%)}
+.cv3 .trm-ground::before{content:"";position:absolute;inset:0;background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);background-size:48px 48px;-webkit-mask-image:radial-gradient(115% 80% at 50% 42%,#000 22%,transparent 88%);mask-image:radial-gradient(115% 80% at 50% 42%,#000 22%,transparent 88%)}
+/* persistent instrument HUD (viewfinder corners + contextual readouts) */
+.cv3 .trm-hud{position:fixed;inset:0;z-index:40;pointer-events:none;font-family:var(--mono)}
+.cv3 .trm-hud .cnr{position:absolute;width:13px;height:13px;border:1.5px solid var(--line2)}
+.cv3 .trm-hud .cnr.tl{top:15px;left:15px;border-right:0;border-bottom:0}
+.cv3 .trm-hud .cnr.tr{top:15px;right:15px;border-left:0;border-bottom:0}
+.cv3 .trm-hud .cnr.bl{bottom:15px;left:15px;border-right:0;border-top:0}
+.cv3 .trm-hud .cnr.br{bottom:15px;right:15px;border-left:0;border-top:0}
+.cv3 .trm-h{position:absolute;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);line-height:1.55}
+.cv3 .trm-h .g{color:var(--acc)}
+.cv3 .trm-h.tl{top:23px;left:36px}
+.cv3 .trm-h.tr{top:23px;right:36px;text-align:right}
+.cv3 .trm-h.bl{bottom:23px;left:36px}
+.cv3 .trm-h.br{bottom:23px;right:36px;text-align:right}
+.cv3 .trm-meter{display:flex;gap:3px;margin-top:8px;justify-content:flex-end}
+.cv3 .trm-meter i{width:13px;height:3px;background:var(--line2);transition:background .3s}
+.cv3 .trm-meter i.on{background:var(--acc)}
+/* states */
+.cv3 .trm-state{min-height:100vh;scroll-snap-align:start;position:relative;z-index:1;display:flex;flex-direction:column;justify-content:center;padding:clamp(74px,12vh,130px) clamp(30px,7vw,120px);overflow:hidden}
+.cv3 .trm-in{width:100%;max-width:1200px;margin:0 auto;position:relative}
+.cv3 .trm-scan{position:absolute;left:-8vw;right:-8vw;top:0;height:2px;background:linear-gradient(90deg,transparent,var(--acc),transparent);opacity:0;pointer-events:none;z-index:5}
+.cv3 .trm-state.act .trm-scan{animation:trmscan 1.05s cubic-bezier(.5,0,.2,1) .04s}
+@keyframes trmscan{0%{opacity:.85;transform:translateY(-6vh)}100%{opacity:0;transform:translateY(64vh)}}
+/* computational reveal primitives: a clip-wipe (default) + a restrained rise */
+.cv3 .trm-wipe{clip-path:inset(0 100% 0 0);transition:clip-path .72s cubic-bezier(.66,0,.2,1)}
+.cv3 .trm-state.act .trm-wipe{clip-path:inset(0 0 0 0)}
+.cv3 .trm-rise{opacity:0;transform:translateY(12px);transition:opacity .55s ease,transform .55s cubic-bezier(.2,1,.3,1)}
+.cv3 .trm-state.act .trm-rise{opacity:1;transform:none}
+.cv3 .trm-modk{font-size:11px;letter-spacing:.24em;text-transform:uppercase;color:var(--acc);margin-bottom:clamp(22px,3.4vh,38px);padding-left:16px;position:relative;width:fit-content}
+.cv3 .trm-modk::before{content:"";position:absolute;left:0;top:50%;width:8px;height:8px;background:var(--acc);transform:translateY(-50%)}
+@media(prefers-reduced-motion:reduce){.cv3 .trm-wipe{clip-path:none!important}.cv3 .trm-rise{opacity:1!important;transform:none!important}.cv3 .trm-scan{display:none}}
+/* IDENTITY */
+.cv3 .trm-boot-k{font-size:11px;letter-spacing:.28em;text-transform:uppercase;color:var(--acc);width:fit-content}
+.cv3 .trm-boot-name{font-family:var(--font);font-weight:800;letter-spacing:-.045em;line-height:.9;font-size:clamp(52px,11vw,166px);margin:clamp(16px,3vh,34px) 0 0;width:fit-content;max-width:100%}
+.cv3 .trm-boot-sub{font-family:var(--font);font-size:clamp(17px,2.1vw,28px);line-height:1.4;color:var(--dim);max-width:40ch;margin:clamp(18px,3vh,30px) 0 0;width:fit-content}
+.cv3 .trm-boot-chips{display:flex;flex-wrap:wrap;gap:10px;margin-top:clamp(24px,4vh,40px)}
+.cv3 .trm-boot-chips span{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink);border:1px solid var(--line2);padding:8px 14px}
+/* PRIMARY SIGNAL / mega readout */
+.cv3 .trm-sig{display:flex;align-items:flex-end;gap:clamp(20px,4vw,60px);flex-wrap:wrap}
+.cv3 .trm-mega{font-family:var(--font);font-weight:800;letter-spacing:-.045em;line-height:.82;font-variant-numeric:tabular-nums;font-size:clamp(74px,17vw,264px);color:var(--ink)}
+.cv3 .trm-mega .u{font-size:.22em;font-weight:700;letter-spacing:0;color:var(--acc);margin-left:.1em}
+.cv3 .trm-sig-side{padding-bottom:clamp(8px,2vh,26px);max-width:30ch}
+.cv3 .trm-sig-k{font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:var(--acc)}
+.cv3 .trm-sig-note{font-size:clamp(13px,1.5vw,17px);line-height:1.5;color:var(--dim);margin-top:12px}
+.cv3 .trm-vitals{display:flex;flex-wrap:wrap;gap:clamp(24px,5vw,72px);margin-top:clamp(34px,6vh,68px);border-top:1px solid var(--line);padding-top:clamp(20px,3vh,34px)}
+.cv3 .trm-vitals .fk{font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint)}
+.cv3 .trm-vitals .fv{font-family:var(--font);font-size:clamp(17px,2vw,26px);font-weight:600;color:var(--ink);margin-top:9px}
+/* ASSET REGISTER */
+.cv3 .trm-assets-grid{display:grid;grid-template-columns:minmax(210px,.9fr) 1.65fr;gap:clamp(20px,3vw,48px);align-items:start}
+@media(max-width:860px){.cv3 .trm-assets-grid,.cv3 .trm-spatial-grid{grid-template-columns:1fr!important}}
+.cv3 .trm-list{display:flex;flex-direction:column;border-top:1px solid var(--line)}
+.cv3 .trm-list .row{display:grid;grid-template-columns:auto 1fr auto;gap:14px;align-items:baseline;text-align:left;background:none;border:0;border-bottom:1px solid var(--line);padding:16px 8px 16px 16px;cursor:pointer;color:var(--dim);position:relative;font-family:var(--mono);transition:color .25s,background .25s}
+.cv3 .trm-list .row::before{content:"";position:absolute;left:0;top:0;bottom:0;width:2px;background:var(--acc);transform:scaleY(0);transform-origin:top;transition:transform .3s}
+.cv3 .trm-list .row.on::before{transform:scaleY(1)}
+.cv3 .trm-list .row.on{color:var(--ink);background:var(--panel)}
+.cv3 .trm-list .row .rn{font-size:11px;color:var(--acc);font-variant-numeric:tabular-nums}
+.cv3 .trm-list .row .rt{font-family:var(--font);font-weight:600;font-size:clamp(15px,1.7vw,20px);letter-spacing:-.01em}
+.cv3 .trm-list .row .rs{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);white-space:nowrap}
+.cv3 .trm-detail{min-width:0}
+.cv3 .trm-media{position:relative;aspect-ratio:16/10;background:var(--panel);border:1px solid var(--line2);overflow:hidden}
+.cv3 .trm-media img{width:100%;height:100%;object-fit:cover;filter:contrast(1.04) saturate(.94);animation:trmreveal .6s cubic-bezier(.5,0,.2,1)}
+@keyframes trmreveal{from{clip-path:inset(0 0 100% 0)}to{clip-path:inset(0 0 0 0)}}
+.cv3 .trm-media-empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:11px;letter-spacing:.2em;color:var(--faint)}
+.cv3 .trm-media .fr{position:absolute;width:14px;height:14px;border:1.5px solid var(--acc);z-index:2}
+.cv3 .trm-media .fr.tl{top:10px;left:10px;border-right:0;border-bottom:0}
+.cv3 .trm-media .fr.tr{top:10px;right:10px;border-left:0;border-bottom:0}
+.cv3 .trm-media .fr.bl{bottom:10px;left:10px;border-right:0;border-top:0}
+.cv3 .trm-media .fr.br{bottom:10px;right:10px;border-left:0;border-top:0}
+.cv3 .trm-media .cap{position:absolute;left:0;right:0;bottom:0;display:flex;justify-content:space-between;align-items:flex-end;gap:12px;padding:16px 18px;background:linear-gradient(0deg,rgba(8,8,10,.88),transparent);z-index:2}
+.cv3 .trm-media .cap .cn{font-family:var(--font);font-weight:700;font-size:clamp(16px,1.9vw,24px);color:#fff}
+.cv3 .trm-media .cap .cl{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--acc);white-space:nowrap}
+.cv3 .trm-dfacts{display:grid;grid-template-columns:repeat(2,1fr);gap:1px;background:var(--line);border:1px solid var(--line);margin-top:14px}
+.cv3 .trm-dfacts .df{background:var(--bg);padding:13px 16px;display:flex;flex-direction:column;gap:7px}
+.cv3 .trm-dfacts .dk{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint)}
+.cv3 .trm-dfacts .dv{font-family:var(--font);font-size:clamp(14px,1.5vw,18px);font-weight:600;color:var(--ink)}
+.cv3 .trm-dov{font-size:clamp(13px,1.5vw,16px);line-height:1.55;color:var(--dim);margin-top:14px;max-width:64ch}
+/* SPATIAL */
+.cv3 .trm-spatial-grid{display:grid;grid-template-columns:minmax(210px,.9fr) 1.5fr;gap:clamp(20px,3vw,48px);align-items:stretch}
+.cv3 .trm-map{position:relative;border:1px solid var(--line2);background:var(--panel);min-height:clamp(300px,52vh,520px);display:flex;align-items:center;justify-content:center;overflow:hidden}
+.cv3 .trm-map-svg{width:min(60%,320px);height:76%;overflow:visible}
+.cv3 .trm-map-shape{fill:color-mix(in srgb,var(--acc) 6%,transparent);stroke:var(--line2);stroke-width:1}
+.cv3 .trm-node .dot{fill:var(--dim);transition:fill .3s,r .3s}
+.cv3 .trm-node .nl{fill:var(--faint);font-family:var(--mono);font-size:4px;letter-spacing:.5px;transition:fill .3s}
+.cv3 .trm-node.on .dot{fill:var(--acc);r:3.4}
+.cv3 .trm-node.on .nl{fill:var(--acc)}
+.cv3 .trm-map-hud{position:absolute;left:0;right:0;bottom:0;display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);border-top:1px solid var(--line)}
+.cv3 .trm-map-hud .mh{background:var(--bg);padding:11px 14px;display:flex;flex-direction:column;gap:6px}
+.cv3 .trm-map-hud .mh .k{font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint)}
+.cv3 .trm-map-hud .mh .v{font-family:var(--font);font-size:clamp(12px,1.3vw,15px);font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums}
+@media(max-width:860px){.cv3 .trm-map-hud{grid-template-columns:repeat(2,1fr)}}
+.cv3 .trm-locator{display:flex;flex-direction:column;align-items:center;gap:22px}
+.cv3 .trm-loc-ring{position:relative;width:clamp(130px,20vw,190px);height:clamp(130px,20vw,190px)}
+.cv3 .trm-loc-ring span{position:absolute;inset:0;border:1px solid var(--line2);border-radius:50%}
+.cv3 .trm-loc-ring span:nth-child(2){inset:22%;border-color:var(--line)}
+.cv3 .trm-loc-ring span:nth-child(3){inset:44%;border-color:var(--acc);opacity:.6}
+.cv3 .trm-loc-name{font-family:var(--font);font-weight:700;font-size:clamp(20px,2.4vw,32px);color:var(--ink)}
+.cv3 .trm-foot{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);margin-top:clamp(16px,2.5vh,26px)}
+/* EVIDENCE */
+.cv3 .trm-ev{display:flex;flex-direction:column;border-top:1px solid var(--line)}
+.cv3 .trm-ev .evr{display:grid;grid-template-columns:130px 1fr auto 32%;gap:clamp(14px,2vw,30px);align-items:center;padding:15px 8px;border-bottom:1px solid var(--line)}
+.cv3 .trm-ev .evr.top{padding:24px 8px}
+.cv3 .trm-ev .evr.top .eg{font-size:clamp(24px,3vw,42px);color:var(--acc)}
+.cv3 .trm-ev .eh{font-size:12px;color:var(--dim)}
+.cv3 .trm-ev .ei{font-size:12px;color:var(--faint)}
+.cv3 .trm-ev .eg{font-family:var(--font);font-weight:700;font-size:clamp(15px,1.8vw,22px);color:var(--ink);font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+.cv3 .trm-ev .eb{height:6px;background:var(--panel);position:relative;overflow:hidden}
+.cv3 .trm-ev .eb i{position:absolute;left:0;top:0;bottom:0;background:linear-gradient(90deg,var(--acc2),var(--acc))}
+@media(max-width:760px){.cv3 .trm-ev .evr{grid-template-columns:auto 1fr auto}.cv3 .trm-ev .ei,.cv3 .trm-ev .eb{display:none}}
+/* TREASURY */
+.cv3 .trm-treasury{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line);border:1px solid var(--line)}
+@media(max-width:760px){.cv3 .trm-treasury{grid-template-columns:repeat(2,1fr)}}
+.cv3 .trm-treasury .tf{background:var(--bg);padding:clamp(20px,3.4vh,36px) clamp(18px,2vw,28px)}
+.cv3 .trm-treasury .tfv{font-family:var(--font);font-weight:800;letter-spacing:-.02em;font-size:clamp(28px,4vw,58px);color:var(--ink);font-variant-numeric:tabular-nums;line-height:.95}
+.cv3 .trm-treasury .tfv .u{font-size:.4em;color:var(--acc);font-weight:700;margin-left:.1em}
+.cv3 .trm-treasury .tfk{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);margin-top:14px}
+/* SYSTEM LOG */
+.cv3 .trm-log{display:flex;flex-direction:column;border-top:1px solid var(--line)}
+.cv3 .trm-log .lg{display:grid;grid-template-columns:132px 1fr auto;gap:clamp(14px,2vw,28px);align-items:baseline;padding:16px 8px;border-bottom:1px solid var(--line)}
+.cv3 .trm-log .lg .lt{font-size:12px;color:var(--dim);font-variant-numeric:tabular-nums}
+.cv3 .trm-log .lg .lh{font-family:var(--font);font-weight:600;font-size:clamp(14px,1.6vw,19px);color:var(--ink);display:block;line-height:1.2}
+.cv3 .trm-log .lg .lw{font-size:12px;color:var(--faint);margin-top:7px;display:block;max-width:58ch;line-height:1.45}
+.cv3 .trm-log .lg .ls{font-size:9.5px;letter-spacing:.14em;color:var(--faint);white-space:nowrap}
+.cv3 .trm-log .lg.pend .lt,.cv3 .trm-log .lg.pend .ls{color:var(--acc)}
+.cv3 .trm-log .lg.pend{background:linear-gradient(90deg,color-mix(in srgb,var(--acc) 7%,transparent),transparent 62%)}
+/* RESOLVE */
+.cv3 .trm-concl{display:flex;flex-direction:column;gap:clamp(10px,1.6vh,16px);margin-bottom:clamp(30px,5vh,56px)}
+.cv3 .trm-concl .cc{display:grid;grid-template-columns:auto 1fr;gap:clamp(14px,2vw,26px);align-items:baseline;border-bottom:1px solid var(--line);padding-bottom:clamp(10px,1.6vh,16px)}
+.cv3 .trm-concl .ci{font-size:12px;color:var(--acc);font-variant-numeric:tabular-nums}
+.cv3 .trm-concl .ct{font-family:var(--font);font-weight:600;font-size:clamp(16px,2vw,26px);letter-spacing:-.01em;line-height:1.32;color:var(--ink)}
+.cv3 .trm-final{border:1px solid var(--line2);background:var(--panel);padding:clamp(24px,4vh,44px)}
+.cv3 .trm-final-k{font-size:10.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--acc)}
+.cv3 .trm-final-name{font-family:var(--font);font-weight:800;letter-spacing:-.03em;font-size:clamp(26px,4vw,56px);margin-top:14px;color:var(--ink)}
+.cv3 .trm-final-feat{display:flex;flex-wrap:wrap;gap:8px 18px;margin-top:20px}
+.cv3 .trm-final-feat span{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim)}
 /* Dossier */
 .cv3 .dos-head{padding:clamp(76px,13vh,150px) 0 36px;border-bottom:2px solid var(--ink)}
 .cv3 .dos-head .dl{font-family:var(--mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--accent);display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
@@ -335,7 +457,7 @@ ${THEME_KEYS.filter((k) => k !== "obsidian").map((k) => `.cv3[data-variant="${k}
 .cv3 .ob2-cap span{font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);margin-top:8px;display:block}
 .cv3 .ob2-list{max-width:60ch;margin:0 auto}
 .cv3 .ob2-list .ol{padding:12px 0;border-top:1px solid var(--line);font-size:clamp(15px,1.7vw,19px)}.cv3 .ob2-list .ol .od{font-family:var(--mono);font-size:12px;color:var(--accent);margin-right:12px}
-/* Pulse */
+/* Pulse II (original hero) — restored for the pulse2 variant */
 .cv3 .pulse-hero{position:relative;min-height:100vh;display:grid;place-items:center;text-align:center;overflow:hidden}
 .cv3 .pulse-hero canvas{position:absolute;inset:0;width:100%;height:100%}
 .cv3 .pulse-hero .pc{position:relative;z-index:2;padding:0 20px}
@@ -343,18 +465,111 @@ ${THEME_KEYS.filter((k) => k !== "obsidian").map((k) => `.cv3[data-variant="${k}
 .cv3 .pulse-hero h1{font-size:clamp(48px,11vw,160px);font-weight:800;letter-spacing:-.04em;line-height:.9;margin:22px 0 0;text-wrap:balance}
 .cv3 .pulse-hero .lede{font-size:clamp(16px,1.8vw,21px);color:var(--dim);max-width:40ch;margin:22px auto 0;line-height:1.5}
 .cv3 .pulse-hero .ticker{margin-top:28px}
-/* Orbit */
-.cv3 .orbit-hero{position:relative;min-height:100vh;display:grid;grid-template-columns:1fr 1fr;align-items:center;overflow:hidden}
-.cv3 .orbit-stage{position:relative;min-height:100vh}
-.cv3 .orbit-stage canvas{position:absolute;inset:0;width:100%;height:100%}
-.cv3 .orbit-copy{padding:clamp(30px,6vw,90px)}
-.cv3 .orbit-copy .ek{font-family:var(--mono);font-size:12px;letter-spacing:.24em;text-transform:uppercase;color:var(--accent)}
-.cv3 .orbit-copy h1{font-size:clamp(44px,6vw,88px);line-height:.94;letter-spacing:-.035em;font-weight:800;margin:18px 0 0;text-wrap:balance}
-.cv3 .orbit-copy .lede{font-size:clamp(16px,1.7vw,20px);color:var(--dim);max-width:34ch;margin:20px 0 0;line-height:1.5}
-.cv3 .orbit-copy .ticker{margin-top:24px}
-.cv3 .orbit-tag{position:absolute;left:50%;bottom:8%;transform:translateX(-50%);z-index:3;font-family:var(--mono);font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--dim)}
-.cv3 .orbit-tag b{color:var(--accent)}
-@media(max-width:900px){.cv3 .orbit-hero{grid-template-columns:1fr}.cv3 .orbit-stage{min-height:60vh}}
+/* Pulse */
+/* ══ Template 09 · PULSE — aurora / luminous / atmospheric. The company revealed as light moving through
+   a night sky. A persistent aurora FIELD (one canvas) breathes behind everything and reacts to scroll;
+   cinematic snap BEATS; content revealed by LUMINANCE SWEEPS (never fade-up); signature body viz = THE
+   READING (luminous curtains encoding real evidence). Own palette: midnight · aurora teal · violet. ══ */
+.cv3 .pulse{--bg:#060a14;--bg2:#0b1120;--ink:#eaf2f0;--dim:#8ea6ad;--faint:#3f515a;--accent:#3fe0c0;--accent2:#9a86f2;--line:rgba(234,242,240,.10);--line2:rgba(234,242,240,.20);
+  position:relative;height:100vh;overflow-y:auto;overflow-x:hidden;scroll-snap-type:y mandatory;-webkit-overflow-scrolling:touch;scrollbar-width:none;background:var(--bg);color:var(--ink)}
+.cv3 .pulse::-webkit-scrollbar{display:none}
+.cv3 .pulse-field{position:fixed;inset:0;z-index:0;pointer-events:none}
+.cv3 .pulse-field canvas{width:100%;height:100%;display:block}
+.cv3 .pls-beat{position:relative;z-index:1;min-height:100vh;scroll-snap-align:start;display:flex;flex-direction:column;justify-content:center;padding:clamp(76px,12vh,132px) clamp(26px,7vw,110px);overflow:hidden}
+.cv3 .pls-in{width:100%;max-width:1180px;margin:0 auto;position:relative}
+/* LUMINANCE SWEEP — a soft band of light passes across and reveals content (Pulse's reveal grammar) */
+.cv3 .pls-sw{-webkit-mask-image:linear-gradient(105deg,#000 40%,rgba(0,0,0,.25) 60%,transparent 78%);mask-image:linear-gradient(105deg,#000 40%,rgba(0,0,0,.25) 60%,transparent 78%);-webkit-mask-size:260% 100%;mask-size:260% 100%;-webkit-mask-position:150% 0;mask-position:150% 0;opacity:.001;transition:-webkit-mask-position 1.05s cubic-bezier(.42,0,.15,1),mask-position 1.05s cubic-bezier(.42,0,.15,1),opacity .5s ease}
+.cv3 .pls-beat.on .pls-sw{-webkit-mask-position:0% 0;mask-position:0% 0;opacity:1}
+.cv3 .pls-glow{position:relative}
+.cv3 .pls-glow::after{content:"";position:absolute;left:50%;top:50%;width:120%;height:180%;transform:translate(-50%,-50%) scale(.4);background:radial-gradient(closest-side,color-mix(in srgb,var(--accent) 32%,transparent),transparent);opacity:0;pointer-events:none;z-index:-1;filter:blur(20px)}
+.cv3 .pls-beat.on .pls-glow::after{animation:plsflare 1.6s cubic-bezier(.3,0,.2,1) .25s}
+@keyframes plsflare{0%{opacity:0;transform:translate(-50%,-50%) scale(.4)}40%{opacity:1;transform:translate(-50%,-50%) scale(1)}100%{opacity:.5;transform:translate(-50%,-50%) scale(1.05)}}
+@media(prefers-reduced-motion:reduce){.cv3 .pls-sw{-webkit-mask-image:none!important;mask-image:none!important;opacity:1!important}.cv3 .pls-glow::after{display:none}}
+/* HERO */
+.cv3 .pls-hero{align-items:center;text-align:center}
+.cv3 .pls-hero .ek{font-family:var(--mono);font-size:12px;letter-spacing:.28em;text-transform:uppercase;color:var(--accent)}
+.cv3 .pls-hero h1{font-size:clamp(48px,11vw,168px);font-weight:800;letter-spacing:-.045em;line-height:.88;margin:22px 0 0;text-wrap:balance;text-shadow:0 0 60px color-mix(in srgb,var(--accent) 22%,transparent)}
+.cv3 .pls-hero h1 em{font-style:normal;color:var(--accent)}
+.cv3 .pls-hero .lede{font-size:clamp(16px,1.9vw,22px);color:var(--dim);max-width:42ch;margin:24px auto 0;line-height:1.5}
+.cv3 .pls-hero .tk{display:inline-flex;align-items:center;gap:10px;margin-top:30px;font-family:var(--mono);font-size:12px;letter-spacing:.1em;color:var(--ink)}
+.cv3 .pls-hero .tk .dot{width:7px;height:7px;border-radius:50%;background:var(--accent);box-shadow:0 0 12px 2px color-mix(in srgb,var(--accent) 80%,transparent);animation:plsdot 2.6s ease-in-out infinite}
+@keyframes plsdot{0%,100%{opacity:.5;transform:scale(.85)}50%{opacity:1;transform:scale(1.15)}}
+.cv3 .pls-cue{position:absolute;left:50%;bottom:clamp(26px,5vh,52px);transform:translateX(-50%);font-family:var(--mono);font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--faint);z-index:2;animation:plscue 2.4s ease-in-out infinite}
+@keyframes plscue{0%,100%{opacity:.4;transform:translate(-50%,0)}50%{opacity:.85;transform:translate(-50%,5px)}}
+/* section kicker */
+.cv3 .pls-k{font-family:var(--mono);font-size:11px;letter-spacing:.24em;text-transform:uppercase;color:var(--accent);margin-bottom:clamp(22px,3.4vh,40px);display:flex;align-items:center;gap:12px}
+.cv3 .pls-k::before{content:"";width:26px;height:1px;background:var(--accent);box-shadow:0 0 8px var(--accent)}
+/* THE READING — luminous aurora curtains encoding REAL evidence (signature body viz) */
+.cv3 .pls-read-head{display:flex;align-items:baseline;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.cv3 .pls-read{display:flex;align-items:flex-end;gap:clamp(10px,2.4vw,40px);height:min(52vh,460px);margin-top:clamp(26px,4vh,48px);padding-bottom:34px;border-bottom:1px solid var(--line)}
+.cv3 .pls-cur{position:relative;flex:1;min-width:0;height:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center}
+.cv3 .pls-cur .col{width:min(74%,66px);height:0;border-radius:40px 40px 3px 3px;background:linear-gradient(to top,transparent,color-mix(in srgb,var(--accent) 26%,transparent) 34%,var(--accent) 118%);box-shadow:0 0 26px -2px color-mix(in srgb,var(--accent) 55%,transparent);transition:height 1.05s cubic-bezier(.3,0,.2,1) var(--d,0s);filter:blur(.3px)}
+.cv3 .pls-beat.on .pls-cur .col{height:var(--h,20%)}
+.cv3 .pls-cur.peak .col{background:linear-gradient(to top,transparent,color-mix(in srgb,var(--accent2) 30%,transparent) 30%,#fff 128%);box-shadow:0 0 40px 2px color-mix(in srgb,var(--accent2) 70%,transparent)}
+.cv3 .pls-cur .val{font-family:var(--font);font-weight:700;font-size:clamp(15px,1.8vw,24px);color:var(--ink);margin-bottom:10px;font-variant-numeric:tabular-nums;opacity:0;transition:opacity .5s ease calc(var(--d,0s) + .5s)}
+.cv3 .pls-cur.peak .val{color:var(--accent)}
+.cv3 .pls-beat.on .pls-cur .val{opacity:1}
+.cv3 .pls-cur .lab{font-family:var(--mono);font-size:10px;letter-spacing:.06em;color:var(--dim);margin-top:14px;white-space:nowrap;text-align:center}
+.cv3 .pls-read-note{font-family:var(--mono);font-size:11px;letter-spacing:.04em;color:var(--faint);margin-top:16px}
+/* THE READING — resource/crest fallback */
+.cv3 .pls-crest{display:flex;align-items:flex-end;gap:clamp(24px,5vw,70px);flex-wrap:wrap;margin-top:clamp(24px,4vh,44px)}
+.cv3 .pls-crest .big{font-family:var(--font);font-weight:800;letter-spacing:-.04em;line-height:.82;font-size:clamp(72px,16vw,250px);font-variant-numeric:tabular-nums;color:var(--ink);text-shadow:0 0 70px color-mix(in srgb,var(--accent) 34%,transparent)}
+.cv3 .pls-crest .big em{font-style:normal;font-size:.26em;color:var(--accent);margin-left:.12em}
+.cv3 .pls-crest .pts{display:flex;flex-direction:column;gap:14px;padding-bottom:12px}
+.cv3 .pls-crest .pt{display:flex;align-items:center;gap:12px;font-family:var(--mono);font-size:12px;letter-spacing:.04em;color:var(--dim)}
+.cv3 .pls-crest .pt::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--accent);box-shadow:0 0 12px 2px color-mix(in srgb,var(--accent) 70%,transparent)}
+.cv3 .pls-crest .pt b{color:var(--ink);font-weight:600;font-family:var(--font);font-size:16px}
+/* NUMBER as EVENT (capital / material figure) */
+.cv3 .pls-fig{display:grid;grid-template-columns:auto 1fr;gap:clamp(24px,4vw,60px);align-items:center}
+@media(max-width:820px){.cv3 .pls-fig{grid-template-columns:1fr}}
+.cv3 .pls-fig .num{font-family:var(--font);font-weight:800;letter-spacing:-.04em;line-height:.84;font-size:clamp(60px,12vw,200px);font-variant-numeric:tabular-nums;color:var(--ink);text-shadow:0 0 60px color-mix(in srgb,var(--accent) 28%,transparent)}
+.cv3 .pls-fig .num em{font-style:normal;font-size:.28em;color:var(--accent);margin-left:.08em}
+.cv3 .pls-fig .side .sr{display:flex;justify-content:space-between;gap:20px;align-items:baseline;padding:12px 0;border-bottom:1px solid var(--line)}
+.cv3 .pls-fig .side .sr .k{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
+.cv3 .pls-fig .side .sr .v{font-family:var(--font);font-weight:600;font-size:clamp(17px,2vw,24px);color:var(--ink);font-variant-numeric:tabular-nums}
+/* IMAGERY — cinematic crop whose mask OPENS with the beat */
+.cv3 .pls-img{display:grid;grid-template-columns:1.4fr 1fr;gap:clamp(28px,4vw,64px);align-items:center}
+.cv3 .pls-img.rev{grid-template-columns:1fr 1.4fr}
+.cv3 .pls-img.rev .pls-imgwin{order:2}
+@media(max-width:820px){.cv3 .pls-img,.cv3 .pls-img.rev{grid-template-columns:1fr}.cv3 .pls-img.rev .pls-imgwin{order:0}}
+.cv3 .pls-imgwin{position:relative;height:min(64vh,560px);overflow:hidden;clip-path:inset(0 0 100% 0);transition:clip-path 1.05s cubic-bezier(.5,0,.15,1) .1s}
+.cv3 .pls-beat.on .pls-imgwin{clip-path:inset(0 0 0 0)}
+.cv3 .pls-imgwin img{width:100%;height:100%;object-fit:cover;transform:scale(1.12);transition:transform 6s ease}
+.cv3 .pls-beat.on .pls-imgwin img{transform:scale(1)}
+.cv3 .pls-imgwin::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,transparent 55%,color-mix(in srgb,var(--bg) 70%,transparent)),linear-gradient(90deg,color-mix(in srgb,var(--accent) 10%,transparent),transparent 40%);mix-blend-mode:screen;pointer-events:none}
+.cv3 .pls-imgwin .cap{position:absolute;left:16px;bottom:14px;font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink);z-index:2}
+.cv3 .pls-imgtxt .t{font-size:clamp(30px,4.6vw,64px);font-weight:800;letter-spacing:-.03em;line-height:1;margin:0}
+.cv3 .pls-imgtxt .meta{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);margin-top:16px}
+.cv3 .pls-imgtxt p{font-size:clamp(15px,1.7vw,18px);line-height:1.6;color:var(--dim);margin-top:18px;max-width:44ch}
+/* PROGRESSION — a luminous aurora ray; milestones are points of light, the catalyst glows ahead */
+.cv3 .pls-prog{position:relative;margin-top:clamp(24px,4vh,44px);padding-left:34px}
+.cv3 .pls-prog::before{content:"";position:absolute;left:9px;top:6px;bottom:6px;width:2px;background:linear-gradient(to bottom,var(--accent),color-mix(in srgb,var(--accent) 20%,transparent));box-shadow:0 0 12px var(--accent);transform:scaleY(0);transform-origin:top;transition:transform 1.1s cubic-bezier(.4,0,.2,1)}
+.cv3 .pls-beat.on .pls-prog::before{transform:scaleY(1)}
+.cv3 .pls-mi{position:relative;padding:clamp(11px,1.7vh,18px) 0;display:grid;grid-template-columns:130px 1fr;gap:clamp(14px,2vw,28px);align-items:baseline;border-bottom:1px solid var(--line)}
+.cv3 .pls-mi::before{content:"";position:absolute;left:-30px;top:calc(clamp(11px,1.7vh,18px) + 6px);width:11px;height:11px;border-radius:50%;background:var(--bg);border:2px solid var(--accent);transform:scale(0);transition:transform .4s cubic-bezier(.3,1.4,.5,1) var(--d,0s)}
+.cv3 .pls-beat.on .pls-mi::before{transform:scale(1)}
+.cv3 .pls-mi .d{font-family:var(--mono);font-size:12px;color:var(--dim);font-variant-numeric:tabular-nums}
+.cv3 .pls-mi .h{font-family:var(--font);font-weight:600;font-size:clamp(15px,1.8vw,21px);color:var(--ink);line-height:1.25}
+.cv3 .pls-mi.next::before{background:var(--accent);box-shadow:0 0 16px 3px color-mix(in srgb,var(--accent) 80%,transparent);animation:plspulse 2.4s ease-in-out infinite 1.2s}
+.cv3 .pls-mi.next .d{color:var(--accent)}
+@keyframes plspulse{0%,100%{box-shadow:0 0 10px 1px color-mix(in srgb,var(--accent) 60%,transparent)}50%{box-shadow:0 0 22px 5px color-mix(in srgb,var(--accent) 90%,transparent)}}
+/* WHY / RESOLUTION */
+.cv3 .pls-why{display:flex;flex-direction:column;gap:clamp(12px,2vh,20px);margin-top:clamp(20px,3vh,36px)}
+.cv3 .pls-why .w{display:grid;grid-template-columns:auto 1fr;gap:clamp(16px,2.5vw,32px);align-items:baseline;border-bottom:1px solid var(--line);padding-bottom:clamp(12px,2vh,20px)}
+.cv3 .pls-why .w .n{font-family:var(--mono);font-size:13px;color:var(--accent)}
+.cv3 .pls-why .w .t{font-size:clamp(17px,2.2vw,28px);font-weight:600;letter-spacing:-.01em;line-height:1.3;color:var(--ink)}
+/* TEAM — a luminous roster */
+.cv3 .pls-team{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);margin-top:clamp(22px,3vh,40px)}
+.cv3 .pls-team .tm{background:var(--bg);padding:clamp(18px,2.4vh,28px) clamp(16px,1.8vw,22px)}
+.cv3 .pls-team .tm .nm{font-family:var(--font);font-weight:700;font-size:clamp(16px,1.9vw,22px);color:var(--ink)}
+.cv3 .pls-team .tm .ro{font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);margin-top:9px}
+/* RESOLUTION / CTA — the aurora converges */
+.cv3 .pls-cta{align-items:center;text-align:center}
+.cv3 .pls-cta .conv{font-family:var(--mono);font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--accent)}
+.cv3 .pls-cta h2{font-size:clamp(40px,7vw,110px);font-weight:800;letter-spacing:-.04em;line-height:.9;margin:20px 0 0;text-shadow:0 0 70px color-mix(in srgb,var(--accent) 30%,transparent)}
+.cv3 .pls-cta .feat{display:flex;flex-wrap:wrap;gap:9px 22px;justify-content:center;margin-top:26px}
+.cv3 .pls-cta .feat span{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim)}
+.cv3 .pls-cta .go{display:inline-flex;align-items:center;gap:10px;margin-top:30px;font-family:var(--mono);font-size:13px;letter-spacing:.1em;text-transform:uppercase;color:var(--bg);background:var(--accent);border-radius:999px;padding:15px 30px;box-shadow:0 0 40px -6px var(--accent)}
 .cv3 .cv3bar{position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:20;display:flex;align-items:center;gap:9px;padding:7px 10px;border-radius:999px;background:color-mix(in srgb,var(--bg) 74%,transparent);border:1px solid var(--line2);backdrop-filter:blur(16px)}
 .cv3 .cv3bar .lab{font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim)}
 .cv3 .cv3bar .div{width:1px;height:18px;background:var(--line2)}
@@ -512,7 +727,89 @@ ${THEME_KEYS.filter((k) => k !== "obsidian").map((k) => `.cv3[data-variant="${k}
 .cv3 .lw-why .w p{margin:0;font-size:15px;line-height:1.5;color:var(--ink)}
 @media(max-width:820px){.cv3 .lw-why{columns:1}}
 /* ══ TEMPLATE 07 · DOSSIER — investigative mining feature (photography · pull quotes · sidebars) ══ */
-.cv3 .dz{background:var(--bg)}
+/* ══ Template 07 · DOSSIER — the investment file. Dense institutional research document that comes ALIVE
+   as the investor examines it: assisted vertical snap between DENSE spreads, document-physical motion
+   (sheet reveals, rules drawing, red-pen annotation), and a signature EVIDENCE STACK that accumulates.
+   Own archival palette (warm paper · charcoal · deep vermilion markup) — decoupled from global themes. ══ */
+.cv3 .dz{--bg:#efe7d6;--bg2:#e7dec9;--ink:#211d17;--dim:#6f6656;--faint:#a89b81;--accent:#b23423;--accent2:#cf4a34;--line:rgba(33,29,23,.16);--line2:rgba(33,29,23,.30);--chip:rgba(33,29,23,.05);background:var(--bg);color:var(--ink)}
+.cv3 .dz-file{height:100vh;overflow-y:auto;overflow-x:hidden;scroll-snap-type:y mandatory;-webkit-overflow-scrolling:touch;scrollbar-width:none;position:relative}
+.cv3 .dz-file::-webkit-scrollbar{display:none}
+.cv3 .dz-ex{min-height:100vh;scroll-snap-align:start;position:relative;display:flex;flex-direction:column;justify-content:center;padding:clamp(66px,9vh,104px) clamp(24px,5vw,64px);overflow:hidden}
+.cv3 .dz-spread{display:grid;grid-template-columns:1fr clamp(230px,29%,340px);gap:clamp(30px,4vw,64px);align-items:center;width:100%;max-width:1200px;margin:0 auto}
+@media(max-width:820px){.cv3 .dz-spread{grid-template-columns:1fr;gap:28px}}
+.cv3 .dz-main{min-width:0}
+/* document-physical reveals: a sheet uncovering (clip), a rule drawing */
+.cv3 .dz-up{clip-path:inset(0 0 100% 0);transition:clip-path .72s cubic-bezier(.66,0,.2,1)}
+.cv3 .dz-ex.on .dz-up{clip-path:inset(0 0 0 0)}
+.cv3 .dz-rule{height:1px;background:var(--ink);transform:scaleX(0);transform-origin:left;transition:transform .8s cubic-bezier(.7,0,.2,1) .1s;margin:clamp(14px,2.2vh,24px) 0}
+.cv3 .dz-rule.d2{transition-delay:.3s;background:var(--line2)}
+.cv3 .dz-ex.on .dz-rule{transform:scaleX(1)}
+.cv3 .dz-ex-k{font-family:var(--mono);font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--accent);margin-bottom:clamp(16px,2.4vh,26px);width:fit-content}
+/* running head + folio (printed-report chrome) */
+.cv3 .dz-run{position:fixed;top:18px;left:0;right:0;z-index:30;text-align:center;font-family:var(--mono);font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--dim);pointer-events:none}
+.cv3 .dz-folio{position:fixed;bottom:18px;left:0;right:0;z-index:30;text-align:center;font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;color:var(--dim);pointer-events:none}
+.cv3 .dz-folio .fl{color:var(--accent);margin-left:8px;text-transform:uppercase;letter-spacing:.12em}
+/* masthead + document typography */
+.cv3 .dz-name{font-family:var(--serif);font-weight:500;font-size:clamp(40px,5.6vw,90px);line-height:.98;letter-spacing:-.02em;color:var(--ink);margin:0}
+.cv3 .dz-sub{font-family:var(--serif);font-style:italic;font-size:clamp(17px,2vw,26px);color:var(--dim);margin-top:14px;max-width:30ch}
+.cv3 .dz-metaline{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);margin-top:14px}
+.cv3 .dz-h2{font-family:var(--serif);font-weight:500;font-size:clamp(30px,4vw,56px);line-height:1.02;letter-spacing:-.015em;color:var(--ink);margin:0}
+.cv3 .dz-p{font-size:16px;line-height:1.6;color:var(--ink);margin-top:16px;max-width:58ch}
+.cv3 .dz-p.clip3{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+/* the strongest intercept, marked in red pen */
+.cv3 .dz-insert .ir.top{position:relative}
+.cv3 .dz-insert .ir.top::before{content:"";position:absolute;left:-14px;top:2px;bottom:2px;width:2px;background:var(--accent)}
+.cv3 .dz-insert .ir.top .g{position:relative}
+.cv3 .dz-insert .ir.top .g::after{content:"";position:absolute;left:-2px;right:-2px;bottom:-3px;height:2px;background:var(--accent);transform:scaleX(0);transform-origin:left;transition:transform .7s cubic-bezier(.7,0,.2,1) .5s}
+.cv3 .dz-ex.on .dz-insert .ir.top .g::after{transform:scaleX(1)}
+/* position — dense capital numbers + what-to-watch */
+.cv3 .dz-numbers{display:grid;grid-template-columns:repeat(2,1fr);gap:1px;background:var(--line);border:1px solid var(--line2)}
+.cv3 .dz-numbers .nr{background:var(--bg);padding:14px 16px;display:flex;flex-direction:column;gap:8px}
+.cv3 .dz-numbers .nr .k{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim)}
+.cv3 .dz-numbers .nr .v{font-family:var(--serif);font-size:clamp(20px,2.4vw,30px);font-weight:500;color:var(--ink);font-variant-numeric:tabular-nums;line-height:1}
+.cv3 .dz-watch{border-top:2px solid var(--ink);margin-top:clamp(18px,3vh,30px);padding-top:14px}
+.cv3 .dz-watch .it{font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);margin-bottom:12px}
+.cv3 .dz-watch .wr{display:grid;grid-template-columns:120px 1fr auto;gap:16px;align-items:baseline;padding:10px 0;border-bottom:1px solid var(--line)}
+.cv3 .dz-watch .wr .wt{font-family:var(--mono);font-size:12px;color:var(--accent);font-variant-numeric:tabular-nums}
+.cv3 .dz-watch .wr.rec .wt{color:var(--dim)}
+.cv3 .dz-watch .wr .wl{font-family:var(--serif);font-size:clamp(15px,1.8vw,21px);font-weight:500;color:var(--ink);line-height:1.25}
+.cv3 .dz-watch .wr .wtag{font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--bg);background:var(--accent);padding:4px 8px;align-self:center}
+/* portfolio records (reuses dz-chap, compacted) */
+.cv3 .dz-recs .dz-chap{margin-top:clamp(16px,2.4vh,26px);padding-top:18px}
+.cv3 .dz-recs .dz-chap:first-child{border-top:2px solid var(--ink)}
+.cv3 .dz-recs .dz-chap p{-webkit-line-clamp:2;display:-webkit-box;-webkit-box-orient:vertical;overflow:hidden;margin-top:10px;font-size:15px}
+/* findings */
+.cv3 .dz-finds{display:flex;flex-direction:column;gap:clamp(10px,1.6vh,16px);margin-bottom:clamp(20px,3vh,34px)}
+.cv3 .dz-finds .fnd{display:grid;grid-template-columns:auto 1fr;gap:clamp(14px,2vw,26px);align-items:baseline;border-bottom:1px solid var(--line);padding-bottom:clamp(10px,1.5vh,16px)}
+.cv3 .dz-finds .fn{font-family:var(--serif);font-style:italic;font-size:clamp(20px,2.6vw,34px);color:var(--accent);line-height:.8}
+.cv3 .dz-finds .ft{font-family:var(--serif);font-size:clamp(16px,2vw,26px);font-weight:500;line-height:1.28;letter-spacing:-.01em;color:var(--ink)}
+.cv3 .dz-princ{font-family:var(--mono);font-size:11.5px;letter-spacing:.04em;color:var(--dim);margin-bottom:clamp(20px,3vh,34px)}
+.cv3 .dz-princ .pk{color:var(--accent);text-transform:uppercase;letter-spacing:.14em;font-size:10px;margin-right:10px}
+.cv3 .dz-close{border-top:2px solid var(--ink);padding-top:clamp(18px,3vh,30px)}
+.cv3 .dz-close-name{font-family:var(--serif);font-weight:500;font-style:italic;font-size:clamp(26px,4vw,52px);color:var(--accent);letter-spacing:-.01em;line-height:1.05}
+.cv3 .dz-close-sub{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);margin-top:14px}
+/* ── THE EVIDENCE STACK — the signature: material facts accumulate into a physically filed pile ── */
+.cv3 .dz-stack{position:relative;align-self:center}
+.cv3 .dz-stack-h{font-family:var(--mono);font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim);margin-bottom:16px;text-align:right}
+.cv3 .dz-stack-h b{color:var(--accent);font-weight:400}
+.cv3 .dz-stack-body{position:relative;display:flex;flex-direction:column;align-items:stretch}
+.cv3 .dz-pc{position:relative;background:var(--bg);border:1px solid var(--line2);box-shadow:0 8px 22px -12px rgba(20,16,10,.55);padding:13px 15px;margin-top:-10px;transform:rotate(var(--rot,0deg));transform-origin:60% 0;z-index:var(--i)}
+.cv3 .dz-pc:first-child{margin-top:0}
+.cv3 .dz-pc:nth-child(odd){--rot:-1.1deg}
+.cv3 .dz-pc:nth-child(even){--rot:1.3deg}
+.cv3 .dz-ex.on .dz-pc.new{animation:dzfile .58s cubic-bezier(.5,0,.2,1) .1s both}
+@keyframes dzfile{0%{transform:translateX(46px) rotate(4deg);box-shadow:0 18px 36px -12px rgba(20,16,10,.6)}100%{transform:translateX(0) rotate(var(--rot,0deg))}}
+.cv3 .dz-pc .pk{font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);display:block}
+.cv3 .dz-pc .ps{font-family:var(--serif);font-size:15px;color:var(--ink);margin-top:5px;display:block}
+.cv3 .dz-pc .pv{font-family:var(--serif);font-weight:500;font-size:clamp(19px,2.2vw,27px);color:var(--ink);margin-top:5px;display:block;font-variant-numeric:tabular-nums;line-height:1.05;position:relative;width:fit-content}
+.cv3 .dz-pc .pv.mk::after{content:"";position:absolute;left:-2px;right:-4px;bottom:-2px;height:2.5px;background:var(--accent);transform:scaleX(0);transform-origin:left;transition:transform .7s cubic-bezier(.7,0,.2,1) .55s}
+.cv3 .dz-ex.on .dz-pc .pv.mk::after{transform:scaleX(1)}
+.cv3 .dz-pc-photo{padding:8px 8px 30px}
+.cv3 .dz-pc-photo img{width:100%;height:clamp(96px,15vh,150px);object-fit:cover;display:block}
+.cv3 .dz-pc-photo .pcap{position:absolute;left:14px;bottom:9px;font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim)}
+.cv3 .dz-pc-file{border-color:var(--ink);border-left:3px solid var(--accent)}
+@media(max-width:820px){.cv3 .dz-stack{max-width:340px;margin:0 auto}.cv3 .dz-stack-h{text-align:left}}
+@media(prefers-reduced-motion:reduce){.cv3 .dz-up{clip-path:none!important}.cv3 .dz-rule,.cv3 .dz-pc .pv.mk::after,.cv3 .dz-insert .ir.top .g::after{transform:scaleX(1)!important}.cv3 .dz-pc.new{animation:none!important}}
 .cv3 .dz-open{position:relative;height:min(92vh,860px);min-height:520px;display:flex;align-items:flex-end;overflow:hidden}
 .cv3 .dz-open img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 .cv3 .dz-open .ph{position:absolute;inset:0;background:linear-gradient(140deg,var(--bg2),var(--bg))}
@@ -710,6 +1007,551 @@ ${THEME_KEYS.filter((k) => k !== "obsidian").map((k) => `.cv3[data-variant="${k}
 .cv3 .mn-list{display:flex;flex-direction:column;gap:clamp(8px,1.6vh,18px)}
 .cv3 .mn-list .li{font-size:clamp(26px,4.6vw,64px);font-weight:800;letter-spacing:-.03em;line-height:1;color:var(--faint);transition:color .6s ease}
 .cv3 .mn-list .li.in{color:var(--ink)}
+/* ══ 01 · MONOLITH V2 — scene deck: a graphic + real content per page, scroll-driven page-to-page transitions ══ */
+.cv3 .mn2{position:relative}
+.cv3 .mn2-scene{position:relative;min-height:100vh;display:flex;flex-direction:column;justify-content:center;align-items:flex-start;padding:clamp(40px,10vh,120px) clamp(24px,7vw,120px);overflow:hidden}
+.cv3 .mn2-scene.center{align-items:center;text-align:center}
+.cv3 .mn2-in{position:relative;z-index:3;max-width:1180px;margin:0 auto;width:100%;transform:translateY(calc(var(--x,0)*-7vh));opacity:calc(1 - var(--x,0)*.92);will-change:transform,opacity}
+/* photographic ground — parallaxes up and darkens as the scene leaves, scales as it enters */
+.cv3 .mn2-photo{position:absolute;inset:-6% 0;z-index:0;transform:translateY(calc(var(--x,0)*-6vh)) scale(calc(1 + var(--e,0)*.06));will-change:transform}
+.cv3 .mn2-photo img{width:100%;height:100%;object-fit:cover}
+.cv3 .mn2-photo::after{content:"";position:absolute;inset:0;background:linear-gradient(0deg,var(--bg) 3%,rgba(0,0,0,.30) 44%,rgba(0,0,0,.52));opacity:calc(.82 + var(--x,0)*.18)}
+/* oversized watermark index numeral — a graphic anchor + depth as you move between scenes */
+.cv3 .mn2-idx{position:absolute;z-index:1;right:clamp(8px,3vw,70px);top:50%;transform:translateY(calc(-50% + var(--x,0)*-12vh)) translateY(calc(var(--e,0)*4vh));font-weight:900;font-size:clamp(190px,40vw,600px);line-height:1;color:var(--ink);opacity:.055;letter-spacing:-.06em;pointer-events:none;font-variant-numeric:tabular-nums;user-select:none}
+.cv3 .mn2-k{font-family:var(--mono);font-size:12px;letter-spacing:.24em;text-transform:uppercase;color:var(--accent)}
+.cv3 .mn2-name{font-size:clamp(44px,9vw,150px);font-weight:900;letter-spacing:-.04em;line-height:.9;color:#fff;text-shadow:0 2px 40px rgba(0,0,0,.45);display:block}
+.cv3 .mn2-cap{font-family:var(--mono);font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:#e6e2da;margin-top:22px}
+.cv3 .mn2-cap.dk{color:var(--dim)}
+.cv3 .mn2-stmt{font-size:clamp(34px,6vw,90px);font-weight:800;letter-spacing:-.035em;line-height:1.02;max-width:18ch;text-wrap:balance}
+.cv3 .mn2-rule{height:2px;width:0;background:var(--accent);margin:34px 0 0}
+.cv3 .mn2-rule.in{width:clamp(120px,22vw,340px);transition:width 1.1s cubic-bezier(.65,0,.35,1) .25s}
+.cv3 .mn2-statwrap{display:flex;align-items:flex-end;gap:clamp(18px,4vw,56px);justify-content:center}
+.cv3 .mn2-bar{width:clamp(10px,1.4vw,20px);background:linear-gradient(0deg,var(--accent),var(--accent2));border-radius:7px;height:calc(var(--e,0) * clamp(150px,30vh,340px));align-self:flex-end;min-height:10px;box-shadow:0 0 40px -6px var(--accent)}
+.cv3 .mn2-huge{font-size:clamp(64px,15vw,260px);font-weight:900;letter-spacing:-.05em;line-height:.84;font-variant-numeric:tabular-nums;text-wrap:balance}
+.cv3 .mn2-huge .unit{font-size:.2em;font-weight:700;color:var(--accent);letter-spacing:0}
+.cv3 .mn2-proof{padding:44px;text-align:center;font-family:var(--mono);font-size:11px;letter-spacing:.24em;text-transform:uppercase;color:var(--dim);border-top:1px solid var(--line2)}
+/* two-column scene (graphic + copy) */
+.cv3 .mn2-split{display:grid;grid-template-columns:1fr 1fr;gap:clamp(24px,5vw,80px);align-items:center;width:100%;max-width:1180px;margin:0 auto}
+@media(max-width:860px){.cv3 .mn2-split{grid-template-columns:1fr;gap:34px}}
+.cv3 .mn2-grade{font-size:clamp(50px,10vw,150px);font-weight:900;letter-spacing:-.04em;color:var(--accent);line-height:.9;font-variant-numeric:tabular-nums}
+/* flagship drill section (schematic, from real holes) */
+.cv3 .mn2-sec{position:relative;width:100%;aspect-ratio:4/3;border:1px solid var(--line2);border-radius:14px;background:linear-gradient(180deg,color-mix(in srgb,var(--ink) 5%,transparent),transparent);overflow:hidden}
+.cv3 .mn2-sec svg{width:100%;height:100%;display:block}
+.cv3 .mn2-seclab{position:absolute;left:12px;bottom:10px;font-family:var(--mono);font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim)}
+/* project chips + overview */
+.cv3 .mn2-chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:20px}
+.cv3 .mn2-chip{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;padding:6px 12px;border:1px solid var(--line2);border-radius:999px;color:#e6e2da;background:rgba(0,0,0,.28)}
+.cv3 .mn2-over{font-size:clamp(15px,1.7vw,19px);line-height:1.5;color:#e6e2da;max-width:46ch;margin-top:18px}
+/* capital rows */
+.cv3 .mn2-caprows{display:flex;flex-direction:column;gap:0;width:100%;max-width:600px;margin:30px auto 0}
+.cv3 .mn2-caprow{display:grid;grid-template-columns:1fr auto;gap:14px;align-items:baseline;border-bottom:1px solid var(--line2);padding:14px 0}
+.cv3 .mn2-caprow .k{font-family:var(--mono);font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim)}
+.cv3 .mn2-caprow .v{font-size:clamp(20px,2.6vw,34px);font-weight:800;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+/* catalyst — primary milestone big, any others listed below (robust when there is only one) */
+.cv3 .mn2-mile{margin-top:22px;max-width:24ch}
+.cv3 .mn2-mile .mt{font-family:var(--mono);font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent)}
+.cv3 .mn2-mile .ml{font-size:clamp(34px,6vw,84px);font-weight:800;letter-spacing:-.035em;line-height:1.03;margin-top:12px}
+.cv3 .mn2-mile .mi{font-size:clamp(15px,1.7vw,20px);line-height:1.5;color:color-mix(in srgb,var(--ink) 76%,transparent);max-width:42ch;margin-top:18px}
+.cv3 .mn2-milerest{display:flex;flex-direction:column;margin-top:36px;max-width:660px}
+.cv3 .mn2-milerest .mrow{display:grid;grid-template-columns:120px 1fr;gap:20px;align-items:baseline;border-top:1px solid var(--line2);padding:15px 0}
+.cv3 .mn2-milerest .mrow .t{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--accent)}
+.cv3 .mn2-milerest .mrow .l{font-size:clamp(16px,1.9vw,22px);font-weight:700;line-height:1.25}
+/* why slabs */
+.cv3 .mn2-slabs{display:flex;flex-direction:column;width:100%;margin-top:18px}
+.cv3 .mn2-slab{display:grid;grid-template-columns:auto 1fr;gap:24px;align-items:baseline;padding:clamp(12px,1.7vh,22px) 0;border-top:1px solid var(--line2)}
+.cv3 .mn2-slab .n{font-family:var(--mono);font-size:14px;color:var(--accent);font-weight:600}
+.cv3 .mn2-slab .w{font-size:clamp(22px,3.4vw,48px);font-weight:800;letter-spacing:-.02em;line-height:1.06;color:var(--faint);transition:color .7s ease}
+.cv3 .mn2-slab.in .w{color:var(--ink)}
+/* leadership avatars */
+.cv3 .mn2-team{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:clamp(16px,2.2vw,28px);width:100%;margin-top:22px}
+.cv3 .mn2-mem{display:flex;align-items:center;gap:14px}
+.cv3 .mn2-av{width:58px;height:58px;border-radius:50%;flex-shrink:0;display:grid;place-items:center;font-weight:800;font-size:18px;background:color-mix(in srgb,var(--accent) 24%,transparent);color:var(--ink);border:1px solid var(--line2)}
+.cv3 .mn2-mem .nm{font-size:clamp(17px,1.8vw,22px);font-weight:800;letter-spacing:-.01em;line-height:1.1}
+.cv3 .mn2-mem .rl{font-family:var(--mono);font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--dim);margin-top:4px}
+/* closing cta */
+.cv3 .mn2-cta-name{font-size:clamp(44px,9vw,140px);font-weight:900;letter-spacing:-.04em;line-height:.9;display:block}
+@media (prefers-reduced-motion:reduce){.cv3 .mn2-in,.cv3 .mn2-photo,.cv3 .mn2-idx{transform:none!important}.cv3 .mn2-bar{height:clamp(150px,30vh,340px)!important}}
+/* ══ 01 · MONOLITH V3 — pinned, scroll-scrubbed cinematic chapters. Each chapter pins for a
+   scroll length and transforms into the next through its OWN bespoke move (no global fade). A
+   single JS driver sets --p (0→1) per chapter; every transform below is derived from --p in CSS. ══ */
+.cv3 .mn3{position:relative;background:var(--bg)}
+.cv3 .mn3-ch{position:relative}
+.cv3 .mn3-stage{position:sticky;top:0;height:100vh;overflow:hidden;background:var(--bg)}
+.cv3 .mn3-photo{position:absolute;inset:0;z-index:0;overflow:hidden;will-change:transform}
+.cv3 .mn3-photo img{width:100%;height:100%;object-fit:cover}
+.cv3 .mn3-scrim{position:absolute;inset:0;z-index:1;background:linear-gradient(0deg,var(--bg) 1%,rgba(0,0,0,.26) 40%,rgba(0,0,0,.5));pointer-events:none}
+.cv3 .mn3-cover{position:absolute;inset:0;z-index:2;background:var(--bg);pointer-events:none}
+.cv3 .mn3-pad{position:absolute;inset:0;z-index:3;display:flex;flex-direction:column;justify-content:center;padding:clamp(40px,10vh,120px) clamp(24px,7vw,120px);will-change:transform,opacity}
+.cv3 .mn3-pad.center{align-items:center;text-align:center}
+.cv3 .mn3-pad.end{justify-content:flex-end}
+.cv3 .mn3-in{width:100%;max-width:1180px;margin:0 auto}
+.cv3 .mn3-idx{position:absolute;z-index:1;right:clamp(8px,3vw,70px);top:50%;transform:translateY(calc(-50% + (var(--p,0) - .5)*-9vh));font-weight:900;font-size:clamp(190px,40vw,600px);line-height:1;color:var(--ink);opacity:.05;letter-spacing:-.06em;pointer-events:none;user-select:none;font-variant-numeric:tabular-nums}
+/* HERO — photo scales, black rises to consume it, type pins then lifts away */
+.cv3 .mn3-hero .mn3-photo{transform:scale(calc(1 + var(--p,0)*.14));transform-origin:50% 45%}
+.cv3 .mn3-hero .mn3-cover{opacity:clamp(0,calc((var(--p,0) - .55)/.42),1)}
+.cv3 .mn3-hero .mn3-pad{transform:translateY(calc(var(--p,0)*-7vh));opacity:clamp(0,calc(1 - (var(--p,0) - .48)*2.4),1)}
+/* THESIS — statement wipes in on black, rule draws, jurisdiction resolves */
+.cv3 .mn3-stmt{clip-path:inset(0 calc((1 - clamp(0,calc(var(--p,0)/.34),1))*100%) -.16em 0)}
+.cv3 .mn3-rule{height:2px;background:var(--accent);margin:34px 0 0;width:calc(clamp(0,calc((var(--p,0) - .28)/.32),1) * clamp(120px,22vw,340px))}
+.cv3 .mn3-sup{opacity:clamp(0,calc((var(--p,0) - .48)/.3),1)}
+.cv3 .mn3-thesis .mn3-pad{opacity:clamp(0,calc(1 - (var(--p,0) - .84)/.16),1)}
+/* STAT — the number is the graphic, then BECOMES A MASK the flagship image opens through */
+.cv3 .mn3-stat .mn3-pad{opacity:clamp(0,calc(var(--p,0)/.1),1)}
+.cv3 .mn3-stat-label{opacity:calc(1 - clamp(0,calc((var(--p,0) - .58)/.16),1))}
+.cv3 .mn3-stat-ctx{opacity:calc(clamp(0,calc((var(--p,0) - .16)/.16),1) * (1 - clamp(0,calc((var(--p,0) - .55)/.15),1)))}
+.cv3 .mn3-statrow{display:flex;align-items:flex-end;gap:clamp(16px,3vw,44px);justify-content:center}
+.cv3 .mn3-stat-bar{width:clamp(10px,1.4vw,20px);background:linear-gradient(0deg,var(--accent),var(--accent2));border-radius:7px;align-self:flex-end;height:calc(clamp(0,calc(var(--p,0)/.4),1) * clamp(150px,30vh,340px));min-height:10px;opacity:calc(1 - clamp(0,calc((var(--p,0) - .5)/.16),1));box-shadow:0 0 40px -6px var(--accent)}
+.cv3 .mn3-statnum{display:flex;align-items:flex-end;gap:.06em;line-height:.84}
+.cv3 .mn3-statnum .glyphs{position:relative;display:inline-grid;font-size:clamp(64px,15vw,260px);font-weight:900;letter-spacing:-.05em;font-variant-numeric:tabular-nums;transform:scale(calc(1 + clamp(0,calc((var(--p,0) - .6)/.4),1)*6.5));transform-origin:50% 48%;will-change:transform;opacity:calc(1 - clamp(0,calc((var(--p,0) - .84)/.12),1))}
+.cv3 .mn3-statnum .glyphs>span{grid-area:1/1;display:block}
+.cv3 .mn3-statnum .g-solid{color:var(--ink);opacity:calc(1 - clamp(0,calc((var(--p,0) - .6)/.14),1))}
+.cv3 .mn3-statnum .g-mask{-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent;background-size:cover;background-position:50% 45%;opacity:clamp(0,calc((var(--p,0) - .6)/.14),1)}
+.cv3 .mn3-statnum .g-unit{font-size:clamp(20px,3vw,54px);font-weight:700;color:var(--accent);opacity:calc(1 - clamp(0,calc((var(--p,0) - .56)/.14),1))}
+.cv3 .mn3-stat .mn3-flag{position:absolute;inset:0;z-index:4;opacity:clamp(0,calc((var(--p,0) - .8)/.14),1);pointer-events:none}
+.cv3 .mn3-stat .mn3-flag img{width:100%;height:100%;object-fit:cover}
+/* FLAGSHIP — image settles from the stat reveal; a bare drill-section surveys itself onto the land */
+.cv3 .mn3-flag-ch .mn3-photo{transform:scale(calc(1.06 - var(--p,0)*.06 + clamp(0,calc((var(--p,0) - .8)/.2),1)*.24))}
+.cv3 .mn3-flag-ch .mn3-scrim{opacity:clamp(.4,calc(.4 + var(--p,0)*.5),1)}
+.cv3 .mn3-flag-ch .mn3-pad{opacity:calc(clamp(0,calc((var(--p,0) - .08)/.22),1) * (1 - clamp(0,calc((var(--p,0) - .82)/.18),1)))}
+.cv3 .mn3-flag-sec{position:absolute;left:clamp(24px,7vw,120px);right:clamp(24px,7vw,120px);bottom:clamp(40px,10vh,110px);z-index:2;height:min(36vh,300px);opacity:clamp(0,calc((var(--p,0) - .2)/.3),1);clip-path:inset(calc((1 - clamp(0,calc((var(--p,0) - .2)/.4),1))*100%) 0 0 0)}
+.cv3 .mn3-flag-sec svg{width:100%;height:100%;display:block}
+.cv3 .mn3-flag-seclab{position:absolute;left:0;bottom:-22px;font-family:var(--mono);font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:#cfcabf}
+/* PROJECTS — full-bleed photo, pinned type; the image SPLITS from the centre to reveal the next asset */
+.cv3 .mn3-proj .mn3-proj-next{position:absolute;inset:0;z-index:0}
+.cv3 .mn3-proj .mn3-proj-next img{width:100%;height:100%;object-fit:cover}
+.cv3 .mn3-half{position:absolute;inset:0;z-index:1;background-size:cover;background-position:center;--sp:clamp(0,calc((var(--p,0) - .66)/.34),1)}
+.cv3 .mn3-half::after{content:"";position:absolute;inset:0;background:linear-gradient(0deg,rgba(0,0,0,.58),rgba(0,0,0,.12) 46%,transparent)}
+.cv3 .mn3-half.l{clip-path:inset(0 50% 0 0);transform:translateX(calc(var(--sp)*-58%))}
+.cv3 .mn3-half.r{clip-path:inset(0 0 0 50%);transform:translateX(calc(var(--sp)*58%))}
+.cv3 .mn3-proj .mn3-pad{opacity:calc(clamp(0,calc((var(--p,0) - .06)/.16),1) * (1 - clamp(0,calc((var(--p,0) - .66)/.26),1)));transform:translateY(calc((1 - clamp(0,calc((var(--p,0) - .06)/.16),1))*24px))}
+.cv3 .mn3-meta{font-family:var(--mono);font-size:clamp(11px,1.2vw,13px);letter-spacing:.14em;text-transform:uppercase;color:#e6e2da;margin-top:20px}
+.cv3 .mn3-over{font-size:clamp(15px,1.7vw,19px);line-height:1.5;color:#e6e2da;max-width:46ch;margin-top:18px}
+/* CAPITAL — figure and structure ASSEMBLE row by row on black */
+.cv3 .mn3-cap-ch .mn3-pad{opacity:clamp(0,calc(var(--p,0)/.12),1)}
+.cv3 .mn3-cap-big{opacity:clamp(0,calc((var(--p,0) - .04)/.18),1);transform:translateY(calc((1 - clamp(0,calc((var(--p,0) - .04)/.18),1))*30px))}
+.cv3 .mn3-caprow{--rp:clamp(0,calc((var(--p,0) - .22)/.6*var(--n,5) - var(--i,0)),1);opacity:var(--rp);transform:translateY(calc((1 - var(--rp))*22px))}
+/* CATALYST — an accent line draws downward and carries you into the milestone */
+.cv3 .mn3-cat .mn3-line{position:absolute;left:clamp(24px,7vw,120px);top:0;width:2px;height:100%;background:var(--accent);transform-origin:50% 0;transform:scaleY(clamp(0,calc(var(--p,0)/.4),1));z-index:1;opacity:.9}
+.cv3 .mn3-cat .mn3-pad{padding-left:calc(clamp(24px,7vw,120px) + 42px)}
+.cv3 .mn3-cat-mile{opacity:clamp(0,calc((var(--p,0) - .3)/.3),1);transform:translateX(calc((1 - clamp(0,calc((var(--p,0) - .3)/.3),1))*30px))}
+/* WHY / LEADERSHIP — staggered assembly driven by index */
+.cv3 .mn3-slab{--rp:clamp(0,calc((var(--p,0) - .16)/.64*var(--n,5) - var(--i,0)),1);opacity:var(--rp);transform:translateY(calc((1 - var(--rp))*26px))}
+.cv3 .mn3-mem{--rp:clamp(0,calc((var(--p,0) - .14)/.66*var(--n,8) - var(--i,0)),1);opacity:var(--rp);transform:translateY(calc((1 - var(--rp))*20px))}
+/* CLOSE */
+.cv3 .mn3-close-name{opacity:clamp(0,calc(var(--p,0)/.4),1);transform:scale(calc(.94 + clamp(0,calc(var(--p,0)/.5),1)*.06))}
+.cv3 .mn3-close-sub{opacity:clamp(0,calc((var(--p,0) - .3)/.3),1)}
+@media (prefers-reduced-motion:reduce){
+  .cv3 .mn3-stmt{clip-path:none!important}.cv3 .mn3-rule{width:clamp(120px,22vw,340px)!important}
+  .cv3 .mn3-statnum .glyphs{transform:none!important}.cv3 .mn3-statnum .g-mask,.cv3 .mn3-stat .mn3-flag{opacity:0!important}.cv3 .mn3-statnum .g-solid,.cv3 .mn3-statnum .g-unit{opacity:1!important}
+  .cv3 .mn3-half.l,.cv3 .mn3-half.r{transform:none!important}
+  .cv3 .mn3-pad,.cv3 .mn3-sup,.cv3 .mn3-stat-label,.cv3 .mn3-stat-ctx,.cv3 .mn3-cap-big,.cv3 .mn3-caprow,.cv3 .mn3-cat-mile,.cv3 .mn3-slab,.cv3 .mn3-mem,.cv3 .mn3-close-name,.cv3 .mn3-close-sub{opacity:1!important;transform:none!important}
+  .cv3 .mn3-cat .mn3-line{transform:scaleY(1)!important}.cv3 .mn3-flag-sec{clip-path:none!important;opacity:1!important}
+}
+/* ── Monolith V3 narrative chapters (identity → snapshot → flagship → portfolio → economics → next → why → close) ── */
+.cv3 .mn3-hook{font-family:var(--mono);font-size:clamp(11px,1.4vw,15px);letter-spacing:.26em;text-transform:uppercase;color:#f2ede2;margin-bottom:20px;text-shadow:0 1px 20px rgba(0,0,0,.6)}
+/* CH02 snapshot — four facts assemble on black, then a supporting line resolves */
+.cv3 .mn3-snap{display:grid;grid-template-columns:repeat(2,1fr);gap:clamp(22px,5vh,54px) clamp(30px,6vw,100px);width:100%;max-width:880px;margin:26px auto 0}
+@media(max-width:760px){.cv3 .mn3-snap{grid-template-columns:1fr;gap:24px}}
+.cv3 .mn3-snap .f{--rp:clamp(0,calc((var(--p,0) - .1)/.5*var(--n,4) - var(--i,0)),1);opacity:var(--rp);transform:translateY(calc((1 - var(--rp))*26px))}
+.cv3 .mn3-snap .fv{font-size:clamp(38px,6vw,84px);font-weight:900;letter-spacing:-.04em;line-height:.9;font-variant-numeric:tabular-nums}
+.cv3 .mn3-snap .fv .u{font-size:.34em;font-weight:700;color:var(--accent);letter-spacing:0}
+.cv3 .mn3-snap .fk{font-family:var(--mono);font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);margin-top:12px}
+.cv3 .mn3-snap-sup{max-width:44ch;margin:clamp(26px,6vh,58px) auto 0;font-size:clamp(17px,2vw,26px);line-height:1.36;font-weight:600;letter-spacing:-.015em;text-wrap:balance;opacity:clamp(0,calc((var(--p,0) - .6)/.26),1)}
+/* CH03 flagship — two clean states: facts, then the drill-section emerges (no overlap with type) */
+.cv3 .mn3-flag2 .mn3-scrim{opacity:calc(.42 + clamp(0,calc((var(--p,0) - .42)/.2),1)*.46)}
+.cv3 .mn3-fa{position:absolute;inset:0;z-index:3;display:flex;flex-direction:column;justify-content:center;padding:clamp(40px,10vh,120px) clamp(24px,7vw,120px);opacity:calc(clamp(0,calc((var(--p,0) - .05)/.14),1) * (1 - clamp(0,calc((var(--p,0) - .44)/.12),1)));transform:translateY(calc(clamp(0,calc((var(--p,0) - .44)/.12),1)*-4vh))}
+.cv3 .mn3-fa .big{font-size:clamp(46px,9vw,120px);font-weight:900;letter-spacing:-.045em;line-height:.9;font-variant-numeric:tabular-nums;margin-top:14px}
+.cv3 .mn3-fa .sub{font-family:var(--mono);font-size:clamp(12px,1.4vw,15px);letter-spacing:.06em;color:#e6e2da;margin-top:14px}
+.cv3 .mn3-fa .line{font-size:clamp(16px,1.9vw,22px);font-weight:600;color:#f2ede2;margin-top:20px;max-width:30ch;text-wrap:balance}
+.cv3 .mn3-fb{position:absolute;inset:0;z-index:4;opacity:clamp(0,calc((var(--p,0) - .5)/.14),1)}
+.cv3 .mn3-fb-head{position:absolute;left:clamp(24px,7vw,120px);right:clamp(24px,7vw,120px);top:clamp(40px,12vh,120px)}
+.cv3 .mn3-fb-grade{font-size:clamp(44px,8vw,110px);font-weight:900;letter-spacing:-.04em;color:var(--accent);line-height:.9;font-variant-numeric:tabular-nums}
+.cv3 .mn3-fb-cap{font-family:var(--mono);font-size:clamp(12px,1.4vw,15px);letter-spacing:.06em;color:#e6e2da;margin-top:12px}
+.cv3 .mn3-fb-sec{position:absolute;left:clamp(24px,7vw,120px);right:clamp(24px,7vw,120px);bottom:clamp(46px,11vh,120px);height:min(38vh,320px);clip-path:inset(calc((1 - clamp(0,calc((var(--p,0) - .56)/.32),1))*100%) 0 0 0)}
+.cv3 .mn3-fb-sec svg{width:100%;height:100%;display:block;filter:drop-shadow(0 1px 3px rgba(0,0,0,.7))}
+.cv3 .mn3-fb-seclab{position:absolute;left:clamp(24px,7vw,120px);bottom:clamp(24px,6vh,60px);font-family:var(--mono);font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:#cfcabf}
+/* CH04 portfolio — persistent region map + a register that lights each project in turn */
+.cv3 .mn3-port{position:absolute;inset:0;z-index:3;display:grid;grid-template-columns:1.05fr .95fr;align-items:center;gap:clamp(20px,3vw,50px);padding:clamp(40px,8vh,90px) clamp(24px,6vw,100px)}
+@media(max-width:820px){.cv3 .mn3-port{grid-template-columns:1fr;grid-template-rows:auto 1fr;gap:18px;padding-top:clamp(70px,10vh,90px)}}
+.cv3 .mn3-map{position:relative;height:min(66vh,560px)}
+.cv3 .mn3-map svg{width:100%;height:100%;overflow:visible}
+.cv3 .mn3-map .nvout{fill:color-mix(in srgb,var(--ink) 5%,transparent);stroke:var(--line2);stroke-width:1.5}
+.cv3 .mn3-map .grat{stroke:var(--line2);stroke-width:.7;opacity:.5}
+.cv3 .mn3-map .pin{--rp:clamp(0,calc((var(--p,0) - .08)/.72*var(--n,3) - var(--i,0)),1)}
+.cv3 .mn3-map .pin .halo{opacity:calc(var(--rp)*.9);transform-box:fill-box;transform-origin:center;transform:scale(calc(.4 + var(--rp)*.6))}
+.cv3 .mn3-map .pin .dot{fill:var(--accent);opacity:calc(.3 + var(--rp)*.7)}
+.cv3 .mn3-map .pin .plab{fill:var(--bg);font-family:var(--font);font-weight:800;font-size:4px;opacity:calc(.4 + var(--rp)*.6)}
+.cv3 .mn3-pj .pjnum{display:inline-block;min-width:1.4em;font-family:var(--mono);font-size:.5em;font-weight:600;color:var(--accent);vertical-align:middle;margin-right:.2em}
+.cv3 .mn3-porthead{font-family:var(--mono);font-size:clamp(12px,1.5vw,16px);letter-spacing:.16em;text-transform:uppercase;color:var(--accent);margin-bottom:20px}
+.cv3 .mn3-pj{--rp:clamp(0,calc((var(--p,0) - .08)/.72*var(--n,3) - var(--i,0)),1);opacity:calc(.26 + var(--rp)*.74);padding:clamp(11px,2vh,20px) 0;border-top:1px solid var(--line2)}
+.cv3 .mn3-pj .pjname{font-size:clamp(24px,3.2vw,42px);font-weight:900;letter-spacing:-.03em;line-height:1}
+.cv3 .mn3-pj .pjmeta{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--accent);margin-top:9px}
+.cv3 .mn3-pj .pjdesc{font-size:clamp(13px,1.4vw,16px);line-height:1.45;color:color-mix(in srgb,var(--ink) 74%,transparent);margin-top:9px;max-width:46ch;max-height:calc(var(--rp)*140px);overflow:hidden}
+/* CH05 economics — restrained figure grid, market cap NOT dominant */
+.cv3 .mn3-econ{display:grid;grid-template-columns:repeat(3,1fr);gap:clamp(20px,4vh,44px) clamp(28px,5vw,70px);width:100%;max-width:920px;margin:30px auto 0}
+@media(max-width:760px){.cv3 .mn3-econ{grid-template-columns:repeat(2,1fr)}}
+.cv3 .mn3-econ .e{--rp:clamp(0,calc((var(--p,0) - .12)/.5*var(--en,6) - var(--i,0)),1);opacity:var(--rp);transform:translateY(calc((1 - var(--rp))*20px))}
+.cv3 .mn3-econ .ev{font-size:clamp(30px,4.4vw,60px);font-weight:900;letter-spacing:-.035em;line-height:.94;font-variant-numeric:tabular-nums}
+.cv3 .mn3-econ .ek{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);margin-top:9px}
+.cv3 .mn3-econ-note{max-width:50ch;margin:clamp(26px,5vh,50px) auto 0;font-family:var(--mono);font-size:clamp(11px,1.2vw,13px);letter-spacing:.04em;color:var(--dim);opacity:clamp(0,calc((var(--p,0) - .62)/.26),1)}
+/* CH07 why — four numbered reasons revealed as distinct beats */
+.cv3 .mn3-why{display:flex;flex-direction:column;gap:clamp(14px,2.4vh,30px);width:100%;max-width:1000px;margin:18px auto 0}
+.cv3 .mn3-reason{--rp:clamp(0,calc((var(--p,0) - .12)/.66*var(--wn,4) - var(--i,0)),1);display:grid;grid-template-columns:auto 1fr;gap:clamp(18px,3vw,40px);align-items:baseline;opacity:calc(.22 + var(--rp)*.78);transform:translateY(calc((1 - var(--rp))*24px))}
+.cv3 .mn3-reason .rn{font-family:var(--mono);font-size:clamp(13px,1.5vw,17px);color:var(--accent);font-weight:600;padding-top:.4em}
+.cv3 .mn3-reason .rw{font-size:clamp(21px,3vw,42px);font-weight:800;letter-spacing:-.025em;line-height:1.08;text-wrap:balance}
+/* CH08 CTA */
+.cv3 .mn3-lead-intro{font-size:clamp(16px,2vw,24px);line-height:1.4;font-weight:600;max-width:52ch;color:color-mix(in srgb,var(--ink) 82%,transparent);margin-top:14px;opacity:clamp(0,calc((var(--p,0) - .04)/.16),1)}
+.cv3 .mn3-cta-list{display:flex;flex-wrap:wrap;gap:10px 26px;margin:26px 0;justify-content:center}
+.cv3 .mn3-cta-list span{font-family:var(--mono);font-size:clamp(11px,1.3vw,14px);letter-spacing:.12em;text-transform:uppercase;color:var(--dim)}
+.cv3 .mn3-cta-go{display:inline-flex;align-items:center;gap:10px;font-family:var(--mono);font-size:clamp(13px,1.5vw,16px);letter-spacing:.1em;text-transform:uppercase;color:var(--accent);border:1px solid var(--accent);border-radius:999px;padding:14px 26px;margin-top:8px}
+@media (prefers-reduced-motion:reduce){
+  .cv3 .mn3-snap .f,.cv3 .mn3-snap-sup,.cv3 .mn3-fa,.cv3 .mn3-fb,.cv3 .mn3-econ .e,.cv3 .mn3-econ-note,.cv3 .mn3-reason,.cv3 .mn3-pj,.cv3 .mn3-lead-intro{opacity:1!important;transform:none!important}
+  .cv3 .mn3-fb-sec{clip-path:none!important}.cv3 .mn3-map .pin .dot,.cv3 .mn3-map .pin .plab{opacity:1!important}
+}
+/* ══════ 02 · ATLAS (V5) — a premium interactive FIELD ATLAS. Same canonical story as Monolith, told
+   through geography. Motion grammar = arrival-triggered cartographic "registration" (a chapter turns in
+   like a new plate) — deliberately NOT Monolith's continuous scrub. Namespace atx-. ══════ */
+.cv3 .atx{position:relative;background:var(--bg)}
+.cv3 .atx-ch{position:relative;min-height:100vh;display:flex;flex-direction:column;justify-content:center;padding:clamp(52px,10vh,120px) clamp(28px,7vw,120px);overflow:hidden}
+.cv3 .atx-in{position:relative;z-index:3;width:100%;max-width:1200px;margin:0 auto}
+.cv3 .atx-eyebrow{font-family:var(--mono);font-size:clamp(11px,1.3vw,14px);letter-spacing:.22em;text-transform:uppercase;color:var(--accent)}
+.cv3 .atx-h{font-size:clamp(34px,5vw,74px);font-weight:800;letter-spacing:-.03em;line-height:1;text-wrap:balance}
+/* the recurring cartographic signature: a fine registration frame + corner plate/coordinate labels */
+.cv3 .atx-frame{position:absolute;inset:clamp(16px,3.2vh,34px) clamp(16px,3.2vw,40px);border:1px solid var(--line2);pointer-events:none;z-index:2}
+.cv3 .atx-frame i{position:absolute;width:11px;height:11px;border:0 solid var(--accent);opacity:.75}
+.cv3 .atx-frame i.tl{top:-1px;left:-1px;border-top-width:2px;border-left-width:2px}
+.cv3 .atx-frame i.tr{top:-1px;right:-1px;border-top-width:2px;border-right-width:2px}
+.cv3 .atx-frame i.bl{bottom:-1px;left:-1px;border-bottom-width:2px;border-left-width:2px}
+.cv3 .atx-frame i.br{bottom:-1px;right:-1px;border-bottom-width:2px;border-right-width:2px}
+.cv3 .atx-plateno{position:absolute;z-index:3;top:clamp(22px,4vh,44px);right:clamp(24px,4.6vw,58px);font-family:var(--mono);font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--dim)}
+.cv3 .atx-foot{position:absolute;z-index:3;left:clamp(24px,4.6vw,58px);bottom:clamp(22px,4vh,44px);font-family:var(--mono);font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim)}
+/* arrival reveal — children register in when the chapter gets .on */
+.cv3 .atx-reg{opacity:0;clip-path:inset(0 0 100% 0);transition:clip-path 1s cubic-bezier(.7,0,.18,1),opacity .7s ease}
+.cv3 .atx-ch.on .atx-reg{opacity:1;clip-path:inset(0 0 -4% 0)}
+.cv3 .atx-ch.on .atx-reg.d1{transition-delay:.1s}.cv3 .atx-ch.on .atx-reg.d2{transition-delay:.22s}.cv3 .atx-ch.on .atx-reg.d3{transition-delay:.34s}.cv3 .atx-ch.on .atx-reg.d4{transition-delay:.46s}
+/* ── the Atlas map (cartographic: graticule + coordinate frame + pins + crosshair target) ── */
+.cv3 .atx-map{position:relative;width:100%}
+.cv3 .atx-map svg{width:100%;height:100%;display:block;overflow:visible}
+.cv3 .atx .amout{fill:color-mix(in srgb,var(--ink) 4%,transparent);stroke:var(--ink);stroke-opacity:.4;stroke-width:1.2}
+.cv3 .atx .amgrat{stroke:var(--line2);stroke-width:.6}
+.cv3 .atx .amglab{fill:var(--dim);font-family:var(--mono);font-size:3.4px;letter-spacing:.4px}
+.cv3 .atx .ampin .amdot{fill:var(--accent)}
+.cv3 .atx .ampin .amhalo{fill:none;stroke:var(--accent);stroke-width:.8;opacity:0;transform-box:fill-box;transform-origin:center;transform:scale(.3);transition:opacity .6s,transform .6s}
+.cv3 .atx-ch.on .atx .ampin .amhalo{opacity:.85;transform:scale(1)}
+.cv3 .atx .ampin .amnum{fill:var(--bg);font-family:var(--font);font-weight:800;font-size:4px}
+.cv3 .atx .ampin .amlab{fill:var(--ink);font-family:var(--mono);font-size:3.6px;letter-spacing:.4px;opacity:0;transition:opacity .6s .3s}
+.cv3 .atx-ch.on .atx .ampin .amlab{opacity:.85}
+.cv3 .atx .amcross{stroke:var(--accent);stroke-width:.7;opacity:0;transition:opacity .5s}
+.cv3 .atx-ch.on .atx .amcross{opacity:.9}
+/* CH1 LOCATE — full-screen map, identity + coordinate HUD over it */
+.cv3 .atx-locate{padding:0}
+.cv3 .atx-locate .atx-map{position:absolute;inset:0;height:100%;z-index:0}
+.cv3 .atx-locate .atx-map svg{height:100%}
+.cv3 .atx-loc-copy{position:relative;z-index:4;margin-top:auto;padding:clamp(40px,9vh,110px) clamp(28px,7vw,120px)}
+.cv3 .atx-loc-name{font-size:clamp(40px,8vw,120px);font-weight:900;letter-spacing:-.04em;line-height:.92;text-shadow:0 2px 40px var(--bg)}
+.cv3 .atx-coord{position:absolute;z-index:4;top:clamp(56px,11vh,110px);left:clamp(28px,7vw,120px);font-family:var(--mono);font-size:clamp(11px,1.3vw,14px);letter-spacing:.14em;color:var(--accent);line-height:1.7}
+/* CH2 FIELD INDEX — atlas front-matter with dotted leaders */
+.cv3 .atx-index{margin-top:30px;border-top:1px solid var(--ink);border-top-color:color-mix(in srgb,var(--ink) 30%,transparent)}
+.cv3 .atx-ix-row{display:grid;grid-template-columns:auto 1fr auto;gap:16px;align-items:baseline;padding:clamp(14px,2.4vh,26px) 0;border-bottom:1px solid var(--line2)}
+.cv3 .atx-ix-row .ixk{font-family:var(--mono);font-size:clamp(11px,1.2vw,13px);letter-spacing:.14em;text-transform:uppercase;color:var(--dim)}
+.cv3 .atx-ix-row .ixlead{border-bottom:1px dotted var(--line2);transform:translateY(-4px)}
+.cv3 .atx-ix-row .ixv{font-size:clamp(26px,3.6vw,52px);font-weight:800;letter-spacing:-.025em;font-variant-numeric:tabular-nums}
+.cv3 .atx-ix-plate{font-family:var(--mono);font-size:11px;color:var(--accent);width:2.6em}
+.cv3 .atx-index-sup{margin-top:34px;font-size:clamp(16px,1.9vw,23px);line-height:1.4;font-weight:600;max-width:46ch;color:color-mix(in srgb,var(--ink) 82%,transparent)}
+/* CH3 FLAGSHIP FIELD PLATE — annotated full-bleed photograph */
+.cv3 .atx-plate{padding:0}
+.cv3 .atx-plate-photo{position:absolute;inset:0;z-index:0}
+.cv3 .atx-plate-photo img{width:100%;height:100%;object-fit:cover}
+.cv3 .atx-plate-photo::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,rgba(0,0,0,.62),rgba(0,0,0,.18) 55%,rgba(0,0,0,.42))}
+.cv3 .atx-plate-body{position:relative;z-index:4;margin-top:auto;padding:clamp(40px,9vh,110px) clamp(28px,7vw,120px);color:#fff}
+.cv3 .atx-plate-title{font-size:clamp(30px,4.4vw,64px);font-weight:900;letter-spacing:-.03em;line-height:.98}
+.cv3 .atx-anno{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:clamp(14px,2vw,30px);margin-top:26px;max-width:820px}
+.cv3 .atx-anno .a{border-left:2px solid var(--accent);padding-left:14px}
+.cv3 .atx-anno .av{font-size:clamp(18px,2vw,26px);font-weight:800;letter-spacing:-.02em;color:#fff}
+.cv3 .atx-anno .ak{font-family:var(--mono);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:#d8d3c8;margin-top:4px}
+.cv3 .atx-plate-line{font-size:clamp(15px,1.7vw,20px);line-height:1.5;color:#f0ebe0;max-width:52ch;margin-top:24px}
+.cv3 .atx-scalebar{position:absolute;z-index:4;right:clamp(28px,7vw,120px);top:clamp(70px,14vh,150px);text-align:right;font-family:var(--mono);font-size:10px;letter-spacing:.1em;color:#e6e2da}
+.cv3 .atx-scalebar .bar{height:3px;width:120px;background:linear-gradient(90deg,#fff 0 50%,transparent 50%);border:1px solid #fff;margin-top:6px;margin-left:auto}
+/* CH4 DISCOVERY — technical insert plate */
+.cv3 .atx-insert-frame{position:relative;margin:26px auto 0;max-width:960px;border:1px solid var(--line2);padding:clamp(18px,3vw,40px);background:color-mix(in srgb,var(--ink) 3%,transparent)}
+.cv3 .atx-insert-frame::before{content:"FIG. 01";position:absolute;top:-9px;left:22px;background:var(--bg);padding:0 8px;font-family:var(--mono);font-size:10px;letter-spacing:.18em;color:var(--dim)}
+.cv3 .atx-insert-grid{display:grid;grid-template-columns:1.4fr 1fr;gap:clamp(20px,4vw,54px);align-items:center}
+@media(max-width:820px){.cv3 .atx-insert-grid{grid-template-columns:1fr}}
+.cv3 .atx-insert-fig{position:relative;width:100%;aspect-ratio:5/3}
+.cv3 .atx-insert-fig svg{width:100%;height:100%}
+.cv3 .atx-insert-grade{font-size:clamp(44px,7vw,96px);font-weight:900;letter-spacing:-.04em;color:var(--accent);line-height:.9;font-variant-numeric:tabular-nums}
+.cv3 .atx-insert-cap{font-family:var(--mono);font-size:clamp(11px,1.3vw,14px);letter-spacing:.06em;color:var(--dim);margin-top:14px;line-height:1.6}
+/* CH5 PORTFOLIO — the geographic pullback: map + field register with photo insets */
+.cv3 .atx-port{display:grid;grid-template-columns:1fr 1fr;gap:clamp(24px,4vw,64px);align-items:center}
+@media(max-width:900px){.cv3 .atx-port{grid-template-columns:1fr;gap:24px}}
+.cv3 .atx-port .atx-map{height:min(64vh,560px)}
+.cv3 .atx-preg-row{display:grid;grid-template-columns:64px 1fr;gap:16px;align-items:center;padding:clamp(11px,2vh,18px) 0;border-top:1px solid var(--line2)}
+.cv3 .atx-preg-row .thumb{width:64px;height:48px;object-fit:cover;filter:grayscale(.2)}
+.cv3 .atx-preg-row .thumbx{width:64px;height:48px;border:1px solid var(--line2);display:grid;place-items:center;font-family:var(--mono);font-size:16px;color:var(--dim)}
+.cv3 .atx-preg-row .prn{font-size:clamp(18px,2.2vw,30px);font-weight:800;letter-spacing:-.02em;line-height:1}
+.cv3 .atx-preg-row .prm{font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--accent);margin-top:6px}
+.cv3 .atx-preg-row .prd{font-size:clamp(12px,1.3vw,14.5px);line-height:1.4;color:color-mix(in srgb,var(--ink) 72%,transparent);margin-top:6px;max-width:40ch}
+/* CH6 TREASURY LEDGER — ruled field-accounts page (NOT a dashboard) */
+.cv3 .atx-ledger{margin-top:30px;max-width:860px}
+.cv3 .atx-led-row{display:grid;grid-template-columns:2.4em 1fr auto;gap:18px;align-items:baseline;padding:clamp(13px,2.2vh,22px) 0;border-bottom:1px solid var(--line2)}
+.cv3 .atx-led-row:first-child{border-top:1px solid color-mix(in srgb,var(--ink) 30%,transparent)}
+.cv3 .atx-led-row .ln{font-family:var(--mono);font-size:11px;color:var(--dim)}
+.cv3 .atx-led-row .lk{font-family:var(--mono);font-size:clamp(11px,1.3vw,14px);letter-spacing:.1em;text-transform:uppercase;color:color-mix(in srgb,var(--ink) 78%,transparent)}
+.cv3 .atx-led-row .lv{font-size:clamp(22px,2.8vw,40px);font-weight:800;letter-spacing:-.02em;font-variant-numeric:tabular-nums;text-align:right}
+.cv3 .atx-led-note{margin-top:22px;font-family:var(--mono);font-size:11px;letter-spacing:.05em;color:var(--dim)}
+/* CH7 TRAVERSE — survey route from current stage to the milestone */
+.cv3 .atx-route{position:relative;margin:44px 0 0}
+.cv3 .atx-route svg{width:100%;height:120px;overflow:visible}
+.cv3 .atx-route .rline{fill:none;stroke:var(--line2);stroke-width:2}
+.cv3 .atx-route .rprog{fill:none;stroke:var(--accent);stroke-width:2.4;stroke-dasharray:1;stroke-dashoffset:1;transition:stroke-dashoffset 1.6s cubic-bezier(.65,0,.35,1) .2s}
+.cv3 .atx-ch.on .atx-route .rprog{stroke-dashoffset:0}
+.cv3 .atx-route .rst{fill:var(--bg);stroke:var(--dim);stroke-width:1.5}
+.cv3 .atx-route .rst.here{stroke:var(--accent);fill:var(--accent)}
+.cv3 .atx-stations{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-top:10px}
+.cv3 .atx-stations .st .stt{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent)}
+.cv3 .atx-stations .st .stl{font-size:clamp(16px,1.9vw,24px);font-weight:800;letter-spacing:-.02em;margin-top:8px;line-height:1.1}
+.cv3 .atx-stations .st .std{font-size:clamp(13px,1.4vw,15px);line-height:1.45;color:color-mix(in srgb,var(--ink) 72%,transparent);margin-top:8px}
+/* CH8 INVESTMENT CASE — field-guide legend */
+.cv3 .atx-legend{margin-top:26px;display:flex;flex-direction:column}
+.cv3 .atx-leg-row{display:grid;grid-template-columns:44px 8.5em 1fr;gap:clamp(14px,2.5vw,40px);align-items:center;padding:clamp(16px,2.8vh,30px) 0;border-top:1px solid var(--line2)}
+@media(max-width:760px){.cv3 .atx-leg-row{grid-template-columns:44px 1fr;row-gap:6px}.cv3 .atx-leg-row .legd{grid-column:2}}
+.cv3 .atx-leg-row .legsym svg{width:34px;height:34px}
+.cv3 .atx-leg-row .legl{font-family:var(--mono);font-size:clamp(13px,1.6vw,19px);letter-spacing:.1em;text-transform:uppercase;color:var(--accent);font-weight:600}
+.cv3 .atx-leg-row .legd{font-size:clamp(16px,1.9vw,24px);font-weight:700;letter-spacing:-.02em;line-height:1.28}
+/* CH9 FIELD ROSTER — expedition roster over a field-crew photo */
+.cv3 .atx-roster-ch{padding:0}
+.cv3 .atx-roster-photo{position:absolute;inset:0;z-index:0}
+.cv3 .atx-roster-photo img{width:100%;height:100%;object-fit:cover;filter:grayscale(.3)}
+.cv3 .atx-roster-photo::after{content:"";position:absolute;inset:0;background:linear-gradient(0deg,var(--bg) 6%,rgba(0,0,0,.55) 55%,rgba(0,0,0,.68))}
+.cv3 .atx-roster-body{position:relative;z-index:4;padding:clamp(52px,10vh,120px) clamp(28px,7vw,120px)}
+.cv3 .atx-roster-intro{font-size:clamp(17px,2.1vw,26px);line-height:1.35;font-weight:600;max-width:52ch;color:#f2ede2;margin-top:12px}
+.cv3 .atx-roster{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:clamp(12px,1.6vw,22px);margin-top:30px}
+.cv3 .atx-rmem{display:grid;grid-template-columns:auto 1fr;gap:13px;align-items:center;border-top:1px solid rgba(255,255,255,.16);padding-top:12px}
+.cv3 .atx-rmem .rid{font-family:var(--mono);font-size:10px;letter-spacing:.1em;color:var(--accent);border:1px solid rgba(255,255,255,.24);padding:5px 7px;white-space:nowrap}
+.cv3 .atx-rmem .rnm{font-size:clamp(15px,1.6vw,18px);font-weight:800;color:#fff;line-height:1.1}
+.cv3 .atx-rmem .rrl{font-family:var(--mono);font-size:10px;letter-spacing:.05em;text-transform:uppercase;color:#cfc9bd;margin-top:3px}
+/* CH10 CLOSE — geographic pullback + CTA */
+.cv3 .atx-close{padding:0}
+.cv3 .atx-close .atx-map{position:absolute;inset:0;height:100%;z-index:0;opacity:.5}
+.cv3 .atx-close-body{position:relative;z-index:4;margin:auto;text-align:center;padding:clamp(40px,9vh,110px) clamp(28px,7vw,120px)}
+.cv3 .atx-close-name{font-size:clamp(38px,7vw,110px);font-weight:900;letter-spacing:-.04em;line-height:.9}
+.cv3 .atx-close-list{display:flex;flex-wrap:wrap;gap:10px 24px;justify-content:center;margin:24px 0}
+.cv3 .atx-close-list span{font-family:var(--mono);font-size:clamp(11px,1.3vw,13px);letter-spacing:.12em;text-transform:uppercase;color:var(--dim)}
+.cv3 .atx-close-go{display:inline-flex;align-items:center;gap:10px;font-family:var(--mono);font-size:clamp(13px,1.5vw,16px);letter-spacing:.1em;text-transform:uppercase;color:var(--accent);border:1px solid var(--accent);border-radius:999px;padding:14px 26px}
+@media (prefers-reduced-motion:reduce){.cv3 .atx-reg{opacity:1!important;clip-path:none!important}.cv3 .atx-route .rprog{stroke-dashoffset:0!important}.cv3 .atx .ampin .amhalo,.cv3 .atx .ampin .amlab,.cv3 .atx .amcross{opacity:1!important;transform:none!important}}
+/* ── ATLAS NATIVE PALETTE — cartographic/survey families, decoupled from the global dark themes.
+   Default = DAY (limestone paper + charcoal ink + oxide accent). A few Atlas-specific variants map off
+   the theme swatch so the selector cycles Atlas colours, never Monolith's. Scoped to .atx only. ── */
+.cv3 .atx{--bg:#e9e1d0;--ink:#2a251f;--dim:#7d715c;--faint:#c5b9a1;--line2:#cabd9f;--chip:#ded2ba;--accent:#bd5320;--accent2:#d98a3c;background:var(--bg);color:var(--ink)}
+.cv3[data-variant="pine"] .atx,.cv3[data-variant="amethyst"] .atx{--bg:#e1e4d4;--ink:#243029;--dim:#6b7663;--faint:#bcc4ab;--line2:#bfc7ac;--chip:#d4dac4;--accent:#5d7344;--accent2:#89a268}
+.cv3[data-variant="cellar"] .atx,.cv3[data-variant="graphite"] .atx{--bg:#201f1b;--ink:#ece2d2;--dim:#9b907c;--faint:#453f37;--line2:#38332b;--chip:#2b2924;--accent:#d3652c;--accent2:#e79a4e}
+/* ATLAS TYPOGRAPHY — editorial serif display (inverts Monolith's heavy sans) + mono survey labels */
+.cv3 .atx-h,.cv3 .atx-loc-name,.cv3 .atx-plate-title,.cv3 .atx-close-name,.cv3 .atx-preg-row .prn,.cv3 .atx-entry-name,.cv3 .atx-fieldrec-grade,.cv3 .atx-index .ixv{font-family:var(--serif);font-weight:500;letter-spacing:-.005em}
+.cv3 .atx-loc-name,.cv3 .atx-close-name{font-weight:400;letter-spacing:-.01em}
+/* CH1 TITLE SHEET — an atlas cover: dominant name in clean space + a contained locator figure */
+.cv3 .atx-title{padding:0;justify-content:stretch}
+.cv3 .atx-title-meta{position:absolute;z-index:3;top:clamp(22px,4vh,44px);left:clamp(28px,6vw,90px);font-family:var(--mono);font-size:10.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--dim)}
+.cv3 .atx-title-grid{position:relative;z-index:3;margin:auto;width:100%;max-width:1200px;padding:clamp(60px,10vh,120px) clamp(28px,6vw,90px);display:grid;grid-template-columns:1.35fr .65fr;gap:clamp(30px,5vw,80px);align-items:center}
+@media(max-width:820px){.cv3 .atx-title-grid{grid-template-columns:1fr;gap:36px}}
+.cv3 .atx-title .atx-loc-name{font-size:clamp(46px,8vw,120px);line-height:.98;text-shadow:none;margin-top:14px}
+.cv3 .atx-title-tag{font-size:clamp(16px,2vw,24px);line-height:1.4;max-width:30ch;margin-top:22px;color:color-mix(in srgb,var(--ink) 82%,transparent)}
+.cv3 .atx-title-fig{margin:0}
+.cv3 .atx-title-map{border:1px solid var(--ink);background:color-mix(in srgb,var(--ink) 3%,transparent);padding:16px;height:min(46vh,400px)}
+.cv3 .atx-title-map svg{width:100%;height:100%}
+.cv3 .atx-title-fig figcaption{font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);margin-top:11px;text-align:center}
+/* CH4 FIELD RECORD — assay/core-log ribbon (visualises ONLY grade + interval width + hole id) */
+.cv3 .atx-fieldrec{margin-top:20px;max-width:760px}
+.cv3 .atx-fieldrec-grade{font-size:clamp(58px,11vw,170px);line-height:.86;color:var(--accent)}
+.cv3 .atx-fieldrec-sub{font-family:var(--mono);font-size:clamp(13px,1.6vw,18px);letter-spacing:.08em;color:var(--ink);margin-top:14px}
+.cv3 .atx-corelog{margin-top:30px}
+.cv3 .atx-corelog .clbar{position:relative;height:38px;border:1px solid var(--ink);border-radius:3px;overflow:hidden;background:repeating-linear-gradient(90deg,transparent 0 13px,color-mix(in srgb,var(--ink) 9%,transparent) 13px 14px)}
+.cv3 .atx-corelog .clfill{position:absolute;inset:0;background:linear-gradient(90deg,color-mix(in srgb,var(--accent) 72%,transparent),var(--accent));clip-path:inset(0 100% 0 0);transition:clip-path 1.4s cubic-bezier(.65,0,.35,1) .3s}
+.cv3 .atx-ch.on .atx-corelog .clfill{clip-path:inset(0 0 0 0)}
+.cv3 .atx-corelog .clscale{display:flex;justify-content:space-between;margin-top:9px;font-family:var(--mono);font-size:11px;letter-spacing:.08em;color:var(--dim)}
+.cv3 .atx-fieldrec-note{font-family:var(--mono);font-size:11px;letter-spacing:.04em;color:var(--dim);margin-top:26px;max-width:54ch;line-height:1.6}
+/* CH5 PORTFOLIO — indexed atlas entries, image-forward, alternating; dynamic count */
+.cv3 .atx-entries{margin-top:18px}
+.cv3 .atx-entry{display:grid;grid-template-columns:minmax(200px,42%) 1fr;gap:clamp(22px,4vw,56px);align-items:center;padding:clamp(22px,4vh,46px) 0;border-top:1px solid var(--line2)}
+.cv3 .atx-entry:nth-child(even) .atx-entry-fig{order:2}
+@media(max-width:760px){.cv3 .atx-entry{grid-template-columns:1fr}.cv3 .atx-entry:nth-child(even) .atx-entry-fig{order:0}}
+.cv3 .atx-entry-fig{position:relative;aspect-ratio:4/3;overflow:hidden;border:1px solid var(--line2)}
+.cv3 .atx-entry-fig img{width:100%;height:100%;object-fit:cover}
+.cv3 .atx-entry-figx{width:100%;height:100%;display:grid;place-items:center;font-family:var(--serif);font-size:64px;color:var(--faint);background:var(--chip)}
+.cv3 .atx-entry-ix{position:absolute;top:10px;left:10px;font-family:var(--mono);font-size:12px;letter-spacing:.1em;background:var(--bg);color:var(--accent);padding:4px 10px;border:1px solid var(--line2)}
+.cv3 .atx-entry-loc{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent)}
+.cv3 .atx-entry-name{font-size:clamp(28px,4vw,56px);line-height:1;margin-top:9px}
+.cv3 .atx-entry-meta{font-family:var(--mono);font-size:12px;letter-spacing:.06em;color:var(--dim);margin-top:13px}
+.cv3 .atx-entry-desc{font-size:clamp(15px,1.7vw,19px);line-height:1.5;margin-top:14px;max-width:48ch;color:color-mix(in srgb,var(--ink) 82%,transparent)}
+/* CH10 CLOSE — colophon: a small pull-back locator + CTA (no full-bleed map behind the type) */
+.cv3 .atx-close{padding:0}
+.cv3 .atx-close .atx-close-body{position:relative;z-index:4;margin:auto;text-align:center;padding:clamp(48px,9vh,110px) clamp(28px,7vw,120px);max-width:820px}
+.cv3 .atx-close-fig{width:clamp(130px,20vw,190px);height:clamp(150px,24vh,230px);margin:0 auto 30px;border:1px solid var(--line2);padding:12px}
+.cv3 .atx-close-fig svg{width:100%;height:100%}
+.cv3 .atx-treg-head{display:grid;grid-template-columns:2.4em 1fr auto;gap:18px;padding-bottom:10px;border-bottom:2px solid var(--ink);font-family:var(--mono);font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim);margin-top:22px}
+.cv3 .atx-treg-head span:last-child{text-align:right}
+/* ══════ 04 · STRATA (V6) — a continuous VERTICAL GEOLOGICAL DESCENT. Same canonical story as Monolith/
+   Atlas, told as layers passed on the way down. Native palette: cool slate at surface → warm umber at
+   depth (mineral/verdigris accent). Motion = emergence from depth. A persistent depth rail is the spine.
+   Namespace st2-. ══════ */
+.cv3 .st2{--bg:#232a30;--ink:#e9edf0;--dim:#8a97a1;--faint:#39434b;--line2:#323c44;--chip:#2b333b;--accent:#3f9e88;--accent2:#67c2a9;position:relative;color:var(--ink);background:linear-gradient(180deg,#242b32 0%,#232a2c 42%,#2a2620 76%,#2b2019 100%)}
+.cv3[data-variant="pine"] .st2,.cv3[data-variant="harbor"] .st2{--accent:#5b86c4;--accent2:#89ade0;background:linear-gradient(180deg,#232830 0%,#232a30 45%,#26282f 100%)}
+.cv3[data-variant="cellar"] .st2,.cv3[data-variant="graphite"] .st2{--accent:#c47a45;--accent2:#e0a069;background:linear-gradient(180deg,#282420 0%,#2a231d 50%,#2c1e16 100%)}
+/* depth rail — the structural backbone (fixed on the left; a marker descends with scroll) */
+.cv3 .st2-rail{position:fixed;left:clamp(16px,3vw,42px);top:0;height:100vh;width:60px;z-index:8;pointer-events:none;display:flex;flex-direction:column;justify-content:center}
+.cv3 .st2-rail-line{position:absolute;left:10px;top:12vh;bottom:12vh;width:1px;background:var(--line2)}
+.cv3 .st2-rail-fill{position:absolute;left:10px;top:12vh;width:1px;height:calc(var(--dp,0)*76vh);background:var(--accent);box-shadow:0 0 12px -2px var(--accent)}
+.cv3 .st2-rail-mark{position:absolute;left:6px;top:calc(12vh + var(--dp,0)*76vh);width:9px;height:9px;border-radius:50%;background:var(--accent);transform:translateY(-50%);box-shadow:0 0 0 4px color-mix(in srgb,var(--accent) 22%,transparent)}
+.cv3 .st2-rail-lab{position:absolute;left:26px;top:calc(12vh + var(--dp,0)*76vh);transform:translateY(-50%);font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);white-space:nowrap}
+.cv3 .st2-rail-dep{position:absolute;left:26px;top:calc(12vh + var(--dp,0)*76vh + 14px);transform:translateY(-50%);font-family:var(--mono);font-size:9px;letter-spacing:.1em;color:var(--dim);white-space:nowrap}
+@media(max-width:760px){.cv3 .st2-rail{display:none}}
+/* chapters — whitespace-rich, left room for the rail; emerge as you descend */
+.cv3 .st2-ch{position:relative;min-height:92vh;display:flex;flex-direction:column;justify-content:center;padding:clamp(48px,10vh,120px) clamp(28px,6vw,90px) clamp(48px,10vh,120px) clamp(80px,10vw,150px)}
+.cv3 .st2-ch.tall{min-height:auto;padding-top:clamp(60px,14vh,160px);padding-bottom:clamp(60px,14vh,160px)}
+.cv3 .st2-in{width:100%;max-width:1080px}
+.cv3 .st2-eyebrow{font-family:var(--mono);font-size:clamp(11px,1.3vw,14px);letter-spacing:.22em;text-transform:uppercase;color:var(--accent)}
+.cv3 .st2-depthtag{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim)}
+/* emergence reveal (blur clears, rises from depth) — Strata's own motion */
+.cv3 .st2-em{opacity:0;transform:translateY(30px);filter:blur(6px);transition:opacity 1s ease,transform 1.1s cubic-bezier(.2,1,.3,1),filter 1s ease}
+.cv3 .st2 .on .st2-em{opacity:1;transform:none;filter:none}
+.cv3 .st2 .on .st2-em.e1{transition-delay:.08s}.cv3 .st2 .on .st2-em.e2{transition-delay:.2s}.cv3 .st2 .on .st2-em.e3{transition-delay:.32s}.cv3 .st2 .on .st2-em.e4{transition-delay:.44s}
+/* SURFACE / IDENTITY */
+.cv3 .st2-name{font-size:clamp(44px,8.5vw,132px);font-weight:900;letter-spacing:-.04em;line-height:.92}
+.cv3 .st2-tag{font-size:clamp(16px,2vw,24px);line-height:1.4;max-width:34ch;margin-top:20px;color:color-mix(in srgb,var(--ink) 82%,transparent)}
+.cv3 .st2-surface-mk{font-family:var(--mono);font-size:10px;letter-spacing:.3em;text-transform:uppercase;color:var(--dim);margin-bottom:26px;display:flex;align-items:center;gap:14px}
+.cv3 .st2-surface-mk::after{content:"";flex:1;height:1px;background:var(--line2)}
+/* SNAPSHOT — four facts as a descending column, not a grid */
+.cv3 .st2-facts{margin-top:8px}
+.cv3 .st2-fact{display:grid;grid-template-columns:auto 1fr;gap:clamp(16px,3vw,40px);align-items:baseline;padding:clamp(16px,2.6vh,28px) 0;border-bottom:1px solid var(--line2)}
+.cv3 .st2-fact .fv{font-size:clamp(34px,5vw,72px);font-weight:900;letter-spacing:-.035em;line-height:.95;font-variant-numeric:tabular-nums}
+.cv3 .st2-fact .fk{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);text-align:right}
+.cv3 .st2-sup{font-size:clamp(17px,2vw,25px);line-height:1.4;font-weight:600;max-width:44ch;margin-top:30px;text-wrap:balance}
+/* CROSS-SECTION — honest: decorative stratigraphy + factual intercept bars (no fabricated geometry) */
+.cv3 .st2-sec-wrap{position:relative;margin-top:26px;border:1px solid var(--line2);background:color-mix(in srgb,#000 18%,transparent);overflow:hidden}
+.cv3 .st2-sec-wrap svg{width:100%;height:auto;display:block}
+.cv3 .st2-band{opacity:.5}
+.cv3 .st2-icept{opacity:0;transition:opacity .6s ease}
+.cv3 .st2 .on .st2-icept{opacity:1}
+.cv3 .st2-sec-note{font-family:var(--mono);font-size:10.5px;letter-spacing:.04em;color:var(--dim);margin-top:14px;line-height:1.6;max-width:64ch}
+/* RESOURCE / KEY RESULT / big layer figures */
+.cv3 .st2-big{font-size:clamp(54px,10vw,180px);font-weight:900;letter-spacing:-.05em;line-height:.86;font-variant-numeric:tabular-nums}
+.cv3 .st2-big .u{font-size:.26em;font-weight:700;color:var(--accent);letter-spacing:0}
+.cv3 .st2-line{font-family:var(--mono);font-size:clamp(12px,1.5vw,16px);letter-spacing:.06em;color:color-mix(in srgb,var(--ink) 82%,transparent);margin-top:18px}
+.cv3 .st2-body{font-size:clamp(16px,1.8vw,21px);line-height:1.55;max-width:52ch;margin-top:20px;color:color-mix(in srgb,var(--ink) 84%,transparent)}
+/* FLAGSHIP annotations */
+.cv3 .st2-annos{display:flex;flex-wrap:wrap;gap:clamp(16px,3vw,44px);margin-top:24px}
+.cv3 .st2-annos .a{border-left:2px solid var(--accent);padding-left:14px}
+.cv3 .st2-annos .av{font-size:clamp(18px,2.2vw,30px);font-weight:800;letter-spacing:-.02em}
+.cv3 .st2-annos .ak{font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);margin-top:5px}
+/* PROJECT HORIZON — full-bleed image emerging, with the factual record over it */
+.cv3 .st2-horizon{position:relative;min-height:100vh;display:flex;align-items:flex-end;padding:clamp(48px,10vh,110px) clamp(28px,6vw,90px) clamp(48px,10vh,110px) clamp(80px,10vw,150px);overflow:hidden}
+.cv3 .st2-horizon-img{position:absolute;inset:0;z-index:0}
+.cv3 .st2-horizon-img img{width:100%;height:100%;object-fit:cover;opacity:.66}
+.cv3 .st2-horizon-img::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(15,14,12,.72) 0%,rgba(15,14,12,.28) 40%,rgba(15,14,12,.8) 100%)}
+.cv3 .st2-horizon-x{position:absolute;inset:0;z-index:0;background:repeating-linear-gradient(180deg,color-mix(in srgb,var(--ink) 6%,transparent) 0 3px,transparent 3px 34px)}
+.cv3 .st2-horizon-in{position:relative;z-index:2;width:100%;max-width:1080px}
+.cv3 .st2-horizon-ix{font-family:var(--mono);font-size:clamp(12px,1.5vw,15px);letter-spacing:.2em;text-transform:uppercase;color:var(--accent)}
+.cv3 .st2-horizon-name{font-size:clamp(36px,6vw,86px);font-weight:900;letter-spacing:-.035em;line-height:.98;color:#fff;margin-top:10px}
+.cv3 .st2-horizon-meta{font-family:var(--mono);font-size:clamp(11px,1.3vw,14px);letter-spacing:.08em;color:#e6e2da;margin-top:14px}
+.cv3 .st2-horizon-take{font-size:clamp(15px,1.7vw,20px);line-height:1.5;color:#f2ede2;max-width:50ch;margin-top:16px}
+/* CAPITAL LAYER — figures embedded in a strata band, not cards */
+.cv3 .st2-caplayer{border-top:1px solid var(--line2);border-bottom:1px solid var(--line2);margin-top:24px}
+.cv3 .st2-caprow{display:grid;grid-template-columns:2.2em 1fr auto;gap:18px;align-items:baseline;padding:clamp(13px,2.2vh,22px) 0;border-bottom:1px solid var(--line2)}
+.cv3 .st2-caprow:last-child{border-bottom:none}
+.cv3 .st2-caprow .cn{font-family:var(--mono);font-size:11px;color:var(--dim)}
+.cv3 .st2-caprow .ck{font-family:var(--mono);font-size:clamp(11px,1.3vw,14px);letter-spacing:.1em;text-transform:uppercase;color:color-mix(in srgb,var(--ink) 80%,transparent)}
+.cv3 .st2-caprow .cv{font-size:clamp(22px,2.8vw,42px);font-weight:800;letter-spacing:-.02em;font-variant-numeric:tabular-nums;text-align:right}
+/* MILESTONES — markers embedded in the depth line */
+.cv3 .st2-strata-time{position:relative;margin-top:30px;padding-left:34px}
+.cv3 .st2-strata-time::before{content:"";position:absolute;left:5px;top:6px;bottom:6px;width:1px;background:var(--line2)}
+.cv3 .st2-mile{position:relative;padding:clamp(12px,2.2vh,22px) 0}
+.cv3 .st2-mile::before{content:"";position:absolute;left:-31px;top:calc(clamp(12px,2.2vh,22px) + 7px);width:9px;height:9px;border-radius:50%;background:var(--bg);border:2px solid var(--accent)}
+.cv3 .st2-mile .mdate{font-family:var(--mono);font-size:12px;letter-spacing:.1em;color:var(--accent)}
+.cv3 .st2-mile .mhead{font-size:clamp(18px,2.2vw,28px);font-weight:800;letter-spacing:-.02em;margin-top:5px}
+.cv3 .st2-mile .mwhy{font-size:clamp(13px,1.4vw,16px);line-height:1.45;color:var(--dim);margin-top:6px;max-width:52ch}
+/* CATALYST — lies deeper; emerges from below */
+.cv3 .st2-cat{position:relative}
+.cv3 .st2-cat .st2-cat-lead{font-family:var(--mono);font-size:clamp(11px,1.3vw,14px);letter-spacing:.2em;text-transform:uppercase;color:var(--dim)}
+.cv3 .st2-cat .st2-cat-time{font-family:var(--mono);font-size:clamp(13px,1.6vw,18px);letter-spacing:.12em;color:var(--accent);margin-top:20px}
+.cv3 .st2-cat .st2-cat-label{font-size:clamp(34px,5.4vw,84px);font-weight:900;letter-spacing:-.035em;line-height:1.02;margin-top:12px;max-width:20ch}
+.cv3 .st2-cat .st2-cat-impact{font-size:clamp(16px,1.8vw,22px);line-height:1.5;color:color-mix(in srgb,var(--ink) 82%,transparent);max-width:44ch;margin-top:20px}
+/* WHY — the payoff: earlier layers compress into the thesis */
+.cv3 .st2-why{margin-top:12px}
+.cv3 .st2-why-row{display:grid;grid-template-columns:auto 8em 1fr;gap:clamp(14px,2.5vw,36px);align-items:baseline;padding:clamp(16px,2.8vh,30px) 0;border-top:1px solid var(--line2)}
+@media(max-width:760px){.cv3 .st2-why-row{grid-template-columns:auto 1fr}.cv3 .st2-why-row .wd{grid-column:2}}
+.cv3 .st2-why-row .wn{font-family:var(--mono);font-size:12px;color:var(--accent)}
+.cv3 .st2-why-row .wl{font-family:var(--mono);font-size:clamp(12px,1.5vw,17px);letter-spacing:.1em;text-transform:uppercase;color:var(--accent);font-weight:600}
+.cv3 .st2-why-row .wd{font-size:clamp(18px,2.2vw,30px);font-weight:700;letter-spacing:-.02em;line-height:1.3}
+/* CTA — reached the core */
+.cv3 .st2-core{min-height:100vh;text-align:center;align-items:center}
+.cv3 .st2-core-mk{font-family:var(--mono);font-size:11px;letter-spacing:.34em;text-transform:uppercase;color:var(--accent)}
+.cv3 .st2-core-name{font-size:clamp(40px,7vw,116px);font-weight:900;letter-spacing:-.04em;line-height:.9;margin-top:18px}
+.cv3 .st2-core-list{display:flex;flex-wrap:wrap;gap:10px 24px;justify-content:center;margin:24px 0}
+.cv3 .st2-core-list span{font-family:var(--mono);font-size:clamp(11px,1.3vw,13px);letter-spacing:.12em;text-transform:uppercase;color:var(--dim)}
+.cv3 .st2-core-go{display:inline-flex;align-items:center;gap:10px;font-family:var(--mono);font-size:clamp(13px,1.5vw,16px);letter-spacing:.1em;text-transform:uppercase;color:var(--accent);border:1px solid var(--accent);border-radius:999px;padding:14px 26px;margin-top:6px}
+@media (prefers-reduced-motion:reduce){.cv3 .st2-em{opacity:1!important;transform:none!important;filter:none!important}.cv3 .st2-icept{opacity:1!important}}
+/* ── STRATA choreography: a persistent parallax geological WORLD behind everything (we never leave it)
+   + scroll-scrubbed SIGNATURE MOMENTS (lock · trace · excavation · break · close). --gp = global descent
+   0→1; --p = per-pinned-chapter progress. Quiet chapters keep the calm .st2-em emergence. ── */
+.cv3 .st2>*{position:relative;z-index:1}
+.cv3 .st2-world{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}
+.cv3 .st2-world .wl{position:absolute;left:0;right:0;top:-40vh;height:220vh;will-change:transform}
+.cv3 .st2-world .wl.far{transform:translateY(calc(var(--gp,0)*-70vh));background:repeating-linear-gradient(180deg,transparent 0 84px,color-mix(in srgb,var(--ink) 4%,transparent) 84px 86px,transparent 86px 230px)}
+.cv3 .st2-world .wl.mid{transform:translateY(calc(var(--gp,0)*-150vh));background:repeating-linear-gradient(180deg,transparent 0 150px,color-mix(in srgb,var(--ink) 6%,transparent) 150px 152px,transparent 152px 420px)}
+.cv3 .st2-world .wl.near{transform:translateY(calc(var(--gp,0)*-300vh));background:repeating-linear-gradient(180deg,transparent 0 260px,color-mix(in srgb,var(--accent) 5%,transparent) 260px 262px,transparent 262px 900px)}
+.cv3 .st2-world .wcore{position:absolute;left:50%;top:0;bottom:0;width:1px;background:linear-gradient(180deg,transparent,color-mix(in srgb,var(--accent) 14%,transparent) 40%,transparent);opacity:.5}
+.cv3 .st2-world::after{content:"";position:absolute;inset:0;background:radial-gradient(120% 60% at 50% 0%,transparent 40%,color-mix(in srgb,#000 30%,transparent))}
+/* pinned-scrub infrastructure */
+.cv3 .st2-pin{position:relative}
+.cv3 .st2-pin .st2-stage{position:sticky;top:0;height:100vh;overflow:hidden;display:flex;flex-direction:column;justify-content:center;padding:clamp(48px,10vh,120px) clamp(28px,6vw,90px) clamp(48px,10vh,120px) clamp(80px,10vw,150px)}
+/* RESOURCE LOCK — the figure exists fragmented across layers, then snaps into place at the right depth */
+.cv3 .st2-lockwrap{position:relative;display:inline-block}
+.cv3 .st2-lock{position:relative;display:inline-block;font-size:clamp(54px,11vw,186px);font-weight:900;letter-spacing:-.05em;line-height:.86;font-variant-numeric:tabular-nums}
+.cv3 .st2-lock .ghost{visibility:hidden}
+.cv3 .st2-lock .sl{position:absolute;left:0;top:0;width:100%;color:var(--ink)}
+.cv3 .st2-lock .s0{clip-path:inset(0 0 67% 0);transform:translateX(calc((1 - clamp(0,calc(var(--p,0)/.5),1))*22%));filter:blur(calc((1 - clamp(0,calc(var(--p,0)/.5),1))*3px))}
+.cv3 .st2-lock .s1{clip-path:inset(34% 0 33% 0);transform:translateX(calc((1 - clamp(0,calc(var(--p,0)/.5),1))*-28%))}
+.cv3 .st2-lock .s2{clip-path:inset(67% 0 0 0);transform:translateX(calc((1 - clamp(0,calc(var(--p,0)/.5),1))*18%));filter:blur(calc((1 - clamp(0,calc(var(--p,0)/.5),1))*3px))}
+.cv3 .st2-lock-seam{position:absolute;left:-4%;right:-4%;top:50%;height:2px;background:var(--accent);opacity:calc(clamp(0,calc((var(--p,0) - .4)/.12),1) * (1 - clamp(0,calc((var(--p,0) - .6)/.2),1)));box-shadow:0 0 22px 1px var(--accent)}
+.cv3 .st2-lock-sub{opacity:clamp(0,calc((var(--p,0) - .58)/.18),1);transform:translateY(calc((1 - clamp(0,calc((var(--p,0) - .58)/.18),1))*16px))}
+/* ASSAY TRACE — a measurement line crosses, finds the interval, the result locks on (abstract, non-spatial) */
+.cv3 .st2-trace{position:relative;max-width:760px;margin-top:8px}
+.cv3 .st2-trace .tl{position:relative;height:3px;background:var(--line2);margin-top:20px}
+.cv3 .st2-trace .tprog{position:absolute;left:0;top:0;height:3px;background:var(--accent);width:calc(clamp(0,calc(var(--p,0)/.4),1)*100%);box-shadow:0 0 14px -1px var(--accent)}
+.cv3 .st2-trace .tint{position:absolute;left:36%;width:26%;top:-7px;height:17px;border-radius:3px;background:var(--accent);opacity:calc(clamp(0,calc((var(--p,0) - .34)/.12),1)*.9)}
+.cv3 .st2-trace .tscale{display:flex;justify-content:space-between;margin-top:9px;font-family:var(--mono);font-size:11px;color:var(--dim)}
+.cv3 .st2-trace-m{font-family:var(--mono);font-size:clamp(14px,1.8vw,20px);letter-spacing:.06em;color:var(--ink);margin-top:26px;opacity:clamp(0,calc((var(--p,0) - .4)/.12),1)}
+.cv3 .st2-trace-g{font-size:clamp(50px,10vw,168px);font-weight:900;letter-spacing:-.05em;line-height:.86;color:var(--accent);font-variant-numeric:tabular-nums;margin-top:8px;opacity:clamp(0,calc((var(--p,0) - .5)/.14),1);transform:translateY(calc((1 - clamp(0,calc((var(--p,0) - .5)/.14),1))*26px))}
+.cv3 .st2-trace-sub{opacity:clamp(0,calc((var(--p,0) - .66)/.16),1);margin-top:16px}
+.cv3 .st2-trace-note{font-family:var(--mono);font-size:10.5px;letter-spacing:.04em;color:var(--dim);margin-top:22px;max-width:60ch;line-height:1.6;opacity:clamp(0,calc((var(--p,0) - .7)/.2),1)}
+/* IMAGE EXCAVATION — strata masks part from the centre to expose a real photograph */
+.cv3 .st2-exc .st2-stage{justify-content:flex-end;padding-left:clamp(80px,10vw,150px)}
+.cv3 .st2-exc-photo{position:absolute;inset:0;z-index:0}
+.cv3 .st2-exc-photo img{width:100%;height:100%;object-fit:cover;transform:scale(calc(1.08 - clamp(0,calc(var(--p,0)/.6),1)*.06))}
+.cv3 .st2-exc-photo::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(12,11,10,.6),rgba(12,11,10,.2) 42%,rgba(12,11,10,.82))}
+.cv3 .st2-exc-tex{position:absolute;inset:0;z-index:1;background:repeating-linear-gradient(180deg,color-mix(in srgb,var(--ink) 7%,transparent) 0 2px,transparent 2px 38px);opacity:.5}
+.cv3 .st2-exc-mask{position:absolute;left:0;right:0;z-index:2;background:linear-gradient(var(--md,180deg),var(--bg),color-mix(in srgb,var(--bg) 82%,#000))}
+.cv3 .st2-exc-mask.top{top:0;height:51%;transform:translateY(calc(clamp(0,calc(var(--p,0)/.55),1)*-101%))}
+.cv3 .st2-exc-mask.bot{bottom:0;height:51%;transform:translateY(calc(clamp(0,calc(var(--p,0)/.55),1)*101%))}
+.cv3 .st2-exc-seam{position:absolute;left:0;right:0;top:50%;height:1px;background:var(--accent);z-index:3;opacity:calc(1 - clamp(0,calc(var(--p,0)/.5),1))}
+.cv3 .st2-exc-in{position:relative;z-index:4;width:100%;max-width:1080px;opacity:clamp(0,calc((var(--p,0) - .3)/.2),1);transform:translateY(calc((1 - clamp(0,calc((var(--p,0) - .3)/.2),1))*22px))}
+/* CATALYST BREAK — the established strata end; the next milestone emerges from dark space below */
+.cv3 .st2-break .st2-stage{justify-content:flex-start}
+.cv3 .st2-break-strata{position:absolute;left:0;right:0;top:0;height:46vh;z-index:0;background:repeating-linear-gradient(180deg,color-mix(in srgb,var(--ink) 9%,transparent) 0 2px,transparent 2px 30px);transform:translateY(calc(clamp(0,calc(var(--p,0)/.4),1)*-46vh));opacity:calc(1 - clamp(0,calc((var(--p,0) - .2)/.3),1))}
+.cv3 .st2-break-edge{position:absolute;left:0;right:0;top:46vh;height:1px;background:var(--accent);z-index:1;opacity:calc((1 - clamp(0,calc((var(--p,0) - .1)/.3),1)));box-shadow:0 0 30px 2px var(--accent);transform:translateY(calc(clamp(0,calc(var(--p,0)/.4),1)*-46vh))}
+.cv3 .st2-break-void{position:absolute;inset:0;z-index:0;background:radial-gradient(120% 80% at 50% 120%,color-mix(in srgb,#000 55%,transparent),transparent 60%)}
+.cv3 .st2-break-in{position:relative;z-index:2;width:100%;max-width:1080px;margin-top:auto;margin-bottom:8vh;transform:translateY(calc((1 - clamp(0,calc((var(--p,0) - .3)/.45),1))*46vh));opacity:clamp(.06,calc((var(--p,0) - .18)/.4),1)}
+/* CORE CLOSE — accumulated layers compress inward; the core opens onto the identity */
+.cv3 .st2-close .st2-stage{align-items:center;text-align:center}
+.cv3 .st2-close-lyr{position:absolute;left:0;right:0;z-index:2;height:52vh;background:repeating-linear-gradient(180deg,color-mix(in srgb,var(--ink) 12%,transparent) 0 3px,color-mix(in srgb,#000 24%,transparent) 3px 26px)}
+.cv3 .st2-close-lyr.top{top:0;transform:translateY(calc((1 - clamp(0,calc(var(--p,0)/.5),1))*-54vh))}
+.cv3 .st2-close-lyr.bot{bottom:0;transform:translateY(calc((1 - clamp(0,calc(var(--p,0)/.5),1))*54vh))}
+.cv3 .st2-core-ap{position:absolute;left:50%;top:50%;width:min(46vh,420px);height:min(46vh,420px);border-radius:50%;border:1px solid var(--accent);transform:translate(-50%,-50%) scale(calc(.2 + clamp(0,calc((var(--p,0) - .45)/.4),1)*1.1));opacity:calc(clamp(0,calc((var(--p,0) - .45)/.2),1)*.5);z-index:3}
+.cv3 .st2-core-in{position:relative;z-index:4;opacity:clamp(0,calc((var(--p,0) - .56)/.22),1);transform:translateY(calc((1 - clamp(0,calc((var(--p,0) - .56)/.22),1))*18px))}
+@media (prefers-reduced-motion:reduce){
+  .cv3 .st2-world .wl{transform:none!important}
+  .cv3 .st2-lock .sl{transform:none!important;filter:none!important}.cv3 .st2-lock-sub,.cv3 .st2-trace-m,.cv3 .st2-trace-g,.cv3 .st2-trace-sub,.cv3 .st2-trace-note,.cv3 .st2-exc-in,.cv3 .st2-break-in,.cv3 .st2-core-in{opacity:1!important;transform:none!important}
+  .cv3 .st2-trace .tprog{width:100%!important}.cv3 .st2-exc-mask.top,.cv3 .st2-exc-mask.bot,.cv3 .st2-break-strata,.cv3 .st2-close-lyr{transform:translateY(-120%)!important}
+}
 /* ══ 15 · BLUEPRINT — engineering drafting sheet (title block · dimension lines · self-drawing schematics) ══ */
 .cv3 .bp-sheet{max-width:1200px;margin:0 auto;padding:clamp(28px,4vw,56px) clamp(24px,4vw,56px) clamp(60px,9vh,110px);background:repeating-linear-gradient(0deg,transparent 0 39px,var(--line2) 39px 40px),repeating-linear-gradient(90deg,transparent 0 39px,var(--line2) 39px 40px)}
 .cv3 .bp-tb{display:grid;grid-template-columns:1fr auto;border:1px solid var(--ink);margin-bottom:36px}
@@ -769,26 +1611,60 @@ ${THEME_KEYS.filter((k) => k !== "obsidian").map((k) => `.cv3[data-variant="${k}
 .cv3 .arc-idx .ic:nth-child(2n){transform:rotate(1deg)}
 .cv3 .arc-idx .ic .nm{font-family:var(--serif);font-size:18px}
 .cv3 .arc-idx .ic .rl{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--dim);margin-top:6px}
-/* ══ 10 · ORBIT (V4 body) — orbital passes: content arcs in around the axis with ring motifs ══ */
-.cv3 .orb-pass{min-height:84vh;display:flex;align-items:center;padding:clamp(40px,7vh,90px) clamp(24px,7vw,120px);position:relative;overflow:hidden;border-top:1px solid var(--line2)}
-.cv3 .orb-ring{position:absolute;border:1px solid color-mix(in srgb,var(--accent) 28%,var(--line));border-radius:50%;pointer-events:none;z-index:0}
-.cv3 .orb-ring::after{content:"";position:absolute;inset:-1px;border-radius:50%;border:1px solid transparent;border-top-color:color-mix(in srgb,var(--accent) 55%,transparent)}
-.cv3 .orb-pass .oc{position:relative;z-index:2;max-width:44ch;opacity:0;transform:translateX(-46px);transition:opacity .9s ease,transform .9s cubic-bezier(.22,1,.36,1)}
-.cv3 .orb-pass.on .oc{opacity:1;transform:none}
-.cv3 .orb-pass.right{justify-content:flex-end;text-align:right}
-.cv3 .orb-pass.right .oc{margin-left:auto;transform:translateX(46px)}
-.cv3 .orb-pass.right.on .oc{transform:none}
-.cv3 .orb-k{font-family:var(--mono);font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--accent)}
-.cv3 .orb-h{font-size:clamp(32px,5vw,74px);font-weight:800;letter-spacing:-.035em;line-height:.96;margin:14px 0 0;text-wrap:balance}
-.cv3 .orb-h .unit{font-size:.3em;color:var(--dim);font-weight:700}
-.cv3 .orb-p{font-size:clamp(16px,1.8vw,20px);color:var(--dim);line-height:1.5;margin:18px 0 0}
-.cv3 .orb-list{margin-top:22px;display:flex;flex-direction:column;gap:13px}
-.cv3 .orb-list .oi{font-size:clamp(17px,2vw,24px);font-weight:700;letter-spacing:-.01em}
-.cv3 .orb-list .oi .d{font-family:var(--mono);font-size:12px;color:var(--accent);font-weight:500;margin-right:12px}
-.cv3 .orb-list .oi small{font-family:var(--mono);font-size:11px;font-weight:400;color:var(--dim);letter-spacing:.04em}
+/* ══ Template 10 · ORBIT (rebuild) — INFORMATION HAS GRAVITY. Deep slate ground, platinum ink; LUMINANCE
+   communicates mass (bright = high relevance, dim = peripheral). A globe opens with the company's TRUTHFUL
+   jurisdiction, then RELEASES into a persistent gravitational FIELD: the company's real facts (imagery,
+   numbers, projects, capital, catalyst) gain/lose mass and migrate, finally CONVERGING into the thesis.
+   Orbit = gravitational/relational/convergent — never Atlas's cartography. Namespace: orbit / og. ══ */
+.cv3 .orbit{--bg:#0a0d13;--bg2:#111722;--ink:#e7ebf4;--hi:#ffffff;--dim:#6f7a90;--faint:#333c49;--line:rgba(231,235,244,.09);--line2:rgba(231,235,244,.18);--glow:158,186,255;--accent:#a7bce8;
+  position:relative;height:100vh;overflow-y:auto;overflow-x:hidden;scroll-snap-type:y proximity;-webkit-overflow-scrolling:touch;scrollbar-width:none;background:radial-gradient(130% 100% at 50% 22%,#10161f 0%,#0a0d13 68%);color:var(--ink);font-family:var(--font)}
+.cv3 .orbit::-webkit-scrollbar{display:none}
+.cv3 .orbit-field{position:fixed;inset:0;z-index:1;pointer-events:none;overflow:hidden}
+.cv3 .orbit-globe{position:absolute;inset:0;width:100%;height:100%;display:block}
+.cv3 .orbit-sec{min-height:100vh;scroll-snap-align:start;position:relative;z-index:0}
+/* geographic resolve labels (appear only while the globe holds the jurisdiction) */
+.cv3 .og-geo{position:absolute;left:50%;top:50%;transform:translate(-50%,calc(-50% - 2vh));text-align:center;z-index:3;opacity:0;transition:opacity .8s ease;width:max-content;max-width:80vw}
+.cv3 .orbit[data-stid="place"] .og-geo{opacity:1}
+.cv3 .og-geo .ctry{font-family:var(--mono);font-size:12px;letter-spacing:.26em;text-transform:uppercase;color:var(--dim)}
+.cv3 .og-geo .reg{font-size:clamp(44px,7vw,104px);font-weight:800;letter-spacing:-.035em;line-height:.96;margin-top:12px;text-shadow:0 0 46px rgba(var(--glow),.45)}
+.cv3 .og-geo .note{font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);margin-top:16px}
+/* a MASS — a real company fact whose position, scale and luminance are gravity */
+.cv3 .og-mass{position:absolute;left:50%;top:50%;will-change:transform,opacity;transition:transform 1.05s cubic-bezier(.32,.86,.3,1),opacity .9s ease;text-align:center;max-width:min(42vw,520px)}
+.cv3 .og-mass .ml{font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim)}
+.cv3 .og-mass .mv{font-weight:800;letter-spacing:-.03em;line-height:.92;color:var(--ink)}
+.cv3 .og-mass.num .mv{font-size:clamp(38px,6.6vw,118px);font-variant-numeric:tabular-nums;margin-top:8px}
+.cv3 .og-mass.num .mv .u{font-size:.27em;color:var(--accent);margin-left:.06em;font-weight:700}
+.cv3 .og-mass.text .mv{font-size:clamp(24px,3.8vw,58px);margin-top:8px}
+.cv3 .og-mass.proj .mv{font-size:clamp(17px,2.3vw,29px);margin-top:6px}
+.cv3 .og-mass.ident .mv{font-size:clamp(42px,7vw,124px)}
+.cv3 .og-mass .ms{font-family:var(--mono);font-size:11px;letter-spacing:.06em;color:var(--dim);margin-top:10px;text-transform:uppercase}
+.cv3 .og-mass.hi .mv{color:var(--hi);text-shadow:0 0 54px rgba(var(--glow),.5)}
+.cv3 .og-mass.hi .ml,.cv3 .og-mass.hi .ms{color:var(--accent)}
+.cv3 .og-mass.img{width:min(44vmin,480px);max-width:44vw;aspect-ratio:4/5}
+.cv3 .og-mass.img .frame{position:relative;width:100%;height:100%;overflow:hidden}
+.cv3 .og-mass.img img{width:100%;height:100%;object-fit:cover;display:block;filter:saturate(.92) brightness(.92)}
+.cv3 .og-mass.img.hi img{filter:saturate(1) brightness(1)}
+.cv3 .og-mass.img .mcap{position:absolute;left:14px;bottom:12px;font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#fff;text-shadow:0 1px 8px rgba(0,0,0,.7)}
+/* project selection (interactive, only where multiple assets) */
+.cv3 .og-mass.proj.pick{cursor:pointer;pointer-events:auto}
+.cv3 .og-mass.proj.pick.on .mv{color:var(--hi);text-shadow:0 0 40px rgba(var(--glow),.5)}
+/* convergence — the thesis at the centre of gravity */
+.cv3 .og-thesis{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) scale(.92);opacity:0;transition:transform 1.1s cubic-bezier(.32,.86,.3,1),opacity .9s ease;max-width:min(26ch,60vw);text-align:center;z-index:4}
+.cv3 .orbit[data-stid="converge"] .og-thesis,.cv3 .orbit[data-stid="follow"] .og-thesis{opacity:1;transform:translate(-50%,-50%) scale(1)}
+.cv3 .og-thesis .tk{font-family:var(--mono);font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--accent)}
+.cv3 .og-thesis .tt{font-size:clamp(22px,3.1vw,42px);font-weight:800;letter-spacing:-.02em;line-height:1.16;margin-top:14px;text-shadow:0 0 54px rgba(var(--glow),.42)}
+/* CTA — the field resolves to a single point */
+.cv3 .og-cta{position:absolute;left:50%;top:72%;transform:translate(-50%,-50%);text-align:center;z-index:5;opacity:0;transition:opacity .8s ease .2s}
+.cv3 .orbit[data-stid="follow"] .og-cta{opacity:1}
+.cv3 .og-cta .feat{font-family:var(--mono);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);margin-bottom:18px}
+.cv3 .og-cta .go{display:inline-flex;align-items:center;gap:10px;font-family:var(--mono);font-size:13px;letter-spacing:.1em;text-transform:uppercase;color:var(--bg);background:var(--ink);border-radius:999px;padding:15px 30px;box-shadow:0 0 44px -8px rgba(var(--glow),.7);pointer-events:auto}
+.cv3 .og-hint{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);z-index:6;font-family:var(--mono);font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--faint);pointer-events:none;transition:opacity .5s}
+.cv3 .orbit[data-stid="follow"] ~ * .og-hint,.cv3 .orbit[data-stid="converge"] .og-hint{opacity:0}
+@media(prefers-reduced-motion:reduce){.cv3 .og-mass,.cv3 .og-thesis{transition:opacity .5s ease!important}}
 /* ══ 05 · KEYNOTE (V4) — world-class product presentation: horizontal stages · clean · diagrams assemble ══ */
 .cv3:has(.kys){overflow:hidden}
-.cv3 .kys{height:100vh;display:flex;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch}
+.cv3 .kys{height:100vh;display:flex;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.cv3 .kys::-webkit-scrollbar{display:none}
 .cv3 .kys::-webkit-scrollbar{height:0;display:none}
 .cv3 .kys-stage{flex:0 0 100vw;height:100%;scroll-snap-align:center;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:clamp(40px,8vh,110px) clamp(30px,10vw,190px);position:relative}
 .cv3 .kys-k{font-family:var(--mono);font-size:12px;letter-spacing:.26em;text-transform:uppercase;color:var(--accent);opacity:0;transform:translateY(16px);transition:.7s}
@@ -811,8 +1687,104 @@ ${THEME_KEYS.filter((k) => k !== "obsidian").map((k) => `.cv3[data-variant="${k}
 .cv3 .kys-facts .f .fl{font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);margin-top:8px}
 .cv3 .kys-hint{position:fixed;right:24px;bottom:22px;z-index:5;font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim)}
 .cv3 .kys-nav{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:5;display:flex;gap:7px}
-.cv3 .kys-nav i{width:7px;height:7px;border-radius:50%;background:var(--line);transition:.3s}
+.cv3 .kys-nav i{width:7px;height:7px;border-radius:50%;background:var(--line);transition:.3s;cursor:pointer}
 .cv3 .kys-nav i.on{background:var(--accent);width:20px;border-radius:4px}
+/* ══ 05 · KEYNOTE V6 — editorial horizontal presentation. Native blue/cream palette + lateral
+   choreography (--c signed centre-offset, --a abs) so the composition transforms sideways as you
+   scroll. Precise grid; imagery participates in the motion. Scoped to .kys. ══ */
+.cv3 .kys{--bg:#efe9db;--ink:#19223a;--dim:#6a7089;--line:#dbd5c5;--line2:#e2dccd;--chip:#e7e1d2;--accent:#2f56c9;--accent2:#6183e6;background:var(--bg);color:var(--ink)}
+.cv3[data-variant="obsidian"] .kys,.cv3[data-variant="cellar"] .kys{--bg:#121a2f;--ink:#eef1f8;--dim:#8892ae;--line:#283049;--line2:#212942;--chip:#1b2339;--accent:#6a8bec;--accent2:#98b1f4}
+.cv3[data-variant="graphite"] .kys,.cv3[data-variant="porcelain"] .kys{--bg:#e8e3d4;--ink:#1c2740}
+.cv3 .kys-in{position:relative;width:100%;max-width:1220px;margin:0 auto;padding:0 clamp(28px,6vw,96px)}
+.cv3 .kys-stage2{flex:0 0 100vw;height:100%;scroll-snap-align:center;display:flex;flex-direction:column;justify-content:center;position:relative;overflow:hidden}
+.cv3 .kys-eyebrow{font-family:var(--mono);font-size:clamp(11px,1.2vw,14px);letter-spacing:.24em;text-transform:uppercase;color:var(--accent)}
+.cv3 .kys-title{font-size:clamp(40px,7vw,120px);font-weight:800;letter-spacing:-.04em;line-height:.94;text-wrap:balance;font-variant-numeric:tabular-nums}
+.cv3 .kys-lead{font-size:clamp(17px,2vw,26px);line-height:1.4;color:color-mix(in srgb,var(--ink) 82%,transparent);max-width:46ch}
+.cv3 .kys-meta{font-family:var(--mono);font-size:clamp(11px,1.3vw,14px);letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
+/* lateral choreography primitives */
+.cv3 .kys-lat{transform:translateX(calc(var(--c,0)*38px));will-change:transform}
+.cv3 .kys-lat.d2{transform:translateX(calc(var(--c,0)*66px))}
+.cv3 .kys-lat.d3{transform:translateX(calc(var(--c,0)*96px))}
+.cv3 .kys-lat.rev{transform:translateX(calc(var(--c,0)*-54px))}
+/* image column — cross-slides opposite to the type for depth without 3D */
+.cv3 .kys-imgcol{position:relative;height:min(74vh,660px);overflow:hidden;background:var(--chip)}
+.cv3 .kys-imgcol img{position:absolute;inset:-4%;width:108%;height:108%;object-fit:cover;transform:translateX(calc(var(--c,0)*-46px))}
+.cv3 .kys-imgcol .cap{position:absolute;left:14px;bottom:12px;font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#fff;background:rgba(15,18,30,.5);padding:5px 9px;backdrop-filter:blur(3px)}
+/* two-column editorial split (image + info) */
+.cv3 .kys-two{display:grid;grid-template-columns:1fr 1fr;gap:clamp(28px,5vw,80px);align-items:center}
+.cv3 .kys-two.img65{grid-template-columns:1.55fr 1fr}
+.cv3 .kys-two.img65r{grid-template-columns:1fr 1.55fr}
+@media(max-width:820px){.cv3 .kys-two,.cv3 .kys-two.img65,.cv3 .kys-two.img65r{grid-template-columns:1fr;gap:24px}.cv3 .kys-imgcol{height:44vh}}
+/* RESULT SPLIT — two facts arrive from opposite edges and lock on the centre axis */
+.cv3 .kys-split{display:flex;align-items:baseline;justify-content:center;gap:clamp(10px,1.6vw,26px);flex-wrap:nowrap}
+.cv3 .kys-split .sp{font-size:clamp(40px,8.4vw,150px);font-weight:800;letter-spacing:-.045em;line-height:.9;font-variant-numeric:tabular-nums;white-space:nowrap}
+.cv3 .kys-split .sp.l{transform:translateX(calc(var(--c,0)*-44vw))}
+.cv3 .kys-split .sp.r{transform:translateX(calc(var(--c,0)*44vw));color:var(--accent)}
+.cv3 .kys-split-x{width:1px;height:clamp(50px,9vw,120px);background:var(--line2);align-self:center}
+/* RESOURCE COMPOSE — the number assembles from opposite directions beside a photo */
+.cv3 .kys-num{font-size:clamp(64px,13vw,230px);font-weight:800;letter-spacing:-.05em;line-height:.84;font-variant-numeric:tabular-nums}
+.cv3 .kys-num .u{display:block;font-size:.22em;font-weight:700;letter-spacing:.02em;color:var(--accent);transform:translateX(calc(var(--c,0)*70px));margin-top:.08em}
+/* CAPITAL — a horizontally assembling editorial spread (no cards, no bars) */
+.cv3 .kys-spread{display:grid;grid-template-columns:repeat(3,1fr);gap:clamp(22px,3vh,44px) clamp(30px,5vw,90px);border-top:2px solid var(--ink);padding-top:clamp(22px,3vh,40px)}
+@media(max-width:760px){.cv3 .kys-spread{grid-template-columns:repeat(2,1fr)}}
+.cv3 .kys-spread .e .ev{font-size:clamp(28px,4.2vw,60px);font-weight:800;letter-spacing:-.03em;font-variant-numeric:tabular-nums;line-height:.95}
+.cv3 .kys-spread .e .ek{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);margin-top:10px}
+/* MILESTONES — a horizontal historical rail that travels with the scroll */
+.cv3 .kys-rail{position:relative;margin-top:clamp(30px,6vh,64px);padding-top:34px;overflow:hidden;-webkit-mask-image:linear-gradient(90deg,transparent,#000 3%,#000 85%,transparent);mask-image:linear-gradient(90deg,transparent,#000 3%,#000 85%,transparent)}
+.cv3 .kys-rail::before{content:"";position:absolute;left:0;right:0;top:6px;height:2px;background:var(--line2)}
+.cv3 .kys-rail-row{display:flex;gap:clamp(26px,4vw,64px);transform:translateX(var(--tx,0px));will-change:transform}
+.cv3 .kys-rail .mi{position:relative;flex:0 0 auto;width:min(66vw,290px)}
+.cv3 .kys-rail-count{margin-top:clamp(18px,3vh,30px);font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim)}
+.cv3 .kys-rail .mi::before{content:"";position:absolute;left:0;top:-34px;width:11px;height:11px;border-radius:50%;background:var(--bg);border:2px solid var(--accent)}
+.cv3 .kys-rail .mi .d{font-family:var(--mono);font-size:12px;letter-spacing:.1em;color:var(--accent)}
+.cv3 .kys-rail .mi .h{font-size:clamp(17px,1.9vw,24px);font-weight:800;letter-spacing:-.02em;margin-top:7px;line-height:1.15}
+.cv3 .kys-rail .mi .w{font-size:clamp(12px,1.3vw,15px);line-height:1.4;color:var(--dim);margin-top:7px;max-width:34ch}
+/* WHY — facts converge, then reasons lock in a grid */
+.cv3 .kys-why{display:grid;grid-template-columns:auto 1fr;gap:clamp(14px,2vw,32px) clamp(18px,3vw,46px);align-items:baseline;margin-top:clamp(20px,3vh,36px)}
+.cv3 .kys-why .rn{font-family:var(--mono);font-size:clamp(12px,1.4vw,16px);color:var(--accent);font-weight:600}
+.cv3 .kys-why .rl{font-family:var(--mono);font-size:clamp(12px,1.5vw,17px);letter-spacing:.1em;text-transform:uppercase;color:var(--accent);font-weight:600;white-space:nowrap}
+.cv3 .kys-why .rd{font-size:clamp(17px,2vw,26px);font-weight:700;letter-spacing:-.02em;line-height:1.3}
+@media(max-width:760px){.cv3 .kys-why{grid-template-columns:1fr}.cv3 .kys-why .rl{margin-top:-6px}}
+/* CTA — identity and QR lock on the centre grid, then all motion stops */
+.cv3 .kys-cta{display:flex;flex-direction:column;align-items:center;text-align:center;gap:18px}
+.cv3 .kys-cta-list{display:flex;flex-wrap:wrap;gap:9px 22px;justify-content:center}
+.cv3 .kys-cta-list span{font-family:var(--mono);font-size:clamp(10px,1.2vw,13px);letter-spacing:.12em;text-transform:uppercase;color:var(--dim)}
+.cv3 .kys-cta-go{display:inline-flex;align-items:center;gap:10px;font-family:var(--mono);font-size:clamp(13px,1.5vw,16px);letter-spacing:.1em;text-transform:uppercase;color:var(--accent);border:1px solid var(--accent);border-radius:999px;padding:14px 26px}
+@media (prefers-reduced-motion:reduce){.cv3 .kys-lat,.cv3 .kys-lat.d2,.cv3 .kys-lat.d3,.cv3 .kys-lat.rev,.cv3 .kys-imgcol img,.cv3 .kys-num .u,.cv3 .kys-split .sp.l,.cv3 .kys-split .sp.r{transform:none!important;opacity:1!important}}
+/* ── THE GEOGRAPHIC JOURNEY — Keynote's cinematic map. NOT Atlas: no graticule/register — a cream/blue
+   editorial silhouette that zooms in laterally through World → Country → Region while a breadcrumb steps,
+   markers lock at real jurisdiction positions, and a real photo takes over. Autoplays on .play. ── */
+.cv3 .kys-geo{position:relative;overflow:hidden}
+.cv3 .kys-geo-grid{position:relative;height:min(76vh,640px)}
+.cv3 .kys-geo-copy{position:absolute;left:0;top:50%;transform:translateY(-50%);width:min(36%,400px);z-index:2}
+@media(max-width:860px){.cv3 .kys-geo-grid{height:auto;padding:20px 0}.cv3 .kys-geo-copy{position:static;width:100%;transform:none}}
+.cv3 .kys-geo-steps{display:flex;flex-direction:column;gap:clamp(6px,1.2vh,12px);margin-top:16px}
+.cv3 .kys-geo-step{font-size:clamp(24px,3.4vw,58px);font-weight:800;letter-spacing:-.03em;line-height:1;color:var(--line);opacity:.45}
+.cv3 .kys-geo.play .kys-geo-step{animation:kysgeostep .42s cubic-bezier(.2,1,.3,1) forwards var(--d)}
+@keyframes kysgeostep{to{color:var(--ink);opacity:1}}
+.cv3 .kys-geo-step.last{color:var(--accent)}
+.cv3 .kys-geo.play .kys-geo-step.last{animation:kysgeosteplast .42s cubic-bezier(.2,1,.3,1) forwards var(--d)}
+@keyframes kysgeosteplast{to{color:var(--accent);opacity:1}}
+.cv3 .kys-geo-proj{margin-top:clamp(20px,3vh,36px);opacity:0}
+.cv3 .kys-geo.play .kys-geo-proj{animation:kysgeofade .55s ease 1.85s forwards}
+@keyframes kysgeofade{to{opacity:1}}
+.cv3 .kys-geo-proj .pn{font-size:clamp(24px,3vw,46px);font-weight:800;letter-spacing:-.03em;line-height:1}
+.cv3 .kys-geo-proj .pl{font-family:var(--mono);font-size:clamp(11px,1.3vw,14px);letter-spacing:.1em;text-transform:uppercase;color:var(--dim);margin-top:10px}
+.cv3 .kys-geo-mapwrap{position:absolute;left:36%;top:4%;bottom:4%;right:2%;z-index:1}
+@media(max-width:860px){.cv3 .kys-geo-mapwrap{position:static;width:100%;height:40vh;margin-top:18px}}
+.cv3 .kys-geo-mapwrap svg{width:100%;height:100%;overflow:visible}
+.cv3 .kys-geo-region{fill:color-mix(in srgb,var(--accent) 6%,transparent);stroke:var(--accent);stroke-width:1.1;opacity:0;transform-box:fill-box;transform-origin:60% 50%;transform:translateX(14%) scale(.62)}
+.cv3 .kys-geo.play .kys-geo-region{animation:kysgeoreg 1s cubic-bezier(.22,1,.3,1) .18s forwards}
+@keyframes kysgeoreg{to{opacity:1;transform:translateX(0) scale(1)}}
+.cv3 .kys-geo-mk{opacity:0}
+.cv3 .kys-geo.play .kys-geo-mk{animation:kysgeomk .45s cubic-bezier(.2,1,.3,1) forwards var(--d)}
+@keyframes kysgeomk{0%{opacity:0;transform:translateY(-6px)}100%{opacity:1;transform:translateY(0)}}
+.cv3 .kys-geo-mk .dot{fill:var(--accent)}
+.cv3 .kys-geo-mk .num{fill:var(--bg);font-family:var(--font);font-weight:800;font-size:4px}
+.cv3 .kys-geo-mk .lb{fill:var(--ink);font-family:var(--mono);font-size:3.5px;letter-spacing:.5px}
+.cv3 .kys-geo-mk.flag .ring{fill:none;stroke:var(--accent);stroke-width:.7;opacity:.55}
+.cv3 .kys-geo-foot{position:absolute;left:0;bottom:-4px;font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim)}
+@media (prefers-reduced-motion:reduce){.cv3 .kys-geo-step,.cv3 .kys-geo-proj{opacity:1!important;color:var(--ink)}.cv3 .kys-geo-region,.cv3 .kys-geo-mk{opacity:1!important;transform:none!important}}
 /* ════ WAVE 3+4 (new) — namespaced gal/vn/chr/spc/exp ════ */
 /* ══ 22 · GALLERY — museum exhibition (whitespace · one work per view · wall labels · slow) ══ */
 .cv3 .gal-exh{min-height:100vh;display:grid;place-items:center;padding:clamp(60px,12vh,140px) clamp(24px,8vw,140px);position:relative}
@@ -986,6 +1958,21 @@ export default function ConferenceV3({ profile, template = "monolith", theme: th
     return () => io.disconnect();
   }, [model, theme, tpl]);
 
+  // switching templates always starts the new one at the top — reset the main scroller
+  // plus any horizontal (.core/.kys/.exp) or fixed-vertical (.terr/.cns/.vn) inner scrollers
+  useEffect(() => {
+    const el = rootRef.current; if (!el) return;
+    const reset = () => {
+      el.scrollTop = 0;
+      el.querySelectorAll(".core,.kys,.exp").forEach((s) => { s.scrollLeft = 0; });
+      el.querySelectorAll(".terr,.cns,.vn").forEach((s) => { s.scrollTop = 0; });
+      try { window.scrollTo(0, 0); } catch { /* noop */ }
+    };
+    reset();
+    const t = setTimeout(reset, 60); // catch inner scrollers that mount after the switch
+    return () => clearTimeout(t);
+  }, [tpl]);
+
   const chooseTheme = (v) => { setTheme(v); setAccent(""); };
   const accentStyle = accent ? { "--accent": accent, "--accent2": lighten(accent, .34) } : {};
 
@@ -995,7 +1982,13 @@ export default function ConferenceV3({ profile, template = "monolith", theme: th
       <div className="cv3" data-variant={theme} style={accentStyle} ref={rootRef}>
         {showBar && (() => {
           const keys = Object.keys(TEMPLATES); const ci = Math.max(0, keys.indexOf(tpl));
-          const go = (d) => { setTpl(keys[(ci + d + keys.length) % keys.length]); setMenu(false); };
+          // moving to another template gives it a fresh palette (theme by index) so clicking
+          // through the library never shows the same colours twice in a row
+          const pick = (k) => {
+            const ni = Math.max(0, keys.indexOf(k));
+            setTpl(k); setTheme(THEME_KEYS[ni % THEME_KEYS.length]); setAccent(""); setMenu(false);
+          };
+          const go = (d) => pick(keys[(ci + d + keys.length) % keys.length]);
           return (
             <div className="cv3bar">
               <button className="navb" onClick={() => go(-1)} aria-label="Previous template">‹</button>
@@ -1004,7 +1997,7 @@ export default function ConferenceV3({ profile, template = "monolith", theme: th
                 {menu && <>
                   <div className="tplback" onClick={() => setMenu(false)} />
                   <div className="tplmenu">{keys.map((k) => (
-                    <button key={k} className={"tplitem" + (k === tpl ? " on" : "")} onClick={() => { setTpl(k); setMenu(false); }}>{TEMPLATES[k].label}</button>
+                    <button key={k} className={"tplitem" + (k === tpl ? " on" : "")} onClick={() => pick(k)}>{TEMPLATES[k].label}</button>
                   ))}</div>
                 </>}
               </div>
@@ -1022,57 +2015,410 @@ export default function ConferenceV3({ profile, template = "monolith", theme: th
   );
 }
 
+// ── CANONICAL CONFERENCE STORY ─────────────────────────────────────────────────────────────────────
+// Derived ONCE from the model — the same investor facts every template presents. Templates control HOW
+// the story is shown, never WHAT exists. Invents nothing: economics (mine-life/AISC) and the leadership
+// disciplines line are surfaced only where the company discloses them in its own data; everything else
+// collapses when a field is absent. Monolith and Atlas (and future templates) all consume this, so an
+// investor learns equivalent things about the company whichever presentation a CEO picks.
+function _confStory(m) {
+  const pool = (m.images.pool && m.images.pool.length) ? m.images.pool : [m.images.hero, m.images.field, m.images.camp].filter(Boolean);
+  const flag = m.projects.find((p) => p.hasDrills) || m.projects[0] || {};
+  const flagImg = flag.image || m.images.field || pool[1] || pool[0] || "";
+  const best = (m.flagship.drills || []).slice().sort((a, b) => _gnum(b.grade) - _gnum(a.grade))[0] || null;
+  const cats = (m.catalysts || []).slice(0, 4);
+  const why = m.why.slice(0, 4);
+  const region = m.geo.region || m.geo.country || "";
+  const hook = [m.commodity, region, m.heroStat && m.heroStat.value].filter(Boolean).join("   ·   ");
+  const sm = String((m.heroStat && m.heroStat.value) || "").match(/^\s*([\d.,]+)\s*(.*)$/);
+  const statNum = sm ? sm[1] : String((m.heroStat && m.heroStat.value) || ""), statUnit = sm ? sm[2] : "";
+  const facts = [
+    m.heroStat && { v: m.heroStat.value, k: m.heroStat.label || "Resource" },
+    flag.ownership && { v: flag.ownership, k: "Flagship ownership" },
+    region && { v: region, k: "Jurisdiction" },
+    flag.stage && { v: flag.stage, k: "Current stage" },
+  ].filter(Boolean).slice(0, 4);
+  const capFind = (re) => (m.capital.find((c) => re.test(c[0])) || [])[1];
+  const whyText = why.join("  ") + "  " + (m.thesis || "");
+  const mLife = (whyText.match(/(\d+)\s*[-\s]?\s*year[s]?\s+(?:mine\s+life|life[-\s]of[-\s]mine)/i) || [])[1];
+  const aiscM = whyText.match(/(?:aisc|all[-\s]in\s+sustaining)[^.]*?(US\$[\d,]+(?:\.\d+)?\s*\/?\s*oz)/i);
+  const debtVal = capFind(/debt/i) || (/\bno\s+debt|debt[-\s]free\b/i.test(whyText) ? "None" : "");
+  const econ = [
+    { v: capFind(/cash/i), k: "Cash" },
+    { v: debtVal, k: "Debt" },
+    { v: capFind(/market\s*cap/i), k: "Market cap" },
+    { v: capFind(/outstanding/i), k: "Shares outstanding" },
+    mLife && { v: mLife + "-yr", k: "Projected mine life" },
+    aiscM && { v: aiscM[1].replace(/\s+/g, ""), k: "AISC" },
+  ].filter((e) => e && e.v);
+  const disc = _mnDisciplines(m.team);
+  const nWord = ["", "One", "Two", "Three", "Four", "Five", "Six", "Seven"][m.projects.length] || String(m.projects.length);
+  const portHead = m.projects.length > 1 ? `${nWord} projects · one ${region || "portfolio"}` : (region || "Portfolio");
+  const ctaFeatures = ["Press releases", "Exploration results", "Project updates", "Media", "Catalysts"];
+  return { pool, flag, flagImg, best, cats, why, region, hook, statNum, statUnit, facts, econ, disc, portHead, ctaFeatures };
+}
+
+// a short investment-case label DERIVED from a reason's own words (scale/location/economics/funding);
+// falls back to a numeral when nothing matches — never invents a category the text doesn't support.
+function _confReasonLabel(text, i) {
+  const t = String(text || "").toLowerCase();
+  if (/\b(moz|resource|ounce|scale|tonn|grade|deposit)\b/.test(t)) return "Scale";
+  if (/\b(jurisdiction|nevada|located|location|infrastructure|tier|district|region)\b/.test(t)) return "Location";
+  if (/\b(econom|aisc|cost|pea|mine life|margin|npv|irr|payback)\b/.test(t)) return "Economics";
+  if (/\b(fund|financ|cash|debt|treasur|capital|balance sheet)\b/.test(t)) return "Funded";
+  return "0" + (i + 1);
+}
+
 // MONOLITH (V4) — brutalist monumentality. ONE dominant object per full screen, photography as ground,
 // a slow procession of singular statements. No cards, no tables, no ticker chrome, no stat grids.
 function Monolith({ m }) {
-  const imgs = [m.images.field, m.images.camp, m.images.hero].filter(Boolean);
-  const mktcap = (m.capital.find((c) => /market cap/i.test(c[0])) || [])[1];
-  const best = (m.flagship.drills || []).slice().sort((a, b) => _gnum(b.grade) - _gnum(a.grade))[0];
-  const c0 = m.catalysts[0];
+  // ONE driver: sets --p (0→1) on each pinned chapter as it scrubs through its own scroll length.
+  // Every transform is derived from --p in CSS, so motion is scroll-linked, GPU-only and 60fps.
+  useEffect(() => {
+    const chapters = Array.from(document.querySelectorAll(".mn3 .mn3-ch"));
+    if (!chapters.length) return;
+    let raf = 0;
+    const upd = () => {
+      raf = 0; const vh = window.innerHeight || 1;
+      chapters.forEach((ch) => {
+        const travel = ch.offsetHeight - vh;
+        const p = travel > 0 ? Math.max(0, Math.min(1, -ch.getBoundingClientRect().top / travel)) : (ch.getBoundingClientRect().top <= 0 ? 1 : 0);
+        ch.style.setProperty("--p", p.toFixed(4));
+      });
+    };
+    const onScroll = () => { if (!raf) raf = requestAnimationFrame(upd); };
+    const sc = document.querySelector(".cv3");
+    upd(); requestAnimationFrame(upd);
+    (sc || window).addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll);
+    return () => { (sc || window).removeEventListener("scroll", onScroll); window.removeEventListener("resize", onScroll); if (raf) cancelAnimationFrame(raf); };
+  }, [m]);
+
+  const { pool, flag, flagImg, best, cats, why, region, hook, statNum, statUnit, facts, econ, disc, portHead } = _confStory(m);
+  const img = (i) => (pool.length ? pool[((i % pool.length) + pool.length) % pool.length] : "");
+  const heroImg = m.images.hero || img(0);
   return (
-    <>
-      <div className="mn-scene" style={{ justifyContent: "flex-end" }}>
-        <div className="mn-photo">{m.images.hero ? <img src={m.images.hero} alt="" /> : null}</div>
-        <div className="mn-in">
-          {m.tickerLine && <span className="ticker rise" style={{ transitionDelay: ".1s" }}><span className="dot" />{m.tickerLine}</span>}
-          <div className="mn-name rise blur" style={{ transitionDelay: ".2s", display: "block" }}>{m.name}</div>
-          {m.tagline && <div className="mn-cap rise" style={{ transitionDelay: ".5s" }}>{m.tagline}</div>}
+    <div className="mn3">
+      {/* HERO — photo scales, black rises to consume it; the name pins then lifts away */}
+      <section className="mn3-ch mn3-hero" style={{ height: "200vh" }}>
+        <div className="mn3-stage">
+          <div className="mn3-photo">{heroImg ? <img src={heroImg} alt="" /> : null}</div>
+          <div className="mn3-scrim" /><div className="mn3-cover" />
+          <div className="mn3-pad end"><div className="mn3-in">
+            {hook && <div className="mn3-hook rise" style={{ transitionDelay: ".05s" }}>{hook}</div>}
+            <div className="mn2-name rise blur" style={{ transitionDelay: ".2s" }}>{m.name}</div>
+            {m.tagline && <div className="mn2-cap rise" style={{ transitionDelay: ".5s" }}>{m.tagline}</div>}
+            {m.tickerLine && <span className="ticker rise" style={{ transitionDelay: ".6s", marginTop: 22 }}><span className="dot" />{m.tickerLine}</span>}
+          </div></div>
         </div>
-      </div>
+      </section>
 
-      {m.thesis && <div className="mn-scene center"><div className="mn-in"><div className="mn-k rise">The opportunity</div><div className="mn-stmt rise scale" style={{ margin: "22px auto 0" }}>{m.thesis}</div></div></div>}
+      {/* SNAPSHOT — the company in ten seconds: four facts assemble, then a statement resolves */}
+      {facts.length > 0 && (
+        <section className="mn3-ch mn3-snap-ch" style={{ height: "220vh" }}>
+          <div className="mn3-stage">
+            <div className="mn3-pad center"><div className="mn3-in">
+              <div className="mn2-k" style={{ marginBottom: 6 }}>The company in ten seconds</div>
+              <div className="mn3-snap">
+                {facts.map((f, i) => (
+                  <div className="f" key={i} style={{ "--i": i, "--n": facts.length }}>
+                    <div className="fv">{f.v}</div><div className="fk">{f.k}</div>
+                  </div>
+                ))}
+              </div>
+              {m.thesis && <div className="mn3-snap-sup">{m.thesis}</div>}
+            </div></div>
+          </div>
+        </section>
+      )}
 
-      {m.heroStat && <div className="mn-scene center"><div className="mn-in">
-        <div className="mn-huge rise blur">{splitStat(m.heroStat.value)}</div>
-        <div className="mn-cap dk rise" style={{ transitionDelay: ".2s" }}>{m.heroStat.label}{m.heroStat.context ? " · " + m.heroStat.context : ""}</div></div></div>}
+      {/* STAT — the number IS the graphic, then becomes a mask the flagship image opens through */}
+      {m.heroStat && (
+        <section className="mn3-ch mn3-stat" style={{ height: "260vh" }}>
+          <div className="mn3-stage">
+            <div className="mn3-pad center"><div className="mn3-in">
+              <div className="mn2-k mn3-stat-label" style={{ marginBottom: 26 }}>{m.heroStat.label}</div>
+              <div className="mn3-statrow">
+                <div className="mn3-stat-bar" aria-hidden="true" />
+                <div className="mn3-statnum">
+                  <span className="glyphs">
+                    <span className="g-solid">{statNum}</span>
+                    <span className="g-mask" style={{ backgroundImage: flagImg ? `url(${flagImg})` : "none" }}>{statNum}</span>
+                  </span>
+                  {statUnit && <span className="g-unit">{statUnit}</span>}
+                </div>
+              </div>
+              {m.heroStat.context && <div className="mn2-cap dk mn3-stat-ctx" style={{ marginTop: 28 }}>{m.heroStat.context}</div>}
+            </div></div>
+            <div className="mn3-flag" aria-hidden="true">{flagImg ? <img src={flagImg} alt="" /> : null}</div>
+          </div>
+        </section>
+      )}
 
-      {best && <div className="mn-scene" style={{ justifyContent: "flex-end" }}>
-        <div className="mn-photo">{imgs[0] ? <img src={imgs[0]} alt="" /> : null}</div>
-        <div className="mn-in"><div className="mn-k rise">Flagship · {m.flagship.name || "the evidence"}</div>
-          <div className="mn-grade rise scale" style={{ marginTop: 14 }}>{best.grade}</div>
-          <div className="mn-cap rise">Best intercept · {best.hole}{best.interval ? " · over " + best.interval : ""}</div></div></div>}
+      {/* FLAGSHIP ASSET — state A: the resource in context; state B: the strongest intercept, then the
+          drill-section draws in BELOW it (established statistic first — no graphic crossing the type) */}
+      {(flag.name || best) && (
+        <section className="mn3-ch mn3-flag-ch mn3-flag2" style={{ height: "300vh" }}>
+          <div className="mn3-stage">
+            <div className="mn3-photo">{flagImg ? <img src={flagImg} alt="" /> : null}</div>
+            <div className="mn3-scrim" />
+            <div className="mn3-fa"><div className="mn3-in">
+              <div className="mn2-k">{[flag.name, flag.location].filter(Boolean).join(" · ")}</div>
+              {m.heroStat && <div className="big">{m.heroStat.value}</div>}
+              <div className="sub">{[m.heroStat && m.heroStat.context, flag.ownership && flag.ownership + " owned", flag.land].filter(Boolean).join("   ·   ")}</div>
+              {flag.overview && <div className="line">{flag.overview}</div>}
+            </div></div>
+            {best && (
+              <div className="mn3-fb">
+                <div className="mn3-fb-head">
+                  <div className="mn2-k" style={{ marginBottom: 12 }}>Strongest intercept</div>
+                  <div className="mn3-fb-grade">{best.grade}</div>
+                  <div className="mn3-fb-cap">{best.hole}{best.interval ? " · over " + best.interval : ""}</div>
+                </div>
+                {(m.flagship.drills || []).length > 0 && <div className="mn3-fb-sec"><Mn2Section drills={m.flagship.drills || []} /></div>}
+                <div className="mn3-fb-seclab">Drill section · schematic, not to scale</div>
+              </div>
+            )}
+          </div>
+        </section>
+      )}
 
-      {m.projects.map((p, i) => (
-        <div className="mn-scene" style={{ justifyContent: "flex-end" }} key={i}>
-          <div className="mn-photo">{imgs.length ? <img src={imgs[i % imgs.length]} alt="" /> : null}</div>
-          <div className="mn-in"><div className="mn-k rise">{p.stage || "Project"}{p.location ? " · " + p.location : ""}</div>
-            <div className="mn-name rise blur" style={{ display: "block", marginTop: 12 }}>{p.name}</div>
-            <div className="mn-cap rise">{[p.commodity, p.ownership && p.ownership + " owned"].filter(Boolean).join(" · ")}</div></div></div>
-      ))}
+      {/* PORTFOLIO — the projects as one strategy: a schematic jurisdiction map + a register that lights
+          each project (and its map pin) in turn. One project → a single asset frame, no forced grid. */}
+      {m.projects.length > 0 && (
+        <section className="mn3-ch mn3-port-ch" style={{ height: `${Math.max(240, 130 + m.projects.length * 70)}vh` }}>
+          <div className="mn3-stage">
+            <div className="mn3-port">
+              <div className="mn3-map"><Mn3Map projects={m.projects} region={region} /></div>
+              <div className="mn3-portlist">
+                <div className="mn3-porthead">{portHead}</div>
+                {m.projects.map((p, i) => (
+                  <div className="mn3-pj" key={i} style={{ "--i": i, "--n": m.projects.length }}>
+                    <div className="pjname"><span className="pjnum">{i + 1}</span>{p.name}</div>
+                    <div className="pjmeta">{[p.stage, p.commodity, p.ownership && p.ownership + " owned"].filter(Boolean).join(" · ")}</div>
+                    {p.overview && <div className="pjdesc">{p.overview}</div>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
 
-      {mktcap && <div className="mn-scene center"><div className="mn-in"><div className="mn-k rise">Market capitalisation</div><div className="mn-huge rise blur" style={{ color: "var(--accent)" }}>{mktcap}</div></div></div>}
+      {/* ECONOMICS — can the company advance its project? A balanced figure grid where market cap is
+          one tile, not the whole screen. Mine-life / AISC appear only when the company discloses them. */}
+      {econ.length > 0 && (
+        <section className="mn3-ch mn3-econ-ch" style={{ height: "210vh" }}>
+          <div className="mn3-stage">
+            <div className="mn3-pad center"><div className="mn3-in">
+              <div className="mn2-k" style={{ marginBottom: 8 }}>Built to advance</div>
+              <div className="mn3-econ">
+                {econ.map((e, i) => (
+                  <div className="e" key={i} style={{ "--i": i, "--en": econ.length }}>
+                    <div className="ev">{e.v}</div><div className="ek">{e.k}</div>
+                  </div>
+                ))}
+              </div>
+              <div className="mn3-econ-note">Full capital structure and analysis on MineEx.</div>
+            </div></div>
+          </div>
+        </section>
+      )}
 
-      {c0 && <div className="mn-scene center"><div className="mn-in"><div className="mn-k rise">What happens next{c0.timing ? " · " + c0.timing : ""}</div><div className="mn-stmt rise scale" style={{ margin: "22px auto 0" }}>{c0.label}</div></div></div>}
+      {/* CATALYST — an accent line draws downward and carries you into the milestone */}
+      {cats.length > 0 && (
+        <section className="mn3-ch mn3-cat" style={{ height: "200vh" }}>
+          <div className="mn3-stage">
+            <div className="mn3-line" aria-hidden="true" />
+            <div className="mn3-pad"><div className="mn3-in">
+              <div className="mn2-k">What happens next</div>
+              <div className="mn2-mile mn3-cat-mile">
+                {cats[0].timing && <span className="mt">{cats[0].timing}</span>}
+                <div className="ml">{cats[0].label}</div>
+                {cats[0].impact && <div className="mi">{cats[0].impact}</div>}
+              </div>
+              {cats.length > 1 && (
+                <div className="mn2-milerest mn3-cat-mile">
+                  {cats.slice(1).map((c, i) => (
+                    <div className="mrow" key={i}><span className="t">{c.timing || "Next"}</span><span className="l">{c.label}</span></div>
+                  ))}
+                </div>
+              )}
+            </div></div>
+          </div>
+        </section>
+      )}
 
-      {m.why.length > 0 && <div className="mn-scene"><div className="mn-in"><div className="mn-k rise" style={{ marginBottom: 30 }}>Why invest</div>
-        <div className="mn-list">{m.why.map((w, i) => <div className="li rise up" key={i} style={{ transitionDelay: (i * 0.08) + "s" }}>{w}</div>)}</div></div></div>}
+      {/* WHY INVEST — the case as distinct, sequentially-revealed numbered reasons (not one wall of text) */}
+      {why.length > 0 && (
+        <section className="mn3-ch mn3-why-ch" style={{ height: "240vh" }}>
+          <div className="mn3-stage">
+            <div className="mn3-pad"><div className="mn3-in">
+              <div className="mn2-k" style={{ marginBottom: 20 }}>Why invest</div>
+              <div className="mn3-why">
+                {why.map((w, i) => (
+                  <div className="mn3-reason" key={i} style={{ "--i": i, "--wn": why.length }}>
+                    <span className="rn">{String(i + 1).padStart(2, "0")}</span><span className="rw">{w}</span>
+                  </div>
+                ))}
+              </div>
+            </div></div>
+          </div>
+        </section>
+      )}
 
-      {m.team.length > 0 && <div className="mn-scene"><div className="mn-in"><div className="mn-k rise" style={{ marginBottom: 30 }}>Leadership</div>
-        <div className="mn-list">{m.team.slice(0, 6).map((p, i) => <div className="li rise up" key={i} style={{ transitionDelay: (i * 0.06) + "s" }}>{p.name} <span style={{ fontSize: ".42em", color: "var(--dim)", fontWeight: 600 }}>{p.role}</span></div>)}</div></div></div>}
+      {/* LEADERSHIP — a credibility line derived from the actual roles present, then the team */}
+      {m.team.length > 0 && (
+        <section className="mn3-ch mn3-lead-ch" style={{ height: "200vh" }}>
+          <div className="mn3-stage">
+            <div className="mn3-pad"><div className="mn3-in">
+              <div className="mn2-k" style={{ marginBottom: 14 }}>Leadership</div>
+              {disc && <div className="mn3-lead-intro">A leadership team spanning {disc}.</div>}
+              <div className="mn2-team" style={{ marginTop: 26 }}>
+                {m.team.slice(0, 8).map((p, i) => (
+                  <div className="mn2-mem mn3-mem" key={i} style={{ "--i": i, "--n": Math.min(8, m.team.length) }}>
+                    <div className="mn2-av" aria-hidden="true">{mn2Initials(p.name)}</div>
+                    <div><div className="nm">{p.name}</div>{p.role && <div className="rl">{p.role}</div>}</div>
+                  </div>
+                ))}
+              </div>
+            </div></div>
+          </div>
+        </section>
+      )}
 
-      <div className="mn-scene center"><div className="mn-in"><div className="mn-name rise blur" style={{ display: "block" }}>Follow {m.shortName}.</div><div className="mn-cap dk rise" style={{ transitionDelay: ".2s" }}>Every update, on MineEx</div></div></div>
-    </>
+      {/* CLOSE — a reason to follow, then MineEx as the logical continuation of the experience */}
+      <section className="mn3-ch mn3-close" style={{ height: "150vh" }}>
+        <div className="mn3-stage">
+          <div className="mn3-pad center"><div className="mn3-in">
+            <div className="mn2-k mn3-close-sub" style={{ marginBottom: 18 }}>Follow the story</div>
+            <div className="mn2-cta-name mn3-close-name">{m.name}</div>
+            <div className="mn3-cta-list">
+              {["Press releases", "Exploration results", "Project updates", "Media", "Catalysts"].map((x) => <span key={x}>{x}</span>)}
+            </div>
+            <div className="mn3-cta-go">Follow on MineEx →</div>
+          </div></div>
+        </div>
+      </section>
+    </div>
   );
+}
+
+// initials for the leadership avatars (first + last, uppercased)
+function mn2Initials(name) {
+  const parts = String(name || "").trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return "·";
+  return (parts[0][0] + (parts.length > 1 ? parts[parts.length - 1][0] : "")).toUpperCase();
+}
+
+// flagship drill-section schematic — top holes plotted as intercepts, colour by relative grade.
+// Honest: positions are schematic (labelled as such); hole ids, intervals and grades are the real data.
+function Mn2Section({ drills }) {
+  const ds = (drills || []).slice(0, 6);
+  if (!ds.length) return null;
+  const maxG = Math.max(...ds.map((d) => _gnum(d.grade) || 0), 0.0001);
+  const W = 400, H = 300, top = 48, n = ds.length;
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet">
+      <line x1="24" y1={top} x2={W - 24} y2={top} stroke="var(--line2)" strokeWidth="1.5" />
+      <text x="24" y={top - 12} fill="var(--dim)" fontFamily="var(--mono)" fontSize="9" letterSpacing="2">SURFACE</text>
+      {ds.map((d, i) => {
+        const x = 46 + (i + 0.5) * ((W - 92) / n);
+        const gi = (_gnum(d.grade) || 0) / maxG;
+        const seg = Math.min(140, 44 + (_gnum(d.interval) || 12) * 2.4);
+        const y0 = top + 26 + (i % 2) * 26;
+        return (
+          <g key={i}>
+            <line x1={x} y1={top} x2={x} y2={y0 + seg + 10} stroke="var(--line2)" strokeWidth="1" />
+            <circle cx={x} cy={top} r="3" fill="var(--accent)" />
+            <rect x={x - 5.5} y={y0} width="11" height={seg} rx="5" fill="var(--accent)" opacity={(0.32 + gi * 0.62).toFixed(2)} />
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
+
+// leadership credibility line — names ONLY the disciplines actually present in the team's roles
+// (nothing invented about experience or track record). Empty when too few roles resolve.
+function _mnDisciplines(team) {
+  const map = [[/explor/i, "exploration"], [/develop/i, "development"], [/permit|sustain|environ/i, "permitting"], [/financ|cfo|treasur|capital/i, "finance"], [/operat|coo|production/i, "operations"], [/geolog/i, "geology"]];
+  const set = [];
+  (team || []).forEach((t) => map.forEach(([re, w]) => { if (re.test(t.role || "") && !set.includes(w)) set.push(w); }));
+  if (set.length < 2) return "";
+  return set.slice(0, -1).join(", ") + " and " + set[set.length - 1];
+}
+
+// schematic jurisdiction map — a real state outline where we know it (NEVADA), else a neutral plate.
+// Pins placed by matching a project's disclosed county/location; positions are SCHEMATIC (labelled so),
+// never fabricated coordinates. Pins light in order via the chapter's --p.
+const _NV_PATH = "M8 6 L86 6 L86 95 L64 132 L8 60 Z";
+const _NV_COUNTIES = { humboldt: [26, 24], elko: [66, 20], lander: [46, 34], eureka: [54, 37], nye: [50, 76], washoe: [14, 34], "white pine": [70, 52], esmeralda: [34, 96], clark: [60, 116], pershing: [30, 40], churchill: [30, 54], mineral: [30, 70], lincoln: [66, 88], lyon: [22, 52], douglas: [15, 56], storey: [19, 44] };
+function Mn3Map({ projects, region }) {
+  const isNV = /nevada/i.test(region || "");
+  const path = isNV ? _NV_PATH : "M14 12 L86 10 L92 58 L76 118 L20 114 L8 54 Z";
+  const list = projects || [];
+  const pins = list.map((p, i) => {
+    let pos = null;
+    if (isNV) { const loc = String(p.location || "").toLowerCase(); const c = Object.keys(_NV_COUNTIES).find((k) => loc.includes(k)); if (c) pos = _NV_COUNTIES[c]; }
+    if (!pos) pos = [30 + (i % 2) * 36, 22 + i * (90 / Math.max(1, list.length))];
+    return { x: pos[0], y: pos[1], name: p.name };
+  });
+  return (
+    <svg viewBox="0 0 100 140" preserveAspectRatio="xMidYMid meet">
+      <defs><clipPath id="mn3mapclip"><path d={path} /></clipPath></defs>
+      <g className="grat" clipPath="url(#mn3mapclip)">
+        {[20, 40, 60, 80].map((x) => <line key={"v" + x} x1={x} y1="0" x2={x} y2="140" />)}
+        {[28, 56, 84, 112].map((y) => <line key={"h" + y} x1="0" y1={y} x2="100" y2={y} />)}
+      </g>
+      <path className="nvout" d={path} />
+      {pins.map((p, i) => (
+        <g className="pin" key={i} style={{ "--i": i, "--n": pins.length }}>
+          <circle className="halo" cx={p.x} cy={p.y} r="8.5" fill="none" stroke="var(--accent)" strokeWidth="1" />
+          <circle className="dot" cx={p.x} cy={p.y} r="3.4" />
+          <text className="plab" x={p.x} y={p.y + 1.7} textAnchor="middle">{i + 1}</text>
+        </g>
+      ))}
+      {region && <text x="50" y="138" textAnchor="middle" fill="var(--dim)" fontFamily="var(--mono)" fontSize="4.6" letterSpacing="2">{esc(region.toUpperCase())} · SCHEMATIC POSITIONS</text>}
+    </svg>
+  );
+}
+
+// Atlas's cartographic map — same honest geography as Mn3Map (real state outline + real counties,
+// schematic positions) but a different rendering: graticule, coordinate ticks, numbered pins, and an
+// optional crosshair that targets one project (the "locate the company" moment). Styled via atx- CSS.
+// only={i}: render a SINGLE jurisdiction locator (the flagship's disclosed county-level position) — never
+// a manufactured multi-project spatial layout. Honest: real state outline, real county, labelled schematic.
+function AtxMap({ projects, region, only }) {
+  const isNV = /nevada/i.test(region || "");
+  const path = isNV ? _NV_PATH : "M14 12 L86 10 L92 58 L76 118 L20 114 L8 54 Z";
+  const list = projects || [];
+  const target = (typeof only === "number") ? list[only] : list[0];
+  let pos = null;
+  if (isNV && target) { const loc = String(target.location || "").toLowerCase(); const c = Object.keys(_NV_COUNTIES).find((k) => loc.includes(k)); if (c) pos = _NV_COUNTIES[c]; }
+  return (
+    <svg viewBox="0 0 100 140" preserveAspectRatio="xMidYMid meet">
+      <defs><clipPath id="atxclip"><path d={path} /></clipPath></defs>
+      <g className="amgrat" clipPath="url(#atxclip)">
+        {[16, 32, 48, 64, 80].map((x) => <line key={"v" + x} x1={x} y1="0" x2={x} y2="140" />)}
+        {[20, 44, 68, 92, 116].map((y) => <line key={"h" + y} x1="0" y1={y} x2="100" y2={y} />)}
+      </g>
+      <path className="amout" d={path} />
+      {pos && <g className="amcross"><line x1={pos[0]} y1="0" x2={pos[0]} y2="140" /><line x1="0" y1={pos[1]} x2="100" y2={pos[1]} /></g>}
+      {pos && <g className="ampin"><circle className="amhalo" cx={pos[0]} cy={pos[1]} r="8" /><circle className="amdot" cx={pos[0]} cy={pos[1]} r="3.4" /></g>}
+      {region && <text className="amglab" x="50" y="137" textAnchor="middle">{esc(region.toUpperCase())}</text>}
+    </svg>
+  );
+}
+
+// a small distinct map-symbol per investment-case reason (legend glyphs — purely decorative)
+function _atxLegSym(label) {
+  const c = "var(--accent)";
+  if (label === "Scale") return <svg viewBox="0 0 34 34"><circle cx="17" cy="17" r="12" fill="none" stroke={c} strokeWidth="1.6" /><circle cx="17" cy="17" r="4" fill={c} /></svg>;
+  if (label === "Location") return <svg viewBox="0 0 34 34"><path d="M17 5 C11 5 7 9 7 15 C7 22 17 30 17 30 C17 30 27 22 27 15 C27 9 23 5 17 5 Z" fill="none" stroke={c} strokeWidth="1.6" /><circle cx="17" cy="15" r="3.2" fill={c} /></svg>;
+  if (label === "Economics") return <svg viewBox="0 0 34 34"><path d="M17 4 L30 17 L17 30 L4 17 Z" fill="none" stroke={c} strokeWidth="1.6" /><path d="M17 11 L23 17 L17 23 L11 17 Z" fill={c} /></svg>;
+  if (label === "Funded") return <svg viewBox="0 0 34 34"><rect x="6" y="6" width="22" height="22" fill="none" stroke={c} strokeWidth="1.6" /><path d="M11 17 L15 21 L23 12" fill="none" stroke={c} strokeWidth="2" /></svg>;
+  return <svg viewBox="0 0 34 34"><circle cx="17" cy="17" r="11" fill="none" stroke={c} strokeWidth="1.6" /></svg>;
 }
 
 // ── Template 02 · ATLAS — map-led. The map is an honest DISTRICT SCHEMATIC (not geo-accurate; we
@@ -1119,22 +2465,229 @@ function buildAtlasMap(el, m) {
     dots.forEach((c) => { c.style.opacity = "1"; });
   }));
 }
+// ATLAS (V5) — a premium interactive FIELD ATLAS. Consumes the SAME canonical story as Monolith
+// (_confStory) but tells it through geography with varied cartographic compositions (map, index,
+// field plate, technical insert, portfolio map, treasury ledger, survey traverse, legend, roster,
+// pullback). Motion = arrival-triggered "registration" per chapter, not Monolith's continuous scrub.
 function Atlas({ m }) {
-  const mapRef = useRef(null);
-  useEffect(() => { buildAtlasMap(mapRef.current, m); }, [m]);
+  const rootRef = useRef(null);
+  useEffect(() => {
+    const root = rootRef.current; if (!root) return;
+    const io = new IntersectionObserver((es) => es.forEach((e) => { if (e.isIntersecting) e.target.classList.add("on"); }), { threshold: 0.22 });
+    root.querySelectorAll(".atx-ch").forEach((c) => io.observe(c));
+    const first = root.querySelector(".atx-ch"); if (first) setTimeout(() => first.classList.add("on"), 40);
+    return () => io.disconnect();
+  }, [m]);
+
+  const { pool, flag, flagImg, best, cats, why, region, hook, facts, econ, disc, portHead, ctaFeatures } = _confStory(m);
+  const heroImg = m.images.hero || pool[0] || "";
+  const flagIdx = Math.max(0, m.projects.indexOf(flag));
+  const coordLabel = (m.geo.lat != null && m.geo.lng != null)
+    ? `${Math.abs(m.geo.lat).toFixed(0)}°${m.geo.lat >= 0 ? "N" : "S"} ${Math.abs(m.geo.lng).toFixed(0)}°${m.geo.lng >= 0 ? "E" : "W"}`
+    : (region ? region.toUpperCase() : "");
+  const rosterImg = pool.find((u) => u && u !== flagImg && u !== heroImg) || flagImg || heroImg;
+  const projImg = (p, i) => p.image || (pool.length ? pool[(i + 2) % pool.length] : "");
+  const cat0 = cats[0];
+  const anno = [[m.heroStat && m.heroStat.context, "Grade × tonnes"], [flag.ownership, "Ownership"], [flag.land, "Land position"], [flag.stage, "Stage"]].filter((a) => a[0]);
+  const frame = (<div className="atx-frame" aria-hidden="true"><i className="tl" /><i className="tr" /><i className="bl" /><i className="br" /></div>);
   return (
-    <>
-      <header className="atlas-hero">
-        <div className="atlas-map" ref={mapRef} />
-        <div className="atlas-copy">
-          <div className="ek rise" style={{ transitionDelay: ".9s" }}>{m.geo.place || m.flagship.name || "Jurisdiction"}</div>
-          <h1 className="rise" style={{ transitionDelay: "1.02s" }}>{m.flagship.name ? <>The {m.flagship.name}.</> : "The map is the thesis."}</h1>
-          {(m.thesis || m.heroStat) && <p className="lede rise" style={{ transitionDelay: "1.16s" }}>{m.thesis || (m.heroStat.value + " — " + m.heroStat.label + ".")}</p>}
-          {m.tickerLine && <span className="ticker rise" style={{ transitionDelay: "1.3s" }}><span className="dot" />{m.tickerLine}</span>}
+    <div className="atx" ref={rootRef}>
+      {/* CH1 TITLE SHEET — an atlas cover: the company name owns clean space; a contained locator figure
+          places it in the world. No decorative line crosses the primary type. */}
+      <section className="atx-ch atx-title">
+        {frame}<div className="atx-plateno">Sheet 01 · Cover</div>
+        <div className="atx-title-meta atx-reg">Field atlas{coordLabel ? " · " + coordLabel : ""}</div>
+        <div className="atx-title-grid">
+          <div className="atx-title-copy">
+            {hook && <div className="atx-eyebrow atx-reg">{hook}</div>}
+            <h1 className="atx-loc-name atx-reg d1">{m.name}</h1>
+            {m.tagline && <p className="atx-title-tag atx-reg d2">{m.tagline}</p>}
+            {m.tickerLine && <span className="ticker atx-reg d3" style={{ marginTop: 24 }}><span className="dot" />{m.tickerLine}</span>}
+          </div>
+          {region && (
+            <figure className="atx-title-fig atx-reg d2">
+              <div className="atx-title-map"><AtxMap projects={m.projects} region={region} only={flagIdx} /></div>
+              <figcaption>{flag.location || region} · schematic locator</figcaption>
+            </figure>
+          )}
         </div>
-      </header>
-      <HeroStat m={m} /><AtlasBodyV4 m={m} /><FollowBlock m={m} />
-    </>
+      </section>
+
+      {/* CH2 FIELD INDEX — the company at a glance as atlas front-matter with dotted leaders */}
+      {facts.length > 0 && (
+        <section className="atx-ch">
+          {frame}<div className="atx-plateno">Sheet 02 · Index</div>
+          <div className="atx-in">
+            <div className="atx-eyebrow atx-reg">The company at a glance</div>
+            <div className="atx-index">
+              {facts.map((f, i) => (
+                <div className="atx-ix-row atx-reg" key={i} style={{ transitionDelay: (0.1 + i * 0.1) + "s" }}>
+                  <span className="atx-ix-plate">{String(i + 1).padStart(2, "0")}</span>
+                  <span style={{ display: "flex", alignItems: "baseline", gap: 12 }}><span className="ixk">{f.k}</span><span className="ixlead" style={{ flex: 1 }} /></span>
+                  <span className="ixv">{f.v}</span>
+                </div>
+              ))}
+            </div>
+            {m.thesis && <p className="atx-index-sup atx-reg d4">{m.thesis}</p>}
+          </div>
+        </section>
+      )}
+
+      {/* CH3 FLAGSHIP FIELD PLATE — annotated full-bleed project photograph */}
+      {(flag.name || m.heroStat) && (
+        <section className="atx-ch atx-plate">
+          <div className="atx-plate-photo">{flagImg ? <img src={flagImg} alt="" /> : null}</div>
+          {frame}<div className="atx-plateno" style={{ color: "#e6e2da" }}>Sheet 03 · Flagship</div>
+          <div className="atx-plate-body">
+            <div className="atx-eyebrow atx-reg" style={{ color: "#f2ede2" }}>{[flag.name, flag.location].filter(Boolean).join(" · ")}</div>
+            {m.heroStat && <div className="atx-plate-title atx-reg d1">{m.heroStat.value}</div>}
+            {anno.length > 0 && (
+              <div className="atx-anno">
+                {anno.map((a, i) => <div className="a atx-reg" key={i} style={{ transitionDelay: (0.18 + i * 0.1) + "s" }}><div className="av">{a[0]}</div><div className="ak">{a[1]}</div></div>)}
+              </div>
+            )}
+            {flag.overview && <div className="atx-plate-line atx-reg d4">{flag.overview}</div>}
+          </div>
+        </section>
+      )}
+
+      {/* CH4 FIELD RECORD — the strongest intercept as an assay/core-log ribbon. Visualises ONLY the
+          reported facts (grade · interval width · hole id) — no depth, inclination or adjacent holes. */}
+      {best && (
+        <section className="atx-ch atx-fieldrec-ch">
+          {frame}<div className="atx-plateno">Sheet 04 · Field record</div>
+          <div className="atx-in">
+            <div className="atx-eyebrow atx-reg">Strongest intercept · {best.hole}</div>
+            <div className="atx-fieldrec">
+              <div className="atx-fieldrec-grade atx-reg d1">{best.grade}</div>
+              {best.interval && <div className="atx-fieldrec-sub atx-reg d1">Over {best.interval} of mineralisation</div>}
+              {best.interval && (
+                <div className="atx-corelog atx-reg d2">
+                  <div className="clbar"><div className="clfill" /></div>
+                  <div className="clscale"><span>0 m</span><span>Interval · {best.interval}</span></div>
+                </div>
+              )}
+              <div className="atx-fieldrec-note atx-reg d3">Reported assay interval, hole {best.hole}. Ribbon shows interval width only — no hole depth, inclination, position or adjacent results are implied.</div>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* CH5 PORTFOLIO — the projects as indexed atlas ENTRIES (letter · image · factual record),
+          alternating and image-forward. Dynamic: works for one project or many, no manufactured map. */}
+      {m.projects.length > 0 && (
+        <section className="atx-ch atx-portfolio">
+          {frame}<div className="atx-plateno">Sheet 05 · Portfolio</div>
+          <div className="atx-in">
+            <div className="atx-eyebrow atx-reg">{portHead}</div>
+            <div className="atx-entries">
+              {m.projects.map((p, i) => (
+                <article className="atx-entry atx-reg" key={i} style={{ transitionDelay: (0.06 + i * 0.06) + "s" }}>
+                  <div className="atx-entry-fig">
+                    {projImg(p, i) ? <img src={projImg(p, i)} alt="" /> : <div className="atx-entry-figx">{String.fromCharCode(65 + i)}</div>}
+                    <span className="atx-entry-ix">Entry {String.fromCharCode(65 + i)}</span>
+                  </div>
+                  <div className="atx-entry-body">
+                    {(p.location || region) && <div className="atx-entry-loc">{p.location || region}</div>}
+                    <h3 className="atx-entry-name">{p.name}</h3>
+                    <div className="atx-entry-meta">{[p.stage, p.commodity, p.ownership && p.ownership + " owned", p.land].filter(Boolean).join("   ·   ")}</div>
+                    {p.overview && <p className="atx-entry-desc">{p.overview}</p>}
+                  </div>
+                </article>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* CH6 TREASURY LEDGER — a ruled field-accounts page (deliberately not a dashboard) */}
+      {econ.length > 0 && (
+        <section className="atx-ch">
+          {frame}<div className="atx-plateno">Sheet 06 · Treasury</div>
+          <div className="atx-in">
+            <div className="atx-eyebrow atx-reg">Treasury &amp; economics</div>
+            <h2 className="atx-h atx-reg d1" style={{ marginTop: 10 }}>Register of position.</h2>
+            <div className="atx-treg-head atx-reg d1"><span>No.</span><span>Entry</span><span>As recorded</span></div>
+            <div className="atx-ledger">
+              {econ.map((e, i) => (
+                <div className="atx-led-row atx-reg" key={i} style={{ transitionDelay: (0.12 + i * 0.07) + "s" }}>
+                  <span className="ln">{String(i + 1).padStart(2, "0")}</span><span className="lk">{e.k}</span><span className="lv">{e.v}</span>
+                </div>
+              ))}
+            </div>
+            <div className="atx-led-note atx-reg d4">Recorded from latest disclosure. Full capital structure &amp; analysis on MineEx.</div>
+          </div>
+        </section>
+      )}
+
+      {/* CH7 TRAVERSE — a survey route from the current stage to the milestone (Atlas's catalyst) */}
+      {cat0 && (
+        <section className="atx-ch">
+          {frame}<div className="atx-plateno">Sheet 07 · Traverse</div>
+          <div className="atx-in">
+            <div className="atx-eyebrow atx-reg">What happens next</div>
+            <h2 className="atx-h atx-reg d1" style={{ marginTop: 10 }}>The route ahead.</h2>
+            <div className="atx-route atx-reg d2">
+              <svg viewBox="0 0 100 16" preserveAspectRatio="none"><path className="rline" d="M4 8 H96" /><path className="rprog" pathLength="1" d="M4 8 H96" /><circle className="rst here" cx="4" cy="8" r="2.6" /><circle className="rst" cx="50" cy="8" r="2.6" /><circle className="rst" cx="96" cy="8" r="2.6" /></svg>
+            </div>
+            <div className="atx-stations">
+              <div className="st atx-reg d2"><div className="stt">Now</div><div className="stl">{flag.stage || "In progress"}</div><div className="std">Advancing the flagship toward a study decision.</div></div>
+              <div className="st atx-reg d3"><div className="stt">{cat0.timing || "Next"}</div><div className="stl">{cat0.label}</div>{cat0.impact && <div className="std">{cat0.impact}</div>}</div>
+              {/construction/i.test(cat0.impact || "") && <div className="st atx-reg d4"><div className="stt">Then</div><div className="stl">Construction decision</div><div className="std">The milestone the study is built to inform.</div></div>}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* CH8 INVESTMENT CASE — a field-guide legend: symbol · label · reason */}
+      {why.length > 0 && (
+        <section className="atx-ch">
+          {frame}<div className="atx-plateno">Sheet 08 · Legend</div>
+          <div className="atx-in">
+            <div className="atx-eyebrow atx-reg">The investment case</div>
+            <div className="atx-legend">
+              {why.map((w, i) => { const lab = _confReasonLabel(w, i); return (
+                <div className="atx-leg-row atx-reg" key={i} style={{ transitionDelay: (0.1 + i * 0.1) + "s" }}>
+                  <span className="legsym">{_atxLegSym(lab)}</span><span className="legl">{lab}</span><span className="legd">{w}</span>
+                </div>
+              ); })}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* CH9 FIELD ROSTER — the team as an expedition roster over a field photograph */}
+      {m.team.length > 0 && (
+        <section className="atx-ch atx-roster-ch">
+          <div className="atx-roster-photo">{rosterImg ? <img src={rosterImg} alt="" /> : null}</div>
+          {frame}<div className="atx-plateno" style={{ color: "#e6e2da" }}>Sheet 09 · Field roster</div>
+          <div className="atx-roster-body">
+            <div className="atx-eyebrow atx-reg" style={{ color: "#f2ede2" }}>Leadership</div>
+            {disc && <p className="atx-roster-intro atx-reg d1">A leadership team spanning {disc}.</p>}
+            <div className="atx-roster">
+              {m.team.slice(0, 8).map((p, i) => (
+                <div className="atx-rmem atx-reg" key={i} style={{ transitionDelay: (0.05 * i) + "s" }}>
+                  <span className="rid">{mn2Initials(p.name)}</span>
+                  <div><div className="rnm">{p.name}</div>{p.role && <div className="rrl">{p.role}</div>}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* CH10 COLOPHON — pull back to the region as a small contained locator, then the MineEx CTA */}
+      <section className="atx-ch atx-close">
+        {frame}<div className="atx-plateno">Sheet 10 · Follow</div>
+        <div className="atx-close-body">
+          {region && <figure className="atx-close-fig atx-reg"><AtxMap projects={m.projects} region={region} only={flagIdx} /></figure>}
+          <div className="atx-eyebrow atx-reg d1">Follow the story</div>
+          <div className="atx-close-name atx-reg d2">{m.name}</div>
+          <div className="atx-close-list atx-reg d3">{ctaFeatures.map((x) => <span key={x}>{x}</span>)}</div>
+          <div className="atx-close-go atx-reg d3">Follow on MineEx →</div>
+        </div>
+      </section>
+    </div>
   );
 }
 
@@ -1531,24 +3084,253 @@ function buildXsec(el, m) {
   segs.forEach((s, i) => { s.style.opacity = "0"; s.style.transition = "opacity .5s ease " + (0.35 + i * 0.13) + "s"; });
   requestAnimationFrame(() => requestAnimationFrame(() => segs.forEach((s) => { s.style.opacity = "1"; })));
 }
-function Strata({ m }) {
-  const ref = useRef(null);
-  useEffect(() => { buildXsec(ref.current, m); }, [m]);
+// STRATA's honest cross-section: DECORATIVE stratigraphy (a design motif — never claimed as the
+// company's geology) beside a FACTUAL intercept register (each reported hole's grade shown as a
+// relative bar, labelled with hole + interval). No hole position, orientation, depth, spacing, pit
+// shell or ore-body geometry is invented. Falls back gracefully to just the register when sparse.
+function St2Section({ drills }) {
+  const ds = (drills || []).slice(0, 6).map((d) => ({ hole: d.hole, grade: d.grade, interval: d.interval, g: _gnum(d.grade) || 0 }));
+  const maxG = Math.max(...ds.map((d) => d.g), 0.0001);
   return (
-    <>
-      <section className="strata-top"><div className="wrap">
-        <div className="ek rise">{m.flagship.name || "Deposit"} · Cross-section</div>
-        <h1 className="rise">A section<br />through the ore.</h1>
-        <p className="lede rise">Each hole below plots its real intercept, coloured by grade — a schematic section, not to scale.</p>
-        <div className="xsec rise" ref={ref} />
-        <div className="strata-legend rise">
-          <span><span className="gr" style={{ background: "color-mix(in srgb,var(--accent) 30%,transparent)" }} />lower grade</span>
-          <span><span className="gr" style={{ background: "var(--accent)" }} />higher grade</span>
-          {m.flagship.drills.length ? <span>{m.flagship.drills.length} holes · hover for assays</span> : null}
+    <div style={{ display: "grid", gridTemplateColumns: "0.82fr 1.18fr" }}>
+      <div style={{ position: "relative", minHeight: 250 }}>
+        <svg viewBox="0 0 100 130" preserveAspectRatio="none" style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}>
+          {[...Array(7)].map((_, i) => <rect key={i} className="st2-band" x="0" y={8 + i * 17.4} width="100" height="17" fill="var(--ink)" fillOpacity={(0.06 + i * 0.05).toFixed(3)} />)}
+          <line x1="0" y1="8" x2="100" y2="8" stroke="var(--accent)" strokeWidth="0.7" />
+        </svg>
+        <div style={{ position: "absolute", top: 7, left: 10, fontFamily: "var(--mono)", fontSize: 9, letterSpacing: "2px", color: "var(--dim)" }}>SURFACE</div>
+        <div style={{ position: "absolute", bottom: 7, left: 10, fontFamily: "var(--mono)", fontSize: 8.5, letterSpacing: "1.6px", color: "var(--dim)", opacity: .8 }}>DECORATIVE STRATIGRAPHY</div>
+      </div>
+      <div style={{ padding: "clamp(16px,3vw,32px)" }}>
+        <div style={{ fontFamily: "var(--mono)", fontSize: 11, letterSpacing: ".14em", textTransform: "uppercase", color: "var(--dim)", marginBottom: 12 }}>Reported intercepts · {ds.length}</div>
+        {ds.map((d, i) => (
+          <div className="st2-icept" key={i} style={{ transitionDelay: (0.2 + i * 0.12) + "s", display: "grid", gridTemplateColumns: "1fr auto", gap: 14, alignItems: "center", padding: "11px 0", borderTop: "1px solid var(--line2)" }}>
+            <div>
+              <div style={{ height: 8, borderRadius: 4, background: "var(--accent)", opacity: (0.42 + (d.g / maxG) * 0.58), width: (28 + (d.g / maxG) * 72) + "%" }} />
+              <div style={{ fontFamily: "var(--mono)", fontSize: 10.5, letterSpacing: ".06em", color: "var(--dim)", marginTop: 8 }}>{esc(d.hole)}{d.interval ? " · " + d.interval : ""}</div>
+            </div>
+            <div style={{ fontWeight: 800, fontSize: "clamp(15px,1.7vw,22px)", fontVariantNumeric: "tabular-nums" }}>{d.grade}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// STRATA (V6) — a continuous vertical geological descent through the company. Same _confStory dataset,
+// its own system: depth-rail spine, slate→umber palette, emergence motion, imagery surfacing at depth.
+function Strata({ m }) {
+  const rootRef = useRef(null);
+  useEffect(() => {
+    const root = rootRef.current, sc = document.querySelector(".cv3"); if (!root || !sc) return;
+    const reveal = [...root.querySelectorAll(".st2-ch:not(.st2-pin)")];
+    const io = new IntersectionObserver((es) => es.forEach((e) => { if (e.isIntersecting) e.target.classList.add("on"); }), { threshold: 0.16 });
+    reveal.forEach((c) => io.observe(c));
+    const pins = [...root.querySelectorAll(".st2-pin")];
+    const all = [...root.querySelectorAll("[data-lab]")];
+    const labEl = root.querySelector(".st2-rail-lab"), depEl = root.querySelector(".st2-rail-dep");
+    let raf = 0;
+    const upd = () => {
+      raf = 0; const vh = window.innerHeight || 1, max = sc.scrollHeight - sc.clientHeight;
+      const gp = max > 0 ? Math.max(0, Math.min(1, sc.scrollTop / max)) : 0;
+      root.style.setProperty("--gp", gp.toFixed(4)); root.style.setProperty("--dp", gp.toFixed(4));
+      pins.forEach((ch) => { const r = ch.getBoundingClientRect(); const travel = ch.offsetHeight - vh; const p = travel > 0 ? Math.max(0, Math.min(1, -r.top / travel)) : (r.top <= 0 ? 1 : 0); ch.style.setProperty("--p", p.toFixed(4)); });
+      const cy = vh / 2; let best = 0, bd = 1e9;
+      all.forEach((c, i) => { const r = c.getBoundingClientRect(); const d = Math.abs((r.top + r.bottom) / 2 - cy); if (d < bd) { bd = d; best = i; } });
+      if (labEl) labEl.textContent = all[best] ? (all[best].dataset.lab || "") : ""; if (depEl) depEl.textContent = "Layer " + (best + 1) + " / " + all.length;
+    };
+    const onScroll = () => { if (!raf) raf = requestAnimationFrame(upd); };
+    upd(); requestAnimationFrame(upd);
+    sc.addEventListener("scroll", onScroll, { passive: true }); window.addEventListener("resize", onScroll);
+    return () => { io.disconnect(); sc.removeEventListener("scroll", onScroll); window.removeEventListener("resize", onScroll); if (raf) cancelAnimationFrame(raf); };
+  }, [m]);
+
+  const { pool, flag, flagImg, best, cats, why, region, hook, facts, econ, disc, portHead, ctaFeatures } = _confStory(m);
+  const cat0 = cats[0];
+  const projImg = (p, i) => p.image || (pool.length ? pool[(i + 2) % pool.length] : "");
+  const flagAnno = [[flag.ownership && flag.ownership + " owned", "Ownership"], [flag.land, "Land position"], [flag.stage, "Stage"]].filter((a) => a[0]);
+  return (
+    <div className="st2" ref={rootRef}>
+      {/* the persistent geological world — parallax strata we descend through, never leaving it */}
+      <div className="st2-world" aria-hidden="true"><div className="wl far" /><div className="wl mid" /><div className="wl near" /><div className="wcore" /></div>
+      <div className="st2-rail" aria-hidden="true">
+        <div className="st2-rail-line" /><div className="st2-rail-fill" /><div className="st2-rail-mark" />
+        <div className="st2-rail-lab" /><div className="st2-rail-dep" />
+      </div>
+
+      {/* SURFACE / IDENTITY (quiet) */}
+      <section className="st2-ch st2-hero" data-lab="Surface">
+        <div className="st2-in">
+          <div className="st2-surface-mk st2-em">Surface{region ? " · " + region : ""}</div>
+          {hook && <div className="st2-eyebrow st2-em e1">{hook}</div>}
+          <h1 className="st2-name st2-em e1" style={{ marginTop: 14 }}>{m.name}</h1>
+          {m.tagline && <p className="st2-tag st2-em e2">{m.tagline}</p>}
+          {m.tickerLine && <span className="ticker st2-em e3" style={{ marginTop: 24 }}><span className="dot" />{m.tickerLine}</span>}
         </div>
-      </div></section>
-      <HeroStat m={m} /><StrataBody m={m} /><FollowBlock m={m} />
-    </>
+      </section>
+
+      {/* COMPANY SNAPSHOT (quiet) */}
+      {facts.length > 0 && (
+        <section className="st2-ch" data-lab="Company">
+          <div className="st2-in">
+            <div className="st2-eyebrow st2-em">The company</div>
+            <div className="st2-facts">
+              {facts.map((f, i) => <div className="st2-fact st2-em" key={i} style={{ transitionDelay: (0.1 + i * 0.1) + "s" }}><div className="fv">{f.v}</div><div className="fk">{f.k}</div></div>)}
+            </div>
+            {m.thesis && <p className="st2-sup st2-em e4">{m.thesis}</p>}
+          </div>
+        </section>
+      )}
+
+      {/* FLAGSHIP (quiet) — what the asset is; the resource number is saved for the lock moment */}
+      {flag.name && (
+        <section className="st2-ch" data-lab="Flagship">
+          <div className="st2-in">
+            <div className="st2-eyebrow st2-em">Flagship asset</div>
+            <div className="st2-name st2-em e1" style={{ fontSize: "clamp(32px,5vw,70px)", marginTop: 10 }}>{flag.name}</div>
+            {flag.location && <div className="st2-line st2-em e2">{flag.location}</div>}
+            {flagAnno.length > 0 && <div className="st2-annos st2-em e2">{flagAnno.map((a, i) => <div className="a" key={i}><div className="av">{a[0]}</div><div className="ak">{a[1]}</div></div>)}</div>}
+            {flag.overview && <div className="st2-body st2-em e3">{flag.overview}</div>}
+          </div>
+        </section>
+      )}
+
+      {/* ✦ MOMENT — RESOURCE LOCK: the figure exists fragmented across layers, then snaps into place */}
+      {m.heroStat && (
+        <section className="st2-pin" data-lab="Resource" style={{ height: "210vh" }}>
+          <div className="st2-stage"><div className="st2-in">
+            <div className="st2-eyebrow" style={{ opacity: .85 }}>Mineral resource</div>
+            <div className="st2-lockwrap" style={{ marginTop: 18 }}>
+              <div className="st2-lock">
+                <span className="ghost">{m.heroStat.value}</span>
+                <span className="sl s0">{m.heroStat.value}</span><span className="sl s1">{m.heroStat.value}</span><span className="sl s2">{m.heroStat.value}</span>
+              </div>
+              <div className="st2-lock-seam" />
+            </div>
+            {m.heroStat.context && <div className="st2-lock-sub st2-line">{m.heroStat.context}{m.heroStat.label ? "   ·   " + m.heroStat.label : ""}</div>}
+          </div></div>
+        </section>
+      )}
+
+      {/* ✦ MOMENT — ASSAY TRACE: a measurement line crosses, finds the interval, the grade locks on */}
+      {best && (
+        <section className="st2-pin" data-lab="Result" style={{ height: "240vh" }}>
+          <div className="st2-stage"><div className="st2-in">
+            <div className="st2-eyebrow" style={{ opacity: .85 }}>Strongest intercept · {best.hole}</div>
+            <div className="st2-trace">
+              <div className="tl"><div className="tprog" /><div className="tint" /></div>
+              <div className="tscale"><span>0</span><span>{best.interval ? "interval · " + best.interval : "interval"}</span></div>
+            </div>
+            {best.interval && <div className="st2-trace-m">Interval located · {best.interval}</div>}
+            <div className="st2-trace-g">{best.grade}</div>
+            <div className="st2-trace-sub st2-line">{best.hole}{best.interval ? " · over " + best.interval : ""}</div>
+            <div className="st2-trace-note">Abstract measurement trace — reported interval width and grade only. No hole position, orientation or depth is implied.</div>
+          </div></div>
+        </section>
+      )}
+
+      {/* EVIDENCE REGISTER (quiet) — the honest full intercept list */}
+      {best && (m.flagship.drills || []).length > 1 && (
+        <section className="st2-ch" data-lab="Evidence">
+          <div className="st2-in">
+            <div className="st2-eyebrow st2-em">All reported intercepts</div>
+            <div className="st2-sec-wrap st2-em e1" style={{ marginTop: 22 }}><St2Section drills={m.flagship.drills || []} /></div>
+            <div className="st2-sec-note st2-em e2">Decorative stratigraphy is a design motif, not this company's geology. Bars show each reported intercept's grade (relative) with hole and interval — no hole position, depth or ore-body geometry is implied.</div>
+          </div>
+        </section>
+      )}
+
+      {/* ✦ MOMENT — IMAGE EXCAVATION: strata masks part to expose each project photograph (dynamic count) */}
+      {m.projects.map((p, i) => (
+        <section className="st2-pin st2-exc" data-lab={"Project " + (i + 1)} style={{ height: "195vh" }} key={"x" + i}>
+          <div className="st2-stage">
+            <div className="st2-exc-photo">{projImg(p, i) ? <img src={projImg(p, i)} alt="" /> : null}</div>
+            <div className="st2-exc-tex" /><div className="st2-exc-mask top" /><div className="st2-exc-mask bot" /><div className="st2-exc-seam" />
+            <div className="st2-exc-in">
+              <div className="st2-horizon-ix">Project {String(i + 1).padStart(2, "0")}{p.location ? " · " + p.location : ""}</div>
+              <div className="st2-horizon-name">{p.name}</div>
+              <div className="st2-horizon-meta">{[p.stage, p.commodity, p.ownership && p.ownership + " owned", p.land].filter(Boolean).join("   ·   ")}</div>
+              {p.overview && <div className="st2-horizon-take">{p.overview}</div>}
+            </div>
+          </div>
+        </section>
+      ))}
+
+      {/* CAPITAL LAYER (quiet) */}
+      {econ.length > 0 && (
+        <section className="st2-ch" data-lab="Capital">
+          <div className="st2-in">
+            <div className="st2-eyebrow st2-em">Capital layer · the support beneath</div>
+            <div className="st2-caplayer st2-em e2" style={{ marginTop: 24 }}>
+              {econ.map((e, i) => <div className="st2-caprow" key={i}><span className="cn">{String(i + 1).padStart(2, "0")}</span><span className="ck">{e.k}</span><span className="cv">{e.v}</span></div>)}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* MILESTONES (quiet) — historical layers */}
+      {m.timeline.length > 0 && (
+        <section className="st2-ch" data-lab="Record">
+          <div className="st2-in">
+            <div className="st2-eyebrow st2-em">What the company has built</div>
+            <div className="st2-strata-time st2-em e1">
+              {m.timeline.slice(0, 6).map((t, i) => (
+                <div className="st2-mile" key={i}>
+                  {t.date && <div className="mdate">{t.date}</div>}
+                  <div className="mhead">{t.headline}</div>
+                  {t.why && <div className="mwhy">{t.why}</div>}
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* ✦ MOMENT — CATALYST BREAK: the established strata end; the next milestone emerges from below */}
+      {cat0 && (
+        <section className="st2-pin st2-break" data-lab="Ahead" style={{ height: "220vh" }}>
+          <div className="st2-stage">
+            <div className="st2-break-strata" /><div className="st2-break-edge" /><div className="st2-break-void" />
+            <div className="st2-break-in st2-in">
+              <div className="st2-cat-lead">Deeper still · what lies ahead</div>
+              {cat0.timing && <div className="st2-cat-time">{cat0.timing}</div>}
+              <div className="st2-cat-label">{cat0.label}</div>
+              {cat0.impact && <div className="st2-cat-impact">{cat0.impact}</div>}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* WHY INVEST (quiet payoff) — what the layers add up to */}
+      {why.length > 0 && (
+        <section className="st2-ch" data-lab="Thesis">
+          <div className="st2-in">
+            <div className="st2-eyebrow st2-em">What the layers add up to</div>
+            <div className="st2-why">
+              {why.map((w, i) => { const lab = _confReasonLabel(w, i); return (
+                <div className="st2-why-row st2-em" key={i} style={{ transitionDelay: (0.1 + i * 0.1) + "s" }}>
+                  <span className="wn">{String(i + 1).padStart(2, "0")}</span><span className="wl">{lab}</span><span className="wd">{w}</span>
+                </div>
+              ); })}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* ✦ MOMENT — CORE CLOSE: the layers compress inward; the core opens onto the identity */}
+      <section className="st2-pin st2-close" data-lab="Core" style={{ height: "200vh" }}>
+        <div className="st2-stage">
+          <div className="st2-close-lyr top" /><div className="st2-close-lyr bot" /><div className="st2-core-ap" />
+          <div className="st2-core-in st2-in" style={{ maxWidth: 820 }}>
+            <div className="st2-core-mk">You've reached the core</div>
+            <div className="st2-core-name">{m.name}</div>
+            {m.tickerLine && <div style={{ fontFamily: "var(--mono)", fontSize: 12, letterSpacing: ".12em", color: "var(--dim)", marginTop: 14 }}>{m.tickerLine}</div>}
+            <div className="st2-core-list">{ctaFeatures.map((x) => <span key={x}>{x}</span>)}</div>
+            <div className="st2-core-go">Follow on MineEx →</div>
+          </div>
+        </div>
+      </section>
+    </div>
   );
 }
 
@@ -1557,185 +3339,560 @@ function Strata({ m }) {
 // immaculate backgrounds, staged stat reveals and diagrams that assemble piece by piece. No cards,
 // tables, prose, photos or ambient noise. Wow: (1) the opening statement, (2) the evidence diagram
 // assembles from real grades, (3) the closing capital diagram builds.
+// KEYNOTE (V6) — editorial horizontal presentation. Keeps the side-sliding deck, refines it into a
+// native blue/cream identity, and drives a lateral scrub (--c signed centre-offset, --a abs) so the
+// composition transforms sideways. Full _confStory dataset, imagery in the motion, precise grid.
 function Keynote({ m }) {
-  const scRef = useRef(null); const [idx, setIdx] = useState(0);
-  const grades = (m.flagship.drills || []).slice(0, 5).map((d) => ({ v: _gnum(d.grade), g: d.grade, h: (d.hole || "").split("-").pop() })).filter((x) => x.v > 0);
-  const gmax = Math.max(1, ...grades.map((x) => x.v));
-  const capBars = m.capital.filter(([k]) => /shares outstanding|fully diluted|options|warrants/i.test(k)).map(([k, v]) => ({ k: k.replace(/ outstanding/i, ""), v, n: _pnum(v) })).filter((x) => isFinite(x.n));
-  const cmax = Math.max(1, ...capBars.map((x) => x.n));
+  const scRef = useRef(null); const goRef = useRef(null); const [idx, setIdx] = useState(0);
+  // NATIVE-SCROLL MOTION. The deck is a real horizontal scroller with CSS scroll-snap (mandatory +
+  // scroll-snap-stop:always) — so the OS provides the momentum and the magnetic settle: one swipe glides
+  // exactly one composition, eased by the platform, and it can never rest stranded halfway. No custom
+  // wheel/settle engine to fight it. A passive rAF driver just READS scrollLeft and expresses the same
+  // deterministic `--c` lateral transforms + milestone rail; graphics play once and hold.
   useEffect(() => {
     const sc = scRef.current; if (!sc) return;
-    const stages = [...sc.querySelectorAll(".kys-stage")];
-    const io = new IntersectionObserver((es) => es.forEach((e) => { if (e.isIntersecting) { e.target.classList.add("on"); const i = +e.target.dataset.i; if (!isNaN(i)) setIdx(i); } }), { root: sc, threshold: 0.5 });
-    stages.forEach((s) => io.observe(s)); requestAnimationFrame(() => stages[0] && stages[0].classList.add("on"));
+    const stages = [...sc.querySelectorAll(".kys-stage2")];
+    const io = new IntersectionObserver((es) => es.forEach((e) => {
+      if (!e.isIntersecting) return;
+      const i = +e.target.dataset.i; if (!isNaN(i)) setIdx(i);
+      e.target.querySelectorAll(".kys-play:not(.played)").forEach((el) => el.classList.add("play", "played"));
+    }), { root: sc, threshold: 0.55 });
+    stages.forEach((s) => io.observe(s));
+    let raf = 0;
+    const upd = () => {
+      raf = 0; const vw = sc.clientWidth || 1, cx = sc.scrollLeft + vw / 2;
+      stages.forEach((s) => s.style.setProperty("--c", Math.max(-1.5, Math.min(1.5, ((s.offsetLeft + s.offsetWidth / 2) - cx) / vw)).toFixed(4)));
+      // Milestones — the record travels laterally as its stage crosses the viewport, clamped to the real
+      // overflow (never over-scrolls, never hard-clips; the edge mask crops on purpose), reversible.
+      const row = sc.querySelector(".kys-rail-row");
+      if (row) { const stage = row.closest(".kys-stage2"), rail = row.parentElement; const c = parseFloat(stage.style.getPropertyValue("--c")) || 0; const over = Math.max(0, row.scrollWidth - rail.clientWidth); const t = Math.min(1, Math.max(0, (0.55 - c) / 1.1)); row.style.setProperty("--tx", (-t * over).toFixed(1) + "px"); }
+    };
+    const onScroll = () => { if (!raf) raf = requestAnimationFrame(upd); };
+    const snapTo = (i) => { const vw = sc.clientWidth || 1; sc.scrollTo({ left: Math.max(0, Math.min(stages.length - 1, i)) * vw, behavior: "smooth" }); };
+    goRef.current = snapTo;
+    // A VERTICAL wheel/trackpad gesture drives the deck horizontally 1:1 and CONTINUOUSLY — the content
+    // tracks the fingers directly (trackpad wheel events carry their own momentum tail), and the CSS
+    // mandatory snap settles onto the nearest composition once the gesture ends. No cooldown, no intent
+    // threshold, no programmatic easing — that's what makes the swipe feel connected and smooth. A
+    // horizontal swipe already scrolls natively and is left untouched.
     const onWheel = (e) => { if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) { sc.scrollLeft += e.deltaY; e.preventDefault(); } };
-    sc.addEventListener("wheel", onWheel, { passive: false });
-    return () => { io.disconnect(); sc.removeEventListener("wheel", onWheel); };
+    const onKey = (e) => { const vw = sc.clientWidth || 1, cur = Math.round(sc.scrollLeft / vw); if (e.key === "ArrowRight" || e.key === "ArrowDown") { e.preventDefault(); snapTo(cur + 1); } else if (e.key === "ArrowLeft" || e.key === "ArrowUp") { e.preventDefault(); snapTo(cur - 1); } };
+    upd(); requestAnimationFrame(upd);
+    sc.addEventListener("scroll", onScroll, { passive: true }); sc.addEventListener("wheel", onWheel, { passive: false }); window.addEventListener("keydown", onKey); window.addEventListener("resize", onScroll);
+    return () => { io.disconnect(); sc.removeEventListener("scroll", onScroll); sc.removeEventListener("wheel", onWheel); window.removeEventListener("keydown", onKey); window.removeEventListener("resize", onScroll); if (raf) cancelAnimationFrame(raf); goRef.current = null; };
   }, [m]);
+
+  const { pool, flag, flagImg, best, cats, why, region, hook, facts, econ, statNum, statUnit, ctaFeatures } = _confStory(m);
+  const cat0 = cats[0];
+  const projImg = (p, i) => p.image || (pool.length ? pool[(i + 2) % pool.length] : "");
+  const imgCol = (src, cap) => <div className="kys-imgcol">{src ? <img src={src} alt="" /> : null}{cap && <span className="cap">{cap}</span>}</div>;
+
+  // THE GEOGRAPHIC JOURNEY — data-driven. Real jurisdiction only, broad→specific (country → region →
+  // district), NO "World" placeholder. Markers placed at county level ONLY where the disclosed location
+  // matches a known county (labelled schematic), else jurisdiction fallback.
+  const geoIsNV = /nevada/i.test(region);
+  const geoPath = _NV_PATH;
+  const geoSteps = [m.geo.country, region, m.geo.district].filter(Boolean).filter((v, i, a) => a.indexOf(v) === i);
+  const geoMarks = geoIsNV ? m.projects.map((p, i) => { const loc = String(p.location || "").toLowerCase(); const c = Object.keys(_NV_COUNTIES).find((k) => loc.includes(k)); return c ? { name: p.name, pos: _NV_COUNTIES[c], i } : null; }).filter(Boolean) : [];
   const S = [];
-  S.push(<><div className="kys-k">{m.tickerLine || "MineEx"}</div><h1 className="kys-h">{m.name.replace(/\.$/, "")}.</h1>{m.tagline && <div className="kys-sub">{m.tagline}</div>}</>);
-  if (m.thesis) S.push(<><div className="kys-k">The opportunity</div><h1 className="kys-h" style={{ fontSize: "clamp(30px,4.6vw,68px)" }}>{m.thesis}</h1></>);
-  if (m.heroStat) S.push(<><div className="kys-k">{m.heroStat.label}</div><h1 className="kys-h">{splitStat(m.heroStat.value)}</h1>{m.heroStat.context && <div className="kys-sub">{m.heroStat.context}</div>}</>);
-  if (grades.length) S.push(<><div className="kys-k">Drill evidence · g/t Au</div><h1 className="kys-h" style={{ fontSize: "clamp(26px,3.4vw,48px)" }}>{m.flagship.name || "The intercepts"}</h1>
-    <div className="kys-diag">{grades.map((x, i) => <div className="db" key={i}><div className="v">{x.v}</div><i style={{ "--h": Math.max(6, x.v / gmax * 100) + "%", transitionDelay: (0.3 + i * 0.1) + "s" }} /><div className="l">{x.h}</div></div>)}</div></>);
-  m.projects.forEach((p) => S.push(<><div className="kys-k">{p.stage || "Project"}</div><h1 className="kys-h">{p.name}</h1>
-    <div className="kys-facts">{[[p.commodity, "Commodity"], [p.ownership, "Ownership"], [p.location, "Location"]].filter((f) => f[0]).map((f, i) => <div className="f" key={i} style={{ transitionDelay: (0.2 + i * 0.12) + "s" }}><div className="fv" style={{ fontSize: "clamp(18px,2vw,28px)" }}>{f[0]}</div><div className="fl">{f[1]}</div></div>)}</div></>));
-  if (capBars.length) S.push(<><div className="kys-k">Capital structure · millions</div><h1 className="kys-h" style={{ fontSize: "clamp(26px,3.4vw,48px)" }}>Share structure</h1>
-    <div className="kys-diag">{capBars.map((x, i) => <div className="db" key={i}><div className="v">{x.v}</div><i style={{ "--h": Math.max(8, x.n / cmax * 100) + "%", transitionDelay: (0.3 + i * 0.1) + "s" }} /><div className="l">{x.k}</div></div>)}</div></>);
-  if (m.catalysts[0]) S.push(<><div className="kys-k">What happens next{m.catalysts[0].timing ? " · " + m.catalysts[0].timing : ""}</div><h1 className="kys-h">{m.catalysts[0].label}.</h1></>);
-  if (m.team.length) S.push(<><div className="kys-k">Leadership</div><div className="kys-facts" style={{ marginTop: 0 }}>{m.team.slice(0, 4).map((p, i) => <div className="f" key={i} style={{ transitionDelay: (0.15 + i * 0.1) + "s" }}><div className="fv" style={{ fontSize: "clamp(20px,2.2vw,30px)" }}>{p.name}</div><div className="fl">{p.role}</div></div>)}</div></>);
-  S.push(<><div className="kys-k">Continue</div><h1 className="kys-h">Follow {m.shortName}.</h1><div className="kys-sub">On MineEx · {m.tickerLine}</div></>);
+
+  // 1 · IDENTITY (quiet minimal)
+  S.push(<div className="kys-in">
+    <div className="kys-eyebrow kys-lat">{hook || m.tickerLine || "MineEx"}</div>
+    <h1 className="kys-title kys-lat d2" style={{ marginTop: 18 }}>{m.name.replace(/\.$/, "")}.</h1>
+    {m.tagline && <p className="kys-lead kys-lat d3" style={{ marginTop: 24 }}>{m.tagline}</p>}
+    {m.tickerLine && <div className="kys-meta kys-lat d3" style={{ marginTop: 22 }}>{m.tickerLine}</div>}
+  </div>);
+
+  // 2 · THESIS
+  if (m.thesis) S.push(<div className="kys-in">
+    <div className="kys-eyebrow kys-lat">The opportunity</div>
+    <h1 className="kys-title kys-lat d2" style={{ fontSize: "clamp(30px,4.8vw,76px)", marginTop: 18, maxWidth: "18ch" }}>{m.thesis}</h1>
+  </div>);
+
+  // ✦ GEOGRAPHIC JOURNEY — the cinematic map gets a FULL hero: country → region zooms in and markers
+  //   lock. No photo beside it — the handoff to real imagery is the next stage (a deliberate transition).
+  if (region || m.geo.country) S.push(<div className="kys-in kys-geo kys-play">
+    <div className="kys-geo-grid">
+      <div className="kys-geo-copy">
+        <div className="kys-eyebrow kys-lat">Where the assets are</div>
+        <div className="kys-geo-steps">
+          {geoSteps.map((s, i) => <div className={"kys-geo-step" + (i === geoSteps.length - 1 ? " last" : "")} key={i} style={{ "--d": (0.15 + i * 0.4) + "s" }}>{s}</div>)}
+        </div>
+        <div className="kys-geo-proj"><div className="pn">{flag.name || m.name}</div>{flag.location && <div className="pl">{flag.location}</div>}</div>
+      </div>
+      <div className="kys-geo-mapwrap">
+        <svg viewBox="0 0 100 140" preserveAspectRatio="xMidYMid meet">
+          {geoIsNV
+            ? <path className="kys-geo-region" d={geoPath} />
+            : <g className="kys-geo-region"><circle cx="50" cy="70" r="34" fill="none" strokeDasharray="3 3" /><circle cx="50" cy="70" r="20" fill="none" strokeDasharray="2 3" opacity=".6" /></g>}
+          {geoMarks.map((mk, j) => <g className={"kys-geo-mk" + (j === 0 ? " flag" : "")} key={j} style={{ "--d": (1.35 + j * 0.2) + "s" }}>{j === 0 && <circle className="ring" cx={mk.pos[0]} cy={mk.pos[1]} r="7.5" />}<circle className="dot" cx={mk.pos[0]} cy={mk.pos[1]} r="3.4" /><text className="num" x={mk.pos[0]} y={mk.pos[1] + 1.5} textAnchor="middle">{mk.i + 1}</text></g>)}
+        </svg>
+        <div className="kys-geo-foot">{geoMarks.length ? (region || "").toUpperCase() + " · schematic positions" : (region || m.geo.country || "").toUpperCase() + " · jurisdiction"}</div>
+      </div>
+    </div>
+  </div>);
+
+  // 3 · RESOURCE — number composes beside a photograph (image takeover, right)
+  if (m.heroStat) S.push(<div className="kys-in"><div className="kys-two img65r" style={{ minHeight: "70vh" }}>
+    <div>
+      <div className="kys-eyebrow kys-lat">{m.heroStat.label}</div>
+      <div className="kys-num kys-lat" style={{ marginTop: 12 }}>{statNum}<span className="u">{statUnit}</span></div>
+      {m.heroStat.context && <div className="kys-meta kys-lat d2" style={{ marginTop: 22 }}>{m.heroStat.context}</div>}
+    </div>
+    {imgCol(flagImg, flag.name || "Flagship")}
+  </div></div>);
+
+  // 4 · STRONGEST RESULT — split: interval from left, grade from right, lock on centre axis
+  if (best) S.push(<div className="kys-in" style={{ textAlign: "center" }}>
+    <div className="kys-eyebrow kys-lat" style={{ display: "block", textAlign: "center" }}>Strongest intercept</div>
+    <div className="kys-split" style={{ marginTop: 26 }}>
+      {best.interval && <span className="sp l">{best.interval}</span>}{best.interval && <span className="kys-split-x" />}<span className="sp r">{best.grade}</span>
+    </div>
+    <div className="kys-meta kys-lat" style={{ marginTop: 26 }}>{best.hole} · reported interval width &amp; grade — no geometry implied</div>
+  </div>);
+
+  // 5 · FLAGSHIP — image 65% left, editorial info cross-sliding right
+  if (flag.name) S.push(<div className="kys-in"><div className="kys-two img65" style={{ minHeight: "72vh" }}>
+    {imgCol(flagImg, flag.location || flag.name)}
+    <div>
+      <div className="kys-eyebrow kys-lat rev">Flagship asset</div>
+      <h2 className="kys-title kys-lat rev" style={{ fontSize: "clamp(30px,4.4vw,66px)", marginTop: 12 }}>{flag.name}</h2>
+      {flag.location && <div className="kys-meta kys-lat rev" style={{ marginTop: 14 }}>{flag.location}</div>}
+      <div className="kys-meta kys-lat rev d2" style={{ marginTop: 18, color: "var(--ink)", fontSize: "clamp(13px,1.5vw,17px)" }}>{[flag.ownership && flag.ownership + " owned", flag.land, flag.stage].filter(Boolean).join("   ·   ")}</div>
+      {flag.overview && <p className="kys-lead kys-lat rev d2" style={{ marginTop: 18, fontSize: "clamp(15px,1.6vw,19px)" }}>{flag.overview}</p>}
+    </div>
+  </div></div>);
+
+  // 6 · PORTFOLIO — a horizontal visual essay, alternating image side (dynamic count)
+  m.projects.forEach((p, i) => S.push(<div className="kys-in"><div className={"kys-two " + (i % 2 ? "img65r" : "img65")} style={{ minHeight: "72vh" }}>
+    {i % 2 ? null : imgCol(projImg(p, i), p.location || p.name)}
+    <div>
+      <div className="kys-eyebrow kys-lat rev">Project {String(i + 1).padStart(2, "0")}{p.stage ? " · " + p.stage : ""}</div>
+      <h2 className="kys-title kys-lat rev" style={{ fontSize: "clamp(30px,4.4vw,66px)", marginTop: 12 }}>{p.name}</h2>
+      <div className="kys-meta kys-lat rev d2" style={{ marginTop: 16 }}>{[p.commodity, p.ownership && p.ownership + " owned", p.location, p.land].filter(Boolean).join("   ·   ")}</div>
+      {p.overview && <p className="kys-lead kys-lat rev d2" style={{ marginTop: 16, fontSize: "clamp(15px,1.6vw,19px)" }}>{p.overview}</p>}
+    </div>
+    {i % 2 ? imgCol(projImg(p, i), p.location || p.name) : null}
+  </div></div>));
+
+  // 7 · CAPITAL — horizontally assembling editorial spread
+  if (econ.length) S.push(<div className="kys-in">
+    <div className="kys-eyebrow kys-lat">Capital &amp; economics</div>
+    <div className="kys-spread" style={{ marginTop: 26 }}>
+      {econ.map((e, i) => <div className="e" key={i} style={{ transform: "translateX(calc(var(--c,0)*" + ((i % 2 ? -1 : 1) * (24 + i * 10)) + "px))" }}><div className="ev">{e.v}</div><div className="ek">{e.k}</div></div>)}
+    </div>
+    <div className="kys-meta kys-lat d3" style={{ marginTop: 26 }}>Full capital structure on MineEx</div>
+  </div>);
+
+  // 8 · MILESTONES — one continuous horizontal record: the row travels start→end as this stage crosses
+  //   the viewport (interpolated in JS from the stage's own scroll progress, reversible, clamped so it
+  //   never over-scrolls; the edge mask crops intentionally — it never hard-clips a card).
+  if (m.timeline.length) { const ml = m.timeline.slice(0, 6); S.push(<div className="kys-in">
+    <div className="kys-eyebrow kys-lat">What the company has built</div>
+    <div className="kys-rail">
+      <div className="kys-rail-row">{ml.map((t, i) => <div className="mi" key={i}>{t.date && <div className="d">{t.date}</div>}<div className="h">{t.headline}</div>{t.why && <div className="w">{t.why}</div>}</div>)}</div>
+    </div>
+    <div className="kys-rail-count kys-lat d2">{ml.length} milestone{ml.length !== 1 ? "s" : ""}{m.timeline.length > ml.length ? " · more on MineEx" : ""} — swipe to travel the record</div>
+  </div>); }
+
+  // 9 · CATALYST — approaches from the right and becomes dominant
+  if (cat0) S.push(<div className="kys-in" style={{ textAlign: "center" }}>
+    <div className="kys-eyebrow kys-lat" style={{ display: "block", textAlign: "center" }}>What's approaching</div>
+    {cat0.timing && <div className="kys-meta" style={{ marginTop: 22, color: "var(--accent)", transform: "translateX(calc(var(--c,0)*90px))" }}>{cat0.timing}</div>}
+    <h1 className="kys-title" style={{ marginTop: 12, transform: "translateX(calc(var(--c,0)*150px))" }}>{cat0.label}</h1>
+    {cat0.impact && <p className="kys-lead kys-lat d3" style={{ marginTop: 22, marginLeft: "auto", marginRight: "auto" }}>{cat0.impact}</p>}
+  </div>);
+
+  // 10 · WHY — the case assembles from opposite directions, then reasons lock in a grid
+  if (why.length) S.push(<div className="kys-in">
+    <div className="kys-eyebrow kys-lat">What it all adds up to</div>
+    <div className="kys-why" style={{ marginTop: 18 }}>
+      {why.map((w, i) => { const lab = _confReasonLabel(w, i); return (
+        <React.Fragment key={i}>
+          <span className="rl" style={{ transform: "translateX(calc(var(--c,0)*" + (i % 2 ? -44 : 44) + "px))" }}>{lab}</span>
+          <span className="rd" style={{ transform: "translateX(calc(var(--c,0)*" + (i % 2 ? 30 : -30) + "px))" }}>{w}</span>
+        </React.Fragment>
+      ); })}
+    </div>
+  </div>);
+
+  // 11 · CTA — identity and follow lock on the centre grid, then motion stops
+  S.push(<div className="kys-in"><div className="kys-cta">
+    <div className="kys-eyebrow kys-lat">Follow the story</div>
+    <h1 className="kys-title kys-lat" style={{ fontSize: "clamp(34px,6vw,100px)" }}>{m.name}</h1>
+    {m.tickerLine && <div className="kys-meta">{m.tickerLine}</div>}
+    <div className="kys-cta-list">{ctaFeatures.map((x) => <span key={x}>{x}</span>)}</div>
+    <div className="kys-cta-go">Follow on MineEx →</div>
+  </div></div>);
+
   return (
     <>
-      <div className="kys" ref={scRef}>{S.map((s, i) => <div className="kys-stage" data-i={i} key={i}>{s}</div>)}</div>
-      <div className="kys-nav">{S.map((_, i) => <i className={idx === i ? "on" : ""} key={i} />)}</div>
+      <div className="kys" ref={scRef}>{S.map((s, i) => <div className="kys-stage2" data-i={i} key={i}>{s}</div>)}</div>
+      <div className="kys-nav">{S.map((_, i) => <i className={idx === i ? "on" : ""} key={i} onClick={() => goRef.current && goRef.current(i)} />)}</div>
       <div className="kys-hint">Swipe →</div>
     </>
   );
 }
 
-// ── Template 06 · TERMINAL — quant data desk ──
+// ── Template 06 · TERMINAL — investor intelligence system ──
+// A persistent instrument HUD frames a workspace of full-viewport STATES that evolve as the investor
+// explores: the strongest REAL signal takes control, assets open into media windows, geography and the
+// portfolio are interactive, capital & log resolve into a distilled thesis. Same universal dataset as
+// every template; told as a responsive live-intelligence environment. Obsidian ground · champagne gold ·
+// mono chrome. Adapts to any commodity, stage, project count and data richness (no assumed drills).
 function Terminal({ m }) {
-  const tapeRef = useRef(null);
+  const scRef = useRef(null);
+  const [active, setActive] = useState(0);
+  const [revealed, setRevealed] = useState(() => new Set([0]));
+  const [sel, setSel] = useState(0);
   useEffect(() => {
-    const el = tapeRef.current; if (!el) return;
-    const items = [];
-    if (m.tickers[0]) items.push(esc(m.tickers[0]));
-    if (m.heroStat) items.push("M&I <b>" + esc(m.heroStat.value) + "</b>");
-    m.highlights.slice(1, 3).forEach((h) => items.push(esc(h.label) + " <b>" + esc(h.value) + "</b>"));
-    if (m.geo.place) items.push("<b>" + esc(m.geo.place).toUpperCase() + "</b>");
-    m.flagship.drills.slice(0, 3).forEach((d) => items.push(esc(d.hole) + " <b>" + esc(d.grade) + "</b>"));
-    if (!items.length) items.push(esc(m.name));
-    const one = items.map((t) => "<span>" + t + "</span>").join("");
-    el.innerHTML = one + one;
+    const sc = scRef.current; if (!sc) return;
+    const els = [...sc.querySelectorAll(".trm-state")];
+    const io = new IntersectionObserver((es) => es.forEach((e) => {
+      if (!e.isIntersecting) return;
+      const i = +e.target.dataset.i;
+      if (!isNaN(i)) { setActive(i); setRevealed((p) => { if (p.has(i)) return p; const n = new Set(p); n.add(i); return n; }); }
+    }), { root: sc, threshold: 0.45 });
+    els.forEach((s) => io.observe(s));
+    return () => io.disconnect();
   }, [m]);
-  const tiles = [];
-  if (m.heroStat) tiles.push([m.heroStat.label, m.heroStat.value, m.heroStat.context]);
-  m.highlights.slice(1, 3).forEach((h) => tiles.push([h.label, h.value, h.context]));
-  if (m.geo.place) tiles.push(["Jurisdiction", m.geo.region || m.geo.place, m.geo.country]);
-  if (m.commodity) tiles.push(["Commodity", m.commodity, ""]);
-  if (m.tickers[0]) tiles.push(["Listing", m.tickers[0], m.tickers[1] || ""]);
+
+  const { pool, flag, flagImg, best, cats, why, region, econ } = _confStory(m);
+  const P = m.projects || [];
+  const splitNum = (s) => { const mm = String(s == null ? "" : s).match(/^\s*([~<>]?[\d.,]+)\s*(.*)$/); return mm ? [mm[1], mm[2]] : [String(s == null ? "" : s), ""]; };
+  const eV = (re) => (econ.find((e) => re.test(e.k)) || {}).v;
+  const cashV = eV(/cash/i), mcapV = eV(/market/i);
+
+  // PRIMARY SIGNAL — the single strongest factual evidence for THIS company, by investment relevance;
+  // never assumes drills. Falls through gracefully to whatever real data the company actually carries.
+  let primary;
+  if (m.heroStat) { const [n, u] = splitNum(m.heroStat.value); primary = { n, u, k: m.heroStat.label || "Mineral resource", note: m.heroStat.context }; }
+  else if (best) { primary = { n: best.grade, u: "", k: "Strongest intercept", note: [best.interval, best.hole].filter(Boolean).join("   ·   ") }; }
+  else if (mcapV) { const [n, u] = splitNum(mcapV); primary = { n, u, k: "Market capitalization" }; }
+  else if (cashV) { const [n, u] = splitNum(cashV); primary = { n, u, k: "Treasury position" }; }
+  else if (cats[0]) { primary = { n: cats[0].timing || "Next", u: "", k: "Upcoming catalyst", note: cats[0].label }; }
+  else if (flag.stage) { primary = { n: flag.stage, u: "", k: "Development stage" }; }
+  else { primary = { n: m.commodity || m.shortName, u: "", k: "Focus" }; }
+
+  const vitals = [
+    m.commodity && ["Commodity", m.commodity],
+    region && ["Jurisdiction", region],
+    flag.stage && ["Stage", flag.stage],
+    m.tickers[0] && ["Listing", m.tickers.join("   ")],
+  ].filter(Boolean).slice(0, 4);
+
+  const cur = P[Math.min(sel, Math.max(0, P.length - 1))] || {};
+  const curImg = cur.image || (pool.length ? pool[(sel + 1) % pool.length] : "") || flagImg || "";
+  const dfacts = [cur.commodity && ["Commodity", cur.commodity], cur.ownership && ["Ownership", cur.ownership], cur.location && ["Location", cur.location], cur.land && ["Land", cur.land]].filter(Boolean).slice(0, 4);
+  const dcols = dfacts.length <= 3 ? Math.max(1, dfacts.length) : 2; // never leave a dead grid cell
+  const isNV = /nevada/i.test(region);
+  const county = (loc) => { const s = String(loc || "").toLowerCase(); return Object.keys(_NV_COUNTIES).find((k) => s.includes(k)); };
+  const drills = (m.flagship.drills || []).slice().sort((a, b) => _gnum(b.grade) - _gnum(a.grade)).slice(0, 6);
+
+  const S = [];
+  const modk = (t) => <div className="trm-modk trm-wipe">{t}</div>;
+
+  // 01 · IDENTITY — a sparse, deliberate boot: the system opens on the company
+  S.push({ id: "IDENTITY", node: (
+    <div className="trm-in trm-boot">
+      <div className="trm-scan" />
+      <div className="trm-boot-k trm-wipe">◆ MINEEX INTELLIGENCE</div>
+      <h1 className="trm-boot-name trm-wipe">{m.name.replace(/\.$/, "")}</h1>
+      {m.tagline && <p className="trm-boot-sub trm-wipe">{m.tagline}</p>}
+      <div className="trm-boot-chips">{[m.commodity, region, m.tickers[0]].filter(Boolean).map((x, i) => <span className="trm-rise" style={{ transitionDelay: (0.4 + i * 0.09) + "s" }} key={i}>{x}</span>)}</div>
+    </div>
+  ) });
+
+  // 02 · PRIMARY SIGNAL — the strongest real fact takes control of the workspace
+  S.push({ id: "SIGNAL", node: (
+    <div className="trm-in">
+      <div className="trm-scan" />
+      {modk("Primary signal")}
+      <div className="trm-sig">
+        <div className="trm-mega trm-wipe">{primary.n}{primary.u && <span className="u">{primary.u}</span>}</div>
+        <div className="trm-sig-side trm-rise" style={{ transitionDelay: ".28s" }}><div className="trm-sig-k">{primary.k}</div>{primary.note && <div className="trm-sig-note">{primary.note}</div>}</div>
+      </div>
+      {vitals.length > 0 && <div className="trm-vitals">{vitals.map(([k, v], i) => <div className="f trm-rise" style={{ transitionDelay: (0.32 + i * 0.07) + "s" }} key={i}><div className="fk">{k}</div><div className="fv">{v}</div></div>)}</div>}
+    </div>
+  ) });
+
+  // 03 · ASSET REGISTER — interactive, imagery-forward: select an asset, its media window opens
+  if (P.length) S.push({ id: "ASSETS", node: (
+    <div className="trm-in trm-assets">
+      <div className="trm-scan" />
+      {modk("Asset register · " + P.length + (P.length === 1 ? " asset" : " assets"))}
+      <div className="trm-assets-grid">
+        <div className="trm-list">{P.map((p, i) => <button className={"row" + (i === sel ? " on" : "")} onClick={() => setSel(i)} key={i}><span className="rn">{String(i + 1).padStart(2, "0")}</span><span className="rt">{p.name}</span><span className="rs">{p.stage || p.commodity || ""}</span></button>)}</div>
+        <div className="trm-detail">
+          <div className="trm-media">{curImg ? <img src={curImg} alt="" key={curImg} /> : <div className="trm-media-empty">NO MEDIA ON FILE</div>}<span className="fr tl" /><span className="fr tr" /><span className="fr bl" /><span className="fr br" /><div className="cap"><span className="cn">{cur.name}</span>{(cur.location || region) && <span className="cl">{cur.location || region}</span>}</div></div>
+          {dfacts.length > 0 && <div className="trm-dfacts" style={{ gridTemplateColumns: "repeat(" + dcols + ",1fr)" }}>{dfacts.map(([k, v], i) => <div className="df" key={i}><span className="dk">{k}</span><span className="dv">{v}</span></div>)}</div>}
+          {cur.overview && <p className="trm-dov">{cur.overview}</p>}
+        </div>
+      </div>
+    </div>
+  ) });
+
+  // 04 · SPATIAL — honest geography as an intelligence panel (NOT Atlas): interactive positions, real
+  //   jurisdiction datum, schematic county nodes only where the disclosed location matches a known county
+  if (region || m.geo.country) { const list = P.length ? P : [{ name: m.shortName, location: region }]; S.push({ id: "SPATIAL", node: (
+    <div className="trm-in trm-spatial">
+      <div className="trm-scan" />
+      {modk("Spatial // asset positions")}
+      <div className="trm-spatial-grid">
+        <div className="trm-list">{list.map((p, i) => <button className={"row" + (i === sel ? " on" : "")} onClick={() => setSel(i)} key={i}><span className="rn">{String(i + 1).padStart(2, "0")}</span><span className="rt">{p.name}</span><span className="rs">{p.location || region || ""}</span></button>)}</div>
+        <div className="trm-map">
+          {isNV ? (
+            <svg viewBox="0 0 100 140" preserveAspectRatio="xMidYMid meet" className="trm-map-svg">
+              <path className="trm-map-shape" d={_NV_PATH} />
+              {P.map((p, i) => { const c = county(p.location); if (!c) return null; const pos = _NV_COUNTIES[c]; return <g className={"trm-node" + (i === sel ? " on" : "")} key={i}><circle className="dot" cx={pos[0]} cy={pos[1]} r="2.6" /><text className="nl" x={pos[0]} y={pos[1] - 5} textAnchor="middle">{String(i + 1).padStart(2, "0")}</text></g>; })}
+            </svg>
+          ) : (
+            <div className="trm-locator"><div className="trm-loc-ring"><span /><span /><span /></div><div className="trm-loc-name">{region || m.geo.country}</div></div>
+          )}
+          <div className="trm-map-hud">
+            <div className="mh"><span className="k">Region</span><span className="v">{region || "—"}</span></div>
+            <div className="mh"><span className="k">Country</span><span className="v">{m.geo.country || "—"}</span></div>
+            {m.geo.lat != null && <div className="mh"><span className="k">Datum</span><span className="v">{Number(m.geo.lat).toFixed(1)}°, {Number(m.geo.lng).toFixed(1)}°</span></div>}
+            <div className="mh"><span className="k">Active</span><span className="v">{(list[Math.min(sel, list.length - 1)] || {}).name || m.shortName}</span></div>
+          </div>
+        </div>
+      </div>
+      <div className="trm-foot">{isNV && P.some((p) => county(p.location)) ? (region || "").toUpperCase() + " · schematic asset positions — not survey coordinates" : (region || m.geo.country || "").toUpperCase() + " · disclosed jurisdiction datum"}</div>
+    </div>
+  ) }); }
+
+  // 05 · EVIDENCE — the densest analytical state; strongest real evidence (drills, else resource)
+  const evNode = drills.length ? (
+    <div className="trm-in">
+      <div className="trm-scan" />
+      {modk("Evidence // strongest intercepts")}
+      <div className="trm-ev">{drills.map((d, i) => { const g = _gnum(d.grade), mx = _gnum(drills[0].grade) || 1; return <div className={"evr trm-wipe" + (i === 0 ? " top" : "")} style={{ transitionDelay: (0.08 + i * 0.06) + "s" }} key={i}><span className="eh">{d.hole}</span><span className="ei">{d.interval || "—"}</span><span className="eg">{d.grade}</span><span className="eb"><i style={{ width: Math.max(6, Math.round((g / mx) * 100)) + "%" }} /></span></div>; })}</div>
+      <div className="trm-foot">Reported interval widths and grades — no drill geometry implied.</div>
+    </div>
+  ) : m.heroStat ? (
+    <div className="trm-in">
+      <div className="trm-scan" />
+      {modk("Evidence // resource")}
+      <div className="trm-sig"><div className="trm-mega trm-wipe">{splitNum(m.heroStat.value)[0]}{splitNum(m.heroStat.value)[1] && <span className="u">{splitNum(m.heroStat.value)[1]}</span>}</div><div className="trm-sig-side trm-rise" style={{ transitionDelay: ".2s" }}><div className="trm-sig-k">{m.heroStat.label || "Mineral resource"}</div>{m.heroStat.context && <div className="trm-sig-note">{m.heroStat.context}</div>}</div></div>
+    </div>
+  ) : null;
+  if (evNode) S.push({ id: "EVIDENCE", node: evNode });
+
+  // 06 · TREASURY — capital position as a systems readout (only when real capital/economics exist)
+  if (econ.length) S.push({ id: "TREASURY", node: (
+    <div className="trm-in">
+      <div className="trm-scan" />
+      {modk("Treasury // position")}
+      <div className="trm-treasury">{econ.slice(0, 6).map((e, i) => { const [n, u] = splitNum(e.v); return <div className="tf trm-wipe" style={{ transitionDelay: (0.08 + i * 0.06) + "s" }} key={i}><div className="tfv">{n}{u && <span className="u">{u}</span>}</div><div className="tfk">{e.k}</div></div>; })}</div>
+    </div>
+  ) });
+
+  // 07 · SYSTEM LOG — record (logged milestones) + forecast (pending catalysts)
+  const logRows = [
+    ...(m.timeline || []).slice(0, 5).map((t) => ({ t: (t.date || "").slice(0, 10), h: t.headline, w: t.why, pending: false })),
+    ...cats.slice(0, 3).map((c) => ({ t: c.timing || "PENDING", h: c.label, w: c.impact, pending: true })),
+  ];
+  if (logRows.length) S.push({ id: "LOG", node: (
+    <div className="trm-in">
+      <div className="trm-scan" />
+      {modk("System log // record & forecast")}
+      <div className="trm-log">{logRows.map((r, i) => <div className={"lg trm-wipe" + (r.pending ? " pend" : "")} style={{ transitionDelay: (0.06 + i * 0.05) + "s" }} key={i}><span className="lt">{r.t}</span><span className="lc"><span className="lh">{r.h}</span>{r.w && <span className="lw">{r.w}</span>}</span><span className="ls">{r.pending ? "PENDING" : "LOGGED"}</span></div>)}</div>
+    </div>
+  ) });
+
+  // 08 · RESOLVE — the analysis distils into the thesis, then the follow directive as the final state
+  S.push({ id: "RESOLVE", node: (
+    <div className="trm-in trm-resolve">
+      <div className="trm-scan" />
+      {modk("Analysis resolved")}
+      {why.length > 0 && <div className="trm-concl">{why.map((w, i) => <div className="cc trm-wipe" style={{ transitionDelay: (0.08 + i * 0.07) + "s" }} key={i}><span className="ci">{String(i + 1).padStart(2, "0")}</span><span className="ct">{w}</span></div>)}</div>}
+      <div className="trm-final trm-rise" style={{ transitionDelay: ".2s" }}>
+        <div className="trm-final-k">Continuous coverage</div>
+        <div className="trm-final-name">Follow {m.shortName} on MineEx</div>
+        <div className="trm-final-feat">{["Press releases", "Results", "Catalysts", "Media"].map((x) => <span key={x}>{x}</span>)}</div>
+      </div>
+    </div>
+  ) });
+
+  const total = S.length;
+  const activeLabel = (S[active] && S[active].id) || "";
   return (
-    <div className="term">
-      <div className="wrap"><div className="tape"><div className="run" ref={tapeRef} /></div></div>
-      <section className="term-head"><div className="wrap"><div className="st rise">{m.name} · exploration desk</div><h1 className="rise wipe">{m.heroStat ? m.heroStat.value : m.name}.<span className="cur" /></h1></div></section>
-      <section style={{ paddingTop: 0 }}><div className="wrap">
-        <div className="term-grid rise">{tiles.slice(0, 8).map((t, i) => <div className="t" key={i}><div className="tk">{t[0]}</div><div className="tv">{t[1]}</div>{t[2] && <div className="td">{t[2]}</div>}</div>)}</div>
-        {m.flagship.drills.length > 0 && <div className="term-log rise"><div className="lr h"><span>Hole</span><span>Interval</span><span>Grade</span></div>{m.flagship.drills.slice(0, 6).map((d, i) => <div className="lr" key={i}><span className="c1">{d.hole}</span><span>{d.interval || "—"}</span><span className="c3">{d.grade}</span></div>)}</div>}
-      </div></section>
-      {m.projects.length > 0 && <div className="wrap" style={{ paddingBottom: "clamp(20px,4vh,44px)" }}><div className="term-sub">Portfolio · {m.projects.length} projects</div>
-        <table className="term-tbl"><thead><tr><th>Project</th><th>Location</th><th>Commodity</th><th>Own</th><th>Stage</th></tr></thead>
-          <tbody>{m.projects.map((p, i) => <tr key={i}><td className="nm">{p.name}</td><td>{p.location || "—"}</td><td>{p.commodity || "—"}</td><td className="ac">{p.ownership || "—"}</td><td>{p.stage || "—"}</td></tr>)}</tbody></table></div>}
-      {m.capital.length > 0 && <div className="wrap" style={{ paddingBottom: "clamp(20px,4vh,44px)" }}><div className="term-sub">Capital structure</div>
-        <div className="term-read">{m.capital.map(([k, v], i) => <div className="rr" key={i}><span className="k">{k}</span><span className="v">{v}</span></div>)}</div></div>}
-      {m.catalysts[0] && <div className="wrap" style={{ paddingBottom: "clamp(20px,4vh,44px)" }}><div className="term-sub">Next catalyst</div>
-        <div className="term-read"><div className="rr"><span className="k">{m.catalysts[0].timing || "Upcoming"}</span><span className="v">{m.catalysts[0].label}</span></div>{m.catalysts[0].impact && <div className="rr"><span className="k">Impact</span><span className="v" style={{ fontWeight: 400, color: "var(--dim)", textTransform: "none" }}>{m.catalysts[0].impact}</span></div>}</div></div>}
-      {m.timeline.length > 0 && <div className="wrap" style={{ paddingBottom: "clamp(20px,4vh,44px)" }}><div className="term-sub">Event log</div>
-        <div className="term-log">{m.timeline.map((t, i) => <div className="lr" key={i}><span className="c1">{(t.date || "").slice(0, 10)}</span><span>{t.headline}</span><span className="c3" /></div>)}</div></div>}
-      {m.team.length > 0 && <div className="wrap" style={{ paddingBottom: "clamp(24px,5vh,56px)" }}><div className="term-sub">Leadership · {m.team.length}</div>
-        <div className="term-read">{m.team.slice(0, 10).map((p, i) => <div className="rr" key={i}><span className="v" style={{ textAlign: "left" }}>{p.name}</span><span className="k" style={{ textTransform: "none" }}>{p.role}</span></div>)}</div></div>}
-      <FollowBlock m={m} />
+    <div className="trm" ref={scRef}>
+      <div className="trm-ground" />
+      {S.map((s, i) => <section className={"trm-state" + (revealed.has(i) ? " act" : "")} data-i={i} key={s.id}>{s.node}</section>)}
+      <div className="trm-hud">
+        <span className="cnr tl" /><span className="cnr tr" /><span className="cnr bl" /><span className="cnr br" />
+        <div className="trm-h tl"><span className="g">◆</span> {m.shortName}</div>
+        <div className="trm-h tr">{m.tickerLine || m.commodity}<br /><span className="g">● {active === total - 1 ? "RESOLVED" : "ANALYZING"}</span></div>
+        <div className="trm-h bl"><span className="g">//</span> {activeLabel}</div>
+        <div className="trm-h br">{String(active + 1).padStart(2, "0")} / {String(total).padStart(2, "0")}<div className="trm-meter">{S.map((_, i) => <i className={i <= active ? "on" : ""} key={i} />)}</div></div>
+      </div>
     </div>
   );
 }
 
-// ── Template 07 · DOSSIER — editorial field report ──
-// DOSSIER — a premium investigative mining feature. Field photography, feature pacing, pull quotes
-// (drawn ONLY from real supplied text), sidebars, evidence inserts, a map clipped into the story, and
-// leadership presented as feature subjects. Human and journalistic — never a document, table or dashboard.
-const _ROMAN = ["I", "II", "III", "IV", "V", "VI"];
+// ── Template 07 · DOSSIER — the investment file ──
+// The original DENSE institutional research document, made dynamic WITHOUT losing its density. Assisted
+// vertical snap advances the file through DENSE spreads (masthead → flagship evidence → portfolio →
+// position → findings); the document responds (sheet reveals, rules drawing, red-pen markup); and the
+// signature EVIDENCE STACK physically accumulates the material facts into a filed pile as the case is
+// examined, resolving beside the conclusion. Own archival palette (paper · charcoal · vermilion). No map.
+const _ROMAN = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII"];
 function Dossier({ m }) {
-  const pull = m.why[0] || m.flagship.sub || m.thesis;
-  const bodyParas = [m.flagship.sub, m.why[1], m.why[2]].filter((x) => x && x !== pull);
-  const drills = (m.flagship.drills || []).slice(0, 4);
-  const sideNums = [
-    m.heroStat && [m.heroStat.label, m.heroStat.value],
+  const scRef = useRef(null);
+  const [active, setActive] = useState(0);
+  const [seen, setSeen] = useState(() => new Set([0]));
+  useEffect(() => {
+    const sc = scRef.current; if (!sc) return;
+    const els = [...sc.querySelectorAll(".dz-ex")];
+    const io = new IntersectionObserver((es) => es.forEach((e) => {
+      if (!e.isIntersecting) return;
+      const i = +e.target.dataset.i;
+      if (!isNaN(i)) { setActive(i); setSeen((p) => { if (p.has(i)) return p; const n = new Set(p); n.add(i); return n; }); }
+    }), { root: sc, threshold: 0.5 });
+    els.forEach((s) => io.observe(s));
+    return () => io.disconnect();
+  }, [m]);
+
+  const { pool, flag, flagImg, best, cats, why, region, econ } = _confStory(m);
+  const P = m.projects || [];
+  const eV = (re) => (econ.find((e) => re.test(e.k)) || {}).v;
+  const mcapV = eV(/market/i), cashV = eV(/cash/i);
+  const img = (i) => (pool.length ? pool[((i % pool.length) + pool.length) % pool.length] : "");
+
+  // strongest MATERIAL fact for this company (facts only; adapts — never assumes drilling)
+  let mat;
+  if (m.heroStat) mat = { v: m.heroStat.value, label: m.heroStat.label || "Mineral resource" };
+  else if (best) mat = { v: best.grade, label: "Strongest intercept" };
+  else if (mcapV) mat = { v: mcapV, label: "Market capitalization" };
+  else if (cashV) mat = { v: cashV, label: "Treasury" };
+  else if (cats[0]) mat = { v: cats[0].timing || "Next", label: "Upcoming catalyst" };
+  else if (flag.stage) mat = { v: flag.stage, label: "Development stage" };
+  else mat = { v: m.commodity || m.shortName, label: "Focus" };
+  const drills = (m.flagship.drills || []).slice().sort((a, b) => _gnum(b.grade) - _gnum(a.grade)).slice(0, 4);
+
+  const numbers = [
+    m.heroStat && [m.heroStat.label || "Resource", m.heroStat.value],
     m.commodity && ["Commodity", m.commodity],
-    (m.geo.region || m.geo.place) && ["Jurisdiction", m.geo.region || m.geo.place],
-    m.capital.find((c) => /market cap/i.test(c[0])),
-    m.capital.find((c) => /cash/i.test(c[0])),
-  ].filter(Boolean);
-  const hasGeo = m.geo.lat != null && m.geo.lng != null;
-  return (
-    <div className="dz">
-      <div className="dz-open">
-        {m.images.hero ? <img src={m.images.hero} alt="" /> : <div className="ph" />}<div className="sc" />
-        <div className="oin">
-          <div className="kx rise">MineEx Field Report{m.geo.place ? " · " + m.geo.place : ""}</div>
-          <h1 className="rise" style={{ transitionDelay: ".1s" }}>{m.tagline || (m.flagship.name ? "Inside " + m.flagship.name : m.shortName)}</h1>
-          <div className="byl rise" style={{ transitionDelay: ".2s" }}>An investigation into {m.shortName}{m.commodity ? " · " + m.commodity : ""}</div>
-        </div>
-      </div>
+    region && ["Jurisdiction", region],
+    ...econ.slice(0, 4).map((e) => [e.k, e.v]),
+  ].filter(Boolean).slice(0, 6);
 
-      <div className="dz-body">
-        {m.thesis && <p className="dz-lede rise">{m.thesis}</p>}
-        <div className="dz-grid">
-          <div className="dz-col">
-            {bodyParas[0] && <p className="rise">{bodyParas[0]}</p>}
-            {pull && <div className="dz-pull rise">“{pull}”</div>}
-            {bodyParas[1] && <p className="rise">{bodyParas[1]}</p>}
-
-            {drills.length > 0 && (
-              <div className="dz-insert rise">
-                <div className="it">From the core · {m.flagship.name || "flagship"}</div>
-                {drills.map((d, i) => <div className="ir" key={i}><span className="h">{d.hole || "—"}</span><span>{d.interval || ""}</span><span className="g">{d.grade || "—"}</span></div>)}
-              </div>
-            )}
-
-            {m.images.field && <figure className="dz-fig rise"><img src={m.images.field} alt="" /><figcaption><b>Fig. 1</b> {m.flagship.name || m.shortName}, {m.geo.place || "in the field"}.</figcaption></figure>}
-
-            {bodyParas[2] && <p className="rise">{bodyParas[2]}</p>}
-
-            {hasGeo && (
-              <div className="dz-map rise">
-                <svg viewBox="0 0 600 260" preserveAspectRatio="xMidYMid slice">
-                  <rect className="m-bg" x="0" y="0" width="600" height="260" />
-                  <g className="m-grid" strokeWidth="1" fill="none">{[52, 104, 156, 208].map((y) => <path key={y} d={`M0 ${y}H600`} />)}{[100, 200, 300, 400, 500].map((x) => <path key={x} d={`M${x} 0V260`} />)}</g>
-                  <circle className="m-acc" cx="300" cy="130" r="7" /><circle className="m-accs" cx="300" cy="130" r="18" fill="none" strokeWidth="1.5" strokeOpacity=".6" />
-                  <text className="m-dim" x="318" y="126" fontSize="13" letterSpacing="1">{(m.geo.region || m.geo.place || "").toUpperCase()}</text>
-                  <text className="m-dim" x="318" y="144" fontSize="11">{m.geo.lat.toFixed(2)}°, {m.geo.lng.toFixed(2)}°</text>
-                </svg>
-                <div className="mc"><span>Approx. location · disclosed jurisdiction</span><b>{[m.geo.region, m.geo.country].filter(Boolean).join(", ")}</b></div>
-              </div>
-            )}
-          </div>
-
-          <aside className="dz-aside">
-            {sideNums.length > 0 && <div className="dz-side rise"><div className="st">By the numbers</div>
-              {sideNums.map((r, i) => <div className="sr" key={i}><span className="k">{r[0]}</span><span className="v">{r[1]}</span></div>)}</div>}
-            {m.catalysts[0] && <div className="dz-side rise"><div className="st">What to watch</div>
-              <div className="sr" style={{ borderBottom: "none", display: "block" }}><span className="k">{m.catalysts[0].timing || "Upcoming"}</span><div className="v" style={{ textAlign: "left", marginTop: 6, fontSize: 15, lineHeight: 1.35 }}>{m.catalysts[0].label}</div></div></div>}
-          </aside>
-        </div>
-
-        {/* Projects as investigative chapters */}
-        {m.projects.map((p, i) => (
-          <div className="dz-chap rise" key={i}>
-            <div className="rn">{_ROMAN[i] || i + 1}</div>
-            <div>
-              <h3>{p.name}</h3>
-              <div className="pm">{[p.stage, p.commodity, p.location, p.ownership && p.ownership + " owned"].filter(Boolean).join("  ·  ")}</div>
-              {p.overview && <p>{p.overview}</p>}
-              {i === 1 && m.images.camp && <figure className="cfig"><img src={m.images.camp} alt="" /></figure>}
+  // EVIDENCE STACK pieces — accumulate in narrative order (file → photo → material fact → records → capital → catalyst)
+  const pieces = [{ type: "file", k: m.tickers[0] || m.shortName, s: "Investment file" }];
+  if (flagImg) pieces.push({ type: "photo", img: flagImg, cap: flag.name || m.shortName });
+  pieces.push({ type: "fact", v: mat.v, k: mat.label, mark: true });
+  P.slice(0, 2).forEach((p) => pieces.push({ type: "record", k: p.stage || p.commodity || "Asset", v: p.name }));
+  if (mcapV) pieces.push({ type: "fin", k: "Market cap", v: mcapV });
+  if (cashV) pieces.push({ type: "fin", k: "Treasury", v: cashV });
+  if (cats[0]) pieces.push({ type: "cat", k: "Next catalyst", v: cats[0].timing || cats[0].label });
+  const stack = (count) => {
+    const n = Math.min(count, pieces.length);
+    return (
+      <div className="dz-stack">
+        <div className="dz-stack-h">Evidence filed · <b>{n}</b></div>
+        <div className="dz-stack-body">
+          {pieces.slice(0, n).map((pc, i) => (
+            <div className={"dz-pc dz-pc-" + pc.type + (i === n - 1 ? " new" : "")} style={{ "--i": i }} key={i}>
+              {pc.type === "photo" ? <><img src={pc.img} alt="" /><span className="pcap">{pc.cap}</span></>
+                : pc.type === "file" ? <><span className="pk">{pc.k}</span><span className="ps">{pc.s}</span></>
+                  : <><span className="pk">{pc.k}</span><span className={"pv" + (pc.mark ? " mk" : "")}>{pc.v}</span></>}
             </div>
-          </div>
-        ))}
-
-        {/* Leadership as feature subjects */}
-        {m.team.length > 0 && (
-          <div style={{ marginTop: "clamp(44px,6vh,72px)" }}>
-            <div className="dz-chap" style={{ borderTop: "1px solid var(--ink)", paddingTop: 26 }}><div className="rn" style={{ fontSize: "clamp(28px,4vw,56px)" }}>·</div><div><h3>The people behind it</h3></div></div>
-            {m.team.slice(0, 5).map((p, i) => (
-              <div className="dz-subj rise" key={i}>
-                <div className="av">{(p.name || "").split(/\s+/).map((w) => w[0]).slice(0, 2).join("")}</div>
-                <div><div className="sq">{p.name}</div><div className="sn"><b>{p.role || "Leadership"}</b>{i === 0 ? " · leading " + m.shortName : ""}</div></div>
-              </div>
-            ))}
-          </div>
-        )}
+          ))}
+        </div>
       </div>
+    );
+  };
 
-      <div className="dz-end"><div className="m rise">The story continues.</div><div className="c">Follow {m.shortName} on MineEx</div></div>
+  const EX = [];
+
+  // 01 · THE FILE — dense masthead: identity, listing, jurisdiction, thesis
+  EX.push({ k: "The file", node: (
+    <div className="dz-spread">
+      <div className="dz-main">
+        <div className="dz-ex-k dz-up">MineEx · Confidential Investment File</div>
+        <div className="dz-rule" />
+        <h1 className="dz-name dz-up">{m.name.replace(/\.$/, "")}</h1>
+        {m.tagline && <div className="dz-sub dz-up">{m.tagline}</div>}
+        <div className="dz-metaline dz-up">{[m.commodity, region, flag.stage, m.tickerLine].filter(Boolean).join("     ·     ")}</div>
+        <div className="dz-rule d2" />
+        {m.thesis && <p className="dz-lede dz-up">{m.thesis}</p>}
+      </div>
+      {stack(1)}
+    </div>
+  ) });
+
+  // 02 · FLAGSHIP — the primary asset record; intercepts marked in red pen
+  if (flag.name) EX.push({ k: "Flagship", node: (
+    <div className="dz-spread">
+      <div className="dz-main">
+        <div className="dz-ex-k dz-up">Exhibit A · Flagship record</div>
+        <h2 className="dz-h2 dz-up">{flag.name}</h2>
+        <div className="dz-metaline dz-up">{[flag.location, flag.ownership && flag.ownership + " owned", flag.land, flag.stage].filter(Boolean).join("     ·     ")}</div>
+        {flag.overview && <p className="dz-p clip3 dz-up">{flag.overview}</p>}
+        {drills.length > 0 && <div className="dz-insert dz-up">
+          <div className="it">From the core · reported intercepts</div>
+          {drills.map((d, i) => <div className={"ir" + (i === 0 ? " top" : "")} key={i}><span className="h">{d.hole || "—"}</span><span>{d.interval || ""}</span><span className="g">{d.grade || "—"}</span></div>)}
+        </div>}
+      </div>
+      {stack(flagImg ? 3 : 2)}
+    </div>
+  ) });
+
+  // 03 · PORTFOLIO — projects as file records (dense; flagship deeper, secondaries lighter)
+  if (P.length > 1) EX.push({ k: "Portfolio", node: (
+    <div className="dz-spread">
+      <div className="dz-main">
+        <div className="dz-ex-k dz-up">The portfolio · {P.length} assets</div>
+        <div className="dz-recs">
+          {P.slice(0, 4).map((p, i) => (
+            <div className="dz-chap dz-up" style={{ transitionDelay: (0.06 + i * 0.06) + "s" }} key={i}>
+              <div className="rn">{_ROMAN[i] || i + 1}</div>
+              <div><h3>{p.name}</h3><div className="pm">{[p.stage, p.commodity, p.location, p.ownership && p.ownership + " owned"].filter(Boolean).join("  ·  ")}</div>{p.overview && <p>{p.overview}</p>}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+      {stack((flagImg ? 3 : 2) + Math.min(2, P.length))}
+    </div>
+  ) });
+
+  // 04 · POSITION — capital & catalysts, dense; the next catalyst flagged for watch
+  if (numbers.length || cats[0]) EX.push({ k: "Position", node: (
+    <div className="dz-spread">
+      <div className="dz-main">
+        <div className="dz-ex-k dz-up">Exhibit B · Position &amp; catalysts</div>
+        {numbers.length > 0 && <div className="dz-numbers dz-up">{numbers.map((r, i) => <div className="nr" key={i}><span className="k">{r[0]}</span><span className="v">{r[1]}</span></div>)}</div>}
+        {(cats[0] || (m.timeline && m.timeline[0])) && <div className="dz-watch dz-up">
+          <div className="it">What to watch</div>
+          {cats[0] && <div className="wr"><span className="wt">{cats[0].timing || "Upcoming"}</span><span className="wl">{cats[0].label}</span><span className="wtag">Watch</span></div>}
+          {m.timeline && m.timeline[0] && <div className="wr rec"><span className="wt">{(m.timeline[0].date || "").slice(0, 10)}</span><span className="wl">{m.timeline[0].headline}</span></div>}
+        </div>}
+      </div>
+      {stack(pieces.length)}
+    </div>
+  ) });
+
+  // 05 · FINDINGS — the case resolves; the accumulated evidence beside the conclusion + follow action
+  EX.push({ k: "Findings", node: (
+    <div className="dz-spread dz-final">
+      <div className="dz-main">
+        <div className="dz-ex-k dz-up">Findings</div>
+        {why.length > 0 && <div className="dz-finds">{why.map((w, i) => <div className="fnd dz-up" style={{ transitionDelay: (0.06 + i * 0.07) + "s" }} key={i}><span className="fn">{_ROMAN[i]}</span><span className="ft">{w}</span></div>)}</div>}
+        {m.team.length > 0 && <div className="dz-princ dz-up"><span className="pk">Principals</span> {m.team.slice(0, 4).map((p) => p.name).join("  ·  ")}</div>}
+        <div className="dz-close dz-up"><div className="dz-close-name">Follow {m.shortName} on MineEx</div><div className="dz-close-sub">Continue the file — press releases, results, catalysts &amp; media</div></div>
+      </div>
+      {stack(pieces.length)}
+    </div>
+  ) });
+
+  const total = EX.length;
+  return (
+    <div className="dz dz-file" ref={scRef}>
+      {EX.map((e, i) => <section className={"dz-ex" + (seen.has(i) ? " on" : "")} data-i={i} key={i}>{e.node}</section>)}
+      <div className="dz-run">MineEx Investment File — {m.shortName}</div>
+      <div className="dz-folio">— {String(active + 1).padStart(2, "0")} / {String(total).padStart(2, "0")} —<span className="fl">·  {(EX[active] || {}).k}</span></div>
     </div>
   );
 }
@@ -1759,8 +3916,187 @@ function IndexTpl({ m }) {
 const cvHexA = (hex, a) => { hex = (hex || "#c9a86a").replace("#", ""); if (hex.length === 3) hex = hex.replace(/./g, (c) => c + c); const n = parseInt(hex, 16); return "rgba(" + ((n >> 16) & 255) + "," + ((n >> 8) & 255) + "," + (n & 255) + "," + a + ")"; };
 function sizeCanvasEl(cv) { const r = cv.getBoundingClientRect(), dpr = Math.min(2, window.devicePixelRatio || 1); cv.width = Math.max(1, r.width * dpr); cv.height = Math.max(1, r.height * dpr); return dpr; }
 
-// ── Template 09 · PULSE — ambient aurora motion ──
+// ── Template 09 · PULSE — aurora / luminous / atmospheric ──
+// A persistent aurora FIELD (one optimized canvas) breathes behind the whole experience and reacts to
+// scroll; cinematic snap BEATS; content revealed by LUMINANCE SWEEPS (never fade-up); the signature body
+// moment is THE READING — luminous curtains encoding the company's strongest REAL evidence. Milestones
+// travel as points of light; the ending converges into the follow. Own palette (midnight · teal · violet).
 function Pulse({ m }) {
+  const scRef = useRef(null); const fieldRef = useRef(null);
+  const [seen, setSeen] = useState(() => new Set([0]));
+  // aurora FIELD — one canvas, additive luminous curtains, slow breathing, depth, scroll-reactive.
+  useEffect(() => {
+    const host = fieldRef.current; if (!host) return; const cv = host.querySelector("canvas"); if (!cv) return;
+    const ctx = cv.getContext("2d"); const reduce = matchMedia("(prefers-reduced-motion:reduce)").matches;
+    let raf = 0, t = 0, W = 0, H = 0, dpr = 1; const stars = [];
+    const size = () => { dpr = Math.min(1.6, window.devicePixelRatio || 1); const r = host.getBoundingClientRect(); W = cv.width = Math.max(1, Math.round(r.width * dpr)); H = cv.height = Math.max(1, Math.round(r.height * dpr)); stars.length = 0; for (let i = 0; i < 64; i++) stars.push([Math.random() * W, Math.random() * H * 0.72, Math.random() * 1.1 * dpr + 0.3, Math.random()]); };
+    size(); const onR = () => size(); window.addEventListener("resize", onR);
+    const hues = [[63, 224, 192], [110, 222, 140], [154, 134, 242], [79, 186, 232], [63, 224, 192]];
+    const sc = scRef.current;
+    const draw = () => {
+      raf = requestAnimationFrame(draw); if (!reduce) t += 0.0042;
+      const g = ctx.createLinearGradient(0, 0, 0, H); g.addColorStop(0, "#070c18"); g.addColorStop(0.55, "#060912"); g.addColorStop(1, "#04060d");
+      ctx.globalCompositeOperation = "source-over"; ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+      const st = sc ? sc.scrollTop : 0, vh = sc ? (sc.clientHeight || 1) : H, prog = st / vh;
+      const intensity = Math.max(0.34, 1 - prog * 0.42), rise = Math.min(H * 0.12, prog * H * 0.02), breathe = 0.78 + 0.22 * Math.sin(t * 1.6);
+      ctx.globalCompositeOperation = "lighter";
+      for (const s of stars) { const tw = 0.4 + 0.6 * Math.abs(Math.sin(t * 2 + s[3] * 6)); ctx.fillStyle = "rgba(200,220,255," + (0.5 * tw * intensity).toFixed(3) + ")"; ctx.fillRect(s[0], s[1] - rise * 0.3, s[2], s[2]); }
+      const N = 5, step = Math.max(10, W / 64);
+      for (let i = 0; i < N; i++) {
+        const depth = i / (N - 1), base = H * (0.34 + depth * 0.15) + Math.sin(t * 0.7 + i * 1.3) * H * 0.025 - rise, amp = H * (0.07 + depth * 0.035), sp = 0.5 + depth * 0.5;
+        ctx.beginPath(); ctx.moveTo(0, H);
+        for (let x = 0; x <= W; x += step) { const y = base + Math.sin(x * 0.0022 + t * sp + i) * amp + Math.sin(x * 0.0051 + t * sp * 1.4 + i * 2) * amp * 0.5; ctx.lineTo(x, y); }
+        ctx.lineTo(W, H); ctx.closePath();
+        const c = hues[i % hues.length], a = (0.26 + depth * 0.07) * breathe * (0.6 + intensity * 0.5), gg = ctx.createLinearGradient(0, base - amp * 2.2, 0, base + amp * 3.5);
+        gg.addColorStop(0, "rgba(" + c[0] + "," + c[1] + "," + c[2] + ",0)"); gg.addColorStop(0.14, "rgba(" + c[0] + "," + c[1] + "," + c[2] + "," + (a * 0.6).toFixed(3) + ")"); gg.addColorStop(0.34, "rgba(" + c[0] + "," + c[1] + "," + c[2] + "," + a.toFixed(3) + ")"); gg.addColorStop(1, "rgba(" + c[0] + "," + c[1] + "," + c[2] + ",0)");
+        ctx.fillStyle = gg; ctx.fill();
+      }
+    };
+    draw();
+    return () => { cancelAnimationFrame(raf); window.removeEventListener("resize", onR); };
+  }, []);
+  // beats reveal (play-once, no replay)
+  useEffect(() => {
+    const sc = scRef.current; if (!sc) return; const els = [...sc.querySelectorAll(".pls-beat")];
+    const io = new IntersectionObserver((es) => es.forEach((e) => { if (!e.isIntersecting) return; const i = +e.target.dataset.i; if (!isNaN(i)) setSeen((p) => { if (p.has(i)) return p; const n = new Set(p); n.add(i); return n; }); }), { root: sc, threshold: 0.4 });
+    els.forEach((s) => io.observe(s)); return () => io.disconnect();
+  }, [m]);
+
+  const { pool, flag, flagImg, best, cats, why, region, econ } = _confStory(m);
+  const P = m.projects || [];
+  const splitNum = (s) => { const mm = String(s == null ? "" : s).match(/^\s*([~<>]?[\d.,]+)\s*(.*)$/); return mm ? [mm[1], mm[2]] : [String(s == null ? "" : s), ""]; };
+  const img = (i) => (pool.length ? pool[((i % pool.length) + pool.length) % pool.length] : "");
+
+  // THE READING — luminous curtains from REAL numeric intercepts; else a resource/material crest.
+  const curtains = (m.flagship.drills || []).map((d) => ({ lab: d.hole, val: d.grade, n: _gnum(d.grade) })).filter((c) => c.n > 0).sort((a, b) => b.n - a.n).slice(0, 6);
+  const maxN = curtains.length ? Math.max(...curtains.map((c) => c.n)) : 1;
+  let crest;
+  if (m.heroStat) { const [n, u] = splitNum(m.heroStat.value); crest = { n, u, label: m.heroStat.label || "Mineral resource", pts: m.highlights.slice(1, 4).map((h) => [h.value, h.label]) }; }
+  else if (best) { const [n, u] = splitNum(best.grade); crest = { n, u, label: "Strongest intercept", pts: [[best.interval, "interval"], [best.hole, "hole"]].filter((x) => x[0]) }; }
+  else if (econ[0]) { const [n, u] = splitNum(econ[0].v); crest = { n, u, label: econ[0].k, pts: econ.slice(1, 4).map((e) => [e.v, e.k]) }; }
+  else { crest = { n: m.commodity || m.shortName, u: "", label: "Focus", pts: [] }; }
+
+  const capBig = econ.find((e) => /market/i.test(e.k)) || econ.find((e) => /cash/i.test(e.k)) || econ[0];
+  const capSide = econ.filter((e) => e !== capBig).slice(0, 5);
+  const others = P.filter((p) => p.name !== flag.name);
+  const events = [...(m.timeline || []).slice(0, 5).map((tl) => ({ d: (tl.date || "").slice(0, 10), h: tl.headline, next: false })), ...cats.slice(0, 2).map((c) => ({ d: c.timing || "Next", h: c.label, next: true }))];
+
+  const B = [];
+
+  // 1 · HERO — identity under the aurora
+  B.push(
+    <>
+      <div className="pls-in pls-hero">
+        <div className="ek pls-sw">{[m.geo.lat != null ? Math.round(Math.abs(m.geo.lat)) + "°" + (m.geo.lat >= 0 ? "N" : "S") : "", region].filter(Boolean).join("  ·  ") || m.commodity}</div>
+        <h1 className="pls-sw pls-glow">{m.heroStat ? <>{splitNum(m.heroStat.value)[0]}<em> {splitNum(m.heroStat.value)[1] || (m.commodity || "")}</em></> : m.name.replace(/\.$/, "")}</h1>
+        {m.thesis && <p className="lede pls-sw">{m.thesis}</p>}
+        {m.tickerLine && <span className="tk pls-sw"><span className="dot" />{m.tickerLine}</span>}
+      </div>
+      <div className="pls-cue">Scroll ↓</div>
+    </>
+  );
+
+  // 2 · THE READING — signature luminous evidence
+  B.push(
+    <div className="pls-in">
+      <div className="pls-k">The reading</div>
+      {curtains.length >= 2 ? (
+        <>
+          <div className="pls-read-head"><div className="pls-sw" style={{ fontSize: "clamp(22px,3vw,40px)", fontWeight: 800, letterSpacing: "-.02em" }}>Strongest intercepts</div><div className="pls-sw" style={{ fontFamily: "var(--mono)", fontSize: 12, color: "var(--dim)" }}>{m.commodity || "grade"} · reported</div></div>
+          <div className="pls-read">{curtains.map((c, i) => <div className={"pls-cur" + (i === 0 ? " peak" : "")} style={{ "--h": Math.max(14, Math.round(c.n / maxN * 100)) + "%", "--d": (0.1 + i * 0.08) + "s" }} key={i}><span className="val">{c.val}</span><span className="col" /><span className="lab">{c.lab}</span></div>)}</div>
+          <div className="pls-read-note">Reported grades — interval widths as disclosed; no drill geometry implied.</div>
+        </>
+      ) : (
+        <div className="pls-crest">
+          <div className="big pls-sw pls-glow">{crest.n}{crest.u && <em>{crest.u}</em>}</div>
+          <div className="pts">
+            <div className="pt pls-sw" style={{ fontSize: 13, textTransform: "uppercase", letterSpacing: ".1em", color: "var(--accent)" }}>{crest.label}</div>
+            {crest.pts.map(([v, k], i) => <div className="pt pls-sw" style={{ transitionDelay: (0.1 + i * 0.08) + "s" }} key={i}><b>{v}</b> {k}</div>)}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
+  // 3 · FLAGSHIP — cinematic image window opening
+  if (flag.name) B.push(
+    <div className="pls-in pls-img">
+      <div className="pls-imgwin">{flagImg ? <img src={flagImg} alt="" /> : <div style={{ width: "100%", height: "100%", background: "var(--bg2)" }} />}<span className="cap">{flag.location || flag.name}</span></div>
+      <div className="pls-imgtxt">
+        <div className="pls-k">Flagship</div>
+        <h2 className="t pls-sw">{flag.name}</h2>
+        <div className="meta pls-sw">{[flag.stage, flag.commodity || m.commodity, flag.ownership && flag.ownership + " owned", flag.land].filter(Boolean).join("   ·   ")}</div>
+        {flag.overview && <p className="pls-sw">{flag.overview}</p>}
+      </div>
+    </div>
+  );
+
+  // 4 · OTHER PROJECTS — alternating cinematic crops (dynamic count)
+  others.slice(0, 3).forEach((p, i) => B.push(
+    <div className={"pls-in pls-img" + (i % 2 === 0 ? " rev" : "")}>
+      <div className="pls-imgwin">{(p.image || img(i + 2)) ? <img src={p.image || img(i + 2)} alt="" /> : <div style={{ width: "100%", height: "100%", background: "var(--bg2)" }} />}<span className="cap">{p.location || p.name}</span></div>
+      <div className="pls-imgtxt">
+        <div className="pls-k">Project {String(i + 2).padStart(2, "0")}</div>
+        <h2 className="t pls-sw">{p.name}</h2>
+        <div className="meta pls-sw">{[p.stage, p.commodity, p.location, p.ownership && p.ownership + " owned"].filter(Boolean).join("   ·   ")}</div>
+        {p.overview && <p className="pls-sw">{p.overview}</p>}
+      </div>
+    </div>
+  ));
+
+  // 5 · CAPITAL — a number as an event
+  if (capBig) B.push(
+    <div className="pls-in">
+      <div className="pls-k">Position</div>
+      <div className="pls-fig">
+        <div className="num pls-sw pls-glow">{splitNum(capBig.v)[0]}{splitNum(capBig.v)[1] && <em>{splitNum(capBig.v)[1]}</em>}</div>
+        <div className="side">
+          <div className="sr pls-sw" style={{ borderTopColor: "transparent" }}><span className="k">{capBig.k}</span><span className="v" /></div>
+          {capSide.map((e, i) => <div className="sr pls-sw" style={{ transitionDelay: (0.1 + i * 0.06) + "s" }} key={i}><span className="k">{e.k}</span><span className="v">{e.v}</span></div>)}
+        </div>
+      </div>
+    </div>
+  );
+
+  // 6 · PROGRESSION — milestones as points of light travelling toward the next catalyst
+  if (events.length) B.push(
+    <div className="pls-in">
+      <div className="pls-k">Momentum</div>
+      <div className="pls-prog">{events.map((e, i) => <div className={"pls-mi" + (e.next ? " next" : "")} style={{ "--d": (0.2 + i * 0.1) + "s" }} key={i}><span className="d">{e.d}</span><span className="h pls-sw">{e.h}</span></div>)}</div>
+    </div>
+  );
+
+  // 7 · WHY — the case, luminous
+  if (why.length) B.push(
+    <div className="pls-in">
+      <div className="pls-k">Why it matters</div>
+      <div className="pls-why">{why.map((w, i) => <div className="w" key={i}><span className="n">{String(i + 1).padStart(2, "0")}</span><span className="t pls-sw" style={{ transitionDelay: (i * 0.08) + "s" }}>{w}</span></div>)}</div>
+      {m.team.length > 0 && <div className="pls-team">{m.team.slice(0, 6).map((p, i) => <div className="tm pls-sw" style={{ transitionDelay: (0.1 + i * 0.05) + "s" }} key={i}><div className="nm">{p.name}</div><div className="ro">{p.role}</div></div>)}</div>}
+    </div>
+  );
+
+  // 8 · RESOLUTION — the aurora converges into the follow
+  B.push(
+    <div className="pls-in pls-cta">
+      <div className="conv pls-sw">The signal continues</div>
+      <h2 className="pls-sw pls-glow">{m.shortName}</h2>
+      {m.tickerLine && <div className="pls-sw" style={{ fontFamily: "var(--mono)", fontSize: 12, letterSpacing: ".08em", color: "var(--dim)", marginTop: 16 }}>{m.tickerLine}</div>}
+      <div className="feat pls-sw">{["Press releases", "Results", "Catalysts", "Media"].map((x) => <span key={x}>{x}</span>)}</div>
+      <div className="go pls-sw">Follow on MineEx →</div>
+    </div>
+  );
+
+  return (
+    <div className="pulse" ref={scRef}>
+      <div className="pulse-field" ref={fieldRef}><canvas /></div>
+      {B.map((node, i) => <section className={"pls-beat" + (seen.has(i) ? " on" : "")} data-i={i} key={i}>{node}</section>)}
+    </div>
+  );
+}
+
+// ── Template 09b · PULSE II — the ORIGINAL Pulse (aurora canvas hero + feature body), preserved as a
+// second creative direction alongside the refined Pulse above. Same universal data, unchanged. ──
+function Pulse2({ m }) {
   const ref = useRef(null);
   useEffect(() => {
     const cv = ref.current; if (!cv) return; const ctx = cv.getContext("2d"); let raf, t = 0;
@@ -1790,69 +4126,241 @@ function Pulse({ m }) {
           {m.tickerLine && <span className="ticker rise"><span className="dot" />{m.tickerLine}</span>}
         </div>
       </section>
-      <HeroStat m={m} /><PulseBody m={m} /><FollowBlock m={m} />
+      <PulseBody2 m={m} />
     </>
   );
 }
 
-// ── Template 10 · ORBIT — rotating dotted globe, marking the real jurisdiction ──
-function Orbit({ m }) {
+// Improved body for PULSE II — keeps the original aurora hero above, but replaces the old static feature
+// list with the refined Pulse motion system (luminance sweeps, THE READING curtains, cinematic imagery,
+// number-as-event, milestone light-progression, resolution) rendered in the original gold palette.
+function PulseBody2({ m }) {
   const ref = useRef(null);
   useEffect(() => {
-    const cv = ref.current; if (!cv) return; const ctx = cv.getContext("2d"); let raf, rot = 0;
+    const host = ref.current; if (!host) return; const root = host.closest(".cv3");
+    const io = new IntersectionObserver((es) => es.forEach((e) => { if (e.isIntersecting) e.target.classList.add("on"); }), { root: root || null, threshold: 0.32 });
+    [...host.querySelectorAll(".pls-beat")].forEach((s) => io.observe(s)); return () => io.disconnect();
+  }, [m]);
+
+  const { pool, flag, flagImg, best, cats, why, region, econ } = _confStory(m);
+  const P = m.projects || [];
+  const splitNum = (s) => { const mm = String(s == null ? "" : s).match(/^\s*([~<>]?[\d.,]+)\s*(.*)$/); return mm ? [mm[1], mm[2]] : [String(s == null ? "" : s), ""]; };
+  const img = (i) => (pool.length ? pool[((i % pool.length) + pool.length) % pool.length] : "");
+  const curtains = (m.flagship.drills || []).map((d) => ({ lab: d.hole, val: d.grade, n: _gnum(d.grade) })).filter((c) => c.n > 0).sort((a, b) => b.n - a.n).slice(0, 6);
+  const maxN = curtains.length ? Math.max(...curtains.map((c) => c.n)) : 1;
+  let crest;
+  if (m.heroStat) { const [n, u] = splitNum(m.heroStat.value); crest = { n, u, label: m.heroStat.label || "Mineral resource", pts: m.highlights.slice(1, 4).map((h) => [h.value, h.label]) }; }
+  else if (best) { const [n, u] = splitNum(best.grade); crest = { n, u, label: "Strongest intercept", pts: [[best.interval, "interval"], [best.hole, "hole"]].filter((x) => x[0]) }; }
+  else if (econ[0]) { const [n, u] = splitNum(econ[0].v); crest = { n, u, label: econ[0].k, pts: econ.slice(1, 4).map((e) => [e.v, e.k]) }; }
+  else { crest = { n: m.commodity || m.shortName, u: "", label: "Focus", pts: [] }; }
+  const capBig = econ.find((e) => /market/i.test(e.k)) || econ.find((e) => /cash/i.test(e.k)) || econ[0];
+  const capSide = econ.filter((e) => e !== capBig).slice(0, 5);
+  const others = P.filter((p) => p.name !== flag.name);
+  const events = [...(m.timeline || []).slice(0, 5).map((tl) => ({ d: (tl.date || "").slice(0, 10), h: tl.headline, next: false })), ...cats.slice(0, 2).map((c) => ({ d: c.timing || "Next", h: c.label, next: true }))];
+
+  const B = [];
+  // THE READING — luminous evidence
+  B.push(
+    <div className="pls-in">
+      <div className="pls-k">The reading</div>
+      {curtains.length >= 2 ? (
+        <>
+          <div className="pls-read-head"><div className="pls-sw" style={{ fontSize: "clamp(22px,3vw,40px)", fontWeight: 800, letterSpacing: "-.02em" }}>Strongest intercepts</div><div className="pls-sw" style={{ fontFamily: "var(--mono)", fontSize: 12, color: "var(--dim)" }}>{m.commodity || "grade"} · reported</div></div>
+          <div className="pls-read">{curtains.map((c, i) => <div className={"pls-cur" + (i === 0 ? " peak" : "")} style={{ "--h": Math.max(14, Math.round(c.n / maxN * 100)) + "%", "--d": (0.1 + i * 0.08) + "s" }} key={i}><span className="val">{c.val}</span><span className="col" /><span className="lab">{c.lab}</span></div>)}</div>
+          <div className="pls-read-note">Reported grades — interval widths as disclosed; no drill geometry implied.</div>
+        </>
+      ) : (
+        <div className="pls-crest">
+          <div className="big pls-sw pls-glow">{crest.n}{crest.u && <em>{crest.u}</em>}</div>
+          <div className="pts">
+            <div className="pt pls-sw" style={{ fontSize: 13, textTransform: "uppercase", letterSpacing: ".1em", color: "var(--accent)" }}>{crest.label}</div>
+            {crest.pts.map(([v, k], i) => <div className="pt pls-sw" style={{ transitionDelay: (0.1 + i * 0.08) + "s" }} key={i}><b>{v}</b> {k}</div>)}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+  // FLAGSHIP — cinematic image window
+  if (flag.name) B.push(
+    <div className="pls-in pls-img">
+      <div className="pls-imgwin">{flagImg ? <img src={flagImg} alt="" /> : <div style={{ width: "100%", height: "100%", background: "var(--bg2)" }} />}<span className="cap">{flag.location || flag.name}</span></div>
+      <div className="pls-imgtxt"><div className="pls-k">Flagship</div><h2 className="t pls-sw">{flag.name}</h2><div className="meta pls-sw">{[flag.stage, flag.commodity || m.commodity, flag.ownership && flag.ownership + " owned", flag.land].filter(Boolean).join("   ·   ")}</div>{flag.overview && <p className="pls-sw">{flag.overview}</p>}</div>
+    </div>
+  );
+  // OTHER PROJECTS
+  others.slice(0, 3).forEach((p, i) => B.push(
+    <div className={"pls-in pls-img" + (i % 2 === 0 ? " rev" : "")}>
+      <div className="pls-imgwin">{(p.image || img(i + 2)) ? <img src={p.image || img(i + 2)} alt="" /> : <div style={{ width: "100%", height: "100%", background: "var(--bg2)" }} />}<span className="cap">{p.location || p.name}</span></div>
+      <div className="pls-imgtxt"><div className="pls-k">Project {String(i + 2).padStart(2, "0")}</div><h2 className="t pls-sw">{p.name}</h2><div className="meta pls-sw">{[p.stage, p.commodity, p.location, p.ownership && p.ownership + " owned"].filter(Boolean).join("   ·   ")}</div>{p.overview && <p className="pls-sw">{p.overview}</p>}</div>
+    </div>
+  ));
+  // CAPITAL — number as event
+  if (capBig) B.push(
+    <div className="pls-in">
+      <div className="pls-k">Position</div>
+      <div className="pls-fig">
+        <div className="num pls-sw pls-glow">{splitNum(capBig.v)[0]}{splitNum(capBig.v)[1] && <em>{splitNum(capBig.v)[1]}</em>}</div>
+        <div className="side"><div className="sr pls-sw" style={{ borderTopColor: "transparent" }}><span className="k">{capBig.k}</span><span className="v" /></div>{capSide.map((e, i) => <div className="sr pls-sw" style={{ transitionDelay: (0.1 + i * 0.06) + "s" }} key={i}><span className="k">{e.k}</span><span className="v">{e.v}</span></div>)}</div>
+      </div>
+    </div>
+  );
+  // PROGRESSION — milestones as travelling light
+  if (events.length) B.push(
+    <div className="pls-in">
+      <div className="pls-k">Momentum</div>
+      <div className="pls-prog">{events.map((e, i) => <div className={"pls-mi" + (e.next ? " next" : "")} style={{ "--d": (0.2 + i * 0.1) + "s" }} key={i}><span className="d">{e.d}</span><span className="h pls-sw">{e.h}</span></div>)}</div>
+    </div>
+  );
+  // WHY + TEAM
+  if (why.length) B.push(
+    <div className="pls-in">
+      <div className="pls-k">Why it matters</div>
+      <div className="pls-why">{why.map((w, i) => <div className="w" key={i}><span className="n">{String(i + 1).padStart(2, "0")}</span><span className="t pls-sw" style={{ transitionDelay: (i * 0.08) + "s" }}>{w}</span></div>)}</div>
+      {m.team.length > 0 && <div className="pls-team">{m.team.slice(0, 6).map((p, i) => <div className="tm pls-sw" style={{ transitionDelay: (0.1 + i * 0.05) + "s" }} key={i}><div className="nm">{p.name}</div><div className="ro">{p.role}</div></div>)}</div>}
+    </div>
+  );
+  // RESOLUTION
+  B.push(
+    <div className="pls-in pls-cta">
+      <div className="conv pls-sw">The signal continues</div>
+      <h2 className="pls-sw pls-glow">{m.shortName}</h2>
+      {m.tickerLine && <div className="pls-sw" style={{ fontFamily: "var(--mono)", fontSize: 12, letterSpacing: ".08em", color: "var(--dim)", marginTop: 16 }}>{m.tickerLine}</div>}
+      <div className="feat pls-sw">{["Press releases", "Results", "Catalysts", "Media"].map((x) => <span key={x}>{x}</span>)}</div>
+      <div className="go pls-sw">Follow on MineEx →</div>
+    </div>
+  );
+
+  return <div ref={ref}>{B.map((node, i) => <section className="pls-beat pls-b2" data-i={i} key={i}>{node}</section>)}</div>;
+}
+
+// ── Template 10 · ORBIT (rebuild) — "information has gravity" ──
+// A globe opens on the company's TRUTHFUL jurisdiction, then RELEASES into a persistent gravitational
+// FIELD where the company's real facts (imagery, numbers, projects, capital, catalyst) gain/lose mass
+// (= luminance) and migrate, finally CONVERGING into the thesis. Same universal data; Orbit-specific
+// storytelling. Adapts to project count, company type and available data. Never fabricates geography.
+function Orbit({ m }) {
+  const scRef = useRef(null), globeRef = useRef(null);
+  const [state, setState] = useState(0);
+  const [sel, setSel] = useState(0);
+  const stRef = useRef("open");
+  const { pool, flag, flagImg, best, cats, why, region, econ, ctaFeatures } = _confStory(m);
+  const splitNum = (s) => { const mm = String(s == null ? "" : s).match(/^\s*([~<>]?[\d.,]+)\s*(.*)$/); return mm ? [mm[1], mm[2]] : [String(s == null ? "" : s), ""]; };
+  const nilish = (v) => /(^|\b)(nil|none|no|zero|0)\b/i.test(String(v));
+  const hasJ = m.geo.lat != null && m.geo.lng != null;
+  const thesis = m.tagline || m.thesis || ("Follow " + m.shortName);
+
+  // strongest MATERIAL evidence for this company (adaptive; never assumes drilling/resource)
+  let evi = null;
+  if (m.heroStat) { const [n, u] = splitNum(m.heroStat.value); evi = { n, u, label: m.heroStat.label || "Mineral resource" }; }
+  else if (best) { evi = { n: best.grade, u: "", label: "Strongest intercept" }; }
+  else if (econ.find((e) => /mine life|aisc/i.test(e.k))) { const e = econ.find((e) => /mine life|aisc/i.test(e.k)); const [n, u] = splitNum(e.v); evi = { n, u, label: e.k }; }
+  else if (flag.land) { evi = { n: flag.land, u: "", label: "Land position" }; }
+  else if (flag.stage) { evi = { n: flag.stage, u: "", label: "Development stage" }; }
+  // capital hierarchy (derived, never a hard-coded slot)
+  const score = (f) => { const k = f.k.toLowerCase(); if (/debt/.test(k)) return nilish(f.v) ? 9.0 : 6; if (/cash|treasur/.test(k)) return 9.3; if (/mine life|aisc/.test(k)) return 8.5; if (/market cap/.test(k)) return 7; if (/outstanding/.test(k)) return 5; if (/dilut/.test(k)) return 4.2; return 2.5; };
+  let capF = [...m.capital.map(([k, v]) => ({ k, v })), ...econ.filter((e) => /mine life|aisc/i.test(e.k)).map((e) => ({ k: e.k, v: e.v }))].filter((f) => f.v).map((f) => ({ ...f, s: score(f) })).sort((a, b) => b.s - a.s);
+  const capP = capF[0], capS = capF[1];
+  const others = m.projects.filter((p) => p.name !== flag.name);
+
+  // ── the MASSES (real company facts) ──
+  const M = [];
+  M.push({ id: "id", kind: "ident", mv: m.shortName, ms: m.tickerLine });
+  if (flagImg) M.push({ id: "img", kind: "img", src: flagImg, cap: flag.location || flag.name || "" });
+  if (flag.name) M.push({ id: "flag", kind: "text", ml: "Flagship", mv: flag.name });
+  if (evi) M.push({ id: "evi", kind: "num", ml: evi.label, mv: evi.n, mu: evi.u });
+  if (capP) { const df = /debt/i.test(capP.k) && nilish(capP.v); const [n, u] = df ? ["Zero", ""] : splitNum(capP.v); M.push({ id: "cap", kind: "num", ml: df ? "Debt" : capP.k, mv: n, mu: u }); }
+  if (capS) { const [n, u] = splitNum(capS.v); M.push({ id: "cap2", kind: "num", ml: capS.k, mv: n, mu: u }); }
+  if (cats[0]) M.push({ id: "cat", kind: "text", ml: "Next" + (cats[0].timing ? " · " + cats[0].timing : ""), mv: cats[0].label });
+  others.slice(0, 4).forEach((p, i) => M.push({ id: "p" + i, kind: "proj", mv: p.name, ms: [p.stage, p.location].filter(Boolean).join(" · "), pick: true, projIdx: i }));
+  const has = (id) => M.some((x) => x.id === id);
+  const projIds = M.filter((x) => x.kind === "proj").map((x) => x.id);
+
+  // ── the STATE sequence (adaptive) ──
+  const S = [{ id: "open", focus: ["id"] }];
+  if (hasJ) S.push({ id: "place" });
+  if (has("img") || has("flag")) S.push({ id: "owns", focus: has("img") ? ["img"] : ["flag"], support: has("img") && has("flag") ? ["flag"] : [], orbit: projIds });
+  if (has("evi")) S.push({ id: "evidence", focus: ["evi"], support: [has("img") ? "img" : "", has("flag") ? "flag" : ""].filter(Boolean) });
+  if (has("cap")) S.push({ id: "capital", focus: ["cap"], support: has("cap2") ? ["cap2"] : [] });
+  if (has("cat")) S.push({ id: "next", focus: ["cat"], support: has("cap") ? ["cap"] : [] });
+  S.push({ id: "converge" });
+  S.push({ id: "follow" });
+  const cur = S[Math.min(state, S.length - 1)] || S[0];
+  stRef.current = cur.id;
+
+  // ── GLOBE — dotted sphere with REAL land + truthful jurisdiction marker; zooms to face the jurisdiction
+  //    from the "place" state on, then fades as the field takes over. No fabricated precision. ──
+  useEffect(() => {
+    if (!hasJ) return; const cv = globeRef.current; if (!cv) return; const ctx = cv.getContext("2d");
     const reduce = matchMedia("(prefers-reduced-motion:reduce)").matches;
-    const pts = []; for (let la = -80; la <= 80; la += 9) { const rr = Math.cos(la * Math.PI / 180), n = Math.round(30 * rr) + 5; for (let k = 0; k < n; k++) pts.push([la, k / n * 360]); }
-    sizeCanvasEl(cv); requestAnimationFrame(() => requestAnimationFrame(() => sizeCanvasEl(cv))); const onR = () => sizeCanvasEl(cv); window.addEventListener("resize", onR);
+    let land = []; fetch("/geo/land.json").then((r) => r.json()).then((d) => { land = d; }).catch(() => {});
+    let raf = 0, autoRot = 0, face = 0, zoom = 1, alpha = 1;
+    sizeCanvasEl(cv); requestAnimationFrame(() => requestAnimationFrame(() => sizeCanvasEl(cv)));
+    const onR = () => sizeCanvasEl(cv); window.addEventListener("resize", onR);
     const rv = (n) => getComputedStyle(cv).getPropertyValue(n).trim();
-    const hasMark = m.geo.lat != null && m.geo.lng != null;
+    const P = Math.PI, jLa = m.geo.lat, jLo = m.geo.lng, mix = (a, b, t) => a + (b - a) * t;
     const draw = () => {
-      const w = cv.width, h = cv.height; ctx.clearRect(0, 0, w, h); if (!reduce) rot += 0.0022;
-      const R = Math.min(w, h) * 0.4, cx = w / 2, cy = h / 2, ink = rv("--ink") || "#eee", acc = rv("--accent") || "#c9a86a", dpr = Math.min(2, window.devicePixelRatio || 1);
-      const proj = (la, lo) => { la *= Math.PI / 180; lo = (lo + rot * 57.2958) * Math.PI / 180; return [Math.cos(la) * Math.sin(lo), Math.sin(la), Math.cos(la) * Math.cos(lo)]; };
-      pts.forEach((p) => { const v = proj(p[0], p[1]); const sx = cx + v[0] * R, sy = cy - v[1] * R, a = v[2] > 0 ? (0.1 + v[2] * 0.5) : 0.05; ctx.beginPath(); ctx.fillStyle = cvHexA(ink, a); ctx.arc(sx, sy, (v[2] > 0 ? 1.5 : 1.1) * dpr, 0, 7); ctx.fill(); });
-      if (hasMark) { const v = proj(m.geo.lat, m.geo.lng), mx = cx + v[0] * R, my = cy - v[1] * R; if (v[2] > 0) { ctx.beginPath(); ctx.fillStyle = acc; ctx.arc(mx, my, 4 * dpr, 0, 7); ctx.fill(); const pr = reduce ? 0.5 : (0.5 + 0.5 * Math.sin(Date.now() / 500)); ctx.beginPath(); ctx.strokeStyle = cvHexA(acc, 0.6 - pr * 0.4); ctx.lineWidth = 1.5 * dpr; ctx.arc(mx, my, (6 + pr * 10) * dpr, 0, 7); ctx.stroke(); } }
       raf = requestAnimationFrame(draw);
+      const st = stRef.current;
+      const tF = st === "open" ? 0 : 1, tZ = st === "open" ? 1 : (st === "place" ? 1.85 : 2.05), tA = (st === "open" || st === "place") ? 1 : 0;
+      face += (tF - face) * 0.05; zoom += (tZ - zoom) * 0.05; alpha += (tA - alpha) * 0.07;
+      const w = cv.width, h = cv.height; ctx.clearRect(0, 0, w, h);
+      if (alpha < 0.012) return;
+      if (!reduce) autoRot += 0.0016;
+      const dpr = Math.min(2, window.devicePixelRatio || 1), R = Math.min(w, h) * 0.34 * zoom, cx = w / 2, cy = h / 2;
+      const rotY = mix(autoRot, -jLo * P / 180, face), tiltX = (jLa * P / 180) * face;
+      const ink = rv("--ink") || "#e7ebf4", acc = rv("--accent") || "#a7bce8";
+      ctx.globalAlpha = alpha;
+      const proj = (la, lo) => { la *= P / 180; lo = lo * P / 180 + rotY; const x = Math.cos(la) * Math.sin(lo), y = Math.sin(la), z = Math.cos(la) * Math.cos(lo); return [x, y * Math.cos(tiltX) - z * Math.sin(tiltX), y * Math.sin(tiltX) + z * Math.cos(tiltX)]; };
+      for (const p of land) { const v = proj(p[0], p[1]); if (v[2] <= 0.02) continue; ctx.fillStyle = cvHexA(ink, 0.14 + v[2] * 0.5); ctx.beginPath(); ctx.arc(cx + v[0] * R, cy - v[1] * R, (0.8 + v[2] * 1.0) * dpr, 0, 7); ctx.fill(); }
+      const v = proj(jLa, jLo);
+      if (v[2] > 0) { const mx = cx + v[0] * R, my = cy - v[1] * R; ctx.fillStyle = acc; ctx.beginPath(); ctx.arc(mx, my, 3.6 * dpr, 0, 7); ctx.fill(); const pr = reduce ? 0.5 : (0.5 + 0.5 * Math.sin(Date.now() / 600)); ctx.strokeStyle = cvHexA(acc, 0.55 - pr * 0.35); ctx.lineWidth = 1.4 * dpr; ctx.beginPath(); ctx.arc(mx, my, (6 + pr * 11) * dpr, 0, 7); ctx.stroke(); }
+      ctx.globalAlpha = 1;
     };
     draw();
     return () => { cancelAnimationFrame(raf); window.removeEventListener("resize", onR); };
-  }, [m]);
-  return (
-    <>
-      <header className="orbit-hero">
-        <div className="orbit-stage"><canvas ref={ref} />{m.geo.place && <div className="orbit-tag">{m.flagship.name ? m.flagship.name + " · " : ""}<b>{m.geo.place}</b></div>}</div>
-        <div className="orbit-copy">
-          <div className="ek rise" style={{ transitionDelay: ".2s" }}>{m.geo.place || "Jurisdiction"}</div>
-          <h1 className="rise blur" style={{ transitionDelay: ".32s" }}>{m.geo.region ? <>Anchored in<br />{m.geo.region}.</> : m.name}</h1>
-          {m.thesis && <p className="lede rise" style={{ transitionDelay: ".5s" }}>{m.thesis}</p>}
-          {m.tickerLine && <span className="ticker rise" style={{ transitionDelay: ".62s" }}><span className="dot" />{m.tickerLine}</span>}
-        </div>
-      </header>
-      <OrbitBodyV4 m={m} /><FollowBlock m={m} />
-    </>
-  );
-}
-// Orbit's V4 body — orbital passes: content arcs in around the axis, framed by concentric ring motifs.
-function OrbitBodyV4({ m }) {
-  const ref = useRef(null);
+  }, [m, hasJ]);
+
+  // sections drive the active state
   useEffect(() => {
-    const el = ref.current; if (!el) return;
-    const io = new IntersectionObserver((es) => es.forEach((e) => { if (e.isIntersecting) e.target.classList.add("on"); }), { threshold: 0.35 });
-    el.querySelectorAll(".orb-pass").forEach((p) => io.observe(p));
-    return () => io.disconnect();
+    const sc = scRef.current; if (!sc) return; const secs = [...sc.querySelectorAll(".orbit-sec")];
+    const io = new IntersectionObserver((es) => es.forEach((e) => { if (e.isIntersecting) { const i = +e.target.dataset.i; if (!isNaN(i)) setState(i); } }), { root: sc, threshold: 0.5 });
+    secs.forEach((s) => io.observe(s)); return () => io.disconnect();
   }, [m]);
-  const R = (w, pos) => <div className="orb-ring" style={{ width: w, height: w, ...pos }} />;
+
+  // ── gravity: position/scale/luminance of each mass for the active state ──
+  const idx = {}; M.forEach((x, i) => idx[x.id] = i);
+  const ang = (n, i) => (-90 + i * 360 / Math.max(1, n)) * Math.PI / 180;
+  const posFor = (id, st) => {
+    if (st.id === "open" || st.id === "place") {
+      if ((st.focus || []).includes(id)) return st.id === "open" ? { tx: 0, ty: -3, s: 1, o: 1 } : { tx: 0, ty: -3, s: .5, o: .2 };
+      const i = idx[id], a = (i * 47 % 360) * Math.PI / 180; return { tx: Math.cos(a) * 48, ty: Math.sin(a) * 34, s: .3, o: st.id === "place" ? .05 : .1 };
+    }
+    if (st.id === "converge") { const keys = ["flag", "evi", "cap", "cat"].filter((k) => idx[k] != null); const j = keys.indexOf(id); if (j >= 0) { const a = ang(keys.length, j); return { tx: Math.cos(a) * 27, ty: Math.sin(a) * 27, s: .58, o: 1 }; } return { tx: 0, ty: 0, s: .2, o: 0 }; }
+    if (st.id === "follow") return { tx: 0, ty: 0, s: .2, o: 0 };
+    const F = st.focus || [], Su = st.support || [], Or = st.orbit || [];
+    if (F.includes(id)) { if (F.length === 1) return { tx: 0, ty: 0, s: 1.12, o: 1 }; const j = F.indexOf(id); return { tx: j === 0 ? -17 : 17, ty: 0, s: .92, o: 1 }; }
+    if (Su.includes(id)) { const j = Su.indexOf(id); const a = ang(Su.length + 2, j + 1); return { tx: Math.cos(a) * 32, ty: Math.sin(a) * 30 - 2, s: .5, o: .72 }; }
+    if (Or.includes(id)) { const j = Or.indexOf(id); const a = ang(Or.length, j); return { tx: Math.cos(a) * 41, ty: Math.sin(a) * 33, s: .42, o: .55 }; }
+    const i = idx[id], a = (i * 67 % 360) * Math.PI / 180; return { tx: Math.cos(a) * 53, ty: Math.sin(a) * 37, s: .3, o: .15 };
+  };
+  const massStyle = (id) => { const p = posFor(id, cur); return { transform: "translate(calc(-50% + " + p.tx + "vmin), calc(-50% + " + p.ty + "vmin)) scale(" + p.s + ")", opacity: p.o }; };
+  const isHi = (id) => (cur.focus || []).includes(id);
+
   return (
-    <div ref={ref}>
-      {m.projects.length > 0 && <div className="orb-pass">{R("128vh", { right: "-34vh", top: "-20vh" })}<div className="oc"><div className="orb-k">Portfolio · {m.projects.length}</div>
-        <div className="orb-list">{m.projects.map((p, i) => <div className="oi" key={i}>{p.name} <small>{[p.stage, p.commodity, p.location].filter(Boolean).join(" · ")}</small></div>)}</div></div></div>}
-      {m.capital.length > 0 && <div className="orb-pass right">{R("104vh", { left: "-30vh", bottom: "-28vh" })}<div className="oc"><div className="orb-k">Capital</div>
-        <div className="orb-list">{m.capital.map(([k, v], i) => <div className="oi" key={i}>{v} <small>{k}</small></div>)}</div></div></div>}
-      {m.catalysts[0] && <div className="orb-pass">{R("88vh", { right: "-18vh", top: "6vh" })}<div className="oc"><div className="orb-k">Next catalyst{m.catalysts[0].timing ? " · " + m.catalysts[0].timing : ""}</div>
-        <div className="orb-h">{m.catalysts[0].label}</div>{m.catalysts[0].impact && <div className="orb-p">{m.catalysts[0].impact}</div>}</div></div>}
-      {m.timeline.length > 0 && <div className="orb-pass right">{R("112vh", { left: "-32vh", top: "-24vh" })}<div className="oc"><div className="orb-k">Milestones</div>
-        <div className="orb-list">{m.timeline.slice(0, 6).map((t, i) => <div className="oi" key={i}><span className="d">{(t.date || "").slice(0, 10)}</span>{t.headline}</div>)}</div></div></div>}
-      {m.team.length > 0 && <div className="orb-pass">{R("96vh", { right: "-26vh", bottom: "-30vh" })}<div className="oc"><div className="orb-k">Leadership · {m.team.length}</div>
-        <div className="orb-list">{m.team.slice(0, 8).map((p, i) => <div className="oi" key={i}>{p.name} <small>{p.role}</small></div>)}</div></div></div>}
+    <div className="orbit" ref={scRef} data-stid={cur.id}>
+      <div className="orbit-field">
+        {hasJ && <canvas className="orbit-globe" ref={globeRef} />}
+        {hasJ && <div className="og-geo"><div className="ctry">{m.geo.country || ""}</div><div className="reg">{region || m.geo.country}</div><div className="note">Disclosed operating jurisdiction</div></div>}
+        {M.map((x) => x.kind === "img"
+          ? <div className={"og-mass img" + (isHi(x.id) ? " hi" : "")} key={x.id} style={massStyle(x.id)}><div className="frame"><img src={x.src} alt="" />{x.cap && <span className="mcap">{x.cap}</span>}</div></div>
+          : <div className={"og-mass " + x.kind + (isHi(x.id) ? " hi" : "") + (x.pick ? " pick" + (sel === x.projIdx ? " on" : "") : "")} key={x.id} style={massStyle(x.id)} onClick={x.pick ? () => setSel(x.projIdx) : undefined}>
+              {x.ml && <div className="ml">{x.ml}</div>}<div className="mv">{x.mv}{x.mu && <span className="u">{x.mu}</span>}</div>{x.ms && <div className="ms">{x.ms}</div>}
+            </div>)}
+        <div className="og-thesis"><div className="tk">The investment case</div><div className="tt">{thesis}</div></div>
+        <div className="og-cta"><div className="feat">{(ctaFeatures || []).slice(0, 4).join("     ·     ")}</div><div className="go">Follow {m.shortName} on MineEx →</div></div>
+      </div>
+      {S.map((s, i) => <section className="orbit-sec" data-i={i} key={i} />)}
+      <div className="og-hint">Scroll ↓</div>
     </div>
   );
 }
@@ -2871,6 +5379,7 @@ const TEMPLATES = {
   dossier: { label: "07 · Dossier", render: (m) => <Dossier m={m} /> },
   index: { label: "08 · Index", render: (m) => <IndexTpl m={m} /> },
   pulse: { label: "09 · Pulse", render: (m) => <Pulse m={m} /> },
+  pulse2: { label: "26 · Pulse II (original)", render: (m) => <Pulse2 m={m} /> },
   orbit: { label: "10 · Orbit", render: (m) => <Orbit m={m} /> },
   core: { label: "11 · Core", render: (m) => <Core m={m} /> },
   cinema: { label: "12 · Cinema", render: (m) => <Cinema m={m} /> },

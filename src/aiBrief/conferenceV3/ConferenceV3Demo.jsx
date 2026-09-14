@@ -4,6 +4,25 @@ import React, { useEffect, useState } from "react";
 import { fetchPreviewCompany } from "../../lib/supabase.js";
 import ConferenceV3 from "./ConferenceV3.jsx";
 
+// DEMO-ONLY imagery: the fictional granitepeak-demo profile ships with only a couple of photos, so
+// (localhost harness only, gated to that slug) we seed curated royalty-free mining/exploration images
+// to demonstrate what a fully-photographed company looks like. NEVER runs in the production booth and
+// never touches any real company's profile.
+const DI = "/demo/monolith/";
+function withDemoImages(profile, slug) {
+  if (slug !== "granitepeak-demo") return profile;
+  const P = JSON.parse(JSON.stringify(profile || {}));
+  P.pp = P.pp || {}; P.brand = P.brand || {}; P.conference = P.conference || {};
+  P.pp.STATUS_IMG = DI + "c02.jpg"; P.brand.hero = DI + "c02.jpg";
+  P.conference.gallery = Object.assign({}, P.conference.gallery, {
+    overview: [DI + "c03.jpg"], results: [DI + "c11.jpg"], follow: [DI + "c05.jpg"], jurisdiction: [DI + "c07.jpg"],
+    extra: [DI + "c06.jpg", DI + "c08.jpg", DI + "c10.jpg", DI + "c13.jpg", DI + "c14.jpg", DI + "c01.jpg"],
+  });
+  const byName = { "Granite Peak": ["c15", "c11", "c01"], "Silver Ridge": ["c07", "c13"], "Copper Basin": ["c02", "c11"] };
+  (P.projects || []).forEach((pr) => { const s = byName[pr.name]; if (s) pr.gallery = s.map((f) => DI + f + ".jpg"); });
+  return P;
+}
+
 export default function ConferenceV3Demo() {
   const params = new URLSearchParams(window.location.search);
   const slug = params.get("c") || "coldtest-snowline";
@@ -34,5 +53,5 @@ export default function ConferenceV3Demo() {
   const theme = params.get("theme") || studio.theme || "obsidian";
   const accParam = params.get("accent"); const accent = accParam ? "#" + accParam.replace(/^#/, "") : (studio.accent || "");
   const showBar = params.get("bar") !== "0";
-  return <ConferenceV3 profile={row.profile} template={tpl} theme={theme} accent={accent} showBar={showBar} />;
+  return <ConferenceV3 profile={withDemoImages(row.profile, slug)} template={tpl} theme={theme} accent={accent} showBar={showBar} />;
 }

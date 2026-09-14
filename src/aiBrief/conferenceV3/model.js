@@ -53,11 +53,18 @@ export function buildV3Model(profile = {}) {
 
   // ── imagery (from ingestion) ──
   const g = (k) => { const a = C.gallery && arr(C.gallery[k]); return a && a[0] ? gsrc(a[0]) : ""; };
+  // a deduped POOL of every image the profile actually carries (brand + all gallery keys + every
+  // project gallery) — lets richer templates vary imagery instead of reusing one hero. Real images
+  // only; empty for companies without ingested photos, and templates fall back to graphics.
+  const galAll = []; if (C.gallery) Object.keys(C.gallery).forEach((k) => arr(C.gallery[k]).forEach((x) => { const s = gsrc(x); if (s) galAll.push(s); }));
+  const projGal = arr(p.projects).flatMap((pr) => arr(pr.gallery).map(gsrc).filter(Boolean));
+  const pool = [...new Set([gsrc(pp.STATUS_IMG), gsrc(brand.hero), ...galAll, ...projGal].filter(Boolean))];
   const images = {
     hero: gsrc(pp.STATUS_IMG) || gsrc(brand.hero) || g("overview") || "",
     field: (arr(flag.gallery)[1] && gsrc(arr(flag.gallery)[1])) || g("results") || gsrc(brand.hero) || "",
     camp: g("follow") || (arr(flag.gallery)[0] && gsrc(arr(flag.gallery)[0])) || "",
     logo: gsrc(pp.AVATAR) || gsrc(brand.logo) || "",
+    pool,
   };
 
   // ── geography (lat/lng resolved to an approximate region/country centroid — a public fact about
@@ -80,6 +87,7 @@ export function buildV3Model(profile = {}) {
     location: val(pr.snapshot && pr.snapshot.location), ownership: val(pr.snapshot && pr.snapshot.ownership),
     commodity: val(pr.snapshot && pr.snapshot.commodity), land: val(pr.snapshot && pr.snapshot.land),
     overview: clean(pr.brief && pr.brief.overview), points: arr(pr.unique && pr.unique.evidence).map(clean).filter(Boolean),
+    image: (arr(pr.gallery)[0] && gsrc(arr(pr.gallery)[0])) || "",
     hasDrills: !!(pr.drillResults && arr(pr.drillResults.rows).length), hasResource: !!(pr.resource),
   }));
 
