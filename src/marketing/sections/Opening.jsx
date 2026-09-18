@@ -284,6 +284,10 @@ export function CompanyProfileSection() {
   const reduce = useReduce();
   const i = reduce ? 0 : step(p, PROFILE_BEATS.length);
   const beat = PROFILE_BEATS[i];
+  // Signature moment: the profile resolves into place as the section pins —
+  // slightly oversized + soft, settling to its final interface. Pure transform/
+  // opacity, scrubbed to scroll progress, so it reverses precisely with the finger.
+  const settle = reduce ? 1 : ramp(p, 0.0, 0.11);
 
   return (
     <div ref={track} className="mx-track" style={{ height: `${PROFILE_BEATS.length * 46}vh`, background: MX.sheet }}>
@@ -354,9 +358,11 @@ export function CompanyProfileSection() {
             </div>
 
             <div style={{ order: mobile ? 1 : 2, display: "flex", justifyContent: "center" }}>
-              <Phone width={phoneWidth(mobile)}>
-                <AppShot name={beat.tab} />
-              </Phone>
+              <div style={{ transform: `scale(${mix(1.06, 1, settle).toFixed(3)}) translate3d(0, ${mix(22, 0, settle).toFixed(1)}px, 0)`, opacity: mix(0.35, 1, settle), willChange: "transform, opacity" }}>
+                <Phone width={phoneWidth(mobile)}>
+                  <AppShot name={beat.tab} />
+                </Phone>
+              </div>
             </div>
           </div>
         </Wrap>
