@@ -18,6 +18,7 @@ import {
   PieChart, Users, Radio, Sparkles, Compass, MessageSquare, Star, User, Search,
   SlidersHorizontal, Plus, Check, ChevronLeft, ExternalLink, Play, Bell, Zap,
   ChevronRight, BadgeCheck, Image as ImageIcon, FileText, RotateCcw, Info,
+  ArrowDownUp, ScanLine, ChevronDown, Newspaper,
 } from "lucide-react";
 import { EASE, useReduce } from "../system.jsx";
 import { CO, PROJECTS, TEAM, RELEASES, DIRECTORY, IMG } from "../data.js";
@@ -601,50 +602,65 @@ function CompanyRowBase({ c, dim = false }) {
   );
 }
 
+// Small "Recently Updated" carousel card, matching the app's discover rail.
+function CarouselCard({ c }) {
+  return (
+    <div style={{ flex: "0 0 auto", width: 132, borderRadius: 16, overflow: "hidden", border: `1px solid ${HAIR}`, background: "#fff" }}>
+      <div style={{ height: 74, background: c.tint || "#334155", display: "grid", placeItems: "center" }}>
+        {c.featured ? <img src={IMG.avatar} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ fontSize: 22, fontWeight: 800, color: "rgba(255,255,255,0.92)" }}>{c.mono}</span>}
+      </div>
+      <div style={{ padding: "8px 9px 10px" }}>
+        <p style={{ fontSize: 12, fontWeight: 800, letterSpacing: "-0.02em", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.name}</p>
+        <p style={{ fontSize: 10.5, color: SLATE, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.ticker} · {c.commodity}</p>
+      </div>
+    </div>
+  );
+}
+
 function ExploreScreenBase({ activeFilters = [], results = DIRECTORY, dimNonMatching = false, sheet = null }) {
+  const hasF = activeFilters.length > 0;
   return (
     <AppShell nav="explore" bg="#fff">
       <div style={{ height: "100%", display: "flex", flexDirection: "column", background: APP_BG, position: "relative" }}>
-        <div style={{ background: "#fff", padding: "6px 16px 14px" }}>
-          <h3 style={{ fontSize: 26, fontWeight: 800, letterSpacing: "-0.035em" }}>Explore</h3>
-          <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-            <span style={{ flex: 1, height: 40, borderRadius: 12, background: "#f1f5f9", display: "flex", alignItems: "center", gap: 8, padding: "0 12px" }}>
-              <Search size={16} color={MUTE} />
-              <span style={{ fontSize: 14, color: MUTE }}>Search companies</span>
-            </span>
-            <span style={{ width: 40, height: 40, borderRadius: 12, background: "#f1f5f9", display: "grid", placeItems: "center" }}>
-              <SlidersHorizontal size={16} color={INK} />
-            </span>
+        <div style={{ background: "#fff", padding: "8px 20px 12px" }}>
+          <p style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.14em", textTransform: "uppercase", color: MUTE }}>Discover Companies</p>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 3 }}>
+            <h3 style={{ fontSize: 26, fontWeight: 800, letterSpacing: "-0.035em" }}>Explore</h3>
+            <ScanLine size={20} color={INK} strokeWidth={2} />
           </div>
-          <div className="mx-noscroll" style={{ display: "flex", gap: 7, marginTop: 12, overflowX: "auto" }}>
-            {FILTER_SETS.map(({ id, label, Icon }) => {
-              const hit = activeFilters.find((f) => f.set === id);
-              return (
-                <span
-                  key={id}
-                  style={{
-                    display: "inline-flex", alignItems: "center", gap: 6, flex: "0 0 auto",
-                    borderRadius: 999, padding: "8px 13px", fontSize: 12.5, fontWeight: 700,
-                    border: `1px solid ${hit ? EM : HAIR}`,
-                    background: hit ? EM : "#fff",
-                    color: hit ? "#fff" : INK,
-                    transition: `background 420ms ${EASE}, border-color 420ms ${EASE}, color 300ms ${EASE}`,
-                  }}
-                >
-                  <Icon size={13.5} strokeWidth={2.2} />
-                  {hit ? hit.value : label}
-                </span>
-              );
-            })}
+          {/* search bar */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, borderRadius: 16, border: `1px solid ${HAIR}`, background: "#f8fafc", padding: "11px 14px", marginTop: 12 }}>
+            <Search size={17} color={MUTE} />
+            <span style={{ fontSize: 14, fontWeight: 500, color: MUTE }}>Search companies, tickers, commodities</span>
+          </div>
+          {/* filter row */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 12 }}>
+            <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.14em", textTransform: "uppercase", color: MUTE }}>Filter</span>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 6, borderRadius: 999, padding: "7px 14px", fontSize: 12.5, fontWeight: 700, letterSpacing: "-0.01em", border: `1px solid ${hasF ? "#0f172a" : HAIR}`, background: hasF ? "#0f172a" : "#fff", color: hasF ? "#fff" : "#475569" }}>
+              <SlidersHorizontal size={13} />Advanced Search{hasF ? ` · ${activeFilters.length}` : ""}
+            </span>
           </div>
         </div>
-        <div className="mx-noscroll" style={{ flex: 1, minHeight: 0, overflow: "hidden", padding: "12px 12px 20px", display: "grid", gap: 9, alignContent: "start" }}>
-          <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: MUTE, padding: "0 4px" }}>
-            {activeFilters.length ? "Matching companies" : "Recommended for you"}
-          </p>
-          {results.map((c, i) => (
-            <CompanyRow key={c.name} c={c} dim={dimNonMatching && i > 2} />
-          ))}
+        <div className="mx-noscroll" style={{ flex: 1, minHeight: 0, overflow: "hidden", padding: "10px 12px 20px" }}>
+          {!hasF && (
+            <>
+              <p style={{ fontSize: 13, fontWeight: 800, letterSpacing: "-0.02em", padding: "4px 4px 8px" }}>Recently Updated</p>
+              <div className="mx-noscroll" style={{ display: "flex", gap: 10, overflowX: "auto", paddingBottom: 4, marginBottom: 6 }}>
+                {results.slice(0, 6).map((c) => <CarouselCard key={c.name} c={c} />)}
+              </div>
+            </>
+          )}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 4px 8px" }}>
+            <p style={{ fontSize: 13, fontWeight: 800, letterSpacing: "-0.02em" }}>{hasF ? `${results.length} ${results.length === 1 ? "company" : "companies"}` : "Featured"}</p>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 6, borderRadius: 999, border: `1px solid ${HAIR}`, background: "#fff", padding: "6px 12px", fontSize: 11, fontWeight: 700, color: "#475569" }}>
+              <ArrowDownUp size={12} strokeWidth={2.4} />Recommended
+            </span>
+          </div>
+          <div style={{ display: "grid", gap: 9, alignContent: "start" }}>
+            {results.map((c, i) => (
+              <CompanyRow key={c.name} c={c} dim={dimNonMatching && i > 2} />
+            ))}
+          </div>
         </div>
         {sheet}
       </div>
@@ -714,11 +730,11 @@ function ReleaseScreenBase({ release = RELEASES[3] }) {
           <h3 style={{ fontSize: 23, fontWeight: 800, letterSpacing: "-0.035em", lineHeight: 1.14, marginTop: 12 }}>{release.label}</h3>
 
           <div style={{ background: EM_SOFT, borderRadius: 16, padding: 14, marginTop: 16 }}>
-            <p style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.14em", textTransform: "uppercase", color: EM_TEXT }}>Why this matters</p>
+            <p style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.14em", textTransform: "uppercase", color: EM_TEXT }}>Why It Matters</p>
             <p style={{ fontSize: 14, lineHeight: 1.5, marginTop: 7, color: "#0f2f4d" }}>{release.why}</p>
           </div>
 
-          <p style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.14em", textTransform: "uppercase", color: MUTE, marginTop: 20 }}>Key takeaways</p>
+          <p style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.14em", textTransform: "uppercase", color: MUTE, marginTop: 20 }}>Key Takeaways</p>
           <div style={{ display: "grid", gap: 8, marginTop: 9 }}>
             {release.takeaways.map((t) => (
               <div key={t} style={{ display: "flex", gap: 9, alignItems: "flex-start", background: "#f8fafc", borderRadius: 12, padding: "11px 12px" }}>
@@ -750,37 +766,35 @@ function ReleaseScreenBase({ release = RELEASES[3] }) {
 
 /* ── media ───────────────────────────────────────────────────────────────── */
 
+const MEDIA_FILTERS = ["All", "Updates", "Photos", "Videos", "Interviews"];
+
 function MediaScreenBase({ items }) {
-  // Thumbnails paint at ~110 css px, so they take the small variant — never the
-  // full-size original.
+  // Thumbnails paint small, so they take the small variant — never the full-size original.
   const grid =
-    items || [IMG.rig, IMG.adit, IMG.sampling, IMG.timbered, IMG.field, IMG.shaft, IMG.district, IMG.mineAdit, IMG.colonial].map((i) => i.sm);
+    items || [IMG.aerial, IMG.rig, IMG.adit, IMG.sampling, IMG.timbered, IMG.field, IMG.shaft, IMG.district, IMG.mineAdit, IMG.colonial, IMG.drill, IMG.mineAdit].map((i) => i.sm);
   return (
     <AppShell nav="today">
       <div style={{ height: "100%", display: "flex", flexDirection: "column", background: "#fff" }}>
-        <div style={{ padding: "4px 16px 12px" }}>
-          <h3 style={{ fontSize: 26, fontWeight: 800, letterSpacing: "-0.035em" }}>Media</h3>
-          <div style={{ display: "flex", gap: 18, marginTop: 12 }}>
-            {["All", "Video", "Site", "Team"].map((t, i) => (
-              <span key={t} style={{ paddingBottom: 8, fontSize: 14, fontWeight: 700, color: i === 0 ? INK : MUTE, borderBottom: `2px solid ${i === 0 ? INK : "transparent"}` }}>{t}</span>
+        <div style={{ padding: "6px 20px 10px" }}>
+          <p style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.14em", textTransform: "uppercase", color: MUTE }}>Company Media</p>
+          <h3 style={{ fontSize: 26, fontWeight: 800, letterSpacing: "-0.035em", marginTop: 3 }}>Media</h3>
+          {/* segmented filters */}
+          <div className="mx-noscroll" style={{ display: "flex", gap: 7, marginTop: 12, overflowX: "auto" }}>
+            {MEDIA_FILTERS.map((t, i) => (
+              <span key={t} style={{ flex: "0 0 auto", borderRadius: 999, padding: "7px 14px", fontSize: 12.5, fontWeight: 700, letterSpacing: "-0.01em", border: `1px solid ${i === 0 ? "#0f172a" : HAIR}`, background: i === 0 ? "#0f172a" : "#fff", color: i === 0 ? "#fff" : "#475569" }}>{t}</span>
             ))}
           </div>
         </div>
-        <div style={{ position: "relative", height: 190, margin: "0 12px", borderRadius: 16, overflow: "hidden" }}>
-          <img src={IMG.aerial.src} alt="" loading="lazy" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-          <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(4,8,14,0.1) 40%, rgba(4,8,14,0.68) 100%)" }} />
-          <span style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)", width: 52, height: 52, borderRadius: 999, background: "rgba(255,255,255,0.92)", display: "grid", placeItems: "center" }}>
-            <Play size={20} fill={INK} color={INK} style={{ marginLeft: 3 }} />
-          </span>
-          <div style={{ position: "absolute", left: 14, bottom: 12 }}>
-            <p style={{ fontSize: 15, fontWeight: 800, color: "#fff", letterSpacing: "-0.025em" }}>Las Coloradas · site tour</p>
-            <p style={{ fontSize: 11.5, color: "rgba(255,255,255,0.8)", marginTop: 1 }}>Project footage</p>
-          </div>
-        </div>
-        <div style={{ padding: "12px 12px 20px", display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6 }}>
+        {/* Instagram-style tight grid */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 2 }}>
           {grid.map((src, i) => (
-            <div key={i} style={{ position: "relative", aspectRatio: "1", borderRadius: 10, overflow: "hidden", background: "#e2e8f0" }}>
+            <div key={i} style={{ position: "relative", aspectRatio: "1", overflow: "hidden", background: "#e2e8f0" }}>
               <img src={src} alt="" loading="lazy" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              {(i === 0 || i === 4 || i === 7) && (
+                <span style={{ position: "absolute", top: 6, right: 6, width: 20, height: 20, borderRadius: 999, background: "rgba(15,23,42,0.55)", display: "grid", placeItems: "center" }}>
+                  <Play size={10} fill="#fff" color="#fff" style={{ marginLeft: 1 }} />
+                </span>
+              )}
             </div>
           ))}
         </div>
