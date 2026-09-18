@@ -1,7 +1,7 @@
 // Sections 1–3: the opening reveal — hero, the fragmentation problem, and the
 // company profile itself.
 import React, { useRef, useState, useLayoutEffect } from "react";
-import { ArrowRight, ChevronDown } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import {
   MX, EASE, Section, Wrap, Reveal, Eyebrow, Lead, Cta, Phone,
   useTrack, useViewport, useReduce, ramp, win, step, mix, phoneWidth,
@@ -20,76 +20,91 @@ export function Hero() {
 
   return (
     <div ref={track} style={{ position: "relative", background: MX.sheet }}>
-      <Section tone="sheet" pad={mobile ? "104px 0 0" : "132px 0 0"} style={{ overflow: "hidden" }}>
-        {/* one soft field of light behind the device — no gradient wash */}
+      <Section
+        tone="sheet"
+        pad={mobile ? "94px 0 60px" : "clamp(112px, 15vh, 150px) 0 clamp(72px, 10vh, 116px)"}
+        style={{ overflow: "hidden" }}
+      >
+        {/* one soft field of light behind the device */}
         <div
           aria-hidden
           style={{
             position: "absolute",
-            left: "50%",
-            top: mobile ? "42%" : "38%",
-            width: "min(1100px, 130vw)",
-            height: "min(900px, 90vh)",
-            transform: "translate(-50%, -50%)",
-            background: "radial-gradient(closest-side, rgba(10,12,15,0.07), transparent 72%)",
+            right: mobile ? "50%" : "17%",
+            top: mobile ? "auto" : "52%",
+            bottom: mobile ? "8%" : "auto",
+            transform: mobile ? "translateX(50%)" : "translate(50%, -50%)",
+            width: "min(720px, 92vw)",
+            height: "min(720px, 82vh)",
+            background: "radial-gradient(closest-side, rgba(10,12,15,0.06), transparent 72%)",
             pointerEvents: "none",
           }}
         />
-        <Wrap style={{ position: "relative", textAlign: "center" }}>
-          <Reveal kind="eyebrow">
-            <p className="mx-label" style={{ color: MX.emText, letterSpacing: "0.22em" }}>For junior mining companies</p>
-          </Reveal>
-          <Reveal kind="heading" delay={80}>
-            <h1 className="mx-display" style={{ marginTop: 18, maxWidth: 14 + "ch", marginLeft: "auto", marginRight: "auto" }}>
-              The investor platform built for junior mining.
-            </h1>
-          </Reveal>
-          <Reveal kind="copy" order={0}>
-            <p className="mx-lead" style={{ color: MX.dim, margin: "22px auto 0", maxWidth: "46ch" }}>
-              One modern platform where investors discover mining companies, understand them, follow them — and keep hearing from them.
-            </p>
-          </Reveal>
-          <Reveal kind="copy" order={1}>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 12, justifyContent: "center", marginTop: 30 }}>
-              <Cta href="#demo" style={mobile ? { width: "min(340px, 100%)" } : undefined}>
-                Claim Your Company <ArrowRight size={17} />
-              </Cta>
-              <Cta href="#demo" kind="ghost" style={mobile ? { width: "min(340px, 100%)" } : undefined}>
-                Book a Demo
-              </Cta>
+        <Wrap style={{ position: "relative" }}>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: mobile ? "1fr" : "1.04fr 0.96fr",
+              gap: mobile ? 44 : 56,
+              alignItems: "center",
+            }}
+          >
+            {/* the message */}
+            <div style={{ textAlign: mobile ? "center" : "left" }}>
+              <Reveal kind="eyebrow">
+                <p className="mx-label" style={{ color: MX.emText, letterSpacing: "0.22em" }}>For junior mining companies</p>
+              </Reveal>
+              <Reveal kind="heading" delay={80}>
+                <h1
+                  className="mx-h1"
+                  style={{
+                    marginTop: 18,
+                    maxWidth: "13ch",
+                    marginInline: mobile ? "auto" : undefined,
+                    fontSize: "clamp(34px, 4.7vw, 66px)",
+                    textWrap: "balance",
+                  }}
+                >
+                  The investor platform built for junior mining.
+                </h1>
+              </Reveal>
+              <Reveal kind="copy" order={0}>
+                <p className="mx-lead" style={{ color: MX.dim, marginTop: 20, maxWidth: "42ch", marginInline: mobile ? "auto" : undefined }}>
+                  One modern platform where investors discover mining companies, understand them, follow them — and keep hearing from them.
+                </p>
+              </Reveal>
+              <Reveal kind="copy" order={1}>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 12, justifyContent: mobile ? "center" : "flex-start", marginTop: 30 }}>
+                  <Cta href="#demo" style={mobile ? { width: "min(340px, 100%)" } : undefined}>
+                    Claim Your Company <ArrowRight size={17} />
+                  </Cta>
+                  <Cta href="#demo" kind="ghost" style={mobile ? { width: "min(340px, 100%)" } : undefined}>
+                    Book a Demo
+                  </Cta>
+                </div>
+              </Reveal>
             </div>
-          </Reveal>
+
+            {/* the product, fully in frame */}
+            <Reveal kind="media" delay={200}>
+              <div style={{ display: "flex", justifyContent: "center" }}>
+                <Phone
+                  width={mobile ? "min(72vw, 288px)" : "min(31vw, 320px, 60vh)"}
+                  style={{
+                    // Translation only. Scaling a subtree this size on every scroll
+                    // frame forces a re-raster of the whole phone; translating does not.
+                    transform: `translate3d(0, ${mix(0, -22, Math.min(1, lift * 2)).toFixed(1)}px, 0)`,
+                    willChange: "transform",
+                  }}
+                >
+                  <Fit>
+                    <ProfileScreen tab="overview" nav="explore" flip />
+                  </Fit>
+                </Phone>
+              </div>
+            </Reveal>
+          </div>
         </Wrap>
-
-        <div
-          style={{
-            position: "relative",
-            display: "flex",
-            justifyContent: "center",
-            marginTop: mobile ? 42 : 58,
-            paddingBottom: mobile ? 60 : 90,
-          }}
-        >
-          <Reveal kind="media" delay={220}>
-            <Phone
-              width={mobile ? "min(74vw, 300px, 40vh)" : "min(30vw, 348px, 42vh)"}
-              style={{
-                // Translation only. Scaling a subtree this size on every scroll frame
-                // forces a re-raster of the whole phone; translating does not.
-                transform: `translate3d(0, ${mix(0, -34, Math.min(1, lift * 2)).toFixed(1)}px, 0)`,
-                willChange: "transform",
-              }}
-            >
-              <Fit>
-                <ProfileScreen tab="overview" nav="explore" />
-              </Fit>
-            </Phone>
-          </Reveal>
-        </div>
-
-        <div style={{ position: "absolute", left: "50%", bottom: 22, transform: "translateX(-50%)", opacity: Math.max(0, 1 - p * 5) }}>
-          <ChevronDown className="mx-cue" size={22} color={MX.mute} />
-        </div>
       </Section>
     </div>
   );
@@ -113,6 +128,11 @@ export function Problem() {
   const spread = mobile ? SPREAD_M : SPREAD_D;
 
   const arrive = ramp(p, 0.5, 0.82);   // the MineEx tile resolves
+  // Hand the stacked "problem → answer" lines over without both sitting at ~50%
+  // opacity at once (which reads as ghosted double text): the old line is gone
+  // before the new one arrives, with only a hair of blank between them.
+  const outO = 1 - win(arrive, 0, 0.46);
+  const inO = win(arrive, 0.54, 1);
 
   // The field's pixel size, so chip travel can be expressed as a transform.
   const field = useRef(null);
@@ -139,7 +159,7 @@ export function Problem() {
               <div style={{ position: "relative", marginTop: 18 }}>
                 <h2
                   className="mx-h2"
-                  style={{ maxWidth: "15ch", opacity: 1 - arrive, transform: `translateY(${mix(0, -10, arrive)}px)` }}
+                  style={{ maxWidth: "15ch", opacity: outO, transform: `translateY(${mix(0, -10, arrive)}px)` }}
                 >
                   Your story is spread across eight places at once.
                 </h2>
@@ -147,7 +167,7 @@ export function Problem() {
                   className="mx-h2"
                   style={{
                     position: "absolute", inset: 0, maxWidth: "15ch",
-                    opacity: arrive, transform: `translateY(${mix(14, 0, arrive)}px)`, pointerEvents: "none",
+                    opacity: inO, transform: `translateY(${mix(14, 0, arrive)}px)`, pointerEvents: "none",
                   }}
                 >
                   One place investors actually come back to.
@@ -158,9 +178,8 @@ export function Problem() {
                   className="mx-lead"
                   style={{
                     color: MX.dim, maxWidth: "40ch",
-                    opacity: 1 - arrive,
+                    opacity: outO,
                     transform: `translateY(${mix(0, -8, arrive)}px)`,
-                    transition: `opacity 320ms ${EASE}`,
                   }}
                 >
                   Investor attention is scattered across every channel you publish to — and nothing connects them.
@@ -170,7 +189,7 @@ export function Problem() {
                   style={{
                     position: "absolute", inset: 0,
                     color: MX.text, maxWidth: "40ch", fontWeight: 600,
-                    opacity: arrive,
+                    opacity: inO,
                     transform: `translateY(${mix(12, 0, arrive)}px)`,
                     pointerEvents: "none",
                   }}

@@ -1,8 +1,8 @@
 // Sections 13–15: the whole journey, how companies use MineEx, and the close.
 import React, { useRef, useState } from "react";
-import { ArrowRight, Check, Loader2 } from "lucide-react";
+import { Check, Loader2 } from "lucide-react";
 import {
-  MX, EASE, Section, Wrap, Reveal, Eyebrow, Cta,
+  MX, EASE, Section, Wrap, Reveal, Eyebrow,
   useTrack, useViewport, useReduce, win,
 } from "../system.jsx";
 import { JOURNEY } from "../data.js";
@@ -329,42 +329,74 @@ export function LeadForm({ dark = false }) {
   );
 }
 
+const CLOSE_POINTS = [
+  "A basic listing is live for every junior on the exchange, free.",
+  "Claim it, or have us build the full profile from your material.",
+  "We reply personally — usually the same day.",
+];
+
 export function FinalCta() {
   const { mobile } = useViewport();
   return (
-    <Section tone="ink" id="claim" pad={mobile ? "90px 0 70px" : "clamp(120px, 16vh, 200px) 0 100px"}>
+    <Section tone="ink" id="claim" pad={mobile ? "90px 0 76px" : "clamp(110px, 15vh, 180px) 0"}>
       <Wrap>
-        <div style={{ textAlign: "center" }}>
-          <Reveal kind="heading">
-            <h2 className="mx-display" style={{ marginInline: "auto", maxWidth: "16ch" }}>
-              Your investors are looking for the next opportunity.
-            </h2>
-          </Reveal>
-          <Reveal kind="copy">
-            <p className="mx-h3" style={{ color: MX.onDarkDim, margin: "24px auto 0", maxWidth: "34ch", fontWeight: 500 }}>
-              Make sure they can find yours.
-            </p>
-          </Reveal>
-          <Reveal kind="copy" order={1}>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 12, justifyContent: "center", marginTop: 32 }}>
-              <Cta href="#demo" dark style={mobile ? { width: "min(340px, 100%)" } : undefined}>
-                Claim Your Company <ArrowRight size={17} />
-              </Cta>
-              <Cta href="#demo" kind="ghost" dark style={mobile ? { width: "min(340px, 100%)" } : undefined}>
-                Book a Demo
-              </Cta>
-            </div>
-          </Reveal>
-        </div>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: mobile ? "1fr" : "1.02fr 0.98fr",
+            gap: mobile ? 40 : 72,
+            alignItems: "center",
+          }}
+        >
+          {/* left — the message */}
+          <div style={{ textAlign: mobile ? "center" : "left" }}>
+            <Eyebrow color={MX.onDarkMute} style={{ justifyContent: mobile ? "center" : "flex-start" }}>
+              Claim your company
+            </Eyebrow>
+            <Reveal kind="heading" delay={60}>
+              {/* Sized to the column and balanced, so long words can't run off-screen. */}
+              <h2
+                className="mx-h2"
+                style={{
+                  marginTop: 18,
+                  maxWidth: "15ch",
+                  marginInline: mobile ? "auto" : undefined,
+                  fontSize: "clamp(30px, 4.4vw, 60px)",
+                  textWrap: "balance",
+                }}
+              >
+                Your investors are looking for the next opportunity.
+              </h2>
+            </Reveal>
+            <Reveal kind="copy">
+              <p className="mx-lead" style={{ color: MX.onDarkDim, margin: mobile ? "18px auto 0" : "20px 0 0", maxWidth: "38ch", marginInline: mobile ? "auto" : undefined }}>
+                Make sure they can find yours — and keep hearing from you long after they do.
+              </p>
+            </Reveal>
+            {!mobile && (
+              <Reveal kind="copy" order={1}>
+                <ul style={{ marginTop: 26, display: "grid", gap: 12 }}>
+                  {CLOSE_POINTS.map((pt) => (
+                    <li key={pt} style={{ display: "flex", gap: 11, alignItems: "flex-start" }}>
+                      <Check size={16} strokeWidth={3} color={MX.emDark} style={{ marginTop: 3, flex: "0 0 auto", opacity: 0.85 }} />
+                      <span className="mx-body" style={{ color: MX.onDarkDim }}>{pt}</span>
+                    </li>
+                  ))}
+                </ul>
+              </Reveal>
+            )}
+          </div>
 
-        <div id="demo" style={{ maxWidth: 460, margin: `${mobile ? 56 : 84}px auto 0`, scrollMarginTop: 90 }}>
-          <Reveal kind="media">
-            <div style={{ border: `1px solid ${MX.hairDark}`, borderRadius: 24, padding: mobile ? 22 : 30, background: "rgba(255,255,255,0.03)" }}>
-              <p className="mx-label" style={{ color: MX.onDarkMute }}>Get started</p>
-              <p className="mx-h3" style={{ marginTop: 10, marginBottom: 18 }}>Tell us about your company.</p>
-              <LeadForm dark />
-            </div>
-          </Reveal>
+          {/* right — the form */}
+          <div id="demo" style={{ maxWidth: mobile ? 460 : 480, width: "100%", margin: mobile ? "0 auto" : 0, justifySelf: mobile ? "center" : "end", scrollMarginTop: 90 }}>
+            <Reveal kind="media">
+              <div style={{ border: `1px solid ${MX.hairDark}`, borderRadius: 24, padding: mobile ? 22 : 32, background: "rgba(255,255,255,0.03)" }}>
+                <p className="mx-label" style={{ color: MX.onDarkMute }}>Get started</p>
+                <p className="mx-h3" style={{ marginTop: 10, marginBottom: 18 }}>Tell us about your company.</p>
+                <LeadForm dark />
+              </div>
+            </Reveal>
+          </div>
         </div>
       </Wrap>
     </Section>

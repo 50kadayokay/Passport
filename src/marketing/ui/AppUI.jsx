@@ -17,9 +17,9 @@ import {
   Gem, MapPin, Mountain, TrendingUp, Layers, Activity, House, Pickaxe, Clock,
   PieChart, Users, Radio, Sparkles, Compass, MessageSquare, Star, User, Search,
   SlidersHorizontal, Plus, Check, ChevronLeft, ExternalLink, Play, Bell, Zap,
-  ChevronRight, BadgeCheck, Image as ImageIcon, FileText,
+  ChevronRight, BadgeCheck, Image as ImageIcon, FileText, RotateCcw, Info,
 } from "lucide-react";
-import { EASE } from "../system.jsx";
+import { EASE, useReduce } from "../system.jsx";
 import { CO, PROJECTS, TEAM, RELEASES, DIRECTORY, IMG } from "../data.js";
 
 // The product's own accent. These are app screens, so they keep the colour the
@@ -164,24 +164,16 @@ const FACT_TINT = {
   activity: ["rgba(37,99,235,0.11)", "#2563eb"],
 };
 
-function FactTile({ f }) {
-  const Icon = FACT_ICON[f.icon] || Gem;
-  const [bg, ic] = FACT_TINT[f.icon] || FACT_TINT.gem;
-  return (
-    <div style={{ background: "#fff", borderRadius: 14, padding: "13px 12px", display: "flex", alignItems: "center", gap: 10 }}>
-      <span style={{ width: 30, height: 30, borderRadius: 999, background: bg, display: "grid", placeItems: "center", flex: "0 0 auto" }}>
-        <Icon size={15} color={ic} strokeWidth={2} />
-      </span>
-      <span style={{ minWidth: 0 }}>
-        <span style={{ display: "block", fontSize: 9.5, fontWeight: 700, letterSpacing: "0.09em", textTransform: "uppercase", color: MUTE, whiteSpace: "nowrap" }}>{f.label}</span>
-        <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 15, fontWeight: 700, letterSpacing: "-0.02em", marginTop: 1 }}>
-          {f.live && <span style={{ width: 6, height: 6, borderRadius: 999, background: EM, flex: "0 0 auto" }} />}
-          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.value}</span>
-        </span>
-      </span>
-    </div>
-  );
-}
+// Company-status fact-cell styling, ported from the app's identity grid: the
+// category colour lives only in the icon + its faint container tint.
+const ID_STYLE = {
+  gem:      { Icon: Gem,        icBg: "rgba(90,116,153,0.12)", ic: "#5c7599" },
+  pin:      { Icon: MapPin,     icBg: "rgba(184,124,46,0.13)", ic: "#b0762e" },
+  mountain: { Icon: Mountain,   icBg: "rgba(37,99,235,0.11)",  ic: "#2563eb" },
+  trend:    { Icon: TrendingUp, icBg: "rgba(99,91,201,0.12)",  ic: "#5b57c9" },
+  layers:   { Icon: Layers,     icBg: "rgba(14,139,168,0.12)", ic: "#0e8ba8" },
+  activity: { Icon: Activity,   icBg: "rgba(37,99,235,0.13)",  ic: "#2563eb" },
+};
 
 /* ── profile ─────────────────────────────────────────────────────────────── */
 
@@ -238,123 +230,222 @@ function ProfileTabsBase({ tab = "overview" }) {
   );
 }
 
-function StatusCard() {
-  const s = CO.status;
+/* ── Company Identity card — ported from the app's CompanyProfile ─────────────
+   (src/aiBrief/PassportProto.jsx). A flip card that GROWS to fill the space
+   between the tabs and the AI Brief: front = flagship photo + logo, back = the
+   six-cell Company Status grid with equal (1fr) rows — which is what gives the
+   tall, airy proportions. Auto-flips in the hero; elsewhere it rests on status. */
+const ID_TICKERS = CO.listings.map(([ex, sym]) => ({ ex, sym }));
+const ID_TK = ID_TICKERS.length <= 2 ? 13 : ID_TICKERS.length === 3 ? 11.5 : 10.5;
+const BANNER = { tl: 0.52, bot: 0.42 };
+
+function CompanyIdentityCard({ auto = false }) {
+  const reduce = useReduce();
+  const [flipped, setFlipped] = useState(!auto);   // rest on status unless auto-demoing
+  useEffect(() => {
+    if (!auto || reduce) { setFlipped(!auto); return; }
+    setFlipped(false);
+    let t;
+    const step = (toBack) => { setFlipped(toBack); t = setTimeout(() => step(!toBack), toBack ? 4200 : 2200); };
+    t = setTimeout(() => step(true), 1300);
+    return () => clearTimeout(t);
+  }, [auto, reduce]);
+
+  const cells = CO.facts.map((f) => ({ label: f.label, value: f.value, live: f.live, ...(ID_STYLE[f.icon] || ID_STYLE.gem) }));
+
   return (
-    <Card style={{ overflow: "hidden" }}>
-      <div style={{ position: "relative", height: 132 }}>
-        <img src={IMG.status} alt="" loading="lazy" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(4,8,14,0.34) 0%, rgba(4,8,14,0.05) 42%, rgba(4,8,14,0.52) 100%)" }} />
-        <div style={{ position: "absolute", top: 11, left: 14, display: "flex", alignItems: "center", gap: 7 }}>
-          <span style={{ width: 7, height: 7, borderRadius: 999, background: "#f59e0b" }} />
-          <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.18em", color: "#fff" }}>COMPANY STATUS</span>
-        </div>
-        <div style={{ position: "absolute", left: 14, right: 14, bottom: 11 }}>
-          <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.15em", color: "rgba(255,255,255,0.85)" }}>TRADES AS</p>
-          <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
-            {CO.listings.map(([ex, sym]) => (
-              <span key={ex} style={{ background: "rgba(255,255,255,0.22)", backdropFilter: "blur(6px)", borderRadius: 999, padding: "5px 10px", fontSize: 11, color: "#fff", fontWeight: 500 }}>
-                {ex} <b style={{ fontWeight: 800 }}>{sym}</b>
+    <div style={{ flex: "1 1 auto", display: "flex", flexDirection: "column", minHeight: 0 }}>
+      <div style={{ position: "relative", flex: "1 1 auto", minHeight: 0, display: "flex" }}>
+        {/* soft shadow cast behind the card */}
+        <div aria-hidden style={{ position: "absolute", inset: 0, borderRadius: 24, background: "#fff", boxShadow: "0 12px 30px -10px rgba(15,23,42,0.20)", zIndex: 0 }} />
+        <div style={{ perspective: 1600, position: "relative", zIndex: 1, flex: 1, minWidth: 0 }}>
+          <div style={{ position: "relative", height: "100%", transformStyle: "preserve-3d", WebkitTransformStyle: "preserve-3d", transition: "transform .85s cubic-bezier(.2,.75,.2,1)", transform: flipped ? "rotateY(180deg)" : "rotateY(0deg)" }}>
+
+            {/* BACK — Company Status */}
+            <div style={{ height: "100%", backfaceVisibility: "hidden", WebkitBackfaceVisibility: "hidden", transform: "rotateY(180deg)", opacity: flipped ? 1 : 0, transition: "opacity .45s ease" }}>
+              <div style={{ height: "100%", display: "flex", flexDirection: "column", overflow: "hidden", borderRadius: 24, border: "1px solid #e2e8f0", background: "#fff" }}>
+                {/* header banner — flagship photo behind COMPANY STATUS + tickers */}
+                <div style={{ flex: "0 0 auto", position: "relative", overflow: "hidden", padding: "14px 18px 13px", background: "linear-gradient(180deg, #0b1220 0%, #0b1220 88%, #f4f7fb 100%)" }}>
+                  <img src={IMG.status} alt="" aria-hidden style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", objectPosition: "50% 30%" }} />
+                  <span aria-hidden style={{ position: "absolute", inset: 0, background: `radial-gradient(95% 150% at 15% 4%, rgba(11,18,32,${BANNER.tl}) 0%, rgba(11,18,32,0) 55%)` }} />
+                  <span aria-hidden style={{ position: "absolute", inset: 0, background: `linear-gradient(180deg, rgba(11,18,32,0) 46%, rgba(11,18,32,${BANNER.bot}) 100%)` }} />
+                  <span aria-hidden style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: 18, background: "linear-gradient(180deg, rgba(244,247,251,0) 0%, #f4f7fb 100%)" }} />
+                  <div style={{ position: "relative", zIndex: 1 }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        <span style={{ width: 6, height: 6, borderRadius: 999, background: "#f97316", boxShadow: "0 0 7px 1px rgba(249,115,22,0.9)" }} />
+                        <span style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: "0.16em", textTransform: "uppercase", color: "#fdb271", textShadow: "0 0 2px rgba(0,0,0,0.95), 0 1px 3px rgba(0,0,0,0.9)" }}>Company Status</span>
+                      </div>
+                      <button type="button" onClick={() => setFlipped(false)} aria-label="Show project photo" style={{ width: 24, height: 24, marginRight: -2, display: "grid", placeItems: "center", borderRadius: 999, border: "none", background: "transparent", color: "rgba(255,255,255,0.82)", cursor: "pointer" }}>
+                        <RotateCcw size={13} strokeWidth={2.4} />
+                      </button>
+                    </div>
+                    <div style={{ marginTop: 10 }}>
+                      <p style={{ fontSize: 7.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(255,255,255,0.82)", textShadow: "0 1px 3px rgba(0,0,0,0.8)" }}>Trades As</p>
+                      <div style={{ marginTop: 5, display: "flex", flexWrap: "wrap", gap: 6 }}>
+                        {ID_TICKERS.map((t, i) => (
+                          <span key={i} style={{ display: "inline-flex", alignItems: "baseline", gap: 4, whiteSpace: "nowrap", padding: "3px 10px", borderRadius: 999, background: "rgba(255,255,255,0.13)", border: "1px solid rgba(255,255,255,0.34)", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)", boxShadow: "0 1px 3px rgba(0,0,0,0.16)" }}>
+                            <span style={{ fontSize: ID_TK - 2.5, fontWeight: 700, color: "rgba(255,255,255,0.82)", letterSpacing: "0.03em", textShadow: "0 1px 2px rgba(0,0,0,0.45)" }}>{t.ex}</span>
+                            <span style={{ fontSize: ID_TK - 0.5, fontWeight: 800, color: "#fff", letterSpacing: "-0.01em", textShadow: "0 1px 3px rgba(0,0,0,0.55)" }}>{t.sym}</span>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                {/* six-cell grid — equal rows fill the remaining height */}
+                <div style={{ flex: "1 1 auto", minHeight: 0, marginTop: -1, position: "relative", zIndex: 1, background: "linear-gradient(180deg,#f4f7fb,#eef3f9)", borderTop: "1px solid #e7ecf3", padding: 8, display: "grid", gridTemplateColumns: "1fr 1fr", gridTemplateRows: "repeat(3, 1fr)", gap: 6 }}>
+                  {cells.map((c, i) => {
+                    const Ic = c.Icon;
+                    return (
+                      <div key={i} style={{ minWidth: 0, display: "flex", alignItems: "center", gap: 8, padding: "0 10px", background: "#fff", borderRadius: 10, border: "1px solid rgba(15,23,42,0.05)", boxShadow: "0 1px 1.5px rgba(15,23,42,0.03), inset 0 1px 0 rgba(255,255,255,0.9)" }}>
+                        <span style={{ flexShrink: 0, width: 25, height: 25, borderRadius: 999, background: c.icBg, border: "1px solid rgba(15,23,42,0.045)", display: "grid", placeItems: "center", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.6)" }}>
+                          <Ic size={12.5} strokeWidth={2.2} style={{ color: c.ic }} />
+                        </span>
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <p style={{ fontSize: 8, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", color: "#94a3b8", lineHeight: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.label}</p>
+                          <p style={{ marginTop: 3, fontSize: 13.5, fontWeight: 700, letterSpacing: "-0.01em", lineHeight: 1.1, color: "#0f172a", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+                            {c.live && <span style={{ display: "inline-block", width: 5.5, height: 5.5, borderRadius: 999, background: "#3b82f6", marginRight: 5, verticalAlign: "middle", position: "relative", top: -1, boxShadow: "0 0 0 2px rgba(37,99,235,0.16)" }} />}
+                            {c.value || "—"}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* FRONT — flagship photo + logo */}
+            <button type="button" onClick={() => setFlipped(true)} aria-label="Show company status" style={{ position: "absolute", inset: 0, padding: 0, cursor: "pointer", borderRadius: 24, overflow: "hidden", border: "1px solid #e2e8f0", backfaceVisibility: "hidden", WebkitBackfaceVisibility: "hidden", pointerEvents: flipped ? "none" : "auto", opacity: flipped ? 0 : 1, transition: "opacity .45s ease" }}>
+              <div style={{ position: "absolute", inset: 0, background: "linear-gradient(160deg,#e8edf3,#dfe6ee)" }} />
+              <img src={IMG.status} alt={CO.name} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
+              <span style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(0,0,0,0.10) 0%, rgba(0,0,0,0) 38%, rgba(0,0,0,0.30) 100%)" }} />
+              <span style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center" }}>
+                <img src={IMG.logo} alt={CO.name} style={{ width: "85%", filter: "drop-shadow(0 3px 12px rgba(0,0,0,0.8))" }} />
               </span>
-            ))}
+            </button>
+
           </div>
         </div>
       </div>
-      <div style={{ padding: 10, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, background: "#fff" }}>
-        {CO.facts.map((f) => <FactTile key={f.label} f={f} />)}
-      </div>
-      <div style={{ padding: "0 10px 12px" }}>
-        <div style={{ background: "#f8fafc", borderRadius: 14, padding: 12 }}>
-          <p style={{ fontSize: 9.5, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: MUTE }}>{s.headline}</p>
-          <div style={{ height: 5, borderRadius: 999, background: "#e2e8f0", marginTop: 8, overflow: "hidden" }}>
-            <div style={{ width: `${(s.done / s.total) * 100}%`, height: "100%", borderRadius: 999, background: EM }} />
-          </div>
-          <p style={{ fontSize: 12, color: SLATE, marginTop: 7 }}>
-            <b style={{ color: INK, fontWeight: 700 }} className="mx-num">{s.done} / {s.total} {s.unit}</b> · {s.eta}
-          </p>
-        </div>
-      </div>
-    </Card>
+    </div>
   );
 }
 
 function AiBriefCard() {
   return (
-    <div style={{ borderRadius: 18, padding: 18, background: "linear-gradient(135deg, #4f6ef7 0%, #4aa8e8 100%)", color: "#fff" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <span style={{ width: 30, height: 30, borderRadius: 10, background: "rgba(255,255,255,0.22)", display: "grid", placeItems: "center" }}><Zap size={16} fill="#fff" color="#fff" /></span>
-        <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.2em" }}>AI BRIEF</span>
+    <button type="button" style={{ marginTop: 8, display: "block", width: "100%", textAlign: "left", overflow: "hidden", borderRadius: 24, border: "none", cursor: "pointer", padding: 16, background: "radial-gradient(135% 130% at 88% 8%, #7ad6f8 0%, rgba(122,214,248,0) 45%), linear-gradient(140deg, #1b4fd0 0%, #2f86e6 58%, #49b4f0 100%)", boxShadow: "0 20px 40px -20px rgba(31,79,208,0.7)", color: "#fff" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <span style={{ width: 28, height: 28, borderRadius: 8, background: "rgba(255,255,255,0.22)", display: "grid", placeItems: "center" }}><Zap size={15} color="#fff" strokeWidth={2.6} /></span>
+        <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.2em", textTransform: "uppercase", color: "rgba(255,255,255,0.85)" }}>AI Brief</span>
       </div>
-      <p style={{ fontSize: 20, fontWeight: 800, letterSpacing: "-0.03em", marginTop: 14 }}>Explain Kingsmen in 60 Seconds</p>
-      <p style={{ fontSize: 13, lineHeight: 1.45, color: "rgba(255,255,255,0.88)", marginTop: 6 }}>
-        Summary covering opportunity, risks, catalysts and project potential.
-      </p>
-    </div>
+      <p style={{ marginTop: 10, fontSize: 17, fontWeight: 800, letterSpacing: "-0.02em", lineHeight: 1.1 }}>Explain Kingsmen in 60 Seconds</p>
+      <p style={{ marginTop: 6, fontSize: 12, fontWeight: 500, lineHeight: 1.35, color: "rgba(255,255,255,0.8)" }}>AI-generated summary covering opportunity, risks, catalysts and project potential.</p>
+    </button>
   );
 }
 
-function TabOverview() {
+function TabOverview({ flip = false }) {
+  // Matches the app: the identity card grows to fill, AI Brief pinned below.
   return (
-    <div style={{ padding: "12px 12px 24px", display: "grid", gap: 12 }}>
-      <StatusCard />
+    <div style={{ height: "100%", display: "flex", flexDirection: "column", padding: "8px 20px 14px", minHeight: 0 }}>
+      <CompanyIdentityCard auto={flip} />
       <AiBriefCard />
     </div>
   );
 }
 
 function TabProjects() {
+  const p = PROJECTS[0];
   return (
-    <div style={{ padding: "12px 12px 24px", display: "grid", gap: 12 }}>
-      {PROJECTS.map((p) => (
-        <Card key={p.name} style={{ overflow: "hidden" }}>
-          <div style={{ position: "relative", height: 128 }}>
-            <img src={p.image} alt="" loading="lazy" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-            <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(4,8,14,0) 40%, rgba(4,8,14,0.66) 100%)" }} />
-            <div style={{ position: "absolute", left: 14, bottom: 12 }}>
-              <p style={{ fontSize: 18, fontWeight: 800, color: "#fff", letterSpacing: "-0.03em" }}>{p.name}</p>
-              <p style={{ fontSize: 11.5, color: "rgba(255,255,255,0.82)", marginTop: 1 }}>{p.district}</p>
-            </div>
-            <span style={{ position: "absolute", top: 11, right: 12, background: "rgba(255,255,255,0.92)", borderRadius: 999, padding: "4px 10px", fontSize: 10, fontWeight: 800, letterSpacing: "0.06em", color: INK }}>{p.stage}</span>
+    <div style={{ padding: "14px 12px 24px" }}>
+      <p className="mx-label" style={{ color: "#c2410c", fontSize: 11, letterSpacing: "0.14em", padding: "0 4px" }}>Assets</p>
+      <p style={{ fontSize: 22, fontWeight: 800, letterSpacing: "-0.03em", padding: "6px 4px 0" }}>Projects</p>
+
+      {/* project selector */}
+      <div style={{ display: "flex", gap: 6, background: "#eef2f7", borderRadius: 14, padding: 4, marginTop: 14 }}>
+        {PROJECTS.map((pr, i) => (
+          <span key={pr.name} style={{ flex: 1, textAlign: "center", padding: "10px 8px", borderRadius: 11, fontSize: 14.5, fontWeight: 700, letterSpacing: "-0.02em", background: i === 0 ? EM : "transparent", color: i === 0 ? "#fff" : SLATE }}>{pr.name}</span>
+        ))}
+      </div>
+
+      {/* flagship photo with carousel dots */}
+      <div style={{ position: "relative", height: 190, borderRadius: 16, overflow: "hidden", marginTop: 12 }}>
+        <img src={p.image} alt="" loading="lazy" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+        <div style={{ position: "absolute", left: 0, right: 0, bottom: 12, display: "flex", justifyContent: "center", gap: 5 }}>
+          {Array.from({ length: 8 }).map((_, i) => (
+            <span key={i} style={{ width: i === 0 ? 16 : 5, height: 5, borderRadius: 999, background: i === 0 ? "#fff" : "rgba(255,255,255,0.55)" }} />
+          ))}
+        </div>
+      </div>
+
+      {/* project intelligence */}
+      <p style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.14em", textTransform: "uppercase", color: EM_TEXT, margin: "20px 4px 10px" }}>Project Intelligence</p>
+      <Card pad={"4px 16px 8px"}>
+        {[["District", p.district], ["Stage", p.stage], ...p.snapshot].map(([k, v]) => (
+          <div key={k} style={{ display: "flex", justifyContent: "space-between", gap: 14, padding: "12px 0", borderBottom: `1px solid #f1f5f9` }}>
+            <span style={{ fontSize: 12.5, color: SLATE, flex: "0 0 auto" }}>{k}</span>
+            <span style={{ fontSize: 12.5, fontWeight: 700, textAlign: "right" }}>{v}</span>
           </div>
-          <div style={{ padding: "4px 14px 12px" }}>
-            {p.snapshot.map(([k, v]) => (
-              <div key={k} style={{ display: "flex", justifyContent: "space-between", padding: "9px 0", borderBottom: `1px solid #f1f5f9` }}>
-                <span style={{ fontSize: 12.5, color: SLATE }}>{k}</span>
-                <span style={{ fontSize: 12.5, fontWeight: 700 }}>{v}</span>
-              </div>
-            ))}
-          </div>
-        </Card>
-      ))}
+        ))}
+      </Card>
     </div>
   );
 }
 
-const CAT_TINT = {
-  Exploration: ["#eff6ff", "#2563eb"],
-  Acquisition: ["#f5f3ff", "#7c3aed"],
-  Financing: ["#eff6ff", "#1d4ed8"],
-  Drilling: ["#fff7ed", "#c2410c"],
+// Impact level → [dot, text, chip-bg] — the app's own milestone weighting.
+const IMPACT_TINT = {
+  Transformational: ["#2563eb", "#1d4ed8", "#eff6ff"],
+  High: ["#f59e0b", "#b45309", "#fffbeb"],
+  Notable: ["#94a3b8", "#64748b", "#f1f5f9"],
 };
+const STORY_YEARS = ["2026", "2025", "2024", "2023"];
 
 function TabTimeline() {
   return (
     <div style={{ padding: "14px 12px 24px" }}>
-      <p style={{ fontSize: 12, fontWeight: 800, letterSpacing: "0.12em", color: MUTE, textTransform: "uppercase", padding: "0 4px 10px" }}>2026</p>
-      <div style={{ position: "relative", paddingLeft: 18 }}>
-        <span style={{ position: "absolute", left: 5, top: 6, bottom: 6, width: 2, background: HAIR, borderRadius: 2 }} />
+      <p className="mx-label" style={{ color: EM_TEXT, fontSize: 11, letterSpacing: "0.14em", padding: "0 4px" }}>Progress</p>
+      <p style={{ fontSize: 22, fontWeight: 800, letterSpacing: "-0.03em", padding: "6px 4px 0" }}>The Story So Far</p>
+
+      {/* year filter rail */}
+      <div style={{ display: "flex", gap: 8, marginTop: 14, padding: "0 4px" }}>
+        <span style={{ width: 38, height: 38, borderRadius: 999, background: EM, display: "grid", placeItems: "center", flex: "0 0 auto" }}>
+          <Gem size={17} color="#fff" fill="#fff" />
+        </span>
+        {STORY_YEARS.map((y, i) => (
+          <span key={y} style={{ flex: 1, height: 38, borderRadius: 999, border: `1px solid ${i === 0 ? "rgba(37,99,235,0.35)" : HAIR}`, background: "#fff", display: "grid", placeItems: "center", fontSize: 14, fontWeight: 700, color: i === 0 ? INK : SLATE }}>{y}</span>
+        ))}
+      </div>
+
+      {/* key-milestones header */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "18px 4px 4px" }}>
+        <Gem size={17} color={EM} fill={EM} />
+        <span style={{ fontSize: 16, fontWeight: 800, letterSpacing: "-0.02em" }}>Key Milestones</span>
+        <span style={{ fontSize: 12, fontWeight: 600, color: EM_TEXT, marginLeft: 4 }}>All-time · {RELEASES.length} highlights</span>
+      </div>
+      <div style={{ height: 1, background: HAIR, margin: "10px 4px 0" }} />
+
+      <p style={{ fontSize: 13, fontWeight: 800, letterSpacing: "0.06em", color: MUTE, padding: "14px 4px 6px" }}>2026</p>
+      <div style={{ position: "relative", paddingLeft: 26 }}>
+        <span style={{ position: "absolute", left: 11, top: 10, bottom: 10, width: 2, background: HAIR, borderRadius: 2 }} />
         {RELEASES.map((r) => {
-          const [bg, fg] = CAT_TINT[r.category] || CAT_TINT.Exploration;
+          const [dot, fg, bg] = IMPACT_TINT[r.impact] || IMPACT_TINT.Notable;
           return (
-            <div key={r.date} style={{ position: "relative", marginBottom: 10 }}>
-              <span style={{ position: "absolute", left: -17, top: 18, width: 10, height: 10, borderRadius: 999, background: r.key ? EM : "#fff", border: `2px solid ${r.key ? EM : HAIR}` }} />
-              <Card pad={13}>
+            <div key={r.date} style={{ position: "relative", marginBottom: 12 }}>
+              <span style={{ position: "absolute", left: -25, top: 16, width: 24, height: 24, borderRadius: 999, background: "#eff6ff", display: "grid", placeItems: "center" }}>
+                <Gem size={12} color={EM} fill={EM} />
+              </span>
+              <Card pad={"14px 14px 15px"}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: MUTE }}>{r.d}</span>
-                  <span style={{ background: bg, color: fg, borderRadius: 999, padding: "3px 8px", fontSize: 9.5, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase" }}>{r.category}</span>
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 5, background: bg, borderRadius: 999, padding: "3px 9px" }}>
+                    <span style={{ width: 6, height: 6, borderRadius: 999, background: dot }} />
+                    <span style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", color: fg }}>{r.impact}</span>
+                  </span>
+                  <span style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: MUTE }}>{r.category}</span>
+                  <ChevronRight size={16} color={MUTE} style={{ marginLeft: "auto" }} />
                 </div>
-                <p style={{ fontSize: 14.5, fontWeight: 700, letterSpacing: "-0.02em", marginTop: 7, lineHeight: 1.25 }}>{r.label}</p>
-                <p style={{ fontSize: 12.5, color: SLATE, marginTop: 5, lineHeight: 1.4 }}>{r.why}</p>
+                <p style={{ fontSize: 14, fontWeight: 700, letterSpacing: "-0.02em", marginTop: 9, lineHeight: 1.3 }}>{r.headline}</p>
               </Card>
             </div>
           );
@@ -367,40 +458,74 @@ function TabTimeline() {
 function TabCapital() {
   const c = CO.capital;
   return (
-    <div style={{ padding: "12px 12px 24px", display: "grid", gap: 12 }}>
-      <Card pad={16}>
-        <p style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.14em", color: EM_TEXT, textTransform: "uppercase" }}>Capital</p>
-        <p style={{ fontSize: 21, fontWeight: 800, letterSpacing: "-0.032em", marginTop: 6 }}>{c.headline}</p>
-        <div style={{ height: 6, borderRadius: 999, background: "#e2e8f0", marginTop: 12, overflow: "hidden" }}>
-          <div style={{ width: "100%", height: "100%", background: EM, borderRadius: 999 }} />
+    <div style={{ padding: "14px 12px 24px" }}>
+      <p className="mx-label" style={{ color: "#7c3aed", fontSize: 11, letterSpacing: "0.14em", padding: "0 4px" }}>Financials</p>
+      <p style={{ fontSize: 22, fontWeight: 800, letterSpacing: "-0.03em", padding: "6px 4px 0" }}>Capital</p>
+
+      {/* funded headline card */}
+      <Card pad={18} style={{ marginTop: 14 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 6, border: `1px solid rgba(37,99,235,0.4)`, borderRadius: 999, padding: "4px 11px" }}>
+            <span style={{ width: 6, height: 6, borderRadius: 999, background: EM }} />
+            <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase", color: EM_TEXT }}>Fully Funded</span>
+          </span>
+          <Info size={17} color={EM} strokeWidth={2} />
         </div>
-        <p style={{ fontSize: 11.5, color: MUTE, marginTop: 7 }}>{c.note}</p>
+        <p style={{ fontSize: 24, fontWeight: 800, letterSpacing: "-0.035em", lineHeight: 1.08, marginTop: 14 }}>{c.headline}</p>
+        <p style={{ fontSize: 13, color: SLATE, marginTop: 10, lineHeight: 1.45 }}>{c.desc}</p>
+        <p style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.12em", textTransform: "uppercase", color: MUTE, marginTop: 18 }}>Funding runway</p>
+        <div style={{ position: "relative", height: 8, borderRadius: 999, background: "#e8edf5", marginTop: 10 }}>
+          <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: "100%", borderRadius: 999, background: `linear-gradient(90deg, ${EM}, #60a5fa)` }} />
+          <span style={{ position: "absolute", right: -3, top: "50%", transform: "translateY(-50%)", width: 20, height: 20, borderRadius: 999, background: EM, border: "3px solid #fff", boxShadow: "0 2px 6px rgba(37,99,235,0.4)" }} />
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between", marginTop: 9 }}>
+          <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", color: MUTE }}>Today</span>
+          <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", color: EM_TEXT }}>Through 2026</span>
+        </div>
       </Card>
-      <Card pad={"6px 16px 10px"}>
-        {c.rows.map(([k, v]) => (
-          <div key={k} style={{ display: "flex", justifyContent: "space-between", padding: "11px 0", borderBottom: `1px solid #f1f5f9` }}>
-            <span style={{ fontSize: 13, color: SLATE }}>{k}</span>
-            <span className="mx-num" style={{ fontSize: 13, fontWeight: 700 }}>{v}</span>
+
+      {/* listings */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", margin: "20px 4px 10px" }}>
+        <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.14em", textTransform: "uppercase", color: MUTE }}>Listings</span>
+        <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: MUTE }}>Delayed 15 min</span>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+        {CO.listings.map(([ex, sym]) => (
+          <div key={ex} style={{ background: "#0f172a", borderRadius: 16, padding: "16px 10px", textAlign: "center" }}>
+            <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.06em", color: "#94a3b8" }}>{ex}</p>
+            <p style={{ fontSize: 17, fontWeight: 800, letterSpacing: "-0.02em", color: "#fff", marginTop: 6 }}>{sym}</p>
           </div>
         ))}
-      </Card>
+      </div>
     </div>
   );
 }
 
 function TabTeam() {
   return (
-    <div style={{ padding: "12px 12px 24px", display: "grid", gap: 10 }}>
-      {TEAM.map((m) => (
-        <Card key={m.name} pad={13} style={{ display: "flex", alignItems: "center", gap: 13 }}>
-          <span style={{ width: 44, height: 44, borderRadius: 999, background: "#eef2f7", display: "grid", placeItems: "center", fontSize: 14.5, fontWeight: 800, color: "#64748b", flex: "0 0 auto" }}>{m.initials}</span>
-          <span style={{ minWidth: 0 }}>
-            <span style={{ display: "block", fontSize: 15, fontWeight: 700, letterSpacing: "-0.02em" }}>{m.name}</span>
-            <span style={{ display: "block", fontSize: 12.5, color: SLATE, marginTop: 1 }}>{m.role}</span>
-          </span>
-          <ChevronRight size={17} color={MUTE} style={{ marginLeft: "auto", flex: "0 0 auto" }} />
-        </Card>
-      ))}
+    <div style={{ padding: "14px 12px 24px" }}>
+      <p className="mx-label" style={{ color: EM_TEXT, fontSize: 11, letterSpacing: "0.14em", padding: "0 4px" }}>Leadership</p>
+      <p style={{ fontSize: 22, fontWeight: 800, letterSpacing: "-0.03em", padding: "6px 4px 14px" }}>Board &amp; Management</p>
+      <div style={{ borderTop: `1px solid ${HAIR}` }}>
+        {TEAM.map((m) => (
+          <div key={m.name} style={{ display: "flex", alignItems: "flex-start", gap: 13, padding: "16px 4px", borderBottom: `1px solid ${HAIR}` }}>
+            <span style={{ position: "relative", flex: "0 0 auto" }}>
+              <span style={{ width: 48, height: 48, borderRadius: 999, background: "#eef2f7", display: "grid", placeItems: "center", fontSize: 15, fontWeight: 800, color: "#64748b" }}>{m.initials}</span>
+              {m.verified && (
+                <span style={{ position: "absolute", right: -2, bottom: -2, background: "#fff", borderRadius: 999, display: "grid", placeItems: "center" }}>
+                  <BadgeCheck size={16} color="#3b82f6" fill="#dbeafe" />
+                </span>
+              )}
+            </span>
+            <span style={{ minWidth: 0, flex: 1 }}>
+              <span style={{ display: "block", fontSize: 15.5, fontWeight: 800, letterSpacing: "-0.02em" }}>{m.name}</span>
+              <span style={{ display: "block", fontSize: 12.5, fontWeight: 700, color: EM_TEXT, marginTop: 1 }}>{m.role}</span>
+              {m.bio && <span style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", fontSize: 12.5, color: SLATE, marginTop: 5, lineHeight: 1.4 }}>{m.bio}</span>}
+            </span>
+            <ChevronRight size={17} color={MUTE} style={{ marginTop: 4, flex: "0 0 auto" }} />
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -432,7 +557,7 @@ const TAB_VIEW = {
   updates: TabUpdates,
 };
 
-function ProfileScreenBase({ tab = "overview", following = false, onFollow, showNav = true, nav = "explore" }) {
+function ProfileScreenBase({ tab = "overview", following = false, onFollow, showNav = true, nav = "explore", flip = false }) {
   const View = TAB_VIEW[tab] || TabOverview;
   return (
     <AppShell nav={nav} showNav={showNav}>
@@ -440,8 +565,8 @@ function ProfileScreenBase({ tab = "overview", following = false, onFollow, show
         <ProfileHeader following={following} onFollow={onFollow} />
         <ProfileTabs tab={tab} />
         <div className="mx-noscroll" style={{ flex: 1, minHeight: 0, overflow: "hidden", background: APP_BG }}>
-          <div key={tab} className="pp-fade">
-            <View />
+          <div key={tab} className="pp-fade" style={{ height: "100%" }}>
+            <View flip={flip} />
           </div>
         </div>
       </div>

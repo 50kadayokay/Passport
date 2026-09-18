@@ -87,7 +87,7 @@ export function ConferenceMode() {
               position: "relative",
               margin: "0 auto",
               marginTop: mobile ? 26 : 42,
-              width: mobile ? "min(92vw, 520px)" : "min(72vw, 880px)",
+              width: mobile ? "min(92vw, 520px)" : "min(70vw, 820px, 72vh)",
               opacity: enter,
               transform: `translate3d(0, ${mix(30, 0, enter).toFixed(1)}px, 0)`,
               willChange: "transform, opacity",
@@ -216,7 +216,7 @@ export function BoothToAudience() {
             }}
           >
             <div style={{ position: "relative" }}>
-              <QrCode value="https://mineex.app/app?c=kingsmen-resources&utm_campaign=booth" size={mobile ? 108 : 132} />
+              <QrCode value="https://mineex.ca/app?c=kingsmen-resources&utm_campaign=booth" size={mobile ? 108 : 132} />
               {!reduce && (
                 <span
                   aria-hidden

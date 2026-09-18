@@ -424,7 +424,7 @@ export function Cta({ children, href = "#claim", kind = "primary", dark = false,
 // Device widths are capped by viewport HEIGHT as well as width, so a sticky scene
 // never grows taller than the stage it has to sit inside on a short laptop screen.
 export const phoneWidth = (mobile) =>
-  mobile ? "min(60vw, 250px, 30vh)" : "min(27vw, 320px, 31vh)";
+  mobile ? "min(60vw, 250px, 30vh)" : "min(26vw, 312px, 26vh)";
 
 
 // iPhone. Matches the frame the product itself uses in Conference Mode, so the
@@ -532,7 +532,7 @@ export function Tablet({ children, style, className = "" }) {
 }
 
 // Desktop browser chrome — for the company dashboard.
-export function Desktop({ children, label = "mineex.com/portal", style, className = "" }) {
+export function Desktop({ children, label = "mineex.ca/portal", style, className = "" }) {
   return (
     <div
       className={`mx-desktop ${className}`}
@@ -616,7 +616,9 @@ export function MarketingStyles() {
          browser skip layout and paint for the tracks that are nowhere near the
          viewport; each track has an explicit height, so nothing shifts. */
       .mx-track { position: relative; content-visibility: auto; }
-      .mx-stage { position: sticky; top: 0; height: 100svh; display: flex; align-items: center; overflow: hidden; }
+      /* padding-top reserves the fixed nav's band (62px), so vertically-centred
+         scene content is centred BELOW the nav and its headline never hides under it. */
+      .mx-stage { position: sticky; top: 0; height: 100svh; display: flex; align-items: center; overflow: hidden; padding-top: 62px; }
 
       @keyframes mx-cue { 0%,100% { transform: translateY(0); opacity: .55 } 50% { transform: translateY(6px); opacity: 1 } }
       .mx-cue { animation: mx-cue 2.4s ease-in-out infinite; }
