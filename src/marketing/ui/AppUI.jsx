@@ -70,6 +70,59 @@ export function Fit({ base = 375, children, style }) {
   );
 }
 
+// Embeds the REAL app inside the phone: an iframe of the live app, scaled from a
+// fixed logical width to fill the frame, with the guest "Get the app" banner
+// cropped off the top. No app change and no deploy — the marketing side only
+// frames and clips it, so the phone shows the actual product (real flip card,
+// live data, real behaviour) and can never drift from the app.
+export function LiveApp({ src, poster = null, crop = 50, base = 390, revealMs = 6000, style }) {
+  const box = useRef(null);
+  const [b, setB] = useState({ w: 0, h: 0 });
+  const [ready, setReady] = useState(false);   // real app booted → fade the poster out
+  // The app is a heavy SPA (~6s cold boot) and it's cross-origin, so we can't read
+  // when it's actually painted. The instant poster (a matched mock) covers the whole
+  // boot on a generous fixed timer; because it matches, the cross-fade is invisible.
+  useEffect(() => {
+    const t = setTimeout(() => setReady(true), revealMs);
+    return () => clearTimeout(t);
+  }, [revealMs]);
+  useLayoutEffect(() => {
+    const el = box.current;
+    if (!el) return;
+    const measure = () => setB({ w: el.clientWidth, h: el.clientHeight });
+    measure();
+    if (typeof ResizeObserver === "undefined") {
+      window.addEventListener("resize", measure);
+      return () => window.removeEventListener("resize", measure);
+    }
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  const scale = b.w ? b.w / base : 0;
+  const frameH = scale ? b.h / scale + crop : 0;   // unscaled iframe height, incl. cropped banner
+  return (
+    <div ref={box} style={{ position: "absolute", inset: 0, overflow: "hidden", background: "#fff", ...style }}>
+      {b.w > 0 && (
+        <iframe
+          src={src}
+          title="MineEx app"
+          scrolling="no"
+          tabIndex={-1}
+          aria-hidden="true"
+          style={{ position: "absolute", top: -(crop * scale), left: 0, width: base, height: frameH, border: "none", transform: `scale(${scale})`, transformOrigin: "top left", background: "#fff", pointerEvents: "none", zIndex: 1 }}
+        />
+      )}
+      {/* instant poster (a matched mock) covers the app's boot; fades out when ready */}
+      {poster && (
+        <div style={{ position: "absolute", inset: 0, zIndex: 2, opacity: ready ? 0 : 1, transition: "opacity .55s ease", pointerEvents: "none", background: APP_BG }}>
+          {poster}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ── chrome ──────────────────────────────────────────────────────────────── */
 
 function StatusBarBase({ dark = false }) {
