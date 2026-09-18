@@ -6,7 +6,7 @@ import {
   MX, EASE, Section, Wrap, Reveal, Eyebrow, Lead, Cta, Phone,
   useTrack, useViewport, useReduce, ramp, win, step, mix, phoneWidth,
 } from "../system.jsx";
-import { Fit, ProfileScreen, LiveApp } from "../ui/AppUI.jsx";
+import { Fit, ProfileScreen } from "../ui/AppUI.jsx";
 import { CHANNELS } from "../data.js";
 
 /* ══════════════════════════════════════════════════════ 1 · HERO ══════════ */
@@ -97,10 +97,9 @@ export function Hero() {
                     willChange: "transform",
                   }}
                 >
-                  <LiveApp
-                    src="https://mineex.ca/app?c=kingsmen-resources"
-                    poster={<Fit><ProfileScreen tab="overview" nav="explore" flip /></Fit>}
-                  />
+                  <Fit>
+                    <ProfileScreen tab="overview" nav="explore" flip />
+                  </Fit>
                 </Phone>
               </div>
             </Reveal>
