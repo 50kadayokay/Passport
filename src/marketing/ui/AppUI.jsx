@@ -74,17 +74,16 @@ export function Fit({ base = 375, children, style }) {
 // static, non-navigable preview of one screen. This is the accurate way to show
 // the app on the sales page: a screenshot of the app IS the app.
 export function AppShot({ name, position = "top", style }) {
+  // The shots are captured at the real device aspect (status bar baked in), so
+  // they fill the phone edge-to-edge with no cropping.
   return (
-    <div style={{ position: "absolute", inset: 0, overflow: "hidden", background: "#fff", display: "flex", flexDirection: "column", ...style }}>
-      <StatusBar />
-      <div style={{ position: "relative", flex: 1, minHeight: 0 }}>
-        <img
-          src={`/marketing/appshots/${name}.webp`}
-          alt=""
-          loading="lazy"
-          style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", objectPosition: position }}
-        />
-      </div>
+    <div style={{ position: "absolute", inset: 0, overflow: "hidden", background: "#fff", ...style }}>
+      <img
+        src={`/marketing/appshots/${name}.webp`}
+        alt=""
+        loading="lazy"
+        style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: position }}
+      />
     </div>
   );
 }
