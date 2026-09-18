@@ -6,7 +6,7 @@ import {
   MX, EASE, Section, Wrap, Reveal, Eyebrow, Lead, Cta, Phone,
   useTrack, useViewport, useReduce, ramp, win, step, mix, phoneWidth,
 } from "../system.jsx";
-import { Fit, ProfileScreen } from "../ui/AppUI.jsx";
+import { Fit, ProfileScreen, AppShot } from "../ui/AppUI.jsx";
 import { CHANNELS } from "../data.js";
 
 /* ══════════════════════════════════════════════════════ 1 · HERO ══════════ */
@@ -355,9 +355,7 @@ export function CompanyProfileSection() {
 
             <div style={{ order: mobile ? 1 : 2, display: "flex", justifyContent: "center" }}>
               <Phone width={phoneWidth(mobile)}>
-                <Fit>
-                  <ProfileScreen tab={beat.tab} nav="explore" />
-                </Fit>
+                <AppShot name={beat.tab} />
               </Phone>
             </div>
           </div>

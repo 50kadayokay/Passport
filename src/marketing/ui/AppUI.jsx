@@ -70,6 +70,25 @@ export function Fit({ base = 375, children, style }) {
   );
 }
 
+// Renders a real captured screenshot of the app inside the phone — an exact,
+// static, non-navigable preview of one screen. This is the accurate way to show
+// the app on the sales page: a screenshot of the app IS the app.
+export function AppShot({ name, position = "top", style }) {
+  return (
+    <div style={{ position: "absolute", inset: 0, overflow: "hidden", background: "#fff", display: "flex", flexDirection: "column", ...style }}>
+      <StatusBar />
+      <div style={{ position: "relative", flex: 1, minHeight: 0 }}>
+        <img
+          src={`/marketing/appshots/${name}.webp`}
+          alt=""
+          loading="lazy"
+          style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", objectPosition: position }}
+        />
+      </div>
+    </div>
+  );
+}
+
 // Embeds the REAL app inside the phone: an iframe of the live app, scaled from a
 // fixed logical width to fill the frame, with the guest "Get the app" banner
 // cropped off the top. No app change and no deploy — the marketing side only

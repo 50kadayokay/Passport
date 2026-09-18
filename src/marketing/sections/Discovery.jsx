@@ -6,7 +6,7 @@ import {
   useTrack, useViewport, useReduce, ramp, win, mix, phoneWidth,
 } from "../system.jsx";
 import {
-  Fit, ExploreScreen, FeedScreen, ProfileScreen, FollowButton, PushNotification,
+  Fit, ExploreScreen, FeedScreen, ProfileScreen, FollowButton, PushNotification, AppShot,
 } from "../ui/AppUI.jsx";
 import { DIRECTORY, CO, RELEASES, IMG } from "../data.js";
 
@@ -78,9 +78,7 @@ export function Discovered() {
 
             <div style={{ order: mobile ? 1 : 2, display: "flex", justifyContent: "center" }}>
               <Phone width={phoneWidth(mobile)}>
-                <Fit>
-                  <ExploreScreen activeFilters={filters} results={results.length ? results : DIRECTORY} />
-                </Fit>
+                <AppShot name="explore" />
               </Phone>
             </div>
           </div>
@@ -145,9 +143,7 @@ export function FollowMoment() {
                 />
               )}
               <Phone width={phoneWidth(mobile)}>
-                <Fit>
-                  <ProfileScreen tab="overview" nav="explore" following={following} onFollow={toggle} />
-                </Fit>
+                <AppShot name="overview" />
               </Phone>
             </div>
 
@@ -292,9 +288,7 @@ export function StayInformed() {
                   <PushNotification shown={notif} />
                 </div>
                 <Phone width={phoneWidth(mobile)}>
-                  <Fit>
-                    <FeedScreen reveal={cards} />
-                  </Fit>
+                  <AppShot name="feed" />
                 </Phone>
               </div>
             </div>

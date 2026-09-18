@@ -3,7 +3,7 @@ import React, { useRef } from "react";
 import {
   MX, EASE, Wrap, Reveal, Eyebrow, Phone, useTrack, useViewport, useReduce, ramp, win, mix, phoneWidth,
 } from "../system.jsx";
-import { Fit, ReleaseScreen, MediaScreen } from "../ui/AppUI.jsx";
+import { Fit, ReleaseScreen, MediaScreen, AppShot } from "../ui/AppUI.jsx";
 import { RAW_RELEASE, RELEASES, IMG } from "../data.js";
 
 /* ═════════════════════════════════════════ 7 · PRESS RELEASES ════════════ */
@@ -87,9 +87,7 @@ export function PressReleases() {
               }}
             >
               <Phone width={phoneWidth(mobile)}>
-                <Fit>
-                  <ReleaseScreen release={RELEASES[3]} />
-                </Fit>
+                <AppShot name="release" />
               </Phone>
             </div>
           </div>
@@ -136,9 +134,7 @@ export function Media() {
 
             <div style={{ order: mobile ? 3 : 2, display: "flex", justifyContent: "center" }}>
               <Phone width={phoneWidth(mobile)}>
-                <Fit>
-                  <MediaScreen />
-                </Fit>
+                <AppShot name="media" />
               </Phone>
             </div>
 
