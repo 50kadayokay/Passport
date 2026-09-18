@@ -108,7 +108,7 @@ function Nav() {
         {!mobile && (
           <nav style={{ display: "flex", gap: 26 }}>
             {LINKS.map(([label, href]) => (
-              <a key={href} href={href} style={{ fontSize: 14, fontWeight: 600, color: MX.dim, textDecoration: "none" }}>
+              <a key={href} href={href} className="mx-navlink" style={{ fontSize: 14, fontWeight: 600, color: MX.dim, textDecoration: "none" }}>
                 {label}
               </a>
             ))}

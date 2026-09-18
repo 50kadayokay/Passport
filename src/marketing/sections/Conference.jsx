@@ -164,9 +164,10 @@ export function BoothToAudience() {
                       style={{
                         width: mobile ? 42 : 52, height: mobile ? 42 : 52, borderRadius: 999,
                         display: "grid", placeItems: "center", flex: "0 0 auto",
-                        border: `1px solid ${on ? MX.emDark : MX.hairDark}`,
-                        background: on ? "rgba(255,255,255,0.09)" : "transparent",
-                        color: on ? MX.emDark : MX.onDarkMute,
+                        border: `1px solid ${on ? "var(--mx-accent)" : MX.hairDark}`,
+                        background: on ? "rgba(198,240,74,0.12)" : "transparent",
+                        color: on ? "var(--mx-accent)" : MX.onDarkMute,
+                        boxShadow: on ? "0 0 20px -6px var(--mx-accent)" : "none",
                         transition: `all 520ms ${EASE}`,
                       }}
                     >
@@ -195,7 +196,7 @@ export function BoothToAudience() {
                 aria-hidden
                 style={{
                   position: "absolute", left: "10%", right: "10%", top: mobile ? 0 : 26, height: 1,
-                  background: `linear-gradient(90deg, ${MX.emDark}, ${MX.hairDark})`,
+                  background: `linear-gradient(90deg, var(--mx-accent), ${MX.hairDark})`,
                   transform: `scaleX(${reduce ? 1 : Math.min(1, Math.max(0, (p - 0.1) / 0.62))})`,
                   transformOrigin: "left",
                   zIndex: -1,

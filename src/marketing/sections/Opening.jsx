@@ -345,7 +345,7 @@ export function CompanyProfileSection() {
                       height: 3,
                       width: n === i ? 34 : 18,
                       borderRadius: 3,
-                      background: n === i ? MX.em : "rgba(18,22,29,0.16)",
+                      background: n === i ? "var(--mx-accent-ink)" : "rgba(18,22,29,0.16)",
                       transition: `width 420ms ${EASE}, background 420ms ${EASE}`,
                     }}
                   />

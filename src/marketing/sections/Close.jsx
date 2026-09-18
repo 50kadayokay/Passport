@@ -63,7 +63,8 @@ function ArcDiagram({ draw }) {
               <span
                 style={{
                   display: "block", width: 13, height: 13, borderRadius: 999, margin: "0 auto",
-                  background: on ? MX.em : MX.sheetDeep, border: `2px solid ${on ? MX.em : "rgba(18,22,29,0.22)"}`,
+                  background: on ? "var(--mx-accent)" : MX.sheetDeep, border: `2px solid ${on ? "var(--mx-accent-ink)" : "rgba(18,22,29,0.22)"}`,
+                  boxShadow: on ? "0 0 0 5px rgba(198,240,74,0.18)" : "none",
                   transition: `all 420ms ${EASE}`,
                 }}
               />
@@ -100,7 +101,7 @@ export function Journey() {
           {mobile ? (
             <div style={{ marginTop: 34, position: "relative", paddingLeft: 26 }}>
               <span style={{ position: "absolute", left: 7, top: 8, bottom: 8, width: 2, background: "rgba(18,22,29,0.12)", borderRadius: 2 }} />
-              <span style={{ position: "absolute", left: 7, top: 8, width: 2, height: `${draw * 100}%`, background: MX.em, borderRadius: 2 }} />
+              <span style={{ position: "absolute", left: 7, top: 8, width: 2, height: `${draw * 100}%`, background: "var(--mx-accent-ink)", borderRadius: 2 }} />
               {JOURNEY.map((s, i) => {
                 const on = draw >= (i + 0.5) / JOURNEY.length;
                 return (
@@ -108,7 +109,7 @@ export function Journey() {
                     <span
                       style={{
                         position: "absolute", left: -25, top: 4, width: 12, height: 12, borderRadius: 999,
-                        background: on ? MX.em : MX.sheetDeep, border: `2px solid ${on ? MX.em : "rgba(18,22,29,0.2)"}`,
+                        background: on ? "var(--mx-accent)" : MX.sheetDeep, border: `2px solid ${on ? "var(--mx-accent-ink)" : "rgba(18,22,29,0.2)"}`,
                         transition: `all 420ms ${EASE}`,
                       }}
                     />

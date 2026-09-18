@@ -60,9 +60,9 @@ export function Discovered() {
                         padding: "9px 15px",
                         fontSize: 13.5,
                         fontWeight: 700,
-                        border: `1px solid ${on ? MX.em : "rgba(18,22,29,0.14)"}`,
-                        background: on ? MX.em : "transparent",
-                        color: on ? "#fff" : MX.mute,
+                        border: `1px solid ${on ? "var(--mx-accent)" : "rgba(18,22,29,0.14)"}`,
+                        background: on ? "var(--mx-accent)" : "transparent",
+                        color: on ? MX.ink : MX.mute,
                         transition: `all 460ms ${EASE} ${n * 40}ms`,
                       }}
                     >

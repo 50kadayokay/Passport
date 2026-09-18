@@ -351,7 +351,7 @@ export function Eyebrow({ children, color, style, order = 0 }) {
   return (
     <Reveal kind="eyebrow" order={order}>
       <div className="mx-label" style={{ color: color || MX.emText, display: "inline-flex", alignItems: "center", gap: 12, ...style }}>
-        <span style={{ width: 22, height: 2, borderRadius: 2, background: "currentColor", opacity: 0.85 }} />
+        <span style={{ width: 22, height: 2, borderRadius: 2, background: "var(--mx-accent)", opacity: 1 }} />
         {children}
       </div>
     </Reveal>
@@ -590,6 +590,10 @@ export function MarketingStyles() {
         color: ${MX.text};
         -webkit-font-smoothing: antialiased;
         overflow-x: clip;
+        /* One swappable accent. --mx-accent for dark grounds, --mx-accent-ink for
+           legibility on white. Overridden at runtime while comparing candidates. */
+        --mx-accent: #C6F04A;
+        --mx-accent-ink: #5f7a12;
       }
       .mx-root h1, .mx-root h2, .mx-root h3, .mx-root p, .mx-root figure { margin: 0; }
       .mx-root ul { margin: 0; padding: 0; list-style: none; }
@@ -608,8 +612,14 @@ export function MarketingStyles() {
       .mx-serif { font-family: ${SERIF}; font-weight: 400; letter-spacing: -0.01em; }
       .mx-num { font-variant-numeric: tabular-nums; }
 
+      .mx-cta { transition: transform 240ms ${EASE}, box-shadow 240ms ${EASE}, background 240ms ${EASE}, border-color 240ms ${EASE}, color 240ms ${EASE}; }
       .mx-cta:hover { transform: translateY(-1px); }
       .mx-cta:active { transform: translateY(0); }
+      .mx-cta svg { transition: transform 220ms ${EASE}; }
+      .mx-cta:hover svg { transform: translateX(3px); }
+      /* accent micro-interactions */
+      .mx-navlink { transition: color 200ms ease; }
+      .mx-navlink:hover { color: var(--mx-accent-ink); }
 
       /* Sticky demonstration scenes. */
       /* A 30,000px page keeps every scene in the DOM. content-visibility lets the
