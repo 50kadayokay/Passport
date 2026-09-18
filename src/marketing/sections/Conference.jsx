@@ -23,6 +23,7 @@ export function ConferenceMode() {
   const reduce = useReduce();
   const i = reduce ? 0 : step(p, BOOTH_BEATS.length);
   const enter = reduce ? 1 : ramp(p, 0.0, 0.18);
+  const sweep = reduce ? 1 : win(p, 0.04, 0.26);   // one-pass accent light across the device
 
   // Stable element identity, so the memoised booth deck isn't re-rendered on every
   // scroll frame just because this prop was rebuilt.
@@ -89,13 +90,18 @@ export function ConferenceMode() {
               marginTop: mobile ? 26 : 42,
               width: mobile ? "min(92vw, 520px)" : "min(70vw, 820px, 72vh)",
               opacity: enter,
-              transform: `translate3d(0, ${mix(30, 0, enter).toFixed(1)}px, 0)`,
+              transform: `perspective(1600px) translate3d(0, ${mix(48, 0, enter).toFixed(1)}px, 0) scale(${mix(1.07, 1, enter).toFixed(3)}) rotateX(${mix(7, 0, enter).toFixed(2)}deg)`,
+              transformOrigin: "50% 78%",
               willChange: "transform, opacity",
             }}
           >
             <Tablet>
               <BoothDeck scene={i} phone={phone} />
             </Tablet>
+            {/* one-time accent light-sweep as the device resolves */}
+            <span aria-hidden style={{ position: "absolute", inset: 0, overflow: "hidden", borderRadius: "clamp(20px, 2vw, 30px)", pointerEvents: "none", zIndex: 4 }}>
+              <span style={{ position: "absolute", top: "-25%", bottom: "-25%", width: "55%", left: 0, background: "linear-gradient(100deg, transparent 15%, rgba(198,240,74,0.30), transparent 85%)", transform: `translateX(${mix(-190, 250, sweep).toFixed(0)}%) skewX(-14deg)`, opacity: 0.95 * (1 - Math.abs(sweep * 2 - 1)) }} />
+            </span>
             {/* booth surface + reflection */}
             <div
               aria-hidden
