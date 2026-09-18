@@ -39,7 +39,7 @@ export function ConferenceMode() {
   );
 
   return (
-    <div ref={track} className="mx-track" style={{ height: mobile ? "320vh" : "380vh", background: MX.ink }}>
+    <div ref={track} className="mx-track" style={{ height: mobile ? "260vh" : "300vh", background: MX.ink }}>
       <div className="mx-stage" style={{ background: MX.ink, color: MX.onDark, flexDirection: "column", justifyContent: "center" }}>
         {/* room light */}
         <div
@@ -136,7 +136,7 @@ export function BoothToAudience() {
   const reached = (n) => p >= 0.1 + n * 0.15;
 
   return (
-    <div ref={track} className="mx-track" style={{ height: mobile ? "300vh" : "300vh", background: MX.inkSoft }}>
+    <div ref={track} className="mx-track" style={{ height: mobile ? "170vh" : "185vh", background: MX.inkSoft }}>
       <div className="mx-stage" style={{ background: MX.inkSoft, color: MX.onDark }}>
         <Wrap style={{ width: "100%" }}>
           <div style={{ textAlign: "center", maxWidth: 680, margin: "0 auto" }}>

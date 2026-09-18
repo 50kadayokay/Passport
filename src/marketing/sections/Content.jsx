@@ -17,7 +17,7 @@ export function PressReleases() {
   const rawOut = win(p, 0.24, 0.6);
 
   return (
-    <div ref={track} className="mx-track" style={{ height: "300vh", background: MX.sheetDeep }}>
+    <div ref={track} className="mx-track" style={{ height: "165vh", background: MX.sheetDeep }}>
       <div className="mx-stage" style={{ background: MX.sheetDeep }}>
         <Wrap style={{ width: "100%" }}>
           <div style={{ textAlign: "center", maxWidth: 700, margin: "0 auto" }}>
@@ -117,7 +117,7 @@ export function Media() {
   const drift = reduce ? 0 : (p - 0.5) * 2;
 
   return (
-    <div ref={track} className="mx-track" style={{ height: mobile ? "220vh" : "260vh", background: MX.ink }}>
+    <div ref={track} className="mx-track" style={{ height: mobile ? "125vh" : "140vh", background: MX.ink }}>
       <div className="mx-stage" style={{ background: MX.ink, color: MX.onDark }}>
         <Wrap style={{ width: "100%" }}>
           <div style={{ display: "grid", gridTemplateColumns: mobile ? "1fr" : "minmax(0, 1fr) auto minmax(0, 0.85fr)", gap: mobile ? 24 : 46, alignItems: "center" }}>

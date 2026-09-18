@@ -87,7 +87,7 @@ export function Journey() {
   const draw = reduce ? 1 : win(p, 0.08, 0.78);
 
   return (
-    <div ref={track} className="mx-track" style={{ height: mobile ? "280vh" : "260vh", background: MX.sheetDeep }}>
+    <div ref={track} className="mx-track" style={{ height: mobile ? "165vh" : "160vh", background: MX.sheetDeep }}>
       <div className="mx-stage" style={{ background: MX.sheetDeep }}>
         <Wrap style={{ width: "100%" }}>
           <div style={{ textAlign: "center", maxWidth: 720, margin: "0 auto" }}>

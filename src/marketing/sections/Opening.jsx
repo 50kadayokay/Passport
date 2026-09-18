@@ -149,7 +149,7 @@ export function Problem() {
   }, []);
 
   return (
-    <div ref={track} className="mx-track" style={{ height: mobile ? "260vh" : "300vh", background: MX.sheetDeep }}>
+    <div ref={track} className="mx-track" style={{ height: mobile ? "150vh" : "175vh", background: MX.sheetDeep }}>
       <div className="mx-stage" style={{ background: MX.sheetDeep }}>
         <Wrap style={{ width: "100%" }}>
           <div style={{ display: "grid", gridTemplateColumns: mobile ? "1fr" : "minmax(0, 0.85fr) minmax(0, 1fr)", gap: mobile ? 28 : 56, alignItems: "center" }}>
@@ -286,7 +286,7 @@ export function CompanyProfileSection() {
   const beat = PROFILE_BEATS[i];
 
   return (
-    <div ref={track} className="mx-track" style={{ height: `${PROFILE_BEATS.length * 88}vh`, background: MX.sheet }}>
+    <div ref={track} className="mx-track" style={{ height: `${PROFILE_BEATS.length * 46}vh`, background: MX.sheet }}>
       <div className="mx-stage" style={{ background: MX.sheet }}>
         <Wrap style={{ width: "100%" }}>
           <div

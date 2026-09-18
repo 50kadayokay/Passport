@@ -142,7 +142,7 @@ export function useInView(ref) {
 
 const MOTION = {
   eyebrow: { y: 10, dur: 480, delay: 0, stagger: 60 },
-  heading: { y: 30, dur: 620, delay: 60, stagger: 0, blur: 5 },
+  heading: { y: 24, dur: 560, delay: 60, stagger: 0 },
   copy: { y: 16, dur: 520, delay: 190, stagger: 90 },
   item: { y: 18, dur: 520, delay: 160, stagger: 70 },
   media: { y: 30, dur: 760, delay: 120, stagger: 0, scaleFrom: 0.965 },
@@ -615,7 +615,10 @@ export function MarketingStyles() {
       /* A 30,000px page keeps every scene in the DOM. content-visibility lets the
          browser skip layout and paint for the tracks that are nowhere near the
          viewport; each track has an explicit height, so nothing shifts. */
-      .mx-track { position: relative; content-visibility: auto; }
+      /* No content-visibility:auto — with a 100svh sticky child it mis-estimates
+         height and causes scroll-anchor jumps. The tracks are transform/opacity
+         only (device screens are static images), so rendering them is cheap. */
+      .mx-track { position: relative; }
       /* padding-top reserves the fixed nav's band (62px), so vertically-centred
          scene content is centred BELOW the nav and its headline never hides under it. */
       .mx-stage { position: sticky; top: 0; height: 100svh; display: flex; align-items: center; overflow: hidden; padding-top: 62px; }
