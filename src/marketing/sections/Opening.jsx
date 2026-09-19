@@ -6,7 +6,7 @@ import {
   MX, EASE, Section, Wrap, Eyebrow, Cta, Phone,
   useTrack, useViewport, useReduce, ramp, win, mix, phoneWidth,
 } from "../system.jsx";
-import { Fit, AppShot, AiBriefSheet } from "../ui/AppUI.jsx";
+import { Fit, ProfileScreen, AppShot } from "../ui/AppUI.jsx";
 import { CHANNELS } from "../data.js";
 
 /* ══════════════════════════════════════════════ 1 · HERO — LIVE DEMO ═══════
@@ -39,6 +39,9 @@ const BEAT_TOTAL = BEAT_VH.reduce((a, b) => a + b, 0);
 const BEAT_FRAC = (() => { const out = []; let acc = 0; for (const v of BEAT_VH) { out.push(acc / BEAT_TOTAL); acc += v; } out.push(1); return out; })();
 const HERO_TABS = ["overview", "overview", "projects", "timeline", "capital", "team", "media", "media"];
 const HERO_AREAS = ["overview", "projects", "timeline", "capital", "team", "media"];
+// Overview is kept live (the identity card flips, the AI Brief opens from it);
+// the data screens are exact captures of the real app.
+const HERO_DATA_SCREENS = ["projects", "timeline", "capital", "team", "media"];
 
 const heroBeatIndex = (p) => { let i = 0; for (let n = 1; n < BEAT_VH.length; n++) { if (p >= BEAT_FRAC[n]) i = n; else break; } return i; };
 const beatLocal = (p, i) => { const a = BEAT_FRAC[i], b = BEAT_FRAC[i + 1]; return Math.max(0, Math.min(1, (p - a) / ((b - a) || 1))); };
@@ -111,22 +114,19 @@ export function Hero() {
                 animates live on top of the overview. */}
             <div style={{ display: "flex", justifyContent: "center" }}>
               <Phone width={phoneWidth(mobile)}>
-                {HERO_AREAS.map((s) => (
-                  <div key={s} aria-hidden={s !== tab} style={{ position: "absolute", inset: 0, opacity: s === tab ? 1 : 0, transition: `opacity 300ms ${EASE}`, willChange: "opacity" }}>
+                {/* Overview stays live: the identity card keeps its one-time flip and
+                    the AI Brief sheet genuinely opens from the real card. */}
+                <div style={{ position: "absolute", inset: 0, opacity: tab === "overview" ? 1 : 0, transition: `opacity 300ms ${EASE}`, pointerEvents: "none" }}>
+                  <Fit>
+                    <ProfileScreen tab="overview" nav="explore" flip aiBrief={briefOpen} aiBriefScroll={briefScroll} aiBriefPress={briefPress} />
+                  </Fit>
+                </div>
+                {/* the data screens are exact captures of the real app */}
+                {HERO_DATA_SCREENS.map((s) => (
+                  <div key={s} style={{ position: "absolute", inset: 0, opacity: s === tab ? 1 : 0, transition: `opacity 300ms ${EASE}` }}>
                     <AppShot name={s} />
                   </div>
                 ))}
-                {beat === 1 && (
-                  <Fit>
-                    <div style={{ position: "relative", width: 375, height: 804 }}>
-                      {/* press cue on the real AI-Brief card before the sheet covers it */}
-                      {briefPress && briefOpen < 0.55 && (
-                        <div aria-hidden style={{ position: "absolute", left: 13, right: 13, bottom: 74, height: 132, borderRadius: 24, boxShadow: "0 0 0 3px rgba(255,255,255,0.8), 0 12px 30px -6px rgba(37,99,235,0.6)", transform: "scale(0.965)" }} />
-                      )}
-                      <AiBriefSheet p={briefOpen} scroll={briefScroll} />
-                    </div>
-                  </Fit>
-                )}
               </Phone>
             </div>
           </div>
@@ -152,13 +152,12 @@ function HeroMobile() {
               {b.cta === "hero" && <div style={{ display: "flex", justifyContent: "center" }}><HeroCta kind="hero" /></div>}
               <div style={{ display: "flex", justifyContent: "center", marginTop: 26 }}>
                 <Phone width="min(72vw, 288px)">
-                  <AppShot name={b.tab} />
-                  {b.key === "brief" && (
+                  {b.tab === "overview" ? (
                     <Fit>
-                      <div style={{ position: "relative", width: 375, height: 804 }}>
-                        <AiBriefSheet p={1} scroll={0} />
-                      </div>
+                      <ProfileScreen tab="overview" nav="explore" flip aiBrief={b.key === "brief" ? 1 : 0} />
                     </Fit>
+                  ) : (
+                    <AppShot name={b.tab} />
                   )}
                 </Phone>
               </div>
