@@ -316,10 +316,10 @@ function CompanyIdentityCard({ auto = false }) {
   const [flipped, setFlipped] = useState(!auto);   // rest on status unless auto-demoing
   useEffect(() => {
     if (!auto || reduce) { setFlipped(!auto); return; }
+    // Show the flagship front briefly, reveal the flip once, then settle on the
+    // status side and stay there — no perpetual ping-pong.
     setFlipped(false);
-    let t;
-    const step = (toBack) => { setFlipped(toBack); t = setTimeout(() => step(!toBack), toBack ? 4200 : 2200); };
-    t = setTimeout(() => step(true), 1300);
+    const t = setTimeout(() => setFlipped(true), 1300);
     return () => clearTimeout(t);
   }, [auto, reduce]);
 
