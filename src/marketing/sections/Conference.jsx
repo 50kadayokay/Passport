@@ -40,7 +40,20 @@ export function ConferenceMode() {
   );
 
   return (
-    <div ref={track} className="mx-track" style={{ height: mobile ? "260vh" : "300vh", background: MX.ink }}>
+    <div ref={track} className="mx-track" style={{ height: mobile ? "260vh" : "300vh", background: MX.ink, position: "relative", zIndex: 2 }}>
+      {/* the dark section rises up under the light one — a soft curved lip that
+          overlaps the outgoing light section, so the boundary reads as an
+          emergence rather than a hard horizontal cut. Purely decorative. */}
+      <div
+        aria-hidden
+        style={{
+          position: "absolute", left: 0, right: 0, top: 0,
+          height: "clamp(56px, 8vh, 128px)", transform: "translateY(-99%)",
+          background: MX.ink,
+          borderRadius: "50% 50% 0 0 / 100% 100% 0 0",
+          zIndex: 1,
+        }}
+      />
       <div className="mx-stage" style={{ background: MX.ink, color: MX.onDark, flexDirection: "column", justifyContent: "center" }}>
         {/* room light */}
         <div

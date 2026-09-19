@@ -117,7 +117,20 @@ export function Media() {
   const drift = reduce ? 0 : (p - 0.5) * 2;
 
   return (
-    <div ref={track} className="mx-track" style={{ height: mobile ? "125vh" : "140vh", background: MX.ink }}>
+    <div ref={track} className="mx-track" style={{ height: mobile ? "125vh" : "140vh", background: MX.ink, position: "relative", zIndex: 2 }}>
+      {/* quieter echo of the Conference boundary: the dark Media section rises
+          under the light Press Releases section above. Flatter, so it feels
+          intentional rather than a repeat. Purely decorative. */}
+      <div
+        aria-hidden
+        style={{
+          position: "absolute", left: 0, right: 0, top: 0,
+          height: "clamp(34px, 5vh, 76px)", transform: "translateY(-99%)",
+          background: MX.ink,
+          borderRadius: "50% 50% 0 0 / 100% 100% 0 0",
+          zIndex: 1,
+        }}
+      />
       <div className="mx-stage" style={{ background: MX.ink, color: MX.onDark }}>
         <Wrap style={{ width: "100%" }}>
           <div style={{ display: "grid", gridTemplateColumns: mobile ? "1fr" : "minmax(0, 1fr) auto minmax(0, 0.85fr)", gap: mobile ? 24 : 46, alignItems: "center" }}>
