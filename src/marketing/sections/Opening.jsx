@@ -6,7 +6,7 @@ import {
   MX, EASE, Section, Wrap, Eyebrow, Cta, Phone,
   useTrack, useViewport, useReduce, ramp, win, mix, phoneWidth,
 } from "../system.jsx";
-import { Fit, ProfileScreen } from "../ui/AppUI.jsx";
+import { Fit, AppShot, AiBriefSheet } from "../ui/AppUI.jsx";
 import { CHANNELS } from "../data.js";
 
 /* ══════════════════════════════════════════════ 1 · HERO — LIVE DEMO ═══════
@@ -106,12 +106,27 @@ export function Hero() {
               </div>
             </div>
 
-            {/* RIGHT — the phone. Anchored. The world inside it changes. */}
+            {/* RIGHT — the phone. Anchored. Real captured app screens swap inside it
+                (exact match, no live re-render = no scroll cost); the AI Brief sheet
+                animates live on top of the overview. */}
             <div style={{ display: "flex", justifyContent: "center" }}>
               <Phone width={phoneWidth(mobile)}>
-                <Fit>
-                  <ProfileScreen tab={tab} nav="explore" aiBrief={briefOpen} aiBriefScroll={briefScroll} aiBriefPress={briefPress} />
-                </Fit>
+                {HERO_AREAS.map((s) => (
+                  <div key={s} aria-hidden={s !== tab} style={{ position: "absolute", inset: 0, opacity: s === tab ? 1 : 0, transition: `opacity 300ms ${EASE}`, willChange: "opacity" }}>
+                    <AppShot name={s} />
+                  </div>
+                ))}
+                {beat === 1 && (
+                  <Fit>
+                    <div style={{ position: "relative", width: 375, height: 804 }}>
+                      {/* press cue on the real AI-Brief card before the sheet covers it */}
+                      {briefPress && briefOpen < 0.55 && (
+                        <div aria-hidden style={{ position: "absolute", left: 13, right: 13, bottom: 74, height: 132, borderRadius: 24, boxShadow: "0 0 0 3px rgba(255,255,255,0.8), 0 12px 30px -6px rgba(37,99,235,0.6)", transform: "scale(0.965)" }} />
+                      )}
+                      <AiBriefSheet p={briefOpen} scroll={briefScroll} />
+                    </div>
+                  </Fit>
+                )}
               </Phone>
             </div>
           </div>
@@ -137,9 +152,14 @@ function HeroMobile() {
               {b.cta === "hero" && <div style={{ display: "flex", justifyContent: "center" }}><HeroCta kind="hero" /></div>}
               <div style={{ display: "flex", justifyContent: "center", marginTop: 26 }}>
                 <Phone width="min(72vw, 288px)">
-                  <Fit>
-                    <ProfileScreen tab={b.tab} nav="explore" aiBrief={b.key === "brief" ? 1 : 0} />
-                  </Fit>
+                  <AppShot name={b.tab} />
+                  {b.key === "brief" && (
+                    <Fit>
+                      <div style={{ position: "relative", width: 375, height: 804 }}>
+                        <AiBriefSheet p={1} scroll={0} />
+                      </div>
+                    </Fit>
+                  )}
                 </Phone>
               </div>
             </div>
@@ -171,7 +191,7 @@ function HeroStatic() {
             <HeroCta kind="hero" />
           </div>
           <div style={{ display: "flex", justifyContent: "center" }}>
-            <Phone width={"min(72vw, 300px)"}><Fit><ProfileScreen tab="overview" nav="explore" /></Fit></Phone>
+            <Phone width={"min(72vw, 300px)"}><AppShot name="overview" /></Phone>
           </div>
           <div style={{ display: "grid", gap: 22 }}>
             {HERO_BEATS.slice(1).map((b) => (
