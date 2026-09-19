@@ -1470,6 +1470,8 @@ function defaultQuarterFor(year) {
 function TimelineView() {
   const [detail, setDetail] = useState(null);   // { yi, ii } | null
   const [showFull, setShowFull] = useState(false);
+  const _demo = useContext(DemoCtx);   // demo: open a milestone's detail on command (inert in production)
+  useEffect(() => { if (!_demo) return; setDetail(_demo.sheet === "time:detail" ? { yi: 0, ii: 0 } : null); }, [_demo && _demo.sheet]);
   const [activeYear, setActiveYear] = useState(PR_YEARS[0]?.year ?? null);
   const [highOnly, setHighOnly] = useState(true);   // diamond filter opens first: key/high-impact across all years
   const [expanded, setExpanded] = useState(() => {
@@ -2694,6 +2696,8 @@ function MediaViewer({ posts, start, onClose }) {
 
 function UpdatesView() {
   const [viewer, setViewer] = useState(null);  // media viewer start index
+  const _demo = useContext(DemoCtx);   // demo: open the media viewer on command (inert in production)
+  useEffect(() => { if (!_demo) return; setViewer(_demo.sheet === "media:viewer" ? 0 : null); }, [_demo && _demo.sheet]);
 
   // v1 media page: ONLY media posts (photos + videos). No text/operational updates —
   // material news lives on the Timeline; this page is the company's photo/video wall.
