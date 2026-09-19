@@ -9233,6 +9233,8 @@ export function CompanyProfile({ onBack, onScan, tab: controlledTab, onTabChange
   useEffect(() => listStore.sub(() => bumpList((x) => x + 1)), []);
   const following = listStore.has("following", listSlug);
   const setFollowing = (v) => listStore.set("following", listSlug, typeof v === "function" ? v(following) : v);
+  // Demo drives the Follow → Following action from scroll (inert in production).
+  useEffect(() => { if (demo && demo.follow != null) setFollowing(demo.follow); }, [demo && demo.follow]);
   // Company Status flip state, persisted for the whole profile session so switching tabs and
   // returning doesn't replay the intro; resets naturally when this component remounts (profile
   // fully left and re-entered).
