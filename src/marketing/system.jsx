@@ -229,7 +229,7 @@ function schedule() {
   requestAnimationFrame(runTick);
 }
 
-function subscribe(fn) {
+export function subscribe(fn) {
   tickers.add(fn);
   if (!listening) {
     listening = true;

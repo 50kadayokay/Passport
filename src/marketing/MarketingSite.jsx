@@ -12,6 +12,7 @@
 import React, { useEffect, useState } from "react";
 import { MX, EASE, MarketingStyles, Wrap, useViewport, useReduce, DEV } from "./system.jsx";
 import { Hero } from "./sections/Opening.jsx";
+import { ProProfileDemoStage } from "./demo/DemoStage.jsx";
 import { Discovered, FollowMoment, StayInformed } from "./sections/Discovery.jsx";
 import { PressReleases, Media } from "./sections/Content.jsx";
 import { Dashboard, Analytics } from "./sections/Company.jsx";
@@ -180,6 +181,17 @@ export default function MarketingSite() {
       document.documentElement.style.scrollBehavior = prev;
     };
   }, [reduce]);
+
+  // Dev preview of the Pro Profile demo slice: /site?slice=1 (scrollable, isolated).
+  if (typeof window !== "undefined" && new URLSearchParams(window.location.search).has("slice")) {
+    return (
+      <div className="mx-root" id="top">
+        <MarketingStyles />
+        <ProProfileDemoStage />
+        <div style={{ height: "70vh", background: MX.sheet }} />
+      </div>
+    );
+  }
 
   // Localhost-only single-section preview (see DEV in system.jsx).
   if (DEV.only) {
