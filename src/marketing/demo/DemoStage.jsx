@@ -37,8 +37,8 @@ const SCENES = [
   { key: "capital",   tab: "capital",  w: 2, scrollTo: 0.20, eyebrow: "CAPITAL",              head: "The numbers, made clear.",             body: "Funding position, structure and listings in one view — the questions that stall a conversation, answered up front." },
   { key: "leadership",tab: "team",     w: 2, scrollTo: 0.42, eyebrow: "LEADERSHIP",           head: "The people behind it.",                body: "Experience and track record, front and centre — because investors back the team as much as the rock." },
   { key: "updates",   tab: "updates",  w: 3, scrollTo: 0.10, eyebrow: "UPDATES",              head: "Stay in front of investors.",          body: "Your field updates, photos and video keep followers current — the company stays present between the big announcements." },
-  { key: "brief",     tab: "updates",  w: 6, scrollTo: 0.10, eyebrow: "AI BRIEF",             head: "Turn disclosure into understanding.",  body: "An investor opens an update — and MineEx distills your company into clear context: what happened, and why it matters, in under a minute.", sheet: "brief", kind: "sheet", briefScroll: true },
-  { key: "media",     tab: "updates",  w: 3, scrollTo: 0.28, eyebrow: "MEDIA",                head: "Bring the company to life.",           body: "Site footage and imagery open full-screen, right beside the numbers — the story your data can't tell on its own.", sheet: "media:viewer", kind: "viewer" },
+  { key: "brief",     tab: "updates",  w: 6, scrollTo: 0.24, scrollDur: 0.2, eyebrow: "AI BRIEF", head: "Turn disclosure into understanding.",  body: "An investor lands on your latest update — and MineEx distills your company into clear context: what happened, and why it matters, in under a minute.", sheet: "brief", kind: "sheet", briefScroll: true },
+  { key: "media",     tab: "updates",  w: 3, scrollTo: 0.30, scrollDur: 0.22, eyebrow: "MEDIA",   head: "Bring the company to life.",           body: "Site footage and imagery open full-screen, right beside the numbers — the story your data can't tell on its own.", sheet: "media:viewer", kind: "viewer" },
   { key: "follow",    tab: "updates",  w: 3, scrollTo: 0.00, eyebrow: "STAY CONNECTED",       head: "Turn attention into a relationship.",  body: "One tap and the investor follows you — every future update brings them back. The connection outlasts the meeting.", follow: true },
 ];
 
@@ -57,9 +57,10 @@ for (let i = 0; i < SCENES.length - 1; i++) {
 function sheetState(s, intra) {
   if (!s.sheet) return { open: false, scrub: false, t: 0 };
   if (s.kind === "viewer") {
-    // fullscreen MediaViewer: discrete open, no scrub. A wide window so it settles
-    // and stays open across most of the scene (one representative piece of media).
-    return { open: intra > 0.14 && intra < 0.9, scrub: false, t: 0 };
+    // Fullscreen MediaViewer: discrete open (no scrub), deterministic window.
+    // 0.00–0.28 the media wall establishes + a card comes into focus; 0.28–0.82
+    // the viewer is open on a representative piece; 0.82–1.00 it retreats into Follow.
+    return { open: intra >= 0.28 && intra <= 0.82, scrub: false, t: 0 };
   }
   if (s.kind === "late") {
     // opens AFTER the internal scroll has moved through content
@@ -98,11 +99,16 @@ function direct(gp) {
   const scrollFrac = mix(fromFrac, s.scrollTo, ramp(intra, 0, s.scrollDur || 0.4));
 
   // Follow micro-interaction: the profile stays un-followed until it commits
-  // partway through the final scene (so the CEO sees the actual transition).
-  const follow = s.follow ? intra > 0.4 : false;
+  // ~a third of the way through the final scene, leaving the rest as a held
+  // "Following" resolution before the section releases.
+  const follow = s.follow ? intra > 0.34 : false;
 
   return { i, s, intra, tab, nav, navT, sheet, scrub, sheetT: sh.t, scrollFrac, follow };
 }
+
+// Expose the pure director for deterministic verification in the dev slice
+// preview (bypasses rAF/scroll timing entirely). Harmless: a pure function.
+if (typeof window !== "undefined" && /(?:\?|&)slice/.test(window.location.search)) window.__direct = direct;
 
 export function ProProfileDemoStage() {
   const track = useRef(null);
