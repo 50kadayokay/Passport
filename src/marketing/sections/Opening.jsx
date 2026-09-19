@@ -65,12 +65,12 @@ export function Hero() {
                     textWrap: "balance",
                   }}
                 >
-                  The investor platform built for junior mining.
+                  The investor platform built for mining.
                 </h1>
               </Reveal>
               <Reveal kind="copy" order={0}>
-                <p className="mx-lead" style={{ color: MX.dim, marginTop: 20, maxWidth: "42ch", marginInline: mobile ? "auto" : undefined }}>
-                  One modern platform where investors discover mining companies, understand them, follow them — and keep hearing from them.
+                <p className="mx-lead" style={{ color: MX.dim, marginTop: 20, maxWidth: "44ch", marginInline: mobile ? "auto" : undefined }}>
+                  Turn investor interest into a lasting connection — with one profile that explains your company and keeps investors following your progress.
                 </p>
               </Reveal>
               <Reveal kind="copy" order={1}>
@@ -269,12 +269,17 @@ export function Problem() {
 
 /* ═════════════════════════════════════ 3 · YOUR COMPANY ON MINEEX ════════ */
 
+// The order follows how an investor actually learns a mining company:
+// what is it → what does it own → what has it done → how is it funded →
+// who runs it → show me more. Each beat leads with the BENEFIT (head); the
+// phone provides the evidence; `line` is the short supporting explanation.
 const PROFILE_BEATS = [
-  { tab: "overview", kicker: "Overview", line: "Ticker, commodity, jurisdiction and what you're doing right now — before anyone scrolls." },
-  { tab: "projects", kicker: "Projects", line: "Every asset with its land package, targets and stage, photographed on the ground." },
-  { tab: "timeline", kicker: "Company story", line: "Your whole history in order, each release summarised into why it mattered." },
-  { tab: "capital", kicker: "Capital", line: "Cash, debt, financings and share structure — stated plainly instead of buried." },
-  { tab: "team", kicker: "Management", line: "The people investors are actually backing, with the record behind them." },
+  { tab: "overview", label: "Overview", head: "Understand your company in seconds.", line: "The essentials, up front. What you do, where you operate, what you own and what matters now." },
+  { tab: "projects", label: "Projects", head: "Put your projects on display.", line: "Showcase every project with the imagery, details and context investors need to understand the opportunity." },
+  { tab: "timeline", label: "Your progress", head: "Turn your news into a story.", line: "Press releases summarised, organised and put into context — so investors can see what happened, why it mattered and how you've progressed.", detail: "Filter by importance, year or quarter." },
+  { tab: "capital", label: "Capital", head: "Make the numbers easy to understand.", line: "Capital structure, listings, financings and funding position — clearly presented in one place." },
+  { tab: "team", label: "Leadership", head: "Show investors who's behind it.", line: "Put your leadership front and centre — the people, experience and track record driving the company forward." },
+  { tab: "media", label: "Media", head: "Bring your company to life.", line: "Turn your photos, videos and interviews into an investor-facing media library that shows the company beyond the numbers." },
 ];
 
 export function CompanyProfileSection() {
@@ -290,7 +295,7 @@ export function CompanyProfileSection() {
   const settle = reduce ? 1 : ramp(p, 0.0, 0.11);
 
   return (
-    <div ref={track} className="mx-track" style={{ height: `${PROFILE_BEATS.length * 46}vh`, background: MX.sheet }}>
+    <div ref={track} className="mx-track" style={{ height: `${PROFILE_BEATS.length * 44}vh`, background: MX.sheet }}>
       <div className="mx-stage" style={{ background: MX.sheet }}>
         <Wrap style={{ width: "100%" }}>
           <div
@@ -302,24 +307,29 @@ export function CompanyProfileSection() {
             }}
           >
             <div style={{ order: mobile ? 2 : 1, textAlign: mobile ? "center" : "left" }}>
-              <Eyebrow>Your company on MineEx</Eyebrow>
-              <h2 className="mx-h2" style={{ marginTop: 16, maxWidth: "13ch", marginInline: mobile ? "auto" : undefined }}>
-                Your entire company story. One place.
+              <Eyebrow>Your Pro Profile</Eyebrow>
+              <h2 className="mx-h2" style={{ marginTop: 16, maxWidth: "14ch", marginInline: mobile ? "auto" : undefined }}>
+                Everything an investor needs. One profile.
               </h2>
+              <p className="mx-lead" style={{ color: MX.dim, marginTop: 14, maxWidth: "40ch", marginInline: mobile ? "auto" : undefined }}>
+                Your company, simplified for investors — from your projects and progress to your capital, leadership and media.
+              </p>
 
               {/* the beat rail — one line at a time, cross-faded. With reduced motion
                   there is no sequence to watch, so every beat is simply listed. */}
               {reduce ? (
-                <div style={{ marginTop: 26, display: "grid", gap: 16, textAlign: "left" }}>
+                <div style={{ marginTop: 26, display: "grid", gap: 20, textAlign: "left" }}>
                   {PROFILE_BEATS.map((b) => (
                     <div key={b.tab}>
-                      <p className="mx-label" style={{ color: MX.emText }}>{b.kicker}</p>
+                      <p className="mx-label" style={{ color: MX.emText }}>{b.label}</p>
+                      <h3 className="mx-h3" style={{ marginTop: 6 }}>{b.head}</h3>
                       <p className="mx-body" style={{ color: MX.dim, marginTop: 5, maxWidth: "42ch" }}>{b.line}</p>
+                      {b.detail && <p className="mx-body" style={{ color: MX.mute, marginTop: 4, fontSize: 13 }}>{b.detail}</p>}
                     </div>
                   ))}
                 </div>
               ) : (
-              <div style={{ marginTop: mobile ? 20 : 34, minHeight: mobile ? 92 : 128, position: "relative" }}>
+              <div style={{ marginTop: mobile ? 18 : 30, minHeight: mobile ? 150 : 196, position: "relative" }}>
                 {PROFILE_BEATS.map((b, n) => (
                   <div
                     key={b.tab}
@@ -332,8 +342,10 @@ export function CompanyProfileSection() {
                       pointerEvents: "none",
                     }}
                   >
-                    <p className="mx-label" style={{ color: MX.emText }}>{b.kicker}</p>
-                    <p className="mx-lead" style={{ color: MX.dim, marginTop: 10, maxWidth: "36ch", marginInline: mobile ? "auto" : undefined }}>{b.line}</p>
+                    <p className="mx-label" style={{ color: MX.emText }}>{b.label}</p>
+                    <h3 className="mx-h3" style={{ marginTop: 9, maxWidth: "15ch", marginInline: mobile ? "auto" : undefined }}>{b.head}</h3>
+                    <p className="mx-body" style={{ color: MX.dim, marginTop: 9, maxWidth: "38ch", marginInline: mobile ? "auto" : undefined }}>{b.line}</p>
+                    {b.detail && <p className="mx-body" style={{ color: MX.mute, marginTop: 7, fontSize: 13, marginInline: mobile ? "auto" : undefined }}>{b.detail}</p>}
                   </div>
                 ))}
               </div>
