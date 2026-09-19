@@ -15,11 +15,13 @@ export const DemoCtx = React.createContext(null);
 // shadow + hairline accent ring, so the CEO sees exactly what is being
 // demonstrated before it opens. Applied by views when demo.focus matches; the
 // transition is always present so it eases in AND out.
-const DEMO_FOCUS_TX = "transform 300ms cubic-bezier(0.22,1,0.36,1), box-shadow 300ms ease";
+const DEMO_FOCUS_TX = "transform 320ms cubic-bezier(0.22,1,0.36,1), box-shadow 320ms ease";
 function demoFocusStyle(on, restShadow) {
+  // Restrained: a slight lift + soft elevation shadow only. No ring, no glow —
+  // the eye should land on the widget, not on the effect.
   return {
-    transform: on ? "scale(1.035)" : "scale(1)",
-    boxShadow: on ? "0 16px 36px -10px rgba(15,23,42,0.34), 0 0 0 1.5px rgba(37,99,235,0.6)" : (restShadow || "none"),
+    transform: on ? "scale(1.014)" : "scale(1)",
+    boxShadow: on ? "0 12px 28px -14px rgba(15,23,42,0.32)" : (restShadow || "none"),
     transition: DEMO_FOCUS_TX,
     position: "relative",
     zIndex: on ? 5 : undefined,
