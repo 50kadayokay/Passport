@@ -608,7 +608,7 @@ const DARK_CTA = { background: "#0f172a", color: "#ffffff" };
 /* ============================================================
    CHROME
    ============================================================ */
-function StatusBar() {
+export function StatusBar() {
   return (
     <div className="flex items-center justify-between px-8 pt-3 pb-2 text-[12px] font-medium text-slate-900 select-none">
       <span className="tabular-nums tracking-tight">9:41</span>
@@ -697,7 +697,7 @@ function RainbowStar({ active }) {
   );
 }
 
-function BottomNav({ nav, setNav }) {
+export function BottomNav({ nav, setNav, solid }) {
   const INK = "#0f172a";
   const tab = (it) => {
     const on = nav === it.id;
@@ -716,7 +716,9 @@ function BottomNav({ nav, setNav }) {
   return (
     <div
       className="absolute bottom-0 left-0 right-0 z-40 px-5 pb-7 pt-2"
-      style={{ background: "rgba(255,255,255,0.95)", backdropFilter: "blur(20px) saturate(180%)", borderTop: "1px solid rgba(226,232,240,0.7)" }}
+      style={solid
+        ? { background: "#ffffff", borderTop: "1px solid rgba(226,232,240,0.7)" }
+        : { background: "rgba(255,255,255,0.95)", backdropFilter: "blur(20px) saturate(180%)", borderTop: "1px solid rgba(226,232,240,0.7)" }}
     >
       <div className="flex items-center justify-between">
         {tab({ id: "today", Icon: Sparkles })}
@@ -9171,14 +9173,33 @@ function SwipePager({ tabs, tab, setTab, render, pageClassName = "", onLead, onE
     return () => { vp.removeEventListener("touchstart", start); vp.removeEventListener("touchmove", move); vp.removeEventListener("touchend", end); vp.removeEventListener("touchcancel", end); };
   }, [tab, tabs, onLead, onEdgeBack, setTab, demo]);
 
-  // Demo-driven native tab transition: render the outgoing + incoming pages and
-  // slide them by the phone's --pp-nav custom property (0→1), scrubbed by scroll.
-  if (demo && demo.nav) {
-    const { from, to } = demo.nav;
+  // Demo mode: React sets the tab, scroll drives the motion. Pages are keyed by
+  // tab id and STAY MOUNTED across a nav transition — the outgoing page is only
+  // retired once the incoming tab becomes the sole tab, so nothing remounts,
+  // flashes or resets mid-move (forward or reverse).
+  if (demo) {
+    const nav = demo.nav;
+    const pages = nav ? [nav.from, nav.to] : [tab];
     return (
       <div ref={viewportRef} className="relative h-full" style={{ overflow: "hidden" }}>
-        <div data-page={from} className={"pp-scroll absolute inset-0 overflow-hidden " + pageClassName} style={{ transform: "translate3d(calc(var(--pp-nav,0) * -100%),0,0)", willChange: "transform" }}>{render(from)}</div>
-        <div data-page={to} className={"pp-scroll absolute inset-0 overflow-hidden " + pageClassName} style={{ transform: "translate3d(calc((1 - var(--pp-nav,0)) * 100%),0,0)", willChange: "transform" }}>{render(to)}</div>
+        {pages.map((t) => (
+          <div
+            key={t}
+            data-page={t}
+            className={"pp-scroll absolute inset-0 overflow-y-auto " + pageClassName}
+            style={{
+              overscrollBehaviorY: "contain",
+              willChange: "transform",
+              transform: nav
+                ? (t === nav.from
+                    ? "translate3d(calc(var(--pp-nav,0) * -100%),0,0)"
+                    : "translate3d(calc((1 - var(--pp-nav,0)) * 100%),0,0)")
+                : undefined,
+            }}
+          >
+            {render(t)}
+          </div>
+        ))}
       </div>
     );
   }
