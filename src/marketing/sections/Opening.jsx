@@ -29,25 +29,19 @@ const HERO_BEATS = [
   { key: "resolve",    label: "Your Pro Profile",     head: "Everything an investor needs. One place.",   body: "Give investors a clearer way to understand your company — and a reason to keep following as your story develops.", tab: "media", cta: "resolve" },
 ];
 
-// Copy-beat thresholds in scroll progress. Beat 0 gets real breathing room
-// before anything moves; the AI-brief beat is the widest because an interaction
-// unfolds; the data beats (Capital, Leadership) are the shortest; Media gets a
-// little extra because it is the richest to look at.
-const HERO_STOPS = [0.11, 0.30, 0.44, 0.56, 0.67, 0.78, 0.92];
+// Per-beat pinned scroll distance, in vh. Distance is what makes a deliberate
+// swipe land on the next section instead of one flick clearing the whole scene —
+// there is no snapping, just enough room that fast and slow both read. The
+// AI-Brief beat is by far the longest because a full interaction unfolds inside
+// it: the card presses, the sheet opens, the reader scrubs through it, it closes.
+const BEAT_VH = [40, 96, 56, 58, 48, 48, 64, 40];
+const BEAT_TOTAL = BEAT_VH.reduce((a, b) => a + b, 0);
+const BEAT_FRAC = (() => { const out = []; let acc = 0; for (const v of BEAT_VH) { out.push(acc / BEAT_TOTAL); acc += v; } out.push(1); return out; })();
+const HERO_TABS = ["overview", "overview", "projects", "timeline", "capital", "team", "media", "media"];
+const HERO_AREAS = ["overview", "projects", "timeline", "capital", "team", "media"];
 
-const heroBeatIndex = (p) => {
-  let i = 0;
-  for (const s of HERO_STOPS) { if (p >= s) i++; else break; }
-  return i;
-};
-const heroTab = (p) => {
-  if (p < 0.30) return "overview";
-  if (p < 0.44) return "projects";
-  if (p < 0.56) return "timeline";
-  if (p < 0.67) return "capital";
-  if (p < 0.78) return "team";
-  return "media";
-};
+const heroBeatIndex = (p) => { let i = 0; for (let n = 1; n < BEAT_VH.length; n++) { if (p >= BEAT_FRAC[n]) i = n; else break; } return i; };
+const beatLocal = (p, i) => { const a = BEAT_FRAC[i], b = BEAT_FRAC[i + 1]; return Math.max(0, Math.min(1, (p - a) / ((b - a) || 1))); };
 const HERO_HEAD = { fontSize: "clamp(30px, 4vw, 56px)", fontWeight: 700, letterSpacing: "-0.03em", lineHeight: 1.05 };
 
 function HeroCta({ kind }) {
@@ -69,14 +63,17 @@ export function Hero() {
   if (mobile) return <HeroMobile />;
 
   const beat = heroBeatIndex(p);
-  const tab = heroTab(p);
-  // AI Brief: rises, holds open while its copy is read, then recedes — all before
-  // Projects begins. A plateau of 1 between the up- and down-ramps.
-  const briefOpen = Math.max(0, Math.min(ramp(p, 0.14, 0.19), 1 - ramp(p, 0.25, 0.29)));
-  const litArea = ["overview", "projects", "timeline", "capital", "team", "media"].indexOf(tab);
+  const tab = HERO_TABS[beat];
+  // AI-Brief sub-phases, all inside its own (long) beat so each has room to read:
+  // press the card → open the sheet → scrub through the content → let it recede.
+  const bl = beat === 1 ? beatLocal(p, 1) : 0;
+  const briefPress = beat === 1 && bl > 0.03 && bl < 0.97;
+  const briefOpen = beat === 1 ? Math.max(0, Math.min(ramp(bl, 0.12, 0.34), 1 - ramp(bl, 0.86, 1.0))) : 0;
+  const briefScroll = beat === 1 ? ramp(bl, 0.40, 0.82) : 0;
+  const litArea = HERO_AREAS.indexOf(tab);
 
   return (
-    <div ref={track} className="mx-track" style={{ height: "300vh", background: MX.sheet }}>
+    <div ref={track} className="mx-track" style={{ height: `${BEAT_TOTAL + 100}vh`, background: MX.sheet }}>
       <div className="mx-stage" style={{ background: MX.sheet }}>
         {/* one soft field of light behind the device — unchanged from the old hero */}
         <div aria-hidden style={{ position: "absolute", right: "17%", top: "52%", transform: "translate(50%, -50%)", width: "min(720px, 92vw)", height: "min(720px, 82vh)", background: "radial-gradient(closest-side, rgba(10,12,15,0.06), transparent 72%)", pointerEvents: "none" }} />
@@ -85,22 +82,25 @@ export function Hero() {
 
             {/* LEFT — copy. Label / headline / body hold the same position; only the
                 content cross-fades, so the eye rests while the phone does the work. */}
-            <div style={{ position: "relative", minHeight: 372 }}>
-              {HERO_BEATS.map((b, n) => {
-                const on = n === beat;
-                return (
-                  <div key={b.key} style={{ position: n === 0 ? "relative" : "absolute", inset: n === 0 ? undefined : 0, top: 0, opacity: on ? 1 : 0, transform: on ? "none" : "translateY(7px)", transition: `opacity 300ms ${EASE}, transform 300ms ${EASE}`, pointerEvents: on ? "auto" : "none" }}>
-                    <p className="mx-label" style={{ color: MX.emText, letterSpacing: "0.22em" }}>{b.label}</p>
-                    <h1 style={{ ...HERO_HEAD, marginTop: 16, maxWidth: "15ch", textWrap: "balance" }}>{b.head}</h1>
-                    <p className="mx-lead" style={{ color: MX.dim, marginTop: 18, maxWidth: "42ch" }}>{b.body}</p>
-                    {b.cta && <HeroCta kind={b.cta} />}
-                  </div>
-                );
-              })}
+            <div>
+              <div style={{ position: "relative" }}>
+                {HERO_BEATS.map((b, n) => {
+                  const on = n === beat;
+                  return (
+                    <div key={b.key} style={{ position: n === 0 ? "relative" : "absolute", inset: n === 0 ? undefined : 0, top: 0, opacity: on ? 1 : 0, transform: on ? "none" : "translateY(7px)", transition: `opacity 300ms ${EASE}, transform 300ms ${EASE}`, pointerEvents: on ? "auto" : "none" }}>
+                      <p className="mx-label" style={{ color: MX.emText, letterSpacing: "0.22em" }}>{b.label}</p>
+                      <h1 style={{ ...HERO_HEAD, marginTop: 16, maxWidth: "15ch", textWrap: "balance" }}>{b.head}</h1>
+                      <p className="mx-lead" style={{ color: MX.dim, marginTop: 18, maxWidth: "42ch" }}>{b.body}</p>
+                      {b.cta && <HeroCta kind={b.cta} />}
+                    </div>
+                  );
+                })}
+              </div>
 
-              {/* restrained progress rail — mirrors the six product areas */}
-              <div style={{ display: "flex", gap: 8, marginTop: 34, position: "absolute", bottom: -2, left: 0 }}>
-                {[0, 1, 2, 3, 4, 5].map((n) => (
+              {/* restrained progress rail — sits below the copy, clear of the CTAs,
+                  and stays put across beats (only the lit segment moves) */}
+              <div style={{ display: "flex", gap: 8, marginTop: 30 }}>
+                {HERO_AREAS.map((_, n) => (
                   <span key={n} style={{ height: 3, width: n === litArea ? 30 : 16, borderRadius: 3, background: n === litArea ? MX.ink : "rgba(18,22,29,0.16)", transition: `width 340ms ${EASE}, background 340ms ${EASE}` }} />
                 ))}
               </div>
@@ -110,7 +110,7 @@ export function Hero() {
             <div style={{ display: "flex", justifyContent: "center" }}>
               <Phone width={phoneWidth(mobile)}>
                 <Fit>
-                  <ProfileScreen tab={tab} nav="explore" aiBrief={briefOpen} />
+                  <ProfileScreen tab={tab} nav="explore" aiBrief={briefOpen} aiBriefScroll={briefScroll} aiBriefPress={briefPress} />
                 </Fit>
               </Phone>
             </div>

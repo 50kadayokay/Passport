@@ -55,8 +55,8 @@ export const CO = {
     ["FSE", "TUY"],
   ],
   facts: [
-    { label: "Commodity", value: "Silver · Gold", icon: "gem" },
-    { label: "Jurisdiction", value: "Mexico", icon: "pin" },
+    { label: "Commodity", value: "Silver & Gold", icon: "gem" },
+    { label: "Jurisdiction", value: "Chihuahua, Mexico", icon: "pin" },
     { label: "Flagship project", value: "Las Coloradas", icon: "mountain" },
     { label: "Stage", value: "Explorer", icon: "trend" },
     { label: "Projects", value: "2 Projects", icon: "layers" },
@@ -99,6 +99,8 @@ export const BRIEF = [
   { k: "What they do", v: "A silver–gold explorer in Chihuahua, Mexico, advancing the Las Coloradas flagship alongside the Almoloya project." },
   { k: "Why it matters", bullets: CO.keyPoints },
   { k: "Right now", v: CO.status.detail },
+  { k: "Next catalyst", v: `${CO.status.next} — ${CO.status.eta}.` },
+  { k: "Funding", v: CO.capital.desc },
 ];
 
 export const PROJECTS = [

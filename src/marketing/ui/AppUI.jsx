@@ -12,7 +12,7 @@
 // They render REAL content from a real published MineEx profile (see data.js).
 // Nothing here is imported by the application.
 // ─────────────────────────────────────────────────────────────────────────────
-import React, { useState, useEffect, useRef, useLayoutEffect, useMemo } from "react";
+import React, { useState, useEffect, useRef, useLayoutEffect, useMemo, useCallback } from "react";
 import {
   Gem, MapPin, Mountain, TrendingUp, Layers, Activity, House, Pickaxe, Clock,
   PieChart, Users, Radio, Sparkles, Compass, MessageSquare, Star, User, Search,
@@ -432,7 +432,7 @@ const AI_BRIEF_GRADIENT = "radial-gradient(135% 130% at 88% 8%, #7ad6f8 0%, rgba
 
 function AiBriefCard({ pressed = false }) {
   return (
-    <button type="button" style={{ marginTop: 8, display: "block", width: "100%", textAlign: "left", overflow: "hidden", borderRadius: 24, border: "none", cursor: "pointer", padding: 16, background: AI_BRIEF_GRADIENT, boxShadow: pressed ? "0 8px 20px -12px rgba(31,79,208,0.7), inset 0 0 0 2px rgba(255,255,255,0.45)" : "0 20px 40px -20px rgba(31,79,208,0.7)", color: "#fff", transform: pressed ? "scale(0.975)" : "scale(1)", transition: `transform 200ms ${EASE}, box-shadow 200ms ${EASE}` }}>
+    <button type="button" style={{ marginTop: 8, display: "block", width: "100%", textAlign: "left", overflow: "hidden", borderRadius: 24, border: "none", cursor: "pointer", padding: 16, background: AI_BRIEF_GRADIENT, boxShadow: pressed ? "0 6px 16px -10px rgba(31,79,208,0.8), inset 0 0 0 2.5px rgba(255,255,255,0.6)" : "0 20px 40px -20px rgba(31,79,208,0.7)", color: "#fff", transform: pressed ? "scale(0.952)" : "scale(1)", transition: `transform 180ms ${EASE}, box-shadow 180ms ${EASE}` }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <span style={{ width: 28, height: 28, borderRadius: 8, background: "rgba(255,255,255,0.22)", display: "grid", placeItems: "center" }}><Zap size={15} color="#fff" strokeWidth={2.6} /></span>
         <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.2em", textTransform: "uppercase", color: "rgba(255,255,255,0.85)" }}>AI Brief</span>
@@ -444,15 +444,22 @@ function AiBriefCard({ pressed = false }) {
 }
 
 // The real product's 60-second brief: a bottom sheet that rises from the blue
-// card. `p` (0..1) scrubs its entrance so it is fully attached to scroll.
-export function AiBriefSheet({ p = 0 }) {
+// card. `p` (0..1) scrubs its entrance and `scroll` (0..1) scrubs the reader
+// through its content — both attached to scroll, so it opens smoothly and can
+// be read on the way down, exactly like tapping the card in the app.
+export function AiBriefSheet({ p = 0, scroll = 0 }) {
+  const [maxScroll, setMaxScroll] = useState(0);
+  const measure = useCallback((el) => {
+    if (el) setMaxScroll(Math.max(0, el.scrollHeight - el.clientHeight + 8));
+  }, []);
   if (p <= 0.002) return null;
   const y = ((1 - p) * 100).toFixed(1);        // 100% hidden → 0 open
   const scrim = Math.min(1, p * 1.35) * 0.5;
+  const contentY = -(scroll * maxScroll).toFixed(1);
   return (
     <>
       <div aria-hidden style={{ position: "absolute", inset: 0, background: "#0f172a", opacity: scrim, zIndex: 5, pointerEvents: "none" }} />
-      <div style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: "90%", background: "#fff", borderRadius: "24px 24px 0 0", overflow: "hidden", transform: `translateY(${y}%)`, boxShadow: "0 -22px 55px -24px rgba(15,23,42,0.5)", zIndex: 6, display: "flex", flexDirection: "column", willChange: "transform" }}>
+      <div style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: "92%", background: "#fff", borderRadius: "24px 24px 0 0", overflow: "hidden", transform: `translateY(${y}%)`, boxShadow: "0 -22px 55px -24px rgba(15,23,42,0.5)", zIndex: 6, display: "flex", flexDirection: "column", willChange: "transform" }}>
         <div style={{ width: 40, height: 5, borderRadius: 999, background: "#cbd5e1", margin: "9px auto 0", flex: "0 0 auto" }} />
         {/* blue banner — the same gradient as the card it came from */}
         <div style={{ padding: "22px 20px 15px", background: AI_BRIEF_GRADIENT, flex: "0 0 auto" }}>
@@ -464,29 +471,32 @@ export function AiBriefSheet({ p = 0 }) {
             </div>
           </div>
         </div>
-        {/* body */}
-        <div className="mx-noscroll" style={{ flex: 1, minHeight: 0, overflow: "hidden", padding: "16px 20px 18px" }}>
-          <p style={{ fontSize: 12.5, fontWeight: 500, lineHeight: 1.5, color: SLATE }}>Understand this company in under a minute — context, not data.</p>
-          {BRIEF.map((s, i) => (
-            <div key={s.k} style={{ marginTop: i === 0 ? 16 : 0, borderTop: i > 0 ? `1px solid #f1f5f9` : "none", paddingTop: i > 0 ? 15 : 0, ...(i > 0 ? { marginTop: 15 } : {}) }}>
-              <p style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.16em", textTransform: "uppercase", color: EM_TEXT }}>{s.k}</p>
-              {s.bullets ? (
-                <ul style={{ margin: "10px 0 0", padding: 0, listStyle: "none", display: "grid", gap: 9 }}>
-                  {s.bullets.map((b) => (
-                    <li key={b} style={{ display: "flex", gap: 9, fontSize: 13, fontWeight: 500, lineHeight: 1.35, color: "#334155" }}>
-                      <span style={{ marginTop: 7, width: 4, height: 4, borderRadius: 999, background: EM_TEXT, flex: "0 0 auto" }} />
-                      <span>{b}</span>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p style={{ marginTop: 7, fontSize: i === 0 ? 14 : 13.5, fontWeight: 500, lineHeight: 1.5, color: "#334155" }}>{s.v}</p>
-              )}
-            </div>
-          ))}
-          <p style={{ marginTop: 16, borderTop: `1px solid #f1f5f9`, paddingTop: 12, fontSize: 10.5, fontWeight: 500, lineHeight: 1.5, color: MUTE }}>
-            AI-generated from public disclosures for information only — <b style={{ fontWeight: 700, color: SLATE }}>not investment advice</b>.
-          </p>
+        {/* body — a fixed window; the content is scrubbed up through it */}
+        <div ref={measure} className="mx-noscroll" style={{ flex: 1, minHeight: 0, overflow: "hidden", position: "relative" }}>
+          <div style={{ transform: `translateY(${contentY}px)`, padding: "16px 20px 20px", willChange: "transform" }}>
+            <p style={{ fontSize: 12.5, fontWeight: 500, lineHeight: 1.5, color: SLATE }}>Understand this company in under a minute — context, not data.</p>
+            {BRIEF.map((s, i) => (
+              <div key={s.k} style={{ marginTop: i === 0 ? 16 : 15, borderTop: i > 0 ? `1px solid #f1f5f9` : "none", paddingTop: i > 0 ? 15 : 0 }}>
+                <p style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.16em", textTransform: "uppercase", color: EM_TEXT }}>{s.k}</p>
+                {s.bullets ? (
+                  <ul style={{ margin: "10px 0 0", padding: 0, listStyle: "none", display: "grid", gap: 9 }}>
+                    {s.bullets.map((b) => (
+                      <li key={b} style={{ display: "flex", gap: 9, fontSize: 13, fontWeight: 500, lineHeight: 1.35, color: "#334155" }}>
+                        <span style={{ marginTop: 7, width: 4, height: 4, borderRadius: 999, background: EM_TEXT, flex: "0 0 auto" }} />
+                        <span>{b}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p style={{ marginTop: 7, fontSize: i === 0 ? 14 : 13.5, fontWeight: 500, lineHeight: 1.5, color: "#334155" }}>{s.v}</p>
+                )}
+              </div>
+            ))}
+            <p style={{ marginTop: 16, borderTop: `1px solid #f1f5f9`, paddingTop: 12, fontSize: 10.5, fontWeight: 500, lineHeight: 1.5, color: MUTE }}>
+              AI-generated from public disclosures for information only — <b style={{ fontWeight: 700, color: SLATE }}>not investment advice</b>.
+            </p>
+            <div style={{ marginTop: 14, height: 46, borderRadius: 13, background: "#0f172a", display: "grid", placeItems: "center", fontSize: 12, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: "#fff" }}>Got It</div>
+          </div>
         </div>
       </div>
     </>
@@ -529,6 +539,12 @@ function TabProjects() {
 
       {/* project intelligence */}
       <p style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.14em", textTransform: "uppercase", color: EM_TEXT, margin: "20px 4px 10px" }}>Project Intelligence</p>
+      {/* the app's project-level AI brief entry — a blue call to action */}
+      <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", borderRadius: 16, background: AI_BRIEF_GRADIENT, boxShadow: "0 16px 34px -20px rgba(31,79,208,0.7)", color: "#fff", marginBottom: 12 }}>
+        <span style={{ width: 30, height: 30, borderRadius: 9, background: "rgba(255,255,255,0.22)", display: "grid", placeItems: "center", flex: "0 0 auto" }}><Zap size={16} color="#fff" strokeWidth={2.6} /></span>
+        <span style={{ flex: 1, fontSize: 14.5, fontWeight: 800, letterSpacing: "-0.02em" }}>Understand this project in 60 seconds</span>
+        <ChevronRight size={18} color="rgba(255,255,255,0.85)" />
+      </div>
       <Card pad={"4px 16px 8px"}>
         {[["District", p.district], ["Stage", p.stage], ...p.snapshot].map(([k, v]) => (
           <div key={k} style={{ display: "flex", justifyContent: "space-between", gap: 14, padding: "12px 0", borderBottom: `1px solid #f1f5f9` }}>
@@ -756,27 +772,26 @@ const TAB_VIEW = {
   media: TabMedia,
 };
 
-function ProfileScreenBase({ tab = "overview", following = false, onFollow, showNav = true, nav = "explore", flip = false, aiBrief = 0 }) {
+function ProfileScreenBase({ tab = "overview", following = false, onFollow, showNav = true, nav = "explore", flip = false, aiBrief = 0, aiBriefScroll = 0, aiBriefPress = false }) {
   const View = TAB_VIEW[tab] || TabOverview;
-  const briefPress = aiBrief > 0.02;
-  // The heavy phone tree depends only on the tab (a discrete value) — never on
-  // the continuous aiBrief scrub. Memoising it means a scrub only re-renders the
-  // small AiBriefSheet below, not the whole UI, keeping the interaction smooth.
+  // The heavy phone tree depends only on the tab and the (discrete) press flag —
+  // never on the continuous aiBrief scrub/scroll. Memoising it means a scrub only
+  // re-renders the small AiBriefSheet below, not the whole UI, keeping it smooth.
   const body = useMemo(() => (
     <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
       <ProfileHeader following={following} onFollow={onFollow} />
       <ProfileTabs tab={tab} />
       <div className="mx-noscroll" style={{ flex: 1, minHeight: 0, overflow: "hidden", background: APP_BG }}>
         <div key={tab} className="pp-fade" style={{ height: "100%" }}>
-          <View flip={flip} briefPress={briefPress} />
+          <View flip={flip} briefPress={aiBriefPress} />
         </div>
       </div>
     </div>
-  ), [View, tab, following, onFollow, flip, briefPress]);
+  ), [View, tab, following, onFollow, flip, aiBriefPress]);
   return (
     <AppShell nav={nav} showNav={showNav}>
       {body}
-      {tab === "overview" && <AiBriefSheet p={aiBrief} />}
+      {tab === "overview" && <AiBriefSheet p={aiBrief} scroll={aiBriefScroll} />}
     </AppShell>
   );
 }
