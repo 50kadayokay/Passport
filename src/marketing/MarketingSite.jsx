@@ -11,7 +11,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import React, { useEffect, useState } from "react";
 import { MX, EASE, MarketingStyles, Wrap, useViewport, useReduce, DEV } from "./system.jsx";
-import { Hero, Problem, CompanyProfileSection } from "./sections/Opening.jsx";
+import { Hero, CompanyProfileSection } from "./sections/Opening.jsx";
 import { Discovered, FollowMoment, StayInformed } from "./sections/Discovery.jsx";
 import { PressReleases, Media } from "./sections/Content.jsx";
 import { Dashboard, Analytics } from "./sections/Company.jsx";
@@ -184,7 +184,7 @@ export default function MarketingSite() {
   // Localhost-only single-section preview (see DEV in system.jsx).
   if (DEV.only) {
     const ONE = {
-      hero: Hero, problem: Problem, profile: CompanyProfileSection, discovered: Discovered,
+      hero: Hero, profile: CompanyProfileSection, discovered: Discovered,
       follow: FollowMoment, informed: StayInformed, releases: PressReleases, media: Media,
       dashboard: Dashboard, analytics: Analytics, conference: ConferenceMode,
       booth: BoothToAudience, journey: Journey, offerings: Offerings, cta: FinalCta,
@@ -204,7 +204,6 @@ export default function MarketingSite() {
       <Nav />
       <main>
         <Hero />
-        <Problem />
         <span id="profile" style={{ display: "block", scrollMarginTop: 0 }} />
         <CompanyProfileSection />
         <span id="discovery" style={{ display: "block" }} />
