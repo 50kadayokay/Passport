@@ -12,7 +12,7 @@
 // They render REAL content from a real published MineEx profile (see data.js).
 // Nothing here is imported by the application.
 // ─────────────────────────────────────────────────────────────────────────────
-import React, { useState, useEffect, useRef, useLayoutEffect } from "react";
+import React, { useState, useEffect, useRef, useLayoutEffect, useMemo } from "react";
 import {
   Gem, MapPin, Mountain, TrendingUp, Layers, Activity, House, Pickaxe, Clock,
   PieChart, Users, Radio, Sparkles, Compass, MessageSquare, Star, User, Search,
@@ -21,7 +21,7 @@ import {
   ArrowDownUp, ScanLine, ChevronDown, Newspaper,
 } from "lucide-react";
 import { EASE, useReduce } from "../system.jsx";
-import { CO, PROJECTS, TEAM, RELEASES, DIRECTORY, IMG } from "../data.js";
+import { CO, PROJECTS, TEAM, RELEASES, DIRECTORY, IMG, BRIEF } from "../data.js";
 
 // The product's own accent. These are app screens, so they keep the colour the
 // app actually ships — the marketing page around them is monochrome by design, and
@@ -286,18 +286,41 @@ function ProfileHeaderBase({ following, onFollow, compact = false }) {
   );
 }
 
+// "media" is the app's feed/updates tab with its media filter active, so it
+// lights the sixth (updates) slot. A single underline slides to the active tab —
+// the movement is what reads as navigation, not a slideshow.
+function tabIndex(tab) {
+  if (tab === "media") return PROFILE_TABS.length - 1;
+  const i = PROFILE_TABS.findIndex((t) => t.id === tab);
+  return i < 0 ? 0 : i;
+}
+
 function ProfileTabsBase({ tab = "overview" }) {
+  const idx = tabIndex(tab);
   return (
-    <div style={{ background: "#fff", display: "flex", padding: "12px 12px 0", borderBottom: `1px solid ${HAIR}` }}>
-      {PROFILE_TABS.map(({ id, Icon }) => {
-        const on = id === tab;
+    <div style={{ position: "relative", background: "#fff", display: "flex", padding: "12px 12px 0", borderBottom: `1px solid ${HAIR}` }}>
+      {PROFILE_TABS.map(({ id, Icon }, i) => {
+        const on = i === idx;
         return (
-          <div key={id} style={{ flex: 1, display: "grid", placeItems: "center", paddingBottom: 9, position: "relative" }}>
-            <Icon size={19} strokeWidth={on ? 2.3 : 1.85} color={on ? INK : MUTE} />
-            <span style={{ position: "absolute", left: "26%", right: "26%", bottom: 0, height: 2, borderRadius: 2, background: on ? INK : "transparent", transition: `background 300ms ${EASE}` }} />
+          <div key={id} style={{ flex: 1, display: "grid", placeItems: "center", paddingBottom: 9 }}>
+            <Icon size={19} strokeWidth={on ? 2.4 : 1.85} color={on ? INK : MUTE} style={{ transform: on ? "scale(1.08)" : "scale(1)", transition: `transform 300ms ${EASE}, color 260ms ${EASE}` }} />
           </div>
         );
       })}
+      {/* the one sliding indicator */}
+      <div
+        aria-hidden
+        style={{
+          position: "absolute", left: 12, right: 12, bottom: 0, height: 2,
+          // the track excludes the 12px side padding; each cell is 1/6 of it
+          width: `calc((100% - 24px) / ${PROFILE_TABS.length})`,
+          transform: `translateX(${idx * 100}%)`,
+          transition: `transform 340ms ${EASE}`,
+          pointerEvents: "none",
+        }}
+      >
+        <span style={{ display: "block", width: "48%", height: 2, margin: "0 auto", borderRadius: 2, background: INK }} />
+      </div>
     </div>
   );
 }
@@ -405,9 +428,11 @@ function CompanyIdentityCard({ auto = false }) {
   );
 }
 
-function AiBriefCard() {
+const AI_BRIEF_GRADIENT = "radial-gradient(135% 130% at 88% 8%, #7ad6f8 0%, rgba(122,214,248,0) 45%), linear-gradient(140deg, #1b4fd0 0%, #2f86e6 58%, #49b4f0 100%)";
+
+function AiBriefCard({ pressed = false }) {
   return (
-    <button type="button" style={{ marginTop: 8, display: "block", width: "100%", textAlign: "left", overflow: "hidden", borderRadius: 24, border: "none", cursor: "pointer", padding: 16, background: "radial-gradient(135% 130% at 88% 8%, #7ad6f8 0%, rgba(122,214,248,0) 45%), linear-gradient(140deg, #1b4fd0 0%, #2f86e6 58%, #49b4f0 100%)", boxShadow: "0 20px 40px -20px rgba(31,79,208,0.7)", color: "#fff" }}>
+    <button type="button" style={{ marginTop: 8, display: "block", width: "100%", textAlign: "left", overflow: "hidden", borderRadius: 24, border: "none", cursor: "pointer", padding: 16, background: AI_BRIEF_GRADIENT, boxShadow: pressed ? "0 8px 20px -12px rgba(31,79,208,0.7), inset 0 0 0 2px rgba(255,255,255,0.45)" : "0 20px 40px -20px rgba(31,79,208,0.7)", color: "#fff", transform: pressed ? "scale(0.975)" : "scale(1)", transition: `transform 200ms ${EASE}, box-shadow 200ms ${EASE}` }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <span style={{ width: 28, height: 28, borderRadius: 8, background: "rgba(255,255,255,0.22)", display: "grid", placeItems: "center" }}><Zap size={15} color="#fff" strokeWidth={2.6} /></span>
         <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.2em", textTransform: "uppercase", color: "rgba(255,255,255,0.85)" }}>AI Brief</span>
@@ -418,12 +443,62 @@ function AiBriefCard() {
   );
 }
 
-function TabOverview({ flip = false }) {
+// The real product's 60-second brief: a bottom sheet that rises from the blue
+// card. `p` (0..1) scrubs its entrance so it is fully attached to scroll.
+export function AiBriefSheet({ p = 0 }) {
+  if (p <= 0.002) return null;
+  const y = ((1 - p) * 100).toFixed(1);        // 100% hidden → 0 open
+  const scrim = Math.min(1, p * 1.35) * 0.5;
+  return (
+    <>
+      <div aria-hidden style={{ position: "absolute", inset: 0, background: "#0f172a", opacity: scrim, zIndex: 5, pointerEvents: "none" }} />
+      <div style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: "90%", background: "#fff", borderRadius: "24px 24px 0 0", overflow: "hidden", transform: `translateY(${y}%)`, boxShadow: "0 -22px 55px -24px rgba(15,23,42,0.5)", zIndex: 6, display: "flex", flexDirection: "column", willChange: "transform" }}>
+        <div style={{ width: 40, height: 5, borderRadius: 999, background: "#cbd5e1", margin: "9px auto 0", flex: "0 0 auto" }} />
+        {/* blue banner — the same gradient as the card it came from */}
+        <div style={{ padding: "22px 20px 15px", background: AI_BRIEF_GRADIENT, flex: "0 0 auto" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <span style={{ width: 36, height: 36, borderRadius: 11, background: "rgba(255,255,255,0.22)", display: "grid", placeItems: "center", flex: "0 0 auto" }}><Zap size={18} color="#fff" strokeWidth={2.5} /></span>
+            <div>
+              <p style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: "0.2em", textTransform: "uppercase", color: "rgba(255,255,255,0.8)" }}>Company Orientation</p>
+              <p style={{ fontSize: 21, fontWeight: 800, letterSpacing: "-0.03em", color: "#fff", lineHeight: 1.1 }}>AI Brief</p>
+            </div>
+          </div>
+        </div>
+        {/* body */}
+        <div className="mx-noscroll" style={{ flex: 1, minHeight: 0, overflow: "hidden", padding: "16px 20px 18px" }}>
+          <p style={{ fontSize: 12.5, fontWeight: 500, lineHeight: 1.5, color: SLATE }}>Understand this company in under a minute — context, not data.</p>
+          {BRIEF.map((s, i) => (
+            <div key={s.k} style={{ marginTop: i === 0 ? 16 : 0, borderTop: i > 0 ? `1px solid #f1f5f9` : "none", paddingTop: i > 0 ? 15 : 0, ...(i > 0 ? { marginTop: 15 } : {}) }}>
+              <p style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.16em", textTransform: "uppercase", color: EM_TEXT }}>{s.k}</p>
+              {s.bullets ? (
+                <ul style={{ margin: "10px 0 0", padding: 0, listStyle: "none", display: "grid", gap: 9 }}>
+                  {s.bullets.map((b) => (
+                    <li key={b} style={{ display: "flex", gap: 9, fontSize: 13, fontWeight: 500, lineHeight: 1.35, color: "#334155" }}>
+                      <span style={{ marginTop: 7, width: 4, height: 4, borderRadius: 999, background: EM_TEXT, flex: "0 0 auto" }} />
+                      <span>{b}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p style={{ marginTop: 7, fontSize: i === 0 ? 14 : 13.5, fontWeight: 500, lineHeight: 1.5, color: "#334155" }}>{s.v}</p>
+              )}
+            </div>
+          ))}
+          <p style={{ marginTop: 16, borderTop: `1px solid #f1f5f9`, paddingTop: 12, fontSize: 10.5, fontWeight: 500, lineHeight: 1.5, color: MUTE }}>
+            AI-generated from public disclosures for information only — <b style={{ fontWeight: 700, color: SLATE }}>not investment advice</b>.
+          </p>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function TabOverview({ flip = false, briefPress = false }) {
   // Matches the app: the identity card grows to fill, AI Brief pinned below.
   return (
     <div style={{ height: "100%", display: "flex", flexDirection: "column", padding: "8px 20px 14px", minHeight: 0 }}>
       <CompanyIdentityCard auto={flip} />
-      <AiBriefCard />
+      <AiBriefCard pressed={briefPress} />
     </div>
   );
 }
@@ -620,6 +695,57 @@ function TabUpdates() {
   );
 }
 
+// Media — the app's feed with its media filter active. A real masonry of the
+// company's own site photography and video; nothing invented.
+const MEDIA_TAB_FILTERS = ["All", "Photos", "Videos", "Interviews"];
+const MEDIA_TAB_TILES = [
+  { img: IMG.aerial.src, kind: "video", cap: "Las Coloradas — drill site aerial", span: 2, h: 150 },
+  { img: IMG.rig.src, kind: "photo", h: 128 },
+  { img: IMG.drill.src, kind: "photo", h: 128 },
+  { img: IMG.district.src, kind: "interview", cap: "Field review", h: 128 },
+  { img: IMG.sampling.src, kind: "photo", h: 128 },
+  { img: IMG.adit.src, kind: "photo", h: 118 },
+  { img: IMG.shaft.src, kind: "photo", h: 118 },
+];
+
+function TabMedia() {
+  return (
+    <div style={{ padding: "14px 12px 24px" }}>
+      <p className="mx-label" style={{ color: EM_TEXT, fontSize: 11, letterSpacing: "0.14em", padding: "0 4px" }}>Company</p>
+      <p style={{ fontSize: 22, fontWeight: 800, letterSpacing: "-0.03em", padding: "6px 4px 0" }}>Media</p>
+
+      {/* Photos / Videos / Interviews filter — Photos active */}
+      <div style={{ display: "flex", gap: 7, marginTop: 14, padding: "0 4px" }}>
+        {MEDIA_TAB_FILTERS.map((f, i) => (
+          <span key={f} style={{ padding: "7px 13px", borderRadius: 999, fontSize: 12.5, fontWeight: 700, letterSpacing: "-0.01em", background: i === 1 ? INK : "#eef2f7", color: i === 1 ? "#fff" : SLATE }}>{f}</span>
+        ))}
+      </div>
+
+      {/* masonry grid of real company media */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 12 }}>
+        {MEDIA_TAB_TILES.map((t, i) => (
+          <div key={i} style={{ gridColumn: t.span === 2 ? "span 2" : "auto", position: "relative", height: t.h, borderRadius: 14, overflow: "hidden", background: "#e2e8f0" }}>
+            <img src={t.img} alt="" loading="lazy" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            {t.kind === "video" && (
+              <span style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center" }}>
+                <span style={{ width: 44, height: 44, borderRadius: 999, background: "rgba(15,23,42,0.6)", display: "grid", placeItems: "center" }}>
+                  <Play size={20} color="#fff" fill="#fff" style={{ marginLeft: 2 }} />
+                </span>
+              </span>
+            )}
+            {t.cap && (
+              <span style={{ position: "absolute", left: 0, right: 0, bottom: 0, padding: "18px 10px 8px", background: "linear-gradient(rgba(15,23,42,0), rgba(15,23,42,0.72))", color: "#fff", fontSize: 11, fontWeight: 700, letterSpacing: "-0.01em" }}>
+                {t.kind === "interview" && <span style={{ display: "inline-block", marginRight: 6, padding: "1px 6px", borderRadius: 4, background: "rgba(255,255,255,0.22)", fontSize: 9, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", verticalAlign: "middle" }}>Interview</span>}
+                {t.cap}
+              </span>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 const TAB_VIEW = {
   overview: TabOverview,
   projects: TabProjects,
@@ -627,21 +753,30 @@ const TAB_VIEW = {
   capital: TabCapital,
   team: TabTeam,
   updates: TabUpdates,
+  media: TabMedia,
 };
 
-function ProfileScreenBase({ tab = "overview", following = false, onFollow, showNav = true, nav = "explore", flip = false }) {
+function ProfileScreenBase({ tab = "overview", following = false, onFollow, showNav = true, nav = "explore", flip = false, aiBrief = 0 }) {
   const View = TAB_VIEW[tab] || TabOverview;
-  return (
-    <AppShell nav={nav} showNav={showNav}>
-      <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
-        <ProfileHeader following={following} onFollow={onFollow} />
-        <ProfileTabs tab={tab} />
-        <div className="mx-noscroll" style={{ flex: 1, minHeight: 0, overflow: "hidden", background: APP_BG }}>
-          <div key={tab} className="pp-fade" style={{ height: "100%" }}>
-            <View flip={flip} />
-          </div>
+  const briefPress = aiBrief > 0.02;
+  // The heavy phone tree depends only on the tab (a discrete value) — never on
+  // the continuous aiBrief scrub. Memoising it means a scrub only re-renders the
+  // small AiBriefSheet below, not the whole UI, keeping the interaction smooth.
+  const body = useMemo(() => (
+    <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
+      <ProfileHeader following={following} onFollow={onFollow} />
+      <ProfileTabs tab={tab} />
+      <div className="mx-noscroll" style={{ flex: 1, minHeight: 0, overflow: "hidden", background: APP_BG }}>
+        <div key={tab} className="pp-fade" style={{ height: "100%" }}>
+          <View flip={flip} briefPress={briefPress} />
         </div>
       </div>
+    </div>
+  ), [View, tab, following, onFollow, flip, briefPress]);
+  return (
+    <AppShell nav={nav} showNav={showNav}>
+      {body}
+      {tab === "overview" && <AiBriefSheet p={aiBrief} />}
     </AppShell>
   );
 }

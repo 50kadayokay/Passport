@@ -92,6 +92,15 @@ export const CO = {
   ],
 };
 
+// The 60-second AI Brief, as the app's own analyzer produces it (BRIEF_SECTIONS
+// in the shipped app). Orientation, not data — every line is drawn from the real
+// Kingsmen facts above, nothing invented.
+export const BRIEF = [
+  { k: "What they do", v: "A silver–gold explorer in Chihuahua, Mexico, advancing the Las Coloradas flagship alongside the Almoloya project." },
+  { k: "Why it matters", bullets: CO.keyPoints },
+  { k: "Right now", v: CO.status.detail },
+];
+
 export const PROJECTS = [
   {
     name: "Las Coloradas",
