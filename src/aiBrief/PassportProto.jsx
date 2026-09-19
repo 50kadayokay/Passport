@@ -10,6 +10,21 @@ import { createPortal, flushSync } from "react-dom";
 // (sheet rise, nav slide, focus) are read from CSS custom properties on the phone
 // frame so scrubbing never re-renders this tree. See src/marketing/demo/.
 export const DemoCtx = React.createContext(null);
+
+// One restrained demo-focus treatment: the target lifts slightly with a soft
+// shadow + hairline accent ring, so the CEO sees exactly what is being
+// demonstrated before it opens. Applied by views when demo.focus matches; the
+// transition is always present so it eases in AND out.
+const DEMO_FOCUS_TX = "transform 300ms cubic-bezier(0.22,1,0.36,1), box-shadow 300ms ease";
+function demoFocusStyle(on, restShadow) {
+  return {
+    transform: on ? "scale(1.035)" : "scale(1)",
+    boxShadow: on ? "0 16px 36px -10px rgba(15,23,42,0.34), 0 0 0 1.5px rgba(37,99,235,0.6)" : (restShadow || "none"),
+    transition: DEMO_FOCUS_TX,
+    position: "relative",
+    zIndex: on ? 5 : undefined,
+  };
+}
 import { fetchCompany, SUPABASE_URL, SUPABASE_ANON } from "../lib/supabase.js";
 import { API_BASE } from "../lib/platform.js";
 import QRCode from "qrcode";
@@ -1713,8 +1728,10 @@ function TimelineView() {
                           <button
                             key={it.id}
                             data-fc={"timeline." + it.id}
+                            data-demo={yi === 0 && ii === 0 ? "tl-milestone" : undefined}
                             onClick={() => { setShowFull(false); setDetail({ yi, ii }); }}
-                            className="relative flex w-full items-stretch gap-3 py-1.5 text-left transition active:scale-[0.99]"
+                            className="relative flex w-full items-stretch gap-3 py-1.5 text-left"
+                            style={demoFocusStyle(_demo && _demo.focus === "milestone" && yi === 0 && ii === 0, "none")}
                           >
                             {/* dot on the line */}
                             <span className="relative z-10 flex flex-shrink-0 justify-center pt-4" style={{ width: 25 }}>
@@ -4917,8 +4934,8 @@ function ProjectsView() {
               const fcKind = { map: "district", history: "explorationHistory", geology: "geology", drills: "drillResults" }[o.kind] || o.kind;
               return (
                 <button key={i} data-fc={"projects." + fcKind} onClick={() => setCardSheet({ ...c, label: o.label })}
-                  className="relative flex flex-col items-start rounded-2xl border border-slate-100 bg-white p-3 text-left transition active:scale-[0.97]"
-                  style={{ boxShadow: "0 1px 2px rgba(15,23,42,0.04)" }}>
+                  className="relative flex flex-col items-start rounded-2xl border border-slate-100 bg-white p-3 text-left"
+                  style={demoFocusStyle(demo && demo.focus === "drills" && fcKind === "drillResults", "0 1px 2px rgba(15,23,42,0.04)")}>
                   <span className="grid h-8 w-8 place-items-center rounded-xl" style={{ background: p.toneSoft }}><CIcon size={16} style={{ color: p.tone }} strokeWidth={2.3} /></span>
                   <p className="mt-2 pr-3 text-[12.5px] font-bold leading-tight tracking-tight text-slate-900">{o.label}</p>
                   <p className="mt-0.5 text-[10px] font-medium leading-snug text-slate-400">{o.sub}</p>
@@ -4933,8 +4950,9 @@ function ProjectsView() {
         {/* Why This Project Matters — at the very bottom */}
         {/* How This Project Is Unique — AI insight, expandable */}
         {CARDS.unique && (
-        <button onClick={() => setShowUnique(true)}
-          className="flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-4 transition active:scale-[0.99]">
+        <button data-demo="proj-intel" onClick={() => setShowUnique(true)}
+          className="flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-4"
+          style={demoFocusStyle(demo && demo.focus === "intel", "none")}>
           <Sparkles size={13} strokeWidth={2.4} style={{ color: "#4f86e8" }} />
           <span className="text-[11px] font-extrabold uppercase tracking-[0.16em]" style={{ background: "linear-gradient(90deg, #4f86e8 0%, #9168c0 52%, #d2627b 100%)", WebkitBackgroundClip: "text", backgroundClip: "text", WebkitTextFillColor: "transparent", color: "transparent" }}>What Sets This Project Apart</span>
         </button>
