@@ -33,7 +33,7 @@ export function PressReleases() {
               gridTemplateColumns: mobile ? "1fr" : "minmax(0, 1fr) auto",
               gap: mobile ? 24 : 60,
               alignItems: "center",
-              marginTop: mobile ? 26 : 46,
+              marginTop: mobile ? 20 : 26,
             }}
           >
             {/* the wall of text it arrives as */}
@@ -92,7 +92,7 @@ export function PressReleases() {
             </div>
           </div>
 
-          <div style={{ textAlign: "center", marginTop: mobile ? 22 : 38, opacity: hand }}>
+          <div style={{ textAlign: "center", marginTop: mobile ? 16 : 24, opacity: hand }}>
             <p className="mx-lead" style={{ color: MX.dim, maxWidth: "52ch", margin: "0 auto" }}>
               Headline, why it matters, the key takeaways, the company behind it — and the full release, unchanged, one tap away.
               MineEx never edits the facts. It makes them navigable.

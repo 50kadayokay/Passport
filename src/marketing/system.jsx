@@ -424,7 +424,7 @@ export function Cta({ children, href = "#claim", kind = "primary", dark = false,
 // Device widths are capped by viewport HEIGHT as well as width, so a sticky scene
 // never grows taller than the stage it has to sit inside on a short laptop screen.
 export const phoneWidth = (mobile) =>
-  mobile ? "min(60vw, 250px, 30vh)" : "min(26vw, 312px, 26vh)";
+  mobile ? "min(64vw, 270px, 30vh)" : "min(31vw, 320px, 32vh)";
 
 
 // iPhone. Matches the frame the product itself uses in Conference Mode, so the

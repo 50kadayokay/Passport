@@ -128,7 +128,7 @@ export function FollowMoment() {
               alignItems: "center",
               justifyContent: "center",
               gap: mobile ? 22 : 54,
-              marginTop: mobile ? 26 : 44,
+              marginTop: mobile ? 20 : 24,
             }}
           >
             <div style={{ position: "relative" }}>
@@ -206,7 +206,7 @@ export function StayInformed() {
               gridTemplateColumns: mobile ? "1fr" : "minmax(0, 1fr) 90px auto",
               alignItems: "center",
               gap: mobile ? 18 : 30,
-              marginTop: mobile ? 26 : 44,
+              marginTop: mobile ? 18 : 20,
             }}
           >
             {/* the company publishes */}
