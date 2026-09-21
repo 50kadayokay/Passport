@@ -194,7 +194,8 @@ export function fcmErrorCode(body) {
  * Contract of the injected functions:
  *   sendApns(row)  -> { status, reason }        iOS transport
  *   sendFcm(row)   -> { status, body }          Android transport
- *   markRow(row, { status, error })             outbox status write
+ *   markRow(row, { outcome, error })            outbox outcome write
+ *                                              outcome: sent|retry|failed|release|skipped
  *   dropToken(token, platform)                  dead-token removal, platform-scoped
  *   apnsReady / fcmReady : boolean              per-provider configuration
  *
@@ -204,6 +205,22 @@ export function fcmErrorCode(body) {
  *   · if one provider throws or is unconfigured, the other still runs
  *   · a row already marked 'sent' is never re-marked 'pending'
  */
+/**
+ * Map a classification to the outbox outcome the database understands.
+ *   null            -> "sent"     terminal success
+ *   RETRYABLE       -> "retry"    attempts+1, backoff, eligible again
+ *   PERMANENT_TOKEN -> "failed"   terminal; the token is also removed
+ *   CONFIG          -> "release"  back to pending WITHOUT burning an attempt —
+ *                                 a bad credential or payload is ours to fix and
+ *                                 would otherwise exhaust the whole queue.
+ */
+export function outcomeFor(verdict) {
+  if (verdict === null || verdict === undefined) return "sent";
+  if (verdict === RETRYABLE) return "retry";
+  if (verdict === CONFIG) return "release";
+  return "failed";
+}
+
 export async function deliverBatch({
   rows,
   sendApns,
@@ -214,20 +231,26 @@ export async function deliverBatch({
   fcmReady = true,
 }) {
   const { apns, fcm, unroutable } = partitionByPlatform(rows);
+  // Rows whose outcome has already been written. If a provider throws PART WAY
+  // through its bucket, only the rows it never got to are released — the ones
+  // already marked 'sent'/'failed' must not be reopened.
+  const done = new Set();
+  const mark = async (row, payload) => { done.add(row.id); return markRow(row, payload); };
   const result = {
-    sent: 0, failed: 0, skipped: 0,
+    sent: 0, failed: 0, skipped: 0, retried: 0, released: 0,
     routed: { ios: apns.length, android: fcm.length, unroutable: unroutable.length },
     errors: {},
   };
 
   for (const row of unroutable) {
     result.skipped++;
-    await markRow(row, { status: "skipped", error: `unroutable platform: ${String(row?.platform || "(none)")}` });
+    await mark(row, { outcome: "skipped", error: `unroutable platform: ${String(row?.platform || "(none)")}` });
   }
 
   if (apns.length) {
     if (!apnsReady) {
       result.errors.apns = "apns_not_configured";
+      for (const row of apns) { result.released++; await mark(row, { outcome: "release", error: "apns_not_configured" }); }
     } else {
       try {
         for (const row of apns) {
@@ -236,10 +259,12 @@ export async function deliverBatch({
           const ok = verdict === null;
           if (ok) result.sent++; else result.failed++;
           if (verdict === PERMANENT_TOKEN) await dropToken(row.token, IOS);
-          await markRow(row, { status: ok ? "sent" : "failed", error: ok ? null : (out?.reason || `status ${out?.status}`) });
+          await mark(row, { outcome: outcomeFor(verdict), error: ok ? null : (out?.reason || `status ${out?.status}`) });
+          if (verdict === RETRYABLE) result.retried++;
         }
       } catch (e) {
         result.errors.apns = String((e && e.message) || e);
+        for (const row of apns) { if (!done.has(row.id)) { result.released++; await mark(row, { outcome: "release", error: result.errors.apns }); } }
       }
     }
   }
@@ -247,6 +272,7 @@ export async function deliverBatch({
   if (fcm.length) {
     if (!fcmReady) {
       result.errors.fcm = "fcm_not_configured";
+      for (const row of fcm) { result.released++; await mark(row, { outcome: "release", error: "fcm_not_configured" }); }
     } else {
       try {
         for (const row of fcm) {
@@ -256,10 +282,12 @@ export async function deliverBatch({
           const ok = verdict === null;
           if (ok) result.sent++; else result.failed++;
           if (verdict === PERMANENT_TOKEN) await dropToken(row.token, ANDROID);
-          await markRow(row, { status: ok ? "sent" : "failed", error: ok ? null : (code || `status ${out?.status}`) });
+          await mark(row, { outcome: outcomeFor(verdict), error: ok ? null : (code || `status ${out?.status}`) });
+          if (verdict === RETRYABLE) result.retried++;
         }
       } catch (e) {
         result.errors.fcm = String((e && e.message) || e);
+        for (const row of fcm) { if (!done.has(row.id)) { result.released++; await mark(row, { outcome: "release", error: result.errors.fcm }); } }
       }
     }
   }

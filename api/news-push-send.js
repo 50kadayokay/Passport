@@ -29,7 +29,7 @@
 //                                  = creds ACCEPTED; 403 InvalidProviderToken = creds bad.
 import crypto from "node:crypto";
 import http2 from "node:http2";
-import { serviceConfigured, serviceRest } from "./_service.js";
+import { serviceConfigured, serviceRest, serviceRpc } from "./_service.js";
 import { checkNewsAuth } from "./_news.js";
 import { deliverBatch, buildApnsPayload, buildFcmMessage } from "./_push.js";
 import { fcmConfigured, fcmAccessToken, fcmSendOne } from "./_fcm.js";
@@ -37,6 +37,9 @@ import { fcmConfigured, fcmAccessToken, fcmSendOne } from "./_fcm.js";
 export const config = { maxDuration: 120 };
 
 const BATCH = 200;
+const LEASE_SECONDS = 300;          // a claim a dead worker never finishes is reclaimable after this
+const MAX_ATTEMPTS = 5;             // then the row is terminal 'failed'
+const BASE_BACKOFF_SECONDS = 60;    // 60s, 120s, 240s, 480s … capped at 1h in SQL
 const BUNDLE = () => process.env.APNS_BUNDLE_ID || "com.liquidjungle.mineex";
 const apnsConfigured = () => !!(process.env.APNS_KEY_ID && process.env.APNS_TEAM_ID && process.env.APNS_P8);
 const HOST = () => (String(process.env.APNS_ENV || "production").toLowerCase() === "sandbox"
@@ -120,15 +123,33 @@ export default async function handler(req, res) {
 
     if (!serviceConfigured()) return res.status(500).json({ error: "Supabase service env missing" });
 
-    // DRAIN — pending rows, oldest first. `platform` decides the provider.
-    const r = await serviceRest(`notification_outbox?status=eq.pending&order=created_at.asc&limit=${BATCH}&select=id,token,title,body,data,platform`);
-    if (!r.ok) return res.status(500).json({ error: `outbox query HTTP ${r.status}` });
-    const rowsPending = await r.json().catch(() => []);
-    if (!rowsPending.length) return res.status(200).json({ ok: true, sent: 0, failed: 0, message: "outbox empty" });
+    // CLAIM — atomic. Two concurrent workers can never receive the same row:
+    // claim_notification_outbox() selects FOR UPDATE SKIP LOCKED and flips the
+    // rows to 'sending' with a lease in ONE transaction (migration 0041).
+    // Expired leases (a worker that died mid-batch) are reclaimed by the same
+    // call, so nothing is stranded.
+    const worker = `${process.env.VERCEL_REGION || "local"}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+    const claimRes = await serviceRpc("claim_notification_outbox", {
+      p_limit: BATCH, p_lease_seconds: LEASE_SECONDS, p_max_attempts: MAX_ATTEMPTS, p_worker: worker,
+    });
+    if (!claimRes.ok) {
+      const detail = await claimRes.text().catch(() => "");
+      // Fail CLOSED. Falling back to the old read-then-write drain would
+      // reintroduce the duplicate-delivery window this phase exists to remove.
+      return res.status(500).json({
+        error: `outbox claim failed (HTTP ${claimRes.status})`,
+        hint: claimRes.status === 404
+          ? "migration 0041_outbox_claim_lease.sql has not been applied to this database"
+          : detail.slice(0, 300),
+        sent: 0, failed: 0,
+      });
+    }
+    const rowsPending = await claimRes.json().catch(() => []);
+    if (!rowsPending.length) return res.status(200).json({ ok: true, sent: 0, failed: 0, message: "nothing claimable" });
 
     // Delivery is orchestrated by deliverBatch() in ./_push.js — the same code the
-    // offline test suite drives (scripts/push-routing-test.mjs), so the routing and
-    // isolation invariants proven there are the ones that actually ship.
+    // offline suite drives, so the routing/isolation/retry invariants proven there
+    // are the ones that ship.
     let apnsClient = null;
     let apnsJwtValue = null;
     const apnsReady = apnsConfigured();
@@ -151,15 +172,11 @@ export default async function handler(req, res) {
         if (!fcmToken) fcmToken = await fcmAccessToken();       // one exchange per batch
         return fcmSendOne(fcmToken, buildFcmMessage(row));
       },
-      markRow: (row, { status, error }) => serviceRest(`notification_outbox?id=eq.${row.id}`, {
-        method: "PATCH",
-        body: {
-          status,
-          attempts: 1,
-          last_error: error || null,
-          sent_at: status === "sent" ? new Date().toISOString() : null,
-        },
-        prefer: "return=minimal",
+      // Outcome + backoff are computed in the DATABASE (one clock, one place),
+      // so a worker can never leave a row stuck in 'sending'.
+      markRow: (row, { outcome, error }) => serviceRpc("finish_notification_outbox", {
+        p_id: row.id, p_outcome: outcome, p_error: error || null,
+        p_max_attempts: MAX_ATTEMPTS, p_base_backoff: BASE_BACKOFF_SECONDS,
       }).catch(() => {}),
       // Platform-scoped: an Android dead token can never delete an iOS registration.
       dropToken: (token, platform) => serviceRest(
@@ -173,7 +190,8 @@ export default async function handler(req, res) {
     return res.status(200).json({
       ok: true,
       sent: out.sent, failed: out.failed, skipped: out.skipped,
-      batch: rowsPending.length,
+      retried: out.retried, released: out.released,
+      batch: rowsPending.length, worker,
       routed: out.routed,
       ...(Object.keys(out.errors).length ? { provider_errors: out.errors } : {}),
     });

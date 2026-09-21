@@ -67,7 +67,7 @@ section("1-5. Platform routing");
   const h = harness();
   const r = await h.run(weird);
   ok(h.seen.apns.length === 1 && h.seen.fcm.length === 1, "   unroutable rows are never transported");
-  ok(r.skipped === 6 && h.marks.filter((m) => m.status === "skipped").length === 6, "   unroutable rows are parked as 'skipped'");
+  ok(r.skipped === 6 && h.marks.filter((m) => m.outcome === "skipped").length === 6, "   unroutable rows are parked as 'skipped'");
 }
 
 /* ------------------------------------------------- 6-7: FCM data is strings */
@@ -129,7 +129,8 @@ section("8-9. FCM error classification");
   const h2 = harness({ fcmResult: () => ({ status: 503, body: { error: { status: "UNAVAILABLE" } } }) });
   await h2.run([and(10)]);
   ok(h2.dropped.length === 0, "9b. retryable FCM failure drops NO token");
-  ok(h2.marks[0].status === "failed", "   row marked failed (not silently sent)");
+  ok(h2.marks[0].outcome === "retry", "   retryable failure -> outcome 'retry' (eligible again, not terminal)");
+  ok(h2.marks[0].outcome !== "sent", "   and never silently marked sent");
 }
 
 /* ------------------------------------------ 10: APNs behaviour unchanged */
@@ -160,8 +161,8 @@ section("11. Provider failure isolation");
   ok(h.seen.apns.length === 2, "11. an FCM outage does not stop APNs delivery");
   ok(r.sent === 2, "    both iOS rows counted as sent");
   const iosMarks = h.marks.filter((m) => m.id.startsWith("i"));
-  ok(iosMarks.length === 2 && iosMarks.every((m) => m.status === "sent"), "    successful iOS rows are marked 'sent'");
-  ok(!h.marks.some((m) => m.status === "pending"), "    no row is ever re-marked 'pending' after success");
+  ok(iosMarks.length === 2 && iosMarks.every((m) => m.outcome === "sent"), "    successful iOS rows are marked 'sent'");
+  ok(!h.marks.some((m) => m.outcome === "retry" && m.id.startsWith("i")), "    a delivered iOS row is never re-queued for retry");
   ok(!!r.errors.fcm, "    the FCM failure is reported, not swallowed");
 
   // and the reverse
@@ -175,12 +176,12 @@ section("11. Provider failure isolation");
   const r3 = await h3.run([ios(1), and(1)]);
   ok(h3.seen.apns.length === 1 && h3.seen.fcm.length === 0, "    unconfigured FCM still lets iOS send");
   ok(r3.errors.fcm === "fcm_not_configured", "    unconfigured FCM is reported");
-  ok(!h3.marks.some((m) => m.id.startsWith("a")), "    Android rows stay pending (untouched) when FCM is unconfigured");
+  ok(h3.marks.filter((m) => m.id.startsWith("a")).every((m) => m.outcome === "release"), "    Android rows are RELEASED (back to pending, no attempt burned) when FCM is unconfigured");
 
   const h4 = harness({ apnsReady: false });
   const r4 = await h4.run([ios(1), and(1)]);
   ok(h4.seen.fcm.length === 1 && h4.seen.apns.length === 0, "    unconfigured APNs still lets Android send");
-  ok(!h4.marks.some((m) => m.id.startsWith("i")), "    iOS rows stay pending when APNs is unconfigured");
+  ok(h4.marks.filter((m) => m.id.startsWith("i")).every((m) => m.outcome === "release"), "    iOS rows are RELEASED when APNs is unconfigured");
 }
 
 /* --------------------------------- 12: token registration / rotation safety */

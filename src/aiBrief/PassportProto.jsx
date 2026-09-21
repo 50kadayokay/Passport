@@ -37,7 +37,7 @@ import {
 } from "lucide-react";
 import { signOut, getUser, getAccessToken, authHeaders, onAuthChange, requestPasswordReset } from "../lib/auth.js";
 import { registerPush } from "../lib/push.js"; // native push registration (no-op on web)
-import { shareContent, shouldFallback } from "../lib/share.js"; // native share sheet on Android; unchanged on iOS/web
+import { shareContent, shouldFallback, companyShareUrl } from "../lib/share.js"; // native share sheet on Android; unchanged on iOS/web
 import { useBackHandler, BACK_PRIORITY } from "../lib/useBackHandler.js"; // Android hardware back (inert on web/iOS)
 import * as investorData from "../lib/investorData.js";
 import * as discovery from "../lib/discovery.js";
@@ -2595,7 +2595,7 @@ function MediaViewer({ posts, start, onClose }) {
   const share = async (p) => {
     haptic();
     let slug = ""; try { slug = new URLSearchParams(window.location.search).get("c") || ""; } catch (_) {}
-    const url = "https://passport-xi-five.vercel.app/app" + (slug ? `?c=${encodeURIComponent(slug)}` : "");
+    const url = companyShareUrl(slug);   // canonical mineex.ca link (R6)
     const data = { title: p.title || COMPANY.name, text: p.title || COMPANY.name, url };
     // Android gets the native share sheet; iOS/web keep navigator.share. A
     // cancelled sheet ends here — it must NOT copy to the clipboard.
@@ -6542,7 +6542,19 @@ function Reels({ items, onOpen }) {
                   <span className="text-[9px] font-bold">{isFollowing ? "Following" : "Follow"}</span>
                 </button>
                 <button className="flex flex-col items-center gap-1 active:scale-90"><span className="grid h-11 w-11 place-items-center rounded-full bg-white/15"><Bookmark size={18} /></span><span className="text-[9px] font-bold">Save</span></button>
-                <button className="flex flex-col items-center gap-1 active:scale-90"><span className="grid h-11 w-11 place-items-center rounded-full bg-white/15"><Share2 size={18} /></span><span className="text-[9px] font-bold">Share</span></button>
+                <button
+                  onClick={async () => {
+                    haptic();
+                    // Same helper, same canonical company URL as every other share.
+                    const url = companyShareUrl(it.companyId);
+                    const title = it.co || it.company || "MineEx";
+                    const r = await shareContent({ title, text: title, url });
+                    if (!shouldFallback(r)) return;
+                    try { await navigator.clipboard.writeText(url); } catch (_) {}
+                  }}
+                  aria-label="Share"
+                  className="flex flex-col items-center gap-1 active:scale-90"
+                ><span className="grid h-11 w-11 place-items-center rounded-full bg-white/15"><Share2 size={18} /></span><span className="text-[9px] font-bold">Share</span></button>
               </div>
 
               {/* bottom meta */}

@@ -174,6 +174,14 @@ export async function getSession() {
 
 export async function signOut() {
   const s = load();
+  // Detach this device's push token FIRST, while the session is still valid —
+  // release_push_token needs auth.uid(). Without this the device keeps receiving
+  // this user's notifications after the next account signs in. Best-effort and
+  // never allowed to block signing out.
+  try {
+    const { unregisterPush } = await import("./push.js");
+    await unregisterPush();
+  } catch (_) { /* logout must always proceed */ }
   // Clear the local session SYNCHRONOUSLY first so callers that reload immediately
   // (without awaiting) are already signed out; then best-effort revoke server-side.
   save(null);

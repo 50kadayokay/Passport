@@ -17,21 +17,54 @@ function dbg(msg) { try { if (PUSH_DEBUG) window.alert("[push] " + msg); } catch
 
 let _listenersWired = false;
 
+// The last token this device registered, so logout can detach it without asking
+// the plugin again (the plugin may not answer once permission is gone).
+const TOKEN_KEY = "mineex.pushToken.v1";
+const rememberToken = (t) => { try { t ? localStorage.setItem(TOKEN_KEY, t) : localStorage.removeItem(TOKEN_KEY); } catch (_) {} };
+const lastToken = () => { try { return localStorage.getItem(TOKEN_KEY) || ""; } catch (_) { return ""; } };
+
+/**
+ * Detach THIS device from the signed-in user. Called on logout while the session
+ * is still valid (RLS needs auth.uid()).
+ *
+ * Scoped to (this user, this token): it cannot touch another account, and it
+ * cannot touch the same investor's OTHER devices, whose token strings differ.
+ */
+export async function unregisterPush() {
+  const token = lastToken();
+  if (!token) return;
+  try {
+    const headers = await authHeaders();
+    await fetch(`${SUPABASE_URL}/rest/v1/rpc/release_push_token`, {
+      method: "POST",
+      headers: { ...headers, "Content-Type": "application/json" },
+      body: JSON.stringify({ p_token: token }),
+    });
+    dbg("released push token on logout");
+  } catch (e) { dbg("release failed: " + (e && e.message)); }
+  rememberToken("");
+}
+
 async function saveToken(value) {
   try {
     const u = getUser();
     if (!u || !u.id || !value) { dbg("save skipped: user=" + (!!u) + " token=" + (!!value)); return; }
     const headers = await authHeaders();
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/push_tokens?on_conflict=user_id,token`, {
+    // claim_push_token (migration 0042) upserts for auth.uid() AND deletes rows
+    // holding the SAME token for any other user, atomically. RLS cannot do the
+    // second half from this session, and without it a device keeps receiving the
+    // previous account's notifications when that account never logged out cleanly.
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/claim_push_token`, {
       method: "POST",
-      headers: { ...headers, "Content-Type": "application/json", Prefer: "resolution=merge-duplicates,return=minimal" },
+      headers: { ...headers, "Content-Type": "application/json" },
       // The RECORDED platform is what the sender routes on, so it must be the real
       // one — never a default. An 'ios' row means APNs, 'android' means FCM, and
       // the sender refuses to guess for anything else.
-      body: JSON.stringify([{ user_id: u.id, token: value, platform: Capacitor.getPlatform() }]),
+      body: JSON.stringify({ p_token: value, p_platform: Capacitor.getPlatform() }),
     });
     const body = res.ok ? "" : (" — " + (await res.text().catch(() => "")));
     dbg("save HTTP " + res.status + body);
+    if (res.ok) rememberToken(value);
   } catch (e) { dbg("save threw: " + (e && e.message)); }
 }
 

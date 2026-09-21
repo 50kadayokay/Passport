@@ -17,10 +17,32 @@
 // and its own wording, so iOS/web behaviour stays byte-identical and the two
 // surfaces don't get silently homogenised.
 //
-// It also never builds a URL. Callers pass the app's existing canonical links
-// (the /app?c=<slug> company URL and the /n/<id> news URL); no new URL format is
-// introduced here.
+// shareContent() itself never builds a URL — callers pass the app's existing
+// canonical links. The one URL helper here, companyShareUrl(), only swaps the
+// ORIGIN of the already-existing /app?c=<slug> format onto the canonical public
+// host; no new URL shape is introduced anywhere.
 import { Capacitor } from "@capacitor/core";
+
+/**
+ * The canonical public MineEx origin for anything a USER will see or paste.
+ *
+ * Verified live: mineex.ca and passport-xi-five.vercel.app serve the SAME Vercel
+ * deployment, and mineex.ca/app?c=<slug>, mineex.ca/n/<id> and
+ * mineex.ca/privacy.html all return 200. Existing links already shared on the
+ * vercel.app host therefore keep working — nothing is redirected or removed;
+ * only what we MINT from now on changes.
+ *
+ * This is deliberately NOT used for src/lib/platform.js API_BASE (the native
+ * app's backend origin) or for admin tooling — changing those is a deployment
+ * decision, not a sharing one.
+ */
+export const PUBLIC_ORIGIN = "https://mineex.ca";
+
+/** The canonical public link to a company profile. */
+export function companyShareUrl(slug) {
+  const s = String(slug || "").trim();
+  return s ? `${PUBLIC_ORIGIN}/app?c=${encodeURIComponent(s)}` : `${PUBLIC_ORIGIN}/app`;
+}
 
 /** Result statuses. `shared` and `cancelled` both mean "we are done". */
 export const SHARE_SHARED = "shared";
