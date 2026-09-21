@@ -38,4 +38,14 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- QR scanner (Scan tab). The scanner uses getUserMedia inside the WebView;
+         Capacitor's WebChromeClient raises the runtime prompt, but the permission
+         must be declared here or the request is refused outright. iOS parity:
+         NSCameraUsageDescription in Info.plist. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+
+    <!-- navigator.vibrate() — the haptic() helper used throughout the app. -->
+    <uses-permission android:name="android.permission.VIBRATE" />
 </manifest>

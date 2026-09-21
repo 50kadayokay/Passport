@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { createPortal, flushSync } from "react-dom";
 import { fetchCompany, SUPABASE_URL, SUPABASE_ANON } from "../lib/supabase.js";
-import { API_BASE } from "../lib/platform.js";
+import { API_BASE, isNativeApp } from "../lib/platform.js";
 import QRCode from "qrcode";
 import jsQR from "jsqr"; // pure-JS QR decode — works on iOS WebKit (BarcodeDetector doesn't)
 import { buildCompanyIdentity } from "./proHighlights.js";
@@ -6514,6 +6514,8 @@ function Reels({ items, onOpen }) {
   // Follows here write to the SAME persistent store as the profile Follow button, so a
   // follow made from Media sticks and shows up on the Following page (was ephemeral).
   useEffect(() => listStore.sub(() => bumpFollow((x) => x + 1)), []);
+  // Same for saves, so the Save control reflects its own toggle.
+  useEffect(() => savedStore.sub(() => bumpFollow((x) => x + 1)), []);
   const [playing, setPlaying] = useState({});
   if (!items.length) return <FeedEmpty Icon={Play} title="No media yet" sub="Pro companies will publish interviews and site footage here." />;
   const toggleFollow = (slug) => { if (slug) listStore.set("following", slug, !listStore.has("following", slug)); };
@@ -6541,7 +6543,11 @@ function Reels({ items, onOpen }) {
                   <span className="grid h-11 w-11 place-items-center rounded-full" style={{ background: isFollowing ? "rgba(255,255,255,0.25)" : EM }}>{isFollowing ? <Check size={20} /> : <Plus size={20} />}</span>
                   <span className="text-[9px] font-bold">{isFollowing ? "Following" : "Follow"}</span>
                 </button>
-                <button className="flex flex-col items-center gap-1 active:scale-90"><span className="grid h-11 w-11 place-items-center rounded-full bg-white/15"><Bookmark size={18} /></span><span className="text-[9px] font-bold">Save</span></button>
+                <button
+                  onClick={() => { haptic(); if (it) savedStore.toggle(it); }}
+                  aria-label="Save"
+                  className="flex flex-col items-center gap-1 active:scale-90"
+                ><span className="grid h-11 w-11 place-items-center rounded-full bg-white/15"><Bookmark size={18} fill={savedStore.has(it && it.id) ? "#fff" : "none"} /></span><span className="text-[9px] font-bold">Save</span></button>
                 <button
                   onClick={async () => {
                     haptic();
@@ -8723,7 +8729,7 @@ function ProfileScreen({ onScan }) {
                 <span className="min-w-0 flex-1 text-[13.5px] font-bold tracking-tight text-slate-800">Account & Security</span>
                 <ChevronRight size={16} className="flex-shrink-0 text-slate-300" />
               </button>
-              <a href="https://passport-xi-five.vercel.app/privacy.html" target="_blank" rel="noreferrer" className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition active:bg-slate-50" style={{ borderTop: "1px solid #f1f5f9" }}>
+              <a href="https://mineex.ca/privacy.html" target="_blank" rel="noreferrer" className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition active:bg-slate-50" style={{ borderTop: "1px solid #f1f5f9" }}>
                 <Eye size={18} className="flex-shrink-0 text-slate-500" />
                 <span className="min-w-0 flex-1 text-[13.5px] font-bold tracking-tight text-slate-800">Privacy & Data</span>
                 <ArrowUpRight size={16} className="flex-shrink-0 text-slate-300" />
@@ -8752,8 +8758,8 @@ function ProfileScreen({ onScan }) {
                 MineEx provides company information for educational and informational purposes only. Nothing here is investment, financial, legal, or tax advice, or an offer or solicitation to buy or sell any security. Company data — including AI-generated summaries — may contain errors. Always do your own research and consult a licensed advisor before investing.
               </p>
               <div className="mt-3 flex items-center gap-4">
-                <a href="https://passport-xi-five.vercel.app/privacy.html" target="_blank" rel="noreferrer" className="text-[11.5px] font-bold text-slate-500 underline underline-offset-2">Privacy Policy</a>
-                <a href="https://passport-xi-five.vercel.app/terms.html" target="_blank" rel="noreferrer" className="text-[11.5px] font-bold text-slate-500 underline underline-offset-2">Terms of Use</a>
+                <a href="https://mineex.ca/privacy.html" target="_blank" rel="noreferrer" className="text-[11.5px] font-bold text-slate-500 underline underline-offset-2">Privacy Policy</a>
+                <a href="https://mineex.ca/terms.html" target="_blank" rel="noreferrer" className="text-[11.5px] font-bold text-slate-500 underline underline-offset-2">Terms of Use</a>
               </div>
               <p className="mt-3 text-[10px] font-semibold uppercase tracking-widest text-slate-300">MineEx · v1.0</p>
             </div>
@@ -10788,16 +10794,19 @@ export default function App({ guest = false } = {}) {
 
         <div className="flex h-full flex-col" style={{ background: "#ffffff" }}>
           {mobile ? <div className="flex-shrink-0" style={{ height: "env(safe-area-inset-top, 0px)" }} /> : <StatusBar />}
-          {/* Guest "Open in app" smart-banner — nudges the native app without ever blocking
-              the full web view. Dismissible; hidden once signed in. */}
-          {guest && !bannerOff && (
+          {/* Guest "Open in app" smart-banner — a WEB affordance that nudges a
+              signed-out visitor toward the native app. It is pointless inside the
+              native app itself (the user is already in it), where it also showed
+              the pre-rebrand "Passport" wordmark. Hidden natively on BOTH
+              platforms — this is the same guest/QR flow on iOS. */}
+          {guest && !bannerOff && !isNativeApp && (
             <div className="flex flex-shrink-0 items-center gap-2.5 border-b border-slate-100 bg-white px-4 py-2">
               <button onClick={() => setBannerOff(true)} aria-label="Dismiss" className="flex-shrink-0 text-slate-300 transition active:scale-90"><X size={17} /></button>
               <div className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-[9px]" style={{ background: EM }}>
-                <span className="text-[14px] font-black leading-none text-white">P</span>
+                <span className="text-[14px] font-black leading-none text-white">M</span>
               </div>
               <div className="min-w-0 flex-1 leading-tight">
-                <p className="text-[12.5px] font-extrabold tracking-tight text-slate-900">Passport</p>
+                <p className="text-[12.5px] font-extrabold tracking-tight text-slate-900">MineEx</p>
                 <p className="truncate text-[10.5px] font-medium text-slate-400">Follow companies & get updates in one feed</p>
               </div>
               <a href={APP_STORE_URL || "/app?signin=1"} className="flex-shrink-0 rounded-full px-4 py-1.5 text-[12px] font-bold text-white transition active:scale-95" style={{ background: EM }}>
