@@ -18,6 +18,11 @@ deferred. Nothing here is a regression introduced by the port unless stated.
 | B10 | **Email confirmation appears disabled in Supabase.** `signUp()` returned an immediately-usable, `confirmed:true` session for an unroutable address, contradicting the comment at `src/lib/auth.js:50`. Anyone can register with an address they do not control. | Phase 4 | Product/security decision, not a port issue. **Release gate G3.** | Before launch (G3) |
 | B11 | **Stray test user `no-such-user@example.invalid`** created accidentally during Phase 4 testing. Session revoked server-side (HTTP 204); the `auth.users` row remains. | Phase 4 | Deleting production data needs owner confirmation. | Owner action |
 | B12 | **Android `signOut()` does not clear Credential Manager state** (`SocialLogin.logout` not called). Chooser should still appear given `autoSelectEnabled=false`, but unverified. | Phase 4 | Needs a working Google sign-in to verify. | Phase 7 (QA) |
+| B13 | **`signOut()` does not delete the device's `push_tokens` row**, so a logged-out device keeps receiving the previous user's notifications until the token dies naturally. Pre-existing on iOS; now also true on Android. | Phase 5 | Shared logout behaviour; changing it affects iOS. | Before launch |
+| B14 | **No Android notification small icon.** Without `com.google.firebase.messaging.default_notification_icon` meta-data Android draws the launcher icon as a white square. | Phase 5 | Needs a designed white-silhouette asset. | Phase 8 |
+| B15 | **Android notification tap navigation is implemented but unverified** — cannot fire without Firebase. iOS taps remain a deliberate no-op. | Phase 5 | Blocked on Firebase config. | Phase 7 (QA) |
+| B16 | **Foreground notification behaviour undefined.** Capacitor raises `pushNotificationReceived` in the foreground and does not auto-display; MineEx has no handler, so a foregrounded user sees nothing. Matches iOS today. | Phase 5 | Product decision. | Before launch |
+| W1-W4 | **Pre-existing outbox delivery weaknesses**: no claim/lease (overlapping runs can double-send), `attempts` hardcoded to 1, `failed` is terminal so retryable errors never retry, no `sending` state. Detailed in ANDROID_PHASE5_REPORT.md §15. | Phase 5 | Redesigning delivery semantics is out of scope; reported as instructed. | Owner call |
 
 ---
 
