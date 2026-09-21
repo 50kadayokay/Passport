@@ -18,7 +18,8 @@ let pass = 0, fail = 0;
 const ok = (c, m) => { if (c) pass++; else { fail++; console.error("  x " + m); } };
 const eq = (g, w, m) => ok(g === w, `${m}\n      got:  ${JSON.stringify(g)}\n      want: ${JSON.stringify(w)}`);
 
-const KNG = "/Users/leifer/Downloads/KNG News Release - FINAL AUG 20 (2).docx";
+const KNG = process.env.MINEEX_ACCEPTANCE_DOCX
+  || "/Users/leifer/Downloads/KNG News Release - FINAL AUG 20 (2).docx";  // local only; set MINEEX_ACCEPTANCE_DOCX elsewhere. Absent -> this section skips.
 const CACHE = "/tmp/kng-raw.txt";
 
 let RAW = "";
