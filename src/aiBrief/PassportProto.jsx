@@ -37,6 +37,7 @@ import {
 } from "lucide-react";
 import { signOut, getUser, getAccessToken, authHeaders, onAuthChange, requestPasswordReset } from "../lib/auth.js";
 import { registerPush } from "../lib/push.js"; // native push registration (no-op on web)
+import { shareContent, shouldFallback } from "../lib/share.js"; // native share sheet on Android; unchanged on iOS/web
 import { useBackHandler, BACK_PRIORITY } from "../lib/useBackHandler.js"; // Android hardware back (inert on web/iOS)
 import * as investorData from "../lib/investorData.js";
 import * as discovery from "../lib/discovery.js";
@@ -2596,7 +2597,10 @@ function MediaViewer({ posts, start, onClose }) {
     let slug = ""; try { slug = new URLSearchParams(window.location.search).get("c") || ""; } catch (_) {}
     const url = "https://passport-xi-five.vercel.app/app" + (slug ? `?c=${encodeURIComponent(slug)}` : "");
     const data = { title: p.title || COMPANY.name, text: p.title || COMPANY.name, url };
-    try { if (navigator.share) { await navigator.share(data); return; } } catch (_) { return; }
+    // Android gets the native share sheet; iOS/web keep navigator.share. A
+    // cancelled sheet ends here — it must NOT copy to the clipboard.
+    const r = await shareContent(data);
+    if (!shouldFallback(r)) return;
     try { await navigator.clipboard.writeText(url); flash("Link copied"); } catch (_) { flash("Couldn’t share"); }
   };
 
@@ -6250,8 +6254,9 @@ function StoryReader({ it, onOpen, onClose }) {
     const url = nid ? `https://mineex.ca/n/${nid}` : ((it && it.fullUrl) || "");
     const title = (it && (it.headline || it.t)) || "MineEx";
     try {
-      if (navigator.share) await navigator.share({ title, url });
-      else if (navigator.clipboard && url) await navigator.clipboard.writeText(url);
+      const r = await shareContent({ title, url });
+      if (!shouldFallback(r)) return;                       // shared, or cancelled -> done
+      if (navigator.clipboard && url) await navigator.clipboard.writeText(url);
     } catch { /* user cancelled or unsupported */ }
   };
   if (!it) return null;

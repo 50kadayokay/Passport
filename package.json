@@ -19,6 +19,7 @@
     "@capacitor/core": "^8.5.0",
     "@capacitor/ios": "^8.5.0",
     "@capacitor/push-notifications": "^8.1.2",
+    "@capacitor/share": "^8.0.2",
     "@capgo/capacitor-social-login": "^8.5.0",
     "@vercel/og": "^0.6.0",
     "jsqr": "^1.4.0",
