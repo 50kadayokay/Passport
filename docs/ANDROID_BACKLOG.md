@@ -23,6 +23,9 @@ deferred. Nothing here is a regression introduced by the port unless stated.
 | B15 | **Android notification tap navigation is implemented but unverified** — cannot fire without Firebase. iOS taps remain a deliberate no-op. | Phase 5 | Blocked on Firebase config. | Phase 7 (QA) |
 | B16 | **Foreground notification behaviour undefined.** Capacitor raises `pushNotificationReceived` in the foreground and does not auto-display; MineEx has no handler, so a foregrounded user sees nothing. Matches iOS today. | Phase 5 | Product decision. | Before launch |
 | W1-W4 | **Pre-existing outbox delivery weaknesses**: no claim/lease (overlapping runs can double-send), `attempts` hardcoded to 1, `failed` is terminal so retryable errors never retry, no `sending` state. Detailed in ANDROID_PHASE5_REPORT.md §15. | Phase 5 | Redesigning delivery semantics is out of scope; reported as instructed. | Owner call |
+| B17 | **Dead Share button in `Reels`** (`PassportProto.jsx` ~line 6540): a `Share2` icon button with **no `onClick`** — non-functional on every platform, not just Android. Pre-existing. | Phase 6 | Out of phase scope (audit finding only). | Phase 7 (QA) |
+| B18 | **Story-reader clipboard fallback is silent.** When sharing is unavailable, `shareStory()` copies the link with no toast, unlike the media viewer which flashes "Link copied". Pre-existing inconsistency; now only reachable on platforms without a share mechanism. | Phase 6 | UX decision, not a port defect. | Owner call |
+| B19 | **MediaViewer share not reachable in a guest session.** Its payload and the Android transport were verified directly, but the company media-grid UI entry point needs a signed-in account with company media posts. | Phase 6 | Needs credentials. | Phase 7 (QA) |
 
 ---
 
