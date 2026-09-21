@@ -40,7 +40,21 @@ android {
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
              // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
-            ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
+            // Stock Capacitor ignores, plus MineEx web assets that the MOBILE
+            // runtime never loads. Android-only: dist/ and the website are
+            // untouched, so mineex.ca keeps serving all of these.
+            //   marketing/                   1.8 MB of marketing-site imagery.
+            //                                MarketingSite renders at /site and is
+            //                                host-gated `!isNativeApp` at the root;
+            //                                nothing in the app links to it.
+            //   __design-system.html         internal design-system reference doc,
+            //                                referenced by NOTHING in the codebase.
+            //   kingsmen-resources-backup.json
+            //                                internal backup fetched only by
+            //                                src/admin/BlueprintReview.jsx, an
+            //                                admin surface gated DesktopOnly +
+            //                                requireAdmin — unreachable on mobile.
+            ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~:!marketing:!__design-system.html:!kingsmen-resources-backup.json'
         }
     }
     signingConfigs {

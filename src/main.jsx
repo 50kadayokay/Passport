@@ -16,15 +16,15 @@ const Admin = React.lazy(() => import("./admin/MissionControl.jsx"));         //
 const Portal = React.lazy(() => import("./portal/Portal.jsx"));               // Company Portal (desktop, paying companies)
 const Studio = React.lazy(() => import("./studio/Studio.tsx"));                // Story Studio (desktop, admin) — release → carousel/video
 const PortalGate = React.lazy(() => import("./portal/PortalGate.jsx"));       // resolves company + entitlement
-const EditorDemo = React.lazy(() => import("./portal/EditorDemo.jsx"));       // localhost-only editor harness
-const FeedDemo = React.lazy(() => import("./aiBrief/FeedDemo.jsx"));          // localhost-only Today-feed harness
-const PortalDemo = React.lazy(() => import("./portal/PortalDemo.jsx"));       // localhost-only portal-shell harness
+const EditorDemo = import.meta.env.DEV ? React.lazy(() => import("./portal/EditorDemo.jsx")) : null;       // localhost-only editor harness
+const FeedDemo = import.meta.env.DEV ? React.lazy(() => import("./aiBrief/FeedDemo.jsx")) : null;          // localhost-only Today-feed harness
+const PortalDemo = import.meta.env.DEV ? React.lazy(() => import("./portal/PortalDemo.jsx")) : null;       // localhost-only portal-shell harness
 const PostDetailRoute = React.lazy(() => import("./aiBrief/Feed.jsx").then((m) => ({ default: m.PostDetailRoute }))); // /p/<id> deep link
-const BlueprintDemo = React.lazy(() => import("./admin/blueprints/BlueprintDemo.jsx")); // /bpdemo — dev harness (no auth/DB), removable
-const OnboardDemo = React.lazy(() => import("./admin/onboarding/OnboardDemo.jsx")); // /onboarddemo — dev harness (no auth), removable
-const ConferenceV3Demo = React.lazy(() => import("./aiBrief/conferenceV3/ConferenceV3Demo.jsx")); // /confv3demo — dev harness (no auth), removable
+const BlueprintDemo = import.meta.env.DEV ? React.lazy(() => import("./admin/blueprints/BlueprintDemo.jsx")) : null; // /bpdemo — dev harness (no auth/DB), removable
+const OnboardDemo = import.meta.env.DEV ? React.lazy(() => import("./admin/onboarding/OnboardDemo.jsx")) : null; // /onboarddemo — dev harness (no auth), removable
+const ConferenceV3Demo = import.meta.env.DEV ? React.lazy(() => import("./aiBrief/conferenceV3/ConferenceV3Demo.jsx")) : null; // /confv3demo — dev harness (no auth), removable
 const ConferenceBooth = React.lazy(() => import("./aiBrief/conferenceV3/ConferenceV3Booth.jsx")); // /conference — PRODUCTION standalone iPad booth
-const ShowcaseTemplates = React.lazy(() => import("./marketing/ShowcaseTemplates.jsx")); // /templatesdemo — template showcase gallery (dev), removable
+const ShowcaseTemplates = import.meta.env.DEV ? React.lazy(() => import("./marketing/ShowcaseTemplates.jsx")) : null; // /templatesdemo — template showcase gallery (dev), removable
 // /studiodemo — dev harness (no auth/DB), removable. The lazy import is behind an
 // import.meta.env.DEV guard so a production build drops the chunk entirely, taking
 // the sample releases with it. Without the guard Rollup emits them as a fetchable
@@ -97,7 +97,7 @@ const isReset = path === "/reset" || path.startsWith("/reset");
 const isLocalhost = (() => {
   try { const h = window.location.hostname; return h === "localhost" || h === "127.0.0.1"; } catch (_) { return false; }
 })();
-const isBpDemo = path.startsWith("/bpdemo") && isLocalhost;
+const isBpDemo = path.startsWith("/bpdemo") && isLocalhost && import.meta.env.DEV;
 const isOnboardDemo = path.startsWith("/onboarddemo") && isLocalhost && import.meta.env.DEV;
 const isConfV3Demo = path.startsWith("/confv3demo") && isLocalhost && import.meta.env.DEV;
 const isTemplatesDemo = path.startsWith("/templatesdemo") && isLocalhost && import.meta.env.DEV;
