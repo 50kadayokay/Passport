@@ -95,9 +95,10 @@ begin
   returning id into v_inventory;
 
   insert into public.source_inventory_parts
-    (inventory_id, company_id, part_name, part_kind, content_type, bytes, sha256, walked, error)
+    (inventory_id, company_id, part_name, part_kind, content_type, bytes, sha256, walked, error, via)
   select v_inventory, v_company, p->>'part_name', p->>'part_kind', p->>'content_type',
-         (p->>'bytes')::bigint, p->>'sha256', coalesce((p->>'walked')::boolean, false), p->>'error'
+         (p->>'bytes')::bigint, p->>'sha256', coalesce((p->>'walked')::boolean, false), p->>'error',
+         p->>'via'
     from jsonb_array_elements(coalesce(payload->'inventory'->'parts', '[]'::jsonb)) p;
 
   insert into public.source_inventory_blocks
@@ -108,9 +109,11 @@ begin
     from jsonb_array_elements(coalesce(payload->'inventory'->'blocks', '[]'::jsonb)) b2;
 
   insert into public.source_inventory_notes
-    (inventory_id, company_id, note_kind, part_name, xml_path, element, kind, reason, chars, excerpt)
+    (inventory_id, company_id, note_kind, part_name, xml_path, element, kind, reason, chars, excerpt,
+     note_ref, note_type, ns, rel_type)
   select v_inventory, v_company, n->>'note_kind', n->>'part_name', n->>'xml_path', n->>'element',
-         n->>'kind', n->>'reason', coalesce((n->>'chars')::int, 0), n->>'excerpt'
+         n->>'kind', n->>'reason', coalesce((n->>'chars')::int, 0), n->>'excerpt',
+         (n->>'note_ref')::int, n->>'note_type', n->>'ns', n->>'rel_type'
     from jsonb_array_elements(coalesce(payload->'inventory'->'notes', '[]'::jsonb)) n;
 
   -- Recompute the inventory digest from what was actually STORED. A digest the

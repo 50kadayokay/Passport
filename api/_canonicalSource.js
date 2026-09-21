@@ -32,6 +32,7 @@
 // investor-facing release.
 
 import { createHash } from "node:crypto";
+import { inventoryDigest } from "./_inventoryDigest.js";
 import { sourceTokens, transcriptTokens, alignTokens, CATEGORY, VERDICT, RUN_STATUS, DISPOSITION } from "./_ooxmlReconcile.js";
 
 export const COMPOSER = "mineex-canonical-compose";
@@ -106,17 +107,105 @@ export const codepointRange = (text, jsStart, jsEnd) => ({
 });
 
 /**
- * A stable digest of an inventory's textual content and provenance.
+ * An inventory in the shape the database stores it: parts, blocks and notes.
  *
- * Composition is authorized by a verification run; this proves the inventory being
- * composed from is the SAME inventory that run examined. Without it a caller could
- * verify one reading of a package and compose from another.
+ * This exists so ONE thing is true in two places. The digest that binds a composed
+ * canonical to its evidence must be computed over exactly the rows that
+ * persist_verification() writes and then re-hashes, or the composer and the
+ * database are asserting different things about the same package.
+ *
+ * The algorithm itself lives in _inventoryDigest.js and is mirrored in SQL. This
+ * is only the shape mapping -- it deliberately carries the columns the schema
+ * holds and nothing else, because a field the database cannot store is a field
+ * the database cannot re-derive, and the digest must be re-derivable from storage.
+ * See KNOWN_UNDIGESTED below for what that leaves out.
  */
-export function inventoryDigest(inventory) {
-  const parts = (inventory.parts || []).map((p) => `${p.name}:${p.sha256 || ""}`).sort().join("|");
-  const items = (inventory.items || []).map((i) => `${i.part}\u0000${i.path}\u0000${i.order}\u0000${i.kind}\u0000${i.text}`).join("\u0001");
-  return sha256(`${inventory.engine}/${inventory.version}\u0002${parts}\u0002${items}`);
+export function inventoryManifest(inventory) {
+  const parts = (inventory.parts || []).map((p) => ({
+    partName: p.name, partKind: p.kind ?? null, contentType: p.contentType ?? null,
+    bytes: p.bytes ?? null, sha256: p.sha256 ?? null,
+    walked: p.walked === true, error: p.error ?? null, via: p.via ?? null,
+  }));
+
+  const blocks = sourceBlocks(inventory).map((g) => ({
+    partName: g.part, partKind: g.partKind ?? null, xmlPath: g.path,
+    sourceBlock: g.block ?? null, sourceOrder: g.firstOrder,
+    structures: g.structures || [], text: g.text,
+  }));
+
+  const note = (noteKind) => (n) => ({
+    noteKind,
+    partName: n.part ?? null, xmlPath: n.path ?? null, element: n.element ?? null,
+    kind: n.kind ?? null, reason: n.reason ?? null,
+    chars: n.chars ?? 0, excerpt: n.excerpt ?? null,
+    // Note identity and classification. `noteId` (on a separator record) and `id`
+    // (on a footnote record) are the same fact -- which note this concerns -- so
+    // they share one column.
+    noteRef: n.noteId ?? n.id ?? null,
+    noteType: n.type ?? null,
+    ns: n.ns ?? null,
+    relType: n.relType ?? null,
+  });
+  const notes = [
+    ...(inventory.ignored || []).map(note("ignored")),
+    ...(inventory.unsupported || []).map(note("unsupported")),
+    ...(inventory.notes || []).map(note("note")),
+  ];
+
+  return { parts, blocks, notes };
 }
+
+/**
+ * The same manifest under the key names persist_verification() accepts.
+ *
+ * A pure rename. It is here rather than at the call site so that the thing which
+ * is hashed and the thing which is sent cannot drift apart.
+ */
+export function inventoryPayload(inventory) {
+  const m = inventoryManifest(inventory);
+  return {
+    parts: m.parts.map((p) => ({
+      part_name: p.partName, part_kind: p.partKind, content_type: p.contentType,
+      bytes: p.bytes, sha256: p.sha256, walked: p.walked, error: p.error, via: p.via,
+    })),
+    blocks: m.blocks.map((b) => ({
+      part_name: b.partName, part_kind: b.partKind, xml_path: b.xmlPath,
+      source_block: b.sourceBlock, source_order: b.sourceOrder,
+      structures: b.structures, text: b.text,
+    })),
+    notes: m.notes.map((n) => ({
+      note_kind: n.noteKind, part_name: n.partName, xml_path: n.xmlPath,
+      element: n.element, kind: n.kind, reason: n.reason,
+      chars: n.chars, excerpt: n.excerpt,
+      note_ref: n.noteRef, note_type: n.noteType, ns: n.ns, rel_type: n.relType,
+    })),
+    digest: inventoryDigest(m),
+  };
+}
+
+/**
+ * Inventory fields deliberately OUTSIDE the digest, with the reason each is
+ * outside it. Everything that bears on source identity, interpretation,
+ * visibility, relationship classification, note identity or verifier behaviour is
+ * persisted and digested; what remains here is derived.
+ *
+ * `items` and `visibleChars` are counts computed FROM the blocks of their own
+ * part, and every one of those blocks is digested in full. Binding them would make
+ * the digest depend on a cached total rather than on the source, so a disagreement
+ * between the count and the blocks would change the digest without any source
+ * having changed -- and an inventory that says 3 items while holding 4 is a reader
+ * bug, not a different document.
+ *
+ * The guard in scripts/canonical-test.mjs fails if the inventory reader grows a
+ * field that is neither mapped nor listed here, so this set cannot grow by
+ * accident.
+ */
+export const KNOWN_UNDIGESTED = {
+  parts:       ["items", "visibleChars"],   // counts derived from digested blocks
+  ignored:     [],
+  unsupported: [],
+  notes:       [],
+};
 
 /** Blocks of visible source text, in inventory order, with their provenance. */
 function sourceBlocks(inventory) {
@@ -176,7 +265,9 @@ export function composeCanonical({
   if (expectedTranscriptSha256 && expectedTranscriptSha256 !== tSha) {
     return refuse(REFUSAL.TRANSCRIPT_MISMATCH, "the transcript does not match the stored source_transcripts row");
   }
-  const invDigest = inventoryDigest(inventory);
+  // inventory-digest-v1 over the manifest the database stores -- the same value
+  // persist_verification() recomputes from the rows it writes.
+  const invDigest = inventoryDigest(inventoryManifest(inventory));
   if (expectedInventoryDigest && expectedInventoryDigest !== invDigest) {
     return refuse(REFUSAL.INVENTORY_MISMATCH, "the inventory does not match the one the verification run examined");
   }

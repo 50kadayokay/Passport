@@ -44,6 +44,11 @@
 
 import { createHash } from "node:crypto";
 
+// The version tag is unchanged because v1 has never been persisted anywhere:
+// migrations 0042-0044 have not been applied, so no stored digest exists to be
+// invalidated. This is still v1's first release. ONCE 0042 IS APPLIED, any change
+// to this encoding requires a NEW version tag -- two different encodings both
+// claiming v1 is precisely the ambiguity the tag exists to prevent.
 export const INVENTORY_DIGEST_VERSION = "inventory-digest-v1";
 
 const b = (s) => Buffer.byteLength(s, "utf8");
@@ -61,22 +66,22 @@ const encArray = (a) => {
   return enc(String(arr.length)) + arr.map((x) => enc(x)).join("");
 };
 
+const num = (v) => (v === null || v === undefined ? null : String(v));
+
 const partRow = (p) =>
   "P" + enc(p.partName) + enc(p.partKind) + enc(p.contentType) +
-        enc(p.bytes === null || p.bytes === undefined ? null : String(p.bytes)) +
-        enc(p.sha256) + enc(p.walked) + enc(p.error);
+        enc(num(p.bytes)) + enc(p.sha256) + enc(p.walked) + enc(p.error) +
+        enc(p.via);
 
 const blockRow = (x) =>
   "B" + enc(x.partName) + enc(x.partKind) + enc(x.xmlPath) +
-        enc(x.sourceBlock === null || x.sourceBlock === undefined ? null : String(x.sourceBlock)) +
-        enc(x.sourceOrder === null || x.sourceOrder === undefined ? null : String(x.sourceOrder)) +
+        enc(num(x.sourceBlock)) + enc(num(x.sourceOrder)) +
         encArray(x.structures) + enc(x.text);
 
 const noteRow = (n) =>
   "N" + enc(n.noteKind) + enc(n.partName) + enc(n.xmlPath) + enc(n.element) +
-        enc(n.kind) + enc(n.reason) +
-        enc(n.chars === null || n.chars === undefined ? null : String(n.chars)) +
-        enc(n.excerpt);
+        enc(n.kind) + enc(n.reason) + enc(num(n.chars)) + enc(n.excerpt) +
+        enc(num(n.noteRef)) + enc(n.noteType) + enc(n.ns) + enc(n.relType);
 
 const byBytes = (x, y) => Buffer.compare(Buffer.from(x, "utf8"), Buffer.from(y, "utf8"));
 

@@ -87,6 +87,11 @@ create table if not exists public.source_inventory_parts (
   sha256        text,                        -- digest of the part's raw bytes
   walked        boolean not null default false,
   error         text,
+  -- HOW this part was discovered: the relationship that reached it. Parts are found
+  -- through content types and relationships, never filenames, so the route is the
+  -- provenance claim -- the same bytes reached two ways are two different assertions
+  -- about the package.
+  via           text,
   created_at    timestamptz not null default now(),
 
   constraint source_inventory_parts_inv_fk
@@ -149,6 +154,21 @@ create table if not exists public.source_inventory_notes (
   reason        text,
   chars         int not null default 0,
   excerpt       text,
+
+  -- WHICH note this record concerns. A separator or continuation belongs to a
+  -- specific note, and a footnote is identified by its id; without this two records
+  -- about different notes are indistinguishable.
+  note_ref      int,
+  -- normal | separator | continuationSeparator. This decides whether a note is
+  -- CONTENT or furniture, so it changes verifier behaviour, not just description.
+  note_type     text,
+  -- Namespace URI of an unrecognised element. The same local name in two namespaces
+  -- is two different elements.
+  ns            text,
+  -- Relationship type URI of a part this verifier cannot read. chart vs oleObject
+  -- is a different statement about what went unread and why.
+  rel_type      text,
+
   created_at    timestamptz not null default now(),
 
   constraint source_inventory_notes_inv_fk
@@ -196,12 +216,13 @@ $$;
 
 create or replace function public.idg_part(
   p_part_name text, p_part_kind text, p_content_type text,
-  p_bytes bigint, p_sha256 text, p_walked boolean, p_error text)
+  p_bytes bigint, p_sha256 text, p_walked boolean, p_error text, p_via text)
 returns text language sql immutable parallel safe as $$
   select 'P' || public.idg_enc(p_part_name) || public.idg_enc(p_part_kind)
              || public.idg_enc(p_content_type)
              || public.idg_enc(case when p_bytes is null then null else p_bytes::text end)
              || public.idg_enc(p_sha256) || public.idg_bool(p_walked) || public.idg_enc(p_error)
+             || public.idg_enc(p_via)
 $$;
 
 create or replace function public.idg_block(
@@ -217,13 +238,16 @@ $$;
 
 create or replace function public.idg_note(
   p_note_kind text, p_part_name text, p_xml_path text, p_element text,
-  p_kind text, p_reason text, p_chars int, p_excerpt text)
+  p_kind text, p_reason text, p_chars int, p_excerpt text,
+  p_note_ref int, p_note_type text, p_ns text, p_rel_type text)
 returns text language sql immutable parallel safe as $$
   select 'N' || public.idg_enc(p_note_kind) || public.idg_enc(p_part_name)
              || public.idg_enc(p_xml_path) || public.idg_enc(p_element)
              || public.idg_enc(p_kind) || public.idg_enc(p_reason)
              || public.idg_enc(case when p_chars is null then null else p_chars::text end)
              || public.idg_enc(p_excerpt)
+             || public.idg_enc(case when p_note_ref is null then null else p_note_ref::text end)
+             || public.idg_enc(p_note_type) || public.idg_enc(p_ns) || public.idg_enc(p_rel_type)
 $$;
 
 -- Rows sort by their ENCODED BYTES. Sequence information lives in
@@ -246,13 +270,14 @@ returns text language sql stable as $$
   select public.sha256_hex(
     'inventory-digest-v1' || E'\n'
     || public.idg_section('parts', coalesce((
-         select array_agg(public.idg_part(part_name, part_kind, content_type, bytes, sha256, walked, error))
+         select array_agg(public.idg_part(part_name, part_kind, content_type, bytes, sha256, walked, error, via))
            from public.source_inventory_parts where inventory_id = p_inventory), '{}'::text[]))
     || public.idg_section('blocks', coalesce((
          select array_agg(public.idg_block(part_name, part_kind, xml_path, source_block, source_order, structures, text))
            from public.source_inventory_blocks where inventory_id = p_inventory), '{}'::text[]))
     || public.idg_section('notes', coalesce((
-         select array_agg(public.idg_note(note_kind, part_name, xml_path, element, kind, reason, chars, excerpt))
+         select array_agg(public.idg_note(note_kind, part_name, xml_path, element, kind, reason, chars, excerpt,
+                                          note_ref, note_type, ns, rel_type))
            from public.source_inventory_notes where inventory_id = p_inventory), '{}'::text[]))
   )
 $$;

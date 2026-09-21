@@ -161,6 +161,7 @@ create table p3d_audit.source_inventory_blocks (
   char_count int  generated always as (length(text)) stored,
   byte_count int  generated always as (octet_length(text)) stored,
   sha256     text generated always as (p3d_audit.sha256_hex(text)) stored,
+  created_at timestamptz not null default now(),
   constraint sib_inv_fk foreign key (inventory_id, company_id)
     references p3d_audit.source_inventories (id, company_id) on delete cascade,
   constraint sib_addr_uniq unique (inventory_id, part_name, source_block, source_order),
@@ -172,7 +173,7 @@ create table p3d_audit.source_inventory_parts (
   inventory_id uuid not null, company_id uuid not null,
   part_name text not null, part_kind text, content_type text,
   bytes bigint, sha256 text,
-  walked boolean not null default false, error text,
+  walked boolean not null default false, error text, via text,
   created_at timestamptz not null default now(),
   constraint sip_inv_fk foreign key (inventory_id, company_id)
     references p3d_audit.source_inventories (id, company_id) on delete cascade,
@@ -185,6 +186,7 @@ create table p3d_audit.source_inventory_notes (
   note_kind text not null check (note_kind in ('ignored','unsupported','note')),
   part_name text, xml_path text, element text, kind text, reason text,
   chars int not null default 0, excerpt text,
+  note_ref int, note_type text, ns text, rel_type text,
   created_at timestamptz not null default now(),
   constraint sin_inv_fk foreign key (inventory_id, company_id)
     references p3d_audit.source_inventories (id, company_id) on delete cascade,
@@ -216,12 +218,13 @@ $$;
 
 create or replace function p3d_audit.idg_part(
   p_part_name text, p_part_kind text, p_content_type text,
-  p_bytes bigint, p_sha256 text, p_walked boolean, p_error text)
+  p_bytes bigint, p_sha256 text, p_walked boolean, p_error text, p_via text)
 returns text language sql immutable parallel safe as $$
   select 'P' || p3d_audit.idg_enc(p_part_name) || p3d_audit.idg_enc(p_part_kind)
              || p3d_audit.idg_enc(p_content_type)
              || p3d_audit.idg_enc(case when p_bytes is null then null else p_bytes::text end)
              || p3d_audit.idg_enc(p_sha256) || p3d_audit.idg_bool(p_walked) || p3d_audit.idg_enc(p_error)
+             || p3d_audit.idg_enc(p_via)
 $$;
 
 create or replace function p3d_audit.idg_block(
@@ -237,13 +240,16 @@ $$;
 
 create or replace function p3d_audit.idg_note(
   p_note_kind text, p_part_name text, p_xml_path text, p_element text,
-  p_kind text, p_reason text, p_chars int, p_excerpt text)
+  p_kind text, p_reason text, p_chars int, p_excerpt text,
+  p_note_ref int, p_note_type text, p_ns text, p_rel_type text)
 returns text language sql immutable parallel safe as $$
   select 'N' || p3d_audit.idg_enc(p_note_kind) || p3d_audit.idg_enc(p_part_name)
              || p3d_audit.idg_enc(p_xml_path) || p3d_audit.idg_enc(p_element)
              || p3d_audit.idg_enc(p_kind) || p3d_audit.idg_enc(p_reason)
              || p3d_audit.idg_enc(case when p_chars is null then null else p_chars::text end)
              || p3d_audit.idg_enc(p_excerpt)
+             || p3d_audit.idg_enc(case when p_note_ref is null then null else p_note_ref::text end)
+             || p3d_audit.idg_enc(p_note_type) || p3d_audit.idg_enc(p_ns) || p3d_audit.idg_enc(p_rel_type)
 $$;
 
 -- Rows sort by their ENCODED BYTES. Sequence information lives in
@@ -266,13 +272,14 @@ returns text language sql stable as $$
   select p3d_audit.sha256_hex(
     'inventory-digest-v1' || E'\n'
     || p3d_audit.idg_section('parts', coalesce((
-         select array_agg(p3d_audit.idg_part(part_name, part_kind, content_type, bytes, sha256, walked, error))
+         select array_agg(p3d_audit.idg_part(part_name, part_kind, content_type, bytes, sha256, walked, error, via))
            from p3d_audit.source_inventory_parts where inventory_id = p_inventory), '{}'::text[]))
     || p3d_audit.idg_section('blocks', coalesce((
          select array_agg(p3d_audit.idg_block(part_name, part_kind, xml_path, source_block, source_order, structures, text))
            from p3d_audit.source_inventory_blocks where inventory_id = p_inventory), '{}'::text[]))
     || p3d_audit.idg_section('notes', coalesce((
-         select array_agg(p3d_audit.idg_note(note_kind, part_name, xml_path, element, kind, reason, chars, excerpt))
+         select array_agg(p3d_audit.idg_note(note_kind, part_name, xml_path, element, kind, reason, chars, excerpt,
+                                          note_ref, note_type, ns, rel_type))
            from p3d_audit.source_inventory_notes where inventory_id = p_inventory), '{}'::text[]))
   )
 $$;
@@ -488,9 +495,10 @@ begin
   returning id into v_inventory;
 
   insert into p3d_audit.source_inventory_parts
-    (inventory_id, company_id, part_name, part_kind, content_type, bytes, sha256, walked, error)
+    (inventory_id, company_id, part_name, part_kind, content_type, bytes, sha256, walked, error, via)
   select v_inventory, v_company, p->>'part_name', p->>'part_kind', p->>'content_type',
-         (p->>'bytes')::bigint, p->>'sha256', coalesce((p->>'walked')::boolean, false), p->>'error'
+         (p->>'bytes')::bigint, p->>'sha256', coalesce((p->>'walked')::boolean, false), p->>'error',
+         p->>'via'
     from jsonb_array_elements(coalesce(payload->'inventory'->'parts', '[]'::jsonb)) p;
 
   insert into p3d_audit.source_inventory_blocks
@@ -501,9 +509,11 @@ begin
     from jsonb_array_elements(coalesce(payload->'inventory'->'blocks', '[]'::jsonb)) b2;
 
   insert into p3d_audit.source_inventory_notes
-    (inventory_id, company_id, note_kind, part_name, xml_path, element, kind, reason, chars, excerpt)
+    (inventory_id, company_id, note_kind, part_name, xml_path, element, kind, reason, chars, excerpt,
+     note_ref, note_type, ns, rel_type)
   select v_inventory, v_company, n->>'note_kind', n->>'part_name', n->>'xml_path', n->>'element',
-         n->>'kind', n->>'reason', coalesce((n->>'chars')::int, 0), n->>'excerpt'
+         n->>'kind', n->>'reason', coalesce((n->>'chars')::int, 0), n->>'excerpt',
+         (n->>'note_ref')::int, n->>'note_type', n->>'ns', n->>'rel_type'
     from jsonb_array_elements(coalesce(payload->'inventory'->'notes', '[]'::jsonb)) n;
 
   -- Recompute the inventory digest from what was actually STORED. A digest the
@@ -821,21 +831,26 @@ grant execute on function p3d_audit.persist_canonical(jsonb)   to authenticated;
 -- with itself. Every fixture below is driven by one, which makes the agreement
 -- load-bearing: if the two encoders diverge by a byte, the happy path stops.
 select
-  set_config('p3d.dig_runA', 'd9d5ed76a87651850ce91b1a420c82de6f00b9adb4b95470c4314a50cb25e034', false),
+  set_config('p3d.dig_runA', '667595b24b0ad75386c0ce6ad2b44b9a4256c42f804beec60f277e34cef4e1d3', false),
   set_config('p3d.dig_runFail', 'd487c0ea38369bac50e2451ac414c83880458eed98b2e50783045de4c80f7e8e', false),
   set_config('p3d.dig_runInd', 'c794f915e8bf17b1fde9769706fca39ab61dd1e696ad28a7e3b81063ea8a3d6d', false),
   set_config('p3d.dig_noContent', 'd4c684a4aee6e721bf1af0bd6face58c6d68073c96878780971cc01463de79ff', false),
   set_config('p3d.dig_ruleFootnotes', 'cf7cc104d3c6cb08d2327f1cf9acdda4b1643f720654dac88a1ea62981a92617', false),
   set_config('p3d.dig_ruleHeader', 'a054520b97f75d2efaf468a937aae0bb648f89a1615ee10837ef130dd0b3439a', false),
   set_config('p3d.dig_ruleFooter', '236ca4949389c96aa38d0fa2fa9b40d5e582a9318b195e845bcee93470db17a5', false),
-  set_config('p3d.dig_mut_base', 'd9d5ed76a87651850ce91b1a420c82de6f00b9adb4b95470c4314a50cb25e034', false),
-  set_config('p3d.dig_mut_blockOneChar', '20fbe6397b55f115792a433bceeb15bd57c05f5e18dc551fcd6c7eb0c92e07bb', false),
-  set_config('p3d.dig_mut_partWalked', 'b9b2922de3a1a9ff7bcfe25f6d5f53cbfe4b4855c5421fbc63e312ab1f5dd1f3', false),
-  set_config('p3d.dig_mut_partError', '5a5228b31a74a582cfec006dd02bcd94409b91c069eadd617a3384469666e780', false),
-  set_config('p3d.dig_mut_noteKind', '796408085be436c27a06d638cc03015e6a7805ed5a49cf590272a240ed3dd35b', false),
-  set_config('p3d.dig_mut_noteReason', '9be2c8b0b34e911f6f6d3dfefb32be72554d2bd417c2d15f8b0f6eeb54998307', false),
-  set_config('p3d.dig_mut_noteProvenance', '1ad3cf6c41f96afc8c29001d5188b9e48787cd8bc9b83a8b50b84b07657ae8b6', false),
-  set_config('p3d.dig_mut_reordered', 'd9d5ed76a87651850ce91b1a420c82de6f00b9adb4b95470c4314a50cb25e034', false);
+  set_config('p3d.dig_mut_base', '667595b24b0ad75386c0ce6ad2b44b9a4256c42f804beec60f277e34cef4e1d3', false),
+  set_config('p3d.dig_mut_blockOneChar', 'b923b2f3c59af83b1d8b7185022c61f56cf03abcf2a486bff588dbf7a2239787', false),
+  set_config('p3d.dig_mut_partWalked', 'c698cf36128f33c2a90ee9498ea4b9b3b3ad8da1619045ff41bf4e102eab561c', false),
+  set_config('p3d.dig_mut_partError', '82fe325bf5271af9443cb92d5c5d299b8603db9b053c6e72d2ca33bc92a3b1a3', false),
+  set_config('p3d.dig_mut_noteKind', 'd9b7f1fd92cff8dd581960a29575c651321d8e7fe4a5a43f484c4f5990586190', false),
+  set_config('p3d.dig_mut_noteReason', 'd7f5b4d00d3bc31d51e46b6791aaedd04e02e2867b004de8e12895a7a3bf51f3', false),
+  set_config('p3d.dig_mut_noteProvenance', '6c83cc04593c43fa1ece0b14c5481f1a826b1f828dd94f95ffa73f25823c83ff', false),
+  set_config('p3d.dig_mut_reordered', '667595b24b0ad75386c0ce6ad2b44b9a4256c42f804beec60f277e34cef4e1d3', false),
+  set_config('p3d.dig_mut_partVia', 'a813f3cda289f8535e7e012c859cfdee4bb0dea1614e92a2b04f5c0d9ff4e744', false),
+  set_config('p3d.dig_mut_noteRef', '3c2768fc147b26dca710e10df63dc2c1355c7bdca2cd0f7f6e9f7a930c1bcba6', false),
+  set_config('p3d.dig_mut_noteType', 'a48d07d300e9af4ce2984658000f020ae60746dae61ea91d8872bf2784027931', false),
+  set_config('p3d.dig_mut_noteNs', '7075e2ae909fc043b2b5711c5d8f4ff78edfbe76bf9abd13b16d59dc3e99fd1f', false),
+  set_config('p3d.dig_mut_noteRelType', '7e3f91ee6c25d59a7d0e7fbdb9fb5faed6a557ccd55e26c1699c184d4c252d6a', false);
 
 -- =====================================================================
 -- E. FIXTURES + HAPPY PATH
@@ -873,18 +888,23 @@ begin
       'parts',jsonb_build_array(
         jsonb_build_object('part_name','word/document.xml','part_kind','document',
           'content_type','application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml',
-          'bytes',4096,'sha256',repeat('1',64),'walked',true),
+          'bytes',4096,'sha256',repeat('1',64),'walked',true,'via','package/_rels/.rels'),
         jsonb_build_object('part_name','word/footnotes.xml','part_kind','footnotes',
           'content_type','application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml',
-          'bytes',512,'sha256',repeat('2',64),'walked',true),
+          'bytes',512,'sha256',repeat('2',64),'walked',true,'via','word/_rels/document.xml.rels'),
         jsonb_build_object('part_name','word/charts/chart1.xml','part_kind','chart',
           'content_type','application/vnd.openxmlformats-officedocument.drawingml.chart+xml',
-          'bytes',900,'sha256',repeat('3',64),'walked',false,'error','KNOWN_UNREAD_REL')),
+          'bytes',900,'sha256',repeat('3',64),'walked',false,'error','KNOWN_UNREAD_REL',
+          'via','word/_rels/document.xml.rels')),
       'notes',jsonb_build_array(
         jsonb_build_object('note_kind','ignored','part_name','word/document.xml','xml_path','document/body/p/pPr',
           'element','w:instrText','kind','field-instruction','reason','field instructions are not visible text','chars',18),
         jsonb_build_object('note_kind','unsupported','part_name','word/charts/chart1.xml','xml_path','chart',
-          'element','c:chart','kind','chart','reason','chart text is not read by this engine','chars',0)),
+          'element','c:chart','kind','chart','reason','chart text is not read by this engine','chars',0,
+          'ns','http://schemas.openxmlformats.org/drawingml/2006/chart',
+          'rel_type','http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart'),
+        jsonb_build_object('note_kind','note','part_name','word/footnotes.xml','kind','footnote','chars',0,
+          'note_ref',2,'note_type','normal')),
       'blocks',jsonb_build_array(
         jsonb_build_object('part_name','word/document.xml','part_kind','document','xml_path','document/body/p/r/t','source_block',0,'source_order',0,'text','Body one.'),
         jsonb_build_object('part_name','word/document.xml','part_kind','document','xml_path','document/body/p/r/t','source_block',1,'source_order',1,'text','Grade 5 g/t ' || U&'\+01F44D' || ' then more.'),
@@ -941,15 +961,45 @@ end $$;
 do $$
 declare inv uuid := current_setting('p3d.inv', true)::uuid;
         cA  uuid := current_setting('p3d.company', true)::uuid;
-        n int; pid uuid; nid uuid;
+        n int; pid uuid; nid uuid; brk text;
 begin
   select count(*) into n from p3d_audit.source_inventory_parts where inventory_id = inv;
   perform pg_temp.rec('inventory','parts persisted from the payload','3',n::text,
     'persist_verification writes source_inventory_parts', n = 3);
 
+  -- Three notes, one of each kind: an ignored construct, an unsupported one, and a
+  -- note-identity record carrying note_ref/note_type. A bare total is what let this
+  -- expectation go stale when the fixture grew, so assert the COMPOSITION instead --
+  -- it says what the fixture is rather than how many rows it happens to have.
   select count(*) into n from p3d_audit.source_inventory_notes where inventory_id = inv;
-  perform pg_temp.rec('inventory','notes persisted from the payload','2',n::text,
-    'persist_verification writes source_inventory_notes', n = 2);
+  perform pg_temp.rec('inventory','notes persisted from the payload','3',n::text,
+    'persist_verification writes source_inventory_notes', n = 3);
+
+  select string_agg(note_kind || '=' || c::text, ', ' order by note_kind) into brk
+    from (select note_kind, count(*) c from p3d_audit.source_inventory_notes
+           where inventory_id = inv group by note_kind) t;
+  perform pg_temp.rec('inventory','notes persisted one per kind',
+    'ignored=1, note=1, unsupported=1', coalesce(brk,'(none)'),
+    'note_kind breakdown, not a bare total',
+    brk = 'ignored=1, note=1, unsupported=1');
+
+  -- The note-identity record must arrive with its bound fields intact.
+  select count(*) into n from p3d_audit.source_inventory_notes
+   where inventory_id = inv and note_kind = 'note' and note_ref = 2 and note_type = 'normal';
+  perform pg_temp.rec('inventory','note identity fields round-trip','1',n::text,
+    'note_ref and note_type persisted', n = 1);
+
+  select count(*) into n from p3d_audit.source_inventory_notes
+   where inventory_id = inv and note_kind = 'unsupported'
+     and ns like 'http://schemas.openxmlformats.org/drawingml%'
+     and rel_type like '%relationships/chart';
+  perform pg_temp.rec('inventory','unsupported ns and rel_type round-trip','1',n::text,
+    'ns and rel_type persisted', n = 1);
+
+  select count(*) into n from p3d_audit.source_inventory_parts
+   where inventory_id = inv and via is not null;
+  perform pg_temp.rec('inventory','every part records how it was discovered','3',n::text,
+    'via persisted for each part', n = 3);
 
   -- An unwalked part is evidence of a KNOWN_UNREAD relationship, and must survive
   -- with its error intact rather than being dropped for being uninteresting.
@@ -965,8 +1015,8 @@ begin
     'company read from the document, never the payload', n = 3);
   select count(*) into n from p3d_audit.source_inventory_notes
    where inventory_id = inv and company_id = cA;
-  perform pg_temp.rec('inventory','notes inherit the derived company_id','2',n::text,
-    'company read from the document, never the payload', n = 2);
+  perform pg_temp.rec('inventory','notes inherit the derived company_id','3',n::text,
+    'company read from the document, never the payload', n = 3);
 
   -- The digest covers BLOCKS only. That is deliberate -- supplementation copies
   -- from blocks -- but it means parts and notes are not digest-bound, so their
@@ -1072,13 +1122,14 @@ begin
   parts := jsonb_build_array(
     jsonb_build_object('part_name','word/document.xml','part_kind','document',
       'content_type','application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml',
-      'bytes',4096,'sha256',repeat('1',64),'walked',true),
+      'bytes',4096,'sha256',repeat('1',64),'walked',true,'via','package/_rels/.rels'),
     jsonb_build_object('part_name','word/footnotes.xml','part_kind','footnotes',
       'content_type','application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml',
-      'bytes',512,'sha256',repeat('2',64),'walked',true),
+      'bytes',512,'sha256',repeat('2',64),'walked',true,'via','word/_rels/document.xml.rels'),
     jsonb_build_object('part_name','word/charts/chart1.xml','part_kind','chart',
       'content_type','application/vnd.openxmlformats-officedocument.drawingml.chart+xml',
-      'bytes',900,'sha256',repeat('3',64),'walked',false,'error','KNOWN_UNREAD_REL'));
+      'bytes',900,'sha256',repeat('3',64),'walked',false,'error','KNOWN_UNREAD_REL',
+      'via','word/_rels/document.xml.rels'));
   blocks := jsonb_build_array(
     jsonb_build_object('part_name','word/document.xml','part_kind','document','xml_path','document/body/p/r/t','source_block',0,'source_order',0,'text','Body one.'),
     jsonb_build_object('part_name','word/document.xml','part_kind','document','xml_path','document/body/p/r/t','source_block',1,'source_order',1,'text','Grade 5 g/t '||emoji||' then more.'),
@@ -1088,7 +1139,11 @@ begin
     jsonb_build_object('note_kind','ignored','part_name','word/document.xml','xml_path','document/body/p/pPr',
       'element','w:instrText','kind','field-instruction','reason','field instructions are not visible text','chars',18),
     jsonb_build_object('note_kind','unsupported','part_name','word/charts/chart1.xml','xml_path','chart',
-      'element','c:chart','kind','chart','reason','chart text is not read by this engine','chars',0));
+      'element','c:chart','kind','chart','reason','chart text is not read by this engine','chars',0,
+      'ns','http://schemas.openxmlformats.org/drawingml/2006/chart',
+      'rel_type','http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart'),
+    jsonb_build_object('note_kind','note','part_name','word/footnotes.xml','kind','footnote','chars',0,
+      'note_ref',2,'note_type','normal'));
 
   -- label, digest key, mutated (parts, blocks, notes), and whether the digest MUST move
   muts := jsonb_build_array(
@@ -1113,6 +1168,23 @@ begin
     -- Sequence lives in source_block/source_order INSIDE each row, never in list
     -- position, so presenting the same manifest in another order is the same
     -- manifest. This is the determinism property, not a gap.
+    -- One per field bound by the manifest expansion. Each changes exactly one value,
+    -- so a digest that fails to move proves the field is outside the preimage.
+    jsonb_build_object('label','part discovery route (via) changed','key','mut_partVia','differs',true,
+      'blocks',blocks,'notes',notes,
+      'parts',jsonb_set(parts,'{0,via}','"word/_rels/document.xml.rels"'::jsonb)),
+    jsonb_build_object('label','note identity (note_ref) changed','key','mut_noteRef','differs',true,
+      'parts',parts,'blocks',blocks,
+      'notes',jsonb_set(notes,'{2,note_ref}','3'::jsonb)),
+    jsonb_build_object('label','note type changed (content vs furniture)','key','mut_noteType','differs',true,
+      'parts',parts,'blocks',blocks,
+      'notes',jsonb_set(notes,'{2,note_type}','"separator"'::jsonb)),
+    jsonb_build_object('label','unsupported element namespace changed','key','mut_noteNs','differs',true,
+      'parts',parts,'blocks',blocks,
+      'notes',jsonb_set(notes,'{1,ns}','"http://schemas.openxmlformats.org/drawingml/2006/main"'::jsonb)),
+    jsonb_build_object('label','unread relationship type changed','key','mut_noteRelType','differs',true,
+      'parts',parts,'blocks',blocks,
+      'notes',jsonb_set(notes,'{1,rel_type}','"http://schemas.openxmlformats.org/officeDocument/2006/relationships/oleObject"'::jsonb)),
     jsonb_build_object('label','same manifest presented in reverse order','key','mut_reordered','differs',false,
       'parts',(select jsonb_agg(x order by ord desc) from jsonb_array_elements(parts) with ordinality t(x,ord)),
       'blocks',(select jsonb_agg(x order by ord desc) from jsonb_array_elements(blocks) with ordinality t(x,ord)),
@@ -1198,6 +1270,89 @@ begin
       format(tmpl, (f->>'dA'), (f->>'tA'), 'pkg-'||(c->>'label'), base, c->>'p', c->>'b', c->>'n', tsha),
       'inventory digest does not match',
       'digest recomputed from stored rows covers parts, blocks and notes');
+  end loop;
+end $$;
+
+-- ---------------------------------------------------------------------
+-- Forging a newly bound field while claiming the true manifest digest.
+--
+-- These six fields were persisted and digested precisely because each changes
+-- what the inventory MEANS: how a part was reached, which note a record concerns,
+-- whether a note is content or furniture, which namespace an unreadable element
+-- belongs to, and which relationship went unread. Before the expansion every one
+-- of these could be rewritten while the digest still matched.
+--
+-- Each case below alters exactly one of them and presents the ORIGINAL digest.
+-- The database hashes what it stored, so the claim cannot survive.
+-- ---------------------------------------------------------------------
+do $$
+declare
+  f jsonb := current_setting('p3d.fixture', true)::jsonb;
+  tsha text := (select sha256 from p3d_audit.source_transcripts where id=(f->>'tA')::uuid);
+  base text := current_setting('p3d.dig_runA', true);
+  emoji text := U&'\+01F44D';
+  parts jsonb; blocks jsonb; notes jsonb; cases jsonb; c jsonb;
+begin
+  parts := jsonb_build_array(
+    jsonb_build_object('part_name','word/document.xml','part_kind','document',
+      'content_type','application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml',
+      'bytes',4096,'sha256',repeat('1',64),'walked',true,'via','package/_rels/.rels'),
+    jsonb_build_object('part_name','word/footnotes.xml','part_kind','footnotes',
+      'content_type','application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml',
+      'bytes',512,'sha256',repeat('2',64),'walked',true,'via','word/_rels/document.xml.rels'),
+    jsonb_build_object('part_name','word/charts/chart1.xml','part_kind','chart',
+      'content_type','application/vnd.openxmlformats-officedocument.drawingml.chart+xml',
+      'bytes',900,'sha256',repeat('3',64),'walked',false,'error','KNOWN_UNREAD_REL',
+      'via','word/_rels/document.xml.rels'));
+  blocks := jsonb_build_array(
+    jsonb_build_object('part_name','word/document.xml','part_kind','document','xml_path','document/body/p/r/t','source_block',0,'source_order',0,'text','Body one.'),
+    jsonb_build_object('part_name','word/document.xml','part_kind','document','xml_path','document/body/p/r/t','source_block',1,'source_order',1,'text','Grade 5 g/t '||emoji||' then more.'),
+    jsonb_build_object('part_name','word/document.xml','part_kind','document','xml_path','document/body/p/r/t','source_block',2,'source_order',2,'text','Body three.'),
+    jsonb_build_object('part_name','word/footnotes.xml','part_kind','footnotes','xml_path','footnotes/footnote/p/r/t','source_block',3,'source_order',3,'text','Footnote recovered text.'));
+  notes := jsonb_build_array(
+    jsonb_build_object('note_kind','ignored','part_name','word/document.xml','xml_path','document/body/p/pPr',
+      'element','w:instrText','kind','field-instruction','reason','field instructions are not visible text','chars',18),
+    jsonb_build_object('note_kind','unsupported','part_name','word/charts/chart1.xml','xml_path','chart',
+      'element','c:chart','kind','chart','reason','chart text is not read by this engine','chars',0,
+      'ns','http://schemas.openxmlformats.org/drawingml/2006/chart',
+      'rel_type','http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart'),
+    jsonb_build_object('note_kind','note','part_name','word/footnotes.xml','kind','footnote','chars',0,
+      'note_ref',2,'note_type','normal'));
+
+  cases := jsonb_build_array(
+    -- altered
+    jsonb_build_object('label','forged part discovery route (via)',
+      'p',jsonb_set(parts,'{0,via}','"word/_rels/forged.xml.rels"'::jsonb),'b',blocks,'n',notes),
+    jsonb_build_object('label','forged note identity (note_ref)',
+      'p',parts,'b',blocks,'n',jsonb_set(notes,'{2,note_ref}','99'::jsonb)),
+    jsonb_build_object('label','forged note type (furniture presented as content)',
+      'p',parts,'b',blocks,'n',jsonb_set(notes,'{2,note_type}','"continuationSeparator"'::jsonb)),
+    jsonb_build_object('label','forged namespace on an unreadable element',
+      'p',parts,'b',blocks,'n',jsonb_set(notes,'{1,ns}','"http://example.invalid/ns"'::jsonb)),
+    jsonb_build_object('label','forged relationship type on an unread part',
+      'p',parts,'b',blocks,'n',jsonb_set(notes,'{1,rel_type}','"http://schemas.openxmlformats.org/officeDocument/2006/relationships/oleObject"'::jsonb)),
+    -- omitted: the field is dropped entirely rather than changed
+    jsonb_build_object('label','omitted part discovery route (via)',
+      'p',(parts #- '{0,via}'),'b',blocks,'n',notes),
+    jsonb_build_object('label','omitted note identity (note_ref)',
+      'p',parts,'b',blocks,'n',(notes #- '{2,note_ref}')),
+    jsonb_build_object('label','omitted relationship type on an unread part',
+      'p',parts,'b',blocks,'n',(notes #- '{1,rel_type}')));
+
+  for c in select * from jsonb_array_elements(cases) loop
+    perform pg_temp.must_fail_with('digest',
+      format('%s, claiming the true digest', c->>'label'),
+      format($q$ select p3d_audit.persist_verification(jsonb_build_object(
+        'document_id',%L,'transcript_id',%L,
+        'inventory',jsonb_build_object('engine','audit-inv','engine_version','1',
+          'package_sha256',%L,'digest',%L,'parts',%L::jsonb,'blocks',%L::jsonb,'notes',%L::jsonb),
+        'run',jsonb_build_object('run_status','COMPLETED','verdict','VERIFIED','verifier','v',
+          'verifier_version','1','ruleset_version','1','transcript_sha256',%L),
+        'findings','[]'::jsonb)) $q$,
+        (f->>'dA'), (f->>'tA'), 'pkg-'||(c->>'label'), base,
+        (c->>'p'), (c->>'b'), (c->>'n'), tsha),
+      'inventory digest does not match',
+      'the bound field is inside the digest preimage');
   end loop;
 end $$;
 

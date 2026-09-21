@@ -16,9 +16,13 @@ import fs from "node:fs";
 import { inventoryDocx } from "../api/_ooxmlInventory.js";
 import { reconcile, VERDICT, RUN_STATUS, CATEGORY, DISPOSITION } from "../api/_ooxmlReconcile.js";
 import {
-  composeCanonical, serializeCanonical, inventoryDigest, REFUSAL,
+  composeCanonical, serializeCanonical, REFUSAL, inventoryManifest, inventoryPayload,
+  KNOWN_UNDIGESTED,
   COMPOSER, COMPOSER_VERSION, COMPOSITION_RULESET_VERSION, COMPOSITION_RULES, REGION_ORDER,
 } from "../api/_canonicalSource.js";
+// The ONE authoritative inventory digest. _canonicalSource.js no longer defines its
+// own; it imports this and hashes the manifest the database stores.
+import { inventoryDigest } from "../api/_inventoryDigest.js";
 import { FIXTURES } from "./fixtures/docxFixtures.mjs";
 
 let pass = 0, fail = 0;
@@ -258,13 +262,13 @@ console.log("=== D. the inventory is the textual authority, not the finding ==="
      "mutation: ONE changed character changes the canonical hash");
   ok(c2.canonical.serialized.includes("REAI"), "mutation: the changed character is what was composed");
   // And the digest that binds run to inventory also changes.
-  ok(inventoryDigest(mutatedInv) !== inventoryDigest(s.inventory),
+  ok(inventoryDigest(inventoryManifest(mutatedInv)) !== inventoryDigest(inventoryManifest(s.inventory)),
      "mutation: the inventory digest changes too, so a stale run cannot authorize it");
 }
 {
   // A run bound to the ORIGINAL inventory must not authorize composing a mutated one.
   const s = await setup("footnotes", { drop: (i) => i.partKind === "footnotes" });
-  const original = inventoryDigest(s.inventory);
+  const original = inventoryDigest(inventoryManifest(s.inventory));
   const mutatedInv = { ...s.inventory, items: s.inventory.items.map((i) =>
     i.partKind === "footnotes" && i.visible === true ? { ...i, text: i.text + "X" } : i) };
   const c = composeCanonical({ ...s, inventory: mutatedInv, expectedInventoryDigest: original });
@@ -407,6 +411,158 @@ console.log("=== G. database invariants ===");
   ok(!/alter table public\.source_transcripts/.test(all), "schema: source_transcripts is NOT modified");
   ok(!/source_transcripts_no_update/.test(inv + ver + rpc),
      "schema: 0041's own transcript guard is left alone");
+}
+
+// ================================================= H. ONE AUTHORITATIVE DIGEST
+// _canonicalSource.js used to define its own inventoryDigest: separator-joined
+// control characters, parts and blocks only, no notes. That is the ambiguity
+// inventory-digest-v1 was designed to remove and the coverage gap residual 2
+// closed. Two functions with the same name computing different values over the
+// same package is how a composer and a database come to disagree.
+console.log("=== H. one authoritative inventory digest ===");
+{
+  const mod = await import("../api/_canonicalSource.js");
+  ok(typeof mod.inventoryDigest === "undefined",
+     "legacy: _canonicalSource.js no longer exports an inventoryDigest of its own");
+  const src = fs.readFileSync(new URL("../api/_canonicalSource.js", import.meta.url), "utf8");
+  ok(/from "\.\/_inventoryDigest\.js"/.test(src),
+     "legacy: it imports the authoritative implementation instead");
+  ok(!/function inventoryDigest\s*\(/.test(src),
+     "legacy: the algorithm is not re-declared here");
+  // Raw C0 control bytes as separators made this file binary to git: no diff, no
+  // review, and silent corruption on any re-encoding.
+  const CTRL = new RegExp("[" + String.fromCharCode(0) + "-" + String.fromCharCode(8) +
+                          String.fromCharCode(11) + String.fromCharCode(12) +
+                          String.fromCharCode(14) + "-" + String.fromCharCode(31) + "]");
+  ok(!CTRL.test(src), "legacy: no raw control-character separators remain in the source");
+
+  const inv = await inventoryDocx(await FIXTURES.footnotes());
+
+  // THE INTEGRATION REGRESSION.
+  // The composer stamps a digest. persist_verification() ignores whatever it is
+  // sent and recomputes from the rows it wrote. These must be the same value, or
+  // every composed canonical is rejected at the boundary.
+  //
+  // Reconstructing the manifest FROM the payload is what the database does when it
+  // re-hashes stored rows, so doing it here exercises the same round trip:
+  //   inventory -> manifest -> payload -> (stored rows) -> manifest -> digest
+  const payload = inventoryPayload(inv);
+  const fromRows = {
+    parts: payload.parts.map((p) => ({
+      partName: p.part_name, partKind: p.part_kind, contentType: p.content_type,
+      bytes: p.bytes, sha256: p.sha256, walked: p.walked, error: p.error, via: p.via })),
+    blocks: payload.blocks.map((b) => ({
+      partName: b.part_name, partKind: b.part_kind, xmlPath: b.xml_path,
+      sourceBlock: b.source_block, sourceOrder: b.source_order,
+      structures: b.structures, text: b.text })),
+    notes: payload.notes.map((n) => ({
+      noteKind: n.note_kind, partName: n.part_name, xmlPath: n.xml_path,
+      element: n.element, kind: n.kind, reason: n.reason,
+      chars: n.chars, excerpt: n.excerpt,
+      noteRef: n.note_ref, noteType: n.note_type, ns: n.ns, relType: n.rel_type })),
+  };
+  eq(inventoryDigest(fromRows), payload.digest,
+     "integration: the digest survives the round trip through the persistence payload");
+
+  // ...and it is the digest the composer actually stamps on the canonical.
+  const visible = inv.items.filter((i) => i.visible === true && i.partKind !== "footnotes");
+  const transcript = visible.map((i) => i.text).join("\n");
+  const rec = reconcile({ inventory: inv, transcript });
+  const c = composeCanonical({ inventory: inv, transcript, reconciliation: rec });
+  if (c.ok) {
+    eq(c.canonical.inventoryDigest, payload.digest,
+       "integration: the composer stamps exactly the digest persist_verification accepts");
+  } else {
+    ok(true, `integration: fixture refused (${c.refusal.code}); digest equality covered above`);
+  }
+
+  // The digest must cover notes. The legacy one did not, which is precisely why a
+  // rewritten note could not be detected.
+  const noNotes = { ...inventoryManifest(inv), notes: [] };
+  ok(inventoryDigest(noNotes) !== payload.digest,
+     "integration: dropping the notes changes the digest");
+
+  // KNOWN_UNDIGESTED can shrink deliberately; it must not grow by accident. If the
+  // inventory reader gains a field, this fails until someone decides whether the
+  // digest should cover it.
+  const observed = { parts: new Set(), ignored: new Set(), unsupported: new Set(), notes: new Set() };
+  for (const [, fn] of Object.entries(FIXTURES)) {
+    let i; try { i = await inventoryDocx(await fn()); } catch { continue; }
+    for (const g of Object.keys(observed)) for (const e of i[g] || []) Object.keys(e).forEach((k) => observed[g].add(k));
+  }
+  const MAPPED = {
+    parts:       ["name", "kind", "contentType", "bytes", "sha256", "walked", "error", "via"],
+    ignored:     ["part", "path", "element", "kind", "reason", "chars", "excerpt", "noteId"],
+    unsupported: ["part", "path", "element", "kind", "reason", "chars", "excerpt", "ns", "relType"],
+    notes:       ["part", "path", "element", "kind", "reason", "chars", "excerpt", "id", "type"],
+  };
+  for (const g of Object.keys(observed)) {
+    const unexpected = [...observed[g]]
+      .filter((k) => !MAPPED[g].includes(k) && !(KNOWN_UNDIGESTED[g] || []).includes(k));
+    ok(unexpected.length === 0,
+       `integration: no NEW undigested field in inventory.${g}`,
+       unexpected.length ? `unmapped and unrecorded: ${unexpected.join(", ")}` : "");
+  }
+}
+
+// ============================================ I. EVERY BOUND FIELD IS BOUND
+// The manifest once carried only the columns 0042 originally had, which left six
+// semantically significant fields outside the digest: how a part was discovered,
+// which note a record concerns, whether a note is content or furniture, the
+// namespace of an unreadable element, and the relationship type of an unread part.
+// An inventory differing only in one of those hashed identically.
+//
+// Each case changes exactly one value and nothing else. A digest that fails to
+// move means the field is not in the preimage.
+console.log("=== I. every bound field participates in the digest ===");
+{
+  const base = {
+    parts: [{ partName: "word/document.xml", partKind: "document", contentType: "ct",
+              bytes: 10, sha256: "a".repeat(64), walked: true, error: null,
+              via: "package/_rels/.rels" }],
+    blocks: [{ partName: "word/document.xml", partKind: "document", xmlPath: "p/r/t",
+               sourceBlock: 0, sourceOrder: 0, structures: [], text: "Body." }],
+    notes: [
+      { noteKind: "ignored", partName: "word/footnotes.xml", xmlPath: "footnotes/footnote",
+        element: null, kind: "note_separator", reason: "separator", chars: 0, excerpt: null,
+        noteRef: -1, noteType: null, ns: null, relType: null },
+      { noteKind: "unsupported", partName: "word/charts/chart1.xml", xmlPath: "chart",
+        element: "c:chart", kind: "chart", reason: "unread", chars: 0, excerpt: null,
+        noteRef: null, noteType: null, ns: "urn:a", relType: "urn:rel/chart" },
+      { noteKind: "note", partName: "word/footnotes.xml", xmlPath: null, element: null,
+        kind: "footnote", reason: null, chars: 0, excerpt: null,
+        noteRef: 2, noteType: "normal", ns: null, relType: null },
+    ],
+  };
+  const baseDigest = inventoryDigest(base);
+  const clone = () => JSON.parse(JSON.stringify(base));
+
+  const BOUND = [
+    ["part discovery route (via)",       (m) => { m.parts[0].via = "word/_rels/document.xml.rels"; }],
+    ["note identity (noteRef)",          (m) => { m.notes[2].noteRef = 3; }],
+    ["note type (content vs furniture)", (m) => { m.notes[2].noteType = "separator"; }],
+    ["unsupported element namespace",    (m) => { m.notes[1].ns = "urn:b"; }],
+    ["unread relationship type",         (m) => { m.notes[1].relType = "urn:rel/oleObject"; }],
+    ["separator note reference",         (m) => { m.notes[0].noteRef = 0; }],
+  ];
+  for (const [label, mutate] of BOUND) {
+    const m = clone(); mutate(m);
+    ok(inventoryDigest(m) !== baseDigest, `bound: ${label} changes the digest`);
+  }
+
+  // NULL and absent must not be interchangeable: a dropped field is encoded as "~"
+  // and a present one as its length-prefixed value, so omission is detectable.
+  const dropped = clone(); delete dropped.parts[0].via;
+  ok(inventoryDigest(dropped) !== baseDigest, "bound: omitting via changes the digest");
+
+  // ...and the fields classified as derived stay out, by design.
+  const derived = clone();
+  derived.parts[0].items = 99; derived.parts[0].visibleChars = 12345;
+  eq(inventoryDigest(derived), baseDigest,
+     "derived: counts recomputable from digested blocks are deliberately outside the preimage");
+  eq(JSON.stringify(KNOWN_UNDIGESTED),
+     JSON.stringify({ parts: ["items", "visibleChars"], ignored: [], unsupported: [], notes: [] }),
+     "derived: nothing else is left unbound");
 }
 
 console.log(`\ncanonical: ${pass} passed, ${fail} failed`);

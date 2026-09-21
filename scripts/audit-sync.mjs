@@ -54,6 +54,77 @@ const canon = (t) =>
    .replace(/\$fn\$/g, "$$$$")
    .replace(new RegExp(`search_path = ${SCHEMA}, pg_temp`, "g"), "search_path = public, pg_temp");
 
+/**
+ * Column parity for the tables the generated RPCs read and write.
+ *
+ * The RPC bodies are generated, but the table definitions are not -- the audit
+ * builds synthetic fixtures and uses shorter constraint names, so generating its
+ * DDL wholesale would fight two legitimately different styles. What must not
+ * differ is the COLUMN SET: a column the migration has and the audit lacks means
+ * the generated RPC writes a column the audit cannot store, and a column the audit
+ * has alone means the audit tests something that will not exist in production.
+ */
+const TABLE_COLUMNS = ["source_inventory_parts", "source_inventory_blocks", "source_inventory_notes"];
+
+const columnsOf = (src, table, schema) => {
+  // Scan by balancing parentheses rather than matching a terminator: 0042 closes on
+  // its own line, the audit closes with `));` on the last column line.
+  const head = new RegExp(`create table (?:if not exists )?${schema}\\.${table}\\s*\\(`, "m");
+  const m = src.match(head);
+  if (!m) throw new Error(`table ${schema}.${table} not found`);
+  let i = m.index + m[0].length, depth = 1;
+  const start = i;
+  while (i < src.length && depth > 0) {
+    const c = src[i];
+    if (c === "(") depth++;
+    else if (c === ")") depth--;
+    i++;
+  }
+  const body = src.slice(start, i - 1);
+
+  const cols = new Set();
+  // Strip comments FIRST. Column comments contain commas, and splitting before
+  // removing them turns prose into phantom column names.
+  const clean = body.replace(/--[^\n]*/g, "");
+  // Then split on commas that are not inside parentheses, so check(...) and
+  // unique(a, b) stay whole.
+  let buf = "", d = 0;
+  const parts = [];
+  for (const c of clean) {
+    if (c === "(") d++;
+    if (c === ")") d--;
+    if (c === "," && d === 0) { parts.push(buf); buf = ""; continue; }
+    buf += c;
+  }
+  parts.push(buf);
+
+  for (let decl of parts) {
+    decl = decl.trim();
+    if (!decl) continue;
+    if (/^(constraint|primary key|unique|check|foreign key)\b/i.test(decl)) continue;
+    const name = decl.match(/^([a-z_][a-z0-9_]*)\s+\S/i);
+    if (name) cols.add(name[1]);
+  }
+  return cols;
+};
+
+const parityRegion = {
+  name: "inventory table column parity",
+  check() {
+    const mig = read(MIG_DIG), aud = read(AUDIT);
+    const problems = [];
+    for (const t of TABLE_COLUMNS) {
+      const m = columnsOf(mig, t, "public");
+      const a = columnsOf(aud, t, SCHEMA);
+      const missing = [...m].filter((c) => !a.has(c));
+      const extra = [...a].filter((c) => !m.has(c));
+      if (missing.length) problems.push(`${t}: audit is MISSING ${missing.join(", ")}`);
+      if (extra.length) problems.push(`${t}: audit has EXTRA ${extra.join(", ")}`);
+    }
+    return problems;
+  },
+};
+
 const REGIONS = [
   {
     name: "persist_verification + persist_canonical",
@@ -91,7 +162,9 @@ for (const r of REGIONS) {
   drift++;
   if (write) {
     const src = read(AUDIT);
-    fs.writeFileSync(AUDIT, src.replace(actual, expected), "utf8");
+    const at = src.indexOf(actual);
+    if (at < 0) { console.error(`  ERROR ${r.name} — could not locate the region to replace`); process.exit(2); }
+    fs.writeFileSync(AUDIT, src.slice(0, at) + expected + src.slice(at + actual.length), "utf8");
     console.log(`  WROTE ${r.name} — audit regenerated from the migration`);
   } else {
     console.error(`  DRIFT ${r.name} — audit does NOT match the migration`);
@@ -99,6 +172,15 @@ for (const r of REGIONS) {
   }
 }
 
+const parityProblems = parityRegion.check();
+if (parityProblems.length === 0) {
+  console.log(`  ok    ${parityRegion.name} — ${TABLE_COLUMNS.length} tables, same columns`);
+} else {
+  drift++;
+  console.error(`  DRIFT ${parityRegion.name}`);
+  for (const p of parityProblems) console.error(`        ${p}`);
+}
+
 if (write && drift) { console.log("\naudit-sync: regenerated; re-run the audit SQL"); process.exit(0); }
-console.log(`\naudit-sync: ${REGIONS.length - drift}/${REGIONS.length} regions identical to the migrations`);
+console.log(`\naudit-sync: ${REGIONS.length + 1 - drift}/${REGIONS.length + 1} regions identical to the migrations`);
 process.exit(drift ? 1 : 0);
