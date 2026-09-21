@@ -37,6 +37,22 @@ Phase 8 (Play readiness).
 | **G2** | The same flow from a build installed through **Google Play Internal Testing**, signed with the **Google Play App Signing certificate**. | Only after the app exists in Play Console and Android OAuth client #3 (Play signing SHA-1) is registered. |
 | **G3 (B11)** | **Email ownership verification.** Phase 4 testing indicates Supabase email confirmation may currently be disabled: `signUp()` returned an immediately-usable `confirmed:true` session for an unroutable `.invalid` address, contradicting the comment at `src/lib/auth.js:50`. Before public Android launch, verify the actual Supabase Auth email-confirmation configuration. If email/password registration grants authenticated access without proving ownership of the submitted address, propose the smallest safe correction. **Production Supabase Auth settings must NOT be changed during Phase 5.** | Requires owner access to Supabase Auth settings. |
 
+### Release blockers (owner-set, Phase 5 approval)
+
+Must be resolved before public Android production. **Not** to be fixed during Phase 6.
+
+| Blocker | Item |
+|---|---|
+| **W1** | Notification sender has no atomic claim/lease mechanism (overlapping runs can double-send). |
+| **W2** | `attempts` hardcoded rather than tracked correctly. |
+| **W3** | Retryable failures have no actual retry lifecycle (`failed` is terminal). |
+| **W4** | No `sending`/claimed state exists (fixing W1 needs a migration). |
+| **B13** | Logout does not correctly disassociate the device push token. |
+| **B11 / G3** | Email ownership / email-confirmation configuration must be resolved. |
+| **G1** | Phase 4 Google auth verified end-to-end with a real account. |
+| **G2** | …and again through a Play-signed build. |
+| **G4** | Phase 5 FCM verified end-to-end once Firebase is configured. |
+
 Android Google authentication is explicitly **"implemented / locally exercised, but NOT end-to-end production verified"** until G1 and G2 both pass.
 
 ---
