@@ -15,8 +15,25 @@ deferred. Nothing here is a regression introduced by the port unless stated.
 | B7 | **Signed-in Android surfaces not yet exercised on-device** (Messages, Saved, Settings sub-panels, Following, media viewer). Back handlers are registered and build clean but were not tested without a login. | Phase 3 | Needed credentials. | Phase 7 (QA) |
 | B8 | **Template test boilerplate has the wrong package** — `android/app/src/{test,androidTest}/java/com/getcapacitor/myapp/`. Stock Capacitor leftovers. | Phase 2 | No unrelated refactoring. | Housekeeping |
 | B9 | **`avdmanager` device-catalogue warning** (`devices.xml` missing from cmdline-tools). AVD falls back to a default profile; works fine. Installing Android Studio supplies the catalogue. | Phase 2 | Cosmetic, local tooling only. | Optional |
-| B10 | **Email confirmation appears disabled in Supabase.** `signUp()` returned an immediately-usable, `confirmed:true` session for an unroutable address, contradicting the comment at `src/lib/auth.js:50`. Anyone can register with an address they do not control. | Phase 4 | Product/security decision, not a port issue. | Before launch |
+| B10 | **Email confirmation appears disabled in Supabase.** `signUp()` returned an immediately-usable, `confirmed:true` session for an unroutable address, contradicting the comment at `src/lib/auth.js:50`. Anyone can register with an address they do not control. | Phase 4 | Product/security decision, not a port issue. **Release gate G3.** | Before launch (G3) |
 | B11 | **Stray test user `no-such-user@example.invalid`** created accidentally during Phase 4 testing. Session revoked server-side (HTTP 204); the `auth.users` row remains. | Phase 4 | Deleting production data needs owner confirmation. | Owner action |
 | B12 | **Android `signOut()` does not clear Credential Manager state** (`SocialLogin.logout` not called). Chooser should still appear given `autoSelectEnabled=false`, but unverified. | Phase 4 | Needs a working Google sign-in to verify. | Phase 7 (QA) |
+
+---
+
+## Release gates (blocking — owner-set, Phase 4 approval)
+
+These must PASS before Android is production-complete. Tracked at Phase 7 (QA) and
+Phase 8 (Play readiness).
+
+| Gate | Description | Earliest verifiable |
+|---|---|---|
+| **G1** | Real Google account -> Google ID token -> Supabase -> **persistent MineEx session** on Android. | Once an Android OAuth client exists for a signing cert in the owner's Google Cloud project, and a Google account is available on the test device. |
+| **G2** | The same flow from a build installed through **Google Play Internal Testing**, signed with the **Google Play App Signing certificate**. | Only after the app exists in Play Console and Android OAuth client #3 (Play signing SHA-1) is registered. |
+| **G3 (B11)** | **Email ownership verification.** Phase 4 testing indicates Supabase email confirmation may currently be disabled: `signUp()` returned an immediately-usable `confirmed:true` session for an unroutable `.invalid` address, contradicting the comment at `src/lib/auth.js:50`. Before public Android launch, verify the actual Supabase Auth email-confirmation configuration. If email/password registration grants authenticated access without proving ownership of the submitted address, propose the smallest safe correction. **Production Supabase Auth settings must NOT be changed during Phase 5.** | Requires owner access to Supabase Auth settings. |
+
+Android Google authentication is explicitly **"implemented / locally exercised, but NOT end-to-end production verified"** until G1 and G2 both pass.
+
+---
 
 **Deep-link/QR entry → Android back → exit** is *accepted behaviour* for Android v1 (owner decision, Phase 3 approval). No artificial history is manufactured for deep-link entry.
