@@ -26,6 +26,8 @@ deferred. Nothing here is a regression introduced by the port unless stated.
 | B17 | **Dead Share button in `Reels`** (`PassportProto.jsx` ~line 6540): a `Share2` icon button with **no `onClick`** — non-functional on every platform, not just Android. Pre-existing. | Phase 6 | Out of phase scope (audit finding only). | Phase 7 (QA) |
 | B18 | **Story-reader clipboard fallback is silent.** When sharing is unavailable, `shareStory()` copies the link with no toast, unlike the media viewer which flashes "Link copied". Pre-existing inconsistency; now only reachable on platforms without a share mechanism. | Phase 6 | UX decision, not a port defect. | Owner call |
 | B19 | **MediaViewer share not reachable in a guest session.** Its payload and the Android transport were verified directly, but the company media-grid UI entry point needs a signed-in account with company media posts. | Phase 6 | Needs credentials. | Phase 7 (QA) |
+| B20 | **Reels `Save` button is inert** (`PassportProto.jsx`, sibling of the Share control fixed in Phase 6.5): no `onClick`. Reachable in the Media tab. | Phase 6.5 | Out of R7's scope (Share only). | Phase 7 (QA) |
+| B21 | **Legal links still point at `passport-xi-five.vercel.app`** (privacy/terms in the app footer and settings). User-facing but not shares, so outside R6's stated scope. | Phase 6.5 | Scope discipline. | Phase 8 |
 
 ---
 
@@ -46,12 +48,12 @@ Must be resolved before public Android production. **Not** to be fixed during Ph
 
 | Blocker | Item |
 |---|---|
-| **W1** | Notification sender has no atomic claim/lease mechanism (overlapping runs can double-send). |
-| **W2** | `attempts` hardcoded rather than tracked correctly. |
-| **W3** | Retryable failures have no actual retry lifecycle (`failed` is terminal). |
-| **W4** | No `sending`/claimed state exists (fixing W1 needs a migration). |
-| **B13** | Logout does not correctly disassociate the device push token. |
-| **B11 / G3** | Email ownership / email-confirmation configuration must be resolved. |
+| ~~W1~~ | ~~Notification sender has no atomic claim/lease mechanism.~~ **FIXED Phase 6.5** (migration 0041) — pending application to production. |
+| ~~W2~~ | ~~`attempts` hardcoded.~~ **FIXED Phase 6.5.** |
+| ~~W3~~ | ~~Retryable failures have no retry lifecycle.~~ **FIXED Phase 6.5.** |
+| ~~W4~~ | ~~No `sending`/claimed state.~~ **FIXED Phase 6.5** (migration 0041). |
+| ~~B13~~ | ~~Logout does not disassociate the device push token.~~ **FIXED Phase 6.5** (migration 0042). |
+| **B11 / G3** | Email ownership. **CONFIRMED Phase 6.5**: `mailer_autoconfirm: true` — Confirm email is OFF. Dashboard action required; see ANDROID_PHASE65_REPORT.md §5. |
 | **G1** | Phase 4 Google auth verified end-to-end with a real account. |
 | **G2** | …and again through a Play-signed build. |
 | **G4** | Phase 5 FCM verified end-to-end once Firebase is configured. |
