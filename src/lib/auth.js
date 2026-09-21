@@ -5,6 +5,7 @@
 import { SUPABASE_URL, SUPABASE_ANON } from "./supabase.js";
 import { isNativeApp, API_BASE } from "./platform.js";
 import { SocialLogin } from "@capgo/capacitor-social-login";
+import { Capacitor } from "@capacitor/core";
 
 const AUTH = `${SUPABASE_URL}/auth/v1`;
 const KEY = "pp.session";
@@ -62,21 +63,57 @@ export async function signIn(email, password) {
   return save(data);
 }
 
-// ---- Social sign-in (native iOS only) ----------------------------------------
+// ---- Social sign-in (native only) --------------------------------------------
 // Apple + Google via @capgo/capacitor-social-login. The native flow returns a
 // provider id_token; we exchange it for a Supabase session through the GoTrue
-// id_token grant, which yields the same session shape as email/password.
-// GOOGLE_IOS_CLIENT_ID is the *iOS OAuth client ID* from Google Cloud (public, not
-// a secret). Apple needs no client id here — native audience = the app bundle id.
+// id_token grant, which yields the same session shape as email/password. That
+// exchange (and everything after it — session shape, persistence, refresh,
+// logout) is IDENTICAL on every platform. Only how the id_token is obtained, and
+// which OAuth client the token is minted for, differ per platform.
+//
+// iOS   — native Google SDK. Audience = the iOS OAuth client ID.
+// Android — Google Credential Manager. Audience = the *Web* OAuth client ID.
+//           The Android OAuth client (package name + signing SHA-1) only
+//           AUTHORISES the app to ask; it is never the token audience. Both IDs
+//           must therefore be listed in Supabase → Auth → Google → Client IDs.
+//
+// Neither value is a secret: OAuth *client IDs* are public client configuration
+// (the client secret is what must never ship, and we never use one). The iOS ID
+// stays inline exactly as it shipped; the Android/Web ID is read from the same
+// VITE_ mechanism the Supabase config already uses, so it can differ per
+// environment without a code change.
 const GOOGLE_IOS_CLIENT_ID = "871146667116-5n20tj4gp1ajp1ssrj1e75er7534i2q5.apps.googleusercontent.com";
-export function googleConfigured() { return !!GOOGLE_IOS_CLIENT_ID; }
+const GOOGLE_WEB_CLIENT_ID = (import.meta.env && import.meta.env.VITE_GOOGLE_WEB_CLIENT_ID) || "";
+
+function nativePlatform() {
+  try { return Capacitor.getPlatform(); } catch (_) { return "web"; }
+}
+
+// Apple sign-in is iOS-only for v1. Android would need a Services ID + a server
+// redirect endpoint (web OAuth flow), which is deliberately out of scope — so the
+// button is hidden there rather than shown and failing.
+export function appleAvailable() { return nativePlatform() === "ios"; }
+
+// True only when THIS platform has the client id its Google flow needs. On
+// Android that is the Web client id; without it the button stays hidden instead
+// of failing at tap time.
+export function googleConfigured() {
+  return nativePlatform() === "android" ? !!GOOGLE_WEB_CLIENT_ID : !!GOOGLE_IOS_CLIENT_ID;
+}
 
 let _socialReady = null;
 function socialInit() {
   if (!_socialReady) {
+    const p = nativePlatform();
+    // Only initialise providers this platform can actually complete. Passing an
+    // Android config on iOS (or vice versa) is what produces the classic
+    // "Developer console is not set up correctly" failure.
+    const google = p === "android"
+      ? (GOOGLE_WEB_CLIENT_ID ? { webClientId: GOOGLE_WEB_CLIENT_ID } : null)
+      : (GOOGLE_IOS_CLIENT_ID ? { iOSClientId: GOOGLE_IOS_CLIENT_ID } : null);
     _socialReady = SocialLogin.initialize({
-      apple: {},
-      ...(GOOGLE_IOS_CLIENT_ID ? { google: { iOSClientId: GOOGLE_IOS_CLIENT_ID } } : {}),
+      ...(p === "ios" ? { apple: {} } : {}),   // unchanged on iOS; omitted elsewhere
+      ...(google ? { google } : {}),
     }).then(() => SocialLogin).catch((e) => { _socialReady = null; throw e; });
   }
   return _socialReady;
@@ -99,9 +136,20 @@ export async function signInWithApple() {
 }
 
 export async function signInWithGoogle() {
-  if (!GOOGLE_IOS_CLIENT_ID) throw new Error("Google sign-in isn't set up yet.");
+  if (!googleConfigured()) throw new Error("Google sign-in isn't set up yet.");
   const S = await socialInit();
-  const r = await S.login({ provider: "google", options: { scopes: ["email", "profile"] } });
+  // Scopes are passed on iOS only, preserving the shipped iOS call exactly.
+  //
+  // On Android the plugin REJECTS any custom `scopes` array unless MainActivity is
+  // subclassed (ModifiedMainActivityForSocialLoginPlugin) — verified on-device:
+  // "You CANNOT use scopes without modifying the main activity". It is unnecessary
+  // here: the Android provider already requests
+  // userinfo.email + userinfo.profile + openid by default, which is exactly what
+  // ["email","profile"] asked for, and the ID token is all we need for the Supabase
+  // exchange (we never call a Google API, so no access-token scope is required).
+  // Omitting them keeps MainActivity stock.
+  const options = nativePlatform() === "android" ? {} : { scopes: ["email", "profile"] };
+  const r = await S.login({ provider: "google", options });
   const res = (r && r.result) || {};
   if (!res.idToken) throw new Error("Google sign-in was cancelled.");
   return exchangeIdToken("google", res.idToken);

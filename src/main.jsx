@@ -3,7 +3,7 @@ import ReactDOM from "react-dom/client";
 import "./index.css";
 import { SUPABASE_URL, SUPABASE_ANON } from "./lib/supabase.js";
 import { useAuth } from "./auth/useAuth.js";
-import { signIn, signUp, requestPasswordReset, consumeHashSession, updatePassword, getUser, signInWithApple, signInWithGoogle, googleConfigured } from "./lib/auth.js";
+import { signIn, signUp, requestPasswordReset, consumeHashSession, updatePassword, getUser, signInWithApple, signInWithGoogle, googleConfigured, appleAvailable } from "./lib/auth.js";
 import * as investorData from "./lib/investorData.js";
 import { isNativeApp } from "./lib/platform.js";
 import { wireAndroidBack } from "./lib/androidBack.js"; // Android hardware back (no-op on web/iOS)
@@ -347,16 +347,18 @@ function InvestorAuth({ onSuccess, initialMode, onBack }) {
         </button>
       </form>
 
-      {isNativeApp && mode !== "forgot" && (
+      {isNativeApp && mode !== "forgot" && (appleAvailable() || googleConfigured()) && (
         <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 10 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <div style={{ flex: 1, height: 1, background: "#e2e8f0" }} />
             <span style={{ fontSize: 12, color: "#94a3b8", fontWeight: 600 }}>or</span>
             <div style={{ flex: 1, height: 1, background: "#e2e8f0" }} />
           </div>
-          <button type="button" onClick={() => social("apple")} disabled={busy} style={{ height: 50, borderRadius: 12, border: "none", background: "#0f172a", color: "#fff", fontSize: 15, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, opacity: busy ? 0.6 : 1 }}>
+          {appleAvailable() && (
+            <button type="button" onClick={() => social("apple")} disabled={busy} style={{ height: 50, borderRadius: 12, border: "none", background: "#0f172a", color: "#fff", fontSize: 15, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, opacity: busy ? 0.6 : 1 }}>
              Continue with Apple
           </button>
+          )}
           {googleConfigured() && (
             <button type="button" onClick={() => social("google")} disabled={busy} style={{ height: 50, borderRadius: 12, border: "1px solid #e2e8f0", background: "#fff", color: "#0f172a", fontSize: 15, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, opacity: busy ? 0.6 : 1 }}>
               <span style={{ fontSize: 16, fontWeight: 800, color: "#4285F4" }}>G</span> Continue with Google
