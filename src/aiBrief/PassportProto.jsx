@@ -37,6 +37,7 @@ import {
 } from "lucide-react";
 import { signOut, getUser, getAccessToken, authHeaders, onAuthChange, requestPasswordReset } from "../lib/auth.js";
 import { registerPush } from "../lib/push.js"; // native push registration (no-op on web)
+import { useBackHandler, BACK_PRIORITY } from "../lib/useBackHandler.js"; // Android hardware back (inert on web/iOS)
 import * as investorData from "../lib/investorData.js";
 import * as discovery from "../lib/discovery.js";
 import { mockEnabled, buildMockNewsroom, disableMock } from "./mockNewsroom.js"; // DEV-ONLY Mock Newsroom (delete to remove)
@@ -1122,6 +1123,12 @@ function Overview({ tab, goto, openBrief, following, setFollowing, bookmarked, s
 
   // Animated thesis checklist — collapsible; one continuous emerald line descends when opened.
   const [whyFollowOpen, setWhyFollowOpen] = useState(false);
+  // Android back: close the topmost sheet/overlay before anything else.
+  useBackHandler(!!(photoOpen || whyOpen || whyFollowOpen), () => {
+    if (photoOpen) return setPhotoOpen(false);
+    if (whyOpen) return setWhyOpen(false);
+    setWhyFollowOpen(false);
+  });
   const [drawn, setDrawn] = useState(false);
   const LINE_MS = 1000; // descent duration
   const railRef = useRef(null);
@@ -1457,6 +1464,8 @@ function defaultQuarterFor(year) {
 
 function TimelineView() {
   const [detail, setDetail] = useState(null);   // { yi, ii } | null
+  // Android back: a press-release detail returns to the timeline list.
+  useBackHandler(!!detail, () => setDetail(null));
   const [showFull, setShowFull] = useState(false);
   const [activeYear, setActiveYear] = useState(PR_YEARS[0]?.year ?? null);
   const [highOnly, setHighOnly] = useState(true);   // diamond filter opens first: key/high-impact across all years
@@ -2676,6 +2685,8 @@ function MediaViewer({ posts, start, onClose }) {
 
 function UpdatesView() {
   const [viewer, setViewer] = useState(null);  // media viewer start index
+  // Android back: the media viewer returns to the media grid.
+  useBackHandler(viewer != null, () => setViewer(null));
 
   // v1 media page: ONLY media posts (photos + videos). No text/operational updates —
   // material news lives on the Timeline; this page is the company's photo/video wall.
@@ -3005,6 +3016,8 @@ function CapitalView() {
   // Single sheet controller — null, or one of:
   // "structure" | "ownership" | "financing" | "finDetails" | "aiSummary"
   const [sheet, setSheet] = useState(null);
+  // Android back: close the capital detail sheet.
+  useBackHandler(!!sheet, () => setSheet(null));
   const [listing, setListing] = useState(null);
   const [metricKey, setMetricKey] = useState(null);
   const [eduKey, setEduKey] = useState(null);
@@ -3587,6 +3600,8 @@ const LC_SITE_GALLERY = [
 function ProjectGallery({ slides }) {
   const [idx, setIdx] = useState(0);        // tile position
   const [open, setOpen] = useState(false);
+  // Android back: close the project-image lightbox.
+  useBackHandler(open, () => setOpen(false));
   const [expIdx, setExpIdx] = useState(0);  // lightbox position
   const ref = useRef(null);
   const expRef = useRef(null);
@@ -5141,6 +5156,11 @@ function TeamView({ onOpenCompany }) {
   const [open, setOpen] = useState(null);
   const [ceoFollow, setCeoFollow] = useState(false);
   const [profile, setProfile] = useState(false);
+  // Android back: the CEO/person profile sits above the team bottom-sheet.
+  useBackHandler(!!profile || open != null, () => {
+    if (profile) return setProfile(false);
+    setOpen(null);
+  });
   const [pfTab, setPfTab] = useState("updates"); // CEO profile: updates · media · reposts
   const [dm, setDm] = useState(false);           // direct-message thread with the leader
 
@@ -6659,6 +6679,8 @@ export function TodayScreen({ onOpenCompany, onScan }) {
 
   // Shared rich reader + subtle "why you're seeing this" context.
   const [reader, setReader] = useState(null);
+  // Android back: the feed reader returns to the feed.
+  useBackHandler(!!reader, () => setReader(null));
   const openStory = (it) => { haptic(); setReader(it); if (it && it.postId) recordPostEvent(it.postId, "open"); };
   const matchCommodity = (o) => { for (const v of discovery.commoditiesOf({ commodity: o.commodity })) if (interest.has(v)) return v; return null; };
   const reasonFor = (o) => {
@@ -6952,6 +6974,12 @@ function DiscoverScreen({ onOpenCompany, onScan }) {
   const [visible, setVisible] = useState(30);
   const [searchOpen, setSearchOpen] = useState(false); // Instagram-style search card (Recent + typeahead)
   const [filterOpen, setFilterOpen] = useState(false); // Advanced Search filter card (facet tabs)
+  // Android back: close search/filter/sort cards, innermost first.
+  useBackHandler(!!(filterOpen || searchOpen || sortOpen), () => {
+    if (filterOpen) return setFilterOpen(false);
+    if (searchOpen) return setSearchOpen(false);
+    setSortOpen(false);
+  });
   const searchRef = useRef(null);
   useEffect(() => { if (searchOpen && searchRef.current) { const t = setTimeout(() => searchRef.current && searchRef.current.focus(), 60); return () => clearTimeout(t); } }, [searchOpen]);
   const query = q.trim().toLowerCase();
@@ -7932,6 +7960,8 @@ function MessageThread({ convo, onBack }) {
 
 function MessagesScreen() {
   const [open, setOpen] = useState(null);      // active conversation
+  // Android back: an open conversation returns to the message list.
+  useBackHandler(open != null, () => setOpen(null));
   const [composing, setComposing] = useState(false);
   const [query, setQuery] = useState("");
   const [, setTick] = useState(0);
@@ -8448,6 +8478,8 @@ function SavedPanel({ onBack }) {
   const [, bump] = useState(0);
   useEffect(() => savedStore.sub(() => bump((x) => x + 1)), []);
   const [reader, setReader] = useState(null);
+  // Android back: the reader inside Saved returns to the Saved list.
+  useBackHandler(!!reader, () => setReader(null));
   const items = savedStore.list();
   return (
     <SettingsSubPanel title="Saved" onBack={onBack}>
@@ -8483,6 +8515,13 @@ function ProfileScreen({ onScan }) {
   const [notifOpen, setNotifOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const [savedOpen, setSavedOpen] = useState(false);
+  // Android back: sub-panels (z-97) sit above Settings (z-95); Saved is separate.
+  useBackHandler(!!(accountOpen || notifOpen || settingsOpen || savedOpen), () => {
+    if (accountOpen) return setAccountOpen(false);
+    if (notifOpen) return setNotifOpen(false);
+    if (settingsOpen) return setSettingsOpen(false);
+    setSavedOpen(false);
+  });
   const savedCount = savedStore.list().length;
   const [pwSending, setPwSending] = useState(false);
   const pushToast = (msg) => { setToast(msg); clearTimeout(toastT.current); toastT.current = setTimeout(() => setToast(""), 1900); };
@@ -8864,6 +8903,8 @@ function BasicListing({ onBack }) {
   const [, bumpFollow] = useState(0);
   const [listing, setListing] = useState(null); // ticker → "Open in Yahoo Finance" prompt (matches the pro capital page)
   const [reportOpen, setReportOpen] = useState(false);
+  // Android back: close the report/claim sheet.
+  useBackHandler(reportOpen, () => setReportOpen(false));
   const slug = (() => { try { return new URLSearchParams(location.search).get("c") || ""; } catch (_) { return ""; } })();
   // Follow persists to the SAME store as the full profile + Following page (was local-only
   // useState, so follows on a basic listing — most companies — never saved).
@@ -10589,6 +10630,21 @@ export default function App({ guest = false } = {}) {
   useEffect(() => {
     try { if (window.screen && window.screen.orientation && window.screen.orientation.lock) window.screen.orientation.lock("portrait").catch(() => {}); } catch (_) {}
   }, []);
+
+  // ---- Android hardware back -------------------------------------------------
+  // The listener itself is wired once in src/main.jsx (it must exist for every
+  // surface, including the signed-out welcome screen). Here we only register which
+  // of THIS component's states a back press should unwind. See src/lib/backStack.js.
+
+  // The QR scanner is a full-screen overlay reached from the header, not a pager
+  // tab, so back must close it rather than leave the app.
+  useBackHandler(nav === "scan", () => setNav("today"));
+
+  // Lowest priority, and only when nothing else is open: from any non-home tab,
+  // back returns to the home tab the way Android users expect. TAB_FALLBACK sits
+  // below OVERLAY so a modal drawn over a tab always wins (React runs child
+  // effects before parent effects, so registration order alone is not enough).
+  useBackHandler(!inCompany && nav !== "today" && nav !== "scan", () => setNav("today"), BACK_PRIORITY.TAB_FALLBACK);
 
   const curSlug = () => { try { return new URLSearchParams(window.location.search).get("c") || ""; } catch (_) { return ""; } };
   const loadedSlugRef = useRef(curSlug());   // which company's pp is currently swapped in

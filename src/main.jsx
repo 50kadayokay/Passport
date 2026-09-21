@@ -6,6 +6,8 @@ import { useAuth } from "./auth/useAuth.js";
 import { signIn, signUp, requestPasswordReset, consumeHashSession, updatePassword, getUser, signInWithApple, signInWithGoogle, googleConfigured } from "./lib/auth.js";
 import * as investorData from "./lib/investorData.js";
 import { isNativeApp } from "./lib/platform.js";
+import { wireAndroidBack } from "./lib/androidBack.js"; // Android hardware back (no-op on web/iOS)
+import { useBackHandler } from "./lib/useBackHandler.js";
 import { SecureStorage } from "@aparajita/capacitor-secure-storage"; // iOS Keychain for "Remember me"
 
 // Surfaces are code-split so the marketing bundle stays lean:
@@ -119,6 +121,16 @@ const isLegacySite = path === "/site/legacy" || path.startsWith("/site/legacy/")
 const lazyFallback = (label) => (
   <div style={{ minHeight: "100dvh", display: "grid", placeItems: "center", background: "#f4f5f7", color: "#94a3b8" }}>Loading {label}…</div>
 );
+
+// Android hardware back, wired ONCE for every surface this entry renders.
+//
+// This cannot live inside a single screen component. @capacitor/app registers an
+// always-enabled OnBackPressedCallback, and when no JS "backButton" listener exists
+// AND the webview cannot go back it does nothing at all — swallowing the press and
+// trapping the user (e.g. on the signed-out welcome screen, where the investor app
+// component is not mounted). Wiring here guarantees a back contract always exists.
+// No-op unless the Capacitor platform is "android".
+wireAndroidBack();
 
 const root = ReactDOM.createRoot(document.getElementById("root"));
 
@@ -593,6 +605,8 @@ function AppRoot() {
   // Pre-auth welcome flow: null = show the animated welcome intro; "signin"/"signup" =
   // the user picked an option, so render the auth form in that mode.
   const [authMode, setAuthMode] = useState(null);
+  // Android back: the sign-in/register form returns to the welcome intro.
+  useBackHandler(!!authMode, () => setAuthMode(null));
 
   // When a session appears, ask the cloud whether this investor has finished onboarding.
   // Fail-open (treat as done) on any error so a transient fetch failure never traps a
