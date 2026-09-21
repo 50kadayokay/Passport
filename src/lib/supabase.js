@@ -2,8 +2,15 @@
 // vars (set in .env locally and in Vercel for prod). Both are safe to ship in
 // the client — never put the service-role/secret key here. Fallbacks keep local
 // dev working without a .env; production should always set the env vars.
-export const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "https://rvptronniomlqumjhyrr.supabase.co";
-export const SUPABASE_ANON = import.meta.env.VITE_SUPABASE_ANON_KEY || "sb_publishable_NNxikHZSGZ0CYnzN7jckLg_vPvrRCTl";
+// `import.meta.env` exists under Vite and is undefined under plain node. Reading it
+// as a whole (rather than reaching straight through it) keeps Vite's build-time
+// substitution working while letting this module be imported by a node test — which
+// is what lets the ingestion invariants be proven by execution instead of by
+// reading the source.
+const ENV = (import.meta && import.meta.env) || {};
+
+export const SUPABASE_URL = ENV.VITE_SUPABASE_URL || "https://rvptronniomlqumjhyrr.supabase.co";
+export const SUPABASE_ANON = ENV.VITE_SUPABASE_ANON_KEY || "sb_publishable_NNxikHZSGZ0CYnzN7jckLg_vPvrRCTl";
 
 const headers = {
   apikey: SUPABASE_ANON,

@@ -145,6 +145,96 @@ export async function authHeaders() {
 // The current (refreshed) user access token, for calling our own /api routes that
 // enforce entitlements server-side. Null when signed out — the caller should not
 // fall back to anon here, since these endpoints require a real user.
+/**
+ * Headers for a WRITE, with no anonymous fallback.
+ *
+ * authHeaders() falls back to the anon key when there is no session. That is fine
+ * for reads — you simply see public data — but silently poisonous for writes: the
+ * request reaches Postgres as anon, auth.uid() is NULL, and every RLS policy fails
+ * with "new row violates row-level security policy". The user sees a security
+ * error when the truth is that their session expired, and because getUser() reads
+ * a CACHED user from localStorage the UI still looks signed in.
+ *
+ * Throwing here turns that into an honest, actionable message.
+ */
+export async function writeHeaders() {
+  const s = await getSession();
+  const token = s && s.access_token;
+  if (!token) {
+    const e = new Error("Your session has expired. Sign out and sign in again to continue.");
+    e.code = "session_expired";
+    throw e;
+  }
+  return { apikey: SUPABASE_ANON, Authorization: `Bearer ${token}` };
+}
+
+/**
+ * The user id the SERVER will see: the `sub` claim of the access token actually
+ * being sent, NOT the `user` object cached in localStorage.
+ *
+ * These can diverge. `save()` writes `user: raw.user || null`, so any token grant
+ * that omits a user (some refresh responses do) leaves the PREVIOUS account's user
+ * object sitting beside a brand-new token. Signing out and back in as a different
+ * account can do the same. getUser() then reports the stale id while the JWT
+ * carries the real one.
+ *
+ * That matters because storage RLS compares the object's first folder segment to
+ * auth.uid(), which comes from the token. A path built from the cached id fails
+ * with "new row violates row-level security policy" — a permissions error whose
+ * real cause is a stale cache. So paths get built from here.
+ */
+export async function sessionUserId() {
+  const s = await getSession();
+  const token = s && s.access_token;
+  if (!token) return null;
+  try {
+    const part = token.split(".")[1];
+    if (!part) return null;
+    const b64 = part.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(part.length / 4) * 4, "=");
+    const claims = JSON.parse(decodeURIComponent(escape(atob(b64))));
+    return claims && claims.sub ? String(claims.sub) : null;
+  } catch (_) {
+    // Never guess. A token we cannot read is a token we cannot build a path from.
+    return null;
+  }
+}
+
+/**
+ * Headers for calling OUR OWN /api/* routes. The canonical client-side mechanism.
+ *
+ * Four different patterns had grown up for this — `Bearer ${token}` with no null
+ * check, a conditional spread that silently sent no credential, reusing the
+ * Supabase PostgREST headers, and sending none at all. The first is the worst: when
+ * the session had gone, `token` was null and the request went out as the literal
+ * string "Bearer null", which the server could only report as a rejected login.
+ *
+ * getSession() refreshes an expired access token first, so an ordinary expiry is
+ * invisible here. Only a refresh that FAILS — revoked, or offline — throws, and it
+ * throws something a person can act on instead of producing a 401 three layers
+ * down. Callers should let it propagate; the UI already renders `session_expired`.
+ *
+ * Deliberately no `apikey`: that header is for Supabase's own endpoints. Our routes
+ * take the user's bearer token and nothing else.
+ */
+export async function apiHeaders(extra = {}) {
+  const s = await getSession();
+  const token = s && s.access_token;
+  if (!token) {
+    const e = new Error("Your session has expired. Sign out and sign in again to continue.");
+    e.code = "session_expired";
+    throw e;
+  }
+  return { Authorization: `Bearer ${token}`, ...extra };
+}
+
+/**
+ * fetch() against one of our own /api routes, with the caller's session attached.
+ * Use this rather than building the Authorization header by hand.
+ */
+export async function apiFetch(path, { headers, ...init } = {}) {
+  return fetch(path, { ...init, headers: await apiHeaders(headers || {}) });
+}
+
 export async function getAccessToken() {
   const s = await getSession();
   return s?.access_token || null;

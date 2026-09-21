@@ -5,11 +5,13 @@
 // isn't found.
 import { ImageResponse } from "@vercel/og";
 import { createElement as h } from "react";
+// Config from the shared resolver — see api/_supabase.js. Reading process.env
+// here is what let the server target a different (or unusable) project than the
+// browser, surfacing as an auth error rather than a configuration one.
+import { SB_URL as SB, ANON_KEY as ANON } from "./_supabase.js";
 
 export const config = { runtime: "edge" };
 
-const SB = process.env.VITE_SUPABASE_URL;
-const ANON = process.env.VITE_SUPABASE_ANON_KEY;
 
 const CAT_COLOR = {
   "Drill Results": "#3b82f6",

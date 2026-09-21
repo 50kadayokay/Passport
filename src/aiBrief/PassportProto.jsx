@@ -1883,6 +1883,22 @@ function FullText({ full }) {
   const data = (full && typeof full === "object") ? full : { text: String(full || ""), images: [] };
   const images = Array.isArray(data.images) ? data.images : [];
   const text = String(data.text || "");
+
+  // Presentation metadata, when the normalizer supplied it: which body lines are
+  // headings, by index. Preferred over every other signal because it is what the
+  // normalizer actually decided, rather than a guess made again at render time.
+  //
+  // Release text no longer carries "# "/"## " prefixes -- those altered the stored
+  // text to encode styling. Historical releases DO still contain them, and the
+  // marker branch below keeps rendering those correctly; nothing stored is
+  // rewritten. Order of preference: metadata, then legacy markers, then the
+  // heuristic.
+  const headingAt = new Map();
+  if (Array.isArray(data.blocks)) {
+    for (const b of data.blocks) {
+      if (b && b.kind === "heading" && Number.isInteger(b.line)) headingAt.set(b.line, b.level === 1 ? 1 : 2);
+    }
+  }
   return (
     <div>
       {/* Attached captures (screenshots) render as the faithful full release. */}
@@ -1892,9 +1908,14 @@ function FullText({ full }) {
       {text.split("\n").map((line, i) => {
         const t = line.trim();
         if (!t) return <div key={i} style={{ height: 8 }} />;
-        // Explicit markup from the formatter wins; fall back to the old heading heuristic.
+        // 1) Presentation metadata (current pipeline): style WITHOUT touching the text.
+        const metaLevel = headingAt.get(i);
+        if (metaLevel === 1) return <p key={i} className="font-extrabold tracking-tight text-slate-900" style={{ fontSize: 15, lineHeight: 1.25, marginTop: i ? 14 : 0, marginBottom: 4 }}>{t}</p>;
+        if (metaLevel === 2) return <p key={i} className="font-bold tracking-tight text-slate-900" style={{ fontSize: 12.5, marginTop: 12, marginBottom: 2 }}>{t}</p>;
+        // 2) Legacy markers, for releases stored before the text was made faithful.
         if (t.startsWith("# ")) return <p key={i} className="font-extrabold tracking-tight text-slate-900" style={{ fontSize: 15, lineHeight: 1.25, marginTop: i ? 14 : 0, marginBottom: 4 }}>{t.slice(2)}</p>;
         if (t.startsWith("## ")) return <p key={i} className="font-bold tracking-tight text-slate-900" style={{ fontSize: 12.5, marginTop: 12, marginBottom: 2 }}>{t.slice(3)}</p>;
+        // 3) Heuristic, for text that arrived with neither.
         return isPrHeading(t) ? (
           <p key={i} className="font-bold tracking-tight text-slate-900" style={{ fontSize: 12.5, marginTop: 12, marginBottom: 2 }}>{t}</p>
         ) : (

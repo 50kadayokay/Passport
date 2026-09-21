@@ -49,23 +49,70 @@ const CUT_MARKERS = [
   /update on marketing agreement/i,
 ];
 
+// A URL on a line means one of two very different things:
+//
+//   1. the LINE IS A LINK — a bare href, a tracking redirect, a "visit: <url>"
+//      fragment. Print-to-PDF and CMS exports are full of these.
+//   2. release PROSE THAT CITES a link — a comparison to a neighbouring deposit,
+//      a reference to a filing, a figure caption.
+//
+// The old rule deleted any line matching /https?:\/\//. That is safe when a "line"
+// is a visual line, which is what PDF extraction produces. It is NOT safe for DOCX:
+// mammoth emits one line per PARAGRAPH, so a single cited URL deleted the entire
+// paragraph around it. On the real Kingsmen release that silently removed the
+// NI 43-101 silver-equivalent calculation formula (842 chars) and the project
+// location description (471 chars) — substantive technical disclosure — because
+// each paragraph happened to cite a source URL. It affected 14 of 144 releases in
+// the regression corpus.
+//
+// So the test is no longer "does this contain a URL" but "is there prose here
+// besides the URL". Strip the URLs and count what is left. The threshold is
+// calibrated against the corpus: bare links leave 0 words, "visit: <url>" leaves
+// 1-3, and the shortest genuine prose casualty left 9. Six is comfortably between,
+// and errs toward keeping content — a retained caption is noise, a deleted
+// disclosure is corruption.
+const URL_TOKEN = /\b(?:https?:\/\/|www\.)[^\s)>\]]+/gi;
+const TRACKING_MARKERS = /c212\.net|\/c\/link|sedarplus|%[0-9A-Fa-f]{2}/i;
+const PROSE_WORDS_MIN = 6;
+
+/** Words of real prose remaining once every URL is removed. */
+function proseWordsOutsideUrls(t) {
+  return String(t || "").replace(URL_TOKEN, " ").split(/\s+/)
+    .filter((w) => /[A-Za-z]{2,}/.test(w)).length;
+}
+
+/** True when a line is essentially just a link, rather than prose containing one. */
+export function isLinkFurniture(t) {
+  const s = String(t || "");
+  if (!/https?:\/\//i.test(s) && !/\bwww\./i.test(s) && !TRACKING_MARKERS.test(s)) return false;
+  return proseWordsOutsideUrls(s) < PROSE_WORDS_MIN;
+}
+
 // Lines that are page furniture, not the release itself: nav/footers, tracking URLs,
 // print date-stamps and page numbers, and the garbled spaced-out glyph runs that
 // webpage-print PDFs produce ("m /a rg e nt a si lv er").
-function isGarbageLine(t) {
-  if (!t) return false;                                                      // keep blanks (para breaks)
-  if (/[␀-➿▀-◿⬀-⯿-]/.test(t)) return true;  // box/symbol/PUA glyphs
-  if (/https?:\/\/|c212\.net|%[0-9A-Fa-f]{2}|\/c\/link|sedarplus/i.test(t)) return true;  // URLs / tracking
-  if (/^\d{1,2}\/\d{1,2}\/\d{2,4},?\s+\d{1,2}:\d{2}/.test(t)) return true;              // print date-stamp
-  if (/^\d+\s*\/\s*\d+$/.test(t)) return true;                                           // page "1/7"
-  if (/^(invest now|powered by|terms|privacy|cookie|latest news|upcoming catalysts|ask about|home|menu|sign ?in|log ?in|subscribe|follow us|share this|©|all rights reserved)\b/i.test(t)) return true;
+function garbageReason(t) {
+  if (!t) return null;                                                       // keep blanks (para breaks)
+  if (/[\u2400-\u27BF\u2580-\u25FF\u2B00-\u2BFF\uE000-\uF8FF]/.test(t)) return "symbol_or_private_use_glyphs";
+  if (isLinkFurniture(t)) return "link_furniture";                           // the line IS a link, not prose citing one
+  if (/^\d{1,2}\/\d{1,2}\/\d{2,4},?\s+\d{1,2}:\d{2}/.test(t)) return "print_timestamp";
+  if (/^\d+\s*\/\s*\d+$/.test(t)) return "page_number";
+  if (/^(invest now|powered by|terms|privacy|cookie|latest news|upcoming catalysts|ask about|home|menu|sign ?in|log ?in|subscribe|follow us|share this|\u00a9|all rights reserved)\b/i.test(t)) return "site_navigation";
   const toks = t.split(/\s+/);
   if (toks.length >= 5) {                                                     // spaced-out glyph garbage
     const singles = toks.filter((w) => w.replace(/[^A-Za-z0-9]/g, "").length <= 1).length;
-    if (singles / toks.length > 0.4) return true;
+    if (singles / toks.length > 0.4) return "spaced_glyph_run";
   }
-  return false;
+  return null;
 }
+
+// Lines that are page furniture, not the release itself. Boolean wrapper kept so
+// existing callers are unaffected; normalizeRelease() uses garbageReason() instead,
+// because "why was this removed" is the whole point of the accounting.
+function isGarbageLine(t) {
+  return garbageReason(t) !== null;
+}
+
 
 // A fragment the extractor emitted with no real word ("T", "Qj", "5", "w v").
 function isJunkFragment(t) {
@@ -99,20 +146,112 @@ export function sanitizeText(s) {
 }
 
 // Turn raw extracted/pasted text into the stored markup.
-export function formatReleaseText(raw) {
-  let text = sanitizeText(raw).replace(/\r\n?/g, "\n");
-  // De-hyphenate words split across a line break: "explora-\ntion" → "exploration".
-  text = text.replace(/([a-z])-\n([a-z])/g, "$1$2");
-  // Normalise runs of spaces/tabs.
+/**
+ * Normalize a raw transcription into the investor-facing Release Body, AND account
+ * for everything the normalization removed or changed.
+ *
+ * This is the Phase 2 foundation for "exclusions are represented, not destroyed".
+ * The body it returns is byte-identical to what formatReleaseText() has always
+ * produced — the difference is that the discarded material is now handed back
+ * instead of vanishing.
+ *
+ * Returns:
+ *   {
+ *     body,             the Release Body string (unchanged behaviour)
+ *     exclusions: [ { kind, reason, text, line, chars } ],
+ *     transformations: [ { kind, count, reversible, note } ],
+ *     sourceChars, bodyChars, excludedChars,
+ *   }
+ *
+ * IMPORTANT: this never touches the stored transcript. It takes raw text in and
+ * returns derived text out; the immutable transcript is written before this runs.
+ *
+ * Phase 3 replaces the `line` index with real character spans and reconciles
+ * against an independent parse. This is deliberately the smaller thing.
+ */
+export function normalizeRelease(raw, { sourceKind = null } = {}) {
+  const source = String(raw ?? "");
+  const exclusions = [];
+  const transformations = [];
+
+  let text = sanitizeText(source).replace(/\r\n?/g, "\n");
+  if (text.length !== source.length) {
+    transformations.push({ kind: "control_characters_stripped", count: source.length - text.length,
+                           class: "mutation", reversible: false,
+                           note: "C0 control characters removed (CR normalised to LF)" });
+  }
+
+  // De-hyphenation: PDF-ONLY, and even there only under protest.
+  //
+  // The rule repairs a word split across a VISUAL line break ("explora-\ntion" ->
+  // "exploration"), which is an artefact of PDF text extraction. DOCX has no such
+  // artefact: mammoth emits semantic paragraphs, so every "-\n" in DOCX output is
+  // either a real hyphen at a real line break or a genuine compound. Applying the
+  // PDF repair there is not a heuristic, it is damage.
+  //
+  // AUDITED across the 145-document corpus: 147 joins in 90 documents, merging
+  // legitimate compounds — "high-\ngrade" -> "highgrade", "forward-\nlooking" ->
+  // "forwardlooking", "silver-gold-lead-\nzinc" -> "silver-gold-leadzinc". That is
+  // active corruption of mining terminology, not a hypothetical risk.
+  //
+  // So DOCX keeps its hyphens. PDF keeps the existing behaviour for now, recorded
+  // as an irreversible transformation and preserved verbatim in the transcript, so
+  // the ambiguity survives for Phase 3 verification to resolve rather than being
+  // silently decided here. Callers that do not declare a source kind get the old
+  // behaviour, so nothing outside ingestion changes.
+  const dehyphenApplies = sourceKind !== "docx";
+  const dehyphenMatches = (text.match(/([a-z])-\n([a-z])/g) || []).length;
+  if (dehyphenApplies) {
+    if (dehyphenMatches) {
+      transformations.push({ kind: "dehyphenation", count: dehyphenMatches, class: "mutation", reversible: false,
+                             note: "line-break hyphens joined (PDF line-wrap repair); can merge genuine compounds" });
+    }
+    text = text.replace(/([a-z])-\n([a-z])/g, "$1$2");
+  } else if (dehyphenMatches) {
+    // DOCX: drop ONLY the line break and keep the hyphen, so "high-\ngrade" becomes
+    // "high-grade" rather than "highgrade" (corruption) or "high- grade" (which is
+    // what plain reflow would produce, since it joins lines with a space). This
+    // removes a character that carries no meaning in DOCX and preserves every one
+    // that does.
+    text = text.replace(/([a-z])-\n([a-z])/g, "$1-$2");
+    transformations.push({ kind: "line_break_removed_hyphen_preserved", count: dehyphenMatches, class: "layout", reversible: false,
+                           note: "source is DOCX: newline dropped, hyphen kept; no line-wrap repair applied" });
+  }
+
+  const beforeSpaces = text.length;
   text = text.replace(/[ \t]+/g, " ");
+  if (text.length !== beforeSpaces) {
+    transformations.push({ kind: "whitespace_collapsed", count: beforeSpaces - text.length,
+                           class: "layout", reversible: false,
+                           note: "runs of SPACES AND TABS collapsed to one; U+00A0 and other whitespace are left alone" });
+  }
 
-  const rawLines = text.split("\n").map((l) => l.trim())
-    .map((l) => (isGarbageLine(l) || isJunkFragment(l)) ? "" : l);   // drop page furniture / stray glyphs
+  // Trim SPACES AND TABS only. String.prototype.trim() also strips U+00A0, so a
+  // line whose first or last character is a non-breaking space would quietly lose
+  // it. A line that is nothing BUT whitespace still collapses to empty, because an
+  // all-whitespace line is a paragraph break rather than content.
+  const narrowTrim = (s) => s.replace(/^[ \t]+|[ \t]+$/g, "");
+  const trimmed = text.split("\n").map((l) => (l.trim() ? narrowTrim(l) : ""));
+  const rawLines = trimmed.map((l, i) => {
+    const reason = garbageReason(l) || (isJunkFragment(l) ? "junk_fragment" : null);
+    if (!reason) return l;
+    if (l) exclusions.push({ kind: "line_filter", reason, text: l, line: i, chars: l.length });
+    return "";
+  });
 
-  // Drop everything from the first boilerplate marker onward.
+  // Everything from the first boilerplate marker onward leaves the Release Body.
+  // It is NOT garbage — it is the About section, the signatory, IR contacts and the
+  // forward-looking-statements disclaimer. It is excluded from the investor-facing
+  // body and recorded here in full, and it remains verbatim in the transcript.
   let end = rawLines.length;
+  let cutMarker = null;
   for (let i = 0; i < rawLines.length; i++) {
-    if (CUT_MARKERS.some((re) => re.test(rawLines[i]))) { end = i; break; }
+    if (CUT_MARKERS.some((re) => re.test(rawLines[i]))) { end = i; cutMarker = trimmed[i]; break; }
+  }
+  if (end < rawLines.length) {
+    const tail = trimmed.slice(end).join("\n");
+    exclusions.push({ kind: "boilerplate_tail", reason: "cut_marker", text: tail, line: end,
+                      chars: tail.length, marker: cutMarker });
   }
   const lines = rawLines.slice(0, end);
 
@@ -127,38 +266,97 @@ export function formatReleaseText(raw) {
   }
   flush();
 
+  // The body carries TEXT ONLY. Headings are recorded as presentation metadata
+  // beside it, never encoded into it.
+  //
+  // This used to push "# "/"## " prefixes onto heading lines and strip their
+  // trailing colon, so the Release Body contained characters that were not in the
+  // document ("## Highlights") and was missing ones that were ("Highlights:").
+  // Investors never saw the markers -- the renderer stripped them again -- but the
+  // stored text was no longer the document's text, which makes every later fidelity
+  // check argue with itself. Presentation belongs in a separate channel.
   const out = [];
-  let headlineDone = false;
+  const blocks_meta = [];
+  let reflowJoins = 0;
+  let headingCount = 0;
   for (const block of blocks) {
-    // Split a block into headings vs paragraph runs.
     let para = [];
     const flushPara = () => {
       if (!para.length) return;
-      out.push(para.join(" ").replace(/\s+/g, " ").trim());
+      if (para.length > 1) reflowJoins += para.length - 1;
+      // Join with a single space and collapse only SPACES AND TABS.
+      //
+      // This was /\s+/, and in JavaScript \s matches U+00A0. Every non-breaking
+      // space in the release was silently rewritten to a plain space -- 21 of them
+      // in the real Kingsmen document. A non-breaking space is a different
+      // character with a different job (it is what holds "100 m" and "C$30 million"
+      // together), so replacing it is a textual mutation, not a layout tidy-up.
+      out.push(narrowTrim(para.join(" ").replace(/[ \t]+/g, " ")));
       para = [];
     };
     for (const line of block) {
       if (looksLikeHeading(line)) {
         flushPara();
-        const clean = line.replace(/:$/, "").trim();
-        if (!headlineDone) { out.push("# " + clean); headlineDone = true; }
-        else out.push("## " + clean);
+        headingCount++;
+        // The line goes in VERBATIM -- colon and all. Its heading-ness is recorded
+        // in blocks_meta against the index it lands at.
+        blocks_meta.push({ line: out.length, kind: "heading", level: headingCount === 1 ? 1 : 2, text: line });
+        out.push(line);
       } else {
         para.push(line);
       }
     }
     flushPara();
-    out.push("");   // paragraph break between blocks
+    out.push("");
+  }
+  if (reflowJoins) {
+    transformations.push({ kind: "paragraph_reflow", count: reflowJoins, class: "layout", reversible: false,
+                           note: "wrapped lines joined into paragraphs; line structure not recoverable from the body" });
+  }
+  if (headingCount) {
+    transformations.push({ kind: "headings_detected", count: headingCount, class: "metadata", reversible: true,
+                           note: "recorded in `blocks` as presentation metadata; the text is unchanged" });
   }
 
-  // If nothing was flagged as the headline, promote the first non-empty line.
-  const joined = out.join("\n").replace(/\n{3,}/g, "\n\n").trim();
-  if (!headlineDone) {
-    const first = joined.split("\n").find((l) => l.trim());
-    if (first) return joined.replace(first, "# " + first);
-  }
-  return joined;
+  // Blank-line and run collapsing shifts line indices, so the metadata is rebuilt
+  // against the FINAL body rather than the intermediate array. Matching by text at
+  // a known ordinal keeps a repeated heading from binding to the wrong line.
+  // Final tidy: collapse blank-line runs and strip surrounding blank space. Spaces,
+  // tabs and newlines only -- .trim() would also take a U+00A0 sitting at the very
+  // start or end of the body, which is a source character like any other.
+  const body = out.join("\n").replace(/\n{3,}/g, "\n\n").replace(/^[ \t\n\r]+|[ \t\n\r]+$/g, "");
+  const bodyLines = body.split("\n");
+  const used = new Set();
+  const presentation = blocks_meta.map((b) => {
+    const idx = bodyLines.findIndex((l, i) => !used.has(i) && l === b.text);
+    if (idx >= 0) used.add(idx);
+    return { line: idx, kind: b.kind, level: b.level, text: b.text };
+  }).filter((b) => b.line >= 0);
+
+  const excludedChars = exclusions.reduce((a, e) => a + e.chars, 0);
+  // Accounting split three ways, because they are three different promises:
+  //   exclusions  - retained-elsewhere content removed from the body (recoverable
+  //                 verbatim from the immutable transcript)
+  //   layout      - whitespace and line structure only; every character that
+  //                 remains keeps its identity
+  //   mutations   - characters actually added, removed or replaced
+  const layout = transformations.filter((x) => x.class === "layout");
+  const mutations = transformations.filter((x) => x.class === "mutation");
+  return {
+    body, blocks: presentation, exclusions, transformations, layout, mutations,
+    sourceChars: source.length, bodyChars: body.length, excludedChars,
+    mutationCount: mutations.reduce((a, x) => a + (x.count || 0), 0),
+  };
 }
+
+/**
+ * The Release Body only. Thin wrapper over normalizeRelease() so every existing
+ * caller is unaffected; prefer normalizeRelease() when the accounting matters.
+ */
+export function formatReleaseText(raw) {
+  return normalizeRelease(raw).body;
+}
+
 
 // Extract text from a PDF file (browser). Returns "" on failure so the caller can
 // fall back to the paste box. pdf.js is loaded lazily to keep it out of the main bundle.
@@ -213,24 +411,176 @@ export function looksLikePressRelease(text) {
   return { isPR: score >= 4, score, reasons, missing };
 }
 
-// The first real title line of formatted text ("# ..." if present, else first line).
-// The full verbatim release title — the print often wraps it across several lines,
-// so join consecutive title lines (skipping bare dates) until the dateline/body starts.
+// ---------------------------------------------------------------------------
+// HEADLINE EXTRACTION
+// ---------------------------------------------------------------------------
+// A press release rarely opens with its headline. Before the title you get some
+// mix of: site furniture from a printed web page ("All Posts", "News Release
+// Archive"), a byline ("Kingsmen Resources · Nov 4, 2025"), exchange tickers
+// ("TSX-V: KNG OTCQB: KNGRF"), "For Immediate Release", a release number, the
+// company name on its own, or contact details. After the title the body begins,
+// usually with a dateline or a wire tag.
+//
+// So the parser needs three verdicts per line, not two: SKIP (metadata before the
+// title), TAKE (part of the title), STOP (the body has started). The previous
+// version had only TAKE and STOP, and treated a ticker as STOP — so a release that
+// opened with its ticker produced an empty title and fell back to line 0, i.e. the
+// ticker itself. Metadata AFTER the title still means STOP: enCore prints its
+// tickers under the headline, and those must not be appended to it.
+
+// Exchanges seen on Canadian/US/European junior listings. Matched only when
+// followed by a colon or dot-separator, so a headline ending "...LISTING ON NASDAQ"
+// is not mistaken for a ticker block.
+const EXCHANGE_RE = "TSX-?V?|TSX\\.V|CSE|NEO|CBOE|NYSE(?:\\s+American)?|NASDAQ|AMEX|OTC(?:QB|QX|BB)?|PINK|FSE|FRA|FWB|XETRA|ASX|LSE|AIM|AQSE|JSE";
+
+// A line that is essentially nothing but "EXCHANGE: SYMBOL" pairs. Tested by
+// removing every such pair and seeing whether anything meaningful is left, which
+// handles one ticker or five on the same line without enumerating layouts.
+function isTickerLine(l) {
+  if (!new RegExp(`(?:${EXCHANGE_RE})\\s*[:.]`, "i").test(l)) return false;
+  const stripped = l
+    .replace(new RegExp(`\\(?\\s*(?:${EXCHANGE_RE})\\s*[:.\\-]?\\s*[A-Z0-9.]{1,6}\\s*\\)?`, "gi"), " ")
+    .replace(/[|,;/&·•\-–—()\s]+/g, "")
+    .trim();
+  return stripped.length <= 3;
+}
+
+// Section labels a print-to-PDF drags in from the surrounding web page.
+const SECTION_LABEL_RE = /^(all posts|news|news release archive|news releases?|press releases?|media(\s+(centre|center|room))?|blog|home|latest news|announcements?|investors?|news (&|and) events|show per page|load more|read more|next|previous|page \d+( of \d+)?)$/i;
+
+// "Company Name · Nov 4, 2025", "Company Name · Apr 7", "By Jane Doe | March 2, 2024".
+// The year is optional: blog platforms drop it for posts in the current year, which
+// is precisely the case a year-anchored pattern misses.
+function isByline(l) {
+  return /[·•|]\s*(?:[A-Z][a-z]{2,8}\.?\s+\d{1,2}(?:,?\s+\d{4})?|\d{1,2}\/\d{1,2}\/\d{2,4})\s*$/.test(l)
+      || /^by\s+[A-Z][a-z]/.test(l);
+}
+
+// "Updated: Mar 28, 2024" — a CMS revision stamp printed under the title.
+function isUpdatedStamp(l) {
+  return /^(?:last\s+)?updated\s*[:\-–—]/i.test(l.trim());
+}
+
+// "For Immediate Release", "News Release 21-19", "NR-2025-14".
+function isReleaseLabel(l) {
+  const s = l.replace(/[:.\-–—\s]+$/, "").trim();
+  return /^for\s+immediate\s+release$/i.test(s)
+      || /^(?:news|press)\s+release(?:\s*(?:no\.?|#|number))?\s*[\d\-–—A-Z]*$/i.test(s)
+      || /^N\.?R\.?[\s\-–—#]*\d{1,4}[\s\-–—]*\d{0,4}$/i.test(s);
+}
+
+// A line that is ONLY the company's name. Requires the corporate suffix to END the
+// line, so "enCore Energy Corp. Announces X" is a headline and "enCore Energy
+// Corp." is not.
+function isCompanyNameOnly(l) {
+  return /^[A-Za-z][\w&.,'’\- ]{2,60}\b(?:Corp|Corporation|Inc|Ltd|Limited|PLC|LLC|N\.V|S\.A)\.?$/.test(l.trim());
+}
+
+// Phone/email/web/address furniture.
+function isContactMeta(l) {
+  return /^(?:tel|telephone|phone|fax|email|e-mail|contact|website|web|investor relations|ir)\s*[:.]/i.test(l)
+      || /^www\.[a-z0-9.-]+$/i.test(l)
+      || /^[\w.+-]+@[\w.-]+\.\w{2,}$/i.test(l);
+}
+
+// Header metadata: never a headline, and never on its own proof the body started.
+function isHeaderMeta(l) {
+  const s = l.trim();
+  return isTickerLine(s)
+      || SECTION_LABEL_RE.test(s.replace(/[:\-–—]\s*$/, "").trim())
+      || isByline(s)
+      || isUpdatedStamp(s)
+      || isReleaseLabel(s)
+      || isCompanyNameOnly(s)
+      || isContactMeta(s);
+}
+
+// The body has begun. Checked BEFORE the metadata rules, because a real dateline
+// often carries tickers inside it ("Vancouver, BC--(May 1, 2025) - Acme (TSXV: ACM)")
+// and must not be mistaken for a ticker block.
+function isBodyStart(l) {
+  return /\/CNW\/|\/PRNewswire\/?|GLOBE\s?NEWSWIRE|Newsfile\s+Corp\.|ACCESSWIRE|Business\s?Wire|PR\s?Newswire/i.test(l)
+      || /\bis pleased to\b/i.test(l)
+      || new RegExp(`^${DATELINE_CORE}`).test(l)                              // City, Region –
+      || (/^[A-Z][A-Z .]{2,},/.test(l) && /\d{4}/.test(l))                     // CITY, ... 2025
+      || /^www\.[a-z0-9.-]+\s+[A-Z]{2,}/.test(l);                             // site + dateline on one line
+}
+
+// "Vancouver, British Columbia--(August 20, 2026)", "VANCOUVER, BC – May 1, 2025".
+//
+// The separator must be an em/en dash, a double hyphen, a spaced hyphen, or a
+// hyphen introducing a parenthesis. A bare hyphen is NOT enough: a headline like
+// "...AT LAS COLORADAS, EXPANDING A HIGH-GRADE SILVER ZONE" otherwise reads as
+// "City, Region-" and the headline gets cut at the hyphen.
+const DATELINE_CORE = "[A-Z][A-Za-z.]+,\\s+[A-Z][A-Za-z. ]{1,40}?\\s*(?:[–—]|--|\\s-\\s|-\\()";
+
+// Where inside a line the body begins, or -1.
+//
+// Text extractors reflow paragraphs, so a headline and the dateline that follows it
+// routinely end up on one physical line. Without this the whole line is classified
+// as body and the headline is lost — which is how two releases in the regression
+// corpus resolved to "". The patterns are the unanchored forms of isBodyStart().
+function bodyStartIndex(l) {
+  const pats = [
+    /\/CNW\/|\/PRNewswire\/?|GLOBE\s?NEWSWIRE|Newsfile\s+Corp\.|ACCESSWIRE|Business\s?Wire/i,
+    new RegExp(`\\b${DATELINE_CORE}`),
+    /\b[A-Z][A-Z .]{2,},\s+[A-Za-z. ]*\d{4}/,
+    /\bis pleased to\b/i,
+  ];
+  let best = -1;
+  for (const p of pats) {
+    const m = l.match(p);
+    if (m && m.index !== undefined && (best === -1 || m.index < best)) best = m.index;
+  }
+  return best;
+}
+
+// Strip a "NEWS RELEASE 21-19 - " style prefix that shares a line with the title.
+function stripReleasePrefix(l) {
+  return l.replace(/^(?:news|press)\s+release\s*(?:no\.?|#)?\s*[\dA-Z]{0,4}[-–—]?\d{0,4}\s*[-–—:]\s*/i, "").trim();
+}
+
+/**
+ * The release's verbatim headline, or "" when the document has none we can trust.
+ *
+ * Returns "" rather than guessing. An unresolved headline is a field the operator
+ * fills in; a fabricated one is wrong data that reaches investors looking correct.
+ * Callers that need a placeholder supply their own (e.g. the filename).
+ */
 export function firstMeaningfulLine(formatted) {
   const lines = String(formatted || "").split("\n").map((l) => l.trim().replace(/^#{1,2}\s+/, "")).filter(Boolean);
   const isBareDate = (l) => new RegExp(`^(${MONTHS_RE})\\s+\\d{1,2},?\\s+\\d{4}\\.?$`, "i").test(l) || /^\d{1,2}\/\d{1,2}\/\d{2,4}/.test(l);
-  const isDateline = (l) => /\/CNW\/|\(?\s*TSX-?V?\s*:|\bTSXV\b|\bOTCQ|\bNYSE\b|\bNASDAQ\b|\bFSE\b|\bAGAG\b|\bis pleased to\b|^[A-Z][A-Za-z.]+,\s+[A-Z][A-Za-z. ]+[–—-]/.test(l) || (/^[A-Z][A-Z .]{2,},/.test(l) && /\d{4}/.test(l));
-  const started = () => title.length > 0;
   const title = [];
+  const started = () => title.length > 0;
+
   for (const l of lines) {
-    if (isBareDate(l)) { if (started()) break; else continue; }   // date before title = skip; after = stop
+    // Does the body begin on this line, and if so where? A marker at index 0 is a
+    // clean dateline; a marker further in means the extractor reflowed the headline
+    // and the dateline together.
+    const bi = bodyStartIndex(l);
+    if (bi >= 0 || isBodyStart(l)) {
+      if (!started() && bi > 0) {
+        const head = l.slice(0, bi).replace(/[\s\-–—:,]+$/, "").trim();
+        // Accept only something that reads like a headline in its own right: long
+        // enough to be one, not metadata, and not itself a dateline. A prefix that
+        // ends in a year is a date stamp, not a title.
+        const plausible = head.length >= 20 && head.length <= 200
+          && !isHeaderMeta(head) && !isBodyStart(head) && !/\d{4}$/.test(head);
+        if (plausible) title.push(head);
+      }
+      break;
+    }
+    if (isBareDate(l)) { if (started()) break; else continue; }  // date before title = skip
     if (isGarbageLine(l)) continue;
-    if (isDateline(l)) break;                                     // body has begun
-    if (started() && /[.!?]$/.test(l) && l.length > 70) break;    // long sentence = body
-    title.push(l);
+    if (isHeaderMeta(l)) { if (started()) break; else continue; }// meta before title = skip, after = stop
+    if (started() && /[.!?]$/.test(l) && l.length > 70) break;   // long sentence = body
+    const cleaned = stripReleasePrefix(l);
+    if (!cleaned) continue;                                      // the line was only a label
+    title.push(cleaned);
     if (title.join(" ").length > 160) break;                     // titles aren't endless
   }
-  return title.join(" ").replace(/\s+/g, " ").trim() || lines[0] || "";
+  // [ \t]+ not \s+ : \s matches U+00A0, and a headline is source text too.
+  return title.join(" ").replace(/[ \t]+/g, " ").trim();
 }
 
 const SIM_STOP = new Set("the and for with from into over corp inc ltd limited plc announces announced announce reports report provides provide update news release company completes closes closing".split(" "));

@@ -55,6 +55,66 @@ export async function pdfToText(file, { maxChars = 400000 } = {}) {
   }
 }
 
+/**
+ * Text WITH its line structure intact.
+ *
+ * pdfToText() joins every item with a space and collapses whitespace, which is
+ * fine for feeding an extractor but destroys the shape of the document: a press
+ * release comes back as one paragraph, so "the first line" — the headline — is
+ * the entire release. Ingestion needs the structure, so lines are rebuilt from
+ * the text items' y-coordinates (PDF origin is bottom-left, hence descending y),
+ * and a larger vertical gap becomes a blank line, i.e. a paragraph break.
+ *
+ * pdfToText() is deliberately left untouched; onboarding and the extractors
+ * depend on its current behaviour.
+ */
+export async function pdfToLinedText(file, { maxChars = 400000 } = {}) {
+  try {
+    const pdfjs = await loadPdfjs();
+    const buf = file instanceof ArrayBuffer ? file : await file.arrayBuffer();
+    const doc = await pdfjs.getDocument({ data: buf }).promise;
+    const pages = [];
+    let chars = 0;
+
+    for (let p = 1; p <= doc.numPages && chars < maxChars; p++) {
+      const page = await doc.getPage(p);
+      const content = await page.getTextContent();
+
+      // Group items onto lines by baseline. 2.5pt tolerance absorbs the tiny
+      // baseline jitter of sub/superscripts and mixed font sizes.
+      const lines = [];
+      for (const it of content.items) {
+        const str = it.str || "";
+        if (!str) continue;
+        const y = it.transform ? it.transform[5] : 0;
+        const x = it.transform ? it.transform[4] : 0;
+        const line = lines.find((l) => Math.abs(l.y - y) < 2.5);
+        if (line) { line.items.push({ x, str }); }
+        else { lines.push({ y, items: [{ x, str }] }); }
+      }
+
+      lines.sort((a, b) => b.y - a.y);                       // top of page first
+      const out = [];
+      let prevY = null;
+      for (const l of lines) {
+        l.items.sort((a, b) => a.x - b.x);                   // left to right
+        const text = l.items.map((i) => i.str).join(" ").replace(/\s+/g, " ").trim();
+        if (!text) continue;
+        // A gap much larger than one line height is a paragraph break.
+        if (prevY !== null && Math.abs(prevY - l.y) > 18) out.push("");
+        out.push(text);
+        prevY = l.y;
+      }
+      const pageText = out.join("\n");
+      if (pageText) { pages.push(pageText); chars += pageText.length; }
+      try { page.cleanup(); } catch (_) {}
+    }
+    return pages.join("\n\n").slice(0, maxChars);
+  } catch (_) {
+    return "";
+  }
+}
+
 // True for files pdf.js can read.
 export const isPdf = (file) => !!file && (file.type === "application/pdf" || /\.pdf$/i.test(file.name || ""));
 

@@ -5,7 +5,7 @@ import {
   ScrollText, CreditCard, Settings as SettingsIcon, ExternalLink, LogOut,
   ChevronDown, ChevronRight, CheckCircle2, AlertCircle, ArrowRight, Sparkles, Loader2,
   Plus, Trash2, Clock, TrendingUp, FileText, Radio as RadioIcon, Check, ArrowLeft,
-  Megaphone, QrCode, HelpCircle, Copy, Download, Eye, Upload,
+  Megaphone, QrCode, HelpCircle, Copy, Download, Eye, Upload, Send,
 } from "lucide-react";
 import { getUser, signOut, authHeaders, updatePassword, updateEmail } from "../lib/auth.js";
 import { profileUrl, companyLogo, companyMonogram, placardLogo } from "../lib/brand.js";
@@ -23,7 +23,8 @@ import { MineExLockup, CompanyMark } from "./BrandMarks.jsx";
 
 // Heavy, already-built surfaces are reused wholesale (never duplicated) and lazily
 // loaded so the portal shell stays lean:
-const CommsCenter = React.lazy(() => import("../console/CommsCenter.jsx"));  // Broadcast engine
+const CommsCenter = React.lazy(() => import("../console/CommsCenter.jsx"));  // legacy multi-channel composer (still routed at `press`)
+const Publish     = React.lazy(() => import("./publish/Publish.jsx"));       // Publish workspace: create / drafts / published
 const Documents   = React.lazy(() => import("./Documents.jsx"));             // Organized Media Library
 const Onboarding  = React.lazy(() => import("../Onboarding.jsx"));           // Profile builder (create/onboard)
 const ProfileEditor = React.lazy(() => import("./ProfileEditor.jsx"));       // pp-direct editor (edit existing, 1:1 with app)
@@ -42,7 +43,7 @@ const NAV_GROUPS = [
   { title: "Workspace", items: [
     { id: "home",      label: "Home",            Icon: HomeIcon },
     { id: "profile",   label: "Company Profile", Icon: Building2 },
-    { id: "press",     label: "Press Releases",  Icon: Megaphone },
+    { id: "publish",   label: "Publish",         Icon: Send },
     { id: "media",     label: "Media",           Icon: ImageIcon },
     { id: "share",     label: "QR & Share",      Icon: QrCode },
   ] },
@@ -112,6 +113,7 @@ export default function Portal({ company: initial, switchCompany, adminMode = fa
           <div className="min-h-0 flex-1 overflow-y-auto">
             <div className="mx-auto max-w-6xl px-8 py-10">
               {section === "home"      && <HomeView company={company} go={setSection} goProfile={goProfile} onPublished={() => setCompany((c) => ({ ...c, status: "published" }))} />}
+              {section === "publish"   && <Suspense fallback={<SectionLoader />}><Publish company={company} /></Suspense>}
               {section === "media"     && <Suspense fallback={<SectionLoader />}><MediaComposer company={company} /><Documents company={company} /></Suspense>}
               {section === "share"     && <QRShareView company={company} />}
               {section === "calendar"  && <CalendarView company={company} setCompany={setCompany} />}
@@ -358,7 +360,7 @@ function HomeView({ company, go, goProfile, onPublished }) {
       {/* Quick actions */}
       <h2 className="mt-9 text-[12px] font-bold uppercase tracking-[0.12em] text-slate-400">Quick actions</h2>
       <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <Action title="Publish a press release" body="Draft, preview and publish to the MineEx feed." Icon={Megaphone} onClick={() => go("press")} />
+        <Action title="Publish a press release" body="Draft, preview and publish to the MineEx feed." Icon={Megaphone} onClick={() => go("publish")} />
         <Action title="Publish media" body="Photos and video for the MineEx media feed." Icon={ImageIcon} onClick={() => go("media")} />
         <Action title="Edit company profile" body="Overview, projects, capital, timeline, team." Icon={Building2} onClick={() => go("profile")} />
         <Action title="QR & share" body="Download your QR code and profile link." Icon={QrCode} onClick={() => go("share")} />

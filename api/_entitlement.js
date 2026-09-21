@@ -19,14 +19,10 @@
 // Files prefixed with _ are not routed by Vercel — this is a helper, not an
 // endpoint.
 
-const SB = process.env.VITE_SUPABASE_URL;
-const ANON = process.env.VITE_SUPABASE_ANON_KEY;
-
-function bearer(req) {
-  const h = req.headers.authorization || req.headers.Authorization || "";
-  const m = /^Bearer\s+(.+)$/i.exec(String(h).trim());
-  return m ? m[1] : "";
-}
+// Config and session verification come from ONE place, shared with _service.js and
+// validated against the same project the browser uses. Resolving it here a second
+// time is how the server ended up unable to reach Supabase while the browser could.
+import { SB_URL as SB, ANON_KEY as ANON, supabaseConfigured, bearerToken as bearer, verifyBearer } from "./_supabase.js";
 
 /**
  * Guard an endpoint. Returns the caller when allowed, or null after having
@@ -36,7 +32,7 @@ function bearer(req) {
  *   if (!auth) return;
  */
 export async function requireFeature(req, res, { companyId, feature }) {
-  if (!SB || !ANON) {
+  if (!supabaseConfigured()) {
     res.status(500).json({ error: "Server not configured: Supabase env is missing." });
     return null;
   }
@@ -52,20 +48,16 @@ export async function requireFeature(req, res, { companyId, feature }) {
 
   // 1) Is the token real and unexpired? Supabase answers; we never parse a JWT
   //    ourselves (an unverified decode would accept a forged token).
-  let user = null;
-  try {
-    const r = await fetch(`${SB}/auth/v1/user`, {
-      headers: { apikey: ANON, Authorization: `Bearer ${token}` },
-    });
-    if (!r.ok) {
-      res.status(401).json({ error: "Session expired or invalid. Sign in again." });
-      return null;
-    }
-    user = await r.json();
-  } catch {
-    res.status(502).json({ error: "Could not verify the session." });
+  //
+  //    verifyBearer keeps "Supabase said no" (401) separate from "we could not ask
+  //    Supabase" (502) and returns a scrubbed `detail` for the latter. Collapsing
+  //    the two is what disguised a broken server URL as a broken login.
+  const v = await verifyBearer(token);
+  if (!v.ok) {
+    res.status(v.status).json(v.status === 502 && v.detail ? { error: v.error, detail: v.detail } : { error: v.error });
     return null;
   }
+  const user = v.user;
 
   // 2) Ask the DB, AS THIS USER, what this company is entitled to. Ownership is
   //    enforced inside my_features(), so a stranger gets an empty list.

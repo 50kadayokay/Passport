@@ -14,6 +14,10 @@
 // admin with an inline corpus (concierge onboarding before the company exists).
 
 import { requireFeature, companyIdFromSlug, requireAdmin } from "./_entitlement.js";
+// Config from the shared resolver — see api/_supabase.js. Reading process.env
+// here is what let the server target a different (or unusable) project than the
+// browser, surfacing as an auth error rather than a configuration one.
+import { SB_URL as SB, ANON_KEY as ANON } from "./_supabase.js";
 
 const MODEL = process.env.AI_MODEL || "claude-sonnet-5";
 const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
@@ -134,7 +138,6 @@ export default async function handler(req, res) {
     if (Array.isArray(releases) && releases.length) {
       docs = releases.filter((r) => r && r.date && r.text);
     } else {
-      const SB = process.env.VITE_SUPABASE_URL, ANON = process.env.VITE_SUPABASE_ANON_KEY;
       const r = await fetch(`${SB}/rest/v1/companies?slug=eq.${encodeURIComponent(slug)}&select=name,profile`, { headers: { apikey: ANON, Authorization: `Bearer ${token}` } });
       const rows = r.ok ? await r.json().catch(() => []) : [];
       name = name || (rows[0] && rows[0].name) || "";

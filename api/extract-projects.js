@@ -12,6 +12,10 @@
 // Reads the corpus server-side from Supabase so the caller only sends a slug.
 
 import { requireFeature, companyIdFromSlug, requireAdmin } from "./_entitlement.js";
+// Config from the shared resolver — see api/_supabase.js. Reading process.env
+// here is what let the server target a different (or unusable) project than the
+// browser, surfacing as an auth error rather than a configuration one.
+import { SB_URL as SB, ANON_KEY as ANON, supabaseConfigured } from "./_supabase.js";
 
 const MODEL = process.env.AI_MODEL || "claude-sonnet-5";
 const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
@@ -210,8 +214,7 @@ export default async function handler(req, res) {
   if (Array.isArray(releases) && releases.length) {
     docs = releases.filter((r) => r && r.date && r.text);
   } else if (slug) {
-    const SB = process.env.VITE_SUPABASE_URL, ANON = process.env.VITE_SUPABASE_ANON_KEY;
-    if (!SB || !ANON) return bad(res, 500, "Server not configured: Supabase env is missing.");
+    if (!supabaseConfigured()) return bad(res, 500, "Server not configured: Supabase env is missing.");
     const r = await fetch(`${SB}/rest/v1/companies?slug=eq.${encodeURIComponent(slug)}&select=name,profile`, {
       headers: { apikey: ANON, Authorization: `Bearer ${ANON}` },
     });

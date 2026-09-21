@@ -31,7 +31,7 @@ export default async function handler(req, res) {
   //    stranger can't even learn it exists.
   let pub = null;
   try {
-    const r = await fetch(`${SB_URL}/rest/v1/publications?id=eq.${publicationId}&select=id,company_id,destination_id,status`, {
+    const r = await fetch(`${SB_URL}/rest/v1/publications?id=eq.${publicationId}&select=id,company_id,destination_id,status,update_id`, {
       headers: { apikey: ANON_KEY, Authorization: `Bearer ${token}` },
     });
     if (r.ok) { const rows = await r.json().catch(() => []); pub = rows[0] || null; }
@@ -64,9 +64,38 @@ export default async function handler(req, res) {
   }
 
   // 4) Publish atomically as the service role, passing the verified actor.
+  //
+  // A press release carries its ORIGINAL publication date: a release the company
+  // issued in March 2025 and uploaded to MineEx today belongs in 2025/Q1 on the
+  // investor timeline, not in today's news. When the update records that date we
+  // pass it through; otherwise the RPC defaults to now(), exactly as before.
+  //
+  // Read from the update rather than trusting the request body — the caller must
+  // not be able to backdate someone else's publication by posting a timestamp.
+  // Looked up separately and failure-tolerantly ON PURPOSE. Embedding it in the
+  // select above would make this endpoint hard-depend on migration 0036: deploy
+  // before the migration is applied and every publish 400s on a missing column.
+  // This way the endpoint works identically whether or not 0036 has run.
+  // updates.published_on is a DATE (the calendar date on the release). posts and
+  // publications order by timestamptz, so it is converted at NOON UTC: midnight
+  // would let any timezone shift the entry onto the neighbouring day, which is the
+  // exact mis-filing the date type was chosen to avoid.
+  let originalDate = null;
+  if (pub.update_id) {
+    try {
+      const r = await serviceRest(`updates?id=eq.${pub.update_id}&select=published_on`);
+      if (r.ok) {
+        const rows = await r.json().catch(() => []);
+        const d = rows[0]?.published_on || null;
+        if (d && /^\d{4}-\d{2}-\d{2}/.test(String(d))) originalDate = `${String(d).slice(0, 10)}T12:00:00Z`;
+      }
+    } catch { /* column not present yet → keep now() behaviour */ }
+  }
   let result = null;
   try {
-    const r = await serviceRpc("publish_publication", { p_publication_id: publicationId, p_actor: user.id });
+    const rpcArgs = { p_publication_id: publicationId, p_actor: user.id };
+    if (originalDate) rpcArgs.p_published_at = originalDate;
+    const r = await serviceRpc("publish_publication", rpcArgs);
     result = await r.json().catch(() => null);
     if (!r.ok) return bad(res, 502, "Publish failed.", { detail: result });
   } catch (e) { return bad(res, 502, `Publish failed: ${e.message || e}`); }

@@ -5,8 +5,10 @@
 // response). Only trusted server code (the publish service, the dispatcher) uses it.
 // Files prefixed with _ are not routed by Vercel.
 
-const SB = process.env.VITE_SUPABASE_URL;
-const ANON = process.env.VITE_SUPABASE_ANON_KEY;
+// URL + publishable key come from the shared resolver, so service-role calls and
+// user-token calls always target the same project as the browser. Only the
+// service-role key is read here, because only this file may ever see it.
+import { SB_URL as SB, ANON_KEY as ANON, supabaseConfigured, verifyBearer } from "./_supabase.js";
 // Accept the canonical name; fall back to the older local name for dev parity.
 const SERVICE = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY;
 
@@ -14,7 +16,7 @@ export const SB_URL = SB;
 export const ANON_KEY = ANON;
 
 export function serviceConfigured() {
-  return !!(SB && SERVICE);
+  return !!(supabaseConfigured() && SERVICE);
 }
 
 function serviceHeaders(extra = {}) {
@@ -49,13 +51,16 @@ export function bearer(req) {
 }
 
 // Verify the caller's Supabase session and return the user, or null.
+// Verify a caller's token. Returns the user, or null.
+//
+// Kept null-returning because its callers branch on null, but it no longer hides
+// WHY: a transport failure (bad URL, network) used to be indistinguishable from a
+// rejected token, so a misconfigured server reported "Sign in required." Now the
+// reason is logged, scrubbed of any credential.
 export async function verifyUser(token) {
-  if (!token) return null;
-  try {
-    const r = await fetch(`${SB}/auth/v1/user`, { headers: { apikey: ANON, Authorization: `Bearer ${token}` } });
-    if (!r.ok) return null;
-    return await r.json();
-  } catch { return null; }
+  const v = await verifyBearer(token);
+  if (!v.ok && v.status === 502) console.error(`[auth] verifyUser could not reach Supabase — ${v.detail}`);
+  return v.ok ? v.user : null;
 }
 
 // Constant-time-ish comparison for the dispatcher secret. Rejects when the secret

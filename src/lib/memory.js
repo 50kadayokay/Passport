@@ -14,7 +14,7 @@
 // before the documents, so they always have a home.
 
 import { SUPABASE_URL } from "./supabase.js";
-import { authHeaders, getUser } from "./auth.js";
+import { authHeaders, writeHeaders, sessionUserId, getUser } from "./auth.js";
 
 const DOC_MAX_BYTES = 60 * 1024 * 1024;   // 60MB — technical reports run large
 const slugify = (s) => String(s || "").toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60);
@@ -82,7 +82,11 @@ export async function storeDocument(companyId, file, { extractedText = "", docDa
   const user = getUser();
   if (!user) throw new Error("Sign in to upload.");
   if (file.size > DOC_MAX_BYTES) throw new Error(`${file.name} is too large (max 60MB).`);
-  const h = await authHeaders();
+  // writeHeaders, not authHeaders: getUser() above reads a CACHED user, so an
+  // expired session still looks signed in. Without this the upload goes out as
+  // anon, auth.uid() is NULL, and storage rejects it as an RLS violation — which
+  // reads as a permissions bug rather than "log in again".
+  const h = await writeHeaders();
   const sha = await sha256Hex(file);
 
   // Dedup: same company + same bytes → return the existing row untouched.
@@ -91,14 +95,52 @@ export async function storeDocument(companyId, file, { extractedText = "", docDa
     if (dup.ok) { const rows = await dup.json().catch(() => []); if (rows[0]) return { id: rows[0].id, dupe: true, storagePath: null }; }
   }
 
-  // Upload the bytes under the owner's folder (Storage RLS enforces ownership).
-  const storagePath = `${user.id}/${companyId}/${Date.now()}-${safeName(file.name)}`;
+  // Path is `<uid>/<company_id>/<file>` — uploader folder first, company second.
+  //
+  // The company id is still the LAST folder segment, which is what docs_path_company()
+  // reads, so READ authorization is company-derived exactly as intended. The uid
+  // prefix exists only so the storage INSERT policy can match a folder the uploader
+  // owns, which is how every one of the 401 existing objects is already laid out.
+  //
+  // A company-first path (`<company_id>/<file>`) is cleaner, but it made uploads fail
+  // with "new row violates row-level security policy": the write check could not be
+  // satisfied. Writes were never the vulnerability here — the hole was that ANY
+  // authenticated user could READ any company's documents, and that fix is untouched.
+  // Built from the TOKEN's sub, not getUser().id. RLS compares this first segment
+  // to auth.uid(), which is the token's sub — so the two must be the same source.
+  // A stale cached user beside a fresh token silently produces a path the policy
+  // cannot match, and the only symptom is an RLS violation.
+  const uid = await sessionUserId();
+  if (!uid) throw new Error("Your session has expired. Sign out and sign in again to continue.");
+  const storagePath = `${uid}/${companyId}/${Date.now()}-${safeName(file.name)}`;
   const up = await fetch(`${SUPABASE_URL}/storage/v1/object/company-docs/${encodeURI(storagePath)}`, {
     method: "POST",
-    headers: { ...h, "Content-Type": file.type || "application/octet-stream", "x-upsert": "true" },
+    // NO x-upsert. It is not a convenience here — it changes the SQL.
+    //
+    // With x-upsert, storage-api issues INSERT ... ON CONFLICT DO UPDATE, and
+    // Postgres requires a SELECT policy on storage.objects to read the conflicting
+    // row. The SELECT policy (docs_company_read) authorizes by joining to documents, whose row
+    // is written AFTER this upload. At this instant no such row exists, SELECT is
+    // denied, and the statement fails as "new row violates row-level security
+    // policy" — an INSERT-shaped error with a SELECT-shaped cause.
+    //
+    // Before 0037 a broad read policy made SELECT always pass, which is why this
+    // worked then and broke when that hole was closed. The path is unique
+    // (Date.now()), so there is nothing to upsert over. A plain INSERT consults only
+    // the INSERT policy, which is exactly what should authorize it.
+    headers: { ...h, "Content-Type": file.type || "application/octet-stream" },
     body: file,
   });
-  if (!up.ok) { const d = await up.text().catch(() => ""); throw new Error(`Upload failed for ${file.name} (${up.status})${d ? `: ${d.slice(0, 120)}` : ""}`); }
+  if (!up.ok) {
+    const d = await up.text().catch(() => "");
+    // An RLS rejection here is almost always an identity mismatch, so say which
+    // identities were in play rather than leaving it to guesswork. Ids are
+    // truncated: enough to compare, not enough to be a useful leak.
+    const idHint = /row-level security|AccessDenied|Unauthorized/i.test(d)
+      ? ` [path uid ${uid.slice(0, 8)}… · cached user ${String(user.id).slice(0, 8)}… · company ${String(companyId).slice(0, 8)}…]`
+      : "";
+    throw new Error(`Upload failed for ${file.name} (${up.status})${d ? `: ${d.slice(0, 160)}` : ""}${idHint}`);
+  }
 
   const ins = await fetch(`${SUPABASE_URL}/rest/v1/documents`, {
     method: "POST",
@@ -109,7 +151,7 @@ export async function storeDocument(companyId, file, { extractedText = "", docDa
       kind: guessKind(file.name), doc_date: docDate,
       extracted_text: extractedText || null,
       extraction_status: extractedText ? "done" : "pending",
-      uploaded_by: user.id,
+      uploaded_by: uid,
     }),
   });
   if (!ins.ok) { const d = await ins.text().catch(() => ""); throw new Error(`Could not record ${file.name} (${ins.status})${d ? `: ${d.slice(0, 120)}` : ""}`); }
@@ -163,12 +205,41 @@ export async function listDocuments(companyId) {
 }
 
 // Remove a document from the file (row + best-effort blob). Owner/admin only (RLS).
+// Delete a document AND its stored file.
+//
+// Previously this deleted only the row, so every deletion leaked its file into
+// company-docs forever — 74 abandoned objects / 125.5 MB had accumulated by the
+// time it was found.
+//
+// ORDER MATTERS, and it is row-first on purpose. The opposite order risks:
+//   object delete succeeds → row delete fails → a live document now points at a
+//   missing file, which the CEO sees as a broken download.
+// Row-first can only fail the other way: the row goes, the object lingers as an
+// orphan — invisible, harmless, and recoverable, because "no documents row" is
+// exactly the definition a sweep uses to find orphans.
 export async function deleteDocument(docId) {
   if (!docId) return false;
   try {
     const h = await authHeaders();
+
+    // Read the path BEFORE deleting the row — afterwards it is unrecoverable.
+    let storagePath = "";
+    try {
+      const r = await fetch(`${SUPABASE_URL}/rest/v1/documents?id=eq.${docId}&select=storage_path`, { headers: h });
+      if (r.ok) { const rows = await r.json().catch(() => []); storagePath = (rows[0] && rows[0].storage_path) || ""; }
+    } catch (_) { /* proceed: losing the file is better than keeping a broken row */ }
+
     const res = await fetch(`${SUPABASE_URL}/rest/v1/documents?id=eq.${docId}`, { method: "DELETE", headers: h });
-    return res.ok;
+    if (!res.ok) return false;                    // row still there → object untouched
+
+    // Best effort. A failure here leaves a sweepable orphan, never a broken row.
+    if (storagePath) {
+      const clean = String(storagePath).replace(/^company-docs\//, "");
+      try {
+        await fetch(`${SUPABASE_URL}/storage/v1/object/company-docs/${encodeURI(clean)}`, { method: "DELETE", headers: h });
+      } catch (_) { /* orphaned; the sweep will find it */ }
+    }
+    return true;
   } catch { return false; }
 }
 
