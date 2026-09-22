@@ -203,11 +203,32 @@ drop trigger if exists composition_rules_immutable on public.composition_rules;
 create trigger composition_rules_immutable before update or delete on public.composition_rules
   for each row execute function public.phase3_append_only();
 
+drop trigger if exists composition_rules_no_truncate on public.composition_rules;
+create trigger composition_rules_no_truncate before truncate on public.composition_rules
+  for each statement execute function public.phase3_no_truncate();
+
 alter table public.composition_rules enable row level security;
 drop policy if exists composition_rules_read on public.composition_rules;
 create policy composition_rules_read on public.composition_rules for select to authenticated using (true);
-revoke all on public.composition_rules from anon, authenticated;
+revoke all on public.composition_rules from anon;
+revoke all on public.composition_rules from authenticated;
 grant select on public.composition_rules to authenticated;
+
+-- ============================================================
+-- 3c) A COMPOSITE KEY THIS MIGRATION NEEDS FROM 0042'S TABLE
+-- ============================================================
+-- canonical_spans references source_inventory_blocks (id, company_id), and
+-- PostgreSQL requires a UNIQUE key on exactly those columns before it will accept
+-- the foreign key. 0042 created the table without one, so applying 0043 failed
+-- with 42830 until this existed.
+--
+-- It is created HERE, by the migration that needs it, rather than by rewriting
+-- the already-applied 0042 -- the same pattern 0042 itself used when it added
+-- source_transcripts_id_company_key to a table 0041 owns. Doing it here also
+-- means a fresh database in numeric order gets the key before 0043 declares the
+-- foreign key that depends on it.
+create unique index if not exists source_inventory_blocks_id_company_key
+  on public.source_inventory_blocks (id, company_id);
 
 -- ============================================================
 -- 4) CANONICAL SPANS -- the authoritative structure
@@ -280,6 +301,20 @@ create index if not exists canonical_spans_canonical_idx on public.canonical_spa
 -- ============================================================
 -- 5) IMMUTABILITY + RLS (read-only for clients; writes via 0044 RPCs)
 -- ============================================================
+-- Defined here as well as in 0045 so this file stands alone: a fresh database
+-- applying 0042, 0043, 0044, 0045 in numeric order must end in the same state as
+-- the remedial order (0042, 0045, 0043, 0044) used in production. `create or
+-- replace` makes the duplication idempotent, and scripts/audit-sync.mjs asserts
+-- the two copies are identical so they cannot drift.
+create or replace function public.phase3_no_truncate()
+returns trigger language plpgsql as $$
+begin
+  raise exception '% is append-only; it cannot be truncated', tg_table_name
+    using errcode = '42501',
+          hint = 'TRUNCATE bypasses row-level security and row triggers, which is '
+                 'exactly why this statement-level guard exists. Evidence is not erasable.';
+end $$;
+
 do $$
 declare t text;
 begin
@@ -287,9 +322,19 @@ begin
   loop
     execute format('drop trigger if exists %I_immutable on public.%I', t, t);
     execute format('create trigger %I_immutable before update or delete on public.%I for each row execute function public.phase3_append_only()', t, t);
+    -- TRUNCATE is restricted by neither RLS nor row-level triggers, so the row
+    -- guard above does not cover it. See 0045.
+    execute format('drop trigger if exists %I_no_truncate on public.%I', t, t);
+    execute format('create trigger %I_no_truncate before truncate on public.%I for each statement execute function public.phase3_no_truncate()', t, t);
     execute format('alter table public.%I enable row level security', t);
     execute format('drop policy if exists "%I_read" on public.%I', t, t);
     execute format('create policy "%I_read" on public.%I for select to authenticated using (public.can_touch_company(company_id))', t, t);
+    -- Supabase default privileges grant ALL on new tables in schema public to
+    -- anon and authenticated. Revoke HERE rather than leaving it to 0044, so no
+    -- state between the two migrations has evidence writable by grant.
+    execute format('revoke all on public.%I from anon', t);
+    execute format('revoke all on public.%I from authenticated', t);
+    execute format('grant select on public.%I to authenticated', t);
   end loop;
 end $$;
 

@@ -39,6 +39,31 @@ create temp table pg_temp.audit_results (
 drop table if exists pg_temp.public_baseline;
 create temp table pg_temp.public_baseline (tbl text primary key, n bigint);
 
+-- Phase 3 objects may legitimately exist in public now: the migrations are being
+-- deployed. Asserting they are ABSENT tested the calendar, not the audit. What
+-- must hold is that THIS RUN neither created nor dropped them.
+drop table if exists pg_temp.public_objects;
+create temp table pg_temp.public_objects (obj text primary key, kind text, existed boolean);
+
+do $$
+declare o text;
+begin
+  foreach o in array array['source_inventories','source_inventory_parts',
+                           'source_inventory_blocks','source_inventory_notes',
+                           'composition_rules','verification_runs',
+                           'verification_findings','canonical_sources','canonical_spans']
+  loop
+    insert into pg_temp.public_objects values (o, 'table', to_regclass('public.'||o) is not null);
+  end loop;
+  foreach o in array array['persist_verification','persist_canonical','inventory_digest',
+                           'idg_enc','idg_section','phase3_append_only','phase3_no_truncate']
+  loop
+    insert into pg_temp.public_objects values (o, 'function',
+      exists (select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+               where n.nspname='public' and p.proname=o));
+  end loop;
+end $$;
+
 do $$
 declare t text; n bigint;
 begin
@@ -86,6 +111,25 @@ begin
 exception when others then
   perform pg_temp.rec(p_cat, p_attack, 'rejected: '||p_needle,
     sqlstate || ' ' || left(sqlerrm, 90), p_mech, position(p_needle in sqlerrm) > 0);
+end $$;
+
+-- Same, but any ONE of several messages counts. Used where more than one
+-- mechanism legitimately refuses the same statement, so the test asserts the
+-- GUARANTEE rather than picking a winner between two correct answers.
+create or replace function pg_temp.must_fail_any(
+  p_cat text, p_attack text, p_sql text, p_needles text[], p_mech text)
+returns void language plpgsql as $$
+declare n text; hit boolean := false; got text;
+begin
+  execute p_sql;
+  perform pg_temp.rec(p_cat, p_attack, 'rejected', 'ACCEPTED', p_mech, false);
+  return;
+exception when others then
+  got := sqlstate || ' ' || left(sqlerrm, 90);
+  foreach n in array p_needles loop
+    if position(n in sqlerrm) > 0 then hit := true; end if;
+  end loop;
+  perform pg_temp.rec(p_cat, p_attack, 'rejected', got, p_mech, hit);
 end $$;
 
 -- Record the outcome of a statement that MUST succeed.
@@ -177,8 +221,7 @@ create table p3d_audit.source_inventory_parts (
   created_at timestamptz not null default now(),
   constraint sip_inv_fk foreign key (inventory_id, company_id)
     references p3d_audit.source_inventories (id, company_id) on delete cascade,
-  constraint sip_uniq unique (inventory_id, part_name),
-  constraint sip_id_company_key unique (id, company_id));
+  constraint sip_uniq unique (inventory_id, part_name));
 
 create table p3d_audit.source_inventory_notes (
   id uuid primary key default gen_random_uuid(),
@@ -189,8 +232,7 @@ create table p3d_audit.source_inventory_notes (
   note_ref int, note_type text, ns text, rel_type text,
   created_at timestamptz not null default now(),
   constraint sin_inv_fk foreign key (inventory_id, company_id)
-    references p3d_audit.source_inventories (id, company_id) on delete cascade,
-  constraint sin_id_company_key unique (id, company_id));
+    references p3d_audit.source_inventories (id, company_id) on delete cascade);
 
 -- ---------------------------------------------------------------- digest v1
 -- Generated from 0042 by schema substitution, like the RPCs: a hand-kept copy is
@@ -417,9 +459,95 @@ do $$ declare t text; begin
   end loop;
 end $$;
 
-revoke all on all tables in schema p3d_audit from anon, authenticated;
 grant usage on schema p3d_audit to anon, authenticated;
-grant select on all tables in schema p3d_audit to authenticated;
+
+-- ---------------------------------------------------------------------
+-- SIMULATE SUPABASE DEFAULT PRIVILEGES, THEN LET THE MIGRATION LOGIC UNDO THEM.
+--
+-- This schema does not inherit the default privileges configured on `public`,
+-- which is precisely why the audit could not reproduce the production finding:
+-- tables here were born with no grants, so a missing REVOKE looked harmless. The
+-- audit then performed a blanket `revoke all on all tables ... from anon,
+-- authenticated`, which modelled the INTENDED end state instead of what the
+-- migrations actually do -- and hid the fact that 0042 contains no revoke at all.
+--
+-- So: grant what Supabase would have granted, and then run the SAME per-table
+-- logic the migrations run. If a migration stops revoking, this audit fails.
+-- ---------------------------------------------------------------------
+do $$
+declare t text;
+begin
+  foreach t in array array['source_inventories','source_inventory_parts',
+                           'source_inventory_blocks','source_inventory_notes',
+                           'verification_runs','verification_findings',
+                           'composition_rules','canonical_sources','canonical_spans']
+  loop
+    execute format('grant all on p3d_audit.%I to anon, authenticated', t);
+  end loop;
+end $$;
+
+-- ---- the 0045 equivalent: hardening for the tables 0042 created -------
+create or replace function p3d_audit.no_truncate() returns trigger language plpgsql as $$
+begin
+  raise exception '% is append-only; it cannot be truncated', tg_table_name
+    using errcode = '42501';
+end $$;
+
+do $$
+declare t text;
+begin
+  foreach t in array array['source_inventories','source_inventory_parts',
+                           'source_inventory_blocks','source_inventory_notes']
+  loop
+    execute format('revoke all on p3d_audit.%I from anon', t);
+    execute format('revoke all on p3d_audit.%I from authenticated', t);
+    execute format('grant select on p3d_audit.%I to authenticated', t);
+    execute format('drop trigger if exists %I_no_truncate on p3d_audit.%I', t, t);
+    execute format('create trigger %I_no_truncate before truncate on p3d_audit.%I
+                    for each statement execute function p3d_audit.no_truncate()', t, t);
+  end loop;
+end $$;
+
+-- ---- DEPLOYMENT-STATE CHECKPOINT: 0042 -> 0045, before 0043/0044 exist ----
+-- The intermediate state must already be secure. This is the state production is
+-- in right now, so it is the one that matters most.
+do $$
+declare t text; bad text := ''; g text;
+begin
+  foreach t in array array['source_inventories','source_inventory_parts',
+                           'source_inventory_blocks','source_inventory_notes']
+  loop
+    select string_agg(distinct privilege_type, ',' order by privilege_type) into g
+      from information_schema.role_table_grants
+     where table_schema='p3d_audit' and table_name=t and grantee='anon';
+    if g is not null then bad := bad || format('anon/%s=%s ', t, g); end if;
+
+    select string_agg(distinct privilege_type, ',' order by privilege_type) into g
+      from information_schema.role_table_grants
+     where table_schema='p3d_audit' and table_name=t and grantee='authenticated';
+    if coalesce(g,'') <> 'SELECT' then bad := bad || format('authenticated/%s=%s ', t, coalesce(g,'none')); end if;
+  end loop;
+  perform pg_temp.rec('deploy-state','0042 -> 0045 is secure before 0043/0044 exist',
+    'anon: none, authenticated: SELECT',
+    case when bad = '' then 'anon: none, authenticated: SELECT' else bad end,
+    'the intermediate deployment state production is in now', bad = '');
+end $$;
+
+-- ---- the 0043 equivalent: same logic, for the tables 0043 creates -------
+do $$
+declare t text;
+begin
+  foreach t in array array['verification_runs','verification_findings',
+                           'canonical_sources','canonical_spans','composition_rules']
+  loop
+    execute format('revoke all on p3d_audit.%I from anon', t);
+    execute format('revoke all on p3d_audit.%I from authenticated', t);
+    execute format('grant select on p3d_audit.%I to authenticated', t);
+    execute format('drop trigger if exists %I_no_truncate on p3d_audit.%I', t, t);
+    execute format('create trigger %I_no_truncate before truncate on p3d_audit.%I
+                    for each statement execute function p3d_audit.no_truncate()', t, t);
+  end loop;
+end $$;
 
 -- service_role holds broad DML in production and BYPASSES RLS. Granting it the same
 -- here is what makes the deletion tests meaningful: a refusal must come from the
@@ -428,6 +556,8 @@ grant select on all tables in schema p3d_audit to authenticated;
 do $$ begin
   if exists (select 1 from pg_roles where rolname = 'service_role') then
     execute 'grant usage on schema p3d_audit to service_role';
+    -- service_role keeps broad DML, as in production. Its refusals must therefore
+    -- come from the triggers, not from a missing privilege.
     execute 'grant all on all tables in schema p3d_audit to service_role';
   end if;
 end $$;
@@ -818,6 +948,22 @@ begin
 
   return v_canonical;
 end $fn$;
+
+-- The 0045 equivalent for functions: PostgreSQL grants EXECUTE to PUBLIC on new
+-- functions, so the encoders are revoked here exactly as the migration does.
+do $$
+declare f text;
+begin
+  foreach f in array array['idg_enc(text)','idg_arr(jsonb)','idg_bool(boolean)',
+                           'idg_part(text,text,text,bigint,text,boolean,text,text)',
+                           'idg_block(text,text,text,int,int,jsonb,text)',
+                           'idg_note(text,text,text,text,text,text,int,text,int,text,text,text)',
+                           'idg_section(text,text[])','inventory_digest(uuid)',
+                           'append_only()','no_truncate()']
+  loop
+    execute format('revoke all on function p3d_audit.%s from public, anon, authenticated', f);
+  end loop;
+end $$;
 
 revoke all on function p3d_audit.persist_verification(jsonb) from public, anon;
 revoke all on function p3d_audit.persist_canonical(jsonb)   from public, anon;
@@ -1938,6 +2084,158 @@ select pg_temp.must_fail_with('immutability','service_role DELETE on composition
   'trigger fires for every role, on a composite-key table');
 reset role;
 
+-- ---------------------------------------------------------------------
+-- TRUNCATE.
+--
+-- The 195-test audit proved evidence could not be DELETEd and concluded it could
+-- not be erased. Those are different claims. TRUNCATE is restricted by neither
+-- row-level security nor row-level triggers, so the BEFORE UPDATE OR DELETE ...
+-- FOR EACH ROW guard never fires for it -- and production had granted TRUNCATE
+-- to anon and authenticated by default. Every protected table is tested, not one
+-- representative, because a guard installed by a loop is exactly the kind of
+-- thing that misses an entry.
+-- ---------------------------------------------------------------------
+do $$
+declare t text;
+begin
+  foreach t in array array['source_inventories','source_inventory_parts',
+                           'source_inventory_blocks','source_inventory_notes',
+                           'composition_rules','verification_runs',
+                           'verification_findings','canonical_sources','canonical_spans']
+  loop
+    -- Either the BEFORE TRUNCATE trigger, or PostgreSQL's own refusal to truncate
+    -- a table another table references. Which one fires depends on FK shape; both
+    -- mean the evidence survived.
+    perform pg_temp.must_fail_any('immutability',
+      format('TRUNCATE %s (owner)', t),
+      format('truncate table p3d_audit.%I', t),
+      array['cannot be truncated', 'referenced in a foreign key constraint'],
+      'BEFORE TRUNCATE trigger, or FK restriction; RLS and row triggers cover neither');
+  end loop;
+end $$;
+
+-- ...and as service_role, which bypasses RLS and holds broad DML here exactly as
+-- it does in production.
+do $$
+declare t text;
+begin
+  foreach t in array array['source_inventories','source_inventory_blocks',
+                           'verification_runs','canonical_sources','canonical_spans']
+  loop
+    perform pg_temp.must_fail_any('immutability',
+      format('service_role TRUNCATE %s', t),
+      format('set local role service_role; truncate table p3d_audit.%I', t),
+      array['cannot be truncated', 'referenced in a foreign key constraint'],
+      'statement trigger fires for every role, or FK restriction');
+    reset role;
+  end loop;
+end $$;
+
+-- TRUNCATE ... CASCADE reaches referencing tables. The guard must stop it there
+-- too, or one permitted truncate would take the whole chain with it.
+-- CASCADE is how the FK restriction is defeated, so nothing but the trigger can
+-- refuse this. Deliberately still a strict, single-message assertion: if the
+-- trigger were removed, every other TRUNCATE row above would keep passing on the
+-- FK alone and this is the row that would go red.
+select pg_temp.must_fail_with('immutability','TRUNCATE ... CASCADE from the inventory root',
+  $q$ truncate table p3d_audit.source_inventories cascade $q$, 'cannot be truncated',
+  'ONLY the trigger can refuse a CASCADE');
+
+select pg_temp.must_fail_with('immutability','TRUNCATE ... CASCADE from a verification run',
+  $q$ truncate table p3d_audit.verification_runs cascade $q$, 'cannot be truncated',
+  'ONLY the trigger can refuse a CASCADE');
+
+-- Every protected table must actually carry the statement trigger, in case a
+-- loop above silently skipped one.
+do $$
+declare t text; n int; bad text := '';
+begin
+  foreach t in array array['source_inventories','source_inventory_parts',
+                           'source_inventory_blocks','source_inventory_notes',
+                           'composition_rules','verification_runs',
+                           'verification_findings','canonical_sources','canonical_spans']
+  loop
+    select count(*) into n from pg_trigger tg
+      join pg_class c on c.oid = tg.tgrelid
+      join pg_namespace ns on ns.oid = c.relnamespace
+     where ns.nspname='p3d_audit' and c.relname=t and not tg.tgisinternal
+       and (tg.tgtype & 32) > 0;          -- bit 5 = TRUNCATE
+    if n < 1 then bad := bad || t || ' '; end if;
+  end loop;
+  perform pg_temp.rec('immutability','every evidence table has a BEFORE TRUNCATE trigger',
+    'all 9', case when bad='' then 'all 9' else 'MISSING: '||bad end,
+    'pg_trigger.tgtype truncate bit', bad = '');
+end $$;
+
+-- ---------------------------------------------------------------------
+-- PRIVILEGE ASSERTIONS
+--
+-- RLS is not the guarantee; it is the second layer. These assert the first: that
+-- anon and authenticated hold no write-shaped privilege at all. Production held
+-- DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE and UPDATE on all four
+-- inventory tables, restrained only by RLS, and TRUNCATE escaped even that.
+-- ---------------------------------------------------------------------
+do $$
+declare t text; r text; g text; bad text := '';
+begin
+  foreach t in array array['source_inventories','source_inventory_parts',
+                           'source_inventory_blocks','source_inventory_notes',
+                           'composition_rules','verification_runs',
+                           'verification_findings','canonical_sources','canonical_spans']
+  loop
+    foreach r in array array['anon','authenticated']
+    loop
+      select string_agg(distinct privilege_type, ',' order by privilege_type) into g
+        from information_schema.role_table_grants
+       where table_schema='p3d_audit' and table_name=t and grantee=r
+         and privilege_type in ('INSERT','UPDATE','DELETE','TRUNCATE','TRIGGER','REFERENCES');
+      if g is not null then bad := bad || format('%s/%s=%s ', r, t, g); end if;
+    end loop;
+  end loop;
+  perform pg_temp.rec('privilege','anon and authenticated hold no write privilege on any evidence table',
+    'none', case when bad='' then 'none' else bad end,
+    'INSERT/UPDATE/DELETE/TRUNCATE/TRIGGER/REFERENCES revoked by the migration logic', bad = '');
+end $$;
+
+do $$
+declare t text; g text; bad text := '';
+begin
+  foreach t in array array['source_inventories','source_inventory_parts',
+                           'source_inventory_blocks','source_inventory_notes',
+                           'composition_rules','verification_runs',
+                           'verification_findings','canonical_sources','canonical_spans']
+  loop
+    select string_agg(distinct privilege_type, ',') into g
+      from information_schema.role_table_grants
+     where table_schema='p3d_audit' and table_name=t and grantee='anon';
+    if g is not null then bad := bad || format('%s=%s ', t, g); end if;
+  end loop;
+  perform pg_temp.rec('privilege','anon holds NOTHING at all, not even SELECT',
+    'none', case when bad='' then 'none' else bad end,
+    'no Phase 3 evidence is ever public', bad = '');
+end $$;
+
+-- The digest encoders must not be callable by a client. PostgreSQL grants EXECUTE
+-- on a new function to PUBLIC by default, so this was the second object class the
+-- production finding reached. Exposing them hands a caller a tool for computing
+-- what a forged manifest would hash to.
+do $$
+declare f text; bad text := '';
+begin
+  foreach f in array array['idg_enc','idg_arr','idg_bool','idg_part','idg_block',
+                           'idg_note','idg_section','inventory_digest']
+  loop
+    if exists (select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+                where n.nspname='p3d_audit' and p.proname=f
+                  and (has_function_privilege('anon', p.oid, 'EXECUTE')
+                       or has_function_privilege('authenticated', p.oid, 'EXECUTE')))
+    then bad := bad || f || ' '; end if;
+  end loop;
+  perform pg_temp.rec('privilege','digest encoders are not executable by anon or authenticated',
+    'none', case when bad='' then 'none' else 'EXECUTABLE: '||bad end,
+    'EXECUTE revoked from PUBLIC, anon, authenticated', bad = '');
+end $$;
+
 -- Deleting the parent document would erase the whole evidence chain by cascade.
 -- The trigger stops the cascade, which means a document carrying Phase 3 evidence
 -- can no longer be deleted at all. That is the intended guarantee and a real
@@ -2163,22 +2461,23 @@ begin
       e::text, n::text, 'count(*) at start of run vs at end', n = e);
   end loop;
 
-  foreach k in array array['source_inventories','source_inventory_parts','source_inventory_blocks',
-                           'source_inventory_notes','composition_rules','verification_runs',
-                           'verification_findings','canonical_sources','canonical_spans'] loop
-    perform pg_temp.rec('public-unchanged', format('public.%s absent', k), 'absent',
-      coalesce(to_regclass('public.'||k)::text,'absent'), 'to_regclass',
-      to_regclass('public.'||k) is null);
-  end loop;
-
-  foreach k in array array['persist_verification','persist_canonical','inventory_digest',
-                           'idg_enc','idg_section','phase3_append_only'] loop
-    perform pg_temp.rec('public-unchanged', format('public.%s() absent', k), 'absent',
-      coalesce((select string_agg(p.proname,',') from pg_proc p join pg_namespace ns on ns.oid=p.pronamespace
-                 where ns.nspname='public' and p.proname=k),'absent'), 'pg_proc',
-      not exists (select 1 from pg_proc p join pg_namespace ns on ns.oid=p.pronamespace
-                   where ns.nspname='public' and p.proname=k));
-  end loop;
+  declare r record; now_exists boolean;
+  begin
+    for r in select * from pg_temp.public_objects order by kind, obj loop
+      if r.kind = 'table' then
+        now_exists := to_regclass('public.'||r.obj) is not null;
+      else
+        now_exists := exists (select 1 from pg_proc p join pg_namespace ns on ns.oid=p.pronamespace
+                               where ns.nspname='public' and p.proname=r.obj);
+      end if;
+      perform pg_temp.rec('public-unchanged',
+        format('public.%s %s existence unchanged by this run', r.obj,
+               case when r.kind='function' then '()' else '' end),
+        case when r.existed then 'present at start' else 'absent at start' end,
+        case when now_exists then 'present at end' else 'absent at end' end,
+        'the audit neither created nor dropped it', now_exists = r.existed);
+    end loop;
+  end;
 end $$;
 
 -- =====================================================================
@@ -2195,14 +2494,15 @@ begin
     coalesce((select string_agg(p.proname,',') from pg_proc p join pg_namespace n on n.oid=p.pronamespace
                where n.nspname='p3d_audit'),'absent'),'pg_proc',
     not exists (select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='p3d_audit'));
-  perform pg_temp.rec('cleanup','no Phase 3 objects left in public','absent',
-    coalesce((select string_agg(c.relname,',') from pg_class c join pg_namespace n on n.oid=c.relnamespace
-               where n.nspname='public'
-                 and c.relname in ('source_inventories','verification_runs','canonical_sources','canonical_spans')),
-             'absent'),'pg_class',
-    not exists (select 1 from pg_class c join pg_namespace n on n.oid=c.relnamespace
-                 where n.nspname='public'
-                   and c.relname in ('source_inventories','verification_runs','canonical_sources','canonical_spans')));
+  -- Phase 3 tables in public are EXPECTED once the migrations are deployed. What
+  -- must be true is that nothing named p3d_* leaked out of the isolated schema.
+  perform pg_temp.rec('cleanup','no p3d_* objects leaked into public','none',
+    coalesce((select string_agg(c.relname, ',') from pg_class c
+                join pg_namespace n on n.oid = c.relnamespace
+               where n.nspname = 'public' and c.relname like 'p3d/_%' escape '/'), 'none'),
+    'pg_class',
+    not exists (select 1 from pg_class c join pg_namespace n on n.oid = c.relnamespace
+                 where n.nspname = 'public' and c.relname like 'p3d/_%' escape '/'));
 end $$;
 
 -- =====================================================================
@@ -2228,6 +2528,10 @@ union all
 select '~~ SUMMARY ~~', 'provenance tests', '', count(*)::text, '', ''       from pg_temp.audit_results where category='provenance'
 union all
 select '~~ SUMMARY ~~', 'verification RPC tests', '', count(*)::text, '', '' from pg_temp.audit_results where category='verification'
+union all
+select '~~ SUMMARY ~~', 'privilege tests', '', count(*)::text, '', ''          from pg_temp.audit_results where category='privilege'
+union all
+select '~~ SUMMARY ~~', 'deployment-state tests', '', count(*)::text, '', ''   from pg_temp.audit_results where category='deploy-state'
 union all
 select '~~ SUMMARY ~~', 'inventory-digest tests', '', count(*)::text, '', ''   from pg_temp.audit_results where category='digest'
 union all

@@ -66,6 +66,20 @@ const canon = (t) =>
  */
 const TABLE_COLUMNS = ["source_inventory_parts", "source_inventory_blocks", "source_inventory_notes"];
 
+const bodyOf = (src, table, schema) => {
+  const head = new RegExp(`create table (?:if not exists )?${schema}\\.${table}\\s*\\(`, "m");
+  const m = src.match(head);
+  if (!m) throw new Error(`table ${schema}.${table} not found`);
+  let i = m.index + m[0].length, depth = 1;
+  const start = i;
+  while (i < src.length && depth > 0) {
+    const c = src[i];
+    if (c === "(") depth++; else if (c === ")") depth--;
+    i++;
+  }
+  return src.slice(start, i - 1);
+};
+
 const columnsOf = (src, table, schema) => {
   // Scan by balancing parentheses rather than matching a terminator: 0042 closes on
   // its own line, the audit closes with `));` on the last column line.
@@ -108,18 +122,66 @@ const columnsOf = (src, table, schema) => {
   return cols;
 };
 
+/**
+ * phase3_no_truncate() is declared in BOTH 0043 and 0045 so each file stands
+ * alone -- numeric order and remedial order must reach the same state. Two copies
+ * of a security guard is exactly the shape that hid three defects earlier in this
+ * phase, so the copies are asserted identical rather than trusted.
+ */
+const fnBody = (src) => {
+  const a = src.indexOf("create or replace function public.phase3_no_truncate()");
+  if (a < 0) return null;
+  const b = src.indexOf("end $$;", a);
+  return b < 0 ? null : src.slice(a, b + 7).replace(/\s+/g, " ").trim();
+};
+
+const truncateGuardRegion = {
+  name: "phase3_no_truncate() identical in 0043 and 0045",
+  check() {
+    const in43 = fnBody(read("supabase/migrations/0043_verification_canonical.sql"));
+    const in45 = fnBody(read("supabase/migrations/0045_phase3_privilege_hardening.sql"));
+    if (!in43) return ["0043 does not declare phase3_no_truncate()"];
+    if (!in45) return ["0045 does not declare phase3_no_truncate()"];
+    return in43 === in45 ? [] : ["the two declarations differ"];
+  },
+};
+
 const parityRegion = {
   name: "inventory table column parity",
   check() {
-    const mig = read(MIG_DIG), aud = read(AUDIT);
+    // 0043 also creates keys on 0042's tables, so both files count as "the migration".
+    const mig = read(MIG_DIG) + "\n" + read("supabase/migrations/0043_verification_canonical.sql");
+    const aud = read(AUDIT);
     const problems = [];
     for (const t of TABLE_COLUMNS) {
       const m = columnsOf(mig, t, "public");
       const a = columnsOf(aud, t, SCHEMA);
       const missing = [...m].filter((c) => !a.has(c));
       const extra = [...a].filter((c) => !m.has(c));
-      if (missing.length) problems.push(`${t}: audit is MISSING ${missing.join(", ")}`);
-      if (extra.length) problems.push(`${t}: audit has EXTRA ${extra.join(", ")}`);
+      if (missing.length) problems.push(`${t}: audit is MISSING column ${missing.join(", ")}`);
+      if (extra.length) problems.push(`${t}: audit has EXTRA column ${extra.join(", ")}`);
+
+      // Columns alone were not enough. The audit declared a UNIQUE (id, company_id)
+      // on source_inventory_blocks that no migration created, so a composite
+      // foreign key in 0043 worked in the audit and failed in production with
+      // 42830. Compare the UNIQUE KEY SHAPES too -- normalised to column sets,
+      // because the two files legitimately use different constraint names.
+      const uniques = (src, table, schema) => {
+        const out = new Set();
+        const body = (() => { try { return bodyOf(src, table, schema); } catch { return ""; } })();
+        for (const m2 of body.matchAll(/unique\s*\(([^)]*)\)/gi))
+          out.add(m2[1].split(",").map((x) => x.trim()).sort().join(","));
+        const esc = table.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        for (const m2 of src.matchAll(new RegExp(`create unique index (?:if not exists )?\\w+\\s*(?:\\n\\s*)?on ${schema}\\.${esc} \\(([^)]*)\\)`, "gi")))
+          out.add(m2[1].split(",").map((x) => x.trim()).sort().join(","));
+        return out;
+      };
+      const mu = uniques(mig, t, "public");
+      const au = uniques(aud, t, SCHEMA);
+      const umissing = [...mu].filter((k) => !au.has(k));
+      const uextra = [...au].filter((k) => !mu.has(k));
+      if (umissing.length) problems.push(`${t}: audit is MISSING unique (${umissing.join(") (")})`);
+      if (uextra.length) problems.push(`${t}: audit has EXTRA unique (${uextra.join(") (")}) -- no migration creates it`);
     }
     return problems;
   },
@@ -181,6 +243,15 @@ if (parityProblems.length === 0) {
   for (const p of parityProblems) console.error(`        ${p}`);
 }
 
+const guardProblems = truncateGuardRegion.check();
+if (guardProblems.length === 0) {
+  console.log(`  ok    ${truncateGuardRegion.name}`);
+} else {
+  drift++;
+  console.error(`  DRIFT ${truncateGuardRegion.name}`);
+  for (const p of guardProblems) console.error(`        ${p}`);
+}
+
 if (write && drift) { console.log("\naudit-sync: regenerated; re-run the audit SQL"); process.exit(0); }
-console.log(`\naudit-sync: ${REGIONS.length + 1 - drift}/${REGIONS.length + 1} regions identical to the migrations`);
+console.log(`\naudit-sync: ${REGIONS.length + 2 - drift}/${REGIONS.length + 2} regions identical to the migrations`);
 process.exit(drift ? 1 : 0);
