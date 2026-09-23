@@ -92,11 +92,16 @@ $$;
 create or replace function pg_temp.must_fail(
   p_cat text, p_attack text, p_sql text, p_mech text)
 returns void language plpgsql as $$
+declare got text; ok boolean;
 begin
-  execute p_sql;
-  perform pg_temp.rec(p_cat, p_attack, 'rejected', 'ACCEPTED', p_mech, false);
-exception when others then
-  perform pg_temp.rec(p_cat, p_attack, 'rejected', sqlstate || ' ' || left(sqlerrm, 90), p_mech, true);
+  begin
+    execute p_sql;
+    got := 'ACCEPTED'; ok := false;
+  exception when others then
+    got := sqlstate || ' ' || left(sqlerrm, 90); ok := true;
+  end;
+  reset role;   -- see must_fail_with
+  perform pg_temp.rec(p_cat, p_attack, 'rejected', got, p_mech, ok);
 end $$;
 
 -- Record the outcome of a statement that MUST fail FOR A SPECIFIC REASON. A plain
@@ -105,12 +110,20 @@ end $$;
 create or replace function pg_temp.must_fail_with(
   p_cat text, p_attack text, p_sql text, p_needle text, p_mech text)
 returns void language plpgsql as $$
+declare got text; ok boolean;
 begin
-  execute p_sql;
-  perform pg_temp.rec(p_cat, p_attack, 'rejected: '||p_needle, 'ACCEPTED', p_mech, false);
-exception when others then
-  perform pg_temp.rec(p_cat, p_attack, 'rejected: '||p_needle,
-    sqlstate || ' ' || left(sqlerrm, 90), p_mech, position(p_needle in sqlerrm) > 0);
+  begin
+    execute p_sql;
+    got := 'ACCEPTED'; ok := false;
+  exception when others then
+    got := sqlstate || ' ' || left(sqlerrm, 90);
+    ok := position(p_needle in sqlerrm) > 0;
+  end;
+  -- RESET FIRST. `set local role` survives a successful statement, and recording
+  -- while still impersonating turned the recorder's own permission error into a
+  -- false PASS on the previous run.
+  reset role;
+  perform pg_temp.rec(p_cat, p_attack, 'rejected: '||p_needle, got, p_mech, ok);
 end $$;
 
 -- Same, but any ONE of several messages counts. Used where more than one
@@ -121,14 +134,16 @@ create or replace function pg_temp.must_fail_any(
 returns void language plpgsql as $$
 declare n text; hit boolean := false; got text;
 begin
-  execute p_sql;
-  perform pg_temp.rec(p_cat, p_attack, 'rejected', 'ACCEPTED', p_mech, false);
-  return;
-exception when others then
-  got := sqlstate || ' ' || left(sqlerrm, 90);
-  foreach n in array p_needles loop
-    if position(n in sqlerrm) > 0 then hit := true; end if;
-  end loop;
+  begin
+    execute p_sql;
+    got := 'ACCEPTED';
+  exception when others then
+    got := sqlstate || ' ' || left(sqlerrm, 90);
+    foreach n in array p_needles loop
+      if position(n in sqlerrm) > 0 then hit := true; end if;
+    end loop;
+  end;
+  reset role;   -- see must_fail_with: recording while impersonating faked a PASS
   perform pg_temp.rec(p_cat, p_attack, 'rejected', got, p_mech, hit);
 end $$;
 
@@ -154,14 +169,46 @@ create schema p3d_audit;
 create function p3d_audit.sha256_hex(t text) returns text
   language sql immutable strict as $$ select encode(sha256(convert_to(t,'UTF8')),'hex') $$;
 
--- Tenant check driven by a session GUC so the audit can impersonate a company.
-create function p3d_audit.can_touch_company(cid uuid) returns boolean
+-- The identity the gate reads, mirroring auth.uid(). A session GUC stands in for
+-- the JWT `sub` claim: unset means "no end-user JWT", which is exactly the
+-- condition a service-key call presents in production.
+create function p3d_audit.auth_uid() returns uuid
   language sql stable as $$
-  select coalesce(current_setting('p3d.company', true), '') = cid::text
+  select nullif(current_setting('p3d.uid', true), '')::uuid
 $$;
 
 create table p3d_audit.companies (
-  id uuid primary key default gen_random_uuid(), name text not null);
+  id uuid primary key default gen_random_uuid(), name text not null,
+  owner_id uuid);
+
+create table p3d_audit.company_memberships (
+  company_id uuid not null, user_id uuid not null, status text not null default 'active');
+
+create table p3d_audit.profiles (
+  id uuid primary key, role text);
+
+-- Mirrors public.owns_company / is_admin / can_touch_company as they exist in
+-- production (read out of the database by supabase/audit/probe_service_role_path.sql).
+-- Every branch terminates in auth_uid(); none consults the database role.
+create function p3d_audit.owns_company(cid uuid) returns boolean
+  language sql stable as $$
+  select exists (select 1 from p3d_audit.companies c
+                  where c.id = cid and c.owner_id = p3d_audit.auth_uid())
+      or exists (select 1 from p3d_audit.company_memberships m
+                  where m.company_id = cid and m.user_id = p3d_audit.auth_uid()
+                    and m.status = 'active')
+$$;
+
+create function p3d_audit.is_admin() returns boolean
+  language sql stable as $$
+  select exists (select 1 from p3d_audit.profiles p
+                  where p.id = p3d_audit.auth_uid() and p.role = 'admin')
+$$;
+
+create function p3d_audit.can_touch_company(cid uuid) returns boolean
+  language sql stable as $$
+  select p3d_audit.owns_company(cid) or p3d_audit.is_admin()
+$$;
 
 create table p3d_audit.documents (
   id uuid primary key default gen_random_uuid(),
@@ -483,6 +530,14 @@ begin
                            'composition_rules','canonical_sources','canonical_spans']
   loop
     execute format('grant all on p3d_audit.%I to anon, authenticated', t);
+    -- service_role too: production showed it holding all seven verbs on every
+    -- evidence table before 0046. Granting it HERE, with the other defaults,
+    -- means the 0046-equivalent revoke below is what removes it -- rather than a
+    -- later blanket grant silently restoring what a migration took away, which is
+    -- exactly what happened on the previous run.
+    if exists (select 1 from pg_roles where rolname = 'service_role') then
+      execute format('grant all on p3d_audit.%I to service_role', t);
+    end if;
   end loop;
 end $$;
 
@@ -533,6 +588,22 @@ begin
     'the intermediate deployment state production is in now', bad = '');
 end $$;
 
+-- ---- the 0046 equivalent: service_role loses every write verb --------
+-- Named verbs rather than ALL, exactly as the migration does, so SELECT survives
+-- without a re-grant. service_role keeps SELECT and keeps EXECUTE on the RPCs.
+do $$
+declare t text;
+begin
+  foreach t in array array['source_inventories','source_inventory_parts',
+                           'source_inventory_blocks','source_inventory_notes',
+                           'composition_rules','verification_runs',
+                           'verification_findings','canonical_sources','canonical_spans']
+  loop
+    execute format(
+      'revoke insert, update, delete, truncate, trigger, references on p3d_audit.%I from service_role', t);
+  end loop;
+end $$;
+
 -- ---- the 0043 equivalent: same logic, for the tables 0043 creates -------
 do $$
 declare t text;
@@ -556,9 +627,6 @@ end $$;
 do $$ begin
   if exists (select 1 from pg_roles where rolname = 'service_role') then
     execute 'grant usage on schema p3d_audit to service_role';
-    -- service_role keeps broad DML, as in production. Its refusals must therefore
-    -- come from the triggers, not from a missing privilege.
-    execute 'grant all on all tables in schema p3d_audit to service_role';
   end if;
 end $$;
 
@@ -969,6 +1037,15 @@ revoke all on function p3d_audit.persist_verification(jsonb) from public, anon;
 revoke all on function p3d_audit.persist_canonical(jsonb)   from public, anon;
 grant execute on function p3d_audit.persist_verification(jsonb) to authenticated;
 grant execute on function p3d_audit.persist_canonical(jsonb)   to authenticated;
+-- Mirrors production: service_role holds EXECUTE on both. It still cannot pass
+-- can_touch_company() without an end-user identity, which is the point -- the
+-- refusal must come from the tenant gate, not from a missing grant.
+do $$ begin
+  if exists (select 1 from pg_roles where rolname = 'service_role') then
+    execute 'grant execute on function p3d_audit.persist_verification(jsonb) to service_role';
+    execute 'grant execute on function p3d_audit.persist_canonical(jsonb) to service_role';
+  end if;
+end $$;
 
 -- ---------------------------------------------------------------- digest constants
 -- Computed by scripts/audit-digests.mjs from api/_inventoryDigest.js. NOTHING in
@@ -1004,14 +1081,18 @@ select
 do $$
 declare
   cA uuid; cB uuid; dA uuid; dB uuid; tA uuid; tB uuid; runA uuid; canA uuid;
+  uA uuid; uB uuid;
   -- Transcript deliberately contains an emoji BEFORE a later span, so any
   -- UTF-16 vs codepoint confusion changes which text substr() selects.
   txt text := 'Body one.' || E'\n' || 'Grade 5 g/t ' || U&'\+01F44D' || ' then more.' || E'\n' || 'Body three.';
   fnText text := 'Footnote recovered text.';
   dig text; runFail uuid; runInd uuid; invA uuid; findA uuid; blkA uuid;
 begin
-  insert into p3d_audit.companies(name) values ('Audit A') returning id into cA;
-  insert into p3d_audit.companies(name) values ('Audit B') returning id into cB;
+  -- Two tenants, each with a real owning user, so "authorized" means a specific
+  -- person rather than possession of a session setting.
+  uA := gen_random_uuid(); uB := gen_random_uuid();
+  insert into p3d_audit.companies(name, owner_id) values ('Audit A', uA) returning id into cA;
+  insert into p3d_audit.companies(name, owner_id) values ('Audit B', uB) returning id into cB;
   insert into p3d_audit.documents(company_id,filename,sha256) values (cA,'a.docx',repeat('a',64)) returning id into dA;
   insert into p3d_audit.documents(company_id,filename,sha256) values (cB,'b.docx',repeat('b',64)) returning id into dB;
   insert into p3d_audit.source_transcripts(document_id,company_id,engine,transcript_text)
@@ -1019,9 +1100,10 @@ begin
   insert into p3d_audit.source_transcripts(document_id,company_id,engine,transcript_text)
     values (dB,cB,'audit-engine','Other company text.') returning id into tB;
 
-  perform set_config('p3d.company', cA::text, false);
+  perform set_config('p3d.uid', uA::text, false);
   perform set_config('p3d.fixture', jsonb_build_object(
-    'cA',cA,'cB',cB,'dA',dA,'dB',dB,'tA',tA,'tB',tB,'txt',txt,'fn',fnText)::text, false);
+    'cA',cA,'cB',cB,'dA',dA,'dB',dB,'tA',tA,'tB',tB,'txt',txt,'fn',fnText,
+    'uA',uA,'uB',uB)::text, false);
 
   -- The digest the RPC will demand, computed in JavaScript, not here.
   dig := current_setting('p3d.dig_runA', true);
@@ -1106,7 +1188,7 @@ end $$;
 -- =====================================================================
 do $$
 declare inv uuid := current_setting('p3d.inv', true)::uuid;
-        cA  uuid := current_setting('p3d.company', true)::uuid;
+        cA  uuid := (current_setting('p3d.fixture', true)::jsonb->>'cA')::uuid;
         n int; pid uuid; nid uuid; brk text;
 begin
   select count(*) into n from p3d_audit.source_inventory_parts where inventory_id = inv;
@@ -1768,7 +1850,9 @@ end $$;
 do $$
 declare f jsonb := current_setting('p3d.fixture', true)::jsonb;
 begin
-  perform set_config('p3d.company', (f->>'cB'), false);
+  -- Act as company B's owner: a real, authenticated, authorized user -- just not
+  -- authorized for company A.
+  perform set_config('p3d.uid', (f->>'uB'), false);
   perform pg_temp.must_fail('security','cross-company persist_canonical',
     format($q$ select p3d_audit.persist_canonical(jsonb_build_object('verification_run_id',%L,
       'composer','c','composer_version','1','composition_ruleset','1.0.0','spans',%L::jsonb)) $q$,
@@ -1778,7 +1862,7 @@ begin
       'inventory',jsonb_build_object('engine','x','engine_version','1','package_sha256','z','digest','d','blocks','[]'::jsonb),
       'run',jsonb_build_object('run_status','COMPLETED','verdict','VERIFIED','verifier','v','verifier_version','1','ruleset_version','1','transcript_sha256','x'),
       'findings','[]'::jsonb)) $q$, (f->>'dA'), (f->>'tA')), 'can_touch_company inside the RPC');
-  perform set_config('p3d.company', (f->>'cA'), false);
+  perform set_config('p3d.uid', (f->>'uA'), false);
 end $$;
 
 -- =====================================================================
@@ -2058,15 +2142,19 @@ declare t text;
 begin
   foreach t in array array['source_inventories','source_inventory_blocks','verification_runs',
                            'verification_findings','canonical_sources','canonical_spans'] loop
+    -- 0046 removed the privilege, so the ACL refuses before the trigger is ever
+    -- reached. A stronger refusal -- but the label must name the layer that
+    -- actually fired, or this is the FK/TRUNCATE masking problem again.
     perform pg_temp.must_fail_with('immutability',
-      format('service_role DELETE on %s', t),
-      format('set local role service_role; delete from p3d_audit.%I', t), 'append-only',
-      'trigger fires for every role; RLS would not');
+      format('service_role DELETE on %s (ACL layer)', t),
+      format('set local role service_role; delete from p3d_audit.%I', t), 'permission denied',
+      '0046 revoked DELETE; the owner cases prove the trigger');
     reset role;
     perform pg_temp.must_fail_with('immutability',
-      format('service_role UPDATE on %s', t),
-      format('set local role service_role; update p3d_audit.%I set company_id = company_id', t), 'append-only',
-      'trigger fires for every role; RLS would not');
+      format('service_role UPDATE on %s (ACL layer)', t),
+      format('set local role service_role; update p3d_audit.%I set company_id = company_id', t),
+      'permission denied',
+      '0046 revoked UPDATE; the owner cases prove the trigger');
     reset role;
   end loop;
 end $$;
@@ -2079,10 +2167,26 @@ select pg_temp.must_fail_with('immutability','direct SQL UPDATE on composition_r
   $q$ update p3d_audit.composition_rules set why = 'rewritten' $q$, 'append-only',
   'guard reads the row generically, not old.id');
 
-select pg_temp.must_fail_with('immutability','service_role DELETE on composition_rules (no id column)',
-  $q$ set local role service_role; delete from p3d_audit.composition_rules $q$, 'append-only',
-  'trigger fires for every role, on a composite-key table');
+select pg_temp.must_fail_with('immutability','service_role DELETE on composition_rules (ACL layer)',
+  $q$ set local role service_role; delete from p3d_audit.composition_rules $q$, 'permission denied',
+  '0046 revoked DELETE; the owner case above proves the trigger');
 reset role;
+
+-- Converting the service_role rows to ACL assertions costs trigger coverage:
+-- they were the only UPDATE probes for these three tables. The OWNER keeps every
+-- privilege, so for the owner the trigger is the only thing that can refuse --
+-- which is exactly what needs proving.
+do $$
+declare t text;
+begin
+  foreach t in array array['source_inventories','source_inventory_blocks','verification_runs']
+  loop
+    perform pg_temp.must_fail_with('immutability',
+      format('owner UPDATE on %s (trigger layer)', t),
+      format('update p3d_audit.%I set company_id = company_id', t), 'append-only',
+      'the owner holds UPDATE, so only the trigger can refuse');
+  end loop;
+end $$;
 
 -- ---------------------------------------------------------------------
 -- TRUNCATE.
@@ -2123,10 +2227,10 @@ begin
                            'verification_runs','canonical_sources','canonical_spans']
   loop
     perform pg_temp.must_fail_any('immutability',
-      format('service_role TRUNCATE %s', t),
+      format('service_role TRUNCATE %s (ACL layer)', t),
       format('set local role service_role; truncate table p3d_audit.%I', t),
-      array['cannot be truncated', 'referenced in a foreign key constraint'],
-      'statement trigger fires for every role, or FK restriction');
+      array['permission denied'],
+      '0046 revoked TRUNCATE; the owner cases prove the statement trigger');
     reset role;
   end loop;
 end $$;
@@ -2254,6 +2358,224 @@ begin
   perform pg_temp.rec('immutability','evidence survived every deletion attempt',
     'canonicals > 0 and spans > 0', format('%s canonicals, %s spans', n, m),
     'rows still present after the DELETE matrix', n > 0 and m > 0);
+end $$;
+
+-- =====================================================================
+-- H3. THE VALIDATION BOUNDARY
+--
+--   application/server -> validated persistence RPC -> immutable evidence
+--
+-- Every check that makes evidence trustworthy lives inside the RPCs. A direct
+-- INSERT produces rows indistinguishable from validated ones that were never
+-- validated, so no application role may write the tables directly.
+--
+-- The three identities are separate and are tested separately:
+--   A. who may INVOKE the RPC        -- the function EXECUTE ACL
+--   B. whether the request is allowed -- can_touch_company(), which resolves
+--                                        through auth_uid(), i.e. an END-USER
+--                                        JWT, never the database role
+--   C. whose privileges WRITE         -- the SECURITY DEFINER owner, always
+-- =====================================================================
+
+-- ---- A. no application role can write evidence directly ----------------
+do $$
+declare t text; r text;
+begin
+  foreach t in array array['source_inventories','source_inventory_parts',
+                           'source_inventory_blocks','source_inventory_notes',
+                           'composition_rules','verification_runs',
+                           'verification_findings','canonical_sources','canonical_spans']
+  loop
+    foreach r in array array['service_role','authenticated','anon']
+    loop
+      perform pg_temp.rec('boundary',
+        format('%s holds no write verb on %s', r, t),
+        'none',
+        coalesce((select string_agg(distinct privilege_type, ',' order by privilege_type)
+                    from information_schema.role_table_grants
+                   where table_schema='p3d_audit' and table_name=t and grantee=r
+                     and privilege_type in ('INSERT','UPDATE','DELETE','TRUNCATE','TRIGGER','REFERENCES')),
+                 'none'),
+        'INSERT/UPDATE/DELETE/TRUNCATE/TRIGGER/REFERENCES revoked',
+        not exists (select 1 from information_schema.role_table_grants
+                     where table_schema='p3d_audit' and table_name=t and grantee=r
+                       and privilege_type in ('INSERT','UPDATE','DELETE','TRUNCATE','TRIGGER','REFERENCES')));
+    end loop;
+  end loop;
+end $$;
+
+-- ...and the privilege check is not the only evidence: the writes are attempted.
+do $$
+declare f jsonb := current_setting('p3d.fixture', true)::jsonb; r text;
+begin
+  foreach r in array array['service_role','authenticated']
+  loop
+    perform pg_temp.must_fail_with('boundary',
+      format('%s direct INSERT into verification_runs', r),
+      format($q$ set local role %s;
+        insert into p3d_audit.verification_runs(document_id,company_id,transcript_id,inventory_id,
+          run_status,verdict,verifier,verifier_version,ruleset_version,transcript_sha256,inventory_digest)
+        values (%L,%L,%L,%L,'COMPLETED','VERIFIED','forged','1','1','x','y') $q$,
+        r, (f->>'dA'), (f->>'cA'), (f->>'tA'), current_setting('p3d.inv', true)),
+      'permission denied', 'no INSERT grant; the RPC is the only write path');
+    reset role;
+
+    perform pg_temp.must_fail_with('boundary',
+      format('%s direct INSERT into canonical_spans', r),
+      format($q$ set local role %s;
+        insert into p3d_audit.canonical_spans(canonical_id,company_id,canonical_order,region_kind,
+          text,engine_extracted,origin,transcript_start,transcript_length)
+        values (%L,%L,999,'body','FORGED',true,'engine',1,3) $q$,
+        r, current_setting('p3d.can', true), (f->>'cA')),
+      'permission denied', 'no INSERT grant; the RPC is the only write path');
+    reset role;
+
+    perform pg_temp.must_fail_with('boundary',
+      format('%s direct UPDATE of a canonical', r),
+      format($q$ set local role %s;
+        update p3d_audit.canonical_sources set serialized = 'REWRITTEN' where id = %L $q$,
+        r, current_setting('p3d.can', true)),
+      'permission denied', 'no UPDATE grant');
+    reset role;
+
+    perform pg_temp.must_fail_with('boundary',
+      format('%s direct DELETE of evidence', r),
+      format($q$ set local role %s; delete from p3d_audit.verification_findings $q$, r),
+      'permission denied', 'no DELETE grant');
+    reset role;
+
+    perform pg_temp.must_fail_with('boundary',
+      format('%s TRUNCATE of evidence', r),
+      format($q$ set local role %s; truncate table p3d_audit.canonical_spans $q$, r),
+      'permission denied', 'no TRUNCATE grant');
+    reset role;
+  end loop;
+end $$;
+
+-- ---- B. the RPCs still work for an AUTHORIZED end user ------------------
+-- The point of the revoke is that it costs the legitimate path nothing. The
+-- caller here is `authenticated` with a real auth_uid() that owns the company --
+-- the identity a forwarded end-user JWT presents -- and it holds no table
+-- privilege whatsoever.
+do $$
+declare
+  f jsonb := current_setting('p3d.fixture', true)::jsonb;
+  tsha text := (select sha256 from p3d_audit.source_transcripts where id=(f->>'tA')::uuid);
+  runX uuid; ok boolean := false; msg text; n int;
+begin
+  perform set_config('p3d.uid', (f->>'uA'), false);
+  set local role authenticated;
+  begin
+    runX := p3d_audit.persist_verification(jsonb_build_object(
+      'document_id',(f->>'dA')::uuid,'transcript_id',(f->>'tA')::uuid,
+      'inventory',jsonb_build_object('engine','audit-inv','engine_version','1',
+        'package_sha256',p3d_audit.sha256_hex('boundary-proof'),
+        'digest',current_setting('p3d.dig_runFail', true),
+        'blocks',jsonb_build_array(jsonb_build_object(
+          'part_name','word/x','xml_path','p','source_block',0,'source_order',0,'text','z'))),
+      'run',jsonb_build_object('run_status','COMPLETED','verdict','VERIFIED','verifier','v',
+        'verifier_version','1','ruleset_version','1','transcript_sha256',tsha),
+      'findings','[]'::jsonb));
+    ok := runX is not null;
+    msg := 'accepted';
+  exception when others then
+    msg := sqlstate || ' ' || left(sqlerrm, 90);
+  end;
+  reset role;
+
+  perform pg_temp.rec('boundary','authorized end user CAN persist through the RPC',
+    'accepted', msg,
+    'authenticated + auth_uid() owning the company; EXECUTE only, no table grant', ok);
+
+  -- and the row really landed, written by the DEFINER rather than the caller
+  select count(*) into n from p3d_audit.verification_runs where id = runX;
+  perform pg_temp.rec('boundary','the RPC wrote the row as its DEFINER, not the caller',
+    '1', n::text, 'SECURITY DEFINER owner writes; caller holds no INSERT', n = 1);
+end $$;
+
+-- ---- B2. an authenticated user CANNOT persist for another company -------
+do $$
+declare f jsonb := current_setting('p3d.fixture', true)::jsonb;
+begin
+  -- company B's owner: a real, authenticated, authorized user -- for a DIFFERENT
+  -- tenant. This is the case a database role could never distinguish.
+  perform set_config('p3d.uid', (f->>'uB'), false);
+  perform pg_temp.must_fail_with('boundary',
+    'authenticated user of another company cannot persist verification',
+    format($q$ set local role authenticated;
+      select p3d_audit.persist_verification(jsonb_build_object(
+        'document_id',%L,'transcript_id',%L,
+        'inventory',jsonb_build_object('engine','x','engine_version','1','package_sha256','z',
+          'digest','d','blocks','[]'::jsonb),
+        'run',jsonb_build_object('run_status','COMPLETED','verdict','VERIFIED','verifier','v',
+          'verifier_version','1','ruleset_version','1','transcript_sha256','x'),
+        'findings','[]'::jsonb)) $q$, (f->>'dA'), (f->>'tA')),
+    'not authorized for this company', 'can_touch_company resolves through auth_uid()');
+  reset role;
+
+  perform pg_temp.must_fail_with('boundary',
+    'authenticated user of another company cannot compose a canonical',
+    format($q$ set local role authenticated;
+      select p3d_audit.persist_canonical(jsonb_build_object(
+        'verification_run_id',%L,'composer','c','composer_version','1',
+        'composition_ruleset','1.0.0','spans','[]'::jsonb)) $q$,
+      current_setting('p3d.run', true)),
+    'not authorized for this company', 'can_touch_company resolves through auth_uid()');
+  reset role;
+
+  -- NO end-user JWT at all: the condition a service-key call presents. This is
+  -- why service_role cannot be the authorization identity, independent of grants.
+  perform set_config('p3d.uid', '', false);
+  perform pg_temp.must_fail_with('boundary',
+    'caller with NO end-user identity cannot persist (the service-key condition)',
+    format($q$ set local role service_role;
+      select p3d_audit.persist_verification(jsonb_build_object(
+        'document_id',%L,'transcript_id',%L,
+        'inventory',jsonb_build_object('engine','x','engine_version','1','package_sha256','z',
+          'digest','d','blocks','[]'::jsonb),
+        'run',jsonb_build_object('run_status','COMPLETED','verdict','VERIFIED','verifier','v',
+          'verifier_version','1','ruleset_version','1','transcript_sha256','x'),
+        'findings','[]'::jsonb)) $q$, (f->>'dA'), (f->>'tA')),
+    'not authorized for this company',
+    'auth_uid() is NULL, so owns_company and is_admin are both false');
+  reset role;
+
+  -- restore the fixture identity for anything downstream
+  perform set_config('p3d.uid', (f->>'uA'), false);
+end $$;
+
+-- ---- C. the execution identity is the DEFINER, not the caller ----------
+do $$
+declare owner_fn text; owner_tb text;
+begin
+  select pg_get_userbyid(p.proowner) into owner_fn
+    from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+   where n.nspname='p3d_audit' and p.proname='persist_verification' limit 1;
+  select pg_get_userbyid(c.relowner) into owner_tb
+    from pg_class c join pg_namespace n on n.oid=c.relnamespace
+   where n.nspname='p3d_audit' and c.relname='verification_runs' limit 1;
+  perform pg_temp.rec('boundary','RPC owner also owns the evidence tables',
+    owner_tb, owner_fn,
+    'why revoking from the caller cannot break the RPC', owner_fn = owner_tb);
+
+  perform pg_temp.rec('boundary','both RPCs remain EXECUTE-able by the trusted roles',
+    'authenticated=true, service_role=true',
+    format('authenticated=%s, service_role=%s',
+      has_function_privilege('authenticated','p3d_audit.persist_verification(jsonb)','EXECUTE'),
+      has_function_privilege('service_role','p3d_audit.persist_verification(jsonb)','EXECUTE')),
+    'EXECUTE is the validated path, not a bypass',
+    has_function_privilege('authenticated','p3d_audit.persist_verification(jsonb)','EXECUTE')
+      and has_function_privilege('service_role','p3d_audit.persist_verification(jsonb)','EXECUTE'));
+
+  perform pg_temp.rec('boundary','service_role retains SELECT',
+    'true',
+    exists (select 1 from information_schema.role_table_grants
+             where table_schema='p3d_audit' and table_name='verification_runs'
+               and grantee='service_role' and privilege_type='SELECT')::text,
+    'reading is not writing',
+    exists (select 1 from information_schema.role_table_grants
+             where table_schema='p3d_audit' and table_name='verification_runs'
+               and grantee='service_role' and privilege_type='SELECT'));
 end $$;
 
 -- =====================================================================
@@ -2528,6 +2850,8 @@ union all
 select '~~ SUMMARY ~~', 'provenance tests', '', count(*)::text, '', ''       from pg_temp.audit_results where category='provenance'
 union all
 select '~~ SUMMARY ~~', 'verification RPC tests', '', count(*)::text, '', '' from pg_temp.audit_results where category='verification'
+union all
+select '~~ SUMMARY ~~', 'validation-boundary tests', '', count(*)::text, '', '' from pg_temp.audit_results where category='boundary'
 union all
 select '~~ SUMMARY ~~', 'privilege tests', '', count(*)::text, '', ''          from pg_temp.audit_results where category='privilege'
 union all
