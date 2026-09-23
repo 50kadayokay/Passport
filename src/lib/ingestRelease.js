@@ -41,6 +41,7 @@ export const INGEST_STATUS = {
   SIGNED_OUT:                "signed_out",                   // no/expired session at the API
   NOT_ENTITLED:              "not_entitled",                 // authenticated, but the plan or company says no
   TRANSCRIPT_UNAVAILABLE:    "transcript_unavailable",       // parsed fine, but the source text could not be persisted
+  VERIFICATION_UNAVAILABLE:  "verification_unavailable",     // transcript stored, but its verification could not be recorded
 };
 
 /**
@@ -55,7 +56,17 @@ export const INGEST_STATUS = {
  * The original upload is already preserved, so the honest action is retry, not
  * re-upload.
  */
-const REVIEW_BLOCKING = new Set([INGEST_STATUS.TRANSCRIPT_UNAVAILABLE]);
+//
+// VERIFICATION_UNAVAILABLE blocks for the same reason one step further along.
+// The transcript IS stored, so the text is real -- but nothing has established
+// that it faithfully represents the uploaded document, and no record exists
+// saying so either way. Opening Review would present unverified content as
+// though it had passed. Phase 3 exists to make that state impossible, so it
+// fails closed and the honest action is retry.
+const REVIEW_BLOCKING = new Set([
+  INGEST_STATUS.TRANSCRIPT_UNAVAILABLE,
+  INGEST_STATUS.VERIFICATION_UNAVAILABLE,
+]);
 export function blocksReview(status) { return REVIEW_BLOCKING.has(status); }
 
 /** How a media candidate was obtained. Recorded per SIGHTING, never on the asset. */
@@ -115,10 +126,14 @@ async function parseDocx(file, companyId) {
   // apiFetch attaches the session (refreshing it first if the access token has
   // aged out) and throws `session_expired` if there is genuinely no session —
   // rather than sending "Bearer null" and letting the server call it a bad login.
+  // Computed once and carried forward: verification re-reads the SAME bytes the
+  // engine parsed. Re-encoding the File later would risk verifying a different
+  // artefact than the one the transcript came from.
+  const docxB64 = await b64(file);
   const res = await apiFetch("/api/extract-docx", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ docx: await b64(file), companyId, withImages: true }),
+    body: JSON.stringify({ docx: docxB64, companyId, withImages: true }),
   });
   const j = await res.json().catch(() => ({}));
   if (!res.ok) {
@@ -153,6 +168,7 @@ async function parseDocx(file, companyId) {
     engine: j.engine || "mammoth",
     engineVersion: j.engineVersion || null,
     images, truncated: !!j.truncated, warnings: j.warnings || [],
+    docxB64,
   };
 }
 
@@ -310,6 +326,72 @@ export async function ingestRelease(companyId, file, { onProgress = () => {} } =
   result.transcriptId = transcript ? transcript.id : null;
   result.transcriptSha256 = transcript ? transcript.sha256 : null;
   result.transcriptChars = transcript ? transcript.char_count : (parsed.text || "").length;
+
+  // ---- VERIFY THE SOURCE (Phase 3E) ----------------------------------------
+  // The transcript records what the ENGINE produced. It does not establish that
+  // the engine saw everything. That takes a second, independent reading of the
+  // package, compared one-to-one against the transcript -- which is what the
+  // real footnote omission that started this work would have caught.
+  //
+  // The SERVER does that work, from the ORIGINAL bytes, and persists the result
+  // through the validated RPCs while forwarding this user's token. Nothing here
+  // computes or submits a verdict: this call sends the document and three ids,
+  // and the answer comes back.
+  //
+  // DOCX only for now. A PDF has no OOXML package to read independently, so
+  // there is nothing to verify against and claiming otherwise would be worse
+  // than not claiming it.
+  if (kind === "docx" && transcript && parsed.docxB64) {
+    onProgress("verifying-source");
+    try {
+      const vres = await apiFetch("/api/verify-source", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          docx: parsed.docxB64,
+          companyId,
+          documentId,
+          transcriptId: transcript.id,
+        }),
+      });
+      const vj = await vres.json().catch(() => ({}));
+      if (!vres.ok) {
+        const e = new Error(vj.error || `Could not verify the source (${vres.status}).`);
+        e.serverCode = vj.code || null;
+        throw e;
+      }
+      result.verification = {
+        runId: vj.verificationRunId || null,
+        runStatus: vj.runStatus || null,
+        verdict: vj.verdict || null,
+        counts: vj.counts || {},
+        inventoryDigest: vj.inventoryDigest || null,
+        canonicalId: vj.canonicalId || null,
+        // A refusal is an OUTCOME, not an error: the verification is recorded and
+        // there is simply no canonical. Carried so Review can say which.
+        canonicalRefusal: vj.canonicalRefusal || null,
+      };
+    } catch (e) {
+      // FAIL CLOSED. The transcript is stored, so the text is real -- but nothing
+      // has established that it represents the document faithfully, and no record
+      // exists saying so either way. Showing it in Review would present unverified
+      // content as verified.
+      result.status = INGEST_STATUS.VERIFICATION_UNAVAILABLE;
+      result.ok = false;
+      result.error = e && e.message
+        ? e.message
+        : "Could not verify the source document. Your file and its text are safe — try again.";
+      try {
+        await recordExtractionAttempt(companyId, documentId, {
+          engine: engineName,
+          status: INGEST_STATUS.VERIFICATION_UNAVAILABLE,
+          errorCode: (e && e.serverCode) || (e && e.code) || null,
+          errorMessage: (e && e.message) || null,
+        });
+      } catch (_) { /* best effort: the attempt row is evidence, not a gate */ }
+      return result;
+    }
+  }
   try {
     await recordExtractionAttempt(companyId, documentId, {
       engine: engineName,
