@@ -173,6 +173,7 @@ Expected outcome: Everyone / PEGI 3, with the "Users Interact" disclosure.
 | Data safety | see §4 |
 | Government app | No |
 | **Financial features** | **"My app doesn't provide any financial features"** — MineEx is information and discovery only: no trading, brokerage, lending, crypto, or money transmission |
+| Monetization _(signup form: "earning money")_ | **No** — the investor app is free. All sales happen outside the app, through the company portal on the web. No ads, no in-app purchases, no in-app sales. |
 | Health apps | No |
 
 ---
