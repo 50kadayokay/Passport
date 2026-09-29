@@ -217,10 +217,27 @@ Investors are never offered a purchase of any kind.
 Initial Android release.
 ```
 
-**After the first upload**, copy the Play **app signing key SHA-1** from
-Setup → App integrity and register it as a third Android OAuth client in Google
-Cloud and Firebase. Google Sign-In fails on Play-installed builds until this is
-done — gate **G2** in `docs/ANDROID_BACKLOG.md`.
+**Play app signing key SHA-1** (read from Play Console → Protected with Play →
+App signing → App signing key → Classical key, 28 Sep 2026):
+
+```
+C5:00:79:E0:66:85:5D:0E:DD:C7:81:2D:05:19:61:B8:1B:FB:F6:D1
+```
+
+Play generated its own app signing key rather than adopting the upload key —
+the two are distinct, and mistaking one for the other silently breaks Google
+Sign-In on every Play install:
+
+| key | SHA-1 | SHA-256 |
+|---|---|---|
+| Upload (`~/.mineex-release/mineex-upload.jks`) | `B2:FA:32:…:5A:CA` | `6D:44:6E:37:…:96:E7` |
+| **Play app signing** | `C5:00:79:E0:…:F6:D1` | `26:B9:64:3E:…` (matches the Digital Asset Links JSON) |
+
+Register the Play app signing SHA-1 as a third Android OAuth client (package
+`com.liquidjungle.mineex`) via Firebase → Project settings → Your apps → Add
+fingerprint, which auto-creates the Google Cloud OAuth client. No rebuild is
+needed; the fingerprint is not carried in the AAB or `google-services.json`.
+Gate **G2** in `docs/ANDROID_BACKLOG.md`.
 
 ---
 
