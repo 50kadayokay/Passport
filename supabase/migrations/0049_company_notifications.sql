@@ -33,6 +33,12 @@ drop policy if exists cnr_select on public.company_notification_reads;
 create policy cnr_select on public.company_notification_reads
   for select using (public.owns_company(company_id));
 
+-- LEAST PRIVILEGE, EXPLICITLY. Supabase grants anon and authenticated all seven
+-- privileges on every newly created table. 0014 left that default in place on
+-- the messaging tables and it survived two years until 0047's verification
+-- caught it (fixed by 0052). Every table this migration creates revokes it in
+-- the same breath, so the defect cannot be reintroduced.
+revoke all on public.company_notification_reads from anon, authenticated;
 grant select on public.company_notification_reads to authenticated;
 
 -- ------------------------------------------------------------------ the feed

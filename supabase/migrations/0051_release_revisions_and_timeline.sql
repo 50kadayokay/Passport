@@ -91,7 +91,11 @@ create policy release_revisions_read on public.release_revisions
 
 -- No INSERT policy: revisions are written only by revise_publication(), which is
 -- SECURITY DEFINER and does its own authorization. A company cannot forge one.
-revoke insert, update, delete on public.release_revisions from authenticated, anon;
+-- LEAST PRIVILEGE, EXPLICITLY. This previously revoked only the write verbs,
+-- which left anon holding SELECT, TRUNCATE, TRIGGER and REFERENCES from
+-- Supabase's default grant -- the same gap 0052 had to clean up on the
+-- messaging tables. Revoke everything, then grant back only the read.
+revoke all on public.release_revisions from anon, authenticated;
 grant select on public.release_revisions to authenticated;
 
 -- Which revision is live.

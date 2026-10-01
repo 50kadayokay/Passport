@@ -63,6 +63,12 @@ drop policy if exists mineiq_ing_select on public.mineiq_ingestions;
 create policy mineiq_ing_select on public.mineiq_ingestions
   for select using (public.can_touch_company(company_id));
 
+-- LEAST PRIVILEGE, EXPLICITLY. Supabase grants anon and authenticated all seven
+-- privileges on every newly created table. 0014 left that default in place on
+-- the messaging tables and it survived two years until 0047's verification
+-- caught it (fixed by 0052). Every table this migration creates revokes it in
+-- the same breath, so the defect cannot be reintroduced.
+revoke all on public.mineiq_ingestions from anon, authenticated;
 grant select on public.mineiq_ingestions to authenticated;
 
 -- ---------------------------------------------------------------------------
