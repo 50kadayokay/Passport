@@ -90,14 +90,18 @@ L.push(`-- =====================================================================
 L.push(`with expected_columns(tbl, col, is_generated) as (values`);
 const colRows = [];
 for (const t of tables) for (const c of columns[t] || []) colRows.push(`  (${lit(t)}, ${lit(c.name)}, ${c.generated})`);
-L.push(colRows.join(",\n"));
+// A migration that creates no tables (0047 only adds a column and policies)
+// produced an EMPTY values list here -- `as (values\n\n)` -- which is a syntax
+// error, so the whole verification refused to run. Every list now falls back to
+// a typed null row, which the queries below already filter out for constraints.
+L.push(colRows.length ? colRows.join(",\n") : `  (null::text, null::text, null::boolean)`);
 L.push(`),`);
 L.push(`expected_constraints(tbl, con) as (values`);
 const conRows = [];
 for (const t of tables) for (const c of constraints[t] || []) conRows.push(`  (${lit(t)}, ${lit(c)})`);
 L.push(conRows.length ? conRows.join(",\n") : `  (null::text, null::text)`);
 L.push(`),`);
-L.push(`expected_tables(tbl) as (values\n${tables.map((t) => `  (${lit(t)})`).join(",\n")}\n),`);
+L.push(`expected_tables(tbl) as (values\n${(tables.length ? tables.map((t) => `  (${lit(t)})`) : ["  (null::text)"]).join(",\n")}\n),`);
 L.push(`expected_functions(fn) as (values\n${(fnNames.length ? fnNames : ["__none__"]).map((f) => `  (${lit(f)})`).join(",\n")}\n),`);
 L.push(`expected_indexes(idx) as (values\n${(idxNames.length ? idxNames : ["__none__"]).map((i) => `  (${lit(i)})`).join(",\n")}\n),`);
 
@@ -107,7 +111,7 @@ t_tables as (
   select 'table' as kind, tbl as item,
          case when to_regclass('public.'||tbl) is not null then 'present' else 'MISSING' end as actual,
          (to_regclass('public.'||tbl) is not null) as pass
-    from expected_tables
+    from expected_tables where tbl is not null
 ),
 -- 2) every column exists, with the same generated-ness
 t_cols as (
@@ -119,13 +123,14 @@ t_cols as (
     from expected_columns e
     left join information_schema.columns c
       on c.table_schema='public' and c.table_name=e.tbl and c.column_name=e.col
+   where e.tbl is not null
 ),
 -- 3) no EXTRA columns production has that the migration does not declare
 t_extra as (
   select 'extra-column' as kind, c.table_name||'.'||c.column_name as item,
          'PRESENT BUT NOT IN MIGRATION' as actual, false as pass
     from information_schema.columns c
-    join expected_tables t on t.tbl = c.table_name
+    join expected_tables t on t.tbl = c.table_name and t.tbl is not null
    where c.table_schema='public'
      and not exists (select 1 from expected_columns e where e.tbl=c.table_name and e.col=c.column_name)
 ),
@@ -166,7 +171,7 @@ t_rls as (
                     where n.nspname='public' and c.relname=tbl), 'MISSING') as actual,
          coalesce((select c.relrowsecurity from pg_class c join pg_namespace n on n.oid=c.relnamespace
                     where n.nspname='public' and c.relname=tbl), false) as pass
-    from expected_tables
+    from expected_tables where tbl is not null
 ),
 -- 8) NO write policy exists on any of them -- writes go through the RPCs only
 t_nowrite as (
@@ -175,7 +180,7 @@ t_nowrite as (
                     where schemaname='public' and tablename=tbl and cmd <> 'SELECT'), 'none') as actual,
          not exists (select 1 from pg_policies
                       where schemaname='public' and tablename=tbl and cmd <> 'SELECT') as pass
-    from expected_tables
+    from expected_tables where tbl is not null
 ),
 -- 9) anon has NO privilege of any kind
 t_anon as (
@@ -185,7 +190,7 @@ t_anon as (
                     where table_schema='public' and table_name=tbl and grantee='anon'), 'none') as actual,
          not exists (select 1 from information_schema.role_table_grants
                       where table_schema='public' and table_name=tbl and grantee='anon') as pass
-    from expected_tables
+    from expected_tables where tbl is not null
 ),
 -- 10) authenticated has SELECT and nothing else
 t_authed as (
@@ -197,7 +202,7 @@ t_authed as (
                      from information_schema.role_table_grants
                     where table_schema='public' and table_name=tbl and grantee='authenticated'), 'none')
            in ('SELECT','none') as pass
-    from expected_tables
+    from expected_tables where tbl is not null
 )`);
 
 if (trigSuffix) {
@@ -215,7 +220,7 @@ t_trig as (
                      from pg_trigger tg join pg_class c on c.oid=tg.tgrelid
                      join pg_namespace n on n.oid=c.relnamespace
                     where n.nspname='public' and c.relname=e.tbl and not tg.tgisinternal), false) as pass
-    from expected_tables e
+    from expected_tables e where e.tbl is not null
 )`);
 }
 
@@ -234,7 +239,7 @@ t_trunc as (
                    join pg_namespace n on n.oid=c.relnamespace
                   where n.nspname='public' and c.relname=e.tbl and not tg.tgisinternal
                     and (tg.tgtype & 32) > 0) as pass
-    from expected_tables e
+    from expected_tables e where e.tbl is not null
 )`);
 }
 
