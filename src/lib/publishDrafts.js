@@ -137,6 +137,42 @@ export async function listPublished(companyId) {
   return r.ok ? await r.json().catch(() => []) : [];
 }
 
+/**
+ * Releases that already used this source document.
+ *
+ * `documents` deduplicates on sha256 (memory.js), so re-uploading the same bytes
+ * returns the SAME document row rather than a new one. That makes "has this
+ * release been published before?" answerable without hashing anything here:
+ * look for other updates linked to that document.
+ *
+ * Deliberately a WARNING, not a block — a corrected or revised release is a
+ * legitimate second publication of the same source.
+ */
+export async function releasesForDocument(companyId, documentId, exceptUpdateId = null) {
+  if (!companyId || !documentId) return [];
+  try {
+    const h = await writeHeaders();
+    const r = await fetch(
+      `${SUPABASE_URL}/rest/v1/update_documents?document_id=eq.${documentId}` +
+      `&select=update_id,update:updates(id,company_id,status,published_on,detected)`,
+      { headers: h }
+    );
+    if (!r.ok) return [];
+    const rows = await r.json().catch(() => []);
+    return (Array.isArray(rows) ? rows : [])
+      .map((x) => x.update)
+      .filter((u) => u && u.company_id === companyId && u.id !== exceptUpdateId)
+      .map((u) => ({
+        id: u.id,
+        status: u.status,
+        publishedOn: u.published_on,
+        headline: (u.detected && u.detected.headline) || "Untitled release",
+      }));
+  } catch {
+    return [];
+  }
+}
+
 export async function deleteDraft(updateId) {
   if (!updateId) return false;
   const h = await writeHeaders();

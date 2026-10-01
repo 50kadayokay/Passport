@@ -102,6 +102,46 @@ function entryToAnalysis(e) {
   };
 }
 
+/**
+ * Revise an existing analysis against a written instruction ("shorten it", "lead
+ * with the grades", "drop the forward-looking language").
+ *
+ * The server's `refine` mode has existed since this endpoint was written; the
+ * portal simply never called it. Same retry policy as structureRelease(), for
+ * the same reason: retryability is decided from the HTTP status, never from the
+ * error text.
+ *
+ * `instruction` may be empty -- that is a plain regenerate, which is why the
+ * Regenerate button and the Improve button are one code path.
+ */
+export async function refineRelease(current, instruction = "", text = "", context = {}, { attempts = 3 } = {}) {
+  if (!current) throw new Error("Nothing to revise yet.");
+  let lastErr;
+  for (let i = 0; i < attempts; i++) {
+    let retryable = false;
+    try {
+      const res = await fetch(API, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ mode: "refine", current, instruction: String(instruction || ""), text, context }),
+      });
+      if (res.ok) {
+        const data = await res.json().catch(() => ({}));
+        return data.analysis;
+      }
+      const data = await res.json().catch(() => ({}));
+      lastErr = new Error(data.error || `Could not revise the summary (${res.status})`);
+      retryable = RETRYABLE.has(res.status);
+    } catch (e) {
+      lastErr = e;
+      retryable = true;
+    }
+    if (!retryable || i === attempts - 1) throw lastErr;
+    await new Promise((r) => setTimeout(r, 800 * 2 ** i + Math.random() * 400));
+  }
+  throw lastErr;
+}
+
 export async function structureReleasesBatched(items, { token, context = {}, batchSize = 8, concurrency = 3, onProgress } = {}) {
   const list = (Array.isArray(items) ? items : []).filter((it) => it && String(it.text || "").trim());
   if (!list.length) return [];
@@ -248,7 +288,11 @@ export function synthesizeSuggestions(results) {
 
 // The timeline editor's category dropdown accepts this fixed set; the analyzer's
 // richer CATEGORIES map down to it so an extracted entry is editable as-is.
-const TL_CATS = ["Discovery", "Drilling", "Financing", "Permitting", "Infrastructure", "Acquisition", "Resource Growth", "Exploration", "Corporate"];
+// Exported because the Company Portal filters press releases by the SAME list.
+// One definition, so a category the app can show is never a category the portal
+// cannot filter by (and vice versa).
+export const TIMELINE_CATEGORIES = ["Discovery", "Drilling", "Financing", "Permitting", "Infrastructure", "Acquisition", "Resource Growth", "Exploration", "Corporate"];
+const TL_CATS = TIMELINE_CATEGORIES;
 const CAT_MAP = {
   Resource: "Resource Growth", "Economic Study": "Corporate", Development: "Infrastructure",
   Construction: "Infrastructure", Production: "Corporate", Leadership: "Corporate",

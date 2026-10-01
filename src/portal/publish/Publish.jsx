@@ -1,76 +1,66 @@
-// Publish — the company's communications workspace.
+// Press Releases — the company's library of releases, and the way in to a new one.
 //
-//   Create · Drafts · Published · Calendar
+// Two screens only: the library (ReleaseLibrary) and the create/review flow
+// (CreateRelease). The old Create/Drafts/Published/Calendar tab bar is gone —
+// drafts and published releases are the same `updates` row at different
+// statuses, so they belong in one grid with status as a filter, and Calendar
+// advertised scheduling that does not exist.
 //
 // The CEO is not operating an extraction tool. Extraction is infrastructure, so
 // nothing here says "SHA", "parser", "storage path" or "page render". Technical
 // detail surfaces only when something genuinely needs attention.
-//
-// Calendar is visibly disabled rather than faked — scheduling does not exist.
 
 import React, { useState, useEffect, useCallback } from "react";
-import {
-  Send, FileText, CheckCircle2, Clock, Plus, Loader2, AlertCircle, ArrowLeft,
-  Calendar as CalendarIcon, Trash2, ExternalLink,
-} from "lucide-react";
-import { listDrafts, listPublished, deleteDraft } from "../../lib/publishDrafts.js";
-import { profileUrl } from "../../lib/brand.js";
+import { AlertCircle, Sparkles, Upload, Image as ImageIcon } from "lucide-react";
+import LaunchTile from "../LaunchTile.jsx";
+import { listDrafts, listPublished } from "../../lib/publishDrafts.js";
 import CreateRelease from "./CreateRelease.jsx";
+import ReleaseLibrary from "./ReleaseLibrary.jsx";
+import DraftRelease from "./DraftRelease.jsx";
 
-const CARD = "rounded-2xl border border-slate-100 bg-white shadow-[0_1px_2px_rgba(15,23,42,.04),0_12px_26px_-20px_rgba(15,23,42,.4)]";
-
-const TABS = [
-  { id: "create",    label: "Create",    Icon: Plus },
-  { id: "drafts",    label: "Drafts",    Icon: FileText },
-  { id: "published", label: "Published", Icon: CheckCircle2 },
-  { id: "calendar",  label: "Calendar",  Icon: CalendarIcon, disabled: true },
-];
-
-const fmtDate = (d) => {
-  if (!d) return "";
-  const s = String(d).slice(0, 10);
-  const [y, m, day] = s.split("-").map(Number);
-  if (!y) return s;
-  return new Date(Date.UTC(y, (m || 1) - 1, day || 1))
-    .toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
-};
-const fmtWhen = (ts) => {
-  if (!ts) return "";
-  const diff = Date.now() - new Date(ts).getTime();
-  const mins = Math.round(diff / 60000);
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.round(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  return fmtDate(ts);
-};
-
-function Empty({ Icon, title, body, action }) {
-  return (
-    <div className={`grid place-items-center px-6 py-16 text-center ${CARD}`}>
-      <span className="grid h-12 w-12 place-items-center rounded-2xl bg-slate-100 text-slate-400"><Icon size={22} strokeWidth={2.2} /></span>
-      <p className="mt-3 text-[15px] font-bold text-slate-900">{title}</p>
-      <p className="mt-1 max-w-sm text-[12.5px] leading-relaxed text-slate-500">{body}</p>
-      {action}
-    </div>
-  );
-}
-
-export default function Publish({ company }) {
-  const [tab, setTab] = useState("drafts");
+// `startIn` lets Home's "Draft Press Release" tile land straight in the drafting
+// flow instead of the library. Everything else still enters at the library.
+export default function Publish({ company, startIn = null, go = () => {}, view = "publish" }) {
+  // null = show `view`; "draft" / "create" take over the workspace.
+  const [tab, setTab] = useState(startIn || null);
   const [drafts, setDrafts] = useState(null);
   const [published, setPublished] = useState(null);
   const [editing, setEditing] = useState(null);      // draft id being reviewed
 
   const companyId = company?.id;
 
+  const [loadErr, setLoadErr] = useState("");
+
+  // Both loads are allowed to fail. They throw when the session has expired
+  // (writeHeaders() raises rather than returning bad headers), and an uncaught
+  // rejection here left `drafts`/`published` at null forever -- the library then
+  // showed its loading skeletons permanently, with nothing saying why. Fail to a
+  // real, explained empty state instead.
   const refresh = useCallback(async () => {
     if (!companyId) return;
-    const [d, p] = await Promise.all([listDrafts(companyId), listPublished(companyId)]);
-    setDrafts(d); setPublished(p);
+    try {
+      setLoadErr("");
+      const [d, p] = await Promise.all([listDrafts(companyId), listPublished(companyId)]);
+      setDrafts(d); setPublished(p);
+    } catch (e) {
+      setDrafts([]); setPublished([]);
+      setLoadErr(e?.message || "Your releases could not be loaded.");
+    }
   }, [companyId]);
 
-  useEffect(() => { refresh(); }, [refresh]);
+  useEffect(() => { if (view === "releases") refresh(); }, [refresh, view]);
+
+  // Writing a release from scratch. Saving drops the new draft straight into the
+  // review screen, so drafting and reviewing are one continuous motion.
+  if (tab === "draft") {
+    return (
+      <DraftRelease
+        company={company}
+        onExit={() => setTab(null)}
+        onSaved={(row) => { setTab(null); refresh(); if (row && row.id) setEditing(row.id); }}
+      />
+    );
+  }
 
   // Reviewing a release takes over the whole workspace — one job, no distractions.
   if (editing || tab === "create") {
@@ -78,151 +68,63 @@ export default function Publish({ company }) {
       <CreateRelease
         company={company}
         draftId={editing}
-        onExit={() => { setEditing(null); setTab("drafts"); refresh(); }}
-        onPublished={() => { setEditing(null); setTab("published"); refresh(); }}
+        onExit={() => { setEditing(null); setTab(null); refresh(); }}
+        onPublished={() => { setEditing(null); setTab(null); refresh(); go("releases"); }}
       />
     );
   }
 
+  // Two views, one component: the chooser at `publish`, the library at
+  // `releases`. They share this file because both hand off to the same create,
+  // draft and review flows above -- splitting them would mean duplicating that
+  // routing or lifting it into the shell, and neither is worth it for what is
+  // otherwise a heading and a grid.
+  if (view === "releases") {
+    return (
+      <div>
+        <h1 className="text-[27px] font-extrabold leading-tight tracking-tight text-slate-900">Press Releases</h1>
+        <p className="mt-1.5 text-[15px] text-slate-500">Everything you have published, and everything still in progress.</p>
+
+        {loadErr && (
+          <div className="mt-5 flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4">
+            <AlertCircle size={19} className="mt-0.5 shrink-0 text-amber-600" />
+            <div>
+              <p className="text-[14px] font-bold text-amber-900">Couldn't load your releases</p>
+              <p className="text-[13px] text-amber-700">{loadErr}</p>
+            </div>
+          </div>
+        )}
+
+        <div className="mt-6">
+          <ReleaseLibrary
+            drafts={drafts}
+            published={published}
+            onCreate={() => setTab("create")}
+            onDraft={() => setTab("draft")}
+            onOpen={(item) => setEditing(item.id)}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  // The chooser. One question -- what am I publishing? -- and its three answers.
   return (
     <div>
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-[27px] font-extrabold leading-tight tracking-tight text-slate-900">Publish</h1>
-          <p className="mt-1.5 text-[15px] text-slate-500">Create, review and distribute company updates from one place.</p>
-        </div>
-        <button onClick={() => setTab("create")}
-          className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-5 py-3 text-[14px] font-bold text-white transition hover:bg-slate-800 active:scale-[0.99]">
-          <Plus size={16} strokeWidth={2.4} /> Create publication
-        </button>
-      </div>
+      <h1 className="text-[27px] font-extrabold leading-tight tracking-tight text-slate-900">Publish</h1>
+      <p className="mt-1.5 text-[15px] text-slate-500">What would you like to publish?</p>
 
-      {/* At-a-glance counts. Scheduled is shown because the architecture supports
-          it, and marked unavailable rather than faked. */}
-      <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3">
-        <Stat label="Drafts"    value={drafts === null ? "—" : drafts.length}    Icon={FileText} onClick={() => setTab("drafts")} />
-        <Stat label="Published" value={published === null ? "—" : published.length} Icon={CheckCircle2} onClick={() => setTab("published")} />
-        <Stat label="Scheduled" value="—" Icon={Clock} muted note="Coming soon" />
-      </div>
-
-      {/* Sub-navigation */}
-      <div className="mt-6 flex flex-wrap gap-1.5 border-b border-slate-100 pb-3">
-        {TABS.map(({ id, label, Icon, disabled }) => {
-          const on = tab === id;
-          return (
-            <button key={id} disabled={disabled}
-              onClick={() => !disabled && setTab(id)}
-              title={disabled ? "Scheduling isn't available yet" : undefined}
-              className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-[13px] font-bold transition ${
-                disabled ? "cursor-default text-slate-300"
-                : on ? "bg-blue-50 text-blue-600"
-                : "text-slate-600 hover:bg-slate-50"
-              }`}>
-              <Icon size={14} strokeWidth={2.4} /> {label}
-              {disabled && <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-slate-400">Soon</span>}
-              {id === "drafts" && drafts?.length ? <span className="rounded-full bg-slate-100 px-1.5 text-[10.5px] font-bold text-slate-500">{drafts.length}</span> : null}
-            </button>
-          );
-        })}
-      </div>
-
-      <div className="mt-6">
-        {tab === "drafts" && (
-          drafts === null ? <Loading />
-          : !drafts.length ? (
-            <Empty Icon={FileText} title="No drafts" body="Releases you've uploaded but not yet published will wait here."
-              action={<button onClick={() => setTab("create")} className="mt-4 rounded-xl bg-slate-900 px-4 py-2.5 text-[13px] font-bold text-white">Create a publication</button>} />
-          ) : (
-            <div className="space-y-2.5">
-              {drafts.map((d) => {
-                const det = d.detected || {};
-                const needsDate = !d.published_on;
-                return (
-                  <div key={d.id} className={`flex flex-wrap items-center gap-4 px-5 py-4 ${CARD}`}>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-[14.5px] font-extrabold tracking-tight text-slate-900">
-                        {det.headline || "Untitled release"}
-                      </p>
-                      <p className="mt-0.5 text-[12.5px] text-slate-400">
-                        {d.published_on ? fmtDate(d.published_on) : <span className="font-bold text-amber-600">Date needed</span>}
-                        <span className="mx-1.5 text-slate-300">·</span>
-                        Prepared {fmtWhen(d.updated_at || d.created_at)}
-                      </p>
-                    </div>
-                    {needsDate && (
-                      <span className="rounded-full bg-amber-50 px-2.5 py-1 text-[11.5px] font-bold text-amber-700">Needs attention</span>
-                    )}
-                    <button onClick={() => setEditing(d.id)}
-                      className="rounded-xl bg-slate-900 px-4 py-2 text-[13px] font-bold text-white transition hover:bg-slate-800">Review</button>
-                    <button onClick={async () => { if (window.confirm("Delete this draft? The uploaded file stays in your documents.")) { await deleteDraft(d.id); refresh(); } }}
-                      title="Delete draft" className="grid h-9 w-9 place-items-center rounded-xl text-slate-300 transition hover:bg-slate-50 hover:text-rose-500">
-                      <Trash2 size={15} strokeWidth={2.2} />
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          )
-        )}
-
-        {tab === "published" && (
-          published === null ? <Loading />
-          : !published.length ? (
-            <Empty Icon={CheckCircle2} title="Nothing published yet"
-              body="Once you publish a release it appears here, and on your investor profile." />
-          ) : (
-            <div className="space-y-2.5">
-              {published.map((p) => {
-                const det = p.detected || {};
-                const pubs = p.publications || [];
-                const live = pubs.find((x) => x.destination_id === "passport" && x.status === "published");
-                return (
-                  <div key={p.id} className={`flex flex-wrap items-center gap-4 px-5 py-4 ${CARD}`}>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-[14.5px] font-extrabold tracking-tight text-slate-900">{det.headline || "Untitled release"}</p>
-                      <p className="mt-0.5 text-[12.5px] text-slate-400">{fmtDate(p.published_on)}</p>
-                    </div>
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-2.5 py-1 text-[11.5px] font-bold text-blue-600">
-                      <span className="h-1.5 w-1.5 rounded-full bg-blue-500" /> {live ? "Live on MineEx" : "Publishing…"}
-                    </span>
-                    {company?.slug && company?.status === "published" && (
-                      <a href={profileUrl(company.slug)} target="_blank" rel="noreferrer"
-                        className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-[13px] font-bold text-slate-700 transition hover:border-slate-300">
-                        <ExternalLink size={14} strokeWidth={2.4} /> View
-                      </a>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )
-        )}
-
-        {tab === "calendar" && (
-          <Empty Icon={CalendarIcon} title="Scheduling is coming"
-            body="You'll be able to prepare a release now and have MineEx publish it at a set time. It isn't available yet." />
-        )}
+      <div className="mt-6 flex max-w-[836px] flex-wrap gap-4">
+        <LaunchTile title="Draft Press Release" Icon={Sparkles}
+          body="Give MineEx the facts and it writes the release."
+          onClick={() => setTab("draft")} />
+        <LaunchTile title="Upload Press Release" Icon={Upload}
+          body="Upload a finished release and have it prepared."
+          onClick={() => setTab("create")} />
+        <LaunchTile title="Post Media" Icon={ImageIcon}
+          body="Publish photos and video to your MineEx media feed."
+          onClick={() => go("media")} />
       </div>
     </div>
   );
-}
-
-function Stat({ label, value, Icon, onClick, muted, note }) {
-  const Tag = onClick ? "button" : "div";
-  return (
-    <Tag onClick={onClick}
-      className={`flex items-center gap-3 px-4 py-3.5 text-left ${CARD} ${onClick ? "transition hover:border-slate-200 active:scale-[0.99]" : ""}`}>
-      <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl ${muted ? "bg-slate-50 text-slate-300" : "bg-blue-50 text-blue-600"}`}>
-        <Icon size={16} strokeWidth={2.4} />
-      </span>
-      <span className="min-w-0">
-        <span className={`block text-[20px] font-extrabold leading-none tracking-tight ${muted ? "text-slate-300" : "text-slate-900"}`}>{value}</span>
-        <span className="mt-1 block text-[11.5px] font-semibold text-slate-400">{note || label}</span>
-      </span>
-    </Tag>
-  );
-}
-
-function Loading() {
-  return <div className="grid place-items-center py-16"><Loader2 size={22} className="animate-spin text-blue-500" /></div>;
 }

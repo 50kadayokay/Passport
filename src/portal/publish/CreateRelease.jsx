@@ -9,11 +9,16 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   Upload, FileText, Loader2, CheckCircle2, AlertCircle, ArrowLeft, Check,
   Image as ImageIcon, ImageOff, Calendar as CalendarIcon, Send, Sparkles, Lock,
+  RefreshCw, Wand2, ChevronLeft, ChevronRight,
 } from "lucide-react";
 import { ingestRelease, INGEST_STATUS, EXTRACTION_METHOD, supportedKind, blocksReview } from "../../lib/ingestRelease.js";
-import { createDraft, saveDraft, getDraft, publishDraftToMineEx, validateForPublish } from "../../lib/publishDrafts.js";
+import { createDraft, saveDraft, getDraft, publishDraftToMineEx, validateForPublish, releasesForDocument } from "../../lib/publishDrafts.js";
 import { listMediaAssets, signedMediaUrl } from "../../lib/mediaAssets.js";
 import { previewability, sanitizeSelection } from "../../lib/imageSupport.js";
+import { profileUrl } from "../../lib/brand.js";
+import { waitForOutcome } from "../../lib/publishOutcome.js";
+import { listRevisions, reviseRelease, restoreRevision } from "../../lib/releaseRevisions.js";
+import { structureRelease, refineRelease } from "../../lib/structureReleases.js";
 
 const CARD = "rounded-2xl border border-slate-100 bg-white shadow-[0_1px_2px_rgba(15,23,42,.04),0_12px_26px_-20px_rgba(15,23,42,.4)]";
 const LABEL = "text-[10.5px] font-bold uppercase tracking-[0.16em] text-slate-400";
@@ -106,7 +111,7 @@ function Notice({ tone = "amber", title, body, children }) {
 
 /* ---------------------------------------------------------------- media tile */
 
-function MediaTile({ asset, selected, onToggle }) {
+function MediaTile({ asset, selected, onToggle, order = -1, total = 0, caption = "", onCaption, onMove }) {
   const [url, setUrl] = useState("");
   // Decided from the stored mime type, before anything is fetched or rendered.
   const { previewable, label: formatName, reason } = previewability(asset);
@@ -129,7 +134,7 @@ function MediaTile({ asset, selected, onToggle }) {
   // Not a button when it cannot be chosen - an inert tile, so the control cannot
   // be clicked, focused or submitted. The asset itself is untouched and still listed.
   const Tag = previewable ? "button" : "div";
-  return (
+  const tile = (
     <Tag {...(previewable ? { onClick: onToggle, type: "button" } : { "aria-disabled": true })}
       title={previewable ? undefined : reason}
       className={`group overflow-hidden rounded-2xl border text-left transition ${
@@ -160,6 +165,12 @@ function MediaTile({ asset, selected, onToggle }) {
             selected ? "border-blue-500 bg-blue-500 text-white" : "border-slate-300 bg-white/90 text-transparent"
           }`}><Check size={13} strokeWidth={3} /></span>
         )}
+        {/* Publication order — only meaningful once something is selected. */}
+        {selected && order >= 0 && (
+          <span className="absolute left-2 top-2 grid h-6 min-w-6 place-items-center rounded-full bg-slate-900/85 px-1.5 text-[11px] font-bold text-white">
+            {order + 1}
+          </span>
+        )}
       </span>
       <span className="block px-3 py-2">
         <span className={`block text-[12px] font-bold ${previewable ? "text-slate-700" : "text-slate-400"}`}>
@@ -173,6 +184,33 @@ function MediaTile({ asset, selected, onToggle }) {
       </span>
     </Tag>
   );
+
+  // The tile itself is a button, so the caption field and the reorder controls
+  // sit OUTSIDE it — nested interactive elements would toggle the selection on
+  // every keystroke.
+  if (!previewable || !selected) return tile;
+
+  return (
+    <div>
+      {tile}
+      <div className="mt-1.5 flex items-center gap-1">
+        <input
+          value={caption}
+          onChange={(e) => onCaption && onCaption(e.target.value)}
+          placeholder="Add a caption (optional)"
+          className="min-w-0 flex-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-[11.5px] text-slate-700 placeholder:text-slate-400 focus:border-blue-400 focus:outline-none"
+        />
+        <button onClick={() => onMove && onMove(-1)} disabled={order <= 0} aria-label="Move earlier"
+          className="grid h-7 w-7 shrink-0 place-items-center rounded-lg border border-slate-200 text-slate-500 transition hover:border-slate-300 disabled:opacity-30">
+          <ChevronLeft size={13} strokeWidth={2.6} />
+        </button>
+        <button onClick={() => onMove && onMove(1)} disabled={order < 0 || order >= total - 1} aria-label="Move later"
+          className="grid h-7 w-7 shrink-0 place-items-center rounded-lg border border-slate-200 text-slate-500 transition hover:border-slate-300 disabled:opacity-30">
+          <ChevronRight size={13} strokeWidth={2.6} />
+        </button>
+      </div>
+    </div>
+  );
 }
 
 /* ---------------------------------------------------------------- main */
@@ -184,7 +222,13 @@ export default function CreateRelease({ company, draftId, onExit, onPublished })
   const [ingest, setIngest] = useState(null);
   const [draft, setDraft] = useState(null);
   const [assets, setAssets] = useState([]);
-  const [picked, setPicked] = useState(() => new Set());
+  // An ORDERED list, not a Set: the company can reorder what investors see, and
+  // publication order is part of the review. `.includes()` on a handful of ids
+  // costs nothing and keeps the order the single source of truth.
+  const [picked, setPicked] = useState([]);
+  // Caption per asset id. Only what the company typed -- MineEx never invents a
+  // factual caption for a drill photo it cannot see.
+  const [captions, setCaptions] = useState({});
   const [headline, setHeadline] = useState("");
   const [text, setText] = useState("");
   const [date, setDate] = useState("");
@@ -192,6 +236,29 @@ export default function CreateRelease({ company, draftId, onExit, onPublished })
   const [busy, setBusy] = useState("");
   const [err, setErr] = useState("");
   const saveTimer = useRef(null);
+
+  // ---- AI summary --------------------------------------------------------
+  // `analysis` is the server's structured card (what happened, why it matters,
+  // key numbers, category). It is a SUGGESTION until the company publishes: it
+  // is stored on the draft so it survives a reload, and shown with Regenerate /
+  // Improve so it can be argued with rather than accepted.
+  const [analysis, setAnalysis] = useState(null);
+  const [aiBusy, setAiBusy] = useState("");
+  const [aiErr, setAiErr] = useState("");
+  const [instruction, setInstruction] = useState("");
+  const [shot, setShot] = useState(0);            // carousel position
+  // Prior releases built from the same source document (sha256 match).
+  const [dupes, setDupes] = useState([]);
+  const [dupeAck, setDupeAck] = useState(false);
+  // What the dispatcher has actually done, once published. Never assumed.
+  const [outcome, setOutcome] = useState(null);
+  const [publishedId, setPublishedId] = useState(null);
+  // Post-publish state: this release is already live, so text changes are
+  // CORRECTIONS (append a revision) and everything else is presentation.
+  const [revisions, setRevisions] = useState([]);
+  const [pubId, setPubId] = useState(null);
+  const [reviseBusy, setReviseBusy] = useState("");
+  const [reviseMsg, setReviseMsg] = useState("");
 
   // Reopen an existing draft.
   useEffect(() => {
@@ -203,6 +270,22 @@ export default function CreateRelease({ company, draftId, onExit, onPublished })
       const det = d.detected || {};
       setHeadline(det.headline || ""); setText(d.body || ""); setDate(d.published_on || "");
       setIngest({ status: det.ingest_status || INGEST_STATUS.OK, warnings: det.warnings || [] });
+      setAnalysis(det.analysis || null);
+
+      // A published release opens in correction mode, not publish mode.
+      if (d.status === "published") {
+        try {
+          const h = await import("../../lib/supabase.js");
+          const auth = await import("../../lib/auth.js");
+          const hh = await auth.authHeaders();
+          const pr = await fetch(
+            `${h.SUPABASE_URL}/rest/v1/publications?update_id=eq.${d.id}&destination_id=eq.passport&select=id&limit=1`,
+            { headers: hh });
+          const prows = pr.ok ? await pr.json().catch(() => []) : [];
+          const pid = prows[0] && prows[0].id;
+          if (pid) { setPubId(pid); setRevisions(await listRevisions(pid)); }
+        } catch { /* correction UI simply will not offer itself */ }
+      }
       let list = [];
       if (det.document_id) {
         list = await listMediaAssets(companyId, { sourceDocumentId: det.document_id });
@@ -212,7 +295,8 @@ export default function CreateRelease({ company, draftId, onExit, onPublished })
       // id of an asset no browser can display. Publishing that is a silent failure:
       // the release goes out referencing an image investors never see. Sanitise on
       // load as well as on click, so the stored selection can only shrink to valid.
-      setPicked(new Set(sanitizeSelection(det.selected_asset_ids || [], list)));
+      setPicked(sanitizeSelection(det.selected_asset_ids || [], list));
+      setCaptions(det.asset_captions && typeof det.asset_captions === "object" ? det.asset_captions : {});
       setPhase("review");
     })();
   }, [draftId, companyId]);
@@ -266,6 +350,16 @@ export default function CreateRelease({ company, draftId, onExit, onPublished })
         if (hit) hit.__source = { extraction_meta: (res.assetsMeta && res.assetsMeta[i]) || {} };
       });
       setAssets(list);
+
+      // The document row is deduplicated by sha256 upstream, so a re-upload of
+      // the same bytes lands on the same document id — which is exactly how we
+      // find a previous release built from it.
+      if (res.document && res.document.id) {
+        releasesForDocument(companyId, res.document.id, created && created.id)
+          .then((prior) => setDupes(prior))
+          .catch(() => {});
+      }
+
       setPhase("review");
     } catch (e) {
       setErr(e.message || "Something went wrong preparing that release.");
@@ -273,26 +367,135 @@ export default function CreateRelease({ company, draftId, onExit, onPublished })
     }
   }
 
-  const toggle = (id) => setPicked((s) => {
+  const toggle = (id) => setPicked((cur) => {
     // The tile for an unsupported asset is not a button, so this should be
     // unreachable. Enforced here anyway: the UI is presentation, and the rule about
     // what may be published belongs with the state that gets saved.
-    if (!sanitizeSelection([id], assets).length) return s;
-    const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id);
-    queueSave({ detectedPatch: { selected_asset_ids: [...n] } });
-    return n;
+    if (!sanitizeSelection([id], assets).length) return cur;
+    const next = cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id];
+    queueSave({ detectedPatch: { selected_asset_ids: next } });
+    return next;
   });
+
+  /** Move a selected image one place earlier or later in publication order. */
+  const move = (id, delta) => setPicked((cur) => {
+    const i = cur.indexOf(id);
+    const j = i + delta;
+    if (i === -1 || j < 0 || j >= cur.length) return cur;
+    const next = [...cur];
+    next[i] = next[j];
+    next[j] = id;
+    queueSave({ detectedPatch: { selected_asset_ids: next } });
+    return next;
+  });
+
+  const setCaption = (id, value) => setCaptions((cur) => {
+    const next = { ...cur, [id]: value };
+    queueSave({ detectedPatch: { asset_captions: next } });
+    return next;
+  });
+
+  // Generate, regenerate and improve are ONE path: a first run has no `analysis`
+  // to revise, so it extracts; after that every run refines what is on screen,
+  // with or without a written instruction. That is why regenerating does not
+  // throw away a summary the company has been working on -- it revises it.
+  // The summary is MineEx's rendering of the release, and the company owns it:
+  // the brief requires it be editable before publishing. Edits write into the
+  // same `analysis` object the model produced, so a later Regenerate replaces
+  // them knowingly rather than silently discarding hand-written text somewhere
+  // else. Persisted through the normal draft save.
+  function editCard(field, value) {
+    setAnalysis((a) => {
+      if (!a) return a;
+      const next = { ...a, card: { ...(a.card || {}), [field]: value } };
+      queueSave({ detectedPatch: { analysis: next, summary: next.card.whatHappened || "" } });
+      return next;
+    });
+  }
+
+  async function runSummary(mode) {
+    const body = String(text || "").trim();
+    if (!body) { setAiErr("There is no release text to summarise yet."); return; }
+    setAiErr("");
+    setAiBusy(mode === "extract" ? "Reading the release…" : mode === "improve" ? "Applying your notes…" : "Rewriting…");
+    try {
+      const context = { companyName: company?.name || "", companySlug: company?.slug || "" };
+      const next = (mode === "extract" || !analysis)
+        ? await structureRelease({ text: body }, context)
+        : await refineRelease(analysis, mode === "improve" ? instruction : "", body, context);
+      if (!next) throw new Error("No summary came back.");
+      setAnalysis(next);
+      setShot(0);
+      if (mode === "improve") setInstruction("");
+      // Persist the card AND the category: the library filters by
+      // `detected.category`, so a summarised release becomes filterable at once.
+      const card = next.card || {};
+      queueSave({ detectedPatch: {
+        analysis: next,
+        summary: card.whatHappened || "",
+        category: card.category || "",
+      } });
+    } catch (e) {
+      setAiErr(e.message || "Could not generate the summary.");
+    } finally {
+      setAiBusy("");
+    }
+  }
+
+  // Correcting a LIVE release. Appends a revision and emits PUBLICATION_REVISED,
+  // which updates the feed post, the timeline entry and MineIQ in place. It does
+  // not notify anyone -- the notification listeners are not subscribed to that
+  // event, in the database and in code.
+  async function saveCorrection() {
+    if (!pubId || reviseBusy) return;
+    setReviseBusy("Saving correction…"); setReviseMsg(""); setErr("");
+    try {
+      const out = await reviseRelease({ publicationId: pubId, headline, body: text, reason: null });
+      setRevisions(await listRevisions(pubId));
+      setReviseMsg(out.unchanged
+        ? "No change to the release text — nothing was recorded."
+        : `Saved as revision ${out.revision}. The feed and your profile timeline update in place; followers are not notified.`);
+    } catch (e) {
+      setErr(e.message || "Could not save the correction.");
+    } finally { setReviseBusy(""); }
+  }
+
+  async function onRestore(rev) {
+    if (!pubId || reviseBusy) return;
+    setReviseBusy(`Restoring revision ${rev.revision}…`); setReviseMsg(""); setErr("");
+    try {
+      const out = await restoreRevision({ publicationId: pubId, revision: rev });
+      setText(rev.body); setHeadline(rev.headline || "");
+      setRevisions(await listRevisions(pubId));
+      setReviseMsg(out.unchanged
+        ? "That is already the current text."
+        : `Restored as revision ${out.revision} — history is kept, nothing was deleted.`);
+    } catch (e) {
+      setErr(e.message || "Could not restore that revision.");
+    } finally { setReviseBusy(""); }
+  }
 
   async function publish() {
     setErr(""); setBusy("Publishing…");
     try {
       const fresh = { ...(draft || {}), body: text, published_on: date || null,
-                      detected: { ...((draft && draft.detected) || {}), headline, selected_asset_ids: [...picked] } };
+                      detected: { ...((draft && draft.detected) || {}), headline, selected_asset_ids: picked, asset_captions: captions } };
       const problems = validateForPublish(fresh);
       if (problems.length) { setErr(problems[0]); setBusy(""); return; }
-      await saveDraft(draft.id, { headline, text, releaseDate: date, detectedPatch: { selected_asset_ids: [...picked] } });
-      await publishDraftToMineEx(companyId, { ...fresh, id: draft.id });
-      onPublished && onPublished();
+      await saveDraft(draft.id, { headline, text, releaseDate: date, detectedPatch: { selected_asset_ids: picked, asset_captions: captions } });
+      const out = await publishDraftToMineEx(companyId, { ...fresh, id: draft.id });
+
+      // The release IS published at this point — that is the authoritative fact.
+      // Everything downstream (feed post, follower notifications, MineIQ) runs in
+      // the dispatcher afterwards, so we watch for it rather than claiming it.
+      setPublishedId(out && out.publicationId);
+      setBusy("");
+      setPhase("published");
+      waitForOutcome({
+        companyId,
+        publicationId: out && out.publicationId,
+        onTick: setOutcome,
+      }).catch(() => {});
     } catch (e) {
       setErr(e.message || "Could not publish.");
       setBusy("");
@@ -304,8 +507,8 @@ export default function CreateRelease({ company, draftId, onExit, onPublished })
     return (
       <div>
         <Back onExit={onExit} />
-        <h1 className="text-[27px] font-extrabold leading-tight tracking-tight text-slate-900">Create publication</h1>
-        <p className="mt-1.5 text-[15px] text-slate-500">Upload your press release and MineEx will prepare it for investors.</p>
+        <h1 className="text-[27px] font-extrabold leading-tight tracking-tight text-slate-900">Upload a Press Release</h1>
+        <p className="mt-1.5 text-[15px] text-slate-500">Upload an existing press release and MineEx will prepare it for your company profile.</p>
 
         {err && <div className="mt-5"><Notice tone="rose" title="That didn't work" body={err} /></div>}
 
@@ -318,8 +521,8 @@ export default function CreateRelease({ company, draftId, onExit, onPublished })
           }`}>
           <span className="grid h-14 w-14 place-items-center rounded-2xl bg-white text-slate-400 shadow-sm"><Upload size={24} strokeWidth={2.2} /></span>
           <span className="mt-4 text-[19px] font-extrabold tracking-tight text-slate-900">Drop your press release here</span>
-          <span className="mt-1.5 text-[13.5px] text-slate-500">PDF or Word document — or <span className="font-bold text-blue-600">browse files</span></span>
-          <input type="file" accept="application/pdf,.pdf,.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+          <span className="mt-1.5 text-[13.5px] text-slate-500">PDF, Word or plain text — or <span className="font-bold text-blue-600">browse files</span></span>
+          <input type="file" accept="application/pdf,.pdf,.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.txt,text/plain"
             className="hidden" onChange={(e) => { handleFile(e.target.files && e.target.files[0]); e.target.value = ""; }} />
         </label>
       </div>
@@ -359,6 +562,83 @@ export default function CreateRelease({ company, draftId, onExit, onPublished })
   }
 
   /* ---------------- review ---------------- */
+  // ---- PUBLISHED -----------------------------------------------------------
+  // Reports ONLY what has been observed. A tick means a row was found; anything
+  // still in flight says so. Device push is absent on purpose: the publish path
+  // writes in-app notifications, and no device push is sent from here.
+  if (phase === "published") {
+    const o = outcome || {};
+    const Row = ({ state, done, pending, unknown }) => {
+      const Icon = state === true ? CheckCircle2 : state === null ? AlertCircle : Loader2;
+      const tone = state === true ? "text-emerald-600" : state === null ? "text-slate-400" : "text-slate-400";
+      return (
+        <li className="flex items-start gap-2.5">
+          <Icon size={16} className={`mt-0.5 shrink-0 ${tone} ${state === false ? "animate-spin" : ""}`} />
+          <span className="text-[13.5px] leading-snug text-slate-700">
+            {state === true ? done : state === null ? unknown : pending}
+          </span>
+        </li>
+      );
+    };
+
+    return (
+      <div className="mx-auto max-w-[620px]">
+        <Back onExit={onExit} />
+        <div className={`p-7 ${CARD}`}>
+          <span className="grid h-11 w-11 place-items-center rounded-2xl bg-emerald-50 text-emerald-600">
+            <CheckCircle2 size={22} strokeWidth={2.2} />
+          </span>
+          <h1 className="mt-4 text-[22px] font-extrabold tracking-tight text-slate-900">Published</h1>
+          <p className="mt-1.5 text-[14px] leading-relaxed text-slate-500">
+            {headline || "Your release"} is live on your MineEx profile.
+          </p>
+
+          <ul className="mt-5 space-y-2.5 border-t border-slate-100 pt-5">
+            <Row state={o.live}
+              done="Live on your MineEx Pro profile"
+              pending="Confirming publication…"
+              unknown="Could not confirm publication status" />
+            <Row state={o.post === true ? true : o.post}
+              done="Added to the investor feed"
+              pending="Adding to the investor feed…"
+              unknown="Could not confirm the feed entry" />
+            {/* A separate surface from the feed, and separately confirmed. */}
+            <Row state={o.timeline}
+              done="Placed on your Pro Profile timeline at the release date"
+              pending="Adding to your Pro Profile timeline…"
+              unknown="Could not confirm the timeline entry" />
+            <Row state={typeof o.notified === "number" ? o.notified > 0 : o.notified}
+              done={`${o.notified} follower${o.notified === 1 ? "" : "s"} notified in the app`}
+              pending="Notifying followers…"
+              unknown="Could not confirm follower notifications" />
+            <Row state={typeof o.mineiq === "number" ? o.mineiq > 0 : o.mineiq}
+              done={`MineIQ learned ${o.mineiq} fact${o.mineiq === 1 ? "" : "s"} from this release`}
+              pending="Adding to your MineIQ knowledge…"
+              unknown="Could not confirm MineIQ ingestion" />
+          </ul>
+
+          <p className="mt-4 border-t border-slate-100 pt-4 text-[11.5px] leading-relaxed text-slate-400">
+            Anything still in progress finishes on its own — the release is published either way.
+            Followers are notified inside the MineEx app; no device push notification is sent from here yet.
+          </p>
+
+          <div className="mt-5 flex flex-wrap gap-2">
+            <button onClick={() => { onPublished && onPublished(); }}
+              className="rounded-xl bg-slate-900 px-4 py-2.5 text-[13.5px] font-bold text-white transition hover:bg-slate-800">
+              Back to Press Releases
+            </button>
+            {company?.slug && company?.status === "published" && (
+              <a href={profileUrl(company.slug)} target="_blank" rel="noreferrer"
+                className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-[13.5px] font-bold text-slate-700 transition hover:border-slate-300">
+                View profile
+              </a>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const note = ingest && ingest.status && ingest.status !== INGEST_STATUS.OK ? STATUS_NOTE[ingest.status] : null;
   const dateMissing = !date;
   const problems = validateForPublish({ ...(draft || {}), body: text, published_on: date || null, detected: { headline } });
@@ -374,11 +654,27 @@ export default function CreateRelease({ company, draftId, onExit, onPublished })
           <h1 className="mt-3 text-[27px] font-extrabold leading-tight tracking-tight text-slate-900">Review your release</h1>
           <p className="mt-1.5 text-[15px] text-slate-500">Here's what MineEx prepared. Edit anything before you publish.</p>
         </div>
-        <button onClick={publish} disabled={!!busy || problems.length > 0}
+        {draft && draft.status === "published" && pubId ? (
+          /* ALREADY LIVE. Text changes are corrections, not a re-publish: they
+             append a revision and update the existing feed post and timeline
+             entry in place. Publishing again would be a second announcement. */
+          <span className="inline-flex flex-col items-stretch gap-2">
+            <button onClick={saveCorrection} disabled={!!reviseBusy}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-5 py-3 text-[14px] font-bold text-white transition hover:bg-slate-800 disabled:bg-slate-200 disabled:text-slate-400">
+              {reviseBusy ? <Loader2 size={16} className="animate-spin" /> : <Check size={15} strokeWidth={2.4} />}
+              {reviseBusy || "Save correction"}
+            </button>
+            <span className="max-w-[260px] text-[11px] leading-relaxed text-slate-400">
+              Appends a new revision. The feed and your timeline update in place — followers are not notified.
+            </span>
+          </span>
+        ) : (
+          <button onClick={publish} disabled={!!busy || problems.length > 0}
           title={problems[0] || undefined}
           className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-5 py-3 text-[14px] font-bold text-white transition hover:bg-slate-800 disabled:opacity-40">
           {busy ? <Loader2 size={16} className="animate-spin" /> : <Send size={15} strokeWidth={2.4} />} Publish to MineEx
         </button>
+        )}
       </div>
 
       {note && (
@@ -397,6 +693,31 @@ export default function CreateRelease({ company, draftId, onExit, onPublished })
         </div>
       )}
       {err && <div className="mt-5"><Notice tone="rose" title="Couldn't publish" body={err} /></div>}
+
+      {dupes.length > 0 && !dupeAck && (
+        <div className="mt-5 flex flex-wrap items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4">
+          <AlertCircle size={19} className="mt-0.5 shrink-0 text-amber-600" />
+          <div className="min-w-0 flex-1">
+            <p className="text-[14px] font-bold text-amber-900">This release looks like one you've already uploaded</p>
+            <p className="mt-0.5 text-[13px] leading-relaxed text-amber-800">
+              The same file was used for{" "}
+              {dupes.slice(0, 2).map((d, i) => (
+                <span key={d.id}>
+                  {i > 0 && " and "}
+                  <span className="font-semibold">{d.headline}</span>
+                  {d.publishedOn ? ` (${String(d.publishedOn).slice(0, 10)})` : ""}
+                </span>
+              ))}
+              {dupes.length > 2 ? ` and ${dupes.length - 2} more` : ""}. Publishing again will create a second
+              release — which is right for a correction, and probably not otherwise.
+            </p>
+          </div>
+          <button onClick={() => setDupeAck(true)}
+            className="shrink-0 rounded-xl border border-amber-300 bg-white px-3.5 py-2 text-[12.5px] font-bold text-amber-800 transition hover:border-amber-400">
+            Continue anyway
+          </button>
+        </div>
+      )}
 
       <div className="mt-6 grid grid-cols-1 gap-5 lg:grid-cols-[1fr_320px]">
         {/* ---- release ---- */}
@@ -417,7 +738,7 @@ export default function CreateRelease({ company, draftId, onExit, onPublished })
                   Kingsmen release that is 2,977 of 10,490 characters. Calling this
                   the full release asserted something untrue. The Phase 2
                   verification UI replaces this with a real accounting. */}
-              <span className={LABEL}>Release body</span>
+              <span className={LABEL}>Full Release</span>
               <span className="text-[11.5px] text-slate-400">{text.length.toLocaleString()} characters</span>
             </div>
             <textarea value={text} rows={18}
@@ -425,19 +746,115 @@ export default function CreateRelease({ company, draftId, onExit, onPublished })
               placeholder="The body of your press release"
               className="mt-2 w-full resize-y rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-[13.5px] leading-relaxed text-slate-700 outline-none transition focus:border-blue-400" />
             <p className="mt-2 text-[11.5px] leading-relaxed text-slate-400">
-              Prepared from the uploaded release. The original file is preserved unchanged.
+              This is the source-faithful version investors read in full. It came from your uploaded file, which is
+              preserved unchanged — editing here never alters the original document.
             </p>
           </div>
 
-          {/* The place AI summary will live. Deliberately not wired. */}
+          {/* ---- Investor summary ------------------------------------------
+              Was a placeholder ("Not available yet"). The engine behind it --
+              /api/structure-release, extract + refine -- already existed and was
+              simply never called from here. */}
           <div className={`p-6 ${CARD}`}>
-            <div className="flex items-center gap-2">
-              <Sparkles size={15} strokeWidth={2.4} className="text-slate-300" />
-              <span className={LABEL}>Investor summary &amp; highlights</span>
+            <div className="flex flex-wrap items-center gap-2">
+              <Sparkles size={15} strokeWidth={2.4} className={analysis ? "text-blue-500" : "text-slate-300"} />
+              <span className={LABEL}>MineEx Summary</span>
+              {analysis && (
+                <span className="ml-auto flex gap-1.5">
+                  <button onClick={() => runSummary("regenerate")} disabled={!!aiBusy}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-[12px] font-bold text-slate-600 transition hover:border-slate-300 disabled:opacity-50">
+                    <RefreshCw size={12} strokeWidth={2.4} className={aiBusy === "Rewriting…" ? "animate-spin" : ""} /> Regenerate
+                  </button>
+                </span>
+              )}
             </div>
-            <p className="mt-2 text-[13px] leading-relaxed text-slate-400">
-              MineEx will draft a plain-English summary and the key highlights from this release, for you to edit and approve. Not available yet.
-            </p>
+
+            {!analysis && !aiBusy && (
+              <>
+                <p className="mt-2 text-[13px] leading-relaxed text-slate-500">
+                  MineEx will draft a plain-English summary and the key figures from this release. Nothing is
+                  published until you approve it.
+                </p>
+                <button onClick={() => runSummary("extract")} disabled={!String(text || "").trim()}
+                  className="mt-4 inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-[13px] font-bold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400">
+                  <Sparkles size={15} strokeWidth={2.4} /> Generate summary
+                </button>
+              </>
+            )}
+
+            {aiBusy && (
+              <div className="mt-4 flex items-center gap-2.5 text-[13px] font-semibold text-slate-500">
+                <Loader2 size={15} className="animate-spin text-blue-500" /> {aiBusy}
+              </div>
+            )}
+
+            {aiErr && (
+              <p className="mt-3 rounded-xl bg-rose-50 px-3.5 py-2.5 text-[12.5px] font-semibold text-rose-600">{aiErr}</p>
+            )}
+
+            {analysis && !aiBusy && (
+              <div className="mt-4 space-y-4">
+                {(analysis.card?.category || "") && (
+                  <span className="inline-block rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-bold text-blue-600">
+                    {analysis.card.category}
+                  </span>
+                )}
+                <div>
+                  <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">What happened</p>
+                  <textarea value={analysis.card?.whatHappened || ""} rows={2}
+                    onChange={(e) => editCard("whatHappened", e.target.value)}
+                    placeholder="One sentence: what the company announced"
+                    className="mt-1 w-full resize-y rounded-lg border border-transparent bg-transparent px-2 py-1.5 -mx-2 text-[13.5px] leading-relaxed text-slate-700 outline-none transition hover:border-slate-200 focus:border-blue-400 focus:bg-white" />
+                </div>
+                <div>
+                  <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Why it matters</p>
+                  <textarea value={analysis.card?.whyItMatters || ""} rows={3}
+                    onChange={(e) => editCard("whyItMatters", e.target.value)}
+                    placeholder="Investor relevance, from the release only"
+                    className="mt-1 w-full resize-y rounded-lg border border-transparent bg-transparent px-2 py-1.5 -mx-2 text-[13.5px] leading-relaxed text-slate-700 outline-none transition hover:border-slate-200 focus:border-blue-400 focus:bg-white" />
+                </div>
+                {Array.isArray(analysis.card?.keyNumbers) && analysis.card.keyNumbers.length > 0 && (
+                  <div>
+                    <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Key figures</p>
+                    <ul className="mt-1.5 space-y-1">
+                      {analysis.card.keyNumbers.map((n, i) => (
+                        <li key={i} className="flex gap-2 text-[13px] leading-relaxed text-slate-700">
+                          <span className="mt-[7px] h-1 w-1 shrink-0 rounded-full bg-slate-300" />{n}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {analysis.card?.whatHappensNext && (
+                  <div>
+                    <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">What happens next</p>
+                    <p className="mt-1 text-[13.5px] leading-relaxed text-slate-700">{analysis.card.whatHappensNext}</p>
+                  </div>
+                )}
+
+                {/* The images from this release, swipeable — the same left/right
+                    stepping the app's project carousel uses. */}
+                <SummaryCarousel assets={assets} picked={picked} shot={shot} setShot={setShot} />
+
+                {/* Improve: the company tells it what to change, in their words. */}
+                <div className="border-t border-slate-100 pt-4">
+                  <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Ask for a change</p>
+                  <textarea value={instruction} rows={2}
+                    onChange={(e) => setInstruction(e.target.value)}
+                    placeholder="e.g. Lead with the drill grades, and keep it to two sentences."
+                    className="mt-2 w-full resize-y rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-[13px] leading-relaxed text-slate-700 outline-none transition focus:border-blue-400" />
+                  <button onClick={() => runSummary("improve")} disabled={!instruction.trim() || !!aiBusy}
+                    className="mt-2 inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-[13px] font-bold text-slate-700 transition hover:border-slate-300 disabled:cursor-not-allowed disabled:text-slate-300">
+                    <Wand2 size={14} strokeWidth={2.4} /> Improve
+                  </button>
+                </div>
+
+                <p className="text-[11.5px] leading-relaxed text-slate-400">
+                  Generated from your uploaded release. Review and edit before publishing — this is a suggestion,
+                  not a fact-check.
+                </p>
+              </div>
+            )}
           </div>
         </div>
 
@@ -463,7 +880,7 @@ export default function CreateRelease({ company, draftId, onExit, onPublished })
           <div className={`p-6 ${CARD}`}>
             <div className="flex items-baseline justify-between">
               <span className={LABEL}>Media</span>
-              {assets.length > 0 && <span className="text-[11.5px] text-slate-400">{picked.size} of {assets.length} selected</span>}
+              {assets.length > 0 && <span className="text-[11.5px] text-slate-400">{picked.length} of {assets.length} selected</span>}
             </div>
             {!assets.length ? (
               <p className="mt-3 text-[13px] leading-relaxed text-slate-400">No images were found in this release.</p>
@@ -472,12 +889,54 @@ export default function CreateRelease({ company, draftId, onExit, onPublished })
                 <p className="mt-1.5 text-[12.5px] leading-relaxed text-slate-500">Choose what to show investors. Nothing is included until you pick it.</p>
                 <div className="mt-3 grid grid-cols-2 gap-2.5">
                   {assets.map((a) => (
-                    <MediaTile key={a.id} asset={a} selected={picked.has(a.id)} onToggle={() => toggle(a.id)} />
+                    <MediaTile key={a.id} asset={a} selected={picked.includes(a.id)} onToggle={() => toggle(a.id)}
+                      order={picked.indexOf(a.id)} total={picked.length}
+                      caption={captions[a.id] || ""} onCaption={(v) => setCaption(a.id, v)}
+                      onMove={(d) => move(a.id, d)} />
                   ))}
                 </div>
               </>
             )}
           </div>
+
+          {reviseMsg && (
+            <div className="rounded-xl bg-blue-50 px-4 py-3 text-[12.5px] font-semibold leading-relaxed text-blue-800">
+              {reviseMsg}
+            </div>
+          )}
+
+          {revisions.length > 0 && (
+            <div className={`p-6 ${CARD}`}>
+              <span className={LABEL}>Revision history</span>
+              <p className="mt-2 text-[12px] leading-relaxed text-slate-400">
+                What was published, and when. Nothing here is ever deleted — restoring an earlier version
+                appends a new revision rather than rewinding.
+              </p>
+              <ul className="mt-3 space-y-2">
+                {revisions.map((r, i) => (
+                  <li key={r.id} className="flex items-center gap-2.5 rounded-xl border border-slate-100 px-3 py-2">
+                    <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-slate-100 text-[11px] font-bold text-slate-600">
+                      {r.revision}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[12.5px] font-semibold text-slate-700">
+                        {i === 0 ? "Current" : r.reason || `Revision ${r.revision}`}
+                      </span>
+                      <span className="block text-[11px] text-slate-400">
+                        {new Date(r.created_at).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" })}
+                      </span>
+                    </span>
+                    {i > 0 && (
+                      <button onClick={() => onRestore(r)} disabled={!!reviseBusy}
+                        className="shrink-0 rounded-lg border border-slate-200 px-2.5 py-1 text-[11.5px] font-bold text-slate-600 transition hover:border-slate-300 disabled:opacity-40">
+                        Restore
+                      </button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           {/* Destination architecture is real; only MineEx is functional. */}
           <div className={`p-6 ${CARD}`}>
@@ -498,6 +957,81 @@ export default function CreateRelease({ company, draftId, onExit, onPublished })
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * The release's own images, stepped one at a time.
+ *
+ * Shows the SELECTED images when the company has picked some (those are the ones
+ * investors will see), and otherwise everything extracted from the document, so
+ * the carousel is never empty just because nothing has been ticked yet.
+ *
+ * Signed URLs, like every other image surface in the portal: these assets are
+ * private and have no public URL by design.
+ */
+function SummaryCarousel({ assets, picked, shot, setShot }) {
+  const shown = React.useMemo(() => {
+    const all = (assets || []).filter((a) => a && a.previewable);
+    const sel = all.filter((a) => picked && picked.includes(a.id));
+    return sel.length ? sel : all;
+  }, [assets, picked]);
+
+  const [urls, setUrls] = React.useState({});
+  React.useEffect(() => {
+    let ok = true;
+    shown.forEach((a) => {
+      if (!a.storage_path || urls[a.id]) return;
+      signedMediaUrl(a.storage_path).then((u) => {
+        if (ok && u) setUrls((m) => ({ ...m, [a.id]: u }));
+      });
+    });
+    return () => { ok = false; };
+  }, [shown]);   // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (!shown.length) return null;
+
+  const i = Math.min(shot, shown.length - 1);
+  const cur = shown[i];
+  const step = (d) => setShot((n) => (n + d + shown.length) % shown.length);
+
+  return (
+    <div>
+      <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">
+        Images from this release
+      </p>
+      <div className="relative mt-2 overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+        <div className="aspect-[16/10] w-full">
+          {urls[cur.id] ? (
+            <img src={urls[cur.id]} alt="" className="h-full w-full object-contain" />
+          ) : (
+            <div className="grid h-full w-full place-items-center"><Loader2 size={18} className="animate-spin text-slate-300" /></div>
+          )}
+        </div>
+
+        {shown.length > 1 && (
+          <>
+            <button onClick={() => step(-1)} aria-label="Previous image"
+              className="absolute left-2 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-full bg-white/90 text-slate-600 shadow-sm transition hover:bg-white">
+              <ChevronLeft size={16} strokeWidth={2.4} />
+            </button>
+            <button onClick={() => step(1)} aria-label="Next image"
+              className="absolute right-2 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-full bg-white/90 text-slate-600 shadow-sm transition hover:bg-white">
+              <ChevronRight size={16} strokeWidth={2.4} />
+            </button>
+            <div className="absolute bottom-2 left-1/2 flex -translate-x-1/2 gap-1.5">
+              {shown.map((a, n) => (
+                <button key={a.id} onClick={() => setShot(n)} aria-label={`Image ${n + 1}`}
+                  className={`h-1.5 rounded-full transition-all ${n === i ? "w-4 bg-slate-700" : "w-1.5 bg-slate-300 hover:bg-slate-400"}`} />
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+      {shown.length > 1 && (
+        <p className="mt-1.5 text-[11.5px] text-slate-400">{i + 1} of {shown.length}</p>
+      )}
     </div>
   );
 }

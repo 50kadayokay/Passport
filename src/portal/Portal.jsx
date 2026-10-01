@@ -5,18 +5,18 @@ import {
   ScrollText, CreditCard, Settings as SettingsIcon, ExternalLink, LogOut,
   ChevronDown, ChevronRight, CheckCircle2, AlertCircle, ArrowRight, Sparkles, Loader2,
   Plus, Trash2, Clock, TrendingUp, FileText, Radio as RadioIcon, Check, ArrowLeft,
-  Megaphone, QrCode, HelpCircle, Copy, Download, Eye, Upload, Send,
+  Megaphone, QrCode, HelpCircle, Copy, Download, Eye, Upload, Send, Mail, Bell,
+  Presentation, Brain,
 } from "lucide-react";
 import { getUser, signOut, authHeaders, updatePassword, updateEmail } from "../lib/auth.js";
 import { profileUrl, companyLogo, companyMonogram, placardLogo } from "../lib/brand.js";
 import { buildPlacardSvg, splitQrSvg, CARD_W, CARD_H, PLACARD_FONT } from "../lib/qrPlacard.js";
 import {
   portalReadiness, listActivity, loadPortalCompany, updateCompanyProfile,
-  companyStats, logActivity, fetchRecentContent,
+  logActivity,
 } from "../lib/portal.js";
 import { fetchPlan, fetchFeatures } from "../lib/features.js";
 import { uploadCompanyLogo } from "../lib/storage.js";
-import { computeHealth } from "./health.js";
 import { visibleProfileSections } from "./profileNav.js";
 import OnboardingPanel from "./OnboardingPanel.jsx";
 import { MineExLockup, CompanyMark } from "./BrandMarks.jsx";
@@ -25,10 +25,15 @@ import { MineExLockup, CompanyMark } from "./BrandMarks.jsx";
 // loaded so the portal shell stays lean:
 const CommsCenter = React.lazy(() => import("../console/CommsCenter.jsx"));  // legacy multi-channel composer (still routed at `press`)
 const Publish     = React.lazy(() => import("./publish/Publish.jsx"));       // Publish workspace: create / drafts / published
-const Documents   = React.lazy(() => import("./Documents.jsx"));             // Organized Media Library
 const Onboarding  = React.lazy(() => import("../Onboarding.jsx"));           // Profile builder (create/onboard)
 const ProfileEditor = React.lazy(() => import("./ProfileEditor.jsx"));       // pp-direct editor (edit existing, 1:1 with app)
-const MediaComposer = React.lazy(() => import("./MediaComposer.jsx"));       // publish a photo/video to the media feed
+const Messages      = React.lazy(() => import("./Messages.jsx"));            // investor inbox (the company side of 0014 messaging)
+const Analytics     = React.lazy(() => import("./Analytics.jsx"));           // engagement reporting (0048 aggregates)
+const MediaPage     = React.lazy(() => import("./MediaPage.jsx"));           // media cubes + composer (supersedes MediaComposer)
+const Notifications = React.lazy(() => import("./Notifications.jsx"));      // follows + likes (0049)
+const Conference    = React.lazy(() => import("./Conference.jsx"));         // iPad booth: launch + status
+const MineIQ        = React.lazy(() => import("./MineIQ.jsx"));             // company memory, searchable
+const Services      = React.lazy(() => import("./Services.jsx"));           // MineEx services
 
 // The Company Portal shell. ONE app; the resolved company arrives from PortalGate.
 // Every navigation item is a real page: Home, Broadcast, Company Profile, Media,
@@ -44,10 +49,17 @@ const NAV_GROUPS = [
     { id: "home",      label: "Home",            Icon: HomeIcon },
     { id: "profile",   label: "Company Profile", Icon: Building2 },
     { id: "publish",   label: "Publish",         Icon: Send },
+    { id: "releases",  label: "Press Releases",  Icon: Megaphone },
     { id: "media",     label: "Media",           Icon: ImageIcon },
+    { id: "messages",  label: "Messages",        Icon: Mail },
+    { id: "notifications", label: "Notifications", Icon: Bell },
+    { id: "analytics", label: "Analytics",       Icon: BarChart3 },
+    { id: "conference", label: "Conference Mode", Icon: Presentation },
+    { id: "mineiq",    label: "Mine IQ",         Icon: Brain },
     { id: "share",     label: "QR & Share",      Icon: QrCode },
   ] },
   { title: "Account", items: [
+    { id: "services",  label: "Services",        Icon: Sparkles },
     { id: "billing",   label: "Billing",         Icon: CreditCard },
     { id: "settings",  label: "Settings",        Icon: SettingsIcon },
   ] },
@@ -76,6 +88,27 @@ export default function Portal({ company: initial, switchCompany, adminMode = fa
   const [profStep, setProfStep] = useState(0);
   const goProfile = (tab, stepIndex) => { setSection("profile"); setProfTab(tab); setProfStep(stepIndex); };
 
+  // The notification badge. Lives here rather than in the Notifications page so
+  // the count shows on every screen, not only the one that already shows it.
+  // Silently 0 when 0049 is not applied -- a badge is not the place to explain
+  // a missing migration; the page itself says so.
+  const [notifCount, setNotifCount] = useState(0);
+  useEffect(() => {
+    let alive = true;
+    if (!initial.id) return undefined;
+    const tick = async () => {
+      const m = await import("../lib/companyNotifications.js");
+      const [rows, seen] = await Promise.all([
+        m.listCompanyNotifications(initial.id),
+        m.companyLastSeenAt(initial.id),
+      ]);
+      if (alive) setNotifCount(m.companyUnreadCount(rows, seen));
+    };
+    tick();
+    const t = setInterval(tick, 60000);
+    return () => { alive = false; clearInterval(t); };
+  }, [initial.id]);
+
   // Hydrate the full record (with profile JSON) once; PortalGate only passed the lean row.
   useEffect(() => {
     let alive = true;
@@ -92,7 +125,7 @@ export default function Portal({ company: initial, switchCompany, adminMode = fa
   return (
     <div className="flex min-h-[100dvh] bg-white text-slate-900">
       <Sidebar section={section} setSection={setSection} company={company} switchCompany={switchCompany}
-        profileNav={{ tab: profTab, step: profStep, go: goProfile }} />
+        profileNav={{ tab: profTab, step: profStep, go: goProfile }} notifCount={notifCount} />
       <main className="flex h-[100dvh] flex-1 flex-col overflow-hidden">
         {adminMode && (
           <div className="flex shrink-0 items-center justify-between gap-3 bg-indigo-600 px-6 py-2 text-white">
@@ -112,15 +145,21 @@ export default function Portal({ company: initial, switchCompany, adminMode = fa
         ) : (
           <div className="min-h-0 flex-1 overflow-y-auto">
             <div className="mx-auto max-w-6xl px-8 py-10">
-              {section === "home"      && <HomeView company={company} go={setSection} goProfile={goProfile} onPublished={() => setCompany((c) => ({ ...c, status: "published" }))} />}
-              {section === "publish"   && <Suspense fallback={<SectionLoader />}><Publish company={company} /></Suspense>}
-              {section === "media"     && <Suspense fallback={<SectionLoader />}><MediaComposer company={company} /><Documents company={company} /></Suspense>}
+              {section === "home"      && <HomeView company={company} />}
+              {section === "publish"   && <Suspense fallback={<SectionLoader />}><Publish company={company} go={setSection} view="publish" /></Suspense>}
+              {section === "releases"  && <Suspense fallback={<SectionLoader />}><Publish company={company} go={setSection} view="releases" /></Suspense>}
+              {section === "messages"  && <Suspense fallback={<SectionLoader />}><Messages company={company} /></Suspense>}
+              {section === "notifications" && <Suspense fallback={<SectionLoader />}><Notifications company={company} onSeen={() => setNotifCount(0)} /></Suspense>}
+              {section === "conference" && <Suspense fallback={<SectionLoader />}><Conference company={company} /></Suspense>}
+              {section === "mineiq"    && <Suspense fallback={<SectionLoader />}><MineIQ company={company} go={setSection} /></Suspense>}
+              {section === "services"  && <Suspense fallback={<SectionLoader />}><Services company={company} /></Suspense>}
+              {section === "media"     && <Suspense fallback={<SectionLoader />}><MediaPage company={company} /></Suspense>}
               {section === "share"     && <QRShareView company={company} />}
               {section === "calendar"  && <CalendarView company={company} setCompany={setCompany} />}
-              {section === "analytics" && <AnalyticsView company={company} go={setSection} />}
+              {section === "analytics" && <Suspense fallback={<SectionLoader />}><Analytics company={company} /></Suspense>}
               {section === "activity"  && <ActivityView company={company} />}
               {section === "billing"   && <BillingView company={company} />}
-              {section === "settings"  && <SettingsView company={company} />}
+              {section === "settings"  && <SettingsView company={company} go={setSection} goProfile={goProfile} onPublished={() => setCompany((c) => ({ ...c, status: "published" }))} />}
             </div>
           </div>
         )}
@@ -135,7 +174,7 @@ export default function Portal({ company: initial, switchCompany, adminMode = fa
 // accent, hairline borders, rounded-2xl hit areas, heavy lucide strokes. It previously used
 // a green-black gradient panel with vivid blue gradient tiles — off-system on every count.
 // (The unused `collapsed` icon-rail branch was removed with this rebuild; nothing passed it.)
-function Sidebar({ section, setSection, company, switchCompany, profileNav = null }) {
+function Sidebar({ section, setSection, company, switchCompany, profileNav = null, notifCount = 0 }) {
   const navRef = React.useRef(null);
   const activeKey = `${section}:${profileNav ? profileNav.tab : ""}:${profileNav ? profileNav.step : ""}`;
   React.useEffect(() => {
@@ -205,6 +244,11 @@ function Sidebar({ section, setSection, company, switchCompany, profileNav = nul
                       <Icon size={16.5} strokeWidth={parentStrong ? 2.4 : 2.2}
                         className={parentStrong ? "text-blue-600" : expanded ? "text-slate-700" : "text-slate-400 group-hover:text-slate-600"} />
                       <span className="flex-1 text-left">{label}</span>
+                      {id === "notifications" && notifCount > 0 && (
+                        <span className="grid h-[18px] min-w-[18px] shrink-0 place-items-center rounded-full bg-blue-600 px-1 text-[10.5px] font-bold text-white">
+                          {notifCount > 99 ? "99+" : notifCount}
+                        </span>
+                      )}
                       {isProfile && (expanded
                         ? <ChevronDown size={15} strokeWidth={2.4} className="text-slate-400" />
                         : <ChevronRight size={15} strokeWidth={2.4} className="text-slate-300 group-hover:text-slate-400" />)}
@@ -283,171 +327,22 @@ function PageTitle({ title, sub }) {
 
 /* ---------------------------------------------------------------- Home */
 
-function HomeView({ company, go, goProfile, onPublished }) {
-  const [ready, setReady] = useState(null);
-  const [stats, setStats] = useState(null);
-  const [recent, setRecent] = useState(null);
-
-  useEffect(() => {
-    let alive = true;
-    portalReadiness(company.id).then((r) => { if (alive) setReady(r); });
-    companyStats(company.id).then((s) => { if (alive) setStats(s); });
-    fetchRecentContent(company.id, 5).then((r) => { if (alive) setRecent(r); });
-    return () => { alive = false; };
-  }, [company.id]);
-
-  const health = useMemo(() => computeHealth(company.profile, stats || {}, Date.now()), [company.profile, stats]);
-  const rawName = getUser()?.email?.split("@")[0] || "";
-  const first = rawName ? rawName.replace(/[._-]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) : "";
-  const hour = new Date().getHours();
-  const partOfDay = hour < 12 ? "morning" : hour < 18 ? "afternoon" : "evening";
-  const published = company?.status === "published";
-  // The canonical public URL — NOT window.location.origin, which showed "localhost:5180/app?c=…"
-  // in dev and a preview host on a preview deploy. (Named liveUrl so it does not shadow the
-  // imported profileUrl helper.)
-  const liveUrl = profileUrl(company?.slug) || null;
-
-  // First-login onboarding: until the company is live, Home IS the guided welcome/checklist.
-  // Once published, Home reverts to the normal control center below. (Sidebar stays available
-  // throughout, so nothing is hidden.)
-  if (!published) return <OnboardingPanel company={company} go={go} goProfile={goProfile} onPublished={onPublished} />;
-
+// Home.
+//
+// Everything that used to live here has moved somewhere it belongs: the tiles to
+// the left rail (every one of them is now its own sidebar item, so the grid was
+// a second copy of the navigation), the setup checklist to Settings, the
+// readiness banner to Settings, and completeness and activity off the portal.
+//
+// What is left is deliberately a landing page, not a dashboard. If it should
+// carry something again -- a genuine at-a-glance summary rather than a repeat of
+// the menu -- that is worth designing on purpose.
+function HomeView({ company }) {
+  const name = company?.name || "your company";
   return (
     <div>
-      <h1 className="text-[27px] font-extrabold leading-tight tracking-tight text-slate-900">
-        Good {partOfDay}{first ? <>, {first}</> : ""}.
-      </h1>
-      <p className="mt-1.5 text-[15px] text-slate-500">Your control center for how investors experience <span className="font-semibold text-slate-700">{company?.name || "your company"}</span> on MineEx.</p>
-
-      {ready && !ready.ready && (
-        <div className="mt-6 flex items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4">
-          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-amber-100 text-amber-600"><AlertCircle size={19} /></span>
-          <div>
-            <p className="text-[14.5px] font-bold text-amber-900">Portal needs attention</p>
-            <p className="text-[13px] text-amber-700">Missing: {(ready.missing || []).join(", ")}. Contact MineEx if this persists.</p>
-          </div>
-        </div>
-      )}
-
-      {/* Profile status strip */}
-      <div className={`mt-6 flex flex-wrap items-center gap-4 px-5 py-4 ${CARD}`}>
-        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-slate-100 text-slate-500"><Building2 size={20} /></span>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <p className="truncate text-[15.5px] font-bold text-slate-900">{company?.name || company?.slug}</p>
-            <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11.5px] font-bold ${published ? "bg-blue-50 text-blue-600" : "bg-slate-100 text-slate-500"}`}>
-              <span className={`h-1.5 w-1.5 rounded-full ${published ? "bg-blue-500" : "bg-slate-400"}`} /> {published ? "Live on MineEx" : "Draft"}
-            </span>
-          </div>
-          <p className="mt-0.5 text-[12.5px] text-slate-400">{liveUrl ? liveUrl.replace(/^https?:\/\//, "") : "No public URL yet"}</p>
-        </div>
-        {liveUrl && (
-          <a href={liveUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-4 py-2 text-[13px] font-bold text-slate-700 hover:border-slate-300">
-            <Eye size={15} /> {published ? "View profile" : "Preview"}
-          </a>
-        )}
-        <button onClick={() => go("profile")} className="inline-flex items-center gap-1.5 rounded-xl bg-slate-900 px-4 py-2 text-[13px] font-bold text-white hover:bg-slate-800">
-          <Building2 size={15} /> Edit profile
-        </button>
-      </div>
-
-      {/* Profile completeness + recommendations */}
-      <div className="mt-5 grid grid-cols-1 gap-5 lg:grid-cols-[300px_1fr]">
-        <HealthCard health={health} loading={stats == null} label="Profile completeness" />
-        <RecommendationsCard health={health} go={go} />
-      </div>
-
-      {/* Quick actions */}
-      <h2 className="mt-9 text-[12px] font-bold uppercase tracking-[0.12em] text-slate-400">Quick actions</h2>
-      <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <Action title="Publish a press release" body="Draft, preview and publish to the MineEx feed." Icon={Megaphone} onClick={() => go("publish")} />
-        <Action title="Publish media" body="Photos and video for the MineEx media feed." Icon={ImageIcon} onClick={() => go("media")} />
-        <Action title="Edit company profile" body="Overview, projects, capital, timeline, team." Icon={Building2} onClick={() => go("profile")} />
-        <Action title="QR & share" body="Download your QR code and profile link." Icon={QrCode} onClick={() => go("share")} />
-      </div>
-
-      {/* Recent content */}
-      <h2 className="mt-9 text-[12px] font-bold uppercase tracking-[0.12em] text-slate-400">Recent content</h2>
-      <div className={`mt-3 overflow-hidden ${CARD}`}>
-        {recent == null ? (
-          <div className="p-5"><div className="h-4 w-1/3 animate-pulse rounded bg-slate-100" /></div>
-        ) : recent.length === 0 ? (
-          <div className="px-5 py-10 text-center">
-            <Megaphone size={24} className="mx-auto text-slate-300" />
-            <p className="mt-2 text-[13.5px] font-semibold text-slate-500">Nothing published yet</p>
-            <p className="mt-1 text-[12.5px] text-slate-400">Your press releases and media will appear here.</p>
-          </div>
-        ) : (
-          <ul className="divide-y divide-slate-100">
-            {recent.map((r) => (
-              <li key={r.id} className="flex items-center gap-3.5 px-5 py-3">
-                <span className="grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-lg bg-slate-100 text-slate-500">
-                  {r.thumb ? <img src={r.thumb} alt="" className="h-full w-full object-cover" /> : r.type === "media" ? <ImageIcon size={16} /> : <Megaphone size={16} />}
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[13.5px] font-semibold text-slate-800">{r.title}</span>
-                  <span className="block text-[12px] text-slate-400">{r.type === "media" ? "Media" : "Press release"} · {fmtDate(r.createdAt)}</span>
-                </span>
-                <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10.5px] font-bold uppercase ${r.status === "published" ? "bg-blue-50 text-blue-600" : "bg-slate-100 text-slate-500"}`}>{r.status}</span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function HealthCard({ health, loading, label = "Company health" }) {
-  const { score, band } = health;
-  const r = 52, C = 2 * Math.PI * r;
-  const off = C * (1 - (loading ? 0 : score) / 100);
-  const color = score >= 75 ? "#2563eb" : score >= 55 ? "#0ea5e9" : score >= 30 ? "#f59e0b" : "#f43f5e";
-  return (
-    <div className={`flex flex-col items-center justify-center px-6 py-7 ${CARD}`}>
-      <p className="mb-3 self-start text-[12px] font-bold uppercase tracking-[0.12em] text-slate-400">{label}</p>
-      <div className="relative grid place-items-center">
-        <svg width="140" height="140" className="-rotate-90">
-          <circle cx="70" cy="70" r={r} fill="none" stroke="#f1f5f9" strokeWidth="12" />
-          <circle cx="70" cy="70" r={r} fill="none" stroke={color} strokeWidth="12" strokeLinecap="round"
-                  strokeDasharray={C} strokeDashoffset={off} style={{ transition: "stroke-dashoffset .8s ease" }} />
-        </svg>
-        <div className="absolute text-center">
-          <div className="text-[34px] font-extrabold leading-none tracking-tight text-slate-900">{loading ? "…" : score}</div>
-          <div className="text-[11px] font-semibold text-slate-400">out of 100</div>
-        </div>
-      </div>
-      <p className="mt-3 text-[15px] font-bold" style={{ color }}>{loading ? "Measuring…" : band}</p>
-    </div>
-  );
-}
-
-function RecommendationsCard({ health, go }) {
-  const recs = health.recommendations.slice(0, 4);
-  const target = (key) =>
-    ["media"].includes(key) ? "media" :
-    ["freshness", "timeline"].includes(key) ? "broadcast" : "profile";
-  return (
-    <div className={`p-5 ${CARD}`}>
-      <div className="flex items-center gap-2">
-        <Sparkles size={16} className="text-blue-500" />
-        <p className="text-[12px] font-bold uppercase tracking-[0.12em] text-slate-400">Recommended for you</p>
-      </div>
-      {recs.length === 0 ? (
-        <div className="mt-4 flex items-center gap-2 text-[14px] font-semibold text-blue-600"><CheckCircle2 size={18} /> You're in great shape — nothing urgent.</div>
-      ) : (
-        <ul className="mt-3 space-y-2">
-          {recs.map((rec) => (
-            <li key={rec.key}>
-              <button onClick={() => go(target(rec.key))} className="group flex w-full items-center gap-3 rounded-xl border border-slate-100 bg-slate-50 px-3.5 py-3 text-left transition hover:border-blue-200 hover:bg-blue-50/50">
-                <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-white text-blue-600 ring-1 ring-slate-200"><ArrowRight size={14} /></span>
-                <span className="flex-1 text-[13.5px] font-semibold text-slate-700">{rec.text}</span>
-                {rec.gain > 0 && <span className="shrink-0 rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-bold text-blue-700">+{rec.gain}</span>}
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
+      <h1 className="text-[22px] font-extrabold leading-tight tracking-tight text-slate-900">Home</h1>
+      <p className="mt-1 text-[14px] text-slate-500">Manage {name} on MineEx. Choose a section from the left to begin.</p>
     </div>
   );
 }
@@ -809,48 +704,6 @@ function CalendarView({ company, setCompany }) {
 
 /* ---------------------------------------------------------------- Analytics */
 
-function AnalyticsView({ company }) {
-  const [stats, setStats] = useState(null);
-  useEffect(() => { let alive = true; companyStats(company.id).then((s) => { if (alive) setStats(s); }); return () => { alive = false; }; }, [company.id]);
-
-  const p = company.profile || {};
-  const derived = {
-    timeline: Array.isArray(p.timeline) ? p.timeline.length : 0,
-    projects: Array.isArray(p.projects) ? p.projects.length : 0,
-    team: Array.isArray(p.team) ? p.team.length : 0,
-  };
-
-  return (
-    <div>
-      <PageTitle title="Analytics" sub="The numbers that matter — starting with what your company has published, then investor engagement as it comes online." />
-
-      <h2 className="text-[12px] font-bold uppercase tracking-[0.12em] text-slate-400">Your content</h2>
-      <div className="mt-3 grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <Stat label="Documents filed" value={stats ? stats.documents : "…"} Icon={FileText} />
-        <Stat label="Timeline entries" value={derived.timeline} Icon={ScrollText} />
-        <Stat label="Projects" value={derived.projects} Icon={Building2} />
-        <Stat label="Updates published" value={stats ? stats.published : "…"} Icon={Radio} />
-      </div>
-
-      <h2 className="mt-9 text-[12px] font-bold uppercase tracking-[0.12em] text-slate-400">Investor engagement</h2>
-      <div className={`mt-3 p-6 ${CARD}`}>
-        <div className="flex items-start gap-3">
-          <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-slate-100 text-slate-400"><BarChart3 size={20} /></div>
-          <div>
-            <p className="text-[14.5px] font-bold text-slate-800">Profile views, followers, reading time and geography</p>
-            <p className="mt-1 text-[13.5px] leading-relaxed text-slate-500">
-              These begin recording once your profile is published and start receiving traffic. We only report engagement from real investor activity — never estimated or inflated numbers.
-              {company?.status === "published"
-                ? " Your profile is live, so measurement is active; the first meaningful trends appear after a few days of traffic."
-                : " Publish your profile to start measuring."}
-            </p>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 /* ---------------------------------------------------------------- Activity */
 
 const ACTION_LABEL = {
@@ -1035,10 +888,42 @@ const FEATURE_LABEL = {
 
 /* ---------------------------------------------------------------- Settings */
 
-function SettingsView({ company }) {
+function SettingsView({ company, go, goProfile, onPublished }) {
+  // Readiness moved off Home. A missing owner or absent entitlement is a
+  // CONFIGURATION problem, so it belongs with the configuration -- not as a
+  // permanent yellow band above the controls someone came here to use. The
+  // check itself is unchanged; only where it surfaces has moved.
+  const [ready, setReady] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    portalReadiness(company.id).then((r) => { if (alive) setReady(r); }).catch(() => {});
+    return () => { alive = false; };
+  }, [company.id]);
+
   return (
     <div>
       <PageTitle title="Settings" />
+
+      {ready && !ready.ready && (
+        <div className="mb-5 flex items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4">
+          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-amber-100 text-amber-600"><AlertCircle size={19} /></span>
+          <div>
+            <p className="text-[14.5px] font-bold text-amber-900">Portal needs attention</p>
+            <p className="text-[13px] text-amber-700">Missing: {(ready.missing || []).join(", ")}. Contact MineEx if this persists.</p>
+          </div>
+        </div>
+      )}
+
+      {/* Setup lives here now, not on Home. It carries the only "Go live" button
+          in the product, so it cannot simply be deleted -- and a half-finished
+          setup is a configuration matter, which is what this page is for. It
+          removes itself once every step is done. */}
+      {company?.status !== "published" && (
+        <div className="mb-6">
+          <OnboardingPanel compact company={company} go={go} goProfile={goProfile} onPublished={onPublished} />
+        </div>
+      )}
+
       <div className="space-y-4">
         <Field label="Company name" value={company?.name || "—"} />
         <Field label="Profile URL" value={profileUrl(company?.slug) || "—"} />

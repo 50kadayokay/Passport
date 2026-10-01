@@ -107,11 +107,38 @@ function classifyFailure(err, msg) {
   return INGEST_STATUS.FAILED;
 }
 
+const isTxt = (f) =>
+  /^text\/plain$/i.test(f && f.type || "") || /\.txt$/i.test(f && f.name || "");
+
 /** Formats we can actually parse. Anything else is refused up front, not half-processed. */
 export function supportedKind(file) {
   if (isPdf(file)) return "pdf";
   if (isDocx(file)) return "docx";
+  if (isTxt(file)) return "txt";
   return null;
+}
+
+/**
+ * Plain text, read in the browser.
+ *
+ * No server round trip and no parser: the bytes ARE the text, so there is
+ * nothing to extract and nothing that can be silently mis-extracted. That also
+ * means a .txt release carries no embedded images -- the company attaches those
+ * separately, which the media step already supports.
+ *
+ * Decoded as UTF-8 with a BOM stripped; a release exported from Word as "plain
+ * text" very often carries one, and a leading U+FEFF otherwise lands in the
+ * headline.
+ */
+async function parseTxt(file) {
+  const raw = await file.text();
+  const text = String(raw || "").replace(/^\uFEFF/, "").replace(/\r\n?/g, "\n").trim();
+  if (!text) {
+    const e = new Error("That file is empty.");
+    e.emptyText = true;
+    throw e;
+  }
+  return { text, images: [], truncated: false, warnings: [] };
 }
 
 const b64 = (file) => new Promise((resolve, reject) => {
@@ -230,7 +257,7 @@ export async function ingestRelease(companyId, file, { onProgress = () => {} } =
     return { ok: false, status: INGEST_STATUS.UNSUPPORTED_FORMAT, document: null,
              text: "", headline: "", releaseDate: null, assets: [], reused: 0, skipped: 0,
              warnings: [], looksLikeRelease: false,
-             error: "Upload a PDF or DOCX. Other formats aren't supported yet." };
+             error: "Upload a PDF, DOCX or TXT file. Other formats aren't supported yet." };
   }
 
   // 1) SOURCE FIRST. From here on the release is safe: every later failure is
@@ -250,7 +277,9 @@ export async function ingestRelease(companyId, file, { onProgress = () => {} } =
   let parsed = { text: "", images: [], truncated: false, warnings: [] };
   try {
     onProgress("parsing");
-    parsed = kind === "docx" ? await parseDocx(file, companyId) : await parsePdf(file);
+    parsed = kind === "docx" ? await parseDocx(file, companyId)
+           : kind === "txt"  ? await parseTxt(file)
+           : await parsePdf(file);
   } catch (e) {
     // The source survives. Classify WHY so the review screen can say something
     // useful instead of "an error occurred".
@@ -265,7 +294,7 @@ export async function ingestRelease(companyId, file, { onProgress = () => {} } =
     // a previous attempt found.
     try {
       await recordExtractionAttempt(companyId, documentId, {
-        engine: kind === "docx" ? "mammoth" : "pdfjs",
+        engine: kind === "docx" ? "mammoth" : kind === "txt" ? "text" : "pdfjs",
         status: result.status,
         errorCode: (e && e.serverCode) || null,
         errorMessage: msg,
@@ -284,7 +313,7 @@ export async function ingestRelease(companyId, file, { onProgress = () => {} } =
   // An engine that returned nothing is not a persistence failure — it is a scanned
   // or empty document, classified further down. Never manufacture an empty
   // transcript to satisfy the invariant.
-  const engineName = parsed.engine || (kind === "docx" ? "mammoth" : "pdfjs");
+  const engineName = parsed.engine || (kind === "docx" ? "mammoth" : kind === "txt" ? "text" : "pdfjs");
   let transcript = null;
   if (String(parsed.text || "").length) {
     try {
