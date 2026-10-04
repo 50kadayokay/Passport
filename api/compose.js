@@ -494,6 +494,67 @@ export default async function handler(req, res) {
       return res.status(200).json({ text, context: { available: ctx.available, sources: ctx.sources } });
     }
 
+    // ---- ask MineIQ --------------------------------------------------------
+    // A question about the company, answered ONLY from that company's own
+    // record. The retrieval is the same company-scoped path the drafting flow
+    // uses, so the isolation guarantee is identical: userSelect/userRpc with the
+    // caller's JWT, and the database decides.
+    //
+    // The hard rule here is refusal. A CEO asking "how many shares are
+    // outstanding" and getting a confident number MineEx never saw is worse
+    // than getting "I could not find that". The prompt says so explicitly and
+    // the UI surfaces the sources used.
+    if (mode === "ask") {
+      const question = String(body.question || "").trim();
+      if (!question) return bad(res, 400, "Ask a question first.");
+
+      const ctx = await mineIqContext(token, companyId, question);
+
+      if (!ctx.blocks.length) {
+        // Nothing retrieved — say so rather than letting the model answer from
+        // general knowledge about mining companies.
+        return res.status(200).json({
+          text: "I couldn't find anything in your company's record that answers that. "
+              + "MineIQ only answers from your own profile, projects, releases and uploaded documents.",
+          grounded: false,
+          context: { available: ctx.available, sources: [] },
+        });
+      }
+
+      const text = await callClaude(key, {
+        system: [
+          SYSTEM,
+          "",
+          "You are answering a question about THIS company, using ONLY the company",
+          "record supplied below.",
+          "- If the record does not answer the question, say so plainly. Do not",
+          "  answer from general knowledge about mining or about other companies.",
+          "- Quote figures exactly as the record states them.",
+          "- Where the record disagrees with itself, say so and give both.",
+          "- Prefer the most recent disclosure when describing the present, and",
+          "  say which one you used.",
+          "- Be brief. A few sentences, or a short list where the question asks",
+          "  for several things.",
+        ].join("\n"),
+        maxTokens: 1500,
+        user: [
+          `${who}Question from the company:`,
+          '"""',
+          question.slice(0, 2000),
+          '"""',
+          contextPrompt(ctx),
+          "Answer from the company record above. If it does not contain the",
+          "answer, say that you could not find it.",
+        ].join("\n"),
+      });
+
+      return res.status(200).json({
+        text,
+        grounded: true,
+        context: { available: ctx.available, sources: ctx.sources },
+      });
+    }
+
     // ---- check facts -------------------------------------------------------
     if (mode === "check_facts") {
       const current = String(body.current || "").trim();
