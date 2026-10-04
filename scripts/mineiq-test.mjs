@@ -130,7 +130,13 @@ console.log("\n=== E. a fact with no quote is dropped ===");
   ok(kept.length === 1, "a quoted fact is kept");
   // extractFacts() is what drops unquoted ones; assert the filter exists.
   const src = (await import("node:fs")).readFileSync("api/_mineiq.js", "utf8");
-  ok(/filter\(\(f\) => f && f\.quote/.test(src), "extractFacts filters out facts with no quote");
+  // Matched against whitespace-collapsed source: the filter is multi-line now,
+  // and the assertion is about the RULE, not its formatting.
+  const flat = src.replace(/\s+/g, " ");
+  ok(/facts\.filter\(\(f\) =>[^)]*f\.quote && String\(f\.quote\)\.trim\(\)/.test(flat),
+     "extractFacts drops any fact without a verbatim quote");
+  ok(/KINDS\.includes\(f\.kind\)/.test(flat), "and any fact with an unrecognised kind");
+  ok(/f\.subject && String\(f\.subject\)\.trim\(\)/.test(flat), "and any fact with no subject");
 }
 
 // ---- F. fact identity ----------------------------------------------------
