@@ -27,8 +27,7 @@
 
 import crypto from "node:crypto";
 
-const MODEL = process.env.AI_MODEL || "claude-sonnet-5";
-const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
+import { callOpenAITool, AI_MODELS } from "./_openaiExtract.js";
 
 // Matches the `kind` values migration 0005 documents for this column.
 const KINDS = ["project", "person", "drill_result", "financing", "capital", "timeline_event", "media", "other"];
@@ -76,120 +75,37 @@ const SYSTEM = [
  * MineIQ miss must never look like a publish failure to the caller.
  */
 export async function extractFacts({ title, body, companyName }) {
-  const key = process.env.ANTHROPIC_API_KEY;
-  if (!key || !String(body || "").trim()) return [];
+  if (!process.env.OPENAI_API_KEY || !String(body || "").trim()) return [];
 
-  const r = await fetch(ANTHROPIC_URL, {
-    method: "POST",
-    headers: { "content-type": "application/json", "x-api-key": key, "anthropic-version": "2023-06-01" },
-    body: JSON.stringify({
-      model: MODEL,
-      max_tokens: 4000,
-      system: SYSTEM,
-      tools: [TOOL],
-      tool_choice: { type: "tool", name: TOOL.name },
-      messages: [{
-        role: "user",
-        content: [
-          companyName ? `Company: ${companyName}` : "",
-          title ? `Headline: ${title}` : "",
-          "",
-          "Release:",
-          '"""',
-          String(body).slice(0, 24000),
-          '"""',
-        ].filter(Boolean).join("\n"),
-      }],
-    }),
+  // Forced structured output. The schema is unchanged by the provider move --
+  // what counts as a fact is a product decision, not a vendor one.
+  const { input } = await callOpenAITool({
+    system: SYSTEM,
+    model: AI_MODELS.extract(),
+    maxTokens: 4000,
+    tool: { name: TOOL.name, description: TOOL.description, parameters: TOOL.input_schema },
+    user: [
+      companyName ? `Company: ${companyName}` : "",
+      title ? `Headline: ${title}` : "",
+      "",
+      "Release:",
+      '"""',
+      String(body).slice(0, 24000),
+      '"""',
+    ].filter(Boolean).join("\n"),
   });
-  if (!r.ok) throw new Error(`fact extraction failed (${r.status})`);
 
-  const data = await r.json();
-  const use = (Array.isArray(data.content) ? data.content : []).find((b) => b && b.type === "tool_use");
-  const facts = (use && use.input && Array.isArray(use.input.facts)) ? use.input.facts : [];
+  const facts = (input && Array.isArray(input.facts)) ? input.facts : [];
 
-  // The quote is the provenance. A "fact" that cannot be pointed at in the
-  // source is dropped here rather than stored with an empty provenance column.
-  return facts.filter((f) => f && f.quote && String(f.quote).trim() && KINDS.includes(f.kind));
-}
-
-// Provenance keys that describe WHERE a fact came from, not WHAT it says. They
-// are excluded from the identity digest so re-extracting the same release does
-// not produce a different key.
-const PROVENANCE_KEYS = new Set(["publication_id", "disclosed_on", "status", "source", "measure"]);
-
-/** Stable stringification: key order must not change the digest. */
-function canonical(value) {
-  if (value === null || typeof value !== "object") return JSON.stringify(value ?? null);
-  if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
-  const keys = Object.keys(value).filter((k) => !PROVENANCE_KEYS.has(k)).sort();
-  return `{${keys.map((k) => `${JSON.stringify(k)}:${canonical(value[k])}`).join(",")}}`;
-}
-
-const norm = (v) => String(v || "").trim().toLowerCase().replace(/\s+/g, " ");
-
-/**
- * The upsert target: what makes this fact THIS fact.
- *
- * Built from the publication plus the fact's own content, so:
- *   • the same release extracted twice yields the same key → one row
- *   • two drill holes in one release yield different keys → two rows
- *   • the same hole disclosed again in a later release yields a different key,
- *     because the publication differs — which is correct, that is a second
- *     disclosure with its own provenance.
- */
-export function contentKey(fact) {
-  const basis = [
-    fact.kind || "",
-    norm(fact.subject),
-    canonical(fact.data && typeof fact.data === "object" ? fact.data : { value: fact.data }),
-  ].join("|");
-  return crypto.createHash("sha256").update(basis).digest("hex").slice(0, 40);
-}
-
-export function factKey(fact, publicationId) {
-  // The revision is part of the identity: revision 2 restating a fact is a
-  // SECOND disclosure of it, with its own provenance. Without this, a corrected
-  // release's unchanged facts would collide with revision 1's rows and the
-  // upsert would overwrite their revision_id.
-  const basis = [
-    publicationId || "",
-    String(fact.__revision || 1),
-    fact.kind || "",
-    norm(fact.subject),
-    canonical(fact.data && typeof fact.data === "object" ? fact.data : { value: fact.data }),
-  ].join("|");
-  return crypto.createHash("sha256").update(basis).digest("hex").slice(0, 40);
-}
-
-/**
- * What this fact MEASURES — the handle supersession hangs on.
- *
- * Two facts share a measure when they describe the same quantity about the same
- * subject: "shares outstanding for Kingsmen" in September and in December. The
- * VALUES are excluded; only the shape is used, which is what makes a later
- * disclosure recognisable as the same measurement.
- *
- * Returns null for anything that is a historical EVENT rather than a state.
- * A drill result, a financing and a timeline event are true for ever at the date
- * they happened; a newer one never replaces an older one. Returning null here is
- * how "do not supersede history" is enforced in code rather than in a prompt.
- */
-const STATE_KINDS = new Set(["capital", "person", "project"]);
-
-export function factMeasure(fact) {
-  if (!STATE_KINDS.has(fact.kind)) return null;
-  // The model marks a fact current or historical. Anything not explicitly
-  // current is treated as historical -- the safe direction, because the cost of
-  // failing to supersede is a duplicate, and the cost of wrongly superseding is
-  // losing a true fact from current knowledge.
-  if (fact.current !== true) return null;
-
-  const data = fact.data && typeof fact.data === "object" ? fact.data : {};
-  const shape = Object.keys(data).filter((k) => !PROVENANCE_KEYS.has(k)).sort().join(",");
-  if (!shape) return null;                       // nothing identifiable to match on
-  if (!norm(fact.subject)) return null;          // a measure with no subject is ambiguous
-  return `${fact.kind}|${norm(fact.subject)}|${shape}`;
+  // FAILS CLOSED. A fact with no verbatim quote has no provenance, and one with
+  // an unrecognised kind has no home in the schema. Either way it is dropped
+  // rather than stored -- an extraction that returns nothing is recoverable, a
+  // fact nobody can trace is not.
+  return facts.filter((f) =>
+    f && typeof f === "object" &&
+    f.quote && String(f.quote).trim() &&
+    KINDS.includes(f.kind) &&
+    f.subject && String(f.subject).trim());
 }
 
 /** Rows ready for public.facts, with provenance attached. */

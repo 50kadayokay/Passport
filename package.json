@@ -25,7 +25,8 @@
     "check:auditsync": "node scripts/audit-sync.mjs",
     "check:pipeline": "node scripts/pipeline-test.mjs",
     "check:mineiq": "node scripts/mineiq-test.mjs",
-    "check:phase1": "node scripts/phase1-safety-test.mjs"
+    "check:phase1": "node scripts/phase1-safety-test.mjs",
+    "check:mineiq-live": "node scripts/mineiq-live-test.mjs"
   },
   "dependencies": {
     "@aparajita/capacitor-secure-storage": "^8.0.0",

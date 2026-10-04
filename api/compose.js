@@ -21,8 +21,9 @@ import { bearerToken, verifyBearer, supabaseConfigured } from "./_supabase.js";
 import { userSelect } from "./_userDb.js";
 import { mineIqSearch } from "./_mineiqSearch.js";
 
-const MODEL = process.env.AI_MODEL || "claude-sonnet-5";
-const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
+// Provider lives in the shared helper (_openaiExtract.js), not here. This file
+// owns prompts, grounding and refusal; it must not know which vendor answers.
+import { callOpenAIText, callOpenAITool, AI_MODELS } from "./_openaiExtract.js";
 
 const SYSTEM = [
   "You write investor communications for public junior mining companies.",
@@ -260,49 +261,75 @@ function attachmentsPrompt(attachments) {
 
 function bad(res, code, msg) { res.status(code).json({ error: msg }); }
 
-async function callClaude(key, { system, user, maxTokens = 2000, tool = null }) {
-  const body = {
-    model: MODEL,
-    max_tokens: maxTokens,
-    system,
-    messages: [{ role: "user", content: user }],
-  };
-  if (tool) {
-    body.tools = [tool];
-    body.tool_choice = { type: "tool", name: tool.name };
-  }
-  const r = await fetch(ANTHROPIC_URL, {
-    method: "POST",
-    headers: { "content-type": "application/json", "x-api-key": key, "anthropic-version": "2023-06-01" },
-    body: JSON.stringify(body),
-  });
-  if (!r.ok) {
-    const detail = await r.text().catch(() => "");
-    const e = new Error(`AI provider error (${r.status}): ${detail.slice(0, 300)}`);
-    e.status = 502;
-    throw e;
-  }
-  const data = await r.json();
-  const blocks = Array.isArray(data.content) ? data.content : [];
-
-  if (tool) {
-    const use = blocks.find((b) => b && b.type === "tool_use");
-    if (!use || !use.input) {
-      const e = new Error("AI returned no structured result.");
-      e.status = 502;
-      throw e;
+/**
+ * One call site for the model.
+ *
+ * `tool` switches to forced structured output; without it the result is prose.
+ * Both go through the shared OpenAI helper, which owns transport, timeout,
+ * retry and error wording. Nothing provider-specific appears below this line.
+ *
+ * Errors are deliberately generic. The provider's raw body can echo the prompt,
+ * and the prompt here contains the company's own documents.
+ */
+async function callModel({ system, user, maxTokens = 2000, tool = null, task = "ask" }) {
+  const model = (AI_MODELS[task] || AI_MODELS.ask)();
+  try {
+    if (tool) {
+      const { input } = await callOpenAITool({
+        system, user, model, maxTokens,
+        tool: { name: tool.name, description: tool.description, parameters: tool.input_schema },
+      });
+      if (!input || typeof input !== "object") {
+        const e = new Error("The AI returned no structured result.");
+        e.status = 502;
+        throw e;
+      }
+      return input;
     }
-    return use.input;
+    const { text } = await callOpenAIText({ system, user, model, maxTokens });
+    return text;
+  } catch (e) {
+    const err = new Error(e?.message || "The AI request failed.");
+    err.status = e?.status || 502;
+    throw err;
   }
-
-  const text = blocks.filter((b) => b && b.type === "text").map((b) => b.text).join("").trim();
-  if (!text) {
-    const e = new Error("AI returned nothing.");
-    e.status = 502;
-    throw e;
-  }
-  return text;
 }
+
+/**
+ * The grounding contract for Ask MineIQ. Exported so tests exercise the shipped
+ * wording rather than a copy that can drift away from it.
+ */
+export const ASK_SYSTEM = [
+  "You answer questions about ONE mining company, using ONLY the company record",
+  "supplied in the message. Two rules come before everything else.",
+  "",
+  "RULE 1 — NEVER ANSWER FROM GENERAL KNOWLEDGE.",
+  "If the record does not answer the question, say so plainly and stop. Do not",
+  "reason from what is typical for mining companies.",
+  "",
+  "RULE 2 — WHEN A VALUE CHANGED, REPORT THE CHANGE, NOT JUST THE LATEST VALUE.",
+  "Scan the record for the SAME measurement stated more than once. If you find",
+  "one, your answer must contain BOTH values and BOTH dates. Reporting only the",
+  "current figure hides a change the CEO is accountable for describing.",
+  "",
+  "  Record:  2026-08-10 — \"Nineteen holes have been completed to date.\"",
+  "           2026-10-01 — \"27 holes have now been completed.\"",
+  "  Question: How many holes have been drilled?",
+  "  WRONG:   \"27 holes have been completed.\"",
+  "  RIGHT:   \"27 as of the October 1 release, up from 19 reported on August 10.\"",
+  "",
+  "This applies to hole counts, metres, sample counts, share counts, cash,",
+  "statuses and anything else the record states twice with different values.",
+  "A status that moved (active to paused to resumed) is such a change.",
+  "",
+  "Then:",
+  "- Quote figures exactly as written. Never round, convert or tidy them.",
+  "- Where the record contradicts itself on the same date, give both and say so.",
+  "- Say which disclosure each figure came from.",
+  "- Be brief: a few sentences, or a short list.",
+  "",
+  SYSTEM,
+].join("\n");
 
 /**
  * Build the user message for one mode.
@@ -401,7 +428,7 @@ export function buildUserMessage(mode, {
   throw new Error(`buildUserMessage: unknown mode "${mode}"`);
 }
 
-export { SYSTEM, FACT_TOOL, callClaude, MODEL };
+export { SYSTEM, FACT_TOOL, callModel };
 
 export default async function handler(req, res) {
   if (req.method !== "POST") return bad(res, 405, "POST only");
@@ -417,8 +444,7 @@ export default async function handler(req, res) {
   const auth = await verifyBearer(token);
   if (!auth.ok) return bad(res, auth.status || 401, auth.error || "Sign in required.");
 
-  const key = process.env.ANTHROPIC_API_KEY;
-  if (!key) return bad(res, 500, "AI is not configured on this deployment.");
+  if (!process.env.OPENAI_API_KEY) return bad(res, 500, "AI is not configured on this deployment.");
 
   const body = req.body && typeof req.body === "object" ? req.body : {};
   const mode = String(body.mode || "");
@@ -434,9 +460,9 @@ export default async function handler(req, res) {
       if (!hint && !filename) {
         return bad(res, 400, "Tell us what the media shows so a caption can be written.");
       }
-      const text = await callClaude(key, {
+      const text = await callModel({
         system: SYSTEM,
-        maxTokens: 400,
+        maxTokens: 400, task: "compose",
         user: [
           `${who}They have uploaded a ${kind} to post on their investor profile.`,
           filename ? `File name: ${filename}` : "",
@@ -463,9 +489,9 @@ export default async function handler(req, res) {
 
       const ctx = await mineIqContext(token, companyId, `${details} ${attachments.map((a) => a.name || "").join(" ")}`);
 
-      const text = await callClaude(key, {
+      const text = await callModel({
         system: SYSTEM,
-        maxTokens: 3000,
+        maxTokens: 3000, task: "compose",
         user: buildUserMessage("draft", { who, details, attachments, ctx }),
       });
 
@@ -485,9 +511,9 @@ export default async function handler(req, res) {
 
       const ctx = await mineIqContext(token, companyId, `${instruction} ${current.slice(0, 1200)}`);
 
-      const text = await callClaude(key, {
+      const text = await callModel({
         system: SYSTEM,
-        maxTokens: 3000,
+        maxTokens: 3000, task: "compose",
         user: buildUserMessage("revise", { who, current, instruction, preset, attachments, ctx }),
       });
 
@@ -521,22 +547,9 @@ export default async function handler(req, res) {
         });
       }
 
-      const text = await callClaude(key, {
-        system: [
-          SYSTEM,
-          "",
-          "You are answering a question about THIS company, using ONLY the company",
-          "record supplied below.",
-          "- If the record does not answer the question, say so plainly. Do not",
-          "  answer from general knowledge about mining or about other companies.",
-          "- Quote figures exactly as the record states them.",
-          "- Where the record disagrees with itself, say so and give both.",
-          "- Prefer the most recent disclosure when describing the present, and",
-          "  say which one you used.",
-          "- Be brief. A few sentences, or a short list where the question asks",
-          "  for several things.",
-        ].join("\n"),
-        maxTokens: 1500,
+      const text = await callModel({
+        system: ASK_SYSTEM,
+        maxTokens: 1500, task: "ask",
         user: [
           `${who}Question from the company:`,
           '"""',
@@ -562,9 +575,9 @@ export default async function handler(req, res) {
 
       const ctx = await mineIqContext(token, companyId, current.slice(0, 2000));
 
-      const result = await callClaude(key, {
+      const result = await callModel({
         system: SYSTEM,
-        maxTokens: 3000,
+        maxTokens: 3000, task: "extract",
         tool: FACT_TOOL,
         user: buildUserMessage("check_facts", { who, current, attachments, ctx }),
       });
