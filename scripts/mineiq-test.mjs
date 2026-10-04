@@ -319,7 +319,11 @@ console.log("\n=== K. corrections do not reach the notification listeners ===");
   ok(/feed_projection_v1/.test(firstBlock) && /profile_timeline_v1/.test(firstBlock) && /mineiq_facts_v1/.test(firstBlock),
      "the three correcting listeners ARE subscribed");
   ok(/\('mineiq_facts_v1',\s+'PUBLICATION_PUBLISHED'\)/.test(sql), "Phase B's missing subscriptions are backfilled");
-  ok(/\('device_push_v1',\s+'PUBLICATION_PUBLISHED'\)/.test(sql), "device_push_v1 is subscribed to publishes");
+  // device_push_v1 is deliberately NOT subscribed by 0051 — see the Phase 1
+  // audit. Subscribing it from a schema migration would mean applying a
+  // migration starts sending real notifications. It lives in 0055, applied
+  // only when push is turned on on purpose.
+  ok(!/\('device_push_v1',\s+'PUBLICATION/.test(sql), "0051 does NOT subscribe device_push_v1 (0055 does, deliberately)");
 }
 
 // ---- L. revision-aware fact identity -------------------------------------

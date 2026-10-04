@@ -23,20 +23,104 @@
 // base. Retrieval is capped and each row is truncated, because the point is to
 // give the model the relevant part of the company's record, not all of it.
 
-import { userRpc } from "./_userDb.js";
+import { userRpc, userSelect } from "./_userDb.js";
 
 const PER_ROW = { fact: 600, release: 2200, document: 5000 };
 const TOTAL_BUDGET = 22000;
 
 const LABELS = { fact: "MineIQ fact", release: "Previous release", document: "Document" };
 
+// Has mineiq_search() been deployed? Determined once per process: a missing
+// function answers the same way every time, and retrying it on every question
+// would cost a failed round trip each.
+let RPC_PRESENT = null;          // null = unknown, true/false = settled
+
+const STOP = new Set(["the","a","an","and","or","of","to","in","on","at","for","with","from","by",
+  "we","our","us","is","are","was","were","be","been","it","this","that","these","those","as","its",
+  "what","how","when","which","about","did","does","do","has","have","had"]);
+
+const terms = (text) =>
+  [...new Set(String(text || "").toLowerCase().match(/[a-z0-9][a-z0-9-]{2,}/g) || [])].filter((w) => !STOP.has(w));
+
+const overlap = (hay, ts) => {
+  const h = String(hay || "").toLowerCase();
+  let n = 0;
+  ts.forEach((t) => { if (h.includes(t)) n++; });
+  return n;
+};
+
 /**
- * Search one company's knowledge. Returns { blocks, sources, available }.
- * Never throws: MineIQ being unavailable must not stop someone writing.
+ * FALLBACK RETRIEVAL — used when mineiq_search() is not deployed.
+ *
+ * This is the keyword scan that existed before the RPC. It is weaker: substring
+ * matching finds "Baker Lake" only if the question says "Baker Lake". But weaker
+ * is the correct failure mode -- MineIQ losing documents and releases entirely
+ * because an optional index is missing would be worse than finding fewer of them.
+ *
+ * ISOLATION IS IDENTICAL. Every read goes through userSelect() with the caller's
+ * JWT, so `owner_all ... using (can_touch_company(company_id))` decides exactly
+ * as it does for the RPC. The fallback cannot see further than the RPC can.
+ */
+async function legacyScan(token, companyId, query, limit) {
+  const out = { blocks: [], sources: [], available: false, degraded: true };
+  const ts = terms(query);
+  if (!ts.length) return out;
+
+  // Previously published releases.
+  try {
+    const rows = await userSelect(token,
+      `updates?company_id=eq.${encodeURIComponent(companyId)}&status=eq.published` +
+      `&select=body,detected,published_on&order=published_on.desc.nullslast&limit=25`);
+    (Array.isArray(rows) ? rows : [])
+      .map((r) => {
+        const head = (r.detected && r.detected.headline) || "";
+        return { r, head, score: overlap(`${head} ${r.body || ""}`, ts) };
+      })
+      .filter((x) => x.score > 0)
+      .sort((a, b) => b.score - a.score || String(b.r.published_on || "").localeCompare(String(a.r.published_on || "")))
+      .slice(0, 4)
+      .forEach(({ r, head }) => {
+        out.available = true;
+        const label = `Previous release — ${head || r.published_on || "untitled"}` +
+                      (r.published_on ? ` (${String(r.published_on).slice(0, 10)})` : "");
+        out.blocks.push({ label, text: `${head}\n${String(r.body || "").slice(0, 2200)}` });
+        out.sources.push(label);
+      });
+  } catch { /* RLS said no, or the read failed */ }
+
+  // Stored documents.
+  try {
+    const rows = await userSelect(token,
+      `documents?company_id=eq.${encodeURIComponent(companyId)}&extraction_status=eq.done` +
+      `&select=filename,doc_date,extracted_text&order=created_at.desc&limit=40`);
+    (Array.isArray(rows) ? rows : [])
+      .map((d) => ({ d, score: overlap(`${d.filename || ""} ${d.extracted_text || ""}`, ts) }))
+      .filter((x) => x.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 4)
+      .forEach(({ d }) => {
+        out.available = true;
+        const label = `Document — ${d.filename || "untitled"}${d.doc_date ? ` (${d.doc_date})` : ""}`;
+        out.blocks.push({ label, text: String(d.extracted_text || "").slice(0, 5000) });
+        out.sources.push(label);
+      });
+  } catch { /* no documents readable */ }
+
+  return out;
+}
+
+/**
+ * Search one company's knowledge.
+ *
+ * Returns { blocks, sources, available, degraded } — the SAME contract whichever
+ * engine answered, so callers never branch on which one ran. `degraded` is
+ * informational only.
  */
 export async function mineIqSearch(token, companyId, query, { limit = 12 } = {}) {
-  const out = { blocks: [], sources: [], available: false };
+  const out = { blocks: [], sources: [], available: false, degraded: false };
   if (!token || !companyId || !String(query || "").trim()) return out;
+
+  if (RPC_PRESENT === false) return legacyScan(token, companyId, query, limit);
 
   let rows;
   try {
@@ -45,10 +129,20 @@ export async function mineIqSearch(token, companyId, query, { limit = 12 } = {})
       p_query: String(query).slice(0, 2000),
       p_limit: limit,
     });
-  } catch {
-    // 42501 (not this caller's company), or the function is not deployed yet.
-    return out;
+    RPC_PRESENT = true;
+  } catch (e) {
+    // 42883 / 404 = the function is not deployed -> fall back, and remember.
+    // 42501 = this caller does not belong to that company -> return NOTHING.
+    // Those must not be conflated: falling back on an authorization failure
+    // would route the request to a path that has to re-prove isolation.
+    const code = (e && e.code) || "";
+    const msg = String((e && e.message) || "");
+    const missing = code === "42883" || e?.status === 404 || /could not find the function|does not exist/i.test(msg);
+    if (!missing) return out;
+    RPC_PRESENT = false;
+    return legacyScan(token, companyId, query, limit);
   }
+
   if (!Array.isArray(rows) || !rows.length) return out;
 
   out.available = true;

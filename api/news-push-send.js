@@ -61,9 +61,60 @@ function sendOne(client, token, jwt, payload) {
   });
 }
 
+/**
+ * The master switch. Sending is OFF unless PUSH_ENABLED is explicitly "true".
+ *
+ * WHY THIS EXISTS SEPARATELY FROM THE CREDENTIALS. Having APNs credentials in an
+ * environment used to be sufficient to send. That made "someone copied the env
+ * to staging" and "we meant to notify investors" the same condition. They are
+ * not. Credentials say we CAN reach Apple; this says we INTEND to.
+ *
+ * Default off: an unset variable, an empty one, "1", "yes" or "TRUE " all mean
+ * off. Only the exact string "true" enables sending.
+ */
+function pushEnabled() {
+  return String(process.env.PUSH_ENABLED || "") === "true";
+}
+
+function q_markSkipped(req) {
+  const q = { ...(req.query || {}), ...(req.body || {}) };
+  return String(q.skip || "") === "1";
+}
+
 export default async function handler(req, res) {
   if (req.method !== "POST" && req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
   if (!checkNewsAuth(req)) return res.status(401).json({ error: "unauthorized" });
+
+  // SAFE INSPECTION MODE. With push disabled the queue is still drained, but
+  // every row is marked 'skipped' with a reason instead of being delivered.
+  // That is what makes notification GENERATION testable end to end -- you can
+  // see exactly who would have been notified and with what -- while making
+  // delivery impossible. No APNs connection is opened at all on this path.
+  if (!pushEnabled()) {
+    const dry = await serviceRest(
+      `notification_outbox?status=eq.pending&order=created_at.asc&limit=${BATCH}&select=id,token,title,body,data`);
+    const rows = dry.ok ? await dry.json().catch(() => []) : [];
+
+    if (q_markSkipped(req) && rows.length) {
+      await serviceRest(`notification_outbox?id=in.(${rows.map((r) => r.id).join(",")})`, {
+        method: "PATCH",
+        body: { status: "skipped", last_error: "PUSH_ENABLED is not true; not delivered" },
+        prefer: "return=minimal",
+      }).catch(() => {});
+    }
+
+    return res.status(200).json({
+      ok: true,
+      pushEnabled: false,
+      sent: 0,
+      wouldSend: rows.length,
+      marked: q_markSkipped(req) ? rows.length : 0,
+      message: "PUSH_ENABLED is not 'true' — nothing was sent. Set it deliberately to enable delivery.",
+      // Who would have been notified, so generation can be verified without delivery.
+      preview: rows.slice(0, 20).map((r) => ({ id: r.id, title: r.title, body: r.body, deep_link: r.data?.deep_link })),
+    });
+  }
+
   if (!process.env.APNS_KEY_ID || !process.env.APNS_TEAM_ID || !process.env.APNS_P8) {
     return res.status(500).json({ error: "APNS not configured (need APNS_KEY_ID, APNS_TEAM_ID, APNS_P8)" });
   }

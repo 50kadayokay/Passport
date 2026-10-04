@@ -13,7 +13,7 @@
     "check:imports": "node scripts/check-imports.mjs",
     "check:pr": "node scripts/press-release-test.mjs",
     "check:media": "node scripts/media-support-test.mjs",
-    "test": "npm run check:imports && npm run check:leak && npm run check:integrity && npm run check:transcript && npm run check:failclosed && npm run check:inventory && npm run check:reconcile && npm run check:adversarial && npm run check:canonical && npm run check:auditsync && npm run check:pipeline && npm run check:mineiq && npm run check:pr && npm run check:media && npm run check:auth && node scripts/onboarding-classify-test.mjs",
+    "test": "npm run check:imports && npm run check:leak && npm run check:integrity && npm run check:transcript && npm run check:failclosed && npm run check:inventory && npm run check:reconcile && npm run check:adversarial && npm run check:canonical && npm run check:auditsync && npm run check:pipeline && npm run check:mineiq && npm run check:phase1 && npm run check:pr && npm run check:media && npm run check:auth && node scripts/onboarding-classify-test.mjs",
     "check:auth": "node scripts/api-auth-test.mjs",
     "check:integrity": "node scripts/source-integrity-test.mjs",
     "check:transcript": "node scripts/transcript-test.mjs",
@@ -24,7 +24,8 @@
     "check:canonical": "node scripts/canonical-test.mjs",
     "check:auditsync": "node scripts/audit-sync.mjs",
     "check:pipeline": "node scripts/pipeline-test.mjs",
-    "check:mineiq": "node scripts/mineiq-test.mjs"
+    "check:mineiq": "node scripts/mineiq-test.mjs",
+    "check:phase1": "node scripts/phase1-safety-test.mjs"
   },
   "dependencies": {
     "@aparajita/capacitor-secure-storage": "^8.0.0",

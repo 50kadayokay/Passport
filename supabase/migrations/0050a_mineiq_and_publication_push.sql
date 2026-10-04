@@ -10,6 +10,8 @@
 -- had a writer, so widening it now carries no data-migration risk.
 -- ============================================================================
 
+begin;
+
 -- ---------------------------------------------------------------------------
 -- 1) IDEMPOTENCY
 -- ---------------------------------------------------------------------------
@@ -98,23 +100,21 @@ alter table public.facts
       coalesce(subject, '') || ' ' || coalesce(quote, '') || ' ' || coalesce(data::text, ''))
   ) stored;
 
-alter table public.documents
-  add column if not exists fts tsvector
-  generated always as (
-    to_tsvector('english',
-      coalesce(filename, '') || ' ' || coalesce(title, '') || ' ' || coalesce(extracted_text, ''))
-  ) stored;
+-- documents and updates do NOT get a stored column.
+--
+-- `GENERATED ... STORED` rewrites the entire table and holds ACCESS EXCLUSIVE
+-- for the duration -- every read and write blocks. On `facts` that is free
+-- because the table is empty. On `documents` and `updates`, which carry live
+-- data and are written during ingestion, it is an outage.
+--
+-- They use EXPRESSION indexes instead, created CONCURRENTLY in 0050b. Same
+-- query plan, no rewrite, no exclusive lock.
+--
+-- mineiq_search() below must use the IDENTICAL expression, or the planner will
+-- ignore the index and sequentially scan every document on every question.
 
-alter table public.updates
-  add column if not exists fts tsvector
-  generated always as (
-    to_tsvector('english',
-      coalesce(detected ->> 'headline', '') || ' ' || coalesce(body, ''))
-  ) stored;
-
-create index if not exists facts_fts_idx     on public.facts     using gin (fts);
-create index if not exists documents_fts_idx on public.documents using gin (fts);
-create index if not exists updates_fts_idx   on public.updates   using gin (fts);
+-- Safe here: facts is empty, so this is instant.
+create index if not exists facts_fts_idx on public.facts using gin (fts);
 
 -- The ONE retrieval path for MineIQ. SECURITY DEFINER so it can read across the
 -- three tables consistently, but gated on owns_company() FIRST: a caller who
@@ -169,12 +169,12 @@ begin
            coalesce(u.detected ->> 'headline', 'Press release'),
            left(coalesce(u.body, ''), 4000),
            u.published_on,
-           ts_rank(u.fts, q)
+           ts_rank(to_tsvector('english', coalesce(u.detected ->> 'headline', '') || ' ' || coalesce(u.body, '')), q)
       from public.updates u
      where u.company_id = p_company
        and u.status = 'published'
-       and u.fts @@ q
-     order by ts_rank(u.fts, q) desc
+       and to_tsvector('english', coalesce(u.detected ->> 'headline', '') || ' ' || coalesce(u.body, '')) @@ q
+     order by ts_rank(to_tsvector('english', coalesce(u.detected ->> 'headline', '') || ' ' || coalesce(u.body, '')), q) desc
      limit lim
   )
   union all
@@ -183,11 +183,11 @@ begin
            coalesce(d.title, d.filename, 'Document'),
            left(coalesce(d.extracted_text, ''), 6000),
            d.doc_date,
-           ts_rank(d.fts, q)
+           ts_rank(to_tsvector('english', coalesce(d.filename, '') || ' ' || coalesce(d.title, '') || ' ' || coalesce(d.extracted_text, '')), q)
       from public.documents d
      where d.company_id = p_company
-       and d.fts @@ q
-     order by ts_rank(d.fts, q) desc
+       and to_tsvector('english', coalesce(d.filename, '') || ' ' || coalesce(d.title, '') || ' ' || coalesce(d.extracted_text, '')) @@ q
+     order by ts_rank(to_tsvector('english', coalesce(d.filename, '') || ' ' || coalesce(d.title, '') || ' ' || coalesce(d.extracted_text, '')), q) desc
      limit lim
   );
 end $$;
@@ -229,3 +229,5 @@ create unique index if not exists notification_outbox_post_token_uk
 
 create index if not exists notification_outbox_pending_idx
   on public.notification_outbox (status, created_at) where status = 'pending';
+
+commit;

@@ -24,9 +24,16 @@ begin;
 -- idle for ever while appearing healthy in the dispatcher's output.
 insert into public.listener_subscriptions (listener, event_type) values
   ('mineiq_facts_v1',     'PUBLICATION_PUBLISHED'),
-  ('device_push_v1',      'PUBLICATION_PUBLISHED'),
   ('profile_timeline_v1', 'PUBLICATION_PUBLISHED')
 on conflict (listener, event_type) do nothing;
+
+-- device_push_v1 IS DELIBERATELY ABSENT.
+--
+-- Subscribing it here would mean that applying a SCHEMA MIGRATION starts sending
+-- real notifications to real investors' phones. Those are different decisions and
+-- must be different actions, so the subscription lives in its own migration
+-- (0055_enable_device_push.sql) which is applied only when push is deliberately
+-- turned on. Until then the listener exists, is tested, and receives no events.
 
 -- ---------------------------------------------------------------------------
 -- B. PUBLICATION_REVISED
