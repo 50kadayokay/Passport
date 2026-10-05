@@ -75,6 +75,7 @@ import PullToRefresh from "./PullToRefresh.jsx"; // swipe-down refresh on the fe
 import { resolveWidgets, resolveProjectWidgets, widgetText } from "../lib/conferenceWidgets.js";
 import { ConferenceScenes } from "./ConferenceScenes.jsx";
 
+import { blockedForGuest, onAppPrompt, APP_STORE_URL as APPLE_STORE_URL } from "../lib/appPrompt.js";
 /* ============================================================
    PASSPORT — Light FinTech Aesthetic
    Inspired by Apple, Wealthsimple, & Arc Browser
@@ -8008,6 +8009,11 @@ const listStore = {
   has(kind, id) { return !!id && (this.data[kind] || []).includes(id); },
   set(kind, id, on) {
     if (!id || !LIST_KINDS.includes(kind)) return;
+    // A guest on the WEB is asked to get the app rather than being given a follow that
+    // only exists in this browser and never reaches their account. Guarded here, in the
+    // store, because several screens write to it directly — the profile, a feed card and
+    // the basic listing page all call set() themselves. Removing is always allowed.
+    if (on && kind === "following" && blockedForGuest(investorAuthed(), "follow")) return;
     const cur = this.data[kind] || [];
     const next = on ? (cur.includes(id) ? cur : [id, ...cur]) : cur.filter((x) => x !== id);
     if (next === cur) return;
@@ -11119,7 +11125,9 @@ function ConferenceProfile() {
 
 // The native app's store link — wired when the app ships. Until then the banner's button
 // falls back to the free investor signup, the closest actionable CTA.
-const APP_STORE_URL = "";
+// The live App Store listing. Previously empty, which made the guest banner's
+// button fall back to a sign-in link instead of the store.
+const APP_STORE_URL = APPLE_STORE_URL;
 export default function App({ guest = false } = {}) {
   // Register for push on a device: once now (covers an already-signed-in relaunch)
   // and again whenever auth flips to signed-in (covers signing in after first launch —
@@ -11170,6 +11178,9 @@ export default function App({ guest = false } = {}) {
   // ({ tab, sheet }) via window.__appDemoGo — handled through CompanyProfile's `demo` prop.
   const [demoProfile, setDemoProfile] = useState({ tab: "overview", sheet: null });
   const [bannerOff, setBannerOff] = useState(embed);   // guest "Open in app" banner dismissed (always off in embed)
+  // Shown when a guest on the web tries to follow — see lib/appPrompt.js.
+  const [appPrompt, setAppPrompt] = useState(null);
+  useEffect(() => onAppPrompt((reason) => setAppPrompt(reason || "follow")), []);
   // A `?c=<slug>` param means the app was opened for a specific company — admin
   // "Open in app", a token preview, or a booth-QR/deep link. Land straight on that
   // company's profile (window.__PP__ is already seeded with it). Plain /app with no
@@ -11439,6 +11450,42 @@ export default function App({ guest = false } = {}) {
               <a href={APP_STORE_URL || "/app?signin=1"} className="flex-shrink-0 rounded-full px-4 py-1.5 text-[12px] font-bold text-white transition active:scale-95" style={{ background: EM }}>
                 {APP_STORE_URL ? "Open in app" : "Get the app"}
               </a>
+            </div>
+          )}
+
+          {/* Follow needs an account to be worth anything — it is what makes the feed
+              personal and what lets a company reach the investor later. Rather than
+              storing a follow that lives in one browser, a guest is asked to get the app. */}
+          {appPrompt && (
+            <div className="fixed inset-0 z-[70] flex items-end justify-center" onClick={() => setAppPrompt(null)}>
+              <div className="absolute inset-0 bg-slate-900/40" />
+              <div onClick={(e) => e.stopPropagation()}
+                className="relative w-full max-w-[460px] rounded-t-[22px] bg-white px-6 pb-8 pt-6 shadow-2xl"
+                style={{ paddingBottom: "calc(2rem + env(safe-area-inset-bottom, 0px))" }}>
+                <div className="mx-auto mb-5 h-1 w-10 rounded-full bg-slate-200" />
+                <div className="flex items-center gap-3">
+                  <div className="grid h-11 w-11 flex-shrink-0 place-items-center rounded-[12px]" style={{ background: EM }}>
+                    <span className="text-[19px] font-black leading-none text-white">M</span>
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[17px] font-extrabold tracking-tight text-slate-900">Follow in the app</p>
+                    <p className="text-[13px] font-medium text-slate-500">Keep the companies you follow on every device</p>
+                  </div>
+                </div>
+                <p className="mt-4 text-[14px] leading-relaxed text-slate-600">
+                  Get the MineEx app to follow companies, build your own feed and hear about new
+                  releases the moment they publish.
+                </p>
+                <a href={APP_STORE_URL} target="_blank" rel="noreferrer"
+                  className="mt-5 flex w-full items-center justify-center rounded-full py-3.5 text-[15px] font-bold text-white transition active:scale-[0.98]"
+                  style={{ background: EM }}>
+                  Get the app
+                </a>
+                <button onClick={() => setAppPrompt(null)}
+                  className="mt-2 w-full py-3 text-[14px] font-semibold text-slate-500 transition active:scale-[0.98]">
+                  Not now
+                </button>
+              </div>
             </div>
           )}
           <div className="relative flex-1 overflow-hidden">

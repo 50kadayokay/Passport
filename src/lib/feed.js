@@ -7,12 +7,16 @@
 import { SUPABASE_URL, SUPABASE_ANON } from "./supabase.js";
 import { authHeaders, getUser } from "./auth.js";
 
+import { blockedForGuest } from "./appPrompt.js";
 const anon = { apikey: SUPABASE_ANON, Authorization: `Bearer ${SUPABASE_ANON}` };
 
 /* ---------------- follows ---------------- */
 
 export async function follow(companyId) {
   const u = getUser();
+  // A signed-out visitor on the web gets the "get the app" prompt instead of a
+  // button that silently snaps back. In the native app this is unchanged.
+  if (!u && blockedForGuest(false, "follow")) return false;
   if (!u || !companyId) return false;
   try {
     const h = await authHeaders();
