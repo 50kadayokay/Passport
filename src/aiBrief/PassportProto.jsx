@@ -627,7 +627,8 @@ const DARK_CTA = { background: "#0f172a", color: "#ffffff" };
    ============================================================ */
 export function StatusBar() {
   return (
-    <div className="flex items-center justify-between px-8 pt-3 pb-2 text-[12px] font-medium text-slate-900 select-none">
+    <div className="flex items-center justify-between px-8 pt-3 pb-2 text-[12px] font-medium text-slate-900 select-none"
+      style={DEMO_SAFE_T ? { paddingTop: 12 + DEMO_SAFE_T } : undefined}>
       <span className="tabular-nums tracking-tight">9:41</span>
       <div className="flex items-center gap-1.5">
         <span className="flex items-end gap-[2px]">
@@ -732,10 +733,10 @@ export function BottomNav({ nav, setNav, solid }) {
   };
   return (
     <div
-      className="absolute bottom-0 left-0 right-0 z-40 px-5 pb-7 pt-2"
-      style={solid
+      className="pp-bottomnav absolute bottom-0 left-0 right-0 z-40 px-5 pb-7 pt-2"
+      style={{ ...(DEMO_SAFE_B ? { paddingBottom: 28 + DEMO_SAFE_B } : null), ...(solid
         ? { background: "#ffffff", borderTop: "1px solid rgba(226,232,240,0.7)" }
-        : { background: "rgba(255,255,255,0.95)", backdropFilter: "blur(20px) saturate(180%)", borderTop: "1px solid rgba(226,232,240,0.7)" }}
+        : { background: "rgba(255,255,255,0.95)", backdropFilter: "blur(20px) saturate(180%)", borderTop: "1px solid rgba(226,232,240,0.7)" }) }}
     >
       <div className="flex items-center justify-between">
         {tab({ id: "today", Icon: Sparkles })}
@@ -914,7 +915,7 @@ function PageBar({ tab, setTab, following, setFollowing, onBack }) {
 /* ============================================================
    PROFILE HEADER  —  static Kingsmen banner shown on every page
    ============================================================ */
-function ProfileHeader({ tab, setTab, following, setFollowing, onBack, onMessage }) {
+function ProfileHeader({ tab, setTab, following, setFollowing, onBack, onMessage, followEmphasis, followPress }) {
   const pages = profilePagesForTier();
   return (
     <div className="flex-shrink-0 px-5 pt-1">
@@ -972,13 +973,20 @@ function ProfileHeader({ tab, setTab, following, setFollowing, onBack, onMessage
       </div>
 
       {/* actions — follow + message */}
+      {followEmphasis && <style>{`@keyframes ppFollowPulse{0%,100%{box-shadow:0 0 0 0 rgba(37,99,235,0)}50%{box-shadow:0 0 0 5px rgba(37,99,235,0.20)}}`}</style>}
       <div className="mt-2 grid grid-cols-2 gap-2">
         <button
           onClick={() => setFollowing((f) => !f)}
-          className="flex h-9 items-center justify-center gap-1.5 rounded-full border text-[12px] font-bold tracking-tight transition-all active:scale-[0.97]"
-          style={following
-            ? { background: "#ffffff", color: "#2563eb", borderColor: "#bcd4fb" }
-            : { background: "#ffffff", color: "#334155", borderColor: "#e2e8f0" }}
+          className="flex h-9 items-center justify-center gap-1.5 rounded-full border text-[12px] font-bold tracking-tight active:scale-[0.97]"
+          style={{
+            ...(following
+              ? { background: "#ffffff", color: "#2563eb", borderColor: "#bcd4fb" }
+              : { background: "#ffffff", color: "#334155", borderColor: "#e2e8f0" }),
+            // Fast, springy transform for the tactile press; colour/border ease normally.
+            transition: "transform 120ms cubic-bezier(0.34,1.5,0.64,1), background .15s ease, color .15s ease, border-color .15s ease",
+            ...(followPress ? { transform: "scale(0.9)" } : null),
+            ...(followEmphasis ? { animation: "ppFollowPulse 1.5s ease-in-out infinite" } : null),
+          }}
           aria-pressed={following}
         >
           {following ? <Check size={13} strokeWidth={2.8} /> : <Plus size={13} strokeWidth={2.8} />}
@@ -1108,17 +1116,21 @@ function Overview({ tab, goto, openBrief, following, setFollowing, bookmarked, s
   // already played on a previous visit to this tab — so we restore the last flip state WITHOUT
   // re-animating. It resets only when the profile is fully left and re-entered (CompanyProfile
   // remounts). Manual/auto flips are pushed back up via onFlip / onIntroDone.
-  const [flipped, setFlipped] = useState(ppPreviewLive ? true : (introDone ? initialFlipped : false)); // false = image face, true = status face
-  const [imgIn, setImgIn] = useState(introDone || ppPreviewLive);
-  const [logoIn, setLogoIn] = useState(false);
-  const [showLogo, setShowLogo] = useState(ppPreviewLive ? false : !introDone);   // logo only during the intro
+  // EMBED (marketing directed demo): the card opens on its PHOTOGRAPHIC hero face and
+  // NEVER auto-flips. The DemoDirector commands the REAL flip via window.__ppSetFace
+  // ("photo" | "status"), so the flip is a deliberate story beat, not a timer.
+  const embedCard = (() => { try { return new URLSearchParams(window.location.search).has("embed"); } catch (_) { return false; } })();
+  const [flipped, setFlipped] = useState(embedCard ? false : (ppPreviewLive ? true : (introDone ? initialFlipped : false))); // false = image face, true = status face
+  const [imgIn, setImgIn] = useState(embedCard || introDone || ppPreviewLive);
+  const [logoIn, setLogoIn] = useState(embedCard);
+  const [showLogo, setShowLogo] = useState(embedCard ? true : (ppPreviewLive ? false : !introDone));   // logo only during the intro
   // Don't start the intro until the hero image is actually decoded — otherwise the
   // timed fade runs against an unloaded network image (Storage URL), the CEO sees a
   // black flash, and the image pops in AFTER the animation finished. Preload + decode
   // first (with a safety cap so a slow/broken image never hangs the card).
-  const [imgReady, setImgReady] = useState(() => introDone || ppPreviewLive || !STATUS_IMG);
+  const [imgReady, setImgReady] = useState(() => introDone || ppPreviewLive || embedCard || !STATUS_IMG);
   useEffect(() => {
-    if (introDone || ppPreviewLive || !STATUS_IMG) return;    // no intro to run → skip the decode gate
+    if (introDone || ppPreviewLive || embedCard || !STATUS_IMG) return;    // no intro to run → skip the decode gate
     let done = false;
     const finish = () => { if (!done) { done = true; setImgReady(true); } };
     const img = new Image();
@@ -1129,7 +1141,7 @@ function Overview({ tab, goto, openBrief, following, setFollowing, bookmarked, s
     return () => { done = true; clearTimeout(cap); };
   }, []);
   useEffect(() => {
-    if (introDone || ppPreviewLive) return;   // already played (or preview) → don't re-animate
+    if (introDone || ppPreviewLive || embedCard) return;   // already played / preview / directed → don't auto-flip
     if (!imgReady) return;                    // hold the whole sequence until decoded
     const t1 = setTimeout(() => setImgIn(true), 60);      // image fades in
     const t2 = setTimeout(() => setLogoIn(true), 680);    // logo fades in after
@@ -1137,6 +1149,16 @@ function Overview({ tab, goto, openBrief, following, setFollowing, bookmarked, s
     const t4 = setTimeout(() => setShowLogo(false), 2900); // drop logo once details are shown
     return () => { [t1, t2, t3, t4].forEach(clearTimeout); };
   }, [imgReady]);
+  // Directed flip control — the marketing DemoDirector calls this to run the REAL flip
+  // between the photo hero and the status grid. Inert outside embed.
+  useEffect(() => {
+    if (!embedCard) return;
+    window.__ppSetFace = (face) => {
+      if (face === "status") { setShowLogo(false); setFlipped(true); }
+      else { setShowLogo(true); setLogoIn(true); setFlipped(false); }
+    };
+    return () => { if (window.__ppSetFace) { try { delete window.__ppSetFace; } catch (_) { window.__ppSetFace = undefined; } } };
+  }, [embedCard]);
   // Persist the flip state up to CompanyProfile so returning to this tab keeps it as-is; mark the
   // intro "done" once the card has shown its status face (auto-flip or a manual flip).
   useEffect(() => { if (onFlip) onFlip(flipped); if (flipped && onIntroDone) onIntroDone(); }, [flipped]);
@@ -1488,7 +1510,22 @@ function TimelineView() {
   const [detail, setDetail] = useState(null);   // { yi, ii } | null
   const [showFull, setShowFull] = useState(false);
   const _demo = useContext(DemoCtx);   // demo: open a milestone's detail on command (inert in production)
-  useEffect(() => { if (!_demo) return; setDetail(_demo.sheet === "time:detail" ? { yi: 0, ii: 0 } : null); }, [_demo && _demo.sheet]);
+  // Resolve the target milestone by its stable id (e.g. "2026-01-19") so the demo
+  // opens the SAME real detail sheet a manual tap would, independent of the
+  // filtered "key milestones" render order. Falls back to the newest milestone.
+  useEffect(() => {
+    if (!_demo) return;
+    if (_demo.sheet !== "time:detail") { setDetail(null); return; }
+    const target = _demo.detail || null;
+    let found = null;
+    if (target) {
+      for (let yi = 0; yi < PR_YEARS.length && !found; yi++) {
+        const ii = PR_YEARS[yi].items.findIndex((it) => it.id === target);
+        if (ii >= 0) found = { yi, ii };
+      }
+    }
+    setDetail(found || { yi: 0, ii: 0 });
+  }, [_demo && _demo.sheet, _demo && _demo.detail]);
   const [activeYear, setActiveYear] = useState(PR_YEARS[0]?.year ?? null);
   const [highOnly, setHighOnly] = useState(true);   // diamond filter opens first: key/high-impact across all years
   const [expanded, setExpanded] = useState(() => {
@@ -2066,7 +2103,7 @@ function BottomSheet({ children, onClose, mediaKey, topBanner }) {
   return createPortal(
     <div className="absolute inset-0 z-50 flex flex-col justify-end" style={scrub ? { pointerEvents: "none" } : undefined}>
       <div
-        className={"absolute inset-0 bg-slate-900/40" + (scrub ? "" : " backdrop-blur-sm")}
+        className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
         style={scrub ? { opacity: "var(--pp-sheet, 0)" } : { opacity: shown ? 1 : 0, transition: "opacity .28s ease" }}
         onClick={scrub ? undefined : close}
       />
@@ -2195,7 +2232,7 @@ function SheetSection({ title, children, className = "mt-5" }) {
 // below are the Kingsmen defaults; a company supplies its own via __PP__.
 let MAP_SITES = _PP.MAP_SITES ?? [
   { key: "lc", name: "Las Coloradas", lat: 27.05, lon: -105.45, tone: EM, fill: "rgba(37,99,235,0.25)" },
-  { key: "alm", name: "Almoloya", lat: 26.75, lon: -105.50, tone: "#f59e0b", fill: "rgba(245,158,11,0.25)" },
+  { key: "alm", name: "Almoloya", lat: 26.75, lon: -105.50, tone: "#14b8a6", fill: "rgba(20,184,166,0.25)" },
 ];
 // PARRAL is the "nearby town" reference marker. null = the company gave none.
 let PARRAL = _PP.MAP_TOWN ?? { name: "Hidalgo del Parral", lat: 26.934, lon: -105.666 };
@@ -4163,6 +4200,30 @@ function EvidenceRow({ name, desc, pill, soft, accent }) {
     </div>
   );
 }
+// Included-interval lines under a drill row. Source-faithful: the parent intercept stays
+// primary (rendered by the caller); each disclosed sub-interval is shown subordinate as
+// "incl.", nested to any depth in the company's own authoring order. Never flattened, never
+// re-ranked by grade — MineEx does not decide which number matters most.
+function DrillInclLines({ list, accent, depth = 1 }) {
+  const items = Array.isArray(list) ? list.filter((x) => x && (has(x.interval) || has(x.grade))) : [];
+  if (!items.length) return null;
+  return (
+    <div className="mt-1.5 space-y-1 border-l border-slate-200 pl-2.5" style={{ marginLeft: (depth - 1) * 10 }}>
+      {items.map((inc, j) => {
+        const span = has(inc.from) && has(inc.to) ? ` (${inc.from}–${inc.to} m)` : "";
+        return (
+          <div key={j}>
+            <div className="flex items-baseline justify-between gap-3">
+              <span className="text-[10.5px] font-semibold leading-snug text-slate-500">incl. {has(inc.interval) ? inc.interval : ""}{span}</span>
+              {has(inc.grade) && <span className="flex-shrink-0 text-right text-[12px] font-bold tracking-tight text-slate-700">{inc.grade}</span>}
+            </div>
+            <DrillInclLines list={inc.includedIntervals} accent={accent} depth={depth + 1} />
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 // ---- Hero + visual-identity primitives (all render without image assets) ----
 function shade(hex, f) {
   const n = parseInt(String(hex).replace("#", ""), 16);
@@ -4378,11 +4439,10 @@ const LC_CARDS = {
   },
   results: {
     summary: "Early drilling has already returned bonanza-grade silver and confirmed the system continues at depth — strong technical evidence for an early-stage program, though still limited in hole count.",
-    intercepts: [
-      { hole: "Discovery Hole", grade: "1,742 g/t AgEq", width: "0.70 m", note: "First Kingsmen hole — bonanza-grade silver-equivalent at Soledad." },
-      { hole: "Soledad Step-Out", grade: "931 g/t AgEq", width: "1.60 m", note: "Includes 1.28 g/t gold — the gold-bearing vein extends along strike." },
-      { hole: "District Step-Out", grade: "270 g/t AgEq", width: "1.50 m", note: "Hit 1.5 km from discovery — evidence the trend is district-scale." },
-    ],
+    // Drill intercepts are NOT duplicated here. The canonical dataset lives in
+    // companies.profile.projects[].drillResults (surfaced via withCanonDrills / __CANON_PROJECTS__);
+    // this legacy content.results shape is no longer read by the sheet renderer.
+    intercepts: [],
     latest: "Down-dip drilling confirmed mineralization continues ~70 m below known workings.",
     pending: "Assays for three Phase 1 holes submitted and pending.",
     holes: "Phase 1 of a 26-hole program",
@@ -4602,13 +4662,11 @@ function ProjectsView() {
             { era: "2025", v: "Maiden Kingsmen hole returns 1,742 g/t AgEq \u2014 a bonanza-grade discovery." },
             { era: "2026", v: "26-hole program underway, testing strike and depth extensions district-wide." },
           ] },
-        { Icon: Drill, label: "Best Drill Results", sub: "Bonanza-grade hits", kind: "drills",
-          rows: [
-            { hole: "Discovery Hole", interval: "0.70 m", grade: "1,742 g/t AgEq", note: "First Kingsmen hole. Bonanza-grade silver-equivalent confirms a high-grade system at Soledad." },
-            { hole: "Soledad Step-Out", interval: "1.60 m", grade: "931 g/t AgEq", note: "Includes 1.28 g/t gold \u2014 the gold-bearing vein extends along strike." },
-            { hole: "Down-Dip Test", interval: "\u2014", grade: "+70 m continuity", note: "Mineralization continues 70 m down-dip; the system grows with depth." },
-            { hole: "District Step-Out", interval: "1.50 m", grade: "270 g/t AgEq", note: "Hit 1.5 km from discovery \u2014 evidence the mineralized trend is district-scale." },
-          ] },
+        // Drill/results carry NO hardcoded dataset. Rows come from the company's canonical
+        // projects[].drillResults (via window.__CANON_PROJECTS__ \u2192 withCanonDrills), the same
+        // source the Conference booth reads. This card is the shell only.
+        { Icon: Drill, label: "Drill Intercepts", sub: "Intercepts \u00b7 assays", kind: "drills",
+          rows: [] },
         { Icon: Route, label: "Infrastructure", sub: "Access \u00b7 power \u00b7 water", kind: "infra",
           infra: [
             { Icon: Route, label: "Road Access", value: "Year-round" },
@@ -4654,13 +4712,13 @@ function ProjectsView() {
       brief: LC_BRIEF,
     },
     alm: {
-      key: "alm", name: "Almoloya", tone: "#b45309", toneText: "#b45309", toneSoft: "rgba(245,158,11,0.10)",
+      key: "alm", name: "Almoloya", tone: "#0d9488", toneText: "#0f766e", toneSoft: "rgba(13,148,136,0.10)",
       snap: AM_SNAP, stageInfo: AM_STAGE, unique: AM_UNIQUE, content: AM_CARDS,
       gallery: AM_SITE_GALLERY,
-      status: { label: "Early Exploration", tone: "#b45309" },
+      status: { label: "Early Exploration", tone: "#0d9488" },
       locationFull: "Sierra de Almoloya, Chihuahua, Mexico",
       stageName: "Early-Stage Exploration",
-      statusStrip: { tone: "#b45309", state: "Early Exploration", pills: ["Pre-Drill", "Target Definition", "Next: Maiden Drill"] },
+      statusStrip: { tone: "#0d9488", state: "Early Exploration", pills: ["Pre-Drill", "Target Definition", "Next: Maiden Drill"] },
       districtMaps: [],
       snapshot: [
         { Icon: MapPin, label: "Location", value: "Sierra de Almoloya" },
@@ -4689,7 +4747,7 @@ function ProjectsView() {
             { era: "Recent", v: "Kingsmen completes the first district-wide consolidation in decades." },
             { era: "Now", v: "Compiling historic data with modern mapping and geophysics to define drill targets." },
           ] },
-        { Icon: Drill, label: "Best Drill Results", sub: "Pre-drilling", kind: "drills", empty: true,
+        { Icon: Drill, label: "Drill Intercepts", sub: "Pre-drilling", kind: "drills", empty: true,
           emptyMsg: "No modern drilling yet. Almoloya is pre-drill: Kingsmen is defining a maiden program from historic records, mapping and geophysics. The first drill results will be the project's key catalyst." },
         { Icon: Route, label: "Infrastructure", sub: "Access \u00b7 power \u00b7 water", kind: "infra",
           infra: [
@@ -4747,6 +4805,26 @@ function ProjectsView() {
   const STAGEINFO = p.stageInfo || {};
   const UNIQUE = p.unique || {};
   const CARDS = p.content || {};
+  // Canonical drill/results come from the company profile's projects[].drillResults — the
+  // single source of truth, fetched into window.__CANON_PROJECTS__ at load. This is universal
+  // (matched by project name/key, applies to any company) and replaces the old demo-only
+  // hardcoded drill dataset: the Pro Profile now surfaces the same canonical rows the
+  // Conference booth reads. Falls through untouched when a project has no canonical results.
+  const _cnorm = (s) => String(s || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
+  const canonDrillRows = (proj) => {
+    const CP = (typeof window !== "undefined" && Array.isArray(window.__CANON_PROJECTS__)) ? window.__CANON_PROJECTS__ : [];
+    if (!CP.length || !proj) return null;
+    const nm = _cnorm(proj.name), ky = _cnorm(proj.key);
+    const hit = CP.find((x) => x && (( nm && (_cnorm(x.name) === nm)) || (ky && (_cnorm(x.key) === ky || _cnorm(x.name) === ky))));
+    const rows = hit && hit.drillResults && Array.isArray(hit.drillResults.rows) ? hit.drillResults.rows : null;
+    return rows && rows.length ? rows : null;
+  };
+  // Overlay canonical drill rows onto a drills card (leaves every other card untouched).
+  const withCanonDrills = (card) => {
+    if (!card || card.kind !== "drills") return card;
+    const rows = canonDrillRows(p);
+    return rows ? { ...card, rows, empty: false } : card;
+  };
   // Per-project value-driver scenarios (Bull / Bear / Next Validation).
   const SC = CARDS.scenarios || {};
   const SCENARIOS = [
@@ -4762,10 +4840,11 @@ function ProjectsView() {
     if (demo.sheet === "proj:drills") {
       const o = (typeof GEO_ORDER !== "undefined" ? GEO_ORDER : []).find((x) => x.kind === "drills");
       const c = (p.cards || []).find((x) => x.kind === "drills");
-      if (c) setCardSheet({ ...c, label: (o && o.label) || c.label });
+      if (c) setCardSheet({ ...withCanonDrills(c), label: (o && o.label) || c.label });
     } else {
       setCardSheet(null);
     }
+    setShowUnique(demo.sheet === "proj:unique");   // minimal demo hook: "What Sets This Project Apart"
   }, [demo && demo.sheet, activeKey]);
   const GEO_ORDER = [
     { kind: "map", label: "District Context", sub: "Claims · Structures · Regional Context" },
@@ -4935,9 +5014,8 @@ function ProjectsView() {
               const CIcon = resolveIcon(c.Icon || c.icon);
               const fcKind = { map: "district", history: "explorationHistory", geology: "geology", drills: "drillResults" }[o.kind] || o.kind;
               return (
-                <button key={i} data-fc={"projects." + fcKind} onClick={() => setCardSheet({ ...c, label: o.label })}
-                  className="relative flex flex-col items-start rounded-2xl border border-slate-100 bg-white p-3 text-left"
-                  style={demoFocusStyle(demo && demo.focus === "drills" && fcKind === "drillResults", "0 1px 2px rgba(15,23,42,0.04)")}>
+                <button key={i} data-fc={"projects." + fcKind} onClick={() => setCardSheet({ ...withCanonDrills(c), label: o.label })}
+                  className="relative flex flex-col items-start rounded-2xl border border-slate-100 bg-white p-3 text-left">
                   <span className="grid h-8 w-8 place-items-center rounded-xl" style={{ background: p.toneSoft }}><CIcon size={16} style={{ color: p.tone }} strokeWidth={2.3} /></span>
                   <p className="mt-2 pr-3 text-[12.5px] font-bold leading-tight tracking-tight text-slate-900">{o.label}</p>
                   <p className="mt-0.5 text-[10px] font-medium leading-snug text-slate-400">{o.sub}</p>
@@ -4953,8 +5031,7 @@ function ProjectsView() {
         {/* How This Project Is Unique — AI insight, expandable */}
         {CARDS.unique && (
         <button data-demo="proj-intel" onClick={() => setShowUnique(true)}
-          className="flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-4"
-          style={demoFocusStyle(demo && demo.focus === "intel", "none")}>
+          className="flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-4">
           <Sparkles size={13} strokeWidth={2.4} style={{ color: "#4f86e8" }} />
           <span className="text-[11px] font-extrabold uppercase tracking-[0.16em]" style={{ background: "linear-gradient(90deg, #4f86e8 0%, #9168c0 52%, #d2627b 100%)", WebkitBackgroundClip: "text", backgroundClip: "text", WebkitTextFillColor: "transparent", color: "transparent" }}>What Sets This Project Apart</span>
         </button>
@@ -5139,16 +5216,23 @@ function ProjectsView() {
               )}
 
               {rows.length > 0 && (
-                <CardSection heading="Best drill intercepts">
+                <CardSection heading="Drill intercepts">
                   <div className="space-y-2.5">
                     {rows.map((r, i) => (
                       <div key={i} className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                        {/* Parent intercept stays primary; disclosed sub-intervals render below as
+                            "incl.", subordinate and in the company's own order — never flattened. */}
                         <div className="flex items-baseline justify-between gap-3">
                           <span className="text-[12.5px] font-bold tracking-tight text-slate-900">{r.hole}</span>
                           <span className="text-right text-[16px] font-extrabold tracking-tight" style={{ color: p.toneText }}>{r.grade}</span>
                         </div>
-                        {r.interval && <p className="mt-0.5 text-[10px] font-bold uppercase tracking-[0.1em] text-slate-400">{r.interval}</p>}
+                        {(has(r.interval) || has(r.target)) && (
+                          <p className="mt-0.5 text-[10px] font-bold uppercase tracking-[0.1em] text-slate-400">
+                            {has(r.interval) ? r.interval : ""}{has(r.interval) && has(r.target) ? " · " : ""}{has(r.target) ? r.target : ""}
+                          </p>
+                        )}
                         {r.note && <p className="mt-2 text-[11.5px] font-medium leading-snug text-slate-600">{r.note}</p>}
+                        <DrillInclLines list={r.includedIntervals} accent={p.toneText} />
                       </div>
                     ))}
                   </div>
@@ -5932,6 +6016,7 @@ const FEED_OBJECTS = FEED.map((f) => {
     commodity: co.commodity || "", jurisdiction: co.region || "",
     publishedAt: f.date, source: "MineEx", headline: f.headline,
     summary: f.whatHappened || "", thumbnail: "", externalUrl: "",
+    image: f.image || "",
     companyTier: accountTier(co), isFeatured: false,
     // fields the card + inline reader read
     src: "Company", Icon: f.key ? Sparkles : Radio, co: f.co, when: relTime(f.date),
@@ -6229,8 +6314,26 @@ function coverFor(it) {
 // Reject known beacon hosts up front so we don't even request them; anything that
 // slips through is caught at load time by the natural-size check in <CoverImg>.
 const IMG_BEACON = /globenewswire\.com\/newsroom\/ti|ml\.globenewswire|rt\.newswire|thenewswire\.com\/api\/apps|accessnewswire\.com\/img\.ashx|newsfilecorp\.com\/newsinfo|cts\.businesswire|\/rt\.gif/i;
+// Marketing demo only: the fixture's photographs ship with the site, so they are
+// same-origin and root-relative ("/marketing/..."). Production keeps the https-only rule,
+// because there the images come from publisher feeds we do not control.
+const DEMO_IMAGES = typeof window !== "undefined" && !!window.__INVESTOR_DEMO__;
+// A card's dek is the summary's first 150 characters, which lands mid-word most of the
+// time ("...612 grams per tonne s"). In the marketing demo we back up to the last word
+// boundary and add an ellipsis. Left alone in the shipped app so this pass changes nothing
+// users see in production — but the same ragged truncation is visible there on real feed
+// text, and is worth fixing separately.
+function dekOf(text) {
+  const t = String(text);
+  if (t.length <= 150) return t;
+  const cut = t.slice(0, 150);
+  if (!DEMO_IMAGES) return cut;
+  const sp = cut.lastIndexOf(" ");
+  return (sp > 110 ? cut.slice(0, sp) : cut).replace(/[\s,;:.]+$/, "") + "…";
+}
 function displayImage(url) {
   const u = String(url || "");
+  if (DEMO_IMAGES && /^\/[^/]/.test(u)) return u;
   if (!/^https:\/\//i.test(u)) return "";
   if (IMG_BEACON.test(u)) return "";
   return u;
@@ -6377,7 +6480,7 @@ function StoryReader({ it, onOpen, onClose }) {
           {isReader && <p className="mt-3 rounded-xl bg-slate-50 px-3 py-2.5 text-[11px] font-medium leading-snug text-slate-400">MineEx provides factual summaries and educational context, not investment advice. Refer to the original disclosure for complete information.</p>}
           {isBrief && <p className="mt-5 rounded-xl bg-slate-50 px-3 py-2.5 text-[11.5px] font-medium leading-snug text-slate-400">A MineEx Brief is a factual, contextual summary based on source material — not investment advice or independent analysis.</p>}
         </div>
-        <div className="flex-shrink-0 border-t border-slate-100 px-5 py-3" style={{ paddingBottom: "calc(env(safe-area-inset-bottom,0px) + 12px)" }}>
+        <div className="flex-shrink-0 border-t border-slate-100 px-5 py-3" style={{ paddingBottom: `calc(env(safe-area-inset-bottom,0px) + ${12 + DEMO_SAFE_B}px)` }}>
           <div className="flex items-center gap-2.5">
             {it.live && onOpen && <button onClick={() => { haptic(); onClose(); onOpen(it); }} className={`h-12 rounded-2xl border border-slate-200 px-4 text-[13px] font-bold text-slate-700 active:scale-95 ${isBrief ? "flex-1" : "flex-shrink-0"}`}>Open Company</button>}
             {!isBrief && <button onClick={() => { haptic(); try { window.open(it.fullUrl, "_blank", "noopener"); } catch {} }} className="flex h-12 flex-1 items-center justify-center gap-1.5 rounded-2xl text-[14px] font-bold text-white active:scale-[0.98]" style={{ background: "#2563eb" }}>{origLabel} <ArrowUpRight size={15} /></button>}
@@ -6605,6 +6708,92 @@ function Reels({ items, onOpen }) {
 // deliberately transparent — real signals only (follows + followed-commodity
 // relevance + recency + a modest Pro boost) — structured so a smarter backend
 // can replace it without changing the cards.
+// ─────────────────────────────────────────────────────────────────────────────
+// Investor-demo command bus — lets the marketing Investor page (/investor)
+// SCRIPT the REAL screens (open a real story, scroll a live feed, drive Explore's
+// Advanced Search) through the actual components, without faking any UI. Entirely
+// inert unless window.__INVESTOR_DEMO__ (set only by the /appdemo mount); it never
+// reads or writes persistent state. The parent drives it via window.__appDemoGo(...).
+// ─────────────────────────────────────────────────────────────────────────────
+const investorDemoBus = (() => {
+  let cmd = null, seq = 0; const subs = new Set();
+  return {
+    send(c) { cmd = c; seq += 1; subs.forEach((f) => { try { f(cmd, seq); } catch (_) {} }); },
+    current() { return { cmd, seq }; },
+    sub(f) { subs.add(f); return () => subs.delete(f); },
+  };
+})();
+// Marketing-demo-only: the phone in the marketing render is a photograph of an iPhone, but
+// the iframe inside it is an ordinary browser viewport, so env(safe-area-inset-bottom)
+// resolves to 0 — bottom-anchored controls end up ~34px lower than they would on a device
+// and run into the display's corner radius, which is what clipped "Read Original Article".
+// DEMO_SAFE_B restores a device's inset for the sheet footers that sit against the bottom
+// edge. 0 in the shipped app, where the real env() value already does this job.
+const DEMO_SAFE_B = (typeof window !== "undefined" && window.__INVESTOR_DEMO__) ? 34 : 0;
+// Top inset: a Pro Max reserves 59pt; the mock status bar already draws 38pt.
+const DEMO_SAFE_T = (typeof window !== "undefined" && window.__INVESTOR_DEMO__) ? 21 : 0;
+// The Advanced Search card is the app's own bottom sheet — anchored to the bottom edge,
+// full width, rounded top corners, sliding up from the control. An earlier demo-only
+// override floated it as an inset card in the middle of the screen; that read as a desktop
+// modal squeezed into a phone, so it is gone. The only demo adjustment left is DEMO_SAFE_B
+// above, which keeps the sheet's action row clear of the simulated display's curved corner.
+// Subscribe a screen to the bus (and apply any command already pending on mount, so a
+// command sent the instant before the screen mounts still lands). Inert outside the demo.
+function useDemoCommand(handler) {
+  const h = useRef(handler); h.current = handler;
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.__INVESTOR_DEMO__) return undefined;
+    const run = (cmd, seq) => { try { h.current(cmd, seq); } catch (_) {} };
+    const cur = investorDemoBus.current();
+    if (cur.cmd) run(cur.cmd, cur.seq);
+    return investorDemoBus.sub(run);
+  }, []);
+}
+// Smoothly ease an element's scrollTop to a target — makes the live phone VISIBLY scroll
+// during the demo instead of cutting between screens.
+function smoothScrollTo(el, to, dur = 1000) {
+  if (!el) return;
+  const from = el.scrollTop, d = to - from, t0 = performance.now();
+  if (Math.abs(d) < 2) { el.scrollTop = to; return; }
+  const ease = (x) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
+  const tick = (now) => { const p = Math.min(1, (now - t0) / dur); el.scrollTop = from + d * ease(p); if (p < 1) requestAnimationFrame(tick); };
+  requestAnimationFrame(tick);
+}
+// Scroll the FRONTMOST vertical scroller in the app (the open reader/sheet if any, else the
+// current feed) to a fraction of its range. DOM-level, so it needs no per-screen wiring.
+function demoScrollFront(frac, dur = 1100) {
+  try {
+    const els = Array.prototype.slice.call(document.querySelectorAll(".pp-scroll")).filter((el) => {
+      const cs = getComputedStyle(el); return /(auto|scroll)/.test(cs.overflowY) && (el.scrollHeight - el.clientHeight) > 24;
+    });
+    const el = els[els.length - 1]; if (!el) return;
+    smoothScrollTo(el, Math.max(0, (el.scrollHeight - el.clientHeight) * frac), dur);
+  } catch (_) {}
+}
+
+// Seat the LAST card of a tab just above the bottom bar, computed from the live layout
+// rather than a magic offset. The Capital tab is the case that needs it: its final card
+// (the AI Summary) sat mid-screen with the next section peeking underneath, where on a
+// real phone that section is below the fold. Self-correcting if the content changes.
+function demoSeatLastCard(matchText, gap = 14, dur = 520) {
+  try {
+    const els = Array.prototype.slice.call(document.querySelectorAll(".pp-scroll")).filter((el) => {
+      const cs = getComputedStyle(el); return /(auto|scroll)/.test(cs.overflowY) && (el.scrollHeight - el.clientHeight) > 24;
+    });
+    const el = els[els.length - 1]; if (!el) return;
+    const hit = Array.prototype.slice.call(el.querySelectorAll("*"))
+      .filter((n) => !n.children.length && matchText.test(n.textContent || ""))[0];
+    if (!hit) return;
+    let card = hit;
+    while (card && card !== el && !/linear-gradient/.test(getComputedStyle(card).backgroundImage || "")) card = card.parentElement;
+    if (!card || card === el) return;
+    const bar = document.querySelector(".pp-bottomnav");
+    const floor = bar ? bar.getBoundingClientRect().top : el.getBoundingClientRect().bottom;
+    const delta = Math.round(card.getBoundingClientRect().bottom + gap - floor);
+    if (delta > 4) smoothScrollTo(el, Math.min(el.scrollHeight - el.clientHeight, el.scrollTop + delta), dur);
+  } catch (_) {}
+}
+
 export function TodayScreen({ onOpenCompany, onScan }) {
   const [tab, setTab] = useState("foryou");
   const [, bump] = useState(0);
@@ -6655,7 +6844,7 @@ export function TodayScreen({ onOpenCompany, onScan }) {
     companyId: n.company_slug || "", companyName: n.source_name || "Industry", ticker: "",
     commodity: (n.commodities || []).join(" · "), jurisdiction: (n.jurisdictions || []).slice(0, 2).join(", "),
     publishedAt: n.published_at, source: n.source_name || "Industry", headline: n.title, t: n.title,
-    dek: n.mineex_summary ? String(n.mineex_summary).slice(0, 150) : "", summary: n.mineex_summary || "",
+    dek: n.mineex_summary ? dekOf(n.mineex_summary) : "", summary: n.mineex_summary || "",
     summaryLong: n.mineex_summary || "", mineex_summary: n.mineex_summary || "",
     plainEnglish: n.plain_english_explanation || "", context: n.context || "",
     keyNumbers: Array.isArray(n.key_numbers) ? n.key_numbers : [],
@@ -6771,6 +6960,36 @@ export function TodayScreen({ onOpenCompany, onScan }) {
   const news = useMemo(() => objects.filter((o) => o.contentType === "NEWS" && !o.isPressRelease).sort((a, b) => (Number(b.relevant) - Number(a.relevant)) || String(b.publishedAt).localeCompare(String(a.publishedAt))), [objects]);
   // Media — video-first Pro publishing surface (Reels).
   const media = useMemo(() => objects.filter((o) => isMedia(o.contentType)).sort((a, b) => String(b.publishedAt).localeCompare(String(a.publishedAt))), [objects]);
+
+  // Investor-demo: a pinned story the feed has not loaded yet (see openId below).
+  const pendingOpenRef = useRef(null);
+  useEffect(() => {
+    const id = pendingOpenRef.current;
+    if (!id) return;
+    const t = objects.find((o) => o.id === id);
+    if (t) { pendingOpenRef.current = null; openStory(t); }
+  }, [objects]);
+
+  // Investor-demo: script the real feed (open a real story, switch tab, scroll) — inert in prod.
+  useDemoCommand((cmd) => {
+    if (!cmd || cmd.screen !== "today") return;
+    if (cmd.closeReader) setReader(null);
+    if (cmd.tab) setTab(cmd.tab);
+    // openId pins the beat to ONE story. The feed's lead is whatever currently ranks
+    // first, and the walkthrough changes that as it goes (following a company re-ranks
+    // the feed), so "open the lead" showed a different story on the way back through
+    // than on the way down. Pinning makes the beat identical in both directions.
+    if (cmd.openId) {
+      // The command can arrive before the feed's stories are in `objects`. Remember it and
+      // let the effect below open it the moment they land, rather than falling through to
+      // whatever happens to lead the feed at that instant.
+      const t = objects.find((o) => o.id === cmd.openId);
+      if (t) { pendingOpenRef.current = null; openStory(t); } else { pendingOpenRef.current = cmd.openId; }
+      return;
+    }
+    if (cmd.openLead && lead) openStory(lead);
+    if (cmd.scrollTop) requestAnimationFrame(() => demoScrollFront(0, cmd.instant ? 0 : 480));
+  });
 
   return (
     <div className="flex h-full flex-col">
@@ -6958,7 +7177,7 @@ function FilterSheet({ title, searchable, popular, sections, selected, onApply, 
           {sections.every((s) => !s.rows.length) && <p className="py-10 text-center text-[13px] font-medium text-slate-400">No options available yet.</p>}
           <div className="h-2" />
         </div>
-        <div className="flex-shrink-0 border-t border-slate-100 px-5 py-3" style={{ paddingBottom: "calc(env(safe-area-inset-bottom,0px) + 12px)" }}>
+        <div className="flex-shrink-0 border-t border-slate-100 px-5 py-3" style={{ paddingBottom: `calc(env(safe-area-inset-bottom,0px) + ${12 + DEMO_SAFE_B}px)` }}>
           <div className="flex items-center gap-3">
             {pending.length > 0 && <button onClick={() => { haptic(); setPending([]); }} className="flex-shrink-0 text-[13.5px] font-bold text-slate-500 active:scale-95">Clear</button>}
             <button onClick={() => { haptic(); onApply(pending); }} className="h-12 flex-1 rounded-2xl text-[14px] font-bold text-white transition active:scale-[0.98]" style={{ background: EM }}>
@@ -7111,6 +7330,16 @@ function DiscoverScreen({ onOpenCompany, onScan }) {
   const CATS = [["commodity", "Commodity", Gem], ["location", "Location", MapPin], ["stage", "Stage", Mountain]];
   const facetSummary = (k) => { const s = filters[k]; return !s.length ? "Any" : s.length > 1 ? `${s[0]} +${s.length - 1}` : s[0]; };
 
+  // Investor-demo: script Advanced Search (open it, select facets, reveal the narrowed list).
+  useDemoCommand((cmd) => {
+    if (!cmd || cmd.screen !== "explore") return;
+    if (cmd.reset) { setFilters({ commodity: [], location: [], stage: [], activity: [], funding: [] }); setFilterOpen(false); }
+    if (cmd.set) setFilters((f) => ({ ...f, ...cmd.set }));
+    if (cmd.facet) setFacet(cmd.facet);
+    if (cmd.openFilters) { setAdvExpanded({}); setFilterOpen(true); }
+    if (cmd.closeFilters) setFilterOpen(false);
+  });
+
   return (
     <div className="flex h-full flex-col">
       <ScreenHead eyebrow="Discover Companies" title="Explore" onScan={onScan} />
@@ -7124,8 +7353,12 @@ function DiscoverScreen({ onOpenCompany, onScan }) {
         {/* Filter → Advanced Search pill (opens the Commodity / Location / Stage card) */}
         <div className="mt-3 flex items-center gap-2">
           <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Filter</span>
+          {/* In the marketing demo the idle pill carries the same dark control treatment as the
+              active one, so Advanced Search reads as a deliberate tool rather than a faint
+              outline; the active state is still distinguished by its " · N" count. The shipped
+              app keeps the white idle pill. */}
           <button onClick={openFilter} className="flex items-center gap-1.5 rounded-full border px-4 py-1.5 text-[12.5px] font-bold tracking-tight transition active:scale-95"
-            style={hasFilters ? { background: "#0f172a", borderColor: "#0f172a", color: "#fff" } : { background: "#fff", borderColor: "#e2e8f0", color: "#475569" }}>
+            style={(hasFilters || DEMO_IMAGES) ? { background: "#0f172a", borderColor: "#0f172a", color: "#fff" } : { background: "#fff", borderColor: "#e2e8f0", color: "#475569" }}>
             <SlidersHorizontal size={13} />Advanced Search{hasFilters ? ` · ${activeKeys.length}` : ""}
           </button>
           {hasFilters && <button onClick={clearAll} className="ml-auto flex items-center gap-1 text-[12px] font-bold text-slate-500 active:scale-95"><X size={12} />Clear</button>}
@@ -7231,7 +7464,7 @@ function DiscoverScreen({ onOpenCompany, onScan }) {
       {/* Advanced Search filter card (opened from the Advanced Search pill) — facet tabs, no text search */}
       {filterOpen && createPortal(
         <div className="absolute inset-0 z-[90] flex flex-col justify-end pp-fade" onClick={() => setFilterOpen(false)}>
-          <style>{"@keyframes mxSearchUp{from{transform:translateY(100%)}to{transform:translateY(0)}}"}</style>
+          <style>{"@keyframes mxSearchUp{from{transform:translateY(100%)}to{transform:translateY(0)}}@keyframes mxSearchPop{from{opacity:0;transform:translateY(-10px) scale(.985)}to{opacity:1;transform:none}}"}</style>
           <div className="absolute inset-0" style={{ background: "rgba(15,23,42,0.35)", backdropFilter: "blur(2px)" }} />
           <div onClick={(e) => e.stopPropagation()} className="relative flex h-[88%] flex-col rounded-t-[26px] bg-white" style={{ animation: "mxSearchUp .3s cubic-bezier(.2,.8,.2,1)", boxShadow: "0 -12px 40px -12px rgba(15,23,42,0.35)" }}>
             {/* Header: title + facet tabs (no text search — that lives on the search bar) */}
@@ -7295,7 +7528,7 @@ function DiscoverScreen({ onOpenCompany, onScan }) {
               <div className="h-2" />
             </div>
             {/* Footer CTA */}
-            <div className="flex-shrink-0 border-t border-slate-100 px-5 py-3" style={{ paddingBottom: "calc(env(safe-area-inset-bottom,0px) + 12px)" }}>
+            <div className="flex-shrink-0 border-t border-slate-100 px-5 py-3" style={{ paddingBottom: `calc(env(safe-area-inset-bottom,0px) + ${12 + DEMO_SAFE_B}px)` }}>
               <div className="flex items-center gap-3">
                 {hasFilters && <button onClick={clearAll} className="flex-shrink-0 text-[13.5px] font-bold text-slate-500 active:scale-95">Clear</button>}
                 <button onClick={() => { haptic(); setFilterOpen(false); }} className="h-12 flex-1 rounded-2xl text-[14px] font-bold text-white transition active:scale-[0.98]" style={{ background: "#0f172a" }}>Show {filtered.length} {filtered.length === 1 ? "company" : "companies"}</button>
@@ -7700,10 +7933,15 @@ const savedStore = {
     this.emit();
   },
 };
+// Marketing investor demo (/appdemo) uses ISOLATED in-memory lists seeded from
+// window.__DEMO_LISTS__, so it never reads or writes the real user's saved follows on
+// this origin. Everywhere else the lists persist to localStorage as normal.
+const __DEMO_LISTS__ = (() => { try { return (typeof window !== "undefined" && window.__INVESTOR_DEMO__ && window.__DEMO_LISTS__) || null; } catch (_) { return null; } })();
 const listStore = {
   data: (() => {
     const base = { following: [], favourite: [], watchlist: [] };
     try {
+      if (__DEMO_LISTS__) { for (const k of LIST_KINDS) if (Array.isArray(__DEMO_LISTS__[k])) base[k] = [...__DEMO_LISTS__[k]]; return base; }
       const raw = JSON.parse(localStorage.getItem(LIST_KEY) || "{}");
       for (const k of LIST_KINDS) if (Array.isArray(raw[k])) base[k] = raw[k];
     } catch (_) {}
@@ -7712,7 +7950,7 @@ const listStore = {
   listeners: new Set(),
   sub(fn) { this.listeners.add(fn); return () => this.listeners.delete(fn); },
   emit() {
-    try { localStorage.setItem(LIST_KEY, JSON.stringify(this.data)); } catch (_) {}
+    if (!__DEMO_LISTS__) { try { localStorage.setItem(LIST_KEY, JSON.stringify(this.data)); } catch (_) {} }
     this.listeners.forEach((fn) => { try { fn(); } catch (_) {} });
   },
   ids(kind) { return this.data[kind] || []; },
@@ -9120,7 +9358,7 @@ function BasicListing({ onBack }) {
 // snap; the incoming element is reused on commit (no remount/flash); horizontal carousels
 // inside a page are excluded; a back-swipe past the FIRST tab fires onEdgeBack. onLead
 // fires the instant a swipe commits so an external indicator (nav/header) can lead.
-function SwipePager({ tabs, tab, setTab, render, pageClassName = "", onLead, onEdgeBack, onPageClickCapture, demo }) {
+function SwipePager({ tabs, tab, setTab, render, pageClassName = "", onLead, onEdgeBack, onPageClickCapture, demo, exposeNav }) {
   const viewportRef = useRef(null);
   const [nbrTab, setNbrTab] = useState(null);
   const g = useRef({ x: 0, y: 0, t0: 0, axis: null, dir: 0, w: 0, skip: true, active: false, edge: false });
@@ -9197,6 +9435,179 @@ function SwipePager({ tabs, tab, setTab, render, pageClassName = "", onLead, onE
     return () => { vp.removeEventListener("touchstart", start); vp.removeEventListener("touchmove", move); vp.removeEventListener("touchend", end); vp.removeEventListener("touchcancel", end); };
   }, [tab, tabs, onLead, onEdgeBack, setTab, demo]);
 
+  // ── Directed nav API (embed only) ────────────────────────────────────────────
+  // The marketing DemoDirector doesn't swipe a finger — it COMMANDS this mounted
+  // pager to go tab i → tab j. Both real surfaces are mounted (via nbrTab) and the
+  // incoming one is settled (its pp-view finished, its images decoded — the parent
+  // preloads them) BEFORE a SINGLE deterministic, time-driven CSS-transform slide
+  // runs. No finger drag, no velocity coupling, no partial resting state, no
+  // remount. Same visual as the real swipe-commit, minus the uncontrolled drag.
+  useEffect(() => {
+    if (!exposeNav) return;
+    const vp = viewportRef.current; if (!vp) return;
+    let busy = false;
+    const cur = () => vp.querySelector(`[data-page="${tab}"]`);
+    const waitEl = (sel, timeout = 1500) => new Promise((res) => {
+      const t0 = performance.now();
+      const tick = () => { const el = vp.querySelector(sel); if (el || performance.now() - t0 > timeout) return res(el); setTimeout(tick, 16); };
+      tick();
+    });
+    const api = (toId) => new Promise(async (resolve) => {
+      const i = tabs.indexOf(tab), j = tabs.indexOf(toId);
+      if (busy || j < 0 || j === i) return resolve();
+      busy = true;
+      const dir = j > i ? 1 : -1;
+      const w = vp.clientWidth || 1;
+      // Mount BOTH real surfaces (nbrTab renders the incoming page beside the current).
+      // A plain state update + wait for the element is used rather than flushSync — a
+      // cross-realm flushSync from the marketing parent does not reliably flush here.
+      setNbrTab(toId);
+      // Park the incoming page off-stage in a PRE-PAINT frame: React commits the mount
+      // in this frame's task phase, then this rAF runs (still before the paint), so the
+      // page's FIRST painted frame is already at +100%, never a one-frame flash at x=0
+      // over the current page. A setTimeout backstop covers a throttled (hidden) rAF.
+      const n = await new Promise((res) => {
+        let done = false;
+        const park = () => {
+          if (done) return true;
+          const el = vp.querySelector(`[data-page="${toId}"]`), c0 = cur();
+          if (!el || !c0) return false;
+          done = true;
+          c0.style.transition = "none"; el.style.transition = "none";
+          c0.style.transform = "translate3d(0,0,0)";
+          el.style.transform = `translate3d(${dir * w}px,0,0)`;
+          res(el); return true;
+        };
+        const rafLoop = () => { if (!park()) requestAnimationFrame(rafLoop); };
+        requestAnimationFrame(rafLoop);
+        let t = 0;
+        const toLoop = () => { if (done) return; if (!park() && t++ < 200) setTimeout(toLoop, 16); else if (!done) res(null); };
+        setTimeout(toLoop, 64);
+      });
+      const c = cur();
+      if (!c || !n) { busy = false; setNbrTab(null); return resolve(); }
+      // Settle the incoming surface first: images decoded (preloaded ⇒ instant) and a
+      // beat for its pp-view entrance to finish, so nothing loads/fades during the slide.
+      const t0 = performance.now();
+      const imagesReady = () => [...n.querySelectorAll("img")].every((x) => x.complete && x.naturalWidth > 0);
+      const slide = () => {
+        void vp.offsetWidth;                                  // commit the parked transforms (compositor picks up the transition)
+        const DUR = 560, EASE = `transform ${DUR}ms cubic-bezier(0.5,0,0.1,1)`;
+        const c2 = cur(), n2 = vp.querySelector(`[data-page="${toId}"]`);
+        if (!c2 || !n2) { busy = false; setNbrTab(null); return resolve(); }
+        c2.style.transition = EASE; n2.style.transition = EASE;
+        c2.style.transform = `translate3d(${-dir * w}px,0,0)`;
+        n2.style.transform = "translate3d(0,0,0)";
+        setTimeout(() => {
+          setTab(toId); setNbrTab(null);
+          setTimeout(() => { const only = vp.querySelector("[data-page]"); if (only) { only.style.transition = "none"; only.style.transform = "translate3d(0,0,0)"; } }, 16);
+          busy = false; resolve();
+        }, DUR + 40);
+      };
+      const gate = () => {
+        const elapsed = performance.now() - t0;
+        // Embed-only directed nav (exposeNav): the parent preloads every profile image,
+        // so imagesReady() is the real readiness signal and the old 380ms floor was pure
+        // dead time before the slide. Keep the decode SAFETY (imagesReady must hold) but
+        // drop the floor so the 560ms slide starts promptly. Production swipe nav is a
+        // different code path and is unaffected.
+        if ((imagesReady() && elapsed > 140) || elapsed > 900) slide();
+        else setTimeout(gate, 24);
+      };
+      setTimeout(gate, 24);   // let React paint the mounted incoming surface first
+    });
+    window.__ppNav = api;
+
+    // Directed VERTICAL move (Projects → Project Intelligence). Driven by THIS window's
+    // rAF — in the same realm as the page it scrolls — so the animation is synced to
+    // the iframe's own paint pipeline, exactly like the horizontal CSS transition
+    // above (the previous version drove scrollTop from the marketing PARENT's rAF
+    // across the realm boundary, which read as slightly stepped). Deterministic
+    // duration + exact destination; the incoming content's images are decoded first so
+    // no image work competes with the move. Easing matches the horizontal slide's feel:
+    // gentle depart → confident travel → long deceleration → dead stop.
+    const bez = (x1, y1, x2, y2) => {
+      const cx = 3 * x1, bx = 3 * (x2 - x1) - cx, ax = 1 - cx - bx;
+      const cy = 3 * y1, by = 3 * (y2 - y1) - cy, ay = 1 - cy - by;
+      const fx = (t) => ((ax * t + bx) * t + cx) * t, fy = (t) => ((ay * t + by) * t + cy) * t;
+      const dfx = (t) => (3 * ax * t + 2 * bx) * t + cx;
+      return (x) => { let t = x; for (let i = 0; i < 6; i++) { const e = fx(t) - x; if (Math.abs(e) < 1e-4) break; const dd = dfx(t) || 1e-6; t -= e / dd; } return fy(t < 0 ? 0 : t > 1 ? 1 : t); };
+    };
+    const camEase = bez(0.4, 0.0, 0.12, 1.0);
+    const mainScroller = () => [...vp.querySelectorAll(".pp-scroll")].find((s) => s.scrollHeight - s.clientHeight > 8) || null;
+    let scrolling = false;
+    const scrollApi = (target, dur = 720) => new Promise((resolve) => {
+      const scr = mainScroller();
+      if (!scr || scrolling) return resolve();
+      const to = Math.max(0, Math.min(scr.scrollHeight - scr.clientHeight, Math.round(target)));
+      const from = scr.scrollTop, dist = to - from;
+      if (Math.abs(dist) < 1) return resolve();
+      scrolling = true;
+      // Decode any images between here and the destination so no raster/decode work
+      // lands mid-move (already-complete images resolve instantly).
+      const imgs = [...scr.querySelectorAll("img")];
+      Promise.all(imgs.map((im) => (im.decode ? im.decode().catch(() => {}) : Promise.resolve()))).catch(() => {}).then(() => {
+        const t0 = performance.now();
+        let doneScroll = false;
+        const finish = () => { if (doneScroll) return; doneScroll = true; scr.scrollTop = to; scrolling = false; resolve(); };
+        const step = () => {
+          if (doneScroll) return;
+          const u = Math.min(1, (performance.now() - t0) / dur);
+          scr.scrollTop = from + dist * camEase(u);
+          if (u < 1) requestAnimationFrame(step); else finish();
+        };
+        requestAnimationFrame(step);
+        // Watchdog: guarantees completion even if rAF is throttled (e.g. the tab/pane
+        // is backgrounded). When visible, the rAF loop finishes first at ~dur.
+        setTimeout(finish, dur + 500);
+      });
+    });
+    window.__ppScrollTo = scrollApi;
+
+    return () => {
+      if (window.__ppNav === api) { try { delete window.__ppNav; } catch (_) { window.__ppNav = undefined; } }
+      if (window.__ppScrollTo === scrollApi) { try { delete window.__ppScrollTo; } catch (_) { window.__ppScrollTo = undefined; } }
+    };
+  }, [exposeNav, tab, tabs, setTab]);
+
+  // Directed "camera" mode: the phone is physically fixed; the REAL page content
+  // is positioned by a deterministic camera translate (--pp-camera, px), NOT a
+  // scroll container — so there is no scroll momentum, no scrollTop, no catch-up.
+  // The transform is a scrubbed value, so it carries NO CSS transition; easing is
+  // baked into the value the sales page writes. The card focus (demoFocusStyle)
+  // still lives inside render(); the BottomSheet portals to the phone frame, so
+  // it is unaffected by this transform.
+  if (demo && demo.camera) {
+    // PERSISTENT SURFACES: every tab the demo uses (demo.mountTabs) is mounted up
+    // front and STAYS mounted, so each plays its native pp-view entrance exactly
+    // once at load (off-stage) and is fully settled before any gesture. The directed
+    // layer then only TRANSLATES already-stable DOM — never mounts a fresh surface
+    // mid-transition. Horizontal position = a filmstrip index driven by --pp-tabx;
+    // vertical camera = a per-tab --pp-cam-<tabId>. A cross-tab move is just --pp-tabx.
+    const strip = demo.mountTabs || [tab];
+    // --pp-xfade (0→1, default 1) fades ONLY the page-content viewport — never the
+    // header/tab-bar (they live above this node). The directed demo uses it to model
+    // the real app's non-adjacent tab-bar JUMP (a content crossfade, not a slide
+    // through intermediate tabs) without remounting any surface or replaying pp-view.
+    // At rest it is 1, so every settled state is pixel-identical to the raw app.
+    return (
+      <div ref={viewportRef} className="relative h-full" style={{ overflow: "hidden", opacity: "var(--pp-xfade, 1)" }}>
+        {strip.map((t, i) => (
+          <div
+            key={t}
+            data-page={t}
+            className={"absolute inset-0 overflow-hidden " + pageClassName}
+            style={{ transform: `translate3d(calc((${i} - var(--pp-tabx, 0)) * 100%), 0, 0)`, willChange: "transform" }}
+          >
+            <div data-camera="1" style={{ transform: `translate3d(0, calc(var(--pp-cam-${t}, 0) * -1px), 0)`, willChange: "transform" }}>
+              {render(t)}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
   // Demo mode: React sets the tab, scroll drives the motion. Pages are keyed by
   // tab id and STAY MOUNTED across a nav transition — the outgoing page is only
   // retired once the incoming tab becomes the sole tab, so nothing remounts,
@@ -9213,12 +9624,21 @@ function SwipePager({ tabs, tab, setTab, render, pageClassName = "", onLead, onE
             className={"pp-scroll absolute inset-0 overflow-y-auto " + pageClassName}
             style={{
               overscrollBehaviorY: "contain",
-              willChange: "transform",
-              transform: nav
+              willChange: "transform, opacity",
+              // Tab navigation is a clean cross-dissolve: the incoming page fades
+              // in ON TOP of the settled outgoing page (opaque-backed, so no muddy
+              // double-exposure and — crucially — no torn horizontal seam), with a
+              // small upward settle. Outgoing stays put underneath.
+              ...(nav
                 ? (t === nav.from
-                    ? "translate3d(calc(var(--pp-nav,0) * -100%),0,0)"
-                    : "translate3d(calc((1 - var(--pp-nav,0)) * 100%),0,0)")
-                : undefined,
+                    ? { zIndex: 0 }
+                    : {
+                        zIndex: 1,
+                        background: "#f4f5f7",
+                        opacity: "var(--pp-nav,0)",
+                        transform: "translate3d(0, calc((1 - var(--pp-nav,0)) * 10px), 0)",
+                      })
+                : null),
             }}
           >
             {render(t)}
@@ -9245,7 +9665,16 @@ export function CompanyProfile({ onBack, onScan, tab: controlledTab, onTabChange
   if ((typeof window !== "undefined" && window.__PP__ && window.__PP__.TIER) === "listing") {
     return <BasicListing onBack={onBack} />;
   }
-  const [innerTab, setInnerTab] = useState("overview");
+  // Initial profile tab may be set via `?tab=` (used by the marketing embed's fidelity
+  // proof to land directly on a given surface). Falls back to overview.
+  const [innerTab, setInnerTab] = useState(() => {
+    try {
+      const t = new URLSearchParams(window.location.search).get("tab");
+      return ["overview", "projects", "timeline", "capital", "team", "updates"].includes(t) ? t : "overview";
+    } catch (_) { return "overview"; }
+  });
+  // Embed mode exposes the directed nav API on the pager (see SwipePager exposeNav).
+  const ppEmbed = (() => { try { return new URLSearchParams(window.location.search).has("embed"); } catch (_) { return false; } })();
   const tab = controlledTab ?? demo?.tab ?? innerTab;
   const setTab = (t) => { if (onTabChange) onTabChange(t); else setInnerTab(t); };
   const [brief, setBrief] = useState(false);
@@ -9255,8 +9684,39 @@ export function CompanyProfile({ onBack, onScan, tab: controlledTab, onTabChange
   const listSlug = currentSlug() || "company";
   const [, bumpList] = useState(0);
   useEffect(() => listStore.sub(() => bumpList((x) => x + 1)), []);
-  const following = listStore.has("following", listSlug);
-  const setFollowing = (v) => listStore.set("following", listSlug, typeof v === "function" ? v(following) : v);
+  // Embed-only Follow override: the directed marketing demo drives Follow ⇄ Following via
+  // window.__ppSetFollow(bool) WITHOUT touching listStore / localStorage / cloud, so a demo
+  // run never persists a follow or leaks demo state into production. Outside embed mode this
+  // is entirely inert — the real listStore path below is exactly unchanged.
+  const [demoFollow, setDemoFollow] = useState(false);
+  // Embed-only presentation emphasis around the REAL Follow control (a subtle pulsing ring),
+  // driven by window.__ppFollowEmphasis(bool) so the directed demo can make the real button's
+  // change unmistakable without any fake cursor / duplicate button / overlay. Inert outside embed.
+  const [demoFollowEmphasis, setDemoFollowEmphasis] = useState(false);
+  // Embed-only tactile PRESS on the real Follow button: __ppFollowPress() briefly compresses
+  // the real control (a short scale-down + spring-back) so the activation reads as a physical
+  // button press, not a marketing animation. Inert outside embed.
+  const [demoFollowPress, setDemoFollowPress] = useState(false);
+  const followPressT = useRef(null);
+  useEffect(() => {
+    if (!ppEmbed) return;
+    window.__ppSetFollow = (v) => setDemoFollow(!!v);
+    window.__ppFollowEmphasis = (v) => setDemoFollowEmphasis(!!v);
+    window.__ppFollowPress = () => { setDemoFollowPress(true); clearTimeout(followPressT.current); followPressT.current = setTimeout(() => setDemoFollowPress(false), 130); };
+    return () => {
+      try { delete window.__ppSetFollow; } catch (_) { window.__ppSetFollow = undefined; }
+      try { delete window.__ppFollowEmphasis; } catch (_) { window.__ppFollowEmphasis = undefined; }
+      try { delete window.__ppFollowPress; } catch (_) { window.__ppFollowPress = undefined; }
+      clearTimeout(followPressT.current);
+    };
+  }, [ppEmbed]);
+  const followEmphasis = ppEmbed && demoFollowEmphasis;
+  const followPress = ppEmbed && demoFollowPress;
+  const following = ppEmbed ? demoFollow : listStore.has("following", listSlug);
+  const setFollowing = (v) => {
+    if (ppEmbed) { setDemoFollow((f) => (typeof v === "function" ? v(f) : v)); return; }
+    listStore.set("following", listSlug, typeof v === "function" ? v(following) : v);
+  };
   // Demo drives the Follow → Following action from scroll (inert in production).
   useEffect(() => { if (demo && demo.follow != null) setFollowing(demo.follow); }, [demo && demo.follow]);
   // Company Status flip state, persisted for the whole profile session so switching tabs and
@@ -9311,12 +9771,12 @@ export function CompanyProfile({ onBack, onScan, tab: controlledTab, onTabChange
     <DemoCtx.Provider value={demo || null}>
     <div className="flex h-full flex-col pp-fade" style={{ background: "#ffffff" }}>
       <div className="flex-shrink-0" style={{ background: "linear-gradient(180deg, #F1F6FD 0%, #F8FBFE 55%, #FFFFFF 100%)" }}>
-        <ProfileHeader onBack={onBack} onMessage={() => setDm(true)} tab={displayTab} setTab={setTab} following={following} setFollowing={setFollowing} />
+        <ProfileHeader onBack={onBack} onMessage={() => setDm(true)} tab={displayTab} setTab={setTab} following={following} setFollowing={setFollowing} followEmphasis={followEmphasis} followPress={followPress} />
       </div>
       <div className="flex-1" style={{ minHeight: 0 }}>
         <SwipePager
           tabs={PAGE_TABS} tab={tab} setTab={setTab} render={renderTab} pageClassName="pb-24"
-          onLead={setSwipeTarget} onEdgeBack={onBack} demo={demo}
+          onLead={setSwipeTarget} onEdgeBack={onBack} demo={demo} exposeNav={ppEmbed}
           onPageClickCapture={INSPECT ? (e, t) => { if (t !== tab) return; const el = e.target.closest("[data-fc]"); e.preventDefault(); e.stopPropagation(); fcPost(el ? el.getAttribute("data-fc") : "", TAB_SECTION[tab] || ""); } : undefined}
         />
       </div>
@@ -10630,8 +11090,22 @@ export default function App({ guest = false } = {}) {
     // board; ?scene=1 forces the storyboard for A/B comparison.
     return <ConferenceScenes />;
   }
+  // EMBED mode (`?embed=1`) — the app runs inside the marketing site's phone, in its
+  // OWN mobile-sized viewport (an iframe), so it renders its real mobile shell. Embed
+  // drops guest-only chrome (the "Open in app" banner) that the signed-in live app
+  // never shows, and reserves the device's top safe-area so vertical geometry matches
+  // a real handset. It changes NOTHING about the surface layouts.
+  const embed = (() => { try { return new URLSearchParams(window.location.search).has("embed"); } catch (_) { return false; } })();
+  // ONLY the marketing Investor page (/appdemo, which sets window.__INVESTOR_DEMO__)
+  // may drive the profile view via the `demo` prop. The home sales page's Pro Profile
+  // also runs with ?embed=1 but drives itself via __ppNav — it must NOT get `demo`,
+  // or its tab locks to overview and swiping stops working.
+  const investorDemo = (() => { try { return !!window.__INVESTOR_DEMO__; } catch (_) { return false; } })();
   const [nav, setNav] = useState("today");   // today · explore · following · profile (· scan via header)
-  const [bannerOff, setBannerOff] = useState(false);   // guest "Open in app" banner dismissed
+  // Embed-only: the marketing Investor page drives which Pro-Profile view shows
+  // ({ tab, sheet }) via window.__appDemoGo — handled through CompanyProfile's `demo` prop.
+  const [demoProfile, setDemoProfile] = useState({ tab: "overview", sheet: null });
+  const [bannerOff, setBannerOff] = useState(embed);   // guest "Open in app" banner dismissed (always off in embed)
   // A `?c=<slug>` param means the app was opened for a specific company — admin
   // "Open in app", a token preview, or a booth-QR/deep link. Land straight on that
   // company's profile (window.__PP__ is already seeded with it). Plain /app with no
@@ -10729,6 +11203,69 @@ export default function App({ guest = false } = {}) {
   };
   const goNav = (n) => { leaveCompany(); setNav(n); };
 
+  // EMBED-ONLY driver: lets the marketing site's phone (the Investor page) switch the
+  // real shell's screens on scroll — window.__appDemoGo("today"|"explore"|"following"|
+  // "company"). "company" opens a real company profile (Kingsmen). Additive, embed-gated;
+  // no effect on the live signed-in app. Refs keep the latest handlers without re-binding.
+  const goNavRef = useRef(goNav); goNavRef.current = goNav;
+  const setInCompanyRef = useRef(setInCompany); setInCompanyRef.current = setInCompany;
+  const setDemoProfileRef = useRef(setDemoProfile); setDemoProfileRef.current = setDemoProfile;
+  useEffect(() => {
+    if (!embed || !investorDemo) return;   // ONLY the investor demo registers this driver
+    // Map "company[:view]" → CompanyProfile `demo` ({ tab, sheet, follow }); plain keys → bottom nav.
+    const VIEW = {
+      overview: { tab: "overview", sheet: null }, projects: { tab: "projects", sheet: null },
+      timeline: { tab: "timeline", sheet: null }, capital: { tab: "capital", sheet: null },
+      team: { tab: "team", sheet: null }, updates: { tab: "updates", sheet: null },
+      brief: { tab: "overview", sheet: "brief" }, follow: { tab: "overview", sheet: null, follow: true },
+    };
+    window.__appDemoGo = (key) => {
+      try {
+        const [screen, sub] = String(key).split(":");
+        if (screen === "company") {
+          // Show the DEFAULT (built-in, rich) profile in place — no slug load, so the Kingsmen
+          // template never triggers loadSlug's full-navigate fallback. `demo` drives the view /
+          // AI Brief / Follow. Close any Explore sheet left open behind the profile.
+          investorDemoBus.send({ screen: "explore", closeFilters: true });
+          setDemoProfileRef.current(VIEW[sub || "overview"] || { tab: sub, sheet: null });
+          setInCompanyRef.current(true);
+          // Capital's last card is the AI Summary; seat it just above the tab bar so the
+          // section below it stays off-screen, as it is on a real device.
+          if (sub === "capital") setTimeout(() => demoSeatLastCard(/Plain-English read on this capital structure/), 320);
+          return;
+        }
+        if (screen === "story") {
+          // Open the REAL in-app reader on the lead story, or run it all the way down to
+          // the source button. 0.78 of the range left "Read Original Article" half cut
+          // off at the sheet's edge; the end of the scroller puts it fully in frame.
+          if (sub === "scroll") { demoScrollFront(1, 560); return; }
+          goNavRef.current("today");
+          investorDemoBus.send({ screen: "today", openLead: true, openId: (typeof window !== "undefined" && window.__DEMO_STORY_ID__) || null });
+          return;
+        }
+        // Plain bottom-nav screens (today / explore / following / messages / profile), optional sub.
+        goNavRef.current(screen);
+        if (screen === "today") {
+          // The opening still (no sub) rests at the TOP of the feed — the strongest frame.
+          // "lead" is the walkthrough's first beat and eases down past the lead story;
+          // "scroll" carries on further. One continuous downward read, so the first gesture
+          // visibly starts something instead of redrawing the screen already on display.
+          // Both are deliberately slow: 0.5 over 720ms read as a jump, not as reading.
+          if (sub === "lead")   { investorDemoBus.send({ screen: "today", closeReader: true }); setTimeout(() => demoScrollFront(0.18, 500), 40); return; }
+          if (sub === "scroll") { investorDemoBus.send({ screen: "today", closeReader: true }); setTimeout(() => demoScrollFront(0.45, 560), 40); return; }
+          investorDemoBus.send({ screen: "today", tab: sub || "foryou", closeReader: true, scrollTop: !sub });
+        } else if (screen === "explore") {
+          if (sub === "commodity") investorDemoBus.send({ screen: "explore", openFilters: true, facet: "commodity", set: { commodity: ["Silver"] } });
+          else if (sub === "location") investorDemoBus.send({ screen: "explore", openFilters: true, facet: "location", set: { commodity: ["Silver"], location: ["Mexico"] } });
+          else if (sub === "results") investorDemoBus.send({ screen: "explore", closeFilters: true, set: { commodity: ["Silver"], location: ["Mexico"] } });
+          else investorDemoBus.send({ screen: "explore", reset: true });
+        }
+      } catch (_) {}
+    };
+    try { window.dispatchEvent(new CustomEvent("appDemo:ready")); } catch (_) {}
+    return () => { try { delete window.__appDemoGo; } catch (_) {} };
+  }, [embed]);
+
   // Home-app horizontal paging: the bottom-nav tabs are swipeable in this fixed order
   // (matching BottomNav). "scan" is a full-screen overlay reached from the header, not a
   // page in the pager. navLead moves the bottom-nav highlight the instant a swipe commits.
@@ -10805,17 +11342,17 @@ export default function App({ guest = false } = {}) {
         {!mobile && <div className="absolute left-1/2 top-2.5 z-50 h-5 w-24 -translate-x-1/2 rounded-full bg-black" />}
 
         <div className="flex h-full flex-col" style={{ background: "#ffffff" }}>
-          {mobile ? <div className="flex-shrink-0" style={{ height: "env(safe-area-inset-top, 0px)" }} /> : <StatusBar />}
+          {mobile && !embed ? <div className="flex-shrink-0" style={{ height: "env(safe-area-inset-top, 0px)" }} /> : <StatusBar />}
           {/* Guest "Open in app" smart-banner — nudges the native app without ever blocking
               the full web view. Dismissible; hidden once signed in. */}
           {guest && !bannerOff && (
             <div className="flex flex-shrink-0 items-center gap-2.5 border-b border-slate-100 bg-white px-4 py-2">
               <button onClick={() => setBannerOff(true)} aria-label="Dismiss" className="flex-shrink-0 text-slate-300 transition active:scale-90"><X size={17} /></button>
               <div className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-[9px]" style={{ background: EM }}>
-                <span className="text-[14px] font-black leading-none text-white">P</span>
+                <span className="text-[14px] font-black leading-none text-white">M</span>
               </div>
               <div className="min-w-0 flex-1 leading-tight">
-                <p className="text-[12.5px] font-extrabold tracking-tight text-slate-900">Passport</p>
+                <p className="text-[12.5px] font-extrabold tracking-tight text-slate-900">MineEx</p>
                 <p className="truncate text-[10.5px] font-medium text-slate-400">Follow companies & get updates in one feed</p>
               </div>
               <a href={APP_STORE_URL || "/app?signin=1"} className="flex-shrink-0 rounded-full px-4 py-1.5 text-[12px] font-bold text-white transition active:scale-95" style={{ background: EM }}>
@@ -10838,7 +11375,7 @@ export default function App({ guest = false } = {}) {
             {(inCompany || exiting) && (
               <div className="absolute inset-0" style={{ background: "#ffffff", zIndex: 5, transform: exiting ? "translateX(100%)" : "translateX(0)", transition: exiting ? "transform .36s cubic-bezier(0.22,1,0.36,1)" : "none", boxShadow: "-10px 0 30px -14px rgba(15,23,42,0.28)", willChange: "transform" }}
                 onTransitionEnd={(e) => { if (exiting && e.propertyName === "transform") { setExiting(false); leaveCompany(); } }}>
-                <CompanyProfile key={companyKey} onBack={beginExit} onScan={() => { leaveCompany(); setNav("scan"); }} />
+                <CompanyProfile key={companyKey} onBack={beginExit} onScan={() => { leaveCompany(); setNav("scan"); }} demo={investorDemo ? demoProfile : undefined} />
               </div>
             )}
             {loadingCo && (
@@ -10853,3 +11390,4 @@ export default function App({ guest = false } = {}) {
     </div>
   );
 }
+
