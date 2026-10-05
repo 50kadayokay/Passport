@@ -1,0 +1,502 @@
+{
+ "slug": "emberline-demo",
+ "name": "Emberline Gold Limited",
+ "profile": {
+  "team": [
+   {
+    "name": "Harriet Cole",
+    "full": "Harriet Cole",
+    "role": "Managing Director & CEO"
+   },
+   {
+    "name": "Marcus Delaney",
+    "full": "Marcus Delaney",
+    "role": "Non-Executive Chair"
+   },
+   {
+    "name": "Priya Raman",
+    "full": "Priya Raman",
+    "role": "CFO & Company Secretary"
+   },
+   {
+    "name": "Tom Whitfield",
+    "full": "Tom Whitfield",
+    "role": "General Manager Exploration"
+   },
+   {
+    "name": "Leilani Brooks",
+    "full": "Leilani Brooks",
+    "role": "Study Manager"
+   },
+   {
+    "name": "Daniel Okoro",
+    "full": "Daniel Okoro",
+    "role": "Head of Geology"
+   },
+   {
+    "name": "Sienna Walsh",
+    "full": "Sienna Walsh",
+    "role": "Non-Executive Director"
+   },
+   {
+    "name": "Arthur Nguyen",
+    "full": "Arthur Nguyen",
+    "role": "Non-Executive Director"
+   }
+  ],
+  "brand": {
+   "hero": "/demo/emberline/e01.jpg"
+  },
+  "capital": {
+   "fd": "742M",
+   "cash": "A$48M",
+   "debt": "Nil",
+   "options": "21M",
+   "warrants": "37M",
+   "marketCap": "A$412M",
+   "outstanding": "684M",
+   "financing": [
+    {
+     "date": "2026-02",
+     "type": "Placement",
+     "amount": "A$35M",
+     "purpose": "Saltbush Pre-Feasibility Study and resource growth drilling"
+    },
+    {
+     "date": "2025-07",
+     "type": "Strategic placement",
+     "amount": "A$14M",
+     "purpose": "Mid-tier producer takes a 12.5% stake"
+    }
+   ]
+  },
+  "company": {
+   "name": "Emberline Gold Limited",
+   "slogan": "High-grade gold from the red heart of the Goldfields.",
+   "ticker": "EBL",
+   "website": "emberline.example",
+   "listings": [
+    {
+     "ex": "ASX",
+     "sym": "EBL"
+    },
+    {
+     "ex": "OTCQX",
+     "sym": "EMBLF"
+    }
+   ],
+   "commodity": "Gold",
+   "headquarters": "Perth, Western Australia",
+   "jurisdiction": "Western Australia, Australia"
+  },
+  "projects": [
+   {
+    "key": "saltbush",
+    "tag": "Pre-Feasibility",
+    "name": "Saltbush",
+    "brief": {
+     "overview": "A high-grade orogenic gold system in Western Australia's Eastern Goldfields, hosting a 2.4 million-ounce resource that is 67% Indicated and open down plunge beneath the planned open pit."
+    },
+    "unique": {
+     "evidence": [
+      "2.4 Moz Au at 1.8 g/t Au",
+      "67% Indicated",
+      "Open down plunge"
+     ]
+    },
+    "gallery": [
+     {
+      "src": "/demo/emberline/e07.jpg"
+     },
+     {
+      "src": "/demo/emberline/e03.jpg"
+     },
+     {
+      "src": "/demo/emberline/e10.jpg"
+     }
+    ],
+    "geology": {
+     "body": "Shear-hosted quartz-sulphide lodes in a folded dolerite sill, with steep north-plunging high-grade shoots."
+    },
+    "resource": {
+     "rows": [
+      {
+       "grade": "1.9 g/t Au",
+       "tonnes": "26.1 Mt",
+       "category": "Indicated",
+       "contained": "1.6 Moz Au"
+      },
+      {
+       "grade": "1.6 g/t Au",
+       "tonnes": "15.4 Mt",
+       "category": "Inferred",
+       "contained": "0.8 Moz Au"
+      }
+     ],
+     "summary": "Saltbush hosts an Indicated and Inferred resource of 41.5 million tonnes grading 1.8 g/t gold for 2.4 million ounces, at a 0.5 g/t cut-off above 250 m and 2.0 g/t below."
+    },
+    "snapshot": {
+     "land": "38,400 ha",
+     "location": {
+      "value": "Eastern Goldfields, Western Australia, Australia"
+     },
+     "commodity": {
+      "value": "Gold"
+     },
+     "ownership": {
+      "value": "100%"
+     }
+    },
+    "stageName": "Pre-Feasibility",
+    "drillResults": {
+     "rows": [
+      {
+       "hole": "EBD-25-031",
+       "note": "from 118 m, main lode",
+       "grade": "6.2 g/t Au",
+       "interval": "24 m"
+      },
+      {
+       "hole": "EBD-25-044",
+       "note": "incl. 6 m @ 14.8 g/t Au",
+       "grade": "3.4 g/t Au",
+       "interval": "38 m"
+      },
+      {
+       "hole": "EBD-25-052",
+       "note": "400 m down-plunge extension",
+       "grade": "4.9 g/t Au",
+       "interval": "17 m"
+      },
+      {
+       "hole": "EBD-26-008",
+       "note": "widest intercept to date",
+       "grade": "2.6 g/t Au",
+       "interval": "51 m"
+      },
+      {
+       "hole": "EBD-26-015",
+       "note": "new hanging-wall lode",
+       "grade": "11.3 g/t Au",
+       "interval": "9 m"
+      }
+     ]
+    },
+    "coords": {
+     "lat": -28.95,
+     "lng": 121.62
+    }
+   },
+   {
+    "key": "ironbark-well",
+    "tag": "Exploration",
+    "name": "Ironbark Well",
+    "brief": {
+     "overview": "A 3.2 km gold-in-regolith anomaly defined by aircore drilling along the same shear corridor that hosts Saltbush, with first diamond holes planned for 2027."
+    },
+    "unique": {
+     "evidence": [
+      "3.2 km aircore anomaly",
+      "Best 12 m @ 4.1 g/t Au",
+      "Same corridor as Saltbush"
+     ]
+    },
+    "gallery": [
+     {
+      "src": "/demo/emberline/e19.jpg"
+     },
+     {
+      "src": "/demo/emberline/e02.jpg"
+     },
+     {
+      "src": "/demo/emberline/e16.jpg"
+     }
+    ],
+    "geology": {
+     "body": "Greenstone-hosted shear zone under 20\u201340 m of transported cover."
+    },
+    "resource": {
+     "rows": [],
+     "summary": ""
+    },
+    "snapshot": {
+     "land": "22,700 ha",
+     "location": {
+      "value": "Eastern Goldfields, Western Australia, Australia"
+     },
+     "commodity": {
+      "value": "Gold"
+     },
+     "ownership": {
+      "value": "100%"
+     }
+    },
+    "stageName": "Exploration",
+    "drillResults": {
+     "rows": []
+    },
+    "coords": {
+     "lat": -29.42,
+     "lng": 121.18
+    }
+   },
+   {
+    "key": "mulga-flats",
+    "tag": "Early-stage",
+    "name": "Mulga Flats",
+    "brief": {
+     "overview": "A greenfield position beneath a salt-lake system, with a 5 km magnetic low and gold-in-soil values under optioned tenure."
+    },
+    "unique": {
+     "evidence": [
+      "5 km magnetic target",
+      "Gold-in-soil anomaly",
+      "Option to earn 80%"
+     ]
+    },
+    "gallery": [
+     {
+      "src": "/demo/emberline/e20.jpg"
+     },
+     {
+      "src": "/demo/emberline/e22.jpg"
+     },
+     {
+      "src": "/demo/emberline/e28.jpg"
+     }
+    ],
+    "geology": {
+     "body": "Interpreted granite\u2013greenstone contact concealed beneath lake sediments."
+    },
+    "resource": {
+     "rows": [],
+     "summary": ""
+    },
+    "snapshot": {
+     "land": "14,900 ha",
+     "location": {
+      "value": "Eastern Goldfields, Western Australia, Australia"
+     },
+     "commodity": {
+      "value": "Gold"
+     },
+     "ownership": {
+      "value": "Option to earn 80%"
+     }
+    },
+    "stageName": "Early-stage",
+    "drillResults": {
+     "rows": []
+    },
+    "coords": {
+     "lat": -28.52,
+     "lng": 122.08
+    }
+   }
+  ],
+  "timeline": [
+   {
+    "date": "2026-08-05",
+    "headline": "Saltbush Pre-Feasibility Study commenced",
+    "keyNumbers": [
+     "PFS"
+    ],
+    "whyItMatters": "First economic assessment of an open-pit and underground operation."
+   },
+   {
+    "date": "2026-06-18",
+    "headline": "EBD-26-015 hits 9 m @ 11.3 g/t Au in a new hanging-wall lode",
+    "keyNumbers": [
+     "11.3 g/t Au"
+    ],
+    "whyItMatters": "Opens a parallel high-grade position."
+   },
+   {
+    "date": "2026-02-26",
+    "headline": "A$35M placement completed",
+    "keyNumbers": [
+     "A$35M"
+    ],
+    "whyItMatters": "Funds the PFS and resource growth drilling."
+   },
+   {
+    "date": "2025-11-12",
+    "headline": "Saltbush resource grows 60% to 2.4 Moz Au",
+    "keyNumbers": [
+     "2.4 Moz Au",
+     "+60%"
+    ],
+    "whyItMatters": "Two-thirds now in the Indicated category."
+   },
+   {
+    "date": "2025-07-09",
+    "headline": "Mid-tier producer takes a 12.5% strategic stake",
+    "keyNumbers": [
+     "A$14M",
+     "12.5%"
+    ],
+    "whyItMatters": "Technical validation and a strategic partner."
+   },
+   {
+    "date": "2025-03-03",
+    "headline": "Ironbark Well aircore defines a 3.2 km gold anomaly",
+    "keyNumbers": [
+     "3.2 km"
+    ],
+    "whyItMatters": "A second discovery opportunity on the Saltbush corridor."
+   }
+  ],
+  "catalysts": [
+   {
+    "label": "Saltbush Pre-Feasibility Study",
+    "impact": "First economic assessment of an open-pit and underground operation.",
+    "timing": "Q3 2027"
+   }
+  ],
+  "conference": {
+   "hook": "High-grade gold, advancing toward a mine in the Eastern Goldfields.",
+   "studio": {
+    "theme": "obsidian",
+    "accent": "",
+    "template": "crimson"
+   },
+   "enabled": true,
+   "gallery": {
+    "overview": [
+     "/demo/emberline/e02.jpg"
+    ],
+    "results": [
+     "/demo/emberline/e11.jpg"
+    ],
+    "follow": [
+     "/demo/emberline/e24.jpg"
+    ],
+    "jurisdiction": [
+     "/demo/emberline/e21.jpg"
+    ],
+    "extra": [
+     "/demo/emberline/e04.jpg",
+     "/demo/emberline/e05.jpg",
+     "/demo/emberline/e06.jpg",
+     "/demo/emberline/e08.jpg",
+     "/demo/emberline/e09.jpg",
+     "/demo/emberline/e12.jpg",
+     "/demo/emberline/e13.jpg",
+     "/demo/emberline/e14.jpg",
+     "/demo/emberline/e15.jpg",
+     "/demo/emberline/e17.jpg",
+     "/demo/emberline/e18.jpg",
+     "/demo/emberline/e23.jpg",
+     "/demo/emberline/e25.jpg",
+     "/demo/emberline/e26.jpg",
+     "/demo/emberline/e27.jpg",
+     "/demo/emberline/e31.jpg",
+     "/demo/emberline/e30.jpg"
+    ]
+   },
+   "_derived": true,
+   "overview": "Emberline is advancing the 2.4 Moz Saltbush gold project in Western Australia's Eastern Goldfields.",
+   "highlights": [
+    {
+     "label": "Gold (Ind. & Inf.)",
+     "value": "2.4 Moz Au",
+     "context": "41.5 Mt @ 1.8 g/t Au",
+     "featured": true
+    },
+    {
+     "label": "Indicated",
+     "value": "67%",
+     "context": "1.6 Moz Au",
+     "featured": false
+    },
+    {
+     "label": "Best intercept",
+     "value": "24 m",
+     "context": "@ 6.2 g/t Au",
+     "featured": false
+    },
+    {
+     "label": "Land package",
+     "value": "76,000 ha",
+     "context": "three projects",
+     "featured": false
+    },
+    {
+     "label": "Cash",
+     "value": "A$48M",
+     "context": "no debt",
+     "featured": false
+    }
+   ],
+   "evidenceType": "drill_results",
+   "featuredGrade": {
+    "grade": "6.2 g/t Au",
+    "width": "24 m",
+    "context": "EBD-25-031, from 118 m",
+    "location": "Saltbush"
+   },
+   "heroStatistic": {
+    "label": "Gold (Indicated & Inferred)",
+    "value": "2.4 Moz Au",
+    "context": "41.5 Mt @ 1.8 g/t Au"
+   },
+   "investmentCase": [
+    {
+     "reason": "Scale: a 2.4 million-ounce gold resource at Saltbush, 67% in the Indicated category.",
+     "featured": true
+    },
+    {
+     "reason": "Grade: high-grade shoots, including 9 m at 11.3 g/t gold in a new hanging-wall lode.",
+     "featured": false
+    },
+    {
+     "reason": "Location: Western Australia's Eastern Goldfields, with sealed-road access and established mining infrastructure nearby.",
+     "featured": false
+    },
+    {
+     "reason": "Funded: A$48 million in cash and no debt through the Pre-Feasibility Study.",
+     "featured": false
+    }
+   ],
+   "projectGallery": {
+    "saltbush": [
+     "/demo/emberline/e07.jpg",
+     "/demo/emberline/e03.jpg",
+     "/demo/emberline/e10.jpg"
+    ]
+   },
+   "currentActivity": "Pre-Feasibility Study underway",
+   "featuredProjectKey": "saltbush",
+   "jurisdictionWidgets": {
+    "district": "Eastern Goldfields",
+    "commodity": "Gold",
+    "provinceState": "Western Australia"
+   }
+  },
+  "companyBrief": {
+   "headline": "High-grade gold in Western Australia's Eastern Goldfields.",
+   "keyPoints": [
+    "2.4 Moz Au at Saltbush, 67% Indicated",
+    "High-grade shoots open down plunge",
+    "Pre-Feasibility Study underway",
+    "Strategic mid-tier shareholder",
+    "A$48M cash, no debt"
+   ],
+   "shortSummary": "A gold developer advancing Saltbush toward a Pre-Feasibility Study.",
+   "businessDescription": "Emberline Gold explores and develops high-grade orogenic gold deposits in Western Australia's Eastern Goldfields."
+  },
+  "companyStatus": {
+   "expected": "Q3 2027",
+   "progressBar": {
+    "unit": "milestones",
+    "label": "2026\u201327 plan",
+    "total": 7,
+    "current": 4
+   },
+   "nextCatalyst": "Saltbush Pre-Feasibility Study",
+   "statusHeadline": "Pre-Feasibility Study underway at Saltbush",
+   "investmentImpact": "PFS expected to define the first development case."
+  },
+  "_demo": "FICTIONAL demo company for Conference Mode template previews. All names, figures and people are invented."
+ }
+}

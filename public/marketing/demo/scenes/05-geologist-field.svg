@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 520" width="800" height="520">
+    <defs><linearGradient id="s" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e8f0e2"/><stop offset="1" stop-color="#b9cfae"/></linearGradient></defs><rect width="800" height="520" fill="url(#s)"/>
+    <path d="M0,520 L0,231.6 Q0.0,231.6 44.4,215.8 Q88.9,200.0 133.3,207.3 Q177.8,214.6 222.2,215.3 Q266.7,216.1 311.1,242.6 Q355.6,269.2 400.0,275.3 Q444.4,281.3 488.9,290.3 Q533.3,299.2 577.8,297.8 Q622.2,296.5 666.7,288.8 Q711.1,281.1 755.6,256.8 L800,232.4 L800,520 Z" fill="#8fab87" opacity=".6"/>
+    <path d="M0,520 L0,351.9 Q0.0,351.9 44.4,359.6 Q88.9,367.4 133.3,371.6 Q177.8,375.8 222.2,373.3 Q266.7,370.9 311.1,361.3 Q355.6,351.6 400.0,338.7 Q444.4,325.8 488.9,326.3 Q533.3,326.8 577.8,317.4 Q622.2,308.1 666.7,317.0 Q711.1,325.8 755.6,313.6 L800,301.4 L800,520 Z" fill="#5f7d59" opacity=".85"/>
+    <rect y="400" width="800" height="120" fill="#4a5f44"/>
+    <path d="M430,400 L560,400 L600,520 L396,520 Z" fill="#6d6256"/>
+    <path d="M452,400 L534,400 L556,520 L428,520 Z" fill="#7e7265" opacity=".75"/>
+    <g transform="translate(300,330)">
+      <ellipse cx="22" cy="92" rx="30" ry="7" fill="#2f3f2b" opacity=".45"/>
+      <rect x="12" y="40" width="22" height="48" rx="7" fill="#1f3b63"/>
+      <rect x="10" y="22" width="26" height="24" rx="9" fill="#e8a33d"/>
+      <circle cx="23" cy="12" r="10" fill="#d8b08c"/>
+      <path d="M23,2 a10,10 0 0 1 10,10 h-20 a10,10 0 0 1 10,-10 Z" fill="#e8a33d"/>
+      <path d="M34,40 L62,24" stroke="#d8b08c" stroke-width="7" stroke-linecap="round"/>
+      <path d="M58,28 L76,16" stroke="#44433f" stroke-width="5" stroke-linecap="round"/>
+      <rect x="70" y="8" width="16" height="9" rx="2" fill="#6b6a64" transform="rotate(-28 78 12)"/>
+    </g><defs><filter id="gr"><feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2"/><feColorMatrix type="saturate" values="0"/></filter></defs><rect width="800" height="520" filter="url(#gr)" opacity=".055" style="mix-blend-mode:overlay"/></svg>

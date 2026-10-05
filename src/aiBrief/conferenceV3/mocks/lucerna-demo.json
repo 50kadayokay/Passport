@@ -1,0 +1,514 @@
+{
+ "slug": "lucerna-demo",
+ "name": "Lucerna Lithium Corp.",
+ "profile": {
+  "team": [
+   {
+    "name": "Valentina Ríos",
+    "full": "Valentina Ríos",
+    "role": "President & CEO"
+   },
+   {
+    "name": "Martín Aguirre",
+    "full": "Martín Aguirre",
+    "role": "Chair"
+   },
+   {
+    "name": "Julia Brenner",
+    "full": "Julia Brenner",
+    "role": "Chief Financial Officer"
+   },
+   {
+    "name": "Diego Fernández",
+    "full": "Diego Fernández",
+    "role": "VP Exploration"
+   },
+   {
+    "name": "Sofia Kaminski",
+    "full": "Sofia Kaminski",
+    "role": "VP Process & DLE"
+   },
+   {
+    "name": "Tomás Quispe",
+    "full": "Tomás Quispe",
+    "role": "VP Community & Sustainability"
+   },
+   {
+    "name": "Eleanor Park",
+    "full": "Eleanor Park",
+    "role": "Director"
+   },
+   {
+    "name": "Ricardo Moyano",
+    "full": "Ricardo Moyano",
+    "role": "Director"
+   }
+  ],
+  "brand": {
+   "hero": "/demo/lucerna/l01.jpg"
+  },
+  "capital": {
+   "fd": "181M",
+   "cash": "C$54M",
+   "debt": "Nil",
+   "options": "9M",
+   "warrants": "14M",
+   "marketCap": "C$468M",
+   "outstanding": "158M",
+   "financing": [
+    {
+     "date": "2026-03",
+     "type": "Bought-deal financing",
+     "amount": "C$40M",
+     "purpose": "Pampa Luna PFS and DLE pilot plant"
+    },
+    {
+     "date": "2025-10",
+     "type": "Strategic investment",
+     "amount": "C$18M",
+     "purpose": "Battery-materials offtaker takes a 9.9% stake"
+    }
+   ]
+  },
+  "company": {
+   "name": "Lucerna Lithium Corp.",
+   "slogan": "Lithium from the high Andes, for the batteries of the next decade.",
+   "ticker": "LUC",
+   "website": "lucerna.example",
+   "listings": [
+    {
+     "ex": "TSXV",
+     "sym": "LUC"
+    },
+    {
+     "ex": "OTCQX",
+     "sym": "LUCLF"
+    }
+   ],
+   "commodity": "Lithium",
+   "headquarters": "Salta, Argentina",
+   "jurisdiction": "Salta, Argentina"
+  },
+  "projects": [
+   {
+    "key": "pampa-luna",
+    "tag": "Pre-Feasibility",
+    "name": "Pampa Luna",
+    "brief": {
+     "overview": "A lithium brine project in the Puna of Salta, with 3.1 million tonnes of lithium carbonate equivalent Measured & Indicated at 640 mg/L lithium, and a direct-lithium-extraction pilot plant on site."
+    },
+    "unique": {
+     "evidence": [
+      "3.1 Mt LCE Measured & Indicated",
+      "640 mg/L Li average",
+      "DLE pilot operating"
+     ]
+    },
+    "gallery": [
+     {
+      "src": "/demo/lucerna/l04.jpg"
+     },
+     {
+      "src": "/demo/lucerna/l03.jpg"
+     },
+     {
+      "src": "/demo/lucerna/l40.jpg"
+     }
+    ],
+    "geology": {
+     "body": "Lithium-rich brine hosted in porous clastic and evaporite units of a closed Puna basin, recharged from volcanic ranges."
+    },
+    "resource": {
+     "rows": [
+      {
+       "grade": "640 mg/L Li",
+       "category": "Measured & Indicated",
+       "contained": "3.1 Mt LCE"
+      },
+      {
+       "grade": "590 mg/L Li",
+       "category": "Inferred",
+       "contained": "1.2 Mt LCE"
+      }
+     ],
+     "summary": "Pampa Luna hosts Measured & Indicated resources of 3.1 million tonnes of lithium carbonate equivalent at an average 640 mg/L lithium, plus 1.2 million tonnes LCE Inferred at 590 mg/L."
+    },
+    "snapshot": {
+     "land": "34,600 ha",
+     "location": {
+      "value": "Puna, Salta, Argentina"
+     },
+     "commodity": {
+      "value": "Lithium"
+     },
+     "ownership": {
+      "value": "100%"
+     }
+    },
+    "stageName": "Pre-Feasibility",
+    "drillResults": {
+     "rows": [
+      {
+       "hole": "PL-25-03",
+       "note": "pumping test 24 L/s",
+       "grade": "702 mg/L Li",
+       "interval": "412 m"
+      },
+      {
+       "hole": "PL-25-06",
+       "note": "Mg/Li ratio 3.9",
+       "grade": "668 mg/L Li",
+       "interval": "356 m"
+      },
+      {
+       "hole": "PL-25-09",
+       "note": "deepest well, open at depth",
+       "grade": "611 mg/L Li",
+       "interval": "488 m"
+      },
+      {
+       "hole": "PL-26-02",
+       "note": "highest average grade to date",
+       "grade": "745 mg/L Li",
+       "interval": "265 m"
+      },
+      {
+       "hole": "PL-26-05",
+       "note": "2 km northern extension",
+       "grade": "634 mg/L Li",
+       "interval": "398 m"
+      }
+     ]
+    },
+    "coords": {
+     "lat": -24.55,
+     "lng": -67.05
+    }
+   },
+   {
+    "key": "laguna-cenicienta",
+    "tag": "Exploration",
+    "name": "Laguna Cenicienta",
+    "brief": {
+     "overview": "A brine-bearing salar beneath a high-altitude lagoon, where surface sampling returned up to 810 mg/L lithium and geophysics maps a 14 km² conductor."
+    },
+    "unique": {
+     "evidence": [
+      "Surface brine up to 810 mg/L Li",
+      "14 km² conductive target",
+      "Drill permits in hand"
+     ]
+    },
+    "gallery": [
+     {
+      "src": "/demo/lucerna/l02.jpg"
+     },
+     {
+      "src": "/demo/lucerna/l12.jpg"
+     },
+     {
+      "src": "/demo/lucerna/l14.jpg"
+     }
+    ],
+    "geology": {
+     "body": "Closed evaporitic basin with a shallow brine table beneath lagoon sediments."
+    },
+    "resource": {
+     "rows": [],
+     "summary": ""
+    },
+    "snapshot": {
+     "land": "18,900 ha",
+     "location": {
+      "value": "Puna, Salta, Argentina"
+     },
+     "commodity": {
+      "value": "Lithium"
+     },
+     "ownership": {
+      "value": "100%"
+     }
+    },
+    "stageName": "Exploration",
+    "drillResults": {
+     "rows": []
+    },
+    "coords": {
+     "lat": -23.95,
+     "lng": -66.55
+    }
+   },
+   {
+    "key": "cerro-vicuna",
+    "tag": "Early-stage",
+    "name": "Cerro Vicuña",
+    "brief": {
+     "overview": "A hard-rock lithium target: spodumene-bearing pegmatites mapped along a 6 km trend, held under an option to earn 80%."
+    },
+    "unique": {
+     "evidence": [
+      "6 km pegmatite trend",
+      "Spodumene in outcrop",
+      "Option to earn 80%"
+     ]
+    },
+    "gallery": [
+     {
+      "src": "/demo/lucerna/l33.jpg"
+     },
+     {
+      "src": "/demo/lucerna/l23.jpg"
+     },
+     {
+      "src": "/demo/lucerna/l06.jpg"
+     }
+    ],
+    "geology": {
+     "body": "Lithium-cesium-tantalum pegmatite swarm intruding Ordovician metasediments."
+    },
+    "resource": {
+     "rows": [],
+     "summary": ""
+    },
+    "snapshot": {
+     "land": "9,200 ha",
+     "location": {
+      "value": "Puna, Salta, Argentina"
+     },
+     "commodity": {
+      "value": "Lithium"
+     },
+     "ownership": {
+      "value": "Option to earn 80%"
+     }
+    },
+    "stageName": "Early-stage",
+    "drillResults": {
+     "rows": []
+    },
+    "coords": {
+     "lat": -25.05,
+     "lng": -67.35
+    }
+   }
+  ],
+  "timeline": [
+   {
+    "date": "2026-08-12",
+    "headline": "DLE pilot produces first battery-grade lithium carbonate",
+    "keyNumbers": [
+     "99.6% Li2CO3"
+    ],
+    "whyItMatters": "Demonstrates the process route at pilot scale."
+   },
+   {
+    "date": "2026-06-03",
+    "headline": "Pampa Luna Pre-Feasibility Study commenced",
+    "keyNumbers": [
+     "PFS"
+    ],
+    "whyItMatters": "First development case for the project."
+   },
+   {
+    "date": "2026-03-19",
+    "headline": "C$40M bought-deal financing closed",
+    "keyNumbers": [
+     "C$40M"
+    ],
+    "whyItMatters": "Funds the PFS and pilot operations."
+   },
+   {
+    "date": "2026-01-22",
+    "headline": "PL-26-02 returns 745 mg/L Li over 265 m",
+    "keyNumbers": [
+     "745 mg/L Li"
+    ],
+    "whyItMatters": "Highest average grade on the property."
+   },
+   {
+    "date": "2025-11-06",
+    "headline": "Resource update: 3.1 Mt LCE Measured & Indicated",
+    "keyNumbers": [
+     "3.1 Mt LCE"
+    ],
+    "whyItMatters": "Most of the resource now in the higher-confidence categories."
+   },
+   {
+    "date": "2025-10-14",
+    "headline": "Battery-materials offtaker takes a 9.9% stake",
+    "keyNumbers": [
+     "C$18M",
+     "9.9%"
+    ],
+    "whyItMatters": "A strategic partner downstream."
+   }
+  ],
+  "catalysts": [
+   {
+    "label": "Pampa Luna Pre-Feasibility Study",
+    "impact": "Defines the first development case for a 25,000 tpa LCE operation.",
+    "timing": "Q2 2027"
+   }
+  ],
+  "conference": {
+   "hook": "High-grade lithium brine in the Puna of Salta, Argentina.",
+   "studio": {
+    "theme": "obsidian",
+    "accent": "",
+    "template": "gyre"
+   },
+   "enabled": true,
+   "gallery": {
+    "overview": [
+     "/demo/lucerna/l07.jpg"
+    ],
+    "results": [
+     "/demo/lucerna/l42.jpg"
+    ],
+    "follow": [
+     "/demo/lucerna/l45.jpg"
+    ],
+    "jurisdiction": [
+     "/demo/lucerna/l19.jpg"
+    ],
+    "extra": [
+     "/demo/lucerna/l05.jpg",
+     "/demo/lucerna/l08.jpg",
+     "/demo/lucerna/l09.jpg",
+     "/demo/lucerna/l10.jpg",
+     "/demo/lucerna/l11.jpg",
+     "/demo/lucerna/l13.jpg",
+     "/demo/lucerna/l15.jpg",
+     "/demo/lucerna/l16.jpg",
+     "/demo/lucerna/l17.jpg",
+     "/demo/lucerna/l18.jpg",
+     "/demo/lucerna/l20.jpg",
+     "/demo/lucerna/l21.jpg",
+     "/demo/lucerna/l22.jpg",
+     "/demo/lucerna/l24.jpg",
+     "/demo/lucerna/l25.jpg",
+     "/demo/lucerna/l26.jpg",
+     "/demo/lucerna/l27.jpg",
+     "/demo/lucerna/l28.jpg",
+     "/demo/lucerna/l29.jpg",
+     "/demo/lucerna/l30.jpg",
+     "/demo/lucerna/l31.jpg",
+     "/demo/lucerna/l32.jpg",
+     "/demo/lucerna/l34.jpg",
+     "/demo/lucerna/l35.jpg",
+     "/demo/lucerna/l36.jpg",
+     "/demo/lucerna/l37.jpg",
+     "/demo/lucerna/l38.jpg",
+     "/demo/lucerna/l39.jpg",
+     "/demo/lucerna/l41.jpg",
+     "/demo/lucerna/l43.jpg",
+     "/demo/lucerna/l44.jpg",
+     "/demo/lucerna/l46.jpg"
+    ]
+   },
+   "_derived": true,
+   "overview": "Lucerna is advancing the Pampa Luna lithium brine project in the Puna of Salta, Argentina.",
+   "highlights": [
+    {
+     "label": "Lithium (M&I)",
+     "value": "3.1 Mt LCE",
+     "context": "640 mg/L Li",
+     "featured": true
+    },
+    {
+     "label": "Inferred",
+     "value": "1.2 Mt LCE",
+     "context": "590 mg/L Li",
+     "featured": false
+    },
+    {
+     "label": "Best well",
+     "value": "745 mg/L Li",
+     "context": "over 265 m",
+     "featured": false
+    },
+    {
+     "label": "DLE pilot",
+     "value": "99.6%",
+     "context": "Li2CO3 purity",
+     "featured": false
+    },
+    {
+     "label": "Cash",
+     "value": "C$54M",
+     "context": "no debt",
+     "featured": false
+    }
+   ],
+   "evidenceType": "drill_results",
+   "featuredGrade": {
+    "grade": "702 mg/L Li",
+    "width": "412 m",
+    "context": "PL-25-03 brine column",
+    "location": "Pampa Luna"
+   },
+   "heroStatistic": {
+    "label": "Lithium carbonate equivalent (M&I)",
+    "value": "3.1 Mt LCE",
+    "context": "+ 1.2 Mt LCE Inferred · 640 mg/L Li"
+   },
+   "investmentCase": [
+    {
+     "reason": "Scale: 3.1 million tonnes of lithium carbonate equivalent Measured & Indicated at Pampa Luna.",
+     "featured": true
+    },
+    {
+     "reason": "Grade: brine averaging 640 mg/L lithium, with a low magnesium-to-lithium ratio.",
+     "featured": false
+    },
+    {
+     "reason": "Process: a direct-lithium-extraction pilot has produced battery-grade lithium carbonate.",
+     "featured": false
+    },
+    {
+     "reason": "Funded: C$54 million in cash and no debt through the Pre-Feasibility Study.",
+     "featured": false
+    }
+   ],
+   "projectGallery": {
+    "pampa-luna": [
+     "/demo/lucerna/l04.jpg",
+     "/demo/lucerna/l03.jpg",
+     "/demo/lucerna/l40.jpg"
+    ]
+   },
+   "currentActivity": "DLE pilot running; PFS underway",
+   "featuredProjectKey": "pampa-luna",
+   "jurisdictionWidgets": {
+    "district": "Puna",
+    "commodity": "Lithium",
+    "provinceState": "Salta"
+   }
+  },
+  "companyBrief": {
+   "headline": "High-grade lithium brine in the Puna of Salta, Argentina.",
+   "keyPoints": [
+    "3.1 Mt LCE Measured & Indicated",
+    "640 mg/L Li average",
+    "DLE pilot producing battery-grade carbonate",
+    "Strategic offtaker shareholder",
+    "C$54M cash, no debt"
+   ],
+   "shortSummary": "A lithium developer advancing Pampa Luna toward Pre-Feasibility.",
+   "businessDescription": "Lucerna Lithium explores and develops lithium brine and hard-rock projects in Argentina's Puna."
+  },
+  "companyStatus": {
+   "expected": "Q2 2027",
+   "progressBar": {
+    "unit": "milestones",
+    "label": "2026–27 plan",
+    "total": 8,
+    "current": 5
+   },
+   "nextCatalyst": "Pampa Luna Pre-Feasibility Study",
+   "statusHeadline": "DLE pilot running; Pre-Feasibility underway",
+   "investmentImpact": "PFS expected to define the development case."
+  },
+  "_demo": "FICTIONAL demo company for Conference Mode template previews. All names, figures and people are invented."
+ }
+}

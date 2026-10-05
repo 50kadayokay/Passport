@@ -16,6 +16,10 @@ const USE_FIXTURES = (import.meta && import.meta.env && import.meta.env.VITE_NEW
 
 export async function fetchLiveNews(limit = 60) {
   if (USE_FIXTURES) return newsFixtures.slice(0, limit);
+  // Marketing Investor demo (/appdemo): serve the composed fictional newsroom the
+  // walkthrough is written around instead of the live feed. Gated on
+  // __INVESTOR_DEMO__, which only that embed sets — the shipped app never sees this.
+  if (typeof window !== "undefined" && window.__INVESTOR_DEMO__ && Array.isArray(window.__DEMO_NEWS__)) return window.__DEMO_NEWS__.slice(0, limit);
   try {
     // Recency safeguard: only surface news from the last 30 days so stale items can
     // never fill the feed (matches the company-release cutoff in main.jsx).

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 520" width="800" height="520">
+    <rect width="800" height="520" fill="#55504a"/>
+    <path d="M0,0 L800,0 L800,520 L0,520 Z" fill="#4a453f"/>
+    <path d="M0,96 L300,40 L800,140 L800,0 L0,0 Z" fill="#625b52"/>
+    <path d="M0,300 L260,236 L520,320 L800,256 L800,520 L0,520 Z" fill="#3c3832" opacity=".85"/>
+    <path d="M-10,250 C150,214 230,330 400,286 S640,200 810,250" fill="none" stroke="#f0ead8" stroke-width="26" stroke-linecap="round" opacity=".95"/>
+    <path d="M-10,250 C150,214 230,330 400,286 S640,200 810,250" fill="none" stroke="#fffdf4" stroke-width="10" stroke-linecap="round"/>
+    <path d="M120,236 l26,-34 M330,300 l22,34 M560,236 l30,-30" stroke="#e2d9c0" stroke-width="7" stroke-linecap="round" opacity=".6"/>
+    <g fill="#8d8373" opacity=".5"><circle cx="150" cy="420" r="30"/><circle cx="250" cy="452" r="42"/><circle cx="600" cy="430" r="36"/><circle cx="690" cy="466" r="26"/></g><defs><filter id="gr"><feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2"/><feColorMatrix type="saturate" values="0"/></filter></defs><rect width="800" height="520" filter="url(#gr)" opacity=".055" style="mix-blend-mode:overlay"/></svg>

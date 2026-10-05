@@ -1,0 +1,507 @@
+{
+ "slug": "quillon-demo",
+ "name": "Quillon Copper Corp.",
+ "profile": {
+  "team": [
+   {
+    "name": "Rosa Delgado",
+    "full": "Rosa Delgado",
+    "role": "President & CEO"
+   },
+   {
+    "name": "Graham Whitlock",
+    "full": "Graham Whitlock",
+    "role": "Chair"
+   },
+   {
+    "name": "Anika Shah",
+    "full": "Anika Shah",
+    "role": "Chief Financial Officer"
+   },
+   {
+    "name": "Mateo Ruiz",
+    "full": "Mateo Ruiz",
+    "role": "VP Exploration"
+   },
+   {
+    "name": "Claire Donovan",
+    "full": "Claire Donovan",
+    "role": "VP Projects"
+   },
+   {
+    "name": "Samuel Harlan",
+    "full": "Samuel Harlan",
+    "role": "VP Community Relations"
+   },
+   {
+    "name": "Hannah Liu",
+    "full": "Hannah Liu",
+    "role": "Director"
+   },
+   {
+    "name": "Victor Mensah",
+    "full": "Victor Mensah",
+    "role": "Director"
+   }
+  ],
+  "brand": {
+   "hero": "/demo/quillon/q03.jpg"
+  },
+  "capital": {
+   "fd": "241M",
+   "cash": "US$62M",
+   "debt": "Nil",
+   "options": "11M",
+   "warrants": "18M",
+   "marketCap": "US$538M",
+   "outstanding": "212M",
+   "financing": [
+    {
+     "date": "2026-04",
+     "type": "Bought-deal financing",
+     "amount": "US$45M",
+     "purpose": "PEA completion and permitting baseline studies"
+    },
+    {
+     "date": "2025-09",
+     "type": "Strategic investment",
+     "amount": "US$20M",
+     "purpose": "Mid-tier copper producer takes a 9.5% stake"
+    }
+   ]
+  },
+  "company": {
+   "name": "Quillon Copper Corp.",
+   "slogan": "Copper for the grid, from the Arizona desert.",
+   "ticker": "QLN",
+   "website": "quillon.example",
+   "listings": [
+    {
+     "ex": "TSX",
+     "sym": "QLN"
+    },
+    {
+     "ex": "NYSE American",
+     "sym": "QLNC"
+    }
+   ],
+   "commodity": "Copper",
+   "headquarters": "Tucson, Arizona",
+   "jurisdiction": "Arizona, United States"
+  },
+  "projects": [
+   {
+    "key": "paloverde",
+    "tag": "PEA",
+    "name": "Paloverde",
+    "brief": {
+     "overview": "A large porphyry copper deposit in Arizona's copper belt, with 9.4 billion pounds of Measured & Indicated copper and a Preliminary Economic Assessment outlining a 21-year open-pit operation."
+    },
+    "unique": {
+     "evidence": [
+      "9.4 Blb Cu Measured & Indicated",
+      "21-year mine life (PEA)",
+      "Paved access, power nearby"
+     ]
+    },
+    "gallery": [
+     {
+      "src": "/demo/quillon/q33.jpg"
+     },
+     {
+      "src": "/demo/quillon/q03.jpg"
+     },
+     {
+      "src": "/demo/quillon/q28.jpg"
+     }
+    ],
+    "geology": {
+     "body": "Laramide porphyry centred on a quartz-monzonite stock, with a leached cap over a supergene chalcocite blanket and primary chalcopyrite at depth."
+    },
+    "resource": {
+     "rows": [
+      {
+       "grade": "0.38% Cu",
+       "tonnes": "1.12 Bt",
+       "category": "Measured & Indicated",
+       "contained": "9.4 Blb Cu"
+      },
+      {
+       "grade": "0.31% Cu",
+       "tonnes": "0.46 Bt",
+       "category": "Inferred",
+       "contained": "3.1 Blb Cu"
+      }
+     ],
+     "summary": "Paloverde hosts Measured & Indicated resources of 1.12 billion tonnes at 0.38% copper for 9.4 billion pounds, plus Inferred resources of 0.46 billion tonnes at 0.31% copper for 3.1 billion pounds, at a 0.15% Cu cut-off."
+    },
+    "snapshot": {
+     "land": "29,000 acres",
+     "location": {
+      "value": "Copper belt, Arizona, United States"
+     },
+     "commodity": {
+      "value": "Copper"
+     },
+     "ownership": {
+      "value": "100%"
+     }
+    },
+    "stageName": "PEA",
+    "drillResults": {
+     "rows": [
+      {
+       "hole": "QP-25-112",
+       "note": "from 42 m, supergene blanket",
+       "grade": "0.62% Cu",
+       "interval": "388 m"
+      },
+      {
+       "hole": "QP-25-118",
+       "note": "incl. 62 m @ 1.34% Cu",
+       "grade": "0.81% Cu",
+       "interval": "214 m"
+      },
+      {
+       "hole": "QP-25-131",
+       "note": "ends in mineralisation",
+       "grade": "0.44% Cu",
+       "interval": "506 m"
+      },
+      {
+       "hole": "QP-26-007",
+       "note": "new high-grade breccia pipe",
+       "grade": "1.02% Cu",
+       "interval": "92 m"
+      },
+      {
+       "hole": "QP-26-015",
+       "note": "600 m step-out to the south-east",
+       "grade": "0.49% Cu",
+       "interval": "301 m"
+      }
+     ]
+    },
+    "coords": {
+     "lat": 32.98,
+     "lng": -110.66
+    }
+   },
+   {
+    "key": "cholla-wash",
+    "tag": "Exploration",
+    "name": "Cholla Wash",
+    "brief": {
+     "overview": "Oxide copper exposed at surface along a 2.4 km trend, with a drill-ready target that could provide early, low-cost cathode feed."
+    },
+    "unique": {
+     "evidence": [
+      "2.4 km oxide copper trend",
+      "Drill-ready",
+      "Near Paloverde"
+     ]
+    },
+    "gallery": [
+     {
+      "src": "/demo/quillon/q06.jpg"
+     },
+     {
+      "src": "/demo/quillon/q19.jpg"
+     },
+     {
+      "src": "/demo/quillon/q10.jpg"
+     }
+    ],
+    "geology": {
+     "body": "Oxide copper (chrysocolla and malachite) in fractured granodiorite along a north-west fault zone."
+    },
+    "resource": {
+     "rows": [],
+     "summary": ""
+    },
+    "snapshot": {
+     "land": "7,400 acres",
+     "location": {
+      "value": "Copper belt, Arizona, United States"
+     },
+     "commodity": {
+      "value": "Copper"
+     },
+     "ownership": {
+      "value": "100%"
+     }
+    },
+    "stageName": "Exploration",
+    "drillResults": {
+     "rows": []
+    },
+    "coords": {
+     "lat": 32.55,
+     "lng": -110.98
+    }
+   },
+   {
+    "key": "tin-cup-ridge",
+    "tag": "Early-stage",
+    "name": "Tin Cup Ridge",
+    "brief": {
+     "overview": "A concealed porphyry target beneath post-mineral cover, defined by a 3 km induced-polarisation chargeability anomaly."
+    },
+    "unique": {
+     "evidence": [
+      "3 km IP chargeability anomaly",
+      "Concealed under cover",
+      "Option to earn 75%"
+     ]
+    },
+    "gallery": [
+     {
+      "src": "/demo/quillon/q12.jpg"
+     },
+     {
+      "src": "/demo/quillon/q31.jpg"
+     },
+     {
+      "src": "/demo/quillon/q04.jpg"
+     }
+    ],
+    "geology": {
+     "body": "Interpreted porphyry system beneath Tertiary gravels and volcanics."
+    },
+    "resource": {
+     "rows": [],
+     "summary": ""
+    },
+    "snapshot": {
+     "land": "5,100 acres",
+     "location": {
+      "value": "Copper belt, Arizona, United States"
+     },
+     "commodity": {
+      "value": "Copper"
+     },
+     "ownership": {
+      "value": "Option to earn 75%"
+     }
+    },
+    "stageName": "Early-stage",
+    "drillResults": {
+     "rows": []
+    },
+    "coords": {
+     "lat": 33.24,
+     "lng": -110.93
+    }
+   }
+  ],
+  "timeline": [
+   {
+    "date": "2026-07-21",
+    "headline": "Paloverde PEA outlines a 21-year open-pit operation",
+    "keyNumbers": [
+     "21 years"
+    ],
+    "whyItMatters": "First economic assessment of the project."
+   },
+   {
+    "date": "2026-04-09",
+    "headline": "US$45M bought-deal financing closed",
+    "keyNumbers": [
+     "US$45M"
+    ],
+    "whyItMatters": "Funds Pre-Feasibility and permitting baseline work."
+   },
+   {
+    "date": "2026-02-17",
+    "headline": "QP-26-007 cuts 92 m @ 1.02% Cu in a new breccia pipe",
+    "keyNumbers": [
+     "1.02% Cu"
+    ],
+    "whyItMatters": "A higher-grade zone for early mine years."
+   },
+   {
+    "date": "2025-11-04",
+    "headline": "Resource update: 9.4 Blb Cu Measured & Indicated",
+    "keyNumbers": [
+     "9.4 Blb Cu"
+    ],
+    "whyItMatters": "Most of the resource now in the higher-confidence categories."
+   },
+   {
+    "date": "2025-09-15",
+    "headline": "Mid-tier copper producer takes a 9.5% stake",
+    "keyNumbers": [
+     "US$20M",
+     "9.5%"
+    ],
+    "whyItMatters": "Technical validation and a strategic partner."
+   },
+   {
+    "date": "2025-05-06",
+    "headline": "Cholla Wash mapping outlines a 2.4 km oxide copper trend",
+    "keyNumbers": [
+     "2.4 km"
+    ],
+    "whyItMatters": "A second target close to Paloverde."
+   }
+  ],
+  "catalysts": [
+   {
+    "label": "Paloverde Pre-Feasibility Study",
+    "impact": "Advances the project toward a construction decision.",
+    "timing": "H2 2027"
+   }
+  ],
+  "conference": {
+   "hook": "Large-scale American copper, in the heart of Arizona's copper belt.",
+   "studio": {
+    "theme": "obsidian",
+    "accent": "",
+    "template": "tableau"
+   },
+   "enabled": true,
+   "gallery": {
+    "overview": [
+     "/demo/quillon/q02.jpg"
+    ],
+    "results": [
+     "/demo/quillon/q24.jpg"
+    ],
+    "follow": [
+     "/demo/quillon/q14.jpg"
+    ],
+    "jurisdiction": [
+     "/demo/quillon/q17.jpg"
+    ],
+    "extra": [
+     "/demo/quillon/q01.jpg",
+     "/demo/quillon/q35.jpg",
+     "/demo/quillon/q20.jpg",
+     "/demo/quillon/q21.jpg",
+     "/demo/quillon/q22.jpg",
+     "/demo/quillon/q23.jpg",
+     "/demo/quillon/q25.jpg",
+     "/demo/quillon/q26.jpg",
+     "/demo/quillon/q27.jpg",
+     "/demo/quillon/q29.jpg",
+     "/demo/quillon/q30.jpg",
+     "/demo/quillon/q32.jpg",
+     "/demo/quillon/q34.jpg",
+     "/demo/quillon/q05.jpg",
+     "/demo/quillon/q07.jpg",
+     "/demo/quillon/q08.jpg",
+     "/demo/quillon/q09.jpg",
+     "/demo/quillon/q11.jpg",
+     "/demo/quillon/q13.jpg",
+     "/demo/quillon/q15.jpg",
+     "/demo/quillon/q16.jpg",
+     "/demo/quillon/q18.jpg",
+     "/demo/quillon/q36.jpg"
+    ]
+   },
+   "_derived": true,
+   "overview": "Quillon is advancing the Paloverde porphyry copper project in Arizona's copper belt.",
+   "highlights": [
+    {
+     "label": "Copper (M&I)",
+     "value": "9.4 Blb Cu",
+     "context": "1.12 Bt @ 0.38% Cu",
+     "featured": true
+    },
+    {
+     "label": "Inferred",
+     "value": "3.1 Blb Cu",
+     "context": "0.46 Bt @ 0.31% Cu",
+     "featured": false
+    },
+    {
+     "label": "Best intercept",
+     "value": "388 m",
+     "context": "@ 0.62% Cu",
+     "featured": false
+    },
+    {
+     "label": "Mine life (PEA)",
+     "value": "21 years",
+     "context": "open pit",
+     "featured": false
+    },
+    {
+     "label": "Cash",
+     "value": "US$62M",
+     "context": "no debt",
+     "featured": false
+    }
+   ],
+   "evidenceType": "drill_results",
+   "featuredGrade": {
+    "grade": "0.62% Cu",
+    "width": "388 m",
+    "context": "QP-25-112, from 42 m",
+    "location": "Paloverde"
+   },
+   "heroStatistic": {
+    "label": "Copper (Measured & Indicated)",
+    "value": "9.4 Blb Cu",
+    "context": "+ 3.1 Blb Cu Inferred"
+   },
+   "investmentCase": [
+    {
+     "reason": "Scale: 9.4 billion pounds of Measured & Indicated copper at Paloverde, with 3.1 billion pounds more Inferred.",
+     "featured": true
+    },
+    {
+     "reason": "Economics: a Preliminary Economic Assessment outlines a 21-year open-pit operation.",
+     "featured": false
+    },
+    {
+     "reason": "Location: Arizona's copper belt, with paved access and power nearby.",
+     "featured": false
+    },
+    {
+     "reason": "Funded: US$62 million in cash and no debt through the Pre-Feasibility Study.",
+     "featured": false
+    }
+   ],
+   "projectGallery": {
+    "paloverde": [
+     "/demo/quillon/q33.jpg",
+     "/demo/quillon/q03.jpg",
+     "/demo/quillon/q28.jpg"
+    ]
+   },
+   "currentActivity": "Pre-Feasibility work underway",
+   "featuredProjectKey": "paloverde",
+   "jurisdictionWidgets": {
+    "district": "Arizona copper belt",
+    "commodity": "Copper",
+    "provinceState": "Arizona"
+   }
+  },
+  "companyBrief": {
+   "headline": "Large-scale copper in Arizona's copper belt.",
+   "keyPoints": [
+    "9.4 Blb Cu Measured & Indicated at Paloverde",
+    "21-year mine life in the PEA",
+    "Pre-Feasibility work underway",
+    "Strategic producer shareholder",
+    "US$62M cash, no debt"
+   ],
+   "shortSummary": "A copper developer advancing Paloverde toward Pre-Feasibility.",
+   "businessDescription": "Quillon Copper explores and develops porphyry copper deposits in Arizona."
+  },
+  "companyStatus": {
+   "expected": "H2 2027",
+   "progressBar": {
+    "unit": "milestones",
+    "label": "2026\u201327 plan",
+    "total": 9,
+    "current": 6
+   },
+   "nextCatalyst": "Paloverde Pre-Feasibility Study",
+   "statusHeadline": "PEA complete; Pre-Feasibility work underway",
+   "investmentImpact": "PFS expected to refine the development case."
+  },
+  "_demo": "FICTIONAL demo company for Conference Mode template previews. All names, figures and people are invented."
+ }
+}

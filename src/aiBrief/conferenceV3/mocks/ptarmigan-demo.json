@@ -1,0 +1,535 @@
+{
+ "slug": "ptarmigan-demo",
+ "name": "Ptarmigan Gold Corp.",
+ "profile": {
+  "team": [
+   {
+    "name": "Evan Mercer",
+    "full": "Evan Mercer",
+    "role": "President & CEO"
+   },
+   {
+    "name": "Linnea Strand",
+    "full": "Linnea Strand",
+    "role": "Chair"
+   },
+   {
+    "name": "Owen Castellano",
+    "full": "Owen Castellano",
+    "role": "Chief Financial Officer"
+   },
+   {
+    "name": "Dr. Priya Raman",
+    "full": "Dr. Priya Raman",
+    "role": "VP Exploration"
+   },
+   {
+    "name": "Marcus Tolle",
+    "full": "Marcus Tolle",
+    "role": "VP Projects & Engineering"
+   },
+   {
+    "name": "Tessa Kinney",
+    "full": "Tessa Kinney",
+    "role": "VP Lands & Community"
+   },
+   {
+    "name": "Graham Whitcombe",
+    "full": "Graham Whitcombe",
+    "role": "Director"
+   },
+   {
+    "name": "Sofia Brandt",
+    "full": "Sofia Brandt",
+    "role": "Director"
+   }
+  ],
+  "brand": {
+   "hero": "/demo/ptarmigan/t01.jpg"
+  },
+  "capital": {
+   "fd": "241M",
+   "cash": "US$64M",
+   "debt": "Nil",
+   "options": "13M",
+   "warrants": "16M",
+   "marketCap": "US$585M",
+   "outstanding": "212M",
+   "financing": [
+    {
+     "date": "2026-06",
+     "type": "Bought-deal financing",
+     "amount": "US$48M",
+     "purpose": "Aurora Dome Feasibility Study and 2026 drilling"
+    },
+    {
+     "date": "2025-11",
+     "type": "Strategic investment",
+     "amount": "US$22M",
+     "purpose": "9.9% equity stake by a senior gold producer"
+    },
+    {
+     "date": "2025-03",
+     "type": "Private placement",
+     "amount": "US$14M",
+     "purpose": "Sable Creek discovery drilling"
+    }
+   ]
+  },
+  "company": {
+   "name": "Ptarmigan Gold Corp.",
+   "slogan": "High-grade gold from the Alaskan interior.",
+   "ticker": "PTG",
+   "website": "ptarmigangold.example",
+   "listings": [
+    {
+     "ex": "TSXV",
+     "sym": "PTG"
+    },
+    {
+     "ex": "OTCQX",
+     "sym": "PTGGF"
+    }
+   ],
+   "commodity": "Gold",
+   "headquarters": "Fairbanks, Alaska",
+   "jurisdiction": "Alaska, United States"
+  },
+  "projects": [
+   {
+    "key": "aurora-dome",
+    "tag": "Feasibility",
+    "name": "Aurora Dome",
+    "brief": {
+     "overview": "A high-grade underground and open-pit gold deposit in the upper Kuskokwim, with 2.1 million ounces Measured & Indicated at 6.8 g/t gold. Reached by bush plane from Fairbanks; a 1,200 m gravel airstrip serves the camp year-round."
+    },
+    "unique": {
+     "evidence": [
+      "2.1 Moz Au M&I at 6.8 g/t",
+      "11-year mine life (PFS)",
+      "Year-round airstrip and camp"
+     ]
+    },
+    "gallery": [
+     {
+      "src": "/demo/ptarmigan/t43.jpg"
+     },
+     {
+      "src": "/demo/ptarmigan/t18.jpg"
+     },
+     {
+      "src": "/demo/ptarmigan/t21.jpg"
+     }
+    ],
+    "geology": {
+     "body": "Sheeted quartz veins and a high-grade shoot in a Cretaceous intrusion, part of the Tintina gold belt."
+    },
+    "resource": {
+     "rows": [
+      {
+       "grade": "6.8 g/t Au",
+       "tonnes": "9.6 Mt",
+       "category": "Measured & Indicated",
+       "contained": "2.1 Moz Au"
+      },
+      {
+       "grade": "5.9 g/t Au",
+       "tonnes": "3.2 Mt",
+       "category": "Inferred",
+       "contained": "0.6 Moz Au"
+      }
+     ],
+     "summary": "Aurora Dome hosts Measured & Indicated resources of 9.6 million tonnes at 6.8 g/t gold (2.1 Moz), plus 3.2 million tonnes Inferred at 5.9 g/t (0.6 Moz)."
+    },
+    "snapshot": {
+     "land": "18,600 ha",
+     "location": {
+      "value": "Interior Alaska, United States"
+     },
+     "commodity": {
+      "value": "Gold"
+     },
+     "ownership": {
+      "value": "100%"
+     }
+    },
+    "stageName": "Feasibility",
+    "drillResults": {
+     "rows": [
+      {
+       "hole": "AD-25-114",
+       "note": "Discovery Shoot",
+       "grade": "18.6 g/t Au",
+       "interval": "12.4 m"
+      },
+      {
+       "hole": "AD-25-131",
+       "note": "main zone, from 212 m",
+       "grade": "7.9 g/t Au",
+       "interval": "31.0 m"
+      },
+      {
+       "hole": "AD-25-146",
+       "note": "visible gold in quartz",
+       "grade": "41.3 g/t Au",
+       "interval": "4.2 m"
+      },
+      {
+       "hole": "AD-26-008",
+       "note": "down-plunge extension",
+       "grade": "9.4 g/t Au",
+       "interval": "22.6 m"
+      },
+      {
+       "hole": "AD-26-019",
+       "note": "bulk-tonnage halo",
+       "grade": "4.1 g/t Au",
+       "interval": "48.5 m"
+      }
+     ]
+    },
+    "coords": {
+     "lat": 63.52,
+     "lng": -153.4
+    }
+   },
+   {
+    "key": "sable-creek",
+    "tag": "Exploration",
+    "name": "Sable Creek",
+    "brief": {
+     "overview": "A 7 km gold-in-soil trend 115 km north-east of Aurora Dome, where the first 14 holes cut high-grade quartz veins under shallow cover."
+    },
+    "unique": {
+     "evidence": [
+      "First holes to 11.2 g/t Au",
+      "7 km soil trend",
+      "Helicopter-supported drilling"
+     ]
+    },
+    "gallery": [
+     {
+      "src": "/demo/ptarmigan/t52.jpg"
+     },
+     {
+      "src": "/demo/ptarmigan/t19.jpg"
+     },
+     {
+      "src": "/demo/ptarmigan/t23.jpg"
+     }
+    ],
+    "geology": {
+     "body": "Quartz-arsenopyrite veins along a north-east fault in hornfels."
+    },
+    "resource": {
+     "rows": [],
+     "summary": ""
+    },
+    "snapshot": {
+     "land": "9,200 ha",
+     "location": {
+      "value": "Interior Alaska, United States"
+     },
+     "commodity": {
+      "value": "Gold"
+     },
+     "ownership": {
+      "value": "100%"
+     }
+    },
+    "stageName": "Exploration",
+    "drillResults": {
+     "rows": []
+    },
+    "coords": {
+     "lat": 64.1,
+     "lng": -151.45
+    }
+   },
+   {
+    "key": "kettle-lake",
+    "tag": "Early-stage",
+    "name": "Kettle Lake",
+    "brief": {
+     "overview": "A gold target 35 km from McGrath, defined by rock samples and an airborne survey, under an option to earn 80%. Float-plane access from the lake in summer."
+    },
+    "unique": {
+     "evidence": [
+      "Rock samples to 23 g/t Au",
+      "Airborne survey complete",
+      "Option to earn 80%"
+     ]
+    },
+    "gallery": [
+     {
+      "src": "/demo/ptarmigan/t49.jpg"
+     },
+     {
+      "src": "/demo/ptarmigan/t10.jpg"
+     },
+     {
+      "src": "/demo/ptarmigan/t33.jpg"
+     }
+    ],
+    "geology": {
+     "body": "Intrusion-related gold veins around a buried granite."
+    },
+    "resource": {
+     "rows": [],
+     "summary": ""
+    },
+    "snapshot": {
+     "land": "5,400 ha",
+     "location": {
+      "value": "Interior Alaska, United States"
+     },
+     "commodity": {
+      "value": "Gold"
+     },
+     "ownership": {
+      "value": "Option to earn 80%"
+     }
+    },
+    "stageName": "Early-stage",
+    "drillResults": {
+     "rows": []
+    },
+    "coords": {
+     "lat": 62.74,
+     "lng": -155.05
+    }
+   }
+  ],
+  "timeline": [
+   {
+    "date": "2026-08-18",
+    "headline": "Aurora Dome Feasibility Study commenced",
+    "keyNumbers": [
+     "FS"
+    ],
+    "whyItMatters": "The final study before a construction decision."
+   },
+   {
+    "date": "2026-06-24",
+    "headline": "US$48M bought-deal financing closed",
+    "keyNumbers": [
+     "US$48M"
+    ],
+    "whyItMatters": "Funds the Feasibility Study and the 2026 season."
+   },
+   {
+    "date": "2026-04-09",
+    "headline": "AD-26-008 cuts 22.6 m @ 9.4 g/t Au down-plunge",
+    "keyNumbers": [
+     "9.4 g/t"
+    ],
+    "whyItMatters": "The high-grade shoot stays open at depth."
+   },
+   {
+    "date": "2025-11-20",
+    "headline": "Senior producer takes a 9.9% strategic stake",
+    "keyNumbers": [
+     "US$22M"
+    ],
+    "whyItMatters": "Industry validation and a partner with Alaska experience."
+   },
+   {
+    "date": "2025-09-30",
+    "headline": "Pre-Feasibility Study outlines an 11-year mine",
+    "keyNumbers": [
+     "11 years"
+    ],
+    "whyItMatters": "First development case: 190,000 oz a year at US$1,090/oz AISC."
+   },
+   {
+    "date": "2025-07-15",
+    "headline": "Sable Creek discovery: 6.5 m @ 11.2 g/t Au",
+    "keyNumbers": [
+     "11.2 g/t"
+    ],
+    "whyItMatters": "A second high-grade system on the belt."
+   }
+  ],
+  "catalysts": [
+   {
+    "label": "Aurora Dome Feasibility Study",
+    "impact": "Supports a construction decision and project financing.",
+    "timing": "Q2 2027"
+   }
+  ],
+  "conference": {
+   "hook": "High-grade gold from the Alaskan interior.",
+   "studio": {
+    "theme": "obsidian",
+    "accent": "",
+    "template": "expedition"
+   },
+   "enabled": true,
+   "gallery": {
+    "overview": [
+     "/demo/ptarmigan/t03.jpg"
+    ],
+    "results": [
+     "/demo/ptarmigan/t27.jpg"
+    ],
+    "follow": [
+     "/demo/ptarmigan/t60.jpg"
+    ],
+    "jurisdiction": [
+     "/demo/ptarmigan/t02.jpg"
+    ],
+    "extra": [
+     "/demo/ptarmigan/t04.jpg",
+     "/demo/ptarmigan/t05.jpg",
+     "/demo/ptarmigan/t06.jpg",
+     "/demo/ptarmigan/t07.jpg",
+     "/demo/ptarmigan/t08.jpg",
+     "/demo/ptarmigan/t09.jpg",
+     "/demo/ptarmigan/t11.jpg",
+     "/demo/ptarmigan/t12.jpg",
+     "/demo/ptarmigan/t13.jpg",
+     "/demo/ptarmigan/t14.jpg",
+     "/demo/ptarmigan/t15.jpg",
+     "/demo/ptarmigan/t16.jpg",
+     "/demo/ptarmigan/t17.jpg",
+     "/demo/ptarmigan/t20.jpg",
+     "/demo/ptarmigan/t22.jpg",
+     "/demo/ptarmigan/t24.jpg",
+     "/demo/ptarmigan/t25.jpg",
+     "/demo/ptarmigan/t26.jpg",
+     "/demo/ptarmigan/t28.jpg",
+     "/demo/ptarmigan/t29.jpg",
+     "/demo/ptarmigan/t30.jpg",
+     "/demo/ptarmigan/t31.jpg",
+     "/demo/ptarmigan/t32.jpg",
+     "/demo/ptarmigan/t34.jpg",
+     "/demo/ptarmigan/t35.jpg",
+     "/demo/ptarmigan/t36.jpg",
+     "/demo/ptarmigan/t37.jpg",
+     "/demo/ptarmigan/t38.jpg",
+     "/demo/ptarmigan/t39.jpg",
+     "/demo/ptarmigan/t40.jpg",
+     "/demo/ptarmigan/t41.jpg",
+     "/demo/ptarmigan/t42.jpg",
+     "/demo/ptarmigan/t44.jpg",
+     "/demo/ptarmigan/t45.jpg",
+     "/demo/ptarmigan/t46.jpg",
+     "/demo/ptarmigan/t47.jpg",
+     "/demo/ptarmigan/t48.jpg",
+     "/demo/ptarmigan/t50.jpg",
+     "/demo/ptarmigan/t51.jpg",
+     "/demo/ptarmigan/t53.jpg",
+     "/demo/ptarmigan/t54.jpg",
+     "/demo/ptarmigan/t55.jpg",
+     "/demo/ptarmigan/t56.jpg",
+     "/demo/ptarmigan/t57.jpg",
+     "/demo/ptarmigan/t58.jpg",
+     "/demo/ptarmigan/t59.jpg"
+    ]
+   },
+   "_derived": true,
+   "overview": "Ptarmigan is advancing the high-grade Aurora Dome gold project in interior Alaska.",
+   "highlights": [
+    {
+     "label": "Gold (M&I)",
+     "value": "2.1 Moz",
+     "context": "6.8 g/t Au",
+     "featured": true
+    },
+    {
+     "label": "Best intercept",
+     "value": "41.3 g/t Au",
+     "context": "over 4.2 m",
+     "featured": false
+    },
+    {
+     "label": "Mine life (PFS)",
+     "value": "11 years",
+     "context": "190 koz a year",
+     "featured": false
+    },
+    {
+     "label": "AISC (PFS)",
+     "value": "US$1,090/oz",
+     "context": "life of mine",
+     "featured": false
+    },
+    {
+     "label": "Cash",
+     "value": "US$64M",
+     "context": "no debt",
+     "featured": false
+    }
+   ],
+   "evidenceType": "drill_results",
+   "featuredGrade": {
+    "grade": "41.3 g/t Au",
+    "width": "4.2 m",
+    "context": "AD-25-146",
+    "location": "Aurora Dome"
+   },
+   "heroStatistic": {
+    "label": "Gold · Measured & Indicated",
+    "value": "2.1 Moz",
+    "context": "at 6.8 g/t · 9.6 Mt"
+   },
+   "investmentCase": [
+    {
+     "reason": "Grade: 6.8 g/t gold Measured & Indicated, several times the grade of a typical open-pit mine.",
+     "featured": true
+    },
+    {
+     "reason": "Scale: 2.1 million ounces M&I plus 0.6 million ounces Inferred, open at depth.",
+     "featured": false
+    },
+    {
+     "reason": "Economics: a Pre-Feasibility Study outlines 190,000 ounces a year for 11 years at US$1,090/oz AISC.",
+     "featured": false
+    },
+    {
+     "reason": "Funded: US$64 million in cash, no debt, and a senior producer as a 9.9% shareholder.",
+     "featured": false
+    }
+   ],
+   "projectGallery": {
+    "aurora-dome": [
+     "/demo/ptarmigan/t43.jpg",
+     "/demo/ptarmigan/t18.jpg",
+     "/demo/ptarmigan/t21.jpg"
+    ]
+   },
+   "currentActivity": "Feasibility Study underway",
+   "featuredProjectKey": "aurora-dome",
+   "jurisdictionWidgets": {
+    "district": "Upper Kuskokwim",
+    "commodity": "Gold",
+    "provinceState": "Alaska"
+   }
+  },
+  "companyBrief": {
+   "headline": "High-grade gold from the Alaskan interior.",
+   "keyPoints": [
+    "2.1 Moz Au M&I at 6.8 g/t",
+    "11-year mine life (PFS)",
+    "Feasibility Study underway",
+    "Senior producer holds 9.9%",
+    "US$64M cash, no debt"
+   ],
+   "shortSummary": "A high-grade gold developer advancing Aurora Dome toward a construction decision.",
+   "businessDescription": "Ptarmigan explores and develops high-grade gold in interior Alaska."
+  },
+  "companyStatus": {
+   "expected": "Q2 2027",
+   "progressBar": {
+    "unit": "milestones",
+    "label": "2026–27 plan",
+    "total": 9,
+    "current": 6
+   },
+   "nextCatalyst": "Aurora Dome Feasibility Study",
+   "statusHeadline": "Feasibility Study underway at Aurora Dome",
+   "investmentImpact": "FS expected to support a construction decision."
+  },
+  "_demo": "FICTIONAL demo company for Conference Mode template previews. All names, figures, people and project locations are invented; towns and airports are real public places."
+ }
+}

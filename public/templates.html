@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>MineEx · Conference Mode</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700;800;900&family=IBM+Plex+Mono:wght@400;500;600&display=swap" />
+<style>
+  :root{
+    --bg:#060708; --ink:#f4f6fb; --dim:#8a90a0; --faint:#565c6b;
+    --line:rgba(255,255,255,.09); --line2:rgba(255,255,255,.14);
+    --accent:#5c7cfa; --accent2:#9db4ff;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    background:
+      radial-gradient(130% 90% at 84% -10%, rgba(92,124,250,.10), transparent 55%),
+      radial-gradient(90% 70% at -5% 0%, rgba(92,124,250,.05), transparent 50%),
+      var(--bg);
+    color:var(--ink);
+    font-family:"Inter Tight", system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing:antialiased; min-height:100vh;
+    padding: clamp(30px,5vw,72px) clamp(24px,5vw,72px) clamp(40px,6vw,90px);
+  }
+  .wrap{max-width:1320px;margin:0 auto}
+  header{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:22px;margin-bottom:clamp(30px,5vh,58px)}
+  .brand{display:flex;flex-direction:column;gap:14px}
+  .eyebrow{font-family:"IBM Plex Mono",monospace;font-size:12px;letter-spacing:.26em;text-transform:uppercase;color:var(--accent);display:flex;align-items:center;gap:13px}
+  .eyebrow i{width:36px;height:2px;background:var(--accent);border-radius:2px;box-shadow:0 0 18px rgba(92,124,250,.7)}
+  h1{font-size:clamp(34px,5.4vw,66px);font-weight:800;letter-spacing:-.04em;line-height:.96;margin:0;text-wrap:balance}
+  .sub{font-family:"IBM Plex Mono",monospace;font-size:clamp(11px,1.3vw,13.5px);letter-spacing:.05em;color:var(--dim);line-height:1.7;text-align:right}
+  .sub b{color:var(--ink);font-weight:600}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:clamp(14px,1.5vw,22px)}
+  .card{
+    position:relative;display:block;text-decoration:none;color:var(--ink);
+    aspect-ratio:16/10;border-radius:16px;overflow:hidden;
+    border:1px solid var(--line);background:#0b0d12;
+    transition:transform .3s cubic-bezier(.2,1,.3,1), border-color .3s ease, box-shadow .3s ease;
+    box-shadow:0 12px 30px -22px rgba(0,0,0,.9);
+  }
+  .card:hover,.card:focus-visible{transform:translateY(-5px);border-color:rgba(92,124,250,.5);box-shadow:0 34px 70px -30px rgba(0,0,0,.95),0 0 0 1px rgba(92,124,250,.3);outline:none}
+  .card .thumb{position:absolute;inset:0}
+  .card .thumb img{width:100%;height:100%;object-fit:cover;object-position:center;filter:saturate(1.02);transition:transform 1.2s cubic-bezier(.2,1,.3,1), opacity .5s ease;opacity:0}
+  .card .thumb img.ok{opacity:1}
+  .card:hover .thumb img{transform:scale(1.045)}
+  .card .scrim{position:absolute;inset:0;background:linear-gradient(180deg,rgba(6,7,8,.30) 0%,rgba(6,7,8,0) 26%,rgba(6,7,8,.10) 52%,rgba(6,7,8,.78) 86%,rgba(6,7,8,.94) 100%)}
+  .card .top{position:absolute;top:16px;left:17px;right:17px;display:flex;align-items:center;justify-content:space-between}
+  .card .num{font-family:"IBM Plex Mono",monospace;font-size:12px;letter-spacing:.14em;color:rgba(255,255,255,.62);font-variant-numeric:tabular-nums;text-shadow:0 1px 8px rgba(0,0,0,.7)}
+  .card .bot{position:absolute;left:18px;right:18px;bottom:15px;display:flex;flex-direction:column;gap:5px}
+  .card .name{font-size:clamp(20px,2vw,26px);font-weight:800;letter-spacing:-.025em;line-height:1;text-shadow:0 2px 14px rgba(0,0,0,.55)}
+  .card .tag{font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.66)}
+  .badge{font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#060708;background:var(--accent);padding:3px 9px;border-radius:100px;font-weight:600;box-shadow:0 0 18px rgba(92,124,250,.5)}
+  .card.feat{border-color:rgba(92,124,250,.55)}
+  .card.feat::after{content:"";position:absolute;inset:0;border-radius:16px;box-shadow:inset 0 0 0 1px rgba(92,124,250,.28);pointer-events:none}
+  footer{margin-top:clamp(30px,5vh,56px);font-family:"IBM Plex Mono",monospace;font-size:11.5px;letter-spacing:.04em;color:var(--faint);line-height:1.8}
+  footer b{color:var(--dim);font-weight:500}
+  @media (max-width:560px){ .grid{grid-template-columns:1fr 1fr;gap:11px} .sub{text-align:left} header{align-items:flex-start} }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="brand">
+        <div class="eyebrow"><i></i>MineEx · Conference Mode</div>
+        <h1>Presentation templates</h1>
+      </div>
+      <div class="sub">Company · <b>Granite Peak Gold Corp.</b><br />One universal dataset · fifteen ways to tell the story</div>
+    </header>
+
+    <div class="grid" id="grid"></div>
+
+    <footer>
+      Tap a template to open it full-screen · use your browser's <b>Back</b> to return here.<br />
+      On iPad, open this page on the same Wi-Fi — the tiles route themselves automatically.
+    </footer>
+  </div>
+
+  <script>
+    var PREVIEW = "f93303de-0614-4ef1-814c-086ad229cf1a";
+    var SLUG = "granitepeak-demo";
+    var T = [
+      ["terminal2","01","Terminal II","Intelligence HUD", false, "pampanegra-demo"],
+      ["expedition","02","Expedition","Field journal", false, "ptarmigan-demo"],
+      ["keynote","03","Keynote","Presentation deck", false, "vilcanota-demo"],
+      ["vein","04","Vein","Silver vein", false, "plataalta-demo"],
+      ["chronicle","05","Chronicle","Timeline"],
+      ["filament","06","Filament","Product page"],
+      ["folio","07","Folio","Editorial", false, "northvale-demo"],
+      ["crimson","08","Crimson","Studio", false, "emberline-demo"],
+      ["tableau","09","Tableau","Minimal", false, "quillon-demo"],
+      ["gyre","10","Gyre","Monochrome", false, "lucerna-demo"],
+      ["beacon","11","Beacon","Ember", false, "veyra-demo"],
+      ["lattice","12","Lattice","Signal orange", false, "solvik-demo"],
+      ["relay","13","Relay","Platform blue", false, "iberis-demo"],
+      ["spectra","14","Spectra","Gradient light", false, "tremayne-demo"],
+      ["vista","15","Vista","Glass & photo", false, "ardven-demo"],
+      ["cirrus","16","Cirrus","Sky & serif", false, "kestrel-demo"]
+    ];
+    var grid = document.getElementById("grid");
+    T.forEach(function(t){
+      var a = document.createElement("a");
+      a.className = "card" + (t[4] ? " feat" : "");
+      a.href = t[5] ? "confv3demo?c=" + t[5] + "&t=" + t[0] : "confv3demo?c=" + SLUG + "&preview=" + PREVIEW + "&t=" + t[0];   // t[5]: a static demo company (no preview token)
+      a.setAttribute("aria-label", t[2]);
+      a.innerHTML =
+        '<div class="thumb"><img src="thumbs/' + t[0] + '.jpg" alt="" loading="lazy" onload="this.classList.add(\'ok\')" /></div>' +
+        '<div class="scrim"></div>' +
+        '<div class="top"><span class="num">' + t[1] + '</span>' + (t[4] ? '<span class="badge">New</span>' : '') + '</div>' +
+        '<div class="bot"><span class="name">' + t[2] + '</span><span class="tag">' + t[3] + '</span></div>';
+      grid.appendChild(a);
+    });
+  </script>
+</body>
+</html>

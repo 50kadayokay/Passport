@@ -1,0 +1,421 @@
+{
+ "dataset": {
+  "id": "kingsmen-resources",
+  "product": "MineEx Conference Mode",
+  "version": "1.0.0",
+  "publishedAt": "2026-09-23",
+  "status": "published",
+  "ownership": "Conference-owned verified dataset. It is NOT a mirror of the MineEx investor profile and must not be synced from or into it.",
+  "sources": {
+   "deck": {
+    "title": "Kingsmen Resources corporate presentation",
+    "edition": "September 2026",
+    "file": "KR NEW SLIDE  DECK ONLINE (3).pdf"
+   },
+   "boardPage": {
+    "title": "Board of Directors & Management — kingsmenresources.com (company document)"
+   },
+   "proxy2025": {
+    "title": "Kingsmen Resources 2025 management information circular / proxy"
+   },
+   "capitalPage": {
+    "title": "Capital Structure — kingsmenresources.com (company document)"
+   },
+   "lcPage": {
+    "title": "Las Coloradas project page — kingsmenresources.com (company document)"
+   },
+   "almPage": {
+    "title": "Almoloya project page — kingsmenresources.com (company document)"
+   },
+   "pr20250924": {
+    "title": "News release 2025-09-24: Kingsmen Intersects 1,742 g/t Silver Equivalent … Las Coloradas"
+   },
+   "pr20251024": {
+    "title": "News release 2025-10-24: Kingsmen Granted Option to Acquire 100% of the Almoloya Project"
+   },
+   "pr20250709": {
+    "title": "News release 2025-07-09: Letter of Intent — Almoloya Gold-Silver Project"
+   }
+  }
+ },
+ "company": {
+  "name": "Kingsmen Resources Ltd.",
+  "positioning": "Advancing two silver-gold exploration projects in the historic Parral Mining District, Chihuahua, Mexico.",
+  "commodities": "Silver & Gold",
+  "jurisdiction": "Chihuahua, Mexico",
+  "listings": [
+   {
+    "ex": "TSXV",
+    "sym": "KNG"
+   },
+   {
+    "ex": "OTCQB",
+    "sym": "KNGRF"
+   },
+   {
+    "ex": "FSE",
+    "sym": "TUY"
+   }
+  ]
+ },
+ "capital": {
+  "sharesOutstanding": "34,607,086",
+  "fullyDiluted": "44,933,584",
+  "workingCapital": "$13M",
+  "asOf": "Aug 20, 2026",
+  "royalties": [
+   {
+    "rate": "1%",
+    "type": "NSR",
+    "country": "Mexico",
+    "project": "Los Ricos North",
+    "operator": "GoGold Resources",
+    "property": "La Trini",
+    "commodity": "Silver / Gold"
+   }
+  ]
+ },
+ "projects": [
+  {
+   "key": "las-coloradas",
+   "name": "Las Coloradas",
+   "commodities": "Silver · Gold · Lead · Zinc",
+   "district": "Parral Mining District",
+   "distance": "38 km from the mining town of Parral",
+   "ownership": "100%",
+   "landPackage": {
+    "area": "845 ha",
+    "concessions": "15 mining concessions"
+   },
+   "depositType": "Underground epithermal, high-grade vein, silver-gold-lead-zinc-copper; skarn, porphyry",
+   "historicMines": [
+    {
+     "name": "Las Coloradas Mine",
+     "status": "past_producer",
+     "discovered": "1880",
+     "lastMajorUndergroundOperations": "1952"
+    }
+   ],
+   "explorationTargets": [
+    {
+     "name": "Las Coloradas targets",
+     "detail": "The 15,000 m drill program is testing the potential for 0.30 Moz gold, 150 Moz silver, 3.0 billion lb zinc and 1.7 billion lb lead.",
+     "status": "exploration_target",
+     "headline": "200 Moz silver",
+     "commodity": "Silver",
+     "disclaimer": "Exploration target — not a defined mineral resource."
+    }
+   ]
+  },
+  {
+   "key": "almoloya",
+   "name": "Almoloya",
+   "commodities": "Gold · Silver · Zinc · Lead (Cu)",
+   "district": "Parral Mining District",
+   "distance": "30 km east of the mining town of Parral",
+   "ownership": "Option to acquire 100%",
+   "landPackage": {
+    "area": "866 ha",
+    "concessions": "6 mining concessions"
+   },
+   "depositType": "Underground epithermal, high-grade vein, gold-silver, skarn; prospective for gold and CRD mineralization",
+   "historicMines": [
+    {
+     "name": "Almoloya Mine",
+     "status": "past_producer"
+    },
+    {
+     "name": "Juliettas Mine",
+     "status": "past_producer",
+     "discovered": "1900s",
+     "lastMajorUndergroundOperations": "1950"
+    },
+    {
+     "name": "Cigarrero Mine",
+     "status": "past_producer",
+     "discovered": "1890",
+     "historicProduction": "Historic reports indicate ≈1.25 Mt of ore grading 600 g/t Ag, 40% Pb and 25% Zn",
+     "lastMajorUndergroundOperations": "1920"
+    }
+   ],
+   "explorationTargets": [
+    {
+     "name": "Cigarrero target",
+     "detail": "10 to 50 million tonnes averaging 600 g/t Ag, 40% Pb, 25% Zn, 1% Cu and variable Au — the historic grades of Cigarrero.",
+     "status": "exploration_target",
+     "headline": "200–300 Moz silver",
+     "commodity": "Silver",
+     "disclaimer": "Exploration target — not a defined mineral resource."
+    },
+    {
+     "name": "Juliettas target",
+     "detail": "1.0 to 2.0 Moz gold, with diamond drilling along the full strike length of the structures and testing at depth.",
+     "status": "exploration_target",
+     "headline": "1–2 Moz gold",
+     "commodity": "Gold",
+     "disclaimer": "Exploration target — not a defined mineral resource."
+    }
+   ]
+  }
+ ],
+ "milestones": [
+  {
+   "year": "2023",
+   "title": "Las Coloradas acquisition",
+   "status": "completed"
+  },
+  {
+   "year": "2023",
+   "title": "Historical data acquisition",
+   "status": "completed"
+  },
+  {
+   "year": "2024",
+   "title": "Major sampling & mapping program",
+   "status": "completed"
+  },
+  {
+   "year": "2024",
+   "title": "Structures traced for 1.2 miles and 1.1 miles respectively at Las Coloradas",
+   "status": "completed"
+  },
+  {
+   "year": "2025",
+   "title": "IP geophysical survey",
+   "status": "completed"
+  },
+  {
+   "year": "2025",
+   "title": "IP drill targets identified",
+   "status": "completed"
+  },
+  {
+   "year": "2025",
+   "title": "Initial 3,000 m drill program completed",
+   "status": "completed"
+  },
+  {
+   "year": "2025",
+   "title": "Acquisition of Almoloya Project",
+   "status": "completed"
+  },
+  {
+   "year": "2025",
+   "title": "Sampling program at Almoloya",
+   "status": "completed"
+  },
+  {
+   "year": "2026",
+   "title": "15,000 m drill program — Las Coloradas",
+   "status": "underway"
+  },
+  {
+   "year": "2026",
+   "title": "10,000 m drill program — Almoloya",
+   "status": "planned_2026"
+  }
+ ],
+ "team": [
+  {
+   "name": "Scott Emerson",
+   "role": "President, CEO & Director"
+  },
+  {
+   "name": "Rodney B. Johnston",
+   "role": "Director"
+  },
+  {
+   "name": "Nick DeMare",
+   "role": "CFO & Director"
+  },
+  {
+   "name": "Kieran Downes",
+   "role": "Director"
+  },
+  {
+   "name": "Mark J. Pryor",
+   "role": "Director"
+  },
+  {
+   "name": "Carlos Garza Moriel",
+   "role": "Director"
+  },
+  {
+   "name": "Perla Cortes Garcia",
+   "role": "Project Geologist"
+  }
+ ],
+ "provenance": {
+  "company.name": [
+   {
+    "doc": "deck",
+    "page": 20
+   }
+  ],
+  "company.positioning": [
+   {
+    "doc": "deck",
+    "page": 20
+   }
+  ],
+  "company.commodities": [
+   {
+    "doc": "deck",
+    "page": 20
+   }
+  ],
+  "company.jurisdiction": [
+   {
+    "doc": "deck",
+    "page": 7
+   }
+  ],
+  "company.listings": [
+   {
+    "doc": "deck",
+    "page": 1
+   },
+   {
+    "doc": "capitalPage",
+    "note": "FSE: TUY"
+   }
+  ],
+  "capital.*": [
+   {
+    "doc": "deck",
+    "page": 4,
+    "note": "Data as of August 20 2026 (not the p.5 / p.3 figures)"
+   }
+  ],
+  "capital.royalties": [
+   {
+    "doc": "deck",
+    "page": 4
+   },
+   {
+    "doc": "pr20251024"
+   }
+  ],
+  "projects[las-coloradas].commodities": [
+   {
+    "doc": "deck",
+    "page": 7
+   }
+  ],
+  "projects[las-coloradas].distance": [
+   {
+    "doc": "deck",
+    "page": 7
+   },
+   {
+    "doc": "lcPage"
+   }
+  ],
+  "projects[las-coloradas].ownership": [
+   {
+    "doc": "pr20250924"
+   }
+  ],
+  "projects[las-coloradas].landPackage": [
+   {
+    "doc": "lcPage"
+   }
+  ],
+  "projects[las-coloradas].depositType": [
+   {
+    "doc": "lcPage"
+   }
+  ],
+  "projects[las-coloradas].historicMines": [
+   {
+    "doc": "deck",
+    "page": 18
+   },
+   {
+    "doc": "deck",
+    "page": 7
+   }
+  ],
+  "projects[las-coloradas].explorationTargets": [
+   {
+    "doc": "deck",
+    "page": 6
+   }
+  ],
+  "projects[almoloya].commodities": [
+   {
+    "doc": "deck",
+    "page": 7
+   }
+  ],
+  "projects[almoloya].distance": [
+   {
+    "doc": "deck",
+    "page": 7
+   }
+  ],
+  "projects[almoloya].ownership": [
+   {
+    "doc": "pr20251024"
+   }
+  ],
+  "projects[almoloya].landPackage": [
+   {
+    "doc": "almPage"
+   }
+  ],
+  "projects[almoloya].depositType": [
+   {
+    "doc": "almPage"
+   }
+  ],
+  "projects[almoloya].historicMines": [
+   {
+    "doc": "deck",
+    "page": 7
+   },
+   {
+    "doc": "deck",
+    "page": 18
+   },
+   {
+    "doc": "deck",
+    "page": 6
+   },
+   {
+    "doc": "pr20250709"
+   }
+  ],
+  "projects[almoloya].explorationTargets": [
+   {
+    "doc": "deck",
+    "page": 6
+   }
+  ],
+  "milestones": [
+   {
+    "doc": "deck",
+    "page": 6
+   },
+   {
+    "doc": "deck",
+    "page": 3,
+    "note": "2026 Las Coloradas drilling underway"
+   }
+  ],
+  "team": [
+   {
+    "doc": "deck",
+    "page": 19
+   },
+   {
+    "doc": "boardPage",
+    "note": "full names, e.g. Carlos Garza Moriel"
+   },
+   {
+    "doc": "proxy2025",
+    "note": "Nick DeMare"
+   }
+  ]
+ }
+}

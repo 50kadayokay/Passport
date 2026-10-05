@@ -1,0 +1,518 @@
+{
+ "slug": "solvik-demo",
+ "name": "Solvik Rare Earths Ltd.",
+ "profile": {
+  "team": [
+   {
+    "name": "Ingrid Halvorsen",
+    "full": "Ingrid Halvorsen",
+    "role": "Managing Director & CEO"
+   },
+   {
+    "name": "Peter Kleist",
+    "full": "Peter Kleist",
+    "role": "Non-Executive Chair"
+   },
+   {
+    "name": "Aisha Rahman",
+    "full": "Aisha Rahman",
+    "role": "Chief Financial Officer"
+   },
+   {
+    "name": "Nuka Petersen",
+    "full": "Nuka Petersen",
+    "role": "VP Greenland Operations"
+   },
+   {
+    "name": "Jonas Weber",
+    "full": "Jonas Weber",
+    "role": "VP Metallurgy"
+   },
+   {
+    "name": "Maren Olsen",
+    "full": "Maren Olsen",
+    "role": "Head of Sustainability"
+   },
+   {
+    "name": "Richard Tan",
+    "full": "Richard Tan",
+    "role": "Non-Executive Director"
+   },
+   {
+    "name": "Sara Lindahl",
+    "full": "Sara Lindahl",
+    "role": "Non-Executive Director"
+   }
+  ],
+  "brand": {
+   "hero": "/demo/solvik/s01.jpg"
+  },
+  "capital": {
+   "fd": "318M",
+   "cash": "A$38M",
+   "debt": "Nil",
+   "options": "14M",
+   "warrants": "22M",
+   "marketCap": "A$292M",
+   "outstanding": "282M",
+   "financing": [
+    {
+     "date": "2026-05",
+     "type": "Placement",
+     "amount": "A$26M",
+     "purpose": "Aputsiaq PFS and pilot flotation plant"
+    },
+    {
+     "date": "2025-11",
+     "type": "Strategic investment",
+     "amount": "A$12M",
+     "purpose": "European magnet maker takes a 9.5% stake"
+    }
+   ]
+  },
+  "company": {
+   "name": "Solvik Rare Earths Ltd.",
+   "slogan": "Rare earths for Europe's magnets, from the south of Greenland.",
+   "ticker": "SVK",
+   "website": "solvik.example",
+   "listings": [
+    {
+     "ex": "ASX",
+     "sym": "SVK"
+    },
+    {
+     "ex": "OTCQB",
+     "sym": "SLVKF"
+    }
+   ],
+   "commodity": "Rare Earths",
+   "headquarters": "Copenhagen, Denmark",
+   "jurisdiction": "Kommune Kujalleq, Greenland"
+  },
+  "projects": [
+   {
+    "key": "aputsiaq",
+    "tag": "Pre-Feasibility",
+    "name": "Aputsiaq",
+    "brief": {
+     "overview": "A layered alkaline intrusion in South Greenland hosting 212 million tonnes at 1.21% total rare-earth oxides, with 24% of the basket in the magnet metals neodymium, praseodymium, dysprosium and terbium."
+    },
+    "unique": {
+     "evidence": [
+      "212 Mt @ 1.21% TREO",
+      "24% magnet rare earths",
+      "Deep-water fjord access"
+     ]
+    },
+    "gallery": [
+     {
+      "src": "/demo/solvik/s05.jpg"
+     },
+     {
+      "src": "/demo/solvik/s14.jpg"
+     },
+     {
+      "src": "/demo/solvik/s45.jpg"
+     }
+    ],
+    "geology": {
+     "body": "Eudialyte-rich kakortokite layers in the upper part of an agpaitic intrusion, with steep but continuous mineralised horizons."
+    },
+    "resource": {
+     "rows": [
+      {
+       "grade": "1.21% TREO",
+       "tonnes": "212 Mt",
+       "category": "Measured & Indicated",
+       "contained": "2.57 Mt TREO"
+      },
+      {
+       "grade": "1.08% TREO",
+       "tonnes": "96 Mt",
+       "category": "Inferred",
+       "contained": "1.04 Mt TREO"
+      }
+     ],
+     "summary": "Aputsiaq hosts Measured & Indicated resources of 212 million tonnes at 1.21% TREO for 2.57 million tonnes of rare-earth oxides, plus 96 million tonnes Inferred at 1.08% TREO."
+    },
+    "snapshot": {
+     "land": "31,200 ha",
+     "location": {
+      "value": "South Greenland, Kommune Kujalleq"
+     },
+     "commodity": {
+      "value": "Rare Earths"
+     },
+     "ownership": {
+      "value": "100%"
+     }
+    },
+    "stageName": "Pre-Feasibility",
+    "drillResults": {
+     "rows": [
+      {
+       "hole": "AP-25-07",
+       "note": "from surface, upper kakortokite",
+       "grade": "1.46% TREO",
+       "interval": "186 m"
+      },
+      {
+       "hole": "AP-25-12",
+       "note": "incl. 22 m @ 2.31% TREO",
+       "grade": "1.62% TREO",
+       "interval": "94 m"
+      },
+      {
+       "hole": "AP-25-19",
+       "note": "350 m step-out to the west",
+       "grade": "1.18% TREO",
+       "interval": "212 m"
+      },
+      {
+       "hole": "AP-26-03",
+       "note": "highest NdPr share to date",
+       "grade": "1.39% TREO",
+       "interval": "128 m"
+      },
+      {
+       "hole": "AP-26-09",
+       "note": "deepest hole, open at depth",
+       "grade": "1.07% TREO",
+       "interval": "241 m"
+      }
+     ]
+    },
+    "coords": {
+     "lat": 60.92,
+     "lng": -45.85
+    }
+   },
+   {
+    "key": "kangerluk",
+    "tag": "Exploration",
+    "name": "Kangerluk Ridge",
+    "brief": {
+     "overview": "A second alkaline complex along the same rift, where channel sampling returned up to 2.8% TREO across a 1.6 km outcrop."
+    },
+    "unique": {
+     "evidence": [
+      "Channel samples up to 2.8% TREO",
+      "1.6 km mineralised outcrop",
+      "Boat-supported camp"
+     ]
+    },
+    "gallery": [
+     {
+      "src": "/demo/solvik/s16.jpg"
+     },
+     {
+      "src": "/demo/solvik/s31.jpg"
+     },
+     {
+      "src": "/demo/solvik/s46.jpg"
+     }
+    ],
+    "geology": {
+     "body": "Nepheline syenite with eudialyte and steenstrupine-bearing dykes."
+    },
+    "resource": {
+     "rows": [],
+     "summary": ""
+    },
+    "snapshot": {
+     "land": "14,700 ha",
+     "location": {
+      "value": "South Greenland, Kommune Kujalleq"
+     },
+     "commodity": {
+      "value": "Rare Earths"
+     },
+     "ownership": {
+      "value": "100%"
+     }
+    },
+    "stageName": "Exploration",
+    "drillResults": {
+     "rows": []
+    },
+    "coords": {
+     "lat": 61.22,
+     "lng": -45.28
+    }
+   },
+   {
+    "key": "tunu-bay",
+    "tag": "Early-stage",
+    "name": "Tunu Bay",
+    "brief": {
+     "overview": "A carbonatite target on the coast, defined by airborne radiometrics and stream-sediment anomalies, under an option to earn 75%."
+    },
+    "unique": {
+     "evidence": [
+      "Radiometric anomaly",
+      "Coastal access",
+      "Option to earn 75%"
+     ]
+    },
+    "gallery": [
+     {
+      "src": "/demo/solvik/s20.jpg"
+     },
+     {
+      "src": "/demo/solvik/s33.jpg"
+     },
+     {
+      "src": "/demo/solvik/s50.jpg"
+     }
+    ],
+    "geology": {
+     "body": "Interpreted carbonatite plug with a fenitised margin."
+    },
+    "resource": {
+     "rows": [],
+     "summary": ""
+    },
+    "snapshot": {
+     "land": "8,400 ha",
+     "location": {
+      "value": "South Greenland, Kommune Kujalleq"
+     },
+     "commodity": {
+      "value": "Rare Earths"
+     },
+     "ownership": {
+      "value": "Option to earn 75%"
+     }
+    },
+    "stageName": "Early-stage",
+    "drillResults": {
+     "rows": []
+    },
+    "coords": {
+     "lat": 60.44,
+     "lng": -46.62
+    }
+   }
+  ],
+  "timeline": [
+   {
+    "date": "2026-08-20",
+    "headline": "Pilot flotation delivers a 38% TREO concentrate",
+    "keyNumbers": [
+     "38% TREO"
+    ],
+    "whyItMatters": "Confirms a saleable concentrate route."
+   },
+   {
+    "date": "2026-05-28",
+    "headline": "A$26M placement completed",
+    "keyNumbers": [
+     "A$26M"
+    ],
+    "whyItMatters": "Funds the PFS and pilot plant."
+   },
+   {
+    "date": "2026-03-11",
+    "headline": "AP-26-03 returns the highest NdPr share to date",
+    "keyNumbers": [
+     "1.39% TREO"
+    ],
+    "whyItMatters": "Improves the magnet-metal basket."
+   },
+   {
+    "date": "2025-12-02",
+    "headline": "Resource update: 212 Mt Measured & Indicated",
+    "keyNumbers": [
+     "212 Mt",
+     "1.21% TREO"
+    ],
+    "whyItMatters": "Two-thirds of the resource in the higher-confidence categories."
+   },
+   {
+    "date": "2025-11-17",
+    "headline": "European magnet maker takes a 9.5% stake",
+    "keyNumbers": [
+     "A$12M",
+     "9.5%"
+    ],
+    "whyItMatters": "A downstream strategic partner."
+   }
+  ],
+  "catalysts": [
+   {
+    "label": "Aputsiaq Pre-Feasibility Study",
+    "impact": "First development case for a mine and concentrator.",
+    "timing": "Q1 2027"
+   }
+  ],
+  "conference": {
+   "hook": "Magnet rare earths from South Greenland.",
+   "studio": {
+    "theme": "obsidian",
+    "accent": "",
+    "template": "lattice"
+   },
+   "enabled": true,
+   "gallery": {
+    "overview": [
+     "/demo/solvik/s03.jpg"
+    ],
+    "results": [
+     "/demo/solvik/s47.jpg"
+    ],
+    "follow": [
+     "/demo/solvik/s02.jpg"
+    ],
+    "jurisdiction": [
+     "/demo/solvik/s18.jpg"
+    ],
+    "extra": [
+     "/demo/solvik/s04.jpg",
+     "/demo/solvik/s06.jpg",
+     "/demo/solvik/s07.jpg",
+     "/demo/solvik/s08.jpg",
+     "/demo/solvik/s09.jpg",
+     "/demo/solvik/s10.jpg",
+     "/demo/solvik/s11.jpg",
+     "/demo/solvik/s12.jpg",
+     "/demo/solvik/s13.jpg",
+     "/demo/solvik/s15.jpg",
+     "/demo/solvik/s17.jpg",
+     "/demo/solvik/s19.jpg",
+     "/demo/solvik/s21.jpg",
+     "/demo/solvik/s22.jpg",
+     "/demo/solvik/s23.jpg",
+     "/demo/solvik/s24.jpg",
+     "/demo/solvik/s25.jpg",
+     "/demo/solvik/s26.jpg",
+     "/demo/solvik/s27.jpg",
+     "/demo/solvik/s28.jpg",
+     "/demo/solvik/s29.jpg",
+     "/demo/solvik/s30.jpg",
+     "/demo/solvik/s32.jpg",
+     "/demo/solvik/s34.jpg",
+     "/demo/solvik/s35.jpg",
+     "/demo/solvik/s36.jpg",
+     "/demo/solvik/s37.jpg",
+     "/demo/solvik/s38.jpg",
+     "/demo/solvik/s39.jpg",
+     "/demo/solvik/s40.jpg",
+     "/demo/solvik/s41.jpg",
+     "/demo/solvik/s42.jpg",
+     "/demo/solvik/s43.jpg",
+     "/demo/solvik/s44.jpg",
+     "/demo/solvik/s48.jpg",
+     "/demo/solvik/s49.jpg",
+     "/demo/solvik/s51.jpg",
+     "/demo/solvik/s52.jpg",
+     "/demo/solvik/s53.jpg",
+     "/demo/solvik/s54.jpg",
+     "/demo/solvik/s55.jpg"
+    ]
+   },
+   "_derived": true,
+   "overview": "Solvik is advancing the Aputsiaq rare-earth project in South Greenland.",
+   "highlights": [
+    {
+     "label": "Resource (M&I)",
+     "value": "212 Mt",
+     "context": "1.21% TREO",
+     "featured": true
+    },
+    {
+     "label": "Magnet share",
+     "value": "24%",
+     "context": "NdPr + DyTb",
+     "featured": false
+    },
+    {
+     "label": "Concentrate",
+     "value": "38% TREO",
+     "context": "pilot flotation",
+     "featured": false
+    },
+    {
+     "label": "Land",
+     "value": "54,300 ha",
+     "context": "three projects",
+     "featured": false
+    },
+    {
+     "label": "Cash",
+     "value": "A$38M",
+     "context": "no debt",
+     "featured": false
+    }
+   ],
+   "evidenceType": "drill_results",
+   "featuredGrade": {
+    "grade": "1.46% TREO",
+    "width": "186 m",
+    "context": "AP-25-07, from surface",
+    "location": "Aputsiaq"
+   },
+   "heroStatistic": {
+    "label": "Measured & Indicated",
+    "value": "212 Mt",
+    "context": "@ 1.21% TREO · 2.57 Mt contained"
+   },
+   "investmentCase": [
+    {
+     "reason": "Scale: 212 million tonnes Measured & Indicated at 1.21% total rare-earth oxides.",
+     "featured": true
+    },
+    {
+     "reason": "Magnets: 24% of the basket is neodymium, praseodymium, dysprosium and terbium.",
+     "featured": false
+    },
+    {
+     "reason": "Process: pilot flotation has produced a 38% TREO concentrate.",
+     "featured": false
+    },
+    {
+     "reason": "Funded: A$38 million in cash and no debt through the Pre-Feasibility Study.",
+     "featured": false
+    }
+   ],
+   "projectGallery": {
+    "aputsiaq": [
+     "/demo/solvik/s05.jpg",
+     "/demo/solvik/s14.jpg",
+     "/demo/solvik/s45.jpg"
+    ]
+   },
+   "currentActivity": "Pre-Feasibility Study underway",
+   "featuredProjectKey": "aputsiaq",
+   "jurisdictionWidgets": {
+    "district": "South Greenland",
+    "commodity": "Rare Earths",
+    "provinceState": "Kommune Kujalleq"
+   }
+  },
+  "companyBrief": {
+   "headline": "Magnet rare earths from South Greenland.",
+   "keyPoints": [
+    "212 Mt @ 1.21% TREO Measured & Indicated",
+    "24% magnet rare earths",
+    "38% TREO pilot concentrate",
+    "Strategic magnet-maker shareholder",
+    "A$38M cash, no debt"
+   ],
+   "shortSummary": "A rare-earth developer advancing Aputsiaq toward Pre-Feasibility.",
+   "businessDescription": "Solvik explores and develops rare-earth deposits in South Greenland."
+  },
+  "companyStatus": {
+   "expected": "Q1 2027",
+   "progressBar": {
+    "unit": "milestones",
+    "label": "2026–27 plan",
+    "total": 8,
+    "current": 5
+   },
+   "nextCatalyst": "Aputsiaq Pre-Feasibility Study",
+   "statusHeadline": "Pilot plant running; Pre-Feasibility underway",
+   "investmentImpact": "PFS expected to define the development case."
+  },
+  "_demo": "FICTIONAL demo company for Conference Mode template previews. All names, figures and people are invented."
+ }
+}

@@ -12,6 +12,20 @@
       "runtimeExecutable": "/Users/leifer/Claude Projects/Passport V1/.node/node-v24.18.0-darwin-arm64/bin/node",
       "runtimeArgs": ["node_modules/vite/bin/vite.js", "preview", "--host", "--port", "4173"],
       "port": 4173
+    },
+    {
+      "name": "confv4-dev",
+      "runtimeExecutable": "/Users/leifer/Claude Projects/Passport V1/.node/node-v24.18.0-darwin-arm64/bin/node",
+      "runtimeArgs": [
+        "/Users/leifer/Claude Projects/Passport-ConfV4/node_modules/vite/bin/vite.js",
+        "--host",
+        "--port",
+        "5180",
+        "--config",
+        "/Users/leifer/Claude Projects/Passport-ConfV4/vite.config.js",
+        "/Users/leifer/Claude Projects/Passport-ConfV4"
+      ],
+      "port": 5180
     }
   ]
 }

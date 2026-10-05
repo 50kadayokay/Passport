@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 520" width="800" height="520">
+    <defs><linearGradient id="s" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#cdd7dd"/><stop offset="1" stop-color="#9aa6ad"/></linearGradient><radialGradient id="m"><stop offset="0" stop-color="#05080b"/><stop offset="1" stop-color="#1b232a"/></radialGradient></defs>
+    <rect width="800" height="520" fill="url(#s)"/>
+    <path d="M0,520 L0,220.8 Q0.0,220.8 44.4,223.3 Q88.9,225.7 133.3,238.7 Q177.8,251.7 222.2,258.7 Q266.7,265.7 311.1,266.2 Q355.6,266.7 400.0,259.9 Q444.4,253.1 488.9,239.5 Q533.3,225.9 577.8,218.2 Q622.2,210.4 666.7,206.8 Q711.1,203.2 755.6,202.5 L800,201.9 L800,520 Z" fill="#9aa3a8" opacity=".5"/>
+    <path d="M0,256 L250,176 L560,214 L800,160 L800,520 L0,520 Z" fill="#8a7d6d"/>
+    <path d="M0,320 L220,262 L540,302 L800,250 L800,520 L0,520 Z" fill="#6d6256"/>
+    <path d="M330,430 q76,-178 150,0 Z" fill="url(#m)"/>
+    <path d="M330,430 q76,-178 150,0" fill="none" stroke="#2f2a24" stroke-width="13"/>
+    <rect x="316" y="424" width="178" height="14" rx="3" fill="#3a332c"/>
+    <path d="M300,462 L520,462 L574,520 L246,520 Z" fill="#7d7265"/>
+    <path d="M352,462 L470,462 L498,520 L326,520 Z" fill="#8d8275" opacity=".7"/><defs><filter id="gr"><feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2"/><feColorMatrix type="saturate" values="0"/></filter></defs><rect width="800" height="520" filter="url(#gr)" opacity=".055" style="mix-blend-mode:overlay"/></svg>

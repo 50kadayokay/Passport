@@ -1,0 +1,518 @@
+{
+ "slug": "tremayne-demo",
+ "name": "Tremayne Tin Ltd.",
+ "profile": {
+  "team": [
+   {
+    "name": "Eleanor Penrose",
+    "full": "Eleanor Penrose",
+    "role": "Chief Executive Officer"
+   },
+   {
+    "name": "Richard Trevithick-Hale",
+    "full": "Richard Trevithick-Hale",
+    "role": "Non-Executive Chair"
+   },
+   {
+    "name": "Amara Singh",
+    "full": "Amara Singh",
+    "role": "Chief Financial Officer"
+   },
+   {
+    "name": "Josh Pascoe",
+    "full": "Josh Pascoe",
+    "role": "Head of Geology"
+   },
+   {
+    "name": "Nina Holloway",
+    "full": "Nina Holloway",
+    "role": "Project Director"
+   },
+   {
+    "name": "Daniel Carne",
+    "full": "Daniel Carne",
+    "role": "Head of Community & ESG"
+   },
+   {
+    "name": "Fiona Blake",
+    "full": "Fiona Blake",
+    "role": "Non-Executive Director"
+   },
+   {
+    "name": "Samuel Okafor",
+    "full": "Samuel Okafor",
+    "role": "Non-Executive Director"
+   }
+  ],
+  "brand": {
+   "hero": "/demo/tremayne/t01.jpg"
+  },
+  "capital": {
+   "fd": "412M",
+   "cash": "£29M",
+   "debt": "Nil",
+   "options": "18M",
+   "warrants": "31M",
+   "marketCap": "£214M",
+   "outstanding": "363M",
+   "financing": [
+    {
+     "date": "2026-05",
+     "type": "Placing",
+     "amount": "£21M",
+     "purpose": "Wheal Seren Feasibility Study and dewatering"
+    },
+    {
+     "date": "2025-09",
+     "type": "Strategic investment",
+     "amount": "£9M",
+     "purpose": "UK battery maker takes an 8.5% stake"
+    }
+   ]
+  },
+  "company": {
+   "name": "Tremayne Tin Ltd.",
+   "slogan": "Tin and lithium for Britain's electric future, from Cornwall.",
+   "ticker": "TRM",
+   "website": "tremayne.example",
+   "listings": [
+    {
+     "ex": "AIM",
+     "sym": "TRM"
+    },
+    {
+     "ex": "OTCQB",
+     "sym": "TRMYF"
+    }
+   ],
+   "commodity": "Tin-Lithium",
+   "headquarters": "Truro, Cornwall",
+   "jurisdiction": "Cornwall, United Kingdom"
+  },
+  "projects": [
+   {
+    "key": "wheal-seren",
+    "tag": "Feasibility",
+    "name": "Wheal Seren",
+    "brief": {
+     "overview": "A historic tin district being re-opened below the old workings, with 14.2 million tonnes Measured & Indicated at 0.82% tin, beside the Cornish Main Line railway."
+    },
+    "unique": {
+     "evidence": [
+      "14.2 Mt @ 0.82% Sn M&I",
+      "Beside the mainline railway",
+      "Grid-connected site"
+     ]
+    },
+    "gallery": [
+     {
+      "src": "/demo/tremayne/t26.jpg"
+     },
+     {
+      "src": "/demo/tremayne/t25.jpg"
+     },
+     {
+      "src": "/demo/tremayne/t55.jpg"
+     }
+    ],
+    "geology": {
+     "body": "Greisen-bordered tin lodes cutting killas and granite, with high-grade shoots continuing below the historic 400-fathom level."
+    },
+    "resource": {
+     "rows": [
+      {
+       "grade": "0.82% Sn",
+       "tonnes": "14.2 Mt",
+       "category": "Measured & Indicated",
+       "contained": "116 kt Sn"
+      },
+      {
+       "grade": "0.71% Sn",
+       "tonnes": "6.8 Mt",
+       "category": "Inferred",
+       "contained": "48 kt Sn"
+      }
+     ],
+     "summary": "Wheal Seren hosts Measured & Indicated resources of 14.2 million tonnes at 0.82% tin for 116 thousand tonnes, plus 6.8 million tonnes Inferred at 0.71% tin."
+    },
+    "snapshot": {
+     "land": "2,450 ha",
+     "location": {
+      "value": "Camborne–Redruth district, Cornwall, United Kingdom"
+     },
+     "commodity": {
+      "value": "Tin"
+     },
+     "ownership": {
+      "value": "100%"
+     }
+    },
+    "stageName": "Feasibility",
+    "drillResults": {
+     "rows": [
+      {
+       "hole": "WS-25-017",
+       "note": "No. 3 lode, below old workings",
+       "grade": "1.94% Sn",
+       "interval": "6.2 m"
+      },
+      {
+       "hole": "WS-25-029",
+       "note": "incl. 1.4 m @ 5.1% Sn",
+       "grade": "1.38% Sn",
+       "interval": "4.8 m"
+      },
+      {
+       "hole": "WS-25-041",
+       "note": "new hanging-wall lode",
+       "grade": "0.96% Sn",
+       "interval": "9.5 m"
+      },
+      {
+       "hole": "WS-26-006",
+       "note": "deepest intercept to date",
+       "grade": "1.12% Sn",
+       "interval": "7.4 m"
+      },
+      {
+       "hole": "WS-26-013",
+       "note": "200 m east of the shaft",
+       "grade": "2.31% Sn",
+       "interval": "3.9 m"
+      }
+     ]
+    },
+    "coords": {
+     "lat": 50.228,
+     "lng": -5.262
+    }
+   },
+   {
+    "key": "carrack-lode",
+    "tag": "Exploration",
+    "name": "Carrack Lode",
+    "brief": {
+     "overview": "A tin-copper lode system on the Penwith coast, where first drilling beneath the historic mine returned 3.6 m at 1.7% tin."
+    },
+    "unique": {
+     "evidence": [
+      "3.6 m @ 1.7% Sn in first drilling",
+      "Historic high-grade mine",
+      "Coastal granite contact"
+     ]
+    },
+    "gallery": [
+     {
+      "src": "/demo/tremayne/t04.jpg"
+     },
+     {
+      "src": "/demo/tremayne/t07.jpg"
+     },
+     {
+      "src": "/demo/tremayne/t53.jpg"
+     }
+    ],
+    "geology": {
+     "body": "Tin-copper veins along the granite contact beneath the cliffs."
+    },
+    "resource": {
+     "rows": [],
+     "summary": ""
+    },
+    "snapshot": {
+     "land": "980 ha",
+     "location": {
+      "value": "Penwith, Cornwall, United Kingdom"
+     },
+     "commodity": {
+      "value": "Tin-Copper"
+     },
+     "ownership": {
+      "value": "100%"
+     }
+    },
+    "stageName": "Exploration",
+    "drillResults": {
+     "rows": []
+    },
+    "coords": {
+     "lat": 50.141,
+     "lng": -5.662
+    }
+   },
+   {
+    "key": "tregenna",
+    "tag": "Early-stage",
+    "name": "Tregenna Lithium",
+    "brief": {
+     "overview": "A lithium-mica granite target in mid-Cornwall, with lithium in surface samples and a partner-funded test for extraction from geothermal waters."
+    },
+    "unique": {
+     "evidence": [
+      "Lithium-mica granite",
+      "Geothermal brine test",
+      "Option to earn 75%"
+     ]
+    },
+    "gallery": [
+     {
+      "src": "/demo/tremayne/t34.jpg"
+     },
+     {
+      "src": "/demo/tremayne/t39.jpg"
+     },
+     {
+      "src": "/demo/tremayne/t47.jpg"
+     }
+    ],
+    "geology": {
+     "body": "Lithium-mica granite cupola with associated geothermal waters."
+    },
+    "resource": {
+     "rows": [],
+     "summary": ""
+    },
+    "snapshot": {
+     "land": "3,100 ha",
+     "location": {
+      "value": "St Austell granite, Cornwall, United Kingdom"
+     },
+     "commodity": {
+      "value": "Lithium"
+     },
+     "ownership": {
+      "value": "Option to earn 75%"
+     }
+    },
+    "stageName": "Early-stage",
+    "drillResults": {
+     "rows": []
+    },
+    "coords": {
+     "lat": 50.378,
+     "lng": -4.868
+    }
+   }
+  ],
+  "timeline": [
+   {
+    "date": "2026-08-14",
+    "headline": "Wheal Seren Feasibility Study commenced",
+    "keyNumbers": [
+     "FS"
+    ],
+    "whyItMatters": "The final study before a construction decision."
+   },
+   {
+    "date": "2026-06-02",
+    "headline": "WS-26-013 cuts 3.9 m @ 2.31% Sn east of the shaft",
+    "keyNumbers": [
+     "2.31% Sn"
+    ],
+    "whyItMatters": "Extends high grade along strike."
+   },
+   {
+    "date": "2026-05-19",
+    "headline": "£21M placing completed",
+    "keyNumbers": [
+     "£21M"
+    ],
+    "whyItMatters": "Funds the Feasibility Study and dewatering."
+   },
+   {
+    "date": "2026-02-10",
+    "headline": "Carrack Lode first drilling: 3.6 m @ 1.7% Sn",
+    "keyNumbers": [
+     "1.7% Sn"
+    ],
+    "whyItMatters": "A second high-grade tin target."
+   },
+   {
+    "date": "2025-09-23",
+    "headline": "UK battery maker takes an 8.5% stake",
+    "keyNumbers": [
+     "£9M",
+     "8.5%"
+    ],
+    "whyItMatters": "A domestic strategic partner."
+   }
+  ],
+  "catalysts": [
+   {
+    "label": "Wheal Seren Feasibility Study",
+    "impact": "Supports a construction decision on Britain's first new tin mine in decades.",
+    "timing": "Q2 2027"
+   }
+  ],
+  "conference": {
+   "hook": "Tin and lithium for Britain's electric future.",
+   "studio": {
+    "theme": "obsidian",
+    "accent": "",
+    "template": "spectra"
+   },
+   "enabled": true,
+   "gallery": {
+    "overview": [
+     "/demo/tremayne/t03.jpg"
+    ],
+    "results": [
+     "/demo/tremayne/t52.jpg"
+    ],
+    "follow": [
+     "/demo/tremayne/t40.jpg"
+    ],
+    "jurisdiction": [
+     "/demo/tremayne/t14.jpg"
+    ],
+    "extra": [
+     "/demo/tremayne/t02.jpg",
+     "/demo/tremayne/t05.jpg",
+     "/demo/tremayne/t06.jpg",
+     "/demo/tremayne/t08.jpg",
+     "/demo/tremayne/t09.jpg",
+     "/demo/tremayne/t10.jpg",
+     "/demo/tremayne/t11.jpg",
+     "/demo/tremayne/t12.jpg",
+     "/demo/tremayne/t13.jpg",
+     "/demo/tremayne/t15.jpg",
+     "/demo/tremayne/t16.jpg",
+     "/demo/tremayne/t17.jpg",
+     "/demo/tremayne/t18.jpg",
+     "/demo/tremayne/t19.jpg",
+     "/demo/tremayne/t20.jpg",
+     "/demo/tremayne/t21.jpg",
+     "/demo/tremayne/t22.jpg",
+     "/demo/tremayne/t23.jpg",
+     "/demo/tremayne/t24.jpg",
+     "/demo/tremayne/t27.jpg",
+     "/demo/tremayne/t28.jpg",
+     "/demo/tremayne/t29.jpg",
+     "/demo/tremayne/t30.jpg",
+     "/demo/tremayne/t31.jpg",
+     "/demo/tremayne/t32.jpg",
+     "/demo/tremayne/t33.jpg",
+     "/demo/tremayne/t35.jpg",
+     "/demo/tremayne/t36.jpg",
+     "/demo/tremayne/t37.jpg",
+     "/demo/tremayne/t38.jpg",
+     "/demo/tremayne/t41.jpg",
+     "/demo/tremayne/t42.jpg",
+     "/demo/tremayne/t43.jpg",
+     "/demo/tremayne/t44.jpg",
+     "/demo/tremayne/t45.jpg",
+     "/demo/tremayne/t46.jpg",
+     "/demo/tremayne/t48.jpg",
+     "/demo/tremayne/t49.jpg",
+     "/demo/tremayne/t50.jpg",
+     "/demo/tremayne/t51.jpg",
+     "/demo/tremayne/t54.jpg",
+     "/demo/tremayne/t56.jpg"
+    ]
+   },
+   "_derived": true,
+   "overview": "Tremayne is re-opening Cornwall's tin district at Wheal Seren.",
+   "highlights": [
+    {
+     "label": "Resource (M&I)",
+     "value": "14.2 Mt",
+     "context": "0.82% Sn",
+     "featured": true
+    },
+    {
+     "label": "Contained tin",
+     "value": "116 kt",
+     "context": "M&I",
+     "featured": false
+    },
+    {
+     "label": "Best intercept",
+     "value": "2.31% Sn",
+     "context": "over 3.9 m",
+     "featured": false
+    },
+    {
+     "label": "Land",
+     "value": "6,530 ha",
+     "context": "three projects",
+     "featured": false
+    },
+    {
+     "label": "Cash",
+     "value": "£29M",
+     "context": "no debt",
+     "featured": false
+    }
+   ],
+   "evidenceType": "drill_results",
+   "featuredGrade": {
+    "grade": "1.94% Sn",
+    "width": "6.2 m",
+    "context": "WS-25-017",
+    "location": "Wheal Seren"
+   },
+   "heroStatistic": {
+    "label": "Measured & Indicated",
+    "value": "14.2 Mt",
+    "context": "@ 0.82% Sn · 116 kt contained"
+   },
+   "investmentCase": [
+    {
+     "reason": "Grade: 14.2 million tonnes Measured & Indicated at 0.82% tin, one of the highest-grade tin resources in Europe.",
+     "featured": true
+    },
+    {
+     "reason": "Infrastructure: beside the mainline railway with a grid-connected site.",
+     "featured": false
+    },
+    {
+     "reason": "Strategic: tin and lithium are UK critical minerals, and a battery maker is a shareholder.",
+     "featured": false
+    },
+    {
+     "reason": "Funded: £29 million in cash and no debt through the Feasibility Study.",
+     "featured": false
+    }
+   ],
+   "projectGallery": {
+    "wheal-seren": [
+     "/demo/tremayne/t26.jpg",
+     "/demo/tremayne/t25.jpg",
+     "/demo/tremayne/t55.jpg"
+    ]
+   },
+   "currentActivity": "Feasibility Study underway",
+   "featuredProjectKey": "wheal-seren",
+   "jurisdictionWidgets": {
+    "district": "Camborne–Redruth",
+    "commodity": "Tin-Lithium",
+    "provinceState": "Cornwall"
+   }
+  },
+  "companyBrief": {
+   "headline": "Re-opening Cornwall's tin district.",
+   "keyPoints": [
+    "14.2 Mt @ 0.82% Sn Measured & Indicated",
+    "Beside the mainline railway",
+    "Feasibility Study underway",
+    "Battery-maker shareholder",
+    "£29M cash, no debt"
+   ],
+   "shortSummary": "A tin-lithium developer advancing Wheal Seren toward a construction decision.",
+   "businessDescription": "Tremayne explores and develops tin and lithium in Cornwall."
+  },
+  "companyStatus": {
+   "expected": "Q2 2027",
+   "progressBar": {
+    "unit": "milestones",
+    "label": "2026–27 plan",
+    "total": 8,
+    "current": 5
+   },
+   "nextCatalyst": "Wheal Seren Feasibility Study",
+   "statusHeadline": "Feasibility Study underway at Wheal Seren",
+   "investmentImpact": "FS expected to support a construction decision."
+  },
+  "_demo": "FICTIONAL demo company for Conference Mode template previews. All names, figures and people are invented."
+ }
+}

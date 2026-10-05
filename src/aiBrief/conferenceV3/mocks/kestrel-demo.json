@@ -1,0 +1,519 @@
+{
+ "slug": "kestrel-demo",
+ "name": "Kestrel Antimony Corp.",
+ "profile": {
+  "team": [
+   {
+    "name": "Rachel Whitaker",
+    "full": "Rachel Whitaker",
+    "role": "President & CEO"
+   },
+   {
+    "name": "Thomas Brennan",
+    "full": "Thomas Brennan",
+    "role": "Chair"
+   },
+   {
+    "name": "Maya Patel",
+    "full": "Maya Patel",
+    "role": "Chief Financial Officer"
+   },
+   {
+    "name": "Luis Carrillo",
+    "full": "Luis Carrillo",
+    "role": "VP Exploration"
+   },
+   {
+    "name": "Jenna Holt",
+    "full": "Jenna Holt",
+    "role": "VP Permitting & Environment"
+   },
+   {
+    "name": "Aaron Two Bulls",
+    "full": "Aaron Two Bulls",
+    "role": "VP Community Relations"
+   },
+   {
+    "name": "Grace Lindqvist",
+    "full": "Grace Lindqvist",
+    "role": "Director"
+   },
+   {
+    "name": "Martin Okoye",
+    "full": "Martin Okoye",
+    "role": "Director"
+   }
+  ],
+  "brand": {
+   "hero": "/demo/kestrel/k01.jpg"
+  },
+  "capital": {
+   "fd": "164M",
+   "cash": "US$58M",
+   "debt": "Nil",
+   "options": "8M",
+   "warrants": "12M",
+   "marketCap": "US$492M",
+   "outstanding": "144M",
+   "financing": [
+    {
+     "date": "2026-05",
+     "type": "Bought-deal financing",
+     "amount": "US$40M",
+     "purpose": "Silver Pine Feasibility Study and permitting"
+    },
+    {
+     "date": "2025-12",
+     "type": "Government grant",
+     "amount": "US$15M",
+     "purpose": "Domestic antimony supply program"
+    }
+   ]
+  },
+  "company": {
+   "name": "Kestrel Antimony Corp.",
+   "slogan": "America's antimony and gold, from the mountains of Idaho.",
+   "ticker": "KSTR",
+   "website": "kestrel.example",
+   "listings": [
+    {
+     "ex": "TSX",
+     "sym": "KSTR"
+    },
+    {
+     "ex": "NYSE American",
+     "sym": "KSTR"
+    }
+   ],
+   "commodity": "Antimony-Gold",
+   "headquarters": "Boise, Idaho",
+   "jurisdiction": "Idaho, United States"
+  },
+  "projects": [
+   {
+    "key": "silver-pine",
+    "tag": "Feasibility",
+    "name": "Silver Pine",
+    "brief": {
+     "overview": "A gold-antimony deposit in central Idaho with 3.4 million ounces of gold and 112 million pounds of antimony Measured & Indicated, planned as one of the few domestic sources of antimony in the United States."
+    },
+    "unique": {
+     "evidence": [
+      "3.4 Moz Au + 112 Mlb Sb M&I",
+      "Domestic antimony supply",
+      "Brownfield site restoration"
+     ]
+    },
+    "gallery": [
+     {
+      "src": "/demo/kestrel/k04.jpg"
+     },
+     {
+      "src": "/demo/kestrel/k02.jpg"
+     },
+     {
+      "src": "/demo/kestrel/k37.jpg"
+     }
+    ],
+    "geology": {
+     "body": "Disseminated gold and stibnite in a structurally controlled zone within granitic rocks, with a high-grade antimony core."
+    },
+    "resource": {
+     "rows": [
+      {
+       "grade": "1.58 g/t Au · 0.07% Sb",
+       "tonnes": "67 Mt",
+       "category": "Measured & Indicated",
+       "contained": "3.4 Moz Au · 112 Mlb Sb"
+      },
+      {
+       "grade": "1.21 g/t Au · 0.04% Sb",
+       "tonnes": "21 Mt",
+       "category": "Inferred",
+       "contained": "0.8 Moz Au · 19 Mlb Sb"
+      }
+     ],
+     "summary": "Silver Pine hosts Measured & Indicated resources of 67 million tonnes at 1.58 g/t gold and 0.07% antimony, plus 21 million tonnes Inferred."
+    },
+    "snapshot": {
+     "land": "11,400 ha",
+     "location": {
+      "value": "Central Idaho, United States"
+     },
+     "commodity": {
+      "value": "Antimony-Gold"
+     },
+     "ownership": {
+      "value": "100%"
+     }
+    },
+    "stageName": "Feasibility",
+    "drillResults": {
+     "rows": [
+      {
+       "hole": "SP-25-018",
+       "note": "antimony-rich core",
+       "grade": "2.41 g/t Au · 0.62% Sb",
+       "interval": "48.8 m"
+      },
+      {
+       "hole": "SP-25-027",
+       "note": "from surface",
+       "grade": "1.94 g/t Au · 0.11% Sb",
+       "interval": "96.0 m"
+      },
+      {
+       "hole": "SP-25-039",
+       "note": "new western zone",
+       "grade": "3.12 g/t Au · 0.05% Sb",
+       "interval": "31.4 m"
+      },
+      {
+       "hole": "SP-26-004",
+       "note": "deepest intercept to date",
+       "grade": "1.66 g/t Au · 0.21% Sb",
+       "interval": "72.2 m"
+      },
+      {
+       "hole": "SP-26-011",
+       "note": "high-grade stibnite vein",
+       "grade": "0.88 g/t Au · 4.30% Sb",
+       "interval": "6.1 m"
+      }
+     ]
+    },
+    "coords": {
+     "lat": 44.92,
+     "lng": -115.33
+    }
+   },
+   {
+    "key": "elk-horn",
+    "tag": "Exploration",
+    "name": "Elk Horn",
+    "brief": {
+     "overview": "A 5 km gold-antimony soil trend on the same structural corridor, where first drilling intersected stibnite veining."
+    },
+    "unique": {
+     "evidence": [
+      "Stibnite in first drilling",
+      "5 km soil trend",
+      "Same structural corridor"
+     ]
+    },
+    "gallery": [
+     {
+      "src": "/demo/kestrel/k16.jpg"
+     },
+     {
+      "src": "/demo/kestrel/k30.jpg"
+     },
+     {
+      "src": "/demo/kestrel/k33.jpg"
+     }
+    ],
+    "geology": {
+     "body": "Quartz-stibnite veins along a north-east shear."
+    },
+    "resource": {
+     "rows": [],
+     "summary": ""
+    },
+    "snapshot": {
+     "land": "6,800 ha",
+     "location": {
+      "value": "Central Idaho, United States"
+     },
+     "commodity": {
+      "value": "Antimony-Gold"
+     },
+     "ownership": {
+      "value": "100%"
+     }
+    },
+    "stageName": "Exploration",
+    "drillResults": {
+     "rows": []
+    },
+    "coords": {
+     "lat": 45.28,
+     "lng": -115.02
+    }
+   },
+   {
+    "key": "bluebird",
+    "tag": "Early-stage",
+    "name": "Bluebird",
+    "brief": {
+     "overview": "A gold target in a historic placer district, defined by soil and rock sampling, under an option to earn 75%."
+    },
+    "unique": {
+     "evidence": [
+      "Historic placer district",
+      "Rock samples to 9 g/t Au",
+      "Option to earn 75%"
+     ]
+    },
+    "gallery": [
+     {
+      "src": "/demo/kestrel/k50.jpg"
+     },
+     {
+      "src": "/demo/kestrel/k19.jpg"
+     },
+     {
+      "src": "/demo/kestrel/k45.jpg"
+     }
+    ],
+    "geology": {
+     "body": "Intrusion-related gold veins beneath historic placer workings."
+    },
+    "resource": {
+     "rows": [],
+     "summary": ""
+    },
+    "snapshot": {
+     "land": "4,100 ha",
+     "location": {
+      "value": "Central Idaho, United States"
+     },
+     "commodity": {
+      "value": "Gold"
+     },
+     "ownership": {
+      "value": "Option to earn 75%"
+     }
+    },
+    "stageName": "Early-stage",
+    "drillResults": {
+     "rows": []
+    },
+    "coords": {
+     "lat": 44.52,
+     "lng": -114.62
+    }
+   }
+  ],
+  "timeline": [
+   {
+    "date": "2026-08-06",
+    "headline": "Silver Pine Feasibility Study commenced",
+    "keyNumbers": [
+     "FS"
+    ],
+    "whyItMatters": "The final study before a construction decision."
+   },
+   {
+    "date": "2026-05-21",
+    "headline": "US$40M bought-deal financing closed",
+    "keyNumbers": [
+     "US$40M"
+    ],
+    "whyItMatters": "Funds the Feasibility Study and permitting."
+   },
+   {
+    "date": "2026-03-12",
+    "headline": "SP-26-011 cuts 6.1 m @ 4.30% Sb in a stibnite vein",
+    "keyNumbers": [
+     "4.30% Sb"
+    ],
+    "whyItMatters": "Extends the high-grade antimony core."
+   },
+   {
+    "date": "2025-12-09",
+    "headline": "US$15M government grant for domestic antimony",
+    "keyNumbers": [
+     "US$15M"
+    ],
+    "whyItMatters": "Non-dilutive funding for antimony supply work."
+   },
+   {
+    "date": "2025-09-17",
+    "headline": "Pre-Feasibility Study outlines a 15-year open-pit mine",
+    "keyNumbers": [
+     "15 years"
+    ],
+    "whyItMatters": "First development case for Silver Pine."
+   }
+  ],
+  "catalysts": [
+   {
+    "label": "Silver Pine Feasibility Study",
+    "impact": "Supports a construction decision on a domestic antimony and gold mine.",
+    "timing": "Q2 2027"
+   }
+  ],
+  "conference": {
+   "hook": "America's antimony and gold, from Idaho.",
+   "studio": {
+    "theme": "obsidian",
+    "accent": "",
+    "template": "cirrus"
+   },
+   "enabled": true,
+   "gallery": {
+    "overview": [
+     "/demo/kestrel/k03.jpg"
+    ],
+    "results": [
+     "/demo/kestrel/k36.jpg"
+    ],
+    "follow": [
+     "/demo/kestrel/k46.jpg"
+    ],
+    "jurisdiction": [
+     "/demo/kestrel/k27.jpg"
+    ],
+    "extra": [
+     "/demo/kestrel/k05.jpg",
+     "/demo/kestrel/k06.jpg",
+     "/demo/kestrel/k07.jpg",
+     "/demo/kestrel/k08.jpg",
+     "/demo/kestrel/k09.jpg",
+     "/demo/kestrel/k10.jpg",
+     "/demo/kestrel/k11.jpg",
+     "/demo/kestrel/k12.jpg",
+     "/demo/kestrel/k13.jpg",
+     "/demo/kestrel/k14.jpg",
+     "/demo/kestrel/k15.jpg",
+     "/demo/kestrel/k17.jpg",
+     "/demo/kestrel/k18.jpg",
+     "/demo/kestrel/k20.jpg",
+     "/demo/kestrel/k21.jpg",
+     "/demo/kestrel/k22.jpg",
+     "/demo/kestrel/k23.jpg",
+     "/demo/kestrel/k24.jpg",
+     "/demo/kestrel/k25.jpg",
+     "/demo/kestrel/k26.jpg",
+     "/demo/kestrel/k28.jpg",
+     "/demo/kestrel/k29.jpg",
+     "/demo/kestrel/k31.jpg",
+     "/demo/kestrel/k32.jpg",
+     "/demo/kestrel/k34.jpg",
+     "/demo/kestrel/k35.jpg",
+     "/demo/kestrel/k38.jpg",
+     "/demo/kestrel/k39.jpg",
+     "/demo/kestrel/k40.jpg",
+     "/demo/kestrel/k41.jpg",
+     "/demo/kestrel/k42.jpg",
+     "/demo/kestrel/k43.jpg",
+     "/demo/kestrel/k44.jpg",
+     "/demo/kestrel/k47.jpg",
+     "/demo/kestrel/k48.jpg",
+     "/demo/kestrel/k49.jpg",
+     "/demo/kestrel/k51.jpg",
+     "/demo/kestrel/k52.jpg",
+     "/demo/kestrel/k53.jpg",
+     "/demo/kestrel/k54.jpg",
+     "/demo/kestrel/k55.jpg",
+     "/demo/kestrel/k56.jpg",
+     "/demo/kestrel/k57.jpg",
+     "/demo/kestrel/k58.jpg"
+    ]
+   },
+   "_derived": true,
+   "overview": "Kestrel is advancing the Silver Pine antimony-gold project in central Idaho.",
+   "highlights": [
+    {
+     "label": "Gold (M&I)",
+     "value": "3.4 Moz",
+     "context": "1.58 g/t Au",
+     "featured": true
+    },
+    {
+     "label": "Antimony (M&I)",
+     "value": "112 Mlb",
+     "context": "0.07% Sb",
+     "featured": false
+    },
+    {
+     "label": "Best antimony",
+     "value": "4.30% Sb",
+     "context": "over 6.1 m",
+     "featured": false
+    },
+    {
+     "label": "Mine life (PFS)",
+     "value": "15 years",
+     "context": "open pit",
+     "featured": false
+    },
+    {
+     "label": "Cash",
+     "value": "US$58M",
+     "context": "no debt",
+     "featured": false
+    }
+   ],
+   "evidenceType": "drill_results",
+   "featuredGrade": {
+    "grade": "2.41 g/t Au · 0.62% Sb",
+    "width": "48.8 m",
+    "context": "SP-25-018",
+    "location": "Silver Pine"
+   },
+   "heroStatistic": {
+    "label": "Gold · Measured & Indicated",
+    "value": "3.4 Moz",
+    "context": "+ 112 Mlb antimony · 67 Mt"
+   },
+   "investmentCase": [
+    {
+     "reason": "Strategic: one of the few domestic sources of antimony, a critical mineral for defence and energy storage.",
+     "featured": true
+    },
+    {
+     "reason": "Scale: 3.4 million ounces of gold and 112 million pounds of antimony Measured & Indicated.",
+     "featured": false
+    },
+    {
+     "reason": "Economics: a Pre-Feasibility Study outlines a 15-year open-pit mine.",
+     "featured": false
+    },
+    {
+     "reason": "Funded: US$58 million in cash, no debt, and a US$15 million government grant.",
+     "featured": false
+    }
+   ],
+   "projectGallery": {
+    "silver-pine": [
+     "/demo/kestrel/k04.jpg",
+     "/demo/kestrel/k02.jpg",
+     "/demo/kestrel/k37.jpg"
+    ]
+   },
+   "currentActivity": "Feasibility Study underway",
+   "featuredProjectKey": "silver-pine",
+   "jurisdictionWidgets": {
+    "district": "Central Idaho",
+    "commodity": "Antimony-Gold",
+    "provinceState": "Idaho"
+   }
+  },
+  "companyBrief": {
+   "headline": "America's antimony and gold, from Idaho.",
+   "keyPoints": [
+    "3.4 Moz Au + 112 Mlb Sb M&I",
+    "15-year mine life (PFS)",
+    "Feasibility Study underway",
+    "US$15M government grant",
+    "US$58M cash, no debt"
+   ],
+   "shortSummary": "An antimony-gold developer advancing Silver Pine toward a construction decision.",
+   "businessDescription": "Kestrel explores and develops antimony and gold in central Idaho."
+  },
+  "companyStatus": {
+   "expected": "Q2 2027",
+   "progressBar": {
+    "unit": "milestones",
+    "label": "2026–27 plan",
+    "total": 8,
+    "current": 5
+   },
+   "nextCatalyst": "Silver Pine Feasibility Study",
+   "statusHeadline": "Feasibility Study underway at Silver Pine",
+   "investmentImpact": "FS expected to support a construction decision."
+  },
+  "_demo": "FICTIONAL demo company for Conference Mode template previews. All names, figures and people are invented."
+ }
+}

@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"/>
+<meta name="viewport" content="width=1440, initial-scale=1"/>
+<title>MineEx — homepage design study</title>
+<link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=switzer@300,400,500,600,700&display=swap"/>
+<style>
+  :root{
+    --font:'Switzer',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;
+    --ink:#0b1c31; --navy:#0a1b2e; --slate:#5a6678; --muted:#93a0b2; --hair:#e6ecf4;
+    --paper:#ffffff; --cool:#f6f9fd; --paleblue:#eaf1fb;
+    --cobalt:#2563eb; --cobalt-deep:#1b3ea8; --lime:#c6f04a; --lime-ink:#4e6a10;
+    --maxw:1200px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html{scroll-behavior:auto;}
+  body{width:1440px;font-family:var(--font);color:var(--navy);background:var(--paper);-webkit-font-smoothing:antialiased;overflow-x:hidden;}
+  img{display:block;max-width:100%;}
+  .wrap{max-width:var(--maxw);margin:0 auto;padding:0 clamp(24px,4vw,64px);position:relative;}
+  .grain{position:absolute;inset:0;pointer-events:none;opacity:.5;mix-blend-mode:multiply;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");}
+
+  /* ── nav ── */
+  nav.top{position:relative;z-index:20;height:72px;display:flex;align-items:center;}
+  nav.top .wrap{display:flex;align-items:center;gap:30px;}
+  .word{font-weight:700;font-size:19px;letter-spacing:-.03em;color:var(--navy);display:flex;align-items:center;gap:9px;}
+  .word .d{width:9px;height:9px;background:var(--lime);border-radius:2px;transform:rotate(45deg);}
+  nav .links{display:flex;gap:26px;margin-left:14px;}
+  nav .links a{font-size:14px;color:var(--slate);text-decoration:none;font-weight:500;}
+  nav .right{margin-left:auto;display:flex;align-items:center;gap:20px;}
+  nav .right a{font-size:14px;color:var(--navy);text-decoration:none;font-weight:600;}
+  .btn{display:inline-flex;align-items:center;height:40px;padding:0 18px;border-radius:999px;background:var(--navy);color:#fff!important;font-weight:600;font-size:14px;text-decoration:none;}
+  .btn.lime{background:var(--lime);color:#22300a!important;}
+
+  /* type */
+  .kick{font-size:13px;font-weight:600;color:var(--cobalt);letter-spacing:.01em;display:inline-flex;align-items:center;gap:8px;}
+  .kick .d{width:7px;height:7px;border-radius:2px;background:var(--lime);transform:rotate(45deg);}
+  h2.disp{font-weight:600;letter-spacing:-.03em;line-height:1.02;color:var(--navy);}
+  .lead{color:var(--slate);font-weight:400;}
+
+  /* hero placeholder (existing hero lives here — not redesigned) */
+  .heroph{height:150px;display:flex;align-items:center;justify-content:center;color:#b8c2d0;font-size:12.5px;letter-spacing:.08em;text-transform:uppercase;border-bottom:1px solid var(--hair);}
+
+  /* ══ S1 PLATFORM INTRO ══ */
+  .s1{position:relative;padding:130px 0 128px;background:
+      radial-gradient(60% 70% at 82% 8%, rgba(37,99,235,.10), transparent 70%),
+      radial-gradient(50% 60% at 12% 100%, rgba(198,240,74,.10), transparent 70%),
+      linear-gradient(180deg,#ffffff,#f7faff);overflow:hidden;}
+  .s1 .wrap{text-align:center;}
+  .s1 h2{font-size:60px;font-weight:500;letter-spacing:-.035em;line-height:1.04;max-width:15ch;margin:22px auto 0;color:var(--navy);}
+  .s1 h2 em{font-style:normal;color:var(--cobalt);}
+  .s1 .lead{font-size:20px;line-height:1.5;max-width:52ch;margin:26px auto 0;}
+  .masthead{margin:56px auto 0;display:flex;align-items:center;justify-content:center;gap:0;flex-wrap:wrap;max-width:1000px;}
+  .masthead span{font-size:15px;font-weight:600;color:var(--navy);padding:0 22px;position:relative;}
+  .masthead span+span::before{content:"";position:absolute;left:0;top:50%;transform:translateY(-50%);width:1px;height:15px;background:var(--hair);}
+  .masthead span.soft{color:var(--muted);font-weight:500;}
+
+  /* ══ S2 PRO PROFILE — product landscape ══ */
+  .s2{position:relative;padding:126px 0 132px;background:linear-gradient(180deg,#f7faff 0%,#ffffff 40%);overflow:hidden;}
+  .s2 .glow{position:absolute;right:-6%;top:6%;width:820px;height:820px;border-radius:50%;
+    background:radial-gradient(closest-side,rgba(37,99,235,.14),rgba(37,99,235,0) 70%);filter:blur(6px);}
+  .s2 .photo{position:absolute;right:2%;top:120px;width:720px;height:560px;border-radius:28px;overflow:hidden;opacity:.26;
+    -webkit-mask-image:radial-gradient(75% 75% at 60% 40%,#000,transparent);mask-image:radial-gradient(75% 75% at 60% 40%,#000,transparent);}
+  .s2 .photo img{width:100%;height:100%;object-fit:cover;}
+  .s2 .wrap{position:relative;z-index:3;min-height:600px;}
+  .s2 .copy{width:430px;padding-top:26px;}
+  .s2 h2{font-size:52px;font-weight:600;letter-spacing:-.03em;line-height:1.0;}
+  .s2 h2 .t{display:block;color:var(--navy);}
+  .s2 h2 .b{display:block;font-weight:300;color:var(--cobalt);}
+  .s2 .lead{font-size:18px;line-height:1.5;margin-top:22px;max-width:40ch;}
+  .s2 .areas{margin-top:34px;display:flex;flex-wrap:wrap;gap:10px 0;max-width:400px;}
+  .s2 .areas span{font-size:13.5px;font-weight:600;color:var(--navy);padding:0 16px 0 0;margin-right:16px;position:relative;}
+  .s2 .areas span+span::before{content:"";position:absolute;left:-16px;top:3px;width:1px;height:13px;background:var(--hair);}
+  .s2 .followpill{margin-top:38px;display:inline-flex;align-items:center;gap:12px;padding:12px 16px;border-radius:14px;background:#fff;border:1px solid var(--hair);box-shadow:0 20px 40px -30px rgba(10,25,45,.25);}
+  .s2 .followpill .fp{display:inline-flex;align-items:center;gap:8px;height:34px;padding:0 15px;border-radius:999px;background:var(--lime);color:#22300a;font-weight:700;font-size:13.5px;}
+  .s2 .followpill .fp svg{width:13px;height:13px;}
+  .s2 .followpill .cap{font-size:13.5px;color:var(--slate);}
+  .s2 .followpill .cap b{color:var(--navy);}
+  /* product plane: real UI, edges faded into the page (no border screenshot) */
+  .plane{position:absolute;right:calc(50% - 600px + 40px);top:70px;width:720px;height:600px;z-index:2;}
+  .plane .scr{position:absolute;border-radius:26px;overflow:hidden;background:#fff;
+    box-shadow:0 60px 120px -60px rgba(10,25,45,.4);}
+  .plane .a{right:150px;top:0;width:360px;
+    -webkit-mask-image:linear-gradient(to bottom,#000 74%,transparent);mask-image:linear-gradient(to bottom,#000 74%,transparent);}
+  .plane .b{right:-40px;top:150px;width:330px;opacity:.96;
+    -webkit-mask-image:linear-gradient(to bottom,#000 70%,transparent);mask-image:linear-gradient(to bottom,#000 70%,transparent);}
+  .plane .scr img{width:100%;display:block;}
+
+  /* ══ S3 CONFERENCE — cinematic dark ══ */
+  .s3{position:relative;background:#070b12;color:#eaf0f8;padding:0;overflow:hidden;}
+  .s3 .band{position:relative;height:780px;overflow:hidden;}
+  .s3 .cvwrap{position:absolute;right:0;top:0;bottom:0;width:64%;overflow:hidden;
+    -webkit-mask-image:linear-gradient(to right,transparent,#000 22%);mask-image:linear-gradient(to right,transparent,#000 22%);}
+  .s3 iframe{width:1194px;height:834px;border:0;transform:scale(.94);transform-origin:top right;}
+  .s3 .tint{position:absolute;inset:0;background:linear-gradient(90deg,#070b12 12%,rgba(7,11,18,.5) 42%,rgba(7,11,18,0) 70%);}
+  .s3 .copy{position:absolute;left:0;top:0;bottom:0;display:flex;flex-direction:column;justify-content:center;z-index:3;}
+  .s3 .kick{color:#9fc0ff;}
+  .s3 h2{font-size:56px;font-weight:600;letter-spacing:-.03em;line-height:1.0;color:#fff;margin-top:20px;}
+  .s3 .lead{color:#a9b6c9;font-size:18px;line-height:1.5;margin-top:20px;max-width:38ch;}
+  .s3 .truth{margin-top:30px;display:flex;flex-direction:column;gap:8px;}
+  .s3 .truth div{font-size:13.5px;color:#8595ac;display:flex;align-items:center;gap:10px;}
+  .s3 .truth .dot{width:5px;height:5px;border-radius:50%;background:var(--lime);flex:0 0 auto;}
+
+  /* ══ S4 PORTAL — controlled, product breaks off the left ══ */
+  .s4{position:relative;padding:128px 0;background:linear-gradient(180deg,#ffffff,#f6f9fd);overflow:hidden;}
+  .s4 .wrap{min-height:520px;}
+  .s4 .editor{position:absolute;left:0;top:96px;width:760px;border-radius:0 18px 18px 0;overflow:hidden;
+    box-shadow:0 60px 120px -60px rgba(10,25,45,.4);border:1px solid var(--hair);border-left:0;background:#fff;height:470px;}
+  .s4 .editor iframe{width:1440px;height:900px;border:0;transform:scale(.66);transform-origin:top left;}
+  .s4 .copy{position:absolute;right:0;top:150px;width:400px;text-align:left;}
+  .s4 h2{font-size:44px;font-weight:600;letter-spacing:-.03em;line-height:1.04;}
+  .s4 .lead{font-size:18px;line-height:1.5;margin-top:20px;}
+  .s4 .live{margin-top:26px;display:inline-flex;align-items:center;gap:9px;font-size:13.5px;font-weight:600;color:var(--navy);}
+  .s4 .live .dot{width:8px;height:8px;border-radius:50%;background:var(--lime);box-shadow:0 0 0 4px rgba(198,240,74,.25);}
+
+  /* ══ S5 SERVICES — quiet editorial ══ */
+  .s5{padding:120px 0;background:#0a1b2e;color:#eaf0f8;}
+  .s5 .head{max-width:640px;}
+  .s5 .kick{color:#9fc0ff;}
+  .s5 h2{font-size:38px;font-weight:600;letter-spacing:-.025em;color:#fff;margin-top:16px;}
+  .s5 .lead{color:#9fb0c6;font-size:17px;margin-top:14px;max-width:52ch;}
+  .s5 .two{margin-top:56px;display:grid;grid-template-columns:1fr 1fr;gap:28px;}
+  .s5 .svc{position:relative;border-radius:18px;overflow:hidden;height:300px;border:1px solid rgba(255,255,255,.1);}
+  .s5 .svc img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.5;}
+  .s5 .svc .scrim{position:absolute;inset:0;background:linear-gradient(180deg,rgba(10,27,46,.1),rgba(10,27,46,.92));}
+  .s5 .svc .t{position:absolute;left:28px;right:28px;bottom:26px;}
+  .s5 .svc h3{font-size:23px;font-weight:600;color:#fff;letter-spacing:-.02em;}
+  .s5 .svc p{font-size:14.5px;color:#b7c3d4;margin-top:8px;line-height:1.45;max-width:40ch;}
+
+  /* ══ S6 OUTCOME + CTA ══ */
+  .s6{position:relative;padding:150px 0 160px;text-align:center;overflow:hidden;background:
+      radial-gradient(60% 80% at 50% 0%, rgba(37,99,235,.10), transparent 70%),
+      linear-gradient(180deg,#ffffff,#f2f7ff);}
+  .s6 .kick{justify-content:center;}
+  .s6 h2{font-size:56px;font-weight:500;letter-spacing:-.035em;line-height:1.04;max-width:18ch;margin:20px auto 0;color:var(--navy);}
+  .s6 h2 em{font-style:normal;color:var(--cobalt);}
+  .s6 .lead{font-size:19px;max-width:50ch;margin:24px auto 0;}
+  .s6 .cta{margin-top:40px;display:flex;gap:14px;justify-content:center;}
+  .s6 .cta a{height:54px;padding:0 28px;border-radius:999px;display:inline-flex;align-items:center;font-weight:600;font-size:16px;text-decoration:none;}
+  .s6 .cta .p{background:var(--navy);color:#fff;}
+  .s6 .cta .s{background:#fff;color:var(--navy);border:1px solid var(--hair);}
+</style></head>
+<body>
+
+  <nav class="top"><div class="wrap">
+    <span class="word"><span class="d"></span>MineEx</span>
+    <span class="links"><a>Platform</a><a>For Investors</a><a>Companies</a><a>Pricing</a></span>
+    <span class="right"><a>Sign in</a><a class="btn">Book a Demo</a></span>
+  </div></nav>
+
+  <div class="heroph">↑ existing hero (frozen) — design study begins below</div>
+
+  <!-- S1 PLATFORM INTRO -->
+  <section class="s1"><div class="grain"></div><div class="wrap">
+    <span class="kick"><span class="d"></span>The MineEx platform</span>
+    <h2>Everything a mining company needs to be <em>investor-ready</em>.</h2>
+    <p class="lead">MineEx connects every moment of the investor relationship — from the conference floor to a living company profile investors follow for years.</p>
+    <div class="masthead">
+      <span>Pro Profile</span><span>Conference Mode</span><span>Company Portal</span><span>Investor Follow</span><span class="soft">Custom Websites</span><span class="soft">Managed Comms</span>
+    </div>
+  </div></section>
+
+  <!-- S2 PRO PROFILE -->
+  <section class="s2"><div class="grain"></div>
+    <div class="glow"></div>
+    <div class="photo"><img src="/marketing/kingsmen-status.webp" alt=""/></div>
+    <div class="plane">
+      <div class="scr b"><img src="/marketing/appshots/projects.webp" alt="Pro Profile — Projects"/></div>
+      <div class="scr a"><img src="/marketing/appshots/overview.webp" alt="Pro Profile — Overview"/></div>
+    </div>
+    <div class="wrap"><div class="copy">
+      <span class="kick"><span class="d"></span>Pro Profile</span>
+      <h2 style="margin-top:16px;"><span class="t">Turn interest</span><span class="b">into followers.</span></h2>
+      <p class="lead">One living place for investors to understand the company — its projects, progress, capital, leadership and updates — and follow it as the story develops.</p>
+      <div class="areas"><span>Overview</span><span>Projects</span><span>Progress</span><span>Capital</span><span>Leadership</span><span>Updates</span></div>
+      <div class="followpill">
+        <span class="fp"><svg viewBox="0 0 24 24" fill="none"><path d="M5 12.5l4.2 4.2L19 7" stroke="#22300a" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/></svg>Following</span>
+        <span class="cap">Anonymous interest becomes an <b>ongoing relationship.</b></span>
+      </div>
+    </div></div>
+  </section>
+
+  <!-- S3 CONFERENCE -->
+  <section class="s3"><div class="band">
+    <div class="cvwrap"><iframe src="/conference?c=kingsmen-resources&t=monolith&qr=0" scrolling="no"></iframe></div>
+    <div class="tint"></div>
+    <div class="wrap"><div class="copy">
+      <span class="kick"><span class="d" style="width:7px;height:7px;border-radius:2px;background:var(--lime);transform:rotate(45deg);"></span>Conference Mode</span>
+      <h2>Replace the<br/>one-pager.</h2>
+      <p class="lead">A premium, interactive presentation of the company — built from the same real profile investors follow. Fifteen designs, ready for the booth.</p>
+      <div class="truth">
+        <div><span class="dot"></span>Person-driven — scan to continue on MineEx</div>
+        <div><span class="dot"></span>Opens the company's public investor profile</div>
+        <div><span class="dot"></span>Works offline at the booth once loaded</div>
+      </div>
+    </div></div>
+  </div></section>
+
+  <!-- S4 PORTAL -->
+  <section class="s4"><div class="grain"></div>
+    <div class="editor"><iframe src="/site?portaldemo=1" scrolling="no"></iframe></div>
+    <div class="wrap"><div class="copy">
+      <span class="kick"><span class="d"></span>Company Portal</span>
+      <h2 style="margin-top:16px;">Manage everything in one place.</h2>
+      <p class="lead">The company-side control room. Edit your profile, projects, capital, press and media — and publish it live to investors in a click.</p>
+      <span class="live"><span class="dot"></span>Edits publish live to your investor profile</span>
+    </div></div>
+  </section>
+
+  <!-- S5 SERVICES -->
+  <section class="s5"><div class="wrap">
+    <div class="head">
+      <span class="kick"><span class="d" style="width:7px;height:7px;border-radius:2px;background:var(--lime);transform:rotate(45deg);"></span>MineEx services</span>
+      <h2>Beyond the platform.</h2>
+      <p class="lead">When a company wants MineEx to do more, our team builds and runs the rest of its investor presence.</p>
+    </div>
+    <div class="two">
+      <div class="svc"><img src="/marketing/site-18-drill-site-aerial.webp" alt=""/><div class="scrim"></div><div class="t"><h3>Custom mining websites</h3><p>Premium company sites, designed and built by MineEx.</p></div></div>
+      <div class="svc"><img src="/marketing/site-13-surface-sampling.webp" alt=""/><div class="scrim"></div><div class="t"><h3>Managed investor communications</h3><p>Done-for-you updates, press and investor outreach.</p></div></div>
+    </div>
+  </div></section>
+
+  <!-- S6 OUTCOME + CTA -->
+  <section class="s6"><div class="grain"></div><div class="wrap">
+    <span class="kick"><span class="d"></span>Why MineEx</span>
+    <h2>Turn investor interest into a <em>lasting relationship</em>.</h2>
+    <p class="lead">Meet investors where they are, help them understand the company, and keep them close as the story develops.</p>
+    <div class="cta"><a class="p">Book a Demo</a><a class="s">Explore MineEx</a></div>
+  </div></section>
+
+</body></html>

@@ -9,23 +9,25 @@
 import React, { useEffect } from "react";
 import { CompanyProfile, setPpFrame, StatusBar, BottomNav } from "../../aiBrief/PassportProto.jsx";
 
-export default function ProProfileDemo({ demo, frameEl }) {
+export default function ProProfileDemo({ demo, frameEl, natural }) {
   useEffect(() => {
     if (!frameEl) return;
     setPpFrame(frameEl);            // sheets portal into the phone frame
     return () => setPpFrame(null);
   }, [frameEl]);
 
+  // The real app's in-company chrome: StatusBar + the profile, and NO bottom nav
+  // (the live app hides it inside a company — PassportProto:10898). The directed
+  // demo and the `natural` fidelity reference now share this EXACT shell; the only
+  // difference is that the demo drives it (`demo` prop) while natural is hand-driven.
   return (
     <div className="relative flex h-full flex-col" style={{ background: "#f4f5f7" }}>
       <div className="flex-shrink-0" style={{ background: "#ffffff" }}>
         <StatusBar />
       </div>
       <div className="relative min-h-0 flex-1">
-        <CompanyProfile demo={demo} onBack={() => {}} />
+        <CompanyProfile demo={natural ? undefined : demo} onBack={() => {}} />
       </div>
-      {/* real bottom nav, opaque (no per-frame backdrop-blur while content scrolls) */}
-      <BottomNav nav="explore" setNav={() => {}} solid />
     </div>
   );
 }

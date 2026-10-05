@@ -1,0 +1,523 @@
+{
+ "slug": "iberis-demo",
+ "name": "Iberis Metals Corp.",
+ "profile": {
+  "team": [
+   {
+    "name": "Lucía Márquez",
+    "full": "Lucía Márquez",
+    "role": "President & CEO"
+   },
+   {
+    "name": "James Whitcombe",
+    "full": "James Whitcombe",
+    "role": "Chair"
+   },
+   {
+    "name": "Carmen Ortega",
+    "full": "Carmen Ortega",
+    "role": "Chief Financial Officer"
+   },
+   {
+    "name": "Rafael Domínguez",
+    "full": "Rafael Domínguez",
+    "role": "VP Exploration"
+   },
+   {
+    "name": "Helena Costa",
+    "full": "Helena Costa",
+    "role": "VP Projects & Permitting"
+   },
+   {
+    "name": "Tomás Aguilar",
+    "full": "Tomás Aguilar",
+    "role": "VP Stakeholder Relations"
+   },
+   {
+    "name": "Olivia Brandt",
+    "full": "Olivia Brandt",
+    "role": "Director"
+   },
+   {
+    "name": "Marco Ferrer",
+    "full": "Marco Ferrer",
+    "role": "Director"
+   }
+  ],
+  "brand": {
+   "hero": "/demo/iberis/i01.jpg"
+  },
+  "capital": {
+   "fd": "226M",
+   "cash": "C$47M",
+   "debt": "Nil",
+   "options": "10M",
+   "warrants": "16M",
+   "marketCap": "C$388M",
+   "outstanding": "198M",
+   "financing": [
+    {
+     "date": "2026-04",
+     "type": "Bought-deal financing",
+     "amount": "C$34M",
+     "purpose": "Solana Feasibility Study and underground development permit"
+    },
+    {
+     "date": "2025-10",
+     "type": "Strategic investment",
+     "amount": "C$14M",
+     "purpose": "European smelter takes a 9.9% stake"
+    }
+   ]
+  },
+  "company": {
+   "name": "Iberis Metals Corp.",
+   "slogan": "Copper and zinc for Europe, from Europe's oldest mining belt.",
+   "ticker": "IBS",
+   "website": "iberis.example",
+   "listings": [
+    {
+     "ex": "TSX",
+     "sym": "IBS"
+    },
+    {
+     "ex": "OTCQX",
+     "sym": "IBRSF"
+    }
+   ],
+   "commodity": "Copper-Zinc",
+   "headquarters": "Seville, Spain",
+   "jurisdiction": "Huelva, Spain"
+  },
+  "projects": [
+   {
+    "key": "solana",
+    "tag": "Feasibility",
+    "name": "Solana",
+    "brief": {
+     "overview": "A polymetallic massive-sulphide deposit in the Iberian Pyrite Belt of Huelva, with 38 million tonnes Measured & Indicated at 2.1% copper-equivalent, 45 km by road from the Port of Huelva."
+    },
+    "unique": {
+     "evidence": [
+      "38 Mt @ 2.1% CuEq M&I",
+      "45 km to the Port of Huelva",
+      "Grid power and rail nearby"
+     ]
+    },
+    "gallery": [
+     {
+      "src": "/demo/iberis/i37.jpg"
+     },
+     {
+      "src": "/demo/iberis/i40.jpg"
+     },
+     {
+      "src": "/demo/iberis/i55.jpg"
+     }
+    ],
+    "geology": {
+     "body": "Stacked copper-rich stockwork beneath zinc-lead massive-sulphide lenses hosted in the Volcano-Sedimentary Complex."
+    },
+    "resource": {
+     "rows": [
+      {
+       "grade": "1.24% Cu · 2.9% Zn",
+       "tonnes": "38 Mt",
+       "category": "Measured & Indicated",
+       "contained": "1.04 Blb Cu · 2.4 Blb Zn"
+      },
+      {
+       "grade": "1.02% Cu · 2.2% Zn",
+       "tonnes": "17 Mt",
+       "category": "Inferred",
+       "contained": "0.38 Blb Cu · 0.8 Blb Zn"
+      }
+     ],
+     "summary": "Solana hosts Measured & Indicated resources of 38 million tonnes at 1.24% copper and 2.9% zinc, plus 17 million tonnes Inferred at 1.02% copper and 2.2% zinc."
+    },
+    "snapshot": {
+     "land": "11,800 ha",
+     "location": {
+      "value": "Iberian Pyrite Belt, Huelva, Spain"
+     },
+     "commodity": {
+      "value": "Copper-Zinc"
+     },
+     "ownership": {
+      "value": "100%"
+     }
+    },
+    "stageName": "Feasibility",
+    "drillResults": {
+     "rows": [
+      {
+       "hole": "SO-25-021",
+       "note": "copper stockwork",
+       "grade": "2.84% Cu · 0.6% Zn",
+       "interval": "48.0 m"
+      },
+      {
+       "hole": "SO-25-034",
+       "note": "massive sulphide lens",
+       "grade": "1.10% Cu · 8.7% Zn",
+       "interval": "31.5 m"
+      },
+      {
+       "hole": "SO-25-046",
+       "note": "250 m down-dip extension",
+       "grade": "1.92% Cu · 3.4% Zn",
+       "interval": "26.0 m"
+      },
+      {
+       "hole": "SO-26-005",
+       "note": "widest intercept to date",
+       "grade": "1.31% Cu · 2.1% Zn",
+       "interval": "62.5 m"
+      },
+      {
+       "hole": "SO-26-012",
+       "note": "new eastern lens",
+       "grade": "3.35% Cu · 1.2% Zn",
+       "interval": "18.0 m"
+      }
+     ]
+    },
+    "coords": {
+     "lat": 37.66,
+     "lng": -6.78
+    }
+   },
+   {
+    "key": "almadena",
+    "tag": "Exploration",
+    "name": "Almadena",
+    "brief": {
+     "overview": "A gravity-and-EM target along strike from Solana, where first drilling cut massive sulphide beneath a gossan outcrop."
+    },
+    "unique": {
+     "evidence": [
+      "Massive sulphide in first drilling",
+      "Coincident gravity high",
+      "8 km from Solana"
+     ]
+    },
+    "gallery": [
+     {
+      "src": "/demo/iberis/i02.jpg"
+     },
+     {
+      "src": "/demo/iberis/i05.jpg"
+     },
+     {
+      "src": "/demo/iberis/i42.jpg"
+     }
+    ],
+    "geology": {
+     "body": "Gossan-capped volcanic sequence with a strong gravity anomaly at depth."
+    },
+    "resource": {
+     "rows": [],
+     "summary": ""
+    },
+    "snapshot": {
+     "land": "6,900 ha",
+     "location": {
+      "value": "Iberian Pyrite Belt, Huelva, Spain"
+     },
+     "commodity": {
+      "value": "Copper-Zinc"
+     },
+     "ownership": {
+      "value": "100%"
+     }
+    },
+    "stageName": "Exploration",
+    "drillResults": {
+     "rows": []
+    },
+    "coords": {
+     "lat": 37.72,
+     "lng": -6.69
+    }
+   },
+   {
+    "key": "penaverde",
+    "tag": "Early-stage",
+    "name": "Peñaverde",
+    "brief": {
+     "overview": "A historic mining area with Roman-era slag heaps, held under an option to earn 80%."
+    },
+    "unique": {
+     "evidence": [
+      "Historic workings",
+      "Airborne EM conductors",
+      "Option to earn 80%"
+     ]
+    },
+    "gallery": [
+     {
+      "src": "/demo/iberis/i04.jpg"
+     },
+     {
+      "src": "/demo/iberis/i06.jpg"
+     },
+     {
+      "src": "/demo/iberis/i45.jpg"
+     }
+    ],
+    "geology": {
+     "body": "Volcanic-hosted sulphide horizon beneath shale cover."
+    },
+    "resource": {
+     "rows": [],
+     "summary": ""
+    },
+    "snapshot": {
+     "land": "4,300 ha",
+     "location": {
+      "value": "Iberian Pyrite Belt, Huelva, Spain"
+     },
+     "commodity": {
+      "value": "Copper-Zinc"
+     },
+     "ownership": {
+      "value": "Option to earn 80%"
+     }
+    },
+    "stageName": "Early-stage",
+    "drillResults": {
+     "rows": []
+    },
+    "coords": {
+     "lat": 37.56,
+     "lng": -7.02
+    }
+   }
+  ],
+  "timeline": [
+   {
+    "date": "2026-08-27",
+    "headline": "Solana Feasibility Study commenced",
+    "keyNumbers": [
+     "FS"
+    ],
+    "whyItMatters": "The last study before a construction decision."
+   },
+   {
+    "date": "2026-06-10",
+    "headline": "SO-26-012 cuts 18 m @ 3.35% Cu in a new eastern lens",
+    "keyNumbers": [
+     "3.35% Cu"
+    ],
+    "whyItMatters": "A higher-grade copper zone for the early years."
+   },
+   {
+    "date": "2026-04-22",
+    "headline": "C$34M bought-deal financing closed",
+    "keyNumbers": [
+     "C$34M"
+    ],
+    "whyItMatters": "Funds the Feasibility Study and permitting."
+   },
+   {
+    "date": "2026-01-19",
+    "headline": "PFS outlines a 12-year underground mine",
+    "keyNumbers": [
+     "12 years"
+    ],
+    "whyItMatters": "First development case for Solana."
+   },
+   {
+    "date": "2025-10-08",
+    "headline": "European smelter takes a 9.9% stake",
+    "keyNumbers": [
+     "C$14M",
+     "9.9%"
+    ],
+    "whyItMatters": "A downstream strategic partner."
+   }
+  ],
+  "catalysts": [
+   {
+    "label": "Solana Feasibility Study",
+    "impact": "The final study before a construction decision.",
+    "timing": "Q2 2027"
+   }
+  ],
+  "conference": {
+   "hook": "Copper and zinc from Europe's oldest mining belt.",
+   "studio": {
+    "theme": "obsidian",
+    "accent": "",
+    "template": "relay"
+   },
+   "enabled": true,
+   "gallery": {
+    "overview": [
+     "/demo/iberis/i02.jpg"
+    ],
+    "results": [
+     "/demo/iberis/i46.jpg"
+    ],
+    "follow": [
+     "/demo/iberis/i30.jpg"
+    ],
+    "jurisdiction": [
+     "/demo/iberis/i03.jpg"
+    ],
+    "extra": [
+     "/demo/iberis/i01.jpg",
+     "/demo/iberis/i04.jpg",
+     "/demo/iberis/i05.jpg",
+     "/demo/iberis/i06.jpg",
+     "/demo/iberis/i07.jpg",
+     "/demo/iberis/i08.jpg",
+     "/demo/iberis/i09.jpg",
+     "/demo/iberis/i10.jpg",
+     "/demo/iberis/i11.jpg",
+     "/demo/iberis/i12.jpg",
+     "/demo/iberis/i13.jpg",
+     "/demo/iberis/i14.jpg",
+     "/demo/iberis/i15.jpg",
+     "/demo/iberis/i16.jpg",
+     "/demo/iberis/i17.jpg",
+     "/demo/iberis/i18.jpg",
+     "/demo/iberis/i19.jpg",
+     "/demo/iberis/i20.jpg",
+     "/demo/iberis/i21.jpg",
+     "/demo/iberis/i22.jpg",
+     "/demo/iberis/i23.jpg",
+     "/demo/iberis/i24.jpg",
+     "/demo/iberis/i25.jpg",
+     "/demo/iberis/i26.jpg",
+     "/demo/iberis/i27.jpg",
+     "/demo/iberis/i28.jpg",
+     "/demo/iberis/i29.jpg",
+     "/demo/iberis/i31.jpg",
+     "/demo/iberis/i32.jpg",
+     "/demo/iberis/i33.jpg",
+     "/demo/iberis/i34.jpg",
+     "/demo/iberis/i35.jpg",
+     "/demo/iberis/i36.jpg",
+     "/demo/iberis/i38.jpg",
+     "/demo/iberis/i39.jpg",
+     "/demo/iberis/i41.jpg",
+     "/demo/iberis/i43.jpg",
+     "/demo/iberis/i44.jpg",
+     "/demo/iberis/i47.jpg",
+     "/demo/iberis/i48.jpg",
+     "/demo/iberis/i49.jpg",
+     "/demo/iberis/i50.jpg",
+     "/demo/iberis/i51.jpg",
+     "/demo/iberis/i52.jpg",
+     "/demo/iberis/i53.jpg",
+     "/demo/iberis/i54.jpg",
+     "/demo/iberis/i56.jpg"
+    ]
+   },
+   "_derived": true,
+   "overview": "Iberis is advancing the Solana copper-zinc deposit in Spain's Iberian Pyrite Belt.",
+   "highlights": [
+    {
+     "label": "Resource (M&I)",
+     "value": "38 Mt",
+     "context": "2.1% CuEq",
+     "featured": true
+    },
+    {
+     "label": "Contained copper",
+     "value": "1.04 Blb",
+     "context": "M&I",
+     "featured": false
+    },
+    {
+     "label": "Mine life (PFS)",
+     "value": "12 years",
+     "context": "underground",
+     "featured": false
+    },
+    {
+     "label": "To port",
+     "value": "45 km",
+     "context": "Port of Huelva",
+     "featured": false
+    },
+    {
+     "label": "Cash",
+     "value": "C$47M",
+     "context": "no debt",
+     "featured": false
+    }
+   ],
+   "evidenceType": "drill_results",
+   "featuredGrade": {
+    "grade": "2.84% Cu",
+    "width": "48.0 m",
+    "context": "SO-25-021",
+    "location": "Solana"
+   },
+   "heroStatistic": {
+    "label": "Measured & Indicated",
+    "value": "38 Mt",
+    "context": "@ 1.24% Cu · 2.9% Zn"
+   },
+   "investmentCase": [
+    {
+     "reason": "Scale: 38 million tonnes Measured & Indicated at 1.24% copper and 2.9% zinc at Solana.",
+     "featured": true
+    },
+    {
+     "reason": "Infrastructure: 45 km by road to the Port of Huelva, with grid power and rail nearby.",
+     "featured": false
+    },
+    {
+     "reason": "Economics: a Pre-Feasibility Study outlines a 12-year underground mine.",
+     "featured": false
+    },
+    {
+     "reason": "Funded: C$47 million in cash and no debt through the Feasibility Study.",
+     "featured": false
+    }
+   ],
+   "projectGallery": {
+    "solana": [
+     "/demo/iberis/i37.jpg",
+     "/demo/iberis/i40.jpg",
+     "/demo/iberis/i55.jpg"
+    ]
+   },
+   "currentActivity": "Feasibility Study underway",
+   "featuredProjectKey": "solana",
+   "jurisdictionWidgets": {
+    "district": "Iberian Pyrite Belt",
+    "commodity": "Copper-Zinc",
+    "provinceState": "Huelva"
+   }
+  },
+  "companyBrief": {
+   "headline": "Copper and zinc from Europe's oldest mining belt.",
+   "keyPoints": [
+    "38 Mt @ 2.1% CuEq Measured & Indicated",
+    "12-year mine life (PFS)",
+    "45 km to the Port of Huelva",
+    "Strategic smelter shareholder",
+    "C$47M cash, no debt"
+   ],
+   "shortSummary": "A copper-zinc developer advancing Solana toward a construction decision.",
+   "businessDescription": "Iberis explores and develops volcanic-hosted massive-sulphide deposits in the Iberian Pyrite Belt."
+  },
+  "companyStatus": {
+   "expected": "Q2 2027",
+   "progressBar": {
+    "unit": "milestones",
+    "label": "2026–27 plan",
+    "total": 8,
+    "current": 6
+   },
+   "nextCatalyst": "Solana Feasibility Study",
+   "statusHeadline": "Feasibility Study underway at Solana",
+   "investmentImpact": "FS expected to support a construction decision."
+  },
+  "_demo": "FICTIONAL demo company for Conference Mode template previews. All names, figures and people are invented."
+ }
+}

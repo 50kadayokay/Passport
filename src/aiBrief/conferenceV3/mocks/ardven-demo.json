@@ -1,0 +1,521 @@
+{
+ "slug": "ardven-demo",
+ "name": "Ardven Gold plc",
+ "profile": {
+  "team": [
+   {
+    "name": "Isla MacLeod",
+    "full": "Isla MacLeod",
+    "role": "Chief Executive Officer"
+   },
+   {
+    "name": "Alasdair Grant",
+    "full": "Alasdair Grant",
+    "role": "Non-Executive Chair"
+   },
+   {
+    "name": "Priya Menon",
+    "full": "Priya Menon",
+    "role": "Chief Financial Officer"
+   },
+   {
+    "name": "Callum Fraser",
+    "full": "Callum Fraser",
+    "role": "Head of Geology"
+   },
+   {
+    "name": "Morven Ross",
+    "full": "Morven Ross",
+    "role": "Project Director"
+   },
+   {
+    "name": "Euan Munro",
+    "full": "Euan Munro",
+    "role": "Head of Community & Environment"
+   },
+   {
+    "name": "Helen Achterberg",
+    "full": "Helen Achterberg",
+    "role": "Non-Executive Director"
+   },
+   {
+    "name": "David Osei",
+    "full": "David Osei",
+    "role": "Non-Executive Director"
+   }
+  ],
+  "brand": {
+   "hero": "/demo/ardven/a01.jpg"
+  },
+  "capital": {
+   "fd": "388M",
+   "cash": "£34M",
+   "debt": "Nil",
+   "options": "16M",
+   "warrants": "27M",
+   "marketCap": "£246M",
+   "outstanding": "345M",
+   "financing": [
+    {
+     "date": "2026-06",
+     "type": "Placing",
+     "amount": "£24M",
+     "purpose": "Beinn Ruadh Feasibility Study and decline design"
+    },
+    {
+     "date": "2025-10",
+     "type": "Strategic investment",
+     "amount": "£10M",
+     "purpose": "Mid-tier gold producer takes a 9.2% stake"
+    }
+   ]
+  },
+  "company": {
+   "name": "Ardven Gold plc",
+   "slogan": "High-grade gold from the Scottish Highlands.",
+   "ticker": "ARDV",
+   "website": "ardven.example",
+   "listings": [
+    {
+     "ex": "AIM",
+     "sym": "ARDV"
+    },
+    {
+     "ex": "OTCQB",
+     "sym": "ARDVF"
+    }
+   ],
+   "commodity": "Gold",
+   "headquarters": "Inverness, Scotland",
+   "jurisdiction": "Highland, United Kingdom"
+  },
+  "projects": [
+   {
+    "key": "beinn-ruadh",
+    "tag": "Feasibility",
+    "name": "Beinn Ruadh",
+    "brief": {
+     "overview": "A high-grade orogenic gold system in the Scottish Highlands, with 1.12 million ounces Measured & Indicated at 6.4 g/t gold, planned as a small-footprint underground mine."
+    },
+    "unique": {
+     "evidence": [
+      "1.12 Moz Au @ 6.4 g/t M&I",
+      "Small-footprint underground mine",
+      "Planning consent in application"
+     ]
+    },
+    "gallery": [
+     {
+      "src": "/demo/ardven/a08.jpg"
+     },
+     {
+      "src": "/demo/ardven/a07.jpg"
+     },
+     {
+      "src": "/demo/ardven/a40.jpg"
+     }
+    ],
+    "geology": {
+     "body": "Quartz-sulphide veins along a steep shear in Dalradian metasediments, with high-grade shoots open at depth."
+    },
+    "resource": {
+     "rows": [
+      {
+       "grade": "6.4 g/t Au",
+       "tonnes": "5.4 Mt",
+       "category": "Measured & Indicated",
+       "contained": "1.12 Moz Au"
+      },
+      {
+       "grade": "5.1 g/t Au",
+       "tonnes": "2.6 Mt",
+       "category": "Inferred",
+       "contained": "0.43 Moz Au"
+      }
+     ],
+     "summary": "Beinn Ruadh hosts Measured & Indicated resources of 5.4 million tonnes at 6.4 g/t gold for 1.12 million ounces, plus 2.6 million tonnes Inferred at 5.1 g/t gold."
+    },
+    "snapshot": {
+     "land": "8,600 ha",
+     "location": {
+      "value": "Great Glen, Highland, Scotland"
+     },
+     "commodity": {
+      "value": "Gold"
+     },
+     "ownership": {
+      "value": "100%"
+     }
+    },
+    "stageName": "Feasibility",
+    "drillResults": {
+     "rows": [
+      {
+       "hole": "BR-25-022",
+       "note": "main vein, 180 m below surface",
+       "grade": "14.8 g/t Au",
+       "interval": "5.1 m"
+      },
+      {
+       "hole": "BR-25-031",
+       "note": "incl. 1.2 m @ 62.0 g/t Au",
+       "grade": "9.6 g/t Au",
+       "interval": "7.4 m"
+      },
+      {
+       "hole": "BR-25-044",
+       "note": "new footwall vein",
+       "grade": "6.2 g/t Au",
+       "interval": "4.0 m"
+      },
+      {
+       "hole": "BR-26-008",
+       "note": "deepest intercept to date",
+       "grade": "8.9 g/t Au",
+       "interval": "6.3 m"
+      },
+      {
+       "hole": "BR-26-015",
+       "note": "250 m along strike",
+       "grade": "11.2 g/t Au",
+       "interval": "3.8 m"
+      }
+     ]
+    },
+    "coords": {
+     "lat": 57.05,
+     "lng": -4.95
+    }
+   },
+   {
+    "key": "allt-dubh",
+    "tag": "Exploration",
+    "name": "Allt Dubh",
+    "brief": {
+     "overview": "A 6 km gold-in-soil trend in Wester Ross, where first drilling intersected quartz veining with visible gold."
+    },
+    "unique": {
+     "evidence": [
+      "Visible gold in first drilling",
+      "6 km soil anomaly",
+      "Same structural corridor"
+     ]
+    },
+    "gallery": [
+     {
+      "src": "/demo/ardven/a12.jpg"
+     },
+     {
+      "src": "/demo/ardven/a23.jpg"
+     },
+     {
+      "src": "/demo/ardven/a41.jpg"
+     }
+    ],
+    "geology": {
+     "body": "Shear-hosted quartz veins in Moine schists."
+    },
+    "resource": {
+     "rows": [],
+     "summary": ""
+    },
+    "snapshot": {
+     "land": "5,200 ha",
+     "location": {
+      "value": "Wester Ross, Highland, Scotland"
+     },
+     "commodity": {
+      "value": "Gold"
+     },
+     "ownership": {
+      "value": "100%"
+     }
+    },
+    "stageName": "Exploration",
+    "drillResults": {
+     "rows": []
+    },
+    "coords": {
+     "lat": 57.55,
+     "lng": -5.2
+    }
+   },
+   {
+    "key": "strathcarn",
+    "tag": "Early-stage",
+    "name": "Strathcarn",
+    "brief": {
+     "overview": "A gold-copper target in Sutherland defined by stream-sediment anomalies, under an option to earn 75%."
+    },
+    "unique": {
+     "evidence": [
+      "Gold-copper stream anomalies",
+      "Road access",
+      "Option to earn 75%"
+     ]
+    },
+    "gallery": [
+     {
+      "src": "/demo/ardven/a49.jpg"
+     },
+     {
+      "src": "/demo/ardven/a45.jpg"
+     },
+     {
+      "src": "/demo/ardven/a38.jpg"
+     }
+    ],
+    "geology": {
+     "body": "Intrusion-related veining at a granite margin."
+    },
+    "resource": {
+     "rows": [],
+     "summary": ""
+    },
+    "snapshot": {
+     "land": "3,900 ha",
+     "location": {
+      "value": "Sutherland, Highland, Scotland"
+     },
+     "commodity": {
+      "value": "Gold-Copper"
+     },
+     "ownership": {
+      "value": "Option to earn 75%"
+     }
+    },
+    "stageName": "Early-stage",
+    "drillResults": {
+     "rows": []
+    },
+    "coords": {
+     "lat": 57.9,
+     "lng": -4.4
+    }
+   }
+  ],
+  "timeline": [
+   {
+    "date": "2026-07-30",
+    "headline": "Beinn Ruadh Feasibility Study commenced",
+    "keyNumbers": [
+     "FS"
+    ],
+    "whyItMatters": "The final study before a construction decision."
+   },
+   {
+    "date": "2026-06-18",
+    "headline": "£24M placing completed",
+    "keyNumbers": [
+     "£24M"
+    ],
+    "whyItMatters": "Funds the Feasibility Study and decline design."
+   },
+   {
+    "date": "2026-04-09",
+    "headline": "BR-26-015 cuts 3.8 m @ 11.2 g/t Au 250 m along strike",
+    "keyNumbers": [
+     "11.2 g/t"
+    ],
+    "whyItMatters": "Extends high grade along strike."
+   },
+   {
+    "date": "2026-01-21",
+    "headline": "Planning application lodged for Beinn Ruadh",
+    "keyNumbers": [
+     "Planning"
+    ],
+    "whyItMatters": "Starts the formal consent process."
+   },
+   {
+    "date": "2025-10-14",
+    "headline": "Mid-tier gold producer takes a 9.2% stake",
+    "keyNumbers": [
+     "£10M",
+     "9.2%"
+    ],
+    "whyItMatters": "A strategic partner."
+   }
+  ],
+  "catalysts": [
+   {
+    "label": "Beinn Ruadh Feasibility Study",
+    "impact": "Supports a construction decision on a small-footprint underground gold mine.",
+    "timing": "Q3 2027"
+   }
+  ],
+  "conference": {
+   "hook": "High-grade gold from the Scottish Highlands.",
+   "studio": {
+    "theme": "obsidian",
+    "accent": "",
+    "template": "vista"
+   },
+   "enabled": true,
+   "gallery": {
+    "overview": [
+     "/demo/ardven/a02.jpg"
+    ],
+    "results": [
+     "/demo/ardven/a41.jpg"
+    ],
+    "follow": [
+     "/demo/ardven/a03.jpg"
+    ],
+    "jurisdiction": [
+     "/demo/ardven/a13.jpg"
+    ],
+    "extra": [
+     "/demo/ardven/a04.jpg",
+     "/demo/ardven/a05.jpg",
+     "/demo/ardven/a06.jpg",
+     "/demo/ardven/a09.jpg",
+     "/demo/ardven/a10.jpg",
+     "/demo/ardven/a11.jpg",
+     "/demo/ardven/a14.jpg",
+     "/demo/ardven/a15.jpg",
+     "/demo/ardven/a16.jpg",
+     "/demo/ardven/a17.jpg",
+     "/demo/ardven/a18.jpg",
+     "/demo/ardven/a19.jpg",
+     "/demo/ardven/a20.jpg",
+     "/demo/ardven/a21.jpg",
+     "/demo/ardven/a22.jpg",
+     "/demo/ardven/a24.jpg",
+     "/demo/ardven/a25.jpg",
+     "/demo/ardven/a26.jpg",
+     "/demo/ardven/a27.jpg",
+     "/demo/ardven/a28.jpg",
+     "/demo/ardven/a29.jpg",
+     "/demo/ardven/a30.jpg",
+     "/demo/ardven/a31.jpg",
+     "/demo/ardven/a32.jpg",
+     "/demo/ardven/a33.jpg",
+     "/demo/ardven/a34.jpg",
+     "/demo/ardven/a35.jpg",
+     "/demo/ardven/a36.jpg",
+     "/demo/ardven/a37.jpg",
+     "/demo/ardven/a39.jpg",
+     "/demo/ardven/a42.jpg",
+     "/demo/ardven/a43.jpg",
+     "/demo/ardven/a44.jpg",
+     "/demo/ardven/a46.jpg",
+     "/demo/ardven/a47.jpg",
+     "/demo/ardven/a48.jpg",
+     "/demo/ardven/a50.jpg",
+     "/demo/ardven/a51.jpg",
+     "/demo/ardven/a52.jpg",
+     "/demo/ardven/a53.jpg",
+     "/demo/ardven/a54.jpg",
+     "/demo/ardven/a55.jpg",
+     "/demo/ardven/a56.jpg",
+     "/demo/ardven/a57.jpg",
+     "/demo/ardven/a58.jpg"
+    ]
+   },
+   "_derived": true,
+   "overview": "Ardven is advancing the high-grade Beinn Ruadh gold project in the Scottish Highlands.",
+   "highlights": [
+    {
+     "label": "Gold (M&I)",
+     "value": "1.12 Moz",
+     "context": "6.4 g/t Au",
+     "featured": true
+    },
+    {
+     "label": "Inferred",
+     "value": "0.43 Moz",
+     "context": "5.1 g/t Au",
+     "featured": false
+    },
+    {
+     "label": "Best intercept",
+     "value": "14.8 g/t",
+     "context": "over 5.1 m",
+     "featured": false
+    },
+    {
+     "label": "Land",
+     "value": "17,700 ha",
+     "context": "three projects",
+     "featured": false
+    },
+    {
+     "label": "Cash",
+     "value": "£34M",
+     "context": "no debt",
+     "featured": false
+    }
+   ],
+   "evidenceType": "drill_results",
+   "featuredGrade": {
+    "grade": "14.8 g/t Au",
+    "width": "5.1 m",
+    "context": "BR-25-022",
+    "location": "Beinn Ruadh"
+   },
+   "heroStatistic": {
+    "label": "Gold · Measured & Indicated",
+    "value": "1.12 Moz",
+    "context": "@ 6.4 g/t Au · 5.4 Mt"
+   },
+   "investmentCase": [
+    {
+     "reason": "Grade: 1.12 million ounces Measured & Indicated at 6.4 g/t gold, open at depth.",
+     "featured": true
+    },
+    {
+     "reason": "Footprint: planned as a small underground mine with a dry-stack tailings design.",
+     "featured": false
+    },
+    {
+     "reason": "Location: the Scottish Highlands, with road, grid and a regional airport within reach.",
+     "featured": false
+    },
+    {
+     "reason": "Funded: £34 million in cash and no debt through the Feasibility Study.",
+     "featured": false
+    }
+   ],
+   "projectGallery": {
+    "beinn-ruadh": [
+     "/demo/ardven/a08.jpg",
+     "/demo/ardven/a07.jpg",
+     "/demo/ardven/a40.jpg"
+    ]
+   },
+   "currentActivity": "Feasibility Study underway",
+   "featuredProjectKey": "beinn-ruadh",
+   "jurisdictionWidgets": {
+    "district": "Great Glen",
+    "commodity": "Gold",
+    "provinceState": "Highland"
+   }
+  },
+  "companyBrief": {
+   "headline": "High-grade gold from the Scottish Highlands.",
+   "keyPoints": [
+    "1.12 Moz @ 6.4 g/t Au M&I",
+    "Small-footprint underground mine",
+    "Feasibility Study underway",
+    "Strategic producer shareholder",
+    "£34M cash, no debt"
+   ],
+   "shortSummary": "A gold developer advancing Beinn Ruadh toward a construction decision.",
+   "businessDescription": "Ardven explores and develops high-grade gold in the Scottish Highlands."
+  },
+  "companyStatus": {
+   "expected": "Q3 2027",
+   "progressBar": {
+    "unit": "milestones",
+    "label": "2026–27 plan",
+    "total": 8,
+    "current": 5
+   },
+   "nextCatalyst": "Beinn Ruadh Feasibility Study",
+   "statusHeadline": "Feasibility Study underway at Beinn Ruadh",
+   "investmentImpact": "FS expected to support a construction decision."
+  },
+  "_demo": "FICTIONAL demo company for Conference Mode template previews. All names, figures and people are invented."
+ }
+}
