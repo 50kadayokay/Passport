@@ -42,7 +42,7 @@ Track junior mining news, drill results and company updates — every explorer a
 - **Privacy Policy URL:** https://passport-xi-five.vercel.app/privacy.html  ✅ live
 - **Terms of Use URL:** https://passport-xi-five.vercel.app/terms.html  ✅ live (governing law: Ontario, Canada)
 - **Support URL:** https://passport-xi-five.vercel.app/support.html  ✅ live
-- **Support email:** nitrospicexxx@gmail.com (V1; upgrade to support@mineex.ca later)
+- **Support email:** support@mineex.ca (switched 2026-10-05; V1 submitted with a personal address, since removed from every public page)
 - **Marketing URL (optional):** https://passport-xi-five.vercel.app
 
 ## Age rating (questionnaire answers → expected 4+)
