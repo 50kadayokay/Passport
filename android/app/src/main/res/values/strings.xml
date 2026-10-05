@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">MineEx</string>
+    <string name="title_activity_main">MineEx</string>
+    <string name="package_name">com.liquidjungle.mineex</string>
+    <string name="custom_url_scheme">com.liquidjungle.mineex</string>
+</resources>

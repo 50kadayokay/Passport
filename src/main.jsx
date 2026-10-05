@@ -5,9 +5,11 @@ import ReactDOM from "react-dom/client";
 import "./index.css";
 import { SUPABASE_URL, SUPABASE_ANON } from "./lib/supabase.js";
 import { useAuth } from "./auth/useAuth.js";
-import { signIn, signUp, requestPasswordReset, consumeHashSession, updatePassword, getUser, signInWithApple, signInWithGoogle, googleConfigured } from "./lib/auth.js";
+import { signIn, signUp, requestPasswordReset, consumeHashSession, updatePassword, getUser, signInWithApple, signInWithGoogle, googleConfigured, appleAvailable } from "./lib/auth.js";
 import * as investorData from "./lib/investorData.js";
 import { isNativeApp } from "./lib/platform.js";
+import { wireAndroidBack } from "./lib/androidBack.js"; // Android hardware back (no-op on web/iOS)
+import { useBackHandler } from "./lib/useBackHandler.js";
 import { SecureStorage } from "@aparajita/capacitor-secure-storage"; // iOS Keychain for "Remember me"
 
 // Surfaces are code-split so the marketing bundle stays lean:
@@ -16,16 +18,21 @@ const Admin = React.lazy(() => import("./admin/MissionControl.jsx"));         //
 const Portal = React.lazy(() => import("./portal/Portal.jsx"));               // Company Portal (desktop, paying companies)
 const Studio = React.lazy(() => import("./studio/Studio.tsx"));                // Story Studio (desktop, admin) — release → carousel/video
 const PortalGate = React.lazy(() => import("./portal/PortalGate.jsx"));       // resolves company + entitlement
-const EditorDemo = React.lazy(() => import("./portal/EditorDemo.jsx"));       // localhost-only editor harness
-const FeedDemo = React.lazy(() => import("./aiBrief/FeedDemo.jsx"));          // localhost-only Today-feed harness
-const PortalDemo = React.lazy(() => import("./portal/PortalDemo.jsx"));       // localhost-only portal-shell harness
+const EditorDemo = import.meta.env.DEV ? React.lazy(() => import("./portal/EditorDemo.jsx")) : null;       // localhost-only editor harness
+const FeedDemo = import.meta.env.DEV ? React.lazy(() => import("./aiBrief/FeedDemo.jsx")) : null;          // localhost-only Today-feed harness
+const PortalDemo = import.meta.env.DEV ? React.lazy(() => import("./portal/PortalDemo.jsx")) : null;       // localhost-only portal-shell harness
 const PostDetailRoute = React.lazy(() => import("./aiBrief/Feed.jsx").then((m) => ({ default: m.PostDetailRoute }))); // /p/<id> deep link
-const BlueprintDemo = React.lazy(() => import("./admin/blueprints/BlueprintDemo.jsx")); // /bpdemo — dev harness (no auth/DB), removable
-const OnboardDemo = React.lazy(() => import("./admin/onboarding/OnboardDemo.jsx")); // /onboarddemo — dev harness (no auth), removable
-const ConferenceV3Demo = React.lazy(() => import("./aiBrief/conferenceV3/ConferenceV3Demo.jsx")); // /confv3demo — dev harness (no auth), removable
+const BlueprintDemo = import.meta.env.DEV ? React.lazy(() => import("./admin/blueprints/BlueprintDemo.jsx")) : null; // /bpdemo — dev harness (no auth/DB), removable
+const OnboardDemo = import.meta.env.DEV ? React.lazy(() => import("./admin/onboarding/OnboardDemo.jsx")) : null; // /onboarddemo — dev harness (no auth), removable
+// /confv3demo — dev harness AND, for whitelisted demo slugs only, the renderer behind
+// the public Conference template gallery (see isPublicConfDemo below). It therefore
+// cannot be null in production, or every gallery tile renders a null component.
+// Still lazy, so the chunk is only fetched when the route actually renders; access is
+// restricted by the route gate, not by dropping the import.
+const ConferenceV3Demo = React.lazy(() => import("./aiBrief/conferenceV3/ConferenceV3Demo.jsx"));
 const ConferenceBooth = React.lazy(() => import("./aiBrief/conferenceV3/ConferenceV3Booth.jsx")); // /conference — PRODUCTION standalone iPad booth
 const InvestorDemo = React.lazy(() => import("./aiBrief/InvestorDemo.jsx")); // /appdemo — PRODUCTION chromeless investor-shell render for the marketing site phone (no auth, demo data)
-const ShowcaseTemplates = React.lazy(() => import("./marketing/ShowcaseTemplates.jsx")); // /templatesdemo — template showcase gallery (dev), removable
+const ShowcaseTemplates = import.meta.env.DEV ? React.lazy(() => import("./marketing/ShowcaseTemplates.jsx")) : null; // /templatesdemo — template showcase gallery (dev), removable
 // /studiodemo — dev harness (no auth/DB), removable. The lazy import is behind an
 // import.meta.env.DEV guard so a production build drops the chunk entirely, taking
 // the sample releases with it. Without the guard Rollup emits them as a fetchable
@@ -102,7 +109,7 @@ const isReset = path === "/reset" || path.startsWith("/reset");
 const isLocalhost = (() => {
   try { const h = window.location.hostname; return h === "localhost" || h === "127.0.0.1"; } catch (_) { return false; }
 })();
-const isBpDemo = path.startsWith("/bpdemo") && isLocalhost;
+const isBpDemo = path.startsWith("/bpdemo") && isLocalhost && import.meta.env.DEV;
 const isOnboardDemo = path.startsWith("/onboarddemo") && isLocalhost && import.meta.env.DEV;
 // Conference Mode template harness. It stays LOCALHOST + DEV only, with ONE narrow
 // exception the public marketing gallery depends on: a request for one of the fictional
@@ -146,6 +153,16 @@ const isLegacySite = path === "/site/legacy" || path.startsWith("/site/legacy/")
 const lazyFallback = (label) => (
   <div style={{ minHeight: "100dvh", display: "grid", placeItems: "center", background: "#f4f5f7", color: "#94a3b8" }}>Loading {label}…</div>
 );
+
+// Android hardware back, wired ONCE for every surface this entry renders.
+//
+// This cannot live inside a single screen component. @capacitor/app registers an
+// always-enabled OnBackPressedCallback, and when no JS "backButton" listener exists
+// AND the webview cannot go back it does nothing at all — swallowing the press and
+// trapping the user (e.g. on the signed-out welcome screen, where the investor app
+// component is not mounted). Wiring here guarantees a back contract always exists.
+// No-op unless the Capacitor platform is "android".
+wireAndroidBack();
 
 const root = ReactDOM.createRoot(document.getElementById("root"));
 
@@ -362,16 +379,18 @@ function InvestorAuth({ onSuccess, initialMode, onBack }) {
         </button>
       </form>
 
-      {isNativeApp && mode !== "forgot" && (
+      {isNativeApp && mode !== "forgot" && (appleAvailable() || googleConfigured()) && (
         <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 10 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <div style={{ flex: 1, height: 1, background: "#e2e8f0" }} />
             <span style={{ fontSize: 12, color: "#94a3b8", fontWeight: 600 }}>or</span>
             <div style={{ flex: 1, height: 1, background: "#e2e8f0" }} />
           </div>
-          <button type="button" onClick={() => social("apple")} disabled={busy} style={{ height: 50, borderRadius: 12, border: "none", background: "#0f172a", color: "#fff", fontSize: 15, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, opacity: busy ? 0.6 : 1 }}>
+          {appleAvailable() && (
+            <button type="button" onClick={() => social("apple")} disabled={busy} style={{ height: 50, borderRadius: 12, border: "none", background: "#0f172a", color: "#fff", fontSize: 15, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, opacity: busy ? 0.6 : 1 }}>
              Continue with Apple
           </button>
+          )}
           {googleConfigured() && (
             <button type="button" onClick={() => social("google")} disabled={busy} style={{ height: 50, borderRadius: 12, border: "1px solid #e2e8f0", background: "#fff", color: "#0f172a", fontSize: 15, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, opacity: busy ? 0.6 : 1 }}>
               <span style={{ fontSize: 16, fontWeight: 800, color: "#4285F4" }}>G</span> Continue with Google
@@ -620,6 +639,8 @@ function AppRoot() {
   // Pre-auth welcome flow: null = show the animated welcome intro; "signin"/"signup" =
   // the user picked an option, so render the auth form in that mode.
   const [authMode, setAuthMode] = useState(null);
+  // Android back: the sign-in/register form returns to the welcome intro.
+  useBackHandler(!!authMode, () => setAuthMode(null));
 
   // When a session appears, ask the cloud whether this investor has finished onboarding.
   // Fail-open (treat as done) on any error so a transient fetch failure never traps a

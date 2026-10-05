@@ -1,0 +1,46 @@
+{
+  "project_info": {
+    "project_number": "871146667116",
+    "project_id": "neon-lock-382802",
+    "storage_bucket": "neon-lock-382802.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:871146667116:android:a86de9c1f8de9e53552c49",
+        "android_client_info": {
+          "package_name": "com.liquidjungle.mineex"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "871146667116-jg4d1q5imn8fee4g41jv561m4j212nv1.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC7CDluanuLD7t0-GLxc9_FDIzYLXmTFhY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "871146667116-jg4d1q5imn8fee4g41jv561m4j212nv1.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "871146667116-5n20tj4gp1ajp1ssrj1e75er7534i2q5.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.liquidjungle.mineex"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -1,7 +1,8 @@
 // src/lib/push.js — device push registration (client side of the push system whose
 // backend is api/news-notify.js + api/news-push-send.js + migration 0025).
 //
-// iOS/native ONLY (a no-op on web). Requests permission, registers with APNs, and
+// NATIVE ONLY (a no-op on web). Requests permission, registers with the platform's
+// push service (APNs on iOS, FCM on Android), and
 // upserts the device token into public.push_tokens under the SIGNED-IN user (RLS
 // requires auth.uid() = user_id, so we send the user's id + the authed headers).
 // Best-effort + idempotent — safe to call on every app open.
@@ -16,23 +17,78 @@ function dbg(msg) { try { if (PUSH_DEBUG) window.alert("[push] " + msg); } catch
 
 let _listenersWired = false;
 
+// The last token this device registered, so logout can detach it without asking
+// the plugin again (the plugin may not answer once permission is gone).
+const TOKEN_KEY = "mineex.pushToken.v1";
+const rememberToken = (t) => { try { t ? localStorage.setItem(TOKEN_KEY, t) : localStorage.removeItem(TOKEN_KEY); } catch (_) {} };
+const lastToken = () => { try { return localStorage.getItem(TOKEN_KEY) || ""; } catch (_) { return ""; } };
+
+/**
+ * Detach THIS device from the signed-in user. Called on logout while the session
+ * is still valid (RLS needs auth.uid()).
+ *
+ * Scoped to (this user, this token): it cannot touch another account, and it
+ * cannot touch the same investor's OTHER devices, whose token strings differ.
+ */
+export async function unregisterPush() {
+  const token = lastToken();
+  if (!token) return;
+  try {
+    const headers = await authHeaders();
+    await fetch(`${SUPABASE_URL}/rest/v1/rpc/release_push_token`, {
+      method: "POST",
+      headers: { ...headers, "Content-Type": "application/json" },
+      body: JSON.stringify({ p_token: token }),
+    });
+    dbg("released push token on logout");
+  } catch (e) { dbg("release failed: " + (e && e.message)); }
+  rememberToken("");
+}
+
 async function saveToken(value) {
   try {
     const u = getUser();
     if (!u || !u.id || !value) { dbg("save skipped: user=" + (!!u) + " token=" + (!!value)); return; }
     const headers = await authHeaders();
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/push_tokens?on_conflict=user_id,token`, {
+    // claim_push_token (migration 0042) upserts for auth.uid() AND deletes rows
+    // holding the SAME token for any other user, atomically. RLS cannot do the
+    // second half from this session, and without it a device keeps receiving the
+    // previous account's notifications when that account never logged out cleanly.
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/claim_push_token`, {
       method: "POST",
-      headers: { ...headers, "Content-Type": "application/json", Prefer: "resolution=merge-duplicates,return=minimal" },
-      body: JSON.stringify([{ user_id: u.id, token: value, platform: "ios" }]),
+      headers: { ...headers, "Content-Type": "application/json" },
+      // The RECORDED platform is what the sender routes on, so it must be the real
+      // one — never a default. An 'ios' row means APNs, 'android' means FCM, and
+      // the sender refuses to guess for anything else.
+      body: JSON.stringify({ p_token: value, p_platform: Capacitor.getPlatform() }),
     });
     const body = res.ok ? "" : (" — " + (await res.text().catch(() => "")));
     dbg("save HTTP " + res.status + body);
+    if (res.ok) rememberToken(value);
   } catch (e) { dbg("save threw: " + (e && e.message)); }
 }
 
+// Android push is OFF until Firebase is actually configured for the build.
+//
+// This is a CRASH GUARD, not a feature flag. Verified on-device: calling
+// PushNotifications.register() on Android without google-services.json throws
+//   java.lang.IllegalStateException: Default FirebaseApp is not initialized
+// from PushNotificationsPlugin.register() — an uncaught NATIVE exception that
+// kills the process. A JS try/catch cannot intercept it. Because registerPush()
+// runs on every app open for a signed-in user, an unguarded call would crash
+// every Android user the moment they signed in.
+//
+// Set VITE_ANDROID_PUSH_ENABLED=true only once android/app/google-services.json
+// is in place. iOS and web are unaffected by this flag.
+const ANDROID_PUSH_ENABLED =
+  String((typeof import.meta !== "undefined" && import.meta.env && import.meta.env.VITE_ANDROID_PUSH_ENABLED) || "").toLowerCase() === "true";
+
 export async function registerPush() {
   if (!Capacitor.isNativePlatform()) return;   // native app only
+  if (Capacitor.getPlatform() === "android" && !ANDROID_PUSH_ENABLED) {
+    dbg("android push disabled — no Firebase config (VITE_ANDROID_PUSH_ENABLED not set)");
+    return;                                    // never reach register() -> never crash
+  }
   const user = getUser();
   if (!user || !user.id) { dbg("no user yet — will retry on sign-in"); return; }
 
@@ -42,8 +98,31 @@ export async function registerPush() {
       // APNs handed us a device token → persist it for the signed-in user.
       PushNotifications.addListener("registration", (token) => { dbg("APNs token: " + String(token && token.value).slice(0, 16) + "…"); saveToken(token && token.value); });
       PushNotifications.addListener("registrationError", (err) => { dbg("APNs registrationError: " + JSON.stringify(err)); });
-      // Tapping a notification (later: deep-link to the story/company via action.notification.data).
-      PushNotifications.addListener("pushNotificationActionPerformed", () => { /* bring app forward */ });
+      // Tapping a notification.
+      //
+      // iOS behaviour is deliberately UNCHANGED: it has always been a no-op that
+      // simply brings the app forward, and Phase 5 must not alter the shipping iOS
+      // pipeline. Android gets navigation, built on the routing the app already
+      // has — the `?c=<slug>` URL that loadSlug()/popstate in PassportProto.jsx
+      // already understand — rather than a second deep-link architecture.
+      PushNotifications.addListener("pushNotificationActionPerformed", (action) => {
+        try {
+          if (Capacitor.getPlatform() !== "android") return;     // iOS: unchanged no-op
+          const data = (action && action.notification && action.notification.data) || {};
+          const slug = data.company_slug ? String(data.company_slug) : "";
+          if (!slug) return;                                     // nothing to navigate to
+          const url = `/?c=${encodeURIComponent(slug)}`;
+          const mounted = !!(document.getElementById("root") && document.getElementById("root").children.length);
+          if (mounted && window.history && typeof window.history.pushState === "function") {
+            // Warm app (foreground/background): reuse the existing popstate route.
+            window.history.pushState({ c: slug }, "", url);
+            window.dispatchEvent(new PopStateEvent("popstate"));
+          } else {
+            // Cold start / terminated: let the app boot straight into the company.
+            window.location.assign(url);
+          }
+        } catch (_) { /* a tap must never crash the app */ }
+      });
     }
 
     let perm = await PushNotifications.checkPermissions();
@@ -53,6 +132,22 @@ export async function registerPush() {
       dbg("perm after request: " + perm.receive);
     }
     if (perm.receive !== "granted") { dbg("not granted — stop"); return; }
+
+    // Android 8+ drops any notification whose channel does not exist. The FCM
+    // payload we send sets android.notification.channel_id = "default", so the
+    // channel has to exist before the first message arrives. Creating it is
+    // idempotent; iOS has no channels and the call is skipped there.
+    if (Capacitor.getPlatform() === "android") {
+      try {
+        await PushNotifications.createChannel({
+          id: "default",
+          name: "Company news",
+          description: "Updates from companies you follow",
+          importance: 4,        // IMPORTANCE_HIGH — heads-up, matching APNs alert priority
+          visibility: 1,        // VISIBILITY_PUBLIC
+        });
+      } catch (e) { dbg("createChannel failed: " + (e && e.message)); }
+    }
 
     await PushNotifications.register();           // fires the "registration" listener above
     dbg("register() called");

@@ -1,0 +1,108 @@
+apply plugin: 'com.android.application'
+
+// Release signing credentials live OUTSIDE the repository and are never committed.
+// Resolution order:
+//   1. android/keystore.properties          (gitignored; may just point elsewhere)
+//   2. ~/.mineex-release/keystore.properties
+//   3. env vars MINEEX_STORE_FILE / _STORE_PASSWORD / _KEY_ALIAS / _KEY_PASSWORD  (CI)
+// If none resolve, the release build stays UNSIGNED rather than silently falling
+// back to the debug key — a debug-signed artifact must never reach Play.
+def loadSigning() {
+    def props = new Properties()
+    def candidates = [
+        file("keystore.properties"),
+        new File(System.getProperty("user.home"), ".mineex-release/keystore.properties"),
+    ]
+    for (f in candidates) {
+        if (f.exists()) { f.withInputStream { props.load(it) }; return props }
+    }
+    if (System.getenv("MINEEX_STORE_FILE")) {
+        props.setProperty("storeFile", System.getenv("MINEEX_STORE_FILE"))
+        props.setProperty("storePassword", System.getenv("MINEEX_STORE_PASSWORD") ?: "")
+        props.setProperty("keyAlias", System.getenv("MINEEX_KEY_ALIAS") ?: "mineex-upload")
+        props.setProperty("keyPassword", System.getenv("MINEEX_KEY_PASSWORD") ?: "")
+        return props
+    }
+    return null
+}
+def signingProps = loadSigning()
+
+android {
+    namespace = "com.liquidjungle.mineex"
+    compileSdk = rootProject.ext.compileSdkVersion
+    defaultConfig {
+        applicationId "com.liquidjungle.mineex"
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        versionCode 1
+        versionName "1.3.1"
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        aaptOptions {
+             // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
+             // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
+            // Stock Capacitor ignores, plus MineEx web assets that the MOBILE
+            // runtime never loads. Android-only: dist/ and the website are
+            // untouched, so mineex.ca keeps serving all of these.
+            //   marketing/                   1.8 MB of marketing-site imagery.
+            //                                MarketingSite renders at /site and is
+            //                                host-gated `!isNativeApp` at the root;
+            //                                nothing in the app links to it.
+            //   __design-system.html         internal design-system reference doc,
+            //                                referenced by NOTHING in the codebase.
+            //   kingsmen-resources-backup.json
+            //                                internal backup fetched only by
+            //                                src/admin/BlueprintReview.jsx, an
+            //                                admin surface gated DesktopOnly +
+            //                                requireAdmin — unreachable on mobile.
+            ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~:!marketing:!__design-system.html:!kingsmen-resources-backup.json'
+        }
+    }
+    signingConfigs {
+        release {
+            if (signingProps != null) {
+                storeFile file(signingProps.getProperty("storeFile"))
+                storePassword signingProps.getProperty("storePassword")
+                keyAlias signingProps.getProperty("keyAlias")
+                keyPassword signingProps.getProperty("keyPassword")
+            }
+        }
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            if (signingProps != null) {
+                signingConfig signingConfigs.release
+            }
+        }
+    }
+}
+
+repositories {
+    flatDir{
+        dirs '../capacitor-cordova-android-plugins/src/main/libs', 'libs'
+    }
+}
+
+dependencies {
+    implementation fileTree(include: ['*.jar'], dir: 'libs')
+    implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
+    implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
+    implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
+    implementation project(':capacitor-android')
+    testImplementation "junit:junit:$junitVersion"
+    androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
+    androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
+    implementation project(':capacitor-cordova-android-plugins')
+}
+
+apply from: 'capacitor.build.gradle'
+
+try {
+    def servicesJSON = file('google-services.json')
+    if (servicesJSON.text) {
+        apply plugin: 'com.google.gms.google-services'
+    }
+} catch(Exception e) {
+    logger.info("google-services.json not found, google-services plugin not applied. Push Notifications won't work")
+}

@@ -2,7 +2,8 @@
 // (rewritten in vercel.json). Serves server-rendered OG / Twitter Card meta tags
 // (crawlers don't run JS, so the tags must be in the HTML) pointing at the dynamic
 // og-news image, and bounces real humans into the app.
-const APP_URL = process.env.PUBLIC_APP_URL || "https://passport-xi-five.vercel.app";
+// Canonical public origin. PUBLIC_APP_URL still overrides for preview deploys.
+const APP_URL = process.env.PUBLIC_APP_URL || "https://mineex.ca";
 const esc = (s) => String(s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
 export default async function handler(req, res) {

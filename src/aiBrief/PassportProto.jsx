@@ -28,7 +28,7 @@ function demoFocusStyle(on, restShadow) {
   };
 }
 import { fetchCompany, SUPABASE_URL, SUPABASE_ANON } from "../lib/supabase.js";
-import { API_BASE } from "../lib/platform.js";
+import { API_BASE, isNativeApp } from "../lib/platform.js";
 import QRCode from "qrcode";
 import jsQR from "jsqr"; // pure-JS QR decode — works on iOS WebKit (BarcodeDetector doesn't)
 import { buildCompanyIdentity } from "./proHighlights.js";
@@ -64,6 +64,8 @@ import {
 } from "lucide-react";
 import { signOut, getUser, getAccessToken, authHeaders, onAuthChange, requestPasswordReset } from "../lib/auth.js";
 import { registerPush } from "../lib/push.js"; // native push registration (no-op on web)
+import { shareContent, shouldFallback, companyShareUrl } from "../lib/share.js"; // native share sheet on Android; unchanged on iOS/web
+import { useBackHandler, BACK_PRIORITY } from "../lib/useBackHandler.js"; // Android hardware back (inert on web/iOS)
 import * as investorData from "../lib/investorData.js";
 import * as discovery from "../lib/discovery.js";
 import { mockEnabled, buildMockNewsroom, disableMock } from "./mockNewsroom.js"; // DEV-ONLY Mock Newsroom (delete to remove)
@@ -213,12 +215,12 @@ function cardMediaId(kindOrLabel) {
   if (k.includes("result") || k.includes("drill")) return "results";
   return "";
 }
-let LOGO = _PP.LOGO ?? "/pp/545724a2f100.png";
-export let AVATAR = _PP.AVATAR ?? "/pp/4e1436db553e.jpg";
-let SITE_PHOTO = _PP.SITE_PHOTO ?? "/pp/79bb21e9608e.jpg"; // Las Coloradas drone photo (square, 720px crisp)
-let KR_AVATAR = _PP.KR_AVATAR ?? "/pp/d3164526c306.jpg";
-export let STATUS_IMG = _PP.STATUS_IMG ?? "/pp/63d4d541c9aa.jpg";
-let STATUS_LOGO = _PP.STATUS_LOGO ?? "/pp/7597d6795ca1.png";
+let LOGO = _PP.LOGO ?? "/kingsmen-fixture/00-logo.png";
+export let AVATAR = _PP.AVATAR ?? "/kingsmen-fixture/01-avatar.jpeg";
+let SITE_PHOTO = _PP.SITE_PHOTO ?? "/kingsmen-fixture/02-site-photo.jpeg"; // Las Coloradas drone photo (square, 720px crisp)
+let KR_AVATAR = _PP.KR_AVATAR ?? "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
+export let STATUS_IMG = _PP.STATUS_IMG ?? "/kingsmen-fixture/04-status-img.jpeg";
+let STATUS_LOGO = _PP.STATUS_LOGO ?? "/kingsmen-fixture/05-status-logo.png";
 
 export let COMPANY = _PP.COMPANY ?? {
   name: "Kingsmen Resources",
@@ -245,7 +247,7 @@ export let COMPANY = _PP.COMPANY ?? {
 // so headings like the AI Brief read naturally for any company.
 export const shortCo = (n) => String(n || "").replace(/\s+(Resources?|Corp(oration)?|Inc(orporated)?|Ltd|Limited|PLC|Mining|Metals|Minerals|Exploration|Gold|Silver|Copper|Co)\.?$/i, "").trim() || String(n || "Company");
 
-export let TEAM_MEMBERS = _PP.TEAM_MEMBERS ?? [{"name": "Scott Emerson", "role": "President, CEO & Director", "initials": "SE", "short": "Resource and technology executive with senior management and directorship experience across finance, business development, strategic planning and corporate restructuring.", "full": "Scott Emerson brings extensive experience in public company leadership across the resource and technology sectors. Throughout his career, he has held senior executive and director-level positions focused on corporate finance, business development, strategic planning, and corporate restructuring.\n\nMr. Emerson was involved with International Mahogany and the Jolu Mine and was the founding President of Golden Peaks Resources, where he led operations in South America for 18 years. His broad experience spans the financial, regulatory, legal, and accounting matters that are critical to the successful growth and governance of publicly traded companies.\n\nHis leadership has been instrumental in identifying, advancing, and financing resource opportunities while building long-term value for shareholders.", "photo": "/pp/9f91a5d289a1.jpg"}, {"name": "Rodney B. Johnston", "role": "Director", "initials": "RJ", "short": "FCPA, FCA who retired from PricewaterhouseCoopers LLP after 35 years in British Columbia, the final 25 as a partner, advising mining companies and capital-markets financings.", "full": "Rodney Johnston is a seasoned financial executive with more than 35 years of experience in accounting, taxation, and capital markets advisory services. He retired from PricewaterhouseCoopers LLP after a distinguished career in British Columbia, including 25 years as a partner.\n\nMr. Johnston previously served as President and Chief Executive Officer of a private real estate investment trust focused on U.S. commercial real estate. Throughout his career, he has advised companies across a broad range of industries on financing, taxation, and strategic financial matters, with significant experience supporting mining companies and resource issuers.\n\nHe holds a Bachelor of Commerce degree from the University of British Columbia and is a member in good standing of the Chartered Professional Accountants of British Columbia.", "photo": "/pp/681b1dff42e8.jpg"}, {"name": "Nick DeMare", "role": "CFO & Director", "initials": "ND", "short": "President of Chase since 1991, providing accounting, compliance and corporate secretarial services to companies listed on the Toronto and TSX Venture Exchanges.", "full": "Nick DeMare has over three decades of experience providing financial management, corporate governance, and regulatory compliance services to publicly listed companies.\n\nSince 1991, he has served as President of Chase Management Ltd., a private firm specializing in accounting, securities compliance, corporate secretarial, and administrative services for companies listed on the Toronto Stock Exchange and TSX Venture Exchange. He also serves as an officer and director of numerous publicly traded companies.\n\nMr. DeMare holds a Bachelor of Commerce degree from the University of British Columbia and is a member in good standing of the Chartered Professional Accountants of British Columbia.", "photo": "/pp/277389a1059f.jpg"}, {"name": "Kieran Downes", "role": "Director", "initials": "KD", "short": "Professional Geologist with over 40 years of diversified experience in gold, base metals, uranium and diamond exploration; Ph.D. in Geology, Dublin University.", "full": "Dr. Kieran Downes is a Professional Geologist with more than 40 years of international experience in mineral exploration and project evaluation. His expertise spans gold, base metals, uranium, and diamond exploration programs across a diverse range of geological environments.\n\nDr. Downes earned a B.Sc. (Honours) in Geology from University College Galway and a Ph.D. in Geology from Dublin University. Following his doctoral studies, he served as a Post-Doctoral Fellow at the Institute for Industrial Research & Standards in Dublin.\n\nA registered Professional Geologist in British Columbia, Dr. Downes is also President of Tristia Ventures Corp., where he provides consulting services in mineral exploration, property valuation, and geochemistry.", "photo": "/pp/58d5963f1484.jpg"}, {"name": "Mark J. Pryor", "role": "Director", "initials": "MP", "short": "Distinguished geologist with a 40-year track record advancing precious-metal projects, including the Los Gatos Mine in the central Mexican silver belt.", "full": "Mark Pryor is a highly respected geologist with more than 40 years of experience advancing precious metals projects from exploration through development.\n\nThroughout his career, he has played a key role in the evaluation and advancement of numerous brownfield mining projects, including the Los Gatos Mine in Mexico's prolific Central Mexican Silver Belt. His extensive technical and operational experience has been developed through senior roles with leading mining organizations, including The Electrum Group, Anglo American, Placer Dome, and Antofagasta Minerals.\n\nMr. Pryor brings deep expertise in project generation, exploration strategy, and resource development, with a proven track record of identifying and advancing high-quality mineral assets.", "photo": "/pp/d83f4cc14397.jpg"}, {"name": "Carlos Garza Moriel", "role": "Director", "initials": "CG", "short": "Industrial and Systems Engineer and mining consultant focused on concessions, community relations and the operational processes of mineral exploration across Mexico.", "full": "Carlos Garza Moriel is an Industrial and Systems Engineer with extensive experience in mineral exploration, mining operations, and project management throughout Mexico.\n\nAs a principal of a mining consulting firm, Mr. Garza has been involved in numerous exploration programs, specializing in the acquisition, administration, and management of mining concessions. His expertise also includes community relations, permitting, operational planning, and the execution of mineral exploration programs.\n\nIn addition to exploration activities, Mr. Garza has direct experience in mineral production, processing, and commercialization, providing a comprehensive understanding of the mining industry's technical and operational requirements.", "photo": "/pp/3e00b312e58e.jpg"}, {"name": "Perla Cortes Garcia", "role": "Project Geologist", "initials": "PC", "short": "Geologist with over 15 years in exploration and resource development in Mexico, and the onsite project geologist for Kingsmen at Las Coloradas.", "full": "Perla Cortes Garcia is an exploration geologist with more than 15 years of experience in mineral exploration and resource development throughout Mexico.\n\nBased in Pachuca, Hidalgo, Ms. Garcia holds a degree in Environmental Geology Engineering from the Universidad Autónoma del Estado de Hidalgo. Her work has focused on advancing exploration programs from early-stage target generation through field execution and project evaluation.\n\nMs. Garcia is committed to fostering safe, inclusive, and collaborative working environments while creating opportunities for local communities to participate in exploration and resource development initiatives.\n\nAs Project Geologist for Kingsmen Resources, she has played a key role in overseeing field operations and exploration activities at the Company's Las Coloradas Project in Chihuahua, Mexico.", "photo": "/pp/39e4db6f2699.jpg"}];
+export let TEAM_MEMBERS = _PP.TEAM_MEMBERS ?? [{"name": "Scott Emerson", "role": "President, CEO & Director", "initials": "SE", "short": "Resource and technology executive with senior management and directorship experience across finance, business development, strategic planning and corporate restructuring.", "full": "Scott Emerson brings extensive experience in public company leadership across the resource and technology sectors. Throughout his career, he has held senior executive and director-level positions focused on corporate finance, business development, strategic planning, and corporate restructuring.\n\nMr. Emerson was involved with International Mahogany and the Jolu Mine and was the founding President of Golden Peaks Resources, where he led operations in South America for 18 years. His broad experience spans the financial, regulatory, legal, and accounting matters that are critical to the successful growth and governance of publicly traded companies.\n\nHis leadership has been instrumental in identifying, advancing, and financing resource opportunities while building long-term value for shareholders.", "photo": "https://rvptronniomlqumjhyrr.supabase.co/storage/v1/object/public/company-media/kingsmen/portrait-0-photo-0.jpg"}, {"name": "Rodney B. Johnston", "role": "Director", "initials": "RJ", "short": "FCPA, FCA who retired from PricewaterhouseCoopers LLP after 35 years in British Columbia, the final 25 as a partner, advising mining companies and capital-markets financings.", "full": "Rodney Johnston is a seasoned financial executive with more than 35 years of experience in accounting, taxation, and capital markets advisory services. He retired from PricewaterhouseCoopers LLP after a distinguished career in British Columbia, including 25 years as a partner.\n\nMr. Johnston previously served as President and Chief Executive Officer of a private real estate investment trust focused on U.S. commercial real estate. Throughout his career, he has advised companies across a broad range of industries on financing, taxation, and strategic financial matters, with significant experience supporting mining companies and resource issuers.\n\nHe holds a Bachelor of Commerce degree from the University of British Columbia and is a member in good standing of the Chartered Professional Accountants of British Columbia.", "photo": "https://rvptronniomlqumjhyrr.supabase.co/storage/v1/object/public/company-media/kingsmen/portrait-1-photo-1.jpg"}, {"name": "Nick DeMare", "role": "CFO & Director", "initials": "ND", "short": "President of Chase since 1991, providing accounting, compliance and corporate secretarial services to companies listed on the Toronto and TSX Venture Exchanges.", "full": "Nick DeMare has over three decades of experience providing financial management, corporate governance, and regulatory compliance services to publicly listed companies.\n\nSince 1991, he has served as President of Chase Management Ltd., a private firm specializing in accounting, securities compliance, corporate secretarial, and administrative services for companies listed on the Toronto Stock Exchange and TSX Venture Exchange. He also serves as an officer and director of numerous publicly traded companies.\n\nMr. DeMare holds a Bachelor of Commerce degree from the University of British Columbia and is a member in good standing of the Chartered Professional Accountants of British Columbia.", "photo": "https://rvptronniomlqumjhyrr.supabase.co/storage/v1/object/public/company-media/kingsmen/portrait-2-photo-2.jpg"}, {"name": "Kieran Downes", "role": "Director", "initials": "KD", "short": "Professional Geologist with over 40 years of diversified experience in gold, base metals, uranium and diamond exploration; Ph.D. in Geology, Dublin University.", "full": "Dr. Kieran Downes is a Professional Geologist with more than 40 years of international experience in mineral exploration and project evaluation. His expertise spans gold, base metals, uranium, and diamond exploration programs across a diverse range of geological environments.\n\nDr. Downes earned a B.Sc. (Honours) in Geology from University College Galway and a Ph.D. in Geology from Dublin University. Following his doctoral studies, he served as a Post-Doctoral Fellow at the Institute for Industrial Research & Standards in Dublin.\n\nA registered Professional Geologist in British Columbia, Dr. Downes is also President of Tristia Ventures Corp., where he provides consulting services in mineral exploration, property valuation, and geochemistry.", "photo": "https://rvptronniomlqumjhyrr.supabase.co/storage/v1/object/public/company-media/kingsmen/portrait-3-photo-3.jpg"}, {"name": "Mark J. Pryor", "role": "Director", "initials": "MP", "short": "Distinguished geologist with a 40-year track record advancing precious-metal projects, including the Los Gatos Mine in the central Mexican silver belt.", "full": "Mark Pryor is a highly respected geologist with more than 40 years of experience advancing precious metals projects from exploration through development.\n\nThroughout his career, he has played a key role in the evaluation and advancement of numerous brownfield mining projects, including the Los Gatos Mine in Mexico's prolific Central Mexican Silver Belt. His extensive technical and operational experience has been developed through senior roles with leading mining organizations, including The Electrum Group, Anglo American, Placer Dome, and Antofagasta Minerals.\n\nMr. Pryor brings deep expertise in project generation, exploration strategy, and resource development, with a proven track record of identifying and advancing high-quality mineral assets.", "photo": "https://rvptronniomlqumjhyrr.supabase.co/storage/v1/object/public/company-media/kingsmen/portrait-4-photo-4.jpg"}, {"name": "Carlos Garza Moriel", "role": "Director", "initials": "CG", "short": "Industrial and Systems Engineer and mining consultant focused on concessions, community relations and the operational processes of mineral exploration across Mexico.", "full": "Carlos Garza Moriel is an Industrial and Systems Engineer with extensive experience in mineral exploration, mining operations, and project management throughout Mexico.\n\nAs a principal of a mining consulting firm, Mr. Garza has been involved in numerous exploration programs, specializing in the acquisition, administration, and management of mining concessions. His expertise also includes community relations, permitting, operational planning, and the execution of mineral exploration programs.\n\nIn addition to exploration activities, Mr. Garza has direct experience in mineral production, processing, and commercialization, providing a comprehensive understanding of the mining industry's technical and operational requirements.", "photo": "https://rvptronniomlqumjhyrr.supabase.co/storage/v1/object/public/company-media/kingsmen/portrait-5-photo-5.jpg"}, {"name": "Perla Cortes Garcia", "role": "Project Geologist", "initials": "PC", "short": "Geologist with over 15 years in exploration and resource development in Mexico, and the onsite project geologist for Kingsmen at Las Coloradas.", "full": "Perla Cortes Garcia is an exploration geologist with more than 15 years of experience in mineral exploration and resource development throughout Mexico.\n\nBased in Pachuca, Hidalgo, Ms. Garcia holds a degree in Environmental Geology Engineering from the Universidad Autónoma del Estado de Hidalgo. Her work has focused on advancing exploration programs from early-stage target generation through field execution and project evaluation.\n\nMs. Garcia is committed to fostering safe, inclusive, and collaborative working environments while creating opportunities for local communities to participate in exploration and resource development initiatives.\n\nAs Project Geologist for Kingsmen Resources, she has played a key role in overseeing field operations and exploration activities at the Company's Las Coloradas Project in Chihuahua, Mexico.", "photo": "https://rvptronniomlqumjhyrr.supabase.co/storage/v1/object/public/company-media/kingsmen/portrait-6-photo-6.jpg"}];
 
 export let CAP = _PP.CAP ?? {"rows": [{"sec": "Common Shares Outstanding", "det": "—", "qty": "34,523,086"}, {"sec": "Options", "det": "$0.36 exercise", "qty": "1,650,000"}, {"sec": "Options", "det": "$1.90 exercise", "qty": "108,300"}, {"sec": "Warrants", "det": "$0.40 · Nov 2026", "qty": "3,306,000"}, {"sec": "Warrants", "det": "$1.05 · May 2027", "qty": "778,195"}, {"sec": "Warrants", "det": "$1.90 · Nov 2027", "qty": "1,679,114"}, {"sec": "Warrants", "det": "$3.00 · Jan 2029", "qty": "2,888,889"}], "outstanding": "34,523,086", "fd": "44,933,584", "debt": "$0"};
 
@@ -1173,6 +1175,12 @@ function Overview({ tab, goto, openBrief, following, setFollowing, bookmarked, s
 
   // Animated thesis checklist — collapsible; one continuous emerald line descends when opened.
   const [whyFollowOpen, setWhyFollowOpen] = useState(false);
+  // Android back: close the topmost sheet/overlay before anything else.
+  useBackHandler(!!(photoOpen || whyOpen || whyFollowOpen), () => {
+    if (photoOpen) return setPhotoOpen(false);
+    if (whyOpen) return setWhyOpen(false);
+    setWhyFollowOpen(false);
+  });
   const [drawn, setDrawn] = useState(false);
   const LINE_MS = 1000; // descent duration
   const railRef = useRef(null);
@@ -1508,6 +1516,8 @@ function defaultQuarterFor(year) {
 
 function TimelineView() {
   const [detail, setDetail] = useState(null);   // { yi, ii } | null
+  // Android back: a press-release detail returns to the timeline list.
+  useBackHandler(!!detail, () => setDetail(null));
   const [showFull, setShowFull] = useState(false);
   const _demo = useContext(DemoCtx);   // demo: open a milestone's detail on command (inert in production)
   // Resolve the target milestone by its stable id (e.g. "2026-01-19") so the demo
@@ -2661,9 +2671,12 @@ function MediaViewer({ posts, start, onClose }) {
   const share = async (p) => {
     haptic();
     let slug = ""; try { slug = new URLSearchParams(window.location.search).get("c") || ""; } catch (_) {}
-    const url = "https://passport-xi-five.vercel.app/app" + (slug ? `?c=${encodeURIComponent(slug)}` : "");
+    const url = companyShareUrl(slug);   // canonical mineex.ca link (R6)
     const data = { title: p.title || COMPANY.name, text: p.title || COMPANY.name, url };
-    try { if (navigator.share) { await navigator.share(data); return; } } catch (_) { return; }
+    // Android gets the native share sheet; iOS/web keep navigator.share. A
+    // cancelled sheet ends here — it must NOT copy to the clipboard.
+    const r = await shareContent(data);
+    if (!shouldFallback(r)) return;
     try { await navigator.clipboard.writeText(url); flash("Link copied"); } catch (_) { flash("Couldn’t share"); }
   };
 
@@ -2752,6 +2765,8 @@ function MediaViewer({ posts, start, onClose }) {
 
 function UpdatesView() {
   const [viewer, setViewer] = useState(null);  // media viewer start index
+  // Android back: the media viewer returns to the media grid.
+  useBackHandler(viewer != null, () => setViewer(null));
   const _demo = useContext(DemoCtx);   // demo: open the media viewer on command (inert in production)
   useEffect(() => { if (!_demo) return; setViewer(_demo.sheet === "media:viewer" ? 0 : null); }, [_demo && _demo.sheet]);
 
@@ -3083,6 +3098,8 @@ function CapitalView() {
   // Single sheet controller — null, or one of:
   // "structure" | "ownership" | "financing" | "finDetails" | "aiSummary"
   const [sheet, setSheet] = useState(null);
+  // Android back: close the capital detail sheet.
+  useBackHandler(!!sheet, () => setSheet(null));
   const [listing, setListing] = useState(null);
   const [metricKey, setMetricKey] = useState(null);
   const [eduKey, setEduKey] = useState(null);
@@ -3541,21 +3558,21 @@ function CapitalView() {
 /* ---- Las Coloradas detail content (carousel + wallet pills + AI brief) ---- */
 // To use real photos, add a `src` (base64 or URL) to any slide below.
 const LC_GALLERY = [
-  { kicker: "Las Coloradas", label: "On Site", src: "/pp/2f3518a0d7a5.webp" },
-  { kicker: "Las Coloradas", label: "On Site", src: "/pp/4c2f250422fb.webp" },
-  { kicker: "Las Coloradas", label: "On Site", src: "/pp/7ecefb2b5a34.webp" },
-  { kicker: "Las Coloradas", label: "On Site", src: "/pp/b51a9481689f.webp" },
-  { kicker: "Las Coloradas", label: "On Site", src: "/pp/9d85aad4dc85.webp" },
-  { kicker: "Las Coloradas", label: "On Site", src: "/pp/1925e863e7fc.webp" },
-  { kicker: "Las Coloradas", label: "On Site", src: "/pp/f04e94b5024b.webp" },
-  { kicker: "Las Coloradas", label: "On Site", src: "/pp/bfb72023352b.webp" },
-  { kicker: "Las Coloradas", label: "On Site", src: "/pp/17428211c009.webp" },
-  { kicker: "Las Coloradas", label: "On Site", src: "/pp/5995ed048e94.webp" },
-  { kicker: "Las Coloradas", label: "On Site", src: "/pp/2ee5a29f7d61.webp" },
-  { kicker: "Las Coloradas", label: "On Site", src: "/pp/0146a8147538.webp" },
-  { kicker: "2026 Program", label: "Drill Program \u00b7 Aerial", src: "/pp/5f6772aa6c46.webp" },
-  { kicker: "2026 Program", label: "Core Drill Rig", src: "/pp/ebfc8d52b9bd.webp" },
-  { kicker: "2026 Program", label: "Active Drill Site", src: "/pp/faff7869b339.webp" },
+  { kicker: "Las Coloradas", label: "On Site", src: "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" },
+  { kicker: "Las Coloradas", label: "On Site", src: "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" },
+  { kicker: "Las Coloradas", label: "On Site", src: "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" },
+  { kicker: "Las Coloradas", label: "On Site", src: "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" },
+  { kicker: "Las Coloradas", label: "On Site", src: "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" },
+  { kicker: "Las Coloradas", label: "On Site", src: "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" },
+  { kicker: "Las Coloradas", label: "On Site", src: "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" },
+  { kicker: "Las Coloradas", label: "On Site", src: "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" },
+  { kicker: "Las Coloradas", label: "On Site", src: "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" },
+  { kicker: "Las Coloradas", label: "On Site", src: "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" },
+  { kicker: "Las Coloradas", label: "On Site", src: "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" },
+  { kicker: "Las Coloradas", label: "On Site", src: "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" },
+  { kicker: "2026 Program", label: "Drill Program \u00b7 Aerial", src: "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" },
+  { kicker: "2026 Program", label: "Core Drill Rig", src: "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" },
+  { kicker: "2026 Program", label: "Active Drill Site", src: "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" },
 ];
 
 // ===== Updates feed data =====
@@ -3597,11 +3614,11 @@ let UPDATE_POSTS = _PP.UPDATE_POSTS ?? [
 
 
 const AM_GALLERY = [
-  { kicker: "Almoloya", label: "Property Valley View", src: "/pp/ae3919f716c4.webp" },
-  { kicker: "Almoloya", label: "Ridge & Haul Road", src: "/pp/a1dbda971064.webp" },
-  { kicker: "Almoloya", label: "Valley Panorama", src: "/pp/0fee6f729710.webp" },
-  { kicker: "Almoloya", label: "Mountain Approach", src: "/pp/0991a0184346.webp" },
-  { kicker: "Almoloya", label: "Desert Terrain", src: "/pp/db463dde0a72.webp" },
+  { kicker: "Almoloya", label: "Property Valley View", src: "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" },
+  { kicker: "Almoloya", label: "Ridge & Haul Road", src: "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" },
+  { kicker: "Almoloya", label: "Valley Panorama", src: "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" },
+  { kicker: "Almoloya", label: "Mountain Approach", src: "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" },
+  { kicker: "Almoloya", label: "Desert Terrain", src: "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" },
 ];
 
 const LC_PILLS = [
@@ -3641,30 +3658,32 @@ const GLASS = {
 
 // Las Coloradas site photos — replaces the map in the project detail view.
 const LC_SITE_GALLERY = [
-  { kicker: "2026 Drill Program", label: "Active Drill Site",      src: "/pp/dc7eda1c149f.webp" },
-  { kicker: "Historic District",  label: "Colonial-Era Workings",  src: "/pp/3aea642c72e0.webp" },
-  { kicker: "Historic District",  label: "Historic Adit",          src: "/pp/4a8b07af59ae.webp" },
+  { kicker: "2026 Drill Program", label: "Active Drill Site",      src: "https://rvptronniomlqumjhyrr.supabase.co/storage/v1/object/public/company-media/kingsmen/site-7-active-drill-site.webp" },
+  { kicker: "Historic District",  label: "Colonial-Era Workings",  src: "https://rvptronniomlqumjhyrr.supabase.co/storage/v1/object/public/company-media/kingsmen/site-8-colonial-era-workings.webp" },
+  { kicker: "Historic District",  label: "Historic Adit",          src: "https://rvptronniomlqumjhyrr.supabase.co/storage/v1/object/public/company-media/kingsmen/site-9-historic-adit.webp" },
 
-  { kicker: "Site Visit", label: "Field Review", src: "/pp/3f3cf242ee6d.webp" },
-  { kicker: "Historic District", label: "Mine Adit", src: "/pp/071dfc60c9c0.webp" },
-  { kicker: "Site Visit", label: "Waste Rock Dump", src: "/pp/e1c7b7d81b4c.webp" },
-  { kicker: "Field Work", label: "Surface Sampling", src: "/pp/e4ae40c44c7b.webp" },
-  { kicker: "Historic District", label: "Timbered Workings", src: "/pp/f0626cf2d26e.webp" },
-  { kicker: "Historic District", label: "Historic Shaft", src: "/pp/498ab5a69455.webp" },
-  { kicker: "Aerial View", label: "Mine Workings", src: "/pp/0c2de300630c.webp" },
-  { kicker: "Aerial View", label: "District Overview", src: "/pp/69fdfbcf2853.webp" },
-  { kicker: "2026 Drill Program", label: "Drill Site Aerial", src: "/pp/e5190888e65b.webp" },
-  { kicker: "2026 Drill Program", label: "Drill Rig", src: "/pp/22a0ce2ea606.webp" },
-  { kicker: "2026 Drill Program", label: "Core Drilling", src: "/pp/6d2e65559698.webp" },
-  { kicker: "2026 Drill Program", label: "Rig Setup", src: "/pp/d3770dbf020b.webp" },
-  { kicker: "2026 Drill Program", label: "Drill Camp", src: "/pp/14473c850148.webp" },
-  { kicker: "2026 Drill Program", label: "Site Camp", src: "/pp/8a089466e7c9.webp" },];
+  { kicker: "Site Visit", label: "Field Review", src: "https://rvptronniomlqumjhyrr.supabase.co/storage/v1/object/public/company-media/kingsmen/site-10-field-review.webp" },
+  { kicker: "Historic District", label: "Mine Adit", src: "https://rvptronniomlqumjhyrr.supabase.co/storage/v1/object/public/company-media/kingsmen/site-11-mine-adit.webp" },
+  { kicker: "Site Visit", label: "Waste Rock Dump", src: "https://rvptronniomlqumjhyrr.supabase.co/storage/v1/object/public/company-media/kingsmen/site-12-waste-rock-dump.webp" },
+  { kicker: "Field Work", label: "Surface Sampling", src: "https://rvptronniomlqumjhyrr.supabase.co/storage/v1/object/public/company-media/kingsmen/site-13-surface-sampling.webp" },
+  { kicker: "Historic District", label: "Timbered Workings", src: "https://rvptronniomlqumjhyrr.supabase.co/storage/v1/object/public/company-media/kingsmen/site-14-timbered-workings.webp" },
+  { kicker: "Historic District", label: "Historic Shaft", src: "https://rvptronniomlqumjhyrr.supabase.co/storage/v1/object/public/company-media/kingsmen/site-15-historic-shaft.webp" },
+  { kicker: "Aerial View", label: "Mine Workings", src: "https://rvptronniomlqumjhyrr.supabase.co/storage/v1/object/public/company-media/kingsmen/site-16-mine-workings.webp" },
+  { kicker: "Aerial View", label: "District Overview", src: "https://rvptronniomlqumjhyrr.supabase.co/storage/v1/object/public/company-media/kingsmen/site-17-district-overview.webp" },
+  { kicker: "2026 Drill Program", label: "Drill Site Aerial", src: "https://rvptronniomlqumjhyrr.supabase.co/storage/v1/object/public/company-media/kingsmen/site-18-drill-site-aerial.webp" },
+  { kicker: "2026 Drill Program", label: "Drill Rig", src: "https://rvptronniomlqumjhyrr.supabase.co/storage/v1/object/public/company-media/kingsmen/site-19-drill-rig.webp" },
+  { kicker: "2026 Drill Program", label: "Core Drilling", src: "https://rvptronniomlqumjhyrr.supabase.co/storage/v1/object/public/company-media/kingsmen/site-20-core-drilling.webp" },
+  { kicker: "2026 Drill Program", label: "Rig Setup", src: "https://rvptronniomlqumjhyrr.supabase.co/storage/v1/object/public/company-media/kingsmen/site-21-rig-setup.webp" },
+  { kicker: "2026 Drill Program", label: "Drill Camp", src: "https://rvptronniomlqumjhyrr.supabase.co/storage/v1/object/public/company-media/kingsmen/site-22-drill-camp.webp" },
+  { kicker: "2026 Drill Program", label: "Site Camp", src: "https://rvptronniomlqumjhyrr.supabase.co/storage/v1/object/public/company-media/kingsmen/site-23-site-camp.webp" },];
 
 // Swipeable photo carousel (tile + fullscreen lightbox). Tap a photo to expand;
 // the > control advances and loops; X closes the lightbox.
 function ProjectGallery({ slides }) {
   const [idx, setIdx] = useState(0);        // tile position
   const [open, setOpen] = useState(false);
+  // Android back: close the project-image lightbox.
+  useBackHandler(open, () => setOpen(false));
   const [expIdx, setExpIdx] = useState(0);  // lightbox position
   const ref = useRef(null);
   const expRef = useRef(null);
@@ -3903,14 +3922,14 @@ function StageTrack({ idx, tone, toneSoft, interactive }) {
 }
 
 const AM_SITE_GALLERY = [
-  { kicker: "Parral District", label: "District Terrain", src: "/pp/85671683a294.webp" },
-  { kicker: "Parral District", label: "Property Ridge", src: "/pp/95c68e076e18.webp" },
-  { kicker: "Parral District", label: "District Panorama", src: "/pp/bc6bc887ec4f.webp" },
-  { kicker: "Sierra de Almoloya", label: "Mountain Front", src: "/pp/1e4288161f51.webp" },
-  { kicker: "Sierra de Almoloya", label: "Ridgeline Approach", src: "/pp/96270f949132.webp" },
-  { kicker: "Sierra de Almoloya", label: "Historic Stone Wall", src: "/pp/d8c69cb0c1df.webp" },
-  { kicker: "Sierra de Almoloya", label: "Valley Floor", src: "/pp/b02c49dd8bde.webp" },
-  { kicker: "Sierra de Almoloya", label: "Desert Terrain", src: "/pp/6c728662ded0.webp" },
+  { kicker: "Parral District", label: "District Terrain", src: "https://rvptronniomlqumjhyrr.supabase.co/storage/v1/object/public/company-media/kingsmen/site-24-district-terrain.webp" },
+  { kicker: "Parral District", label: "Property Ridge", src: "https://rvptronniomlqumjhyrr.supabase.co/storage/v1/object/public/company-media/kingsmen/site-25-property-ridge.webp" },
+  { kicker: "Parral District", label: "District Panorama", src: "https://rvptronniomlqumjhyrr.supabase.co/storage/v1/object/public/company-media/kingsmen/site-26-district-panorama.webp" },
+  { kicker: "Sierra de Almoloya", label: "Mountain Front", src: "https://rvptronniomlqumjhyrr.supabase.co/storage/v1/object/public/company-media/kingsmen/site-27-mountain-front.webp" },
+  { kicker: "Sierra de Almoloya", label: "Ridgeline Approach", src: "https://rvptronniomlqumjhyrr.supabase.co/storage/v1/object/public/company-media/kingsmen/site-28-ridgeline-approach.webp" },
+  { kicker: "Sierra de Almoloya", label: "Historic Stone Wall", src: "https://rvptronniomlqumjhyrr.supabase.co/storage/v1/object/public/company-media/kingsmen/site-29-historic-stone-wall.webp" },
+  { kicker: "Sierra de Almoloya", label: "Valley Floor", src: "https://rvptronniomlqumjhyrr.supabase.co/storage/v1/object/public/company-media/kingsmen/site-30-valley-floor.webp" },
+  { kicker: "Sierra de Almoloya", label: "Desert Terrain", src: "https://rvptronniomlqumjhyrr.supabase.co/storage/v1/object/public/company-media/kingsmen/site-31-desert-terrain.webp" },
 ];
 
 const AM_BRIEF = {
@@ -5279,6 +5298,11 @@ function TeamView({ onOpenCompany }) {
   const [open, setOpen] = useState(null);
   const [ceoFollow, setCeoFollow] = useState(false);
   const [profile, setProfile] = useState(false);
+  // Android back: the CEO/person profile sits above the team bottom-sheet.
+  useBackHandler(!!profile || open != null, () => {
+    if (profile) return setProfile(false);
+    setOpen(null);
+  });
   const [pfTab, setPfTab] = useState("updates"); // CEO profile: updates · media · reposts
   const [dm, setDm] = useState(false);           // direct-message thread with the leader
 
@@ -6387,8 +6411,9 @@ function StoryReader({ it, onOpen, onClose }) {
     const url = nid ? `https://mineex.ca/n/${nid}` : ((it && it.fullUrl) || "");
     const title = (it && (it.headline || it.t)) || "MineEx";
     try {
-      if (navigator.share) await navigator.share({ title, url });
-      else if (navigator.clipboard && url) await navigator.clipboard.writeText(url);
+      const r = await shareContent({ title, url });
+      if (!shouldFallback(r)) return;                       // shared, or cancelled -> done
+      if (navigator.clipboard && url) await navigator.clipboard.writeText(url);
     } catch { /* user cancelled or unsupported */ }
   };
   if (!it) return null;
@@ -6646,6 +6671,8 @@ function Reels({ items, onOpen }) {
   // Follows here write to the SAME persistent store as the profile Follow button, so a
   // follow made from Media sticks and shows up on the Following page (was ephemeral).
   useEffect(() => listStore.sub(() => bumpFollow((x) => x + 1)), []);
+  // Same for saves, so the Save control reflects its own toggle.
+  useEffect(() => savedStore.sub(() => bumpFollow((x) => x + 1)), []);
   const [playing, setPlaying] = useState({});
   if (!items.length) return <FeedEmpty Icon={Play} title="No media yet" sub="Pro companies will publish interviews and site footage here." />;
   const toggleFollow = (slug) => { if (slug) listStore.set("following", slug, !listStore.has("following", slug)); };
@@ -6673,8 +6700,24 @@ function Reels({ items, onOpen }) {
                   <span className="grid h-11 w-11 place-items-center rounded-full" style={{ background: isFollowing ? "rgba(255,255,255,0.25)" : EM }}>{isFollowing ? <Check size={20} /> : <Plus size={20} />}</span>
                   <span className="text-[9px] font-bold">{isFollowing ? "Following" : "Follow"}</span>
                 </button>
-                <button className="flex flex-col items-center gap-1 active:scale-90"><span className="grid h-11 w-11 place-items-center rounded-full bg-white/15"><Bookmark size={18} /></span><span className="text-[9px] font-bold">Save</span></button>
-                <button className="flex flex-col items-center gap-1 active:scale-90"><span className="grid h-11 w-11 place-items-center rounded-full bg-white/15"><Share2 size={18} /></span><span className="text-[9px] font-bold">Share</span></button>
+                <button
+                  onClick={() => { haptic(); if (it) savedStore.toggle(it); }}
+                  aria-label="Save"
+                  className="flex flex-col items-center gap-1 active:scale-90"
+                ><span className="grid h-11 w-11 place-items-center rounded-full bg-white/15"><Bookmark size={18} fill={savedStore.has(it && it.id) ? "#fff" : "none"} /></span><span className="text-[9px] font-bold">Save</span></button>
+                <button
+                  onClick={async () => {
+                    haptic();
+                    // Same helper, same canonical company URL as every other share.
+                    const url = companyShareUrl(it.companyId);
+                    const title = it.co || it.company || "MineEx";
+                    const r = await shareContent({ title, text: title, url });
+                    if (!shouldFallback(r)) return;
+                    try { await navigator.clipboard.writeText(url); } catch (_) {}
+                  }}
+                  aria-label="Share"
+                  className="flex flex-col items-center gap-1 active:scale-90"
+                ><span className="grid h-11 w-11 place-items-center rounded-full bg-white/15"><Share2 size={18} /></span><span className="text-[9px] font-bold">Share</span></button>
               </div>
 
               {/* bottom meta */}
@@ -6902,6 +6945,8 @@ export function TodayScreen({ onOpenCompany, onScan }) {
 
   // Shared rich reader + subtle "why you're seeing this" context.
   const [reader, setReader] = useState(null);
+  // Android back: the feed reader returns to the feed.
+  useBackHandler(!!reader, () => setReader(null));
   const openStory = (it) => { haptic(); setReader(it); if (it && it.postId) recordPostEvent(it.postId, "open"); };
   const matchCommodity = (o) => { for (const v of discovery.commoditiesOf({ commodity: o.commodity })) if (interest.has(v)) return v; return null; };
   const reasonFor = (o) => {
@@ -7225,6 +7270,12 @@ function DiscoverScreen({ onOpenCompany, onScan }) {
   const [visible, setVisible] = useState(30);
   const [searchOpen, setSearchOpen] = useState(false); // Instagram-style search card (Recent + typeahead)
   const [filterOpen, setFilterOpen] = useState(false); // Advanced Search filter card (facet tabs)
+  // Android back: close search/filter/sort cards, innermost first.
+  useBackHandler(!!(filterOpen || searchOpen || sortOpen), () => {
+    if (filterOpen) return setFilterOpen(false);
+    if (searchOpen) return setSearchOpen(false);
+    setSortOpen(false);
+  });
   const searchRef = useRef(null);
   useEffect(() => { if (searchOpen && searchRef.current) { const t = setTimeout(() => searchRef.current && searchRef.current.focus(), 60); return () => clearTimeout(t); } }, [searchOpen]);
   const query = q.trim().toLowerCase();
@@ -8224,6 +8275,8 @@ function MessageThread({ convo, onBack }) {
 
 function MessagesScreen() {
   const [open, setOpen] = useState(null);      // active conversation
+  // Android back: an open conversation returns to the message list.
+  useBackHandler(open != null, () => setOpen(null));
   const [composing, setComposing] = useState(false);
   const [query, setQuery] = useState("");
   const [, setTick] = useState(0);
@@ -8740,6 +8793,8 @@ function SavedPanel({ onBack }) {
   const [, bump] = useState(0);
   useEffect(() => savedStore.sub(() => bump((x) => x + 1)), []);
   const [reader, setReader] = useState(null);
+  // Android back: the reader inside Saved returns to the Saved list.
+  useBackHandler(!!reader, () => setReader(null));
   const items = savedStore.list();
   return (
     <SettingsSubPanel title="Saved" onBack={onBack}>
@@ -8775,6 +8830,13 @@ function ProfileScreen({ onScan }) {
   const [notifOpen, setNotifOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const [savedOpen, setSavedOpen] = useState(false);
+  // Android back: sub-panels (z-97) sit above Settings (z-95); Saved is separate.
+  useBackHandler(!!(accountOpen || notifOpen || settingsOpen || savedOpen), () => {
+    if (accountOpen) return setAccountOpen(false);
+    if (notifOpen) return setNotifOpen(false);
+    if (settingsOpen) return setSettingsOpen(false);
+    setSavedOpen(false);
+  });
   const savedCount = savedStore.list().length;
   const [pwSending, setPwSending] = useState(false);
   const pushToast = (msg) => { setToast(msg); clearTimeout(toastT.current); toastT.current = setTimeout(() => setToast(""), 1900); };
@@ -8959,7 +9021,7 @@ function ProfileScreen({ onScan }) {
                 <span className="min-w-0 flex-1 text-[13.5px] font-bold tracking-tight text-slate-800">Account & Security</span>
                 <ChevronRight size={16} className="flex-shrink-0 text-slate-300" />
               </button>
-              <a href="https://passport-xi-five.vercel.app/privacy.html" target="_blank" rel="noreferrer" className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition active:bg-slate-50" style={{ borderTop: "1px solid #f1f5f9" }}>
+              <a href="https://mineex.ca/privacy.html" target="_blank" rel="noreferrer" className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition active:bg-slate-50" style={{ borderTop: "1px solid #f1f5f9" }}>
                 <Eye size={18} className="flex-shrink-0 text-slate-500" />
                 <span className="min-w-0 flex-1 text-[13.5px] font-bold tracking-tight text-slate-800">Privacy & Data</span>
                 <ArrowUpRight size={16} className="flex-shrink-0 text-slate-300" />
@@ -8988,8 +9050,8 @@ function ProfileScreen({ onScan }) {
                 MineEx provides company information for educational and informational purposes only. Nothing here is investment, financial, legal, or tax advice, or an offer or solicitation to buy or sell any security. Company data — including AI-generated summaries — may contain errors. Always do your own research and consult a licensed advisor before investing.
               </p>
               <div className="mt-3 flex items-center gap-4">
-                <a href="https://passport-xi-five.vercel.app/privacy.html" target="_blank" rel="noreferrer" className="text-[11.5px] font-bold text-slate-500 underline underline-offset-2">Privacy Policy</a>
-                <a href="https://passport-xi-five.vercel.app/terms.html" target="_blank" rel="noreferrer" className="text-[11.5px] font-bold text-slate-500 underline underline-offset-2">Terms of Use</a>
+                <a href="https://mineex.ca/privacy.html" target="_blank" rel="noreferrer" className="text-[11.5px] font-bold text-slate-500 underline underline-offset-2">Privacy Policy</a>
+                <a href="https://mineex.ca/terms.html" target="_blank" rel="noreferrer" className="text-[11.5px] font-bold text-slate-500 underline underline-offset-2">Terms of Use</a>
               </div>
               <p className="mt-3 text-[10px] font-semibold uppercase tracking-widest text-slate-300">MineEx · v1.0</p>
             </div>
@@ -9156,6 +9218,8 @@ function BasicListing({ onBack }) {
   const [, bumpFollow] = useState(0);
   const [listing, setListing] = useState(null); // ticker → "Open in Yahoo Finance" prompt (matches the pro capital page)
   const [reportOpen, setReportOpen] = useState(false);
+  // Android back: close the report/claim sheet.
+  useBackHandler(reportOpen, () => setReportOpen(false));
   const slug = (() => { try { return new URLSearchParams(location.search).get("c") || ""; } catch (_) { return ""; } })();
   // Follow persists to the SAME store as the full profile + Following page (was local-only
   // useState, so follows on a basic listing — most companies — never saved).
@@ -11155,6 +11219,21 @@ export default function App({ guest = false } = {}) {
     try { if (window.screen && window.screen.orientation && window.screen.orientation.lock) window.screen.orientation.lock("portrait").catch(() => {}); } catch (_) {}
   }, []);
 
+  // ---- Android hardware back -------------------------------------------------
+  // The listener itself is wired once in src/main.jsx (it must exist for every
+  // surface, including the signed-out welcome screen). Here we only register which
+  // of THIS component's states a back press should unwind. See src/lib/backStack.js.
+
+  // The QR scanner is a full-screen overlay reached from the header, not a pager
+  // tab, so back must close it rather than leave the app.
+  useBackHandler(nav === "scan", () => setNav("today"));
+
+  // Lowest priority, and only when nothing else is open: from any non-home tab,
+  // back returns to the home tab the way Android users expect. TAB_FALLBACK sits
+  // below OVERLAY so a modal drawn over a tab always wins (React runs child
+  // effects before parent effects, so registration order alone is not enough).
+  useBackHandler(!inCompany && nav !== "today" && nav !== "scan", () => setNav("today"), BACK_PRIORITY.TAB_FALLBACK);
+
   const curSlug = () => { try { return new URLSearchParams(window.location.search).get("c") || ""; } catch (_) { return ""; } };
   const loadedSlugRef = useRef(curSlug());   // which company's pp is currently swapped in
 
@@ -11343,9 +11422,11 @@ export default function App({ guest = false } = {}) {
 
         <div className="flex h-full flex-col" style={{ background: "#ffffff" }}>
           {mobile && !embed ? <div className="flex-shrink-0" style={{ height: "env(safe-area-inset-top, 0px)" }} /> : <StatusBar />}
-          {/* Guest "Open in app" smart-banner — nudges the native app without ever blocking
-              the full web view. Dismissible; hidden once signed in. */}
-          {guest && !bannerOff && (
+          {/* Guest "Open in app" smart-banner — a WEB affordance that nudges a
+              signed-out visitor toward the native app. Pointless inside the native
+              app itself, so it is hidden on both native platforms. The wordmark it
+              shows is now MineEx, not the pre-rebrand codename. */}
+          {guest && !bannerOff && !isNativeApp && (
             <div className="flex flex-shrink-0 items-center gap-2.5 border-b border-slate-100 bg-white px-4 py-2">
               <button onClick={() => setBannerOff(true)} aria-label="Dismiss" className="flex-shrink-0 text-slate-300 transition active:scale-90"><X size={17} /></button>
               <div className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-[9px]" style={{ background: EM }}>

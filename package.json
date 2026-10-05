@@ -9,14 +9,19 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit -p src/studio/tsconfig.json",
     "check:anchors": "esbuild src/studio/dev/anchorCheck.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/studio-anchorCheck.mjs --log-level=error && node node_modules/.cache/studio-anchorCheck.mjs",
-    "check:demo-assets": "node scripts/check-demo-assets.mjs"
+    "check:demo-assets": "node scripts/check-demo-assets.mjs",
+    "check:push": "node scripts/push-routing-test.mjs",
+    "check:reliability": "node scripts/push-reliability-test.mjs"
   },
   "dependencies": {
     "@aparajita/capacitor-secure-storage": "^8.0.0",
+    "@capacitor/android": "^8.5.0",
+    "@capacitor/app": "^8.1.1",
     "@capacitor/cli": "^8.5.0",
     "@capacitor/core": "^8.5.0",
     "@capacitor/ios": "^8.5.0",
     "@capacitor/push-notifications": "^8.1.2",
+    "@capacitor/share": "^8.0.3",
     "@capgo/capacitor-social-login": "^8.5.0",
     "@vercel/og": "^0.6.0",
     "jsqr": "^1.4.0",

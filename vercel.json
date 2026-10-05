@@ -6,6 +6,7 @@
     { "source": "/support", "destination": "/support.html" },
     { "source": "/privacy", "destination": "/privacy.html" },
     { "source": "/terms", "destination": "/terms.html" },
+    { "source": "/delete-account", "destination": "/delete-account.html" },
     { "source": "/n/:id", "destination": "/api/share-news?id=:id" },
     { "source": "/(.*)", "destination": "/index.html" }
   ],
