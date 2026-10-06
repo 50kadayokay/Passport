@@ -463,7 +463,7 @@ export default function AppSection() {
           {PRNOTIFY && !mobile && <PushPreview show={pubStep === 1} />}
           {FAST_PHONE
             ? <React.Suspense fallback={null}><FastPhoneLazy beat={appBeat} /></React.Suspense>
-            : <DirectedEmbed variant="home" hardware />}
+            : <DirectedEmbed variant="home" hardware cutout />}
         </div>
       </div>
     </div>

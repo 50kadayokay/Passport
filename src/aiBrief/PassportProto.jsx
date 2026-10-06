@@ -737,7 +737,12 @@ export function BottomNav({ nav, setNav, solid }) {
   return (
     <div
       className="pp-bottomnav absolute bottom-0 left-0 right-0 z-40 px-5 pb-7 pt-2"
-      style={{ ...(DEMO_SAFE_B ? { paddingBottom: 28 + DEMO_SAFE_B } : null), ...(solid
+      // NOT DEMO_SAFE_B. That inset exists for sheet footers that sit against the bottom
+      // of the demo phone; applied here it pushed the bottom nav 34px up, so the marketing
+      // Investor phone showed a taller gap below the tab bar than the Home and Pro phones,
+      // which render the same nav at the class's own pb-7 (28px). The three renders now
+      // agree. Live app unaffected either way: DEMO_SAFE_B is 0 outside the demo mount.
+      style={{ ...(solid
         ? { background: "#ffffff", borderTop: "1px solid rgba(226,232,240,0.7)" }
         : { background: "rgba(255,255,255,0.95)", backdropFilter: "blur(20px) saturate(180%)", borderTop: "1px solid rgba(226,232,240,0.7)" }) }}
     >
