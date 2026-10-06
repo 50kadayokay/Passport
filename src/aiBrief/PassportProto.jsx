@@ -5302,12 +5302,10 @@ function MemberAvatar({ photo, name, initials, size = 64, className = "" }) {
 
 function TeamView({ onOpenCompany }) {
   const [open, setOpen] = useState(null);
-  const [ceoFollow, setCeoFollow] = useState(false);
   // Android back: close the open leader bio sheet.
   useBackHandler(open != null, () => {
     setOpen(null);
   });
-  const [dm, setDm] = useState(false);           // direct-message thread with the leader
 
   // A company with no team yet (every fresh onboarding — team is entered by hand)
   // shows an empty state, never Kingsmen's leadership.
@@ -5323,15 +5321,6 @@ function TeamView({ onOpenCompany }) {
   const lead = TEAM_MEMBERS[0];
   const rest = TEAM_MEMBERS.slice(1);
   const active = open != null ? TEAM_MEMBERS[open] : null;
-  // Messaging a leader routes to the company thread — the message reaches the CEO's
-  // inbox either way (see the email bridge). Kept as one coherent conversation.
-  const leadDm = {
-    id: currentSlug() || "company",
-    name: COMPANY.name,
-    sub: "Investor Relations",
-    mono: (COMPANY.name || "?").replace(/[^A-Za-z]/g, "").slice(0, 2).toUpperCase() || "•",
-    c: EM || "#1e3a8a",
-  };
   return (
     <div className="space-y-5 px-5 pt-2">
       <div>
@@ -5392,24 +5381,6 @@ function TeamView({ onOpenCompany }) {
                 {open === 0 && <BadgeCheck size={14} className="flex-shrink-0" style={{ color: "#0ea5e9" }} fill="rgba(14,165,233,0.15)" />}
               </div>
               <p className="text-[11px] font-bold" style={{ color: THEME.team.t }}>{active.role}</p>
-              {open === 0 && (
-                <div className="mt-2 flex gap-2">
-                  <button
-                    onClick={() => setCeoFollow((f) => !f)}
-                    className="flex h-8 flex-1 items-center justify-center gap-1 rounded-full border text-[11px] font-bold tracking-wide transition-all active:scale-[0.97]"
-                    style={ceoFollow
-                      ? { background: "#0f172a", color: "#ffffff", borderColor: "#0f172a" }
-                      : { background: "#ffffff", color: "#0f172a", borderColor: "#cbd5e1" }}
-                    aria-pressed={ceoFollow}
-                  >
-                    {ceoFollow ? <Check size={12} strokeWidth={2.8} /> : <Plus size={12} strokeWidth={2.8} />}
-                    {ceoFollow ? "Connected" : "Connect"}
-                  </button>
-                  <button onClick={() => { haptic(); setDm(true); }} className="flex h-8 flex-1 items-center justify-center gap-1 rounded-full border border-slate-200 bg-white text-[11px] font-bold tracking-wide text-slate-700 transition-all active:scale-[0.97]">
-                    <MessageSquare size={12} strokeWidth={2.6} /> Message
-                  </button>
-                </div>
-              )}
             </div>
           </div>
           <div className="mt-4 space-y-2.5 border-t border-slate-100 pt-3.5">
@@ -5419,9 +5390,6 @@ function TeamView({ onOpenCompany }) {
           </div>
         </BottomSheet>
       )}
-
-      {/* direct message thread with the leader (Instagram-style, opens over everything) */}
-      {dm && <MessageThread convo={leadDm} onBack={() => setDm(false)} />}
     </div>
   );
 }
