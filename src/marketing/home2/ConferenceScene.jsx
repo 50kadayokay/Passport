@@ -323,7 +323,13 @@ export default function ConferenceScene({ mobile = false, reduce = false, confIn
                         boots in over it (staggered) with a transparent screen so nothing flashes. Fills the cell
                         (rows are equal) and crops to the hero band — no squish, and nothing overflows the screen. */}
                     <div style={{ position: "relative", flex: 1, minHeight: 0, overflow: "hidden",
-                      backgroundColor: "#05070b", backgroundImage: `url(/thumbs/${k}.jpg)`, backgroundSize: "cover", backgroundPosition: "top center" }}>
+                      backgroundColor: "#05070b",
+                      // The thumb is a CSS background, so it is fetched the moment this node exists —
+                      // and on the home deck every scene exists from the start. That pulled ~4MB of
+                      // gallery imagery before the page had drawn its own phone. It now waits for the
+                      // same proximity flag the live tiles use.
+                      backgroundImage: galleryNear ? `url(/thumbs/${k}.jpg)` : "none",
+                      backgroundSize: "cover", backgroundPosition: "top center" }}>
                       {galleryNear && idx < liveN && (
                         <div style={{ position: "absolute", top: 0, left: 0, right: 0 }}>
                           <TabletFrame bare src={`/confv3demo?c=${slug}&t=${k}&bar=0`} interactive={false} showBootCover={false} screenBg="transparent" renderW={1194} renderH={834} title={`${name} — ${slug}`} />

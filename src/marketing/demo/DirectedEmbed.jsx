@@ -49,7 +49,7 @@ const BOOT_SCREEN = "#f4f5f7";
 // Costs ~1.1pt horizontally / ~1.7pt vertically of the 393×852 viewport, concealed by the bezel.
 const CUTOUT_BLEED = 1.004;
 
-const PHONE = {
+export const PHONE = {
   src: "/marketing/pro-phone-79.webp",   // ORIGINAL, unmodified reference image (971×1620)
   // The same photo with ONLY the display opening cut to alpha 0, anti-aliased along the
   // hardware's real curve. RGB is byte-identical on every still-visible pixel; the titanium,
