@@ -15,7 +15,7 @@
 import React from "react";
 import { STATES } from "./InvestorPage.jsx";
 import { Body, Cta, Ctas, Eyebrow, Head, HeroWash, M_COBALT as COBALT, M_INK as NAVY, M_MUTE as MUTE, M_SLATE as SLATE, MobilePage, ProductChapter, Section, SubHead, pad } from "../mobileKit.jsx";
-import { DiscoverDemo, ExploreDemo, ProfileDemo } from "../mobile/demos.jsx";
+import { InvestorExploreDemo, InvestorFeedDemo, ProfileDemo } from "../mobile/demos.jsx";
 import ProductDeck from "../mobile/ProductDeck.jsx";
 import { M_LEAD, M_RHYTHM, M_TRACK, M_TYPE } from "../mobile.js";
 
@@ -51,30 +51,17 @@ export default function InvestorMobile() {
           </div>
         </section>
 
-        <ProductDeck label="MineEx investor app" beats={CHAPTERS.map((ch) => ({
-          eyebrow: ch.label, head: ch.lead, body: ch.detail,
-          screen: ch.scene === "discover" ? <DiscoverDemo />
-            : ch.scene === "explore" ? <ExploreDemo />
-            : ch.scene === "research" ? <ProfileDemo start="overview" projects />
-            : <ProfileDemo start="updates" />,
-        }))} />
+        <ProductDeck label="MineEx investor app" beats={STATES.map((b) => {
+          const ch = CHAPTERS.find((c) => c.label === b.label) || CHAPTERS[0];
+          return {
+            eyebrow: b.label, head: b.head, body: b.body,
+            screen: ch.scene === "discover" ? <InvestorFeedDemo />
+              : ch.scene === "explore" ? <InvestorExploreDemo />
+              : ch.scene === "research" ? <ProfileDemo start="overview" projects />
+              : <InvestorFeedDemo />,
+          };
+        })} />
 
-        {/* The approved beat copy follows the deck as the detail behind each chapter. */}
-        {CHAPTERS.map((ch) => {
-          const beats = STATES.filter((s) => s.label === ch.label);
-          return (
-            <Section key={ch.n}>
-              <Eyebrow n={ch.n}>{ch.label}</Eyebrow>
-              <Head long={String(ch.lead).length > 38}>{ch.lead}</Head>
-              {beats.map((b, i) => (
-                <div key={b.k} style={{ marginTop: "clamp(24px,6vw,32px)" }}>
-                  <SubHead>{b.head}</SubHead>
-                  <Body top={9}>{b.body}</Body>
-                </div>
-              ))}
-            </Section>
-          );
-        })}
 
         <section style={{ ...pad, paddingTop: "clamp(60px,15vw,88px)", paddingBottom: "clamp(16px,4vw,24px)" }}>
           <h2 style={{ margin: 0, fontSize: M_TYPE.h2, lineHeight: M_LEAD.h2, letterSpacing: M_TRACK.h2, fontWeight: 700, color: NAVY }}>

@@ -14,8 +14,8 @@
 //
 // The public brand is MineEx throughout. The internal codename never appears here.
 // ─────────────────────────────────────────────────────────────────────────────
-import React, { useEffect } from "react";
-import { effectiveSearch } from "./routes.js";
+import React, { useEffect, useState } from "react";
+import { effectiveSearch, isMarketingPath } from "./routes.js";
 import { MX, MarketingStyles, useReduce } from "./system.jsx";
 
 /* ── lazy surfaces — each its own chunk, loaded only when its route is opened ─── */
@@ -164,9 +164,46 @@ export default function MarketingSite() {
 
   // A readable path (/pricing) resolves to the query this file already routes on
   // (?pricing=1), so both URL forms select the same surface. See marketing/routes.js.
-  const search = typeof window !== "undefined"
-    ? effectiveSearch(window.location.pathname, window.location.search)
-    : "";
+  //
+  // REACTIVE, and the nav routes client-side. Every tab was a plain <a href>, so a click
+  // was a full document navigation: the whole bundle re-downloaded and React re-booted
+  // before anything appeared. Measured on production — Pricing 908ms, Conference 1656ms,
+  // Investor 6527ms. The surfaces are already separate lazy chunks, so swapping them in
+  // place is what the architecture was built for; only this subscription was missing.
+  const [search, setSearch] = useState(() =>
+    typeof window === "undefined" ? "" : effectiveSearch(window.location.pathname, window.location.search));
+
+  useEffect(() => {
+    const sync = () => setSearch(effectiveSearch(window.location.pathname, window.location.search));
+
+    // One delegated handler: a left-click on an in-site marketing link becomes a
+    // pushState. Anything else — a new tab, a modifier, an external host, the app, the
+    // static legal pages — is left to the browser exactly as before.
+    const onClick = (e) => {
+      if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      const a = e.target && e.target.closest && e.target.closest("a[href]");
+      if (!a || a.target === "_blank" || a.hasAttribute("download") || a.getAttribute("rel") === "external") return;
+      let url;
+      try { url = new URL(a.href, window.location.origin); } catch (_) { return; }
+      if (url.origin !== window.location.origin) return;
+      if (!isMarketingPath(url.pathname)) return;             // /app, /privacy.html, … unchanged
+      if (url.pathname === window.location.pathname && url.search === window.location.search) { e.preventDefault(); return; }
+      e.preventDefault();
+      window.history.pushState({}, "", url.pathname + url.search + url.hash);
+      window.dispatchEvent(new Event("mx:navchange"));        // Nav already listens for this
+      window.scrollTo(0, 0);
+      sync();
+    };
+
+    window.addEventListener("popstate", sync);
+    window.addEventListener("mx:navchange", sync);
+    document.addEventListener("click", onClick);
+    return () => {
+      window.removeEventListener("popstate", sync);
+      window.removeEventListener("mx:navchange", sync);
+      document.removeEventListener("click", onClick);
+    };
+  }, []);
 
   // Directed-automation proof: the real iframe app driven by the DemoDirector.
   if (/[?&]directedEmbed/.test(search)) return <Shell><DirectedEmbed /></Shell>;

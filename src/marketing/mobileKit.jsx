@@ -24,14 +24,25 @@ export const M_MUTE = "#9aa1ad";
 export const M_COBALT = "#2563EB";
 export const M_BG = "#fbfcfe";
 
+// The dark ground, matching the desktop Pro walkthrough's stage (#07080b). Pro is dark
+// on desktop; the phone page has to be the same page, not a light reinterpretation of it.
+export const M_DARK = {
+  bg: "#07080b",
+  ink: "#f7f9fc",
+  slate: "rgba(247,249,252,0.66)",
+  mute: "rgba(247,249,252,0.44)",
+  hair: "rgba(247,249,252,0.18)",
+};
+
 export const pad = { paddingLeft: M_GUTTER, paddingRight: M_GUTTER };
 
 // The page shell: one ground, one font, nav above, footer below.
-export function MobilePage({ children }) {
+export function MobilePage({ children, dark = false }) {
+  const T = dark ? M_DARK : null;
   return (
-    <div className="mx-root" id="top" style={{ background: M_BG, minHeight: "100svh", color: M_INK }}>
+    <div className="mx-root" id="top" style={{ background: T ? T.bg : M_BG, minHeight: "100svh", color: T ? T.ink : M_INK }}>
       <MarketingStyles />
-      <Nav />
+      <Nav dark={dark} solid={dark} />
       <main style={{ fontFamily: "'Switzer', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}>
         {children}
         <Footer />
@@ -54,21 +65,21 @@ export function Section({ children, top = M_RHYTHM.sectionY, bottom = 0, style }
 }
 
 // "01  PROFILE" — the number carries the accent, the label stays quiet.
-export function Eyebrow({ n, children, accent }) {
+export function Eyebrow({ n, children, accent, dark }) {
   return (
     <p style={{ margin: 0, fontSize: M_TYPE.eyebrow, fontWeight: 800, letterSpacing: M_TRACK.eyebrow,
-      textTransform: "uppercase", color: accent ? M_COBALT : M_MUTE }}>
+      textTransform: "uppercase", color: accent ? M_COBALT : (dark ? M_DARK.mute : M_MUTE) }}>
       {n ? <><span style={{ color: M_COBALT }}>{n}</span>&nbsp;&nbsp;</> : null}{children}
     </p>
   );
 }
 
-export function Head({ children, as: Tag = "h2", hero, long, style }) {
+export function Head({ children, as: Tag = "h2", hero, long, style, dark }) {
   const size = hero ? M_TYPE.h1 : (long ? M_TYPE.h2Long : M_TYPE.h2);
   return (
     <Tag style={{ margin: `${hero ? 14 : M_RHYTHM.eyebrowGap}px 0 0`, fontSize: size,
       lineHeight: hero ? M_LEAD.h1 : M_LEAD.h2, letterSpacing: hero ? M_TRACK.h1 : M_TRACK.h2,
-      fontWeight: 700, color: M_INK, position: "relative", ...style }}>{children}</Tag>
+      fontWeight: 700, color: dark ? M_DARK.ink : M_INK, position: "relative", ...style }}>{children}</Tag>
   );
 }
 
@@ -76,8 +87,8 @@ export function SubHead({ children }) {
   return <h3 style={{ margin: 0, fontSize: M_TYPE.h3, lineHeight: 1.22, letterSpacing: "-0.025em", fontWeight: 700, color: M_INK }}>{children}</h3>;
 }
 
-export function Body({ children, top = M_RHYTHM.headGap }) {
-  return <p style={{ margin: `${top}px 0 0`, fontSize: M_TYPE.body, lineHeight: M_LEAD.body, color: M_SLATE, position: "relative" }}>{children}</p>;
+export function Body({ children, top = M_RHYTHM.headGap, dark }) {
+  return <p style={{ margin: `${top}px 0 0`, fontSize: M_TYPE.body, lineHeight: M_LEAD.body, color: dark ? M_DARK.slate : M_SLATE, position: "relative" }}>{children}</p>;
 }
 
 // A product screen at a size you can actually read: full content width, in a frame
@@ -94,14 +105,14 @@ export function Shot({ name, alt }) {
   );
 }
 
-export function Cta({ href, children, primary }) {
+export function Cta({ href, children, primary, dark }) {
   return (
     <a href={href} style={{
       display: "inline-flex", alignItems: "center", justifyContent: "center",
       minHeight: M_TAP, padding: "0 26px", borderRadius: 999, textDecoration: "none",
       fontSize: M_TYPE.cta, fontWeight: 700, letterSpacing: "-0.015em",
-      background: primary ? M_COBALT : "transparent", color: primary ? "#fff" : M_INK,
-      border: `1px solid ${primary ? M_COBALT : "rgba(10,27,46,0.18)"}`,
+      background: primary ? M_COBALT : "transparent", color: primary ? "#fff" : (dark ? M_DARK.ink : M_INK),
+      border: `1px solid ${primary ? M_COBALT : (dark ? M_DARK.hair : "rgba(10,27,46,0.18)")}`,
     }}>{children}</a>
   );
 }
@@ -118,7 +129,7 @@ export function Ctas({ children, top = M_RHYTHM.ctaGap }) {
 // The device is evidence and the copy explains it, so nothing is ever laid over the
 // screen. The stage reserves the device's exact height, so a scene mounting or
 // unmounting as it passes the viewport shifts nothing.
-export function ProductChapter({ n, eyebrow, head, body, detail, children, label }) {
+export function ProductChapter({ n, eyebrow, head, body, detail, children, label, dark }) {
   return (
     <Section>
       {eyebrow ? <Eyebrow n={n}>{eyebrow}</Eyebrow> : null}
@@ -130,7 +141,7 @@ export function ProductChapter({ n, eyebrow, head, body, detail, children, label
         </ProductStage>
       </div>
       {detail ? (
-        <p style={{ margin: "clamp(22px,5.5vw,30px) 0 0", fontSize: M_TYPE.bodySm, lineHeight: 1.55, color: M_MUTE, textAlign: "center" }}>{detail}</p>
+        <p style={{ margin: "clamp(22px,5.5vw,30px) 0 0", fontSize: M_TYPE.bodySm, lineHeight: 1.55, color: dark ? M_DARK.mute : M_MUTE, textAlign: "center" }}>{detail}</p>
       ) : null}
     </Section>
   );

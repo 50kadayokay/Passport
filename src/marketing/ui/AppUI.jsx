@@ -909,8 +909,20 @@ function ExploreScreenBase({ activeFilters = [], results = DIRECTORY, dimNonMatc
 
 const FEED_TABS = ["For You", "News", "Press Releases", "Media"];
 
-function FeedScreenBase({ tab = 0, reveal = 3, onOpen }) {
+function FeedScreenBase({ tab = 0, reveal = 3, onOpen, items, brand }) {
   const Story = onOpen ? "button" : "div";
+  // Default: this company's own releases. The investor pages pass `items` so the feed
+  // shows the market — many companies — which is what the desktop investor phone shows.
+  const rows = items && items.length
+    ? items.slice(0, 4).map((n) => ({
+        date: n.id || n.date || n.headline,
+        d: n.ago || n.d || "",
+        label: n.headline || n.title || "",
+        why: n.why || n.whatHappened || n.summary || "",
+        co: n.co || n.company_name || "",
+        logo: n.logo || null,
+      }))
+    : RELEASES.slice(0, 4).map((r) => ({ ...r, co: CO.name, logo: null }));
   return (
     <AppShell nav="today">
       <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
@@ -926,7 +938,7 @@ function FeedScreenBase({ tab = 0, reveal = 3, onOpen }) {
           </div>
         </div>
         <div className="mx-noscroll" style={{ flex: 1, minHeight: 0, overflow: "hidden", padding: "12px 12px 20px", display: "grid", gap: 10, alignContent: "start" }}>
-          {RELEASES.slice(0, 4).map((r, i) => (
+          {rows.map((r, i) => (
             <Story
               key={r.date}
               {...(onOpen ? { type: "button", onClick: () => onOpen(i) } : null)}
@@ -939,8 +951,18 @@ function FeedScreenBase({ tab = 0, reveal = 3, onOpen }) {
               }}
             >
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <img src={IMG.avatar} alt="" width={22} height={22} loading="lazy" style={{ width: 22, height: 22, borderRadius: 999, objectFit: "cover" }} />
-                <span style={{ fontSize: 12, fontWeight: 700 }}>{CO.name}</span>
+                {/* A story from another company must never borrow this company's logo.
+                    Without one, show a neutral monogram rather than the wrong brand. */}
+                {r.logo ? (
+                  <img src={r.logo} alt="" width={22} height={22} loading="lazy" style={{ width: 22, height: 22, borderRadius: 999, objectFit: "cover", background: "#eef2f7" }} />
+                ) : r.co && r.co !== CO.name ? (
+                  <span aria-hidden style={{ width: 22, height: 22, borderRadius: 999, background: "#e2e8f0", color: "#475569", display: "grid", placeItems: "center", fontSize: 9.5, fontWeight: 800, flex: "0 0 auto" }}>
+                    {String(r.co).split(/\s+/).slice(0, 2).map((x) => x[0]).join("").toUpperCase()}
+                  </span>
+                ) : (
+                  <img src={IMG.avatar} alt="" width={22} height={22} loading="lazy" style={{ width: 22, height: 22, borderRadius: 999, objectFit: "cover" }} />
+                )}
+                <span style={{ fontSize: 12, fontWeight: 700 }}>{r.co}</span>
                 {i === 0 && <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.06em", color: EM_TEXT, background: EM_SOFT, borderRadius: 999, padding: "3px 7px" }}>NEW</span>}
                 <span style={{ fontSize: 11.5, color: MUTE, marginLeft: "auto" }}>{r.d}</span>
               </div>

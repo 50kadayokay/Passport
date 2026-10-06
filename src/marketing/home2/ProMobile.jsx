@@ -47,23 +47,23 @@ const BEATS = [
 
 export default function ProMobile() {
   return (
-    <MobilePage>
+    <MobilePage dark>
       {/* HERO — clears the 54px phone nav, with the same wash Home and Investor use. */}
       <Section top={96} bottom="clamp(8px,2vw,14px)" style={{ position: "relative", overflow: "hidden" }}>
         <HeroWash />
-        <Eyebrow accent>MineEx Pro</Eyebrow>
-        <Head as="h1" hero>Your complete investor presence.</Head>
-        <Body top={18}>
+        <Eyebrow accent dark>MineEx Pro</Eyebrow>
+        <Head as="h1" hero dark>Your complete investor presence.</Head>
+        <Body top={18} dark>
           A premium, interactive profile that explains your company the way investors actually read one —
           projects, capital, progress, leadership and media in one place, with an audience that can follow you.
         </Body>
         <Ctas>
           <Cta href="/contact?plan=pro" primary>Get Started</Cta>
-          <Cta href="/pricing">See pricing</Cta>
+          <Cta href="/pricing" dark>See pricing</Cta>
         </Ctas>
       </Section>
 
-      <ProductDeck label="MineEx Pro Profile" beats={BEATS.map((b) => ({
+      <ProductDeck dark label="MineEx Pro Profile" beats={BEATS.map((b) => ({
         eyebrow: b.eyebrow, head: b.head, body: b.body,
         screen: b.screen === "discover" ? <DiscoverDemo />
           : b.screen === "media" ? <MediaDemo />
@@ -71,11 +71,11 @@ export default function ProMobile() {
       }))} />
 
       <Section top="clamp(60px,15vw,88px)" bottom="clamp(16px,4vw,24px)">
-        <Head>Ready to build your investor presence?</Head>
-        <Body>Tell us about your company and we'll come back with the right plan — usually the same day.</Body>
+        <Head dark>Ready to build your investor presence?</Head>
+        <Body dark>Tell us about your company and we'll come back with the right plan — usually the same day.</Body>
         <Ctas>
           <Cta href="/contact?plan=pro" primary>Get Started</Cta>
-          <Cta href="/conference-mode">Explore Conference Mode</Cta>
+          <Cta href="/conference-mode" dark>Explore Conference Mode</Cta>
         </Ctas>
       </Section>
     </MobilePage>

@@ -17,6 +17,7 @@
 import React, { useState } from "react";
 import { ExploreScreen, FeedScreen, MediaScreen, ProfileScreen, ReleaseScreen } from "../ui/AppUI.jsx";
 import AdvancedSearch from "./AdvancedSearch.jsx";
+import { DEMO_FEED, DEMO_NEWS, DIRECTORY } from "../demo/investorFixture.js";
 
 // ── The company profile. The tab bar is the product's own way of moving between
 //    sections, so it is live on every profile chapter; `start` picks where it opens.
@@ -57,6 +58,44 @@ export function ExploreDemo({ openSheet = false }) {
           onApply={(picked) => { setFilters(picked); setSheet(false); }}
         />
       ) : null}
+      onOpenSheet={() => setSheet(true)}
+    />
+  );
+}
+
+// ── The INVESTOR feed. The desktop investor phone runs the real app seeded with the
+//    investor fixture, so it shows the market — Cerro Pálido, Taiga Copper, Northreach —
+//    not one company's releases. The phone pages must show the same universe, so these
+//    read the same fixture rather than the company data AppUI defaults to.
+export function InvestorFeedDemo() {
+  const items = React.useMemo(() => {
+    const news = (DEMO_NEWS || []).map((n) => ({
+      id: n.id, headline: n.title || n.headline,
+      why: n.summary || n.dek || n.why || n.whatHappened || "",
+      co: n.company_name || n.source_name || "", ago: n.ago || "",
+    }));
+    const feed = (DEMO_FEED || []).map((f) => ({
+      id: f.coId, headline: f.headline, why: f.why || f.whatHappened || "",
+      co: f.co, logo: f.logo, ago: f.ago || "",
+    }));
+    return [...news, ...feed].filter((x) => x.headline).slice(0, 4);
+  }, []);
+  const [open, setOpen] = useState(null);
+  return open === null
+    ? <FeedScreen items={items} onOpen={setOpen} />
+    : <ReleaseScreen index={open} onBack={() => setOpen(null)} />;
+}
+
+// ── Explore across the investor universe (≈1,000 companies), as desktop shows it.
+export function InvestorExploreDemo() {
+  const [sheet, setSheet] = useState(false);
+  const [filters, setFilters] = useState([]);
+  return (
+    <ExploreScreen
+      results={DIRECTORY.slice(0, 14)}
+      activeFilters={filters}
+      dimNonMatching={filters.length > 0}
+      sheet={sheet ? <AdvancedSearch onClose={() => setSheet(false)} onApply={(p) => { setFilters(p); setSheet(false); }} /> : null}
       onOpenSheet={() => setSheet(true)}
     />
   );

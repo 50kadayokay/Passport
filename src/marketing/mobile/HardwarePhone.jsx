@@ -45,13 +45,24 @@ export default function HardwarePhone({ children, deviceWidth = 242, label = "Mi
     <div ref={ref} role="group" aria-label={label}
       style={{ position: "relative", width: imgW, maxWidth: "100%", margin: "0 auto",
         aspectRatio: `${PHONE.imgW} / ${PHONE.imgH}`, ...style }}>
+      {/* The screen is a RECTANGLE; the real opening has the phone's curved corners, where
+          the photograph is transparent and therefore cannot conceal it. On a light page the
+          white rect was invisible against white; on the dark Pro page it showed as a band
+          past the bezel. Masked with the same screenmask the sales page uses — generated
+          from the same measurement as the cutout, spanning the whole phone box, so it
+          aligns with the photo by construction. */}
       {w > 0 && (
+      <div aria-hidden={false} style={{ position: "absolute", inset: 0,
+        WebkitMaskImage: `url(${PHONE.screenMask})`, maskImage: `url(${PHONE.screenMask})`,
+        WebkitMaskSize: "100% 100%", maskSize: "100% 100%",
+        WebkitMaskRepeat: "no-repeat", maskRepeat: "no-repeat" }}>
         <div style={{ position: "absolute", left: sx, top: sy, width: sw, height: sh,
           overflow: "hidden", background: "#fff", touchAction: "manipulation" }}>
           <div style={{ width: LOGICAL_W, height: sh / scale, transform: `scale(${scale})`, transformOrigin: "top left" }}>
             {children}
           </div>
         </div>
+      </div>
       )}
       {/* the photograph on top — its alpha alone defines the visible edge */}
       <img src={PHONE.cutout} alt="" draggable={false} decoding="async"
