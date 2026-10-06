@@ -45,8 +45,22 @@ Deliberately **not** applied:
 0055  enable device push                — arms real notifications; see the file
 ```
 
-Unknown: whether `main`'s `0041_outbox_claim_lease` and `0042_push_token_ownership`
-were ever applied. To check:
+`main`'s two were checked after the merge: **both were unapplied.**
+
+`0042_push_token_ownership` has since been applied. It closes a live privacy
+bug: a device token stayed attached to an account after sign-out, so the next
+person to sign in on that device also received the previous user's
+notifications. `src/lib/auth.js` had been calling `release_push_token` on every
+sign-out and silently swallowing the failure, because the function did not
+exist. At the time of applying, 6 tokens existed and 0 were shared, so the leak
+had not yet occurred.
+
+`0041_outbox_claim_lease` is still unapplied. It is **a hard prerequisite for
+`0055`**: without it two overlapping sender runs claim the same pending rows and
+deliver the same notification twice. Not urgent while push is off; required
+before it is turned on.
+
+To re-check either:
 
 ```sql
 select
