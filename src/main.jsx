@@ -633,26 +633,11 @@ function AppRoot() {
   const [loadState, setLoadState] = useState("loading");   // loading | ok | notfound
   const modRef = useRef(null);
   const seededRef = useRef(false);
-  // Onboarding gate: "checking" until we know, then "needed" | "done". Only consulted
-  // for signed-in users; guests viewing a shared profile bypass it entirely.
-  const [onbState, setOnbState] = useState("checking");
   // Pre-auth welcome flow: null = show the animated welcome intro; "signin"/"signup" =
   // the user picked an option, so render the auth form in that mode.
   const [authMode, setAuthMode] = useState(null);
   // Android back: the sign-in/register form returns to the welcome intro.
   useBackHandler(!!authMode, () => setAuthMode(null));
-
-  // When a session appears, ask the cloud whether this investor has finished onboarding.
-  // Fail-open (treat as done) on any error so a transient fetch failure never traps a
-  // real user on the onboarding screen.
-  useEffect(() => {
-    if (!signedIn) { setOnbState("checking"); return; }
-    let cancelled = false;
-    investorData.getInvestorProfile()
-      .then((p) => { if (!cancelled) setOnbState(p && p.onboardingCompleted ? "done" : "needed"); })
-      .catch(() => { if (!cancelled) setOnbState("done"); });
-    return () => { cancelled = true; };
-  }, [signedIn]);
 
   // Live editor preview: when embedded in the admin editor, the parent posts the
   // draft's `pp` object; apply it in place and remount so edits show instantly —
@@ -835,12 +820,6 @@ function AppRoot() {
       return <InvestorAuth initialMode={forced ? "signin" : authMode} onBack={forced ? null : () => setAuthMode(null)} />;
     }
     return <WelcomeIntro onChoose={setAuthMode} />;
-  }
-  // Signed-in investors must finish onboarding before entering the app. Guests (viewing
-  // a shared/QR profile without a session) skip this and go straight to the profile.
-  if (signedIn) {
-    if (onbState === "checking") return lazyFallback("app");
-    if (onbState === "needed") return <InvestorOnboarding onDone={() => setOnbState("done")} />;
   }
   if (!App) return lazyFallback("app");
   if (loadState === "notfound") return <ProfileUnavailable />;
