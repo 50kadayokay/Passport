@@ -21,6 +21,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import React, { useEffect, useRef, useState } from "react";
 import { MX, EASE, useViewport } from "../system.jsx";
+import { stageGridStyle } from "../home2/WalkthroughNarrative.jsx";
 import { DirectedEmbed } from "./DirectedEmbed.jsx";
 import { ProjectsAct } from "./ProjectsAct.jsx";
 import PushPreview from "../home2/PushPreview.jsx";
@@ -198,13 +199,32 @@ export function NarrativeStory({ variant = "full", hardware = false, cutout = fa
   );
 
   if (mobile) {
-    // Desktop-only integration. On phones the section degrades to the phone alone
-    // (its existing behaviour) so nothing about the mobile experience is broken.
+    // The phone pages are the SAME walkthrough as desktop, sized to the screen — not a
+    // separate story. This used to drop the narrative and show the device alone, which
+    // rendered as a full-bleed phone over the nav with no copy at all; that is what led
+    // to a parallel mobile composition being written instead of finishing this one.
+    //
+    // Same beats, same copy, same real app. Stacked: copy above, device below, with the
+    // device taking the remaining height (see stageGridStyle).
     return (
       <div className="mx-story-m" style={{ position: "relative", height: "100svh", overflow: "hidden", background: NS_BG }}>
         <style>{`.mx-story-m .mx-demo{background:transparent!important}${hardware ? ".mx-story-m .mx-demo{height:100%!important;overflow:visible!important}.mx-story-m .mx-demo > div:not([aria-hidden]){padding:0!important;overflow:visible!important}" : ""} ${GLOW_CSS}`}</style>
         {bgLayer}
-        {phone}
+        <div style={{ position: "absolute", left: 0, right: 0, top: 62, bottom: 12, zIndex: 3 }}>
+          <div style={stageGridStyle(true)}>
+            <div style={copyMotion}>
+              <p className="mx-label" style={{ color: MX.onDarkMute, letterSpacing: "0.22em", margin: 0 }}>
+                <span style={{ color: MX.onDark, fontWeight: 800 }}>{String(shownBeat + 1).padStart(2, "0")}</span>
+                <span style={{ color: MX.onDarkMute }}> / {String(BEATS.length).padStart(2, "0")}</span>
+                <span style={{ color: MX.onDarkMute, margin: "0 8px" }}>·</span>
+                {beat.eyebrow}
+              </p>
+              <h2 className="mx-h2" style={{ marginTop: 9, maxWidth: "22ch", color: MX.onDark }}>{beat.head}</h2>
+              <p className="mx-lead" style={{ color: MX.onDarkDim, marginTop: 10, maxWidth: "38ch" }}>{beat.body}</p>
+            </div>
+            <div style={{ position: "relative", height: "100%" }}>{phone}</div>
+          </div>
+        </div>
       </div>
     );
   }

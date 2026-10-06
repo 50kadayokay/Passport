@@ -176,13 +176,19 @@ export default function ConferenceScene({ mobile = false, reduce = false, confIn
   // Conference bundles at once (which janked the swipe and left cards black). Re-arms on each entry so
   // the heroes replay their intro. Mounting begins as the state is approached (QR onward).
   const galleryNear = mount && i >= 4 && !deviceOnly;   // deviceOnly reuse (ecosystem finale) never shows the 16-up gallery
+  // The gallery boots the 16 templates LIVE, two at a time. On a desktop that is the
+  // point of the scene. On a phone it is the Conference-gallery failure again: measured
+  // here, scrolling to the end of the home page took the heap from 9MB to 138MB with 18
+  // live iframes — past the ~128MB where Safari kills the tab. The captured thumbnail is
+  // the same frame, so phones get the thumbs and no live boot, exactly as the standalone
+  // gallery page already does.
   const [liveN, setLiveN] = useState(0);
   useEffect(() => {
-    if (!galleryNear) { setLiveN(0); return; }
+    if (!galleryNear || mobile) { setLiveN(0); return; }
     let n = 0; setLiveN(0);
     const id = setInterval(() => { n += 2; setLiveN(n); if (n >= TEMPLATE_GALLERY.length) clearInterval(id); }, 240);
     return () => clearInterval(id);
-  }, [galleryNear]);
+  }, [galleryNear, mobile]);
 
   // ── Measure the rendered iPad box so the homography maps to on-screen pixels. ──
   const boxRef = useRef(null);
@@ -329,6 +335,7 @@ export default function ConferenceScene({ mobile = false, reduce = false, confIn
                       // gallery imagery before the page had drawn its own phone. It now waits for the
                       // same proximity flag the live tiles use.
                       backgroundImage: galleryNear ? `url(/thumbs/${k}.jpg)` : "none",
+                      backgroundSize: "cover",
                       backgroundSize: "cover", backgroundPosition: "top center" }}>
                       {galleryNear && idx < liveN && (
                         <div style={{ position: "absolute", top: 0, left: 0, right: 0 }}>

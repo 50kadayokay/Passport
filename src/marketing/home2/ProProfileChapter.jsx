@@ -27,7 +27,7 @@
 // = Following = 24). They are read-only; the demo is untouched.
 // ─────────────────────────────────────────────────────────────────────────────
 import React, { useEffect, useRef, useState } from "react";
-import { useViewport, EASE } from "../system.jsx";
+import { useViewport, EASE, useTrack, step } from "../system.jsx";
 import { NarrativeStory } from "../demo/NarrativeStory.jsx";
 // The sheet shows the REAL pricing page, not a second pricing component: PricingDeck is
 // what /pricing renders, and it already supports an `embedded` mode (the sales page
@@ -47,6 +47,19 @@ const TERMINAL = 24;   // "following" — the last state (Follow / Stay Connecte
 
 export default function ProProfileChapter({ onActive, onPricing}) {
   const { mobile } = useViewport();
+
+  // The directed demo's 25 states, driven from scroll on a phone (it only handles wheel).
+  const PRO_STATES = 25;
+  const mTrackRef = useRef(null);
+  const mp = useTrack(mTrackRef);
+  const mStepRef = useRef(-1);
+  useEffect(() => {
+    if (!mobile) return;
+    const want = step(mp, PRO_STATES);
+    if (want === mStepRef.current) return;
+    mStepRef.current = want;
+    try { window.__demoGo && window.__demoGo(want); } catch (_) {}
+  }, [mp, mobile]);
   const [mounted, setMounted] = useState(false);
   const [active, setActive] = useState(false);
   // Tell the page when the walkthrough owns the viewport, so the global nav can recede.
@@ -241,12 +254,14 @@ export default function ProProfileChapter({ onActive, onPricing}) {
   }, [mobile]);
 
   if (mobile) {
-    // Mobile: no wheel takeover (the frozen demo is wheel-driven and doesn't handle
-    // touch). Present the real product frame statically and let the page scroll past
-    // natively. A proper touch-first mobile walkthrough is deferred (out of Phase B).
+    // The walkthrough IS the page on a phone too — the same 25 states, the same real app,
+    // the same copy. The directed demo only listens for `wheel`, so this drives it from
+    // scroll position instead: a tall track, the sticky stage pinned inside it, and
+    // window.__demoGo() called when the step changes. That is exactly how the sales page
+    // already drives the same demo on mobile (AppSection), so there is no new mechanism.
     return (
-      <section aria-label="MineEx Pro Profile" style={{ position: "relative", background: NS_BG }}>
-        <div style={{ height: "88svh" }}>
+      <section ref={mTrackRef} aria-label="MineEx Pro Profile" style={{ position: "relative", background: NS_BG, height: `${PRO_STATES * 72}svh` }}>
+        <div style={{ position: "sticky", top: 0, height: "100svh", overflow: "hidden" }}>
           <NarrativeStory variant="full" hardware cutout />
         </div>
       </section>

@@ -36,7 +36,6 @@ import PushPreview, { PR_INVESTOR } from "./PushPreview.jsx";
 import { STAGE } from "./WalkthroughNarrative.jsx";
 
 import Footer from "./Footer.jsx";
-import InvestorMobile from "./InvestorMobile.jsx";
 const BG = "#fbfcfe";
 const NAVY = "#0a1b2e";
 const SLATE = "#565f6e";
@@ -66,6 +65,19 @@ const NARR_W = "clamp(360px, 40vw, 560px)";
 // sales size (557 wide) but overflows a 320px column by ~118px on each side, so the sales
 // page's 120px gap left only ~46px of air between the headline and the phone. A wider
 // container and a larger gap put ~115px between them without moving the device column.
+// On a phone the two columns do not fit: a 360px+ narrative column plus a 320px device
+// column plus a 110-190px gap, on a 390px screen, put the device half off-screen and cut
+// the copy off at the left. Phones stack it — copy above, device below, the device taking
+// the remaining height — the same shape the sales and Pro walkthroughs use.
+const stageGridMobile = {
+  display: "grid",
+  gridTemplateColumns: "1fr",
+  gridTemplateRows: "clamp(150px, 30svh, 200px) minmax(0, 1fr)",
+  alignItems: "stretch",
+  height: "100%",
+  padding: "0 22px 6px",
+  gap: 10,
+};
 const stageGrid = {
   display: "grid",
   gridTemplateColumns: `${NARR_W} 320px`,
@@ -477,7 +489,11 @@ function BeatCopy({ i, compact }) {
       <Eyebrow n={s.n} label={s.label} />
       <h2 className="mx-h2" style={{ margin: compact ? "8px 0 0" : "18px 0 0", color: NAVY, maxWidth: "16ch", fontSize: compact ? 21 : undefined }}>{s.head}</h2>
       <p className="mx-lead" style={{ margin: compact ? "8px 0 0" : "20px 0 0", color: SLATE, maxWidth: "38ch", fontSize: compact ? 14.5 : undefined }}>{s.body}</p>
-      {s.ch === 1 ? <FilterViz i={i} compact={compact} /> : supportFor(i, compact)}
+      {/* The supporting card sits under the copy in the desktop LEFT COLUMN. Stacked on a
+          phone it overflows the copy row and lands behind the device. Nothing is lost by
+          dropping it there: the phone prints the same figures on screen beside it (see the
+          note above FilterViz), and the headline and body still carry the beat. */}
+      {compact ? null : (s.ch === 1 ? <FilterViz i={i} compact={compact} /> : supportFor(i, compact))}
     </>
   );
 }
@@ -506,16 +522,16 @@ export default function InvestorPage() {
   // its grid cell.
   const active = phoneKeyFor(idx);
   const showPhone = idx >= 1 && idx <= STATES.length;   // mobile only: copy card needs the room
+  // `fill` on BOTH: without it the root is height:100svh, so on a phone the device sized
+  // itself to the whole viewport (443px wide) instead of its grid row and ran off the
+  // bottom of the screen. `matchSales` stays desktop-only — that deliberately sizes off
+  // the viewport to match the sales page's stage, which is wrong once the layout stacks.
   const phone = mobile
-    ? <InvestorShellPhone active={active} insetTop={0} insetBottom={0} />
+    ? <InvestorShellPhone active={active} fill insetTop={0} insetBottom={0} />
     : <InvestorShellPhone active={active} fill matchSales />;
 
-  // A phone gets its own composition — see InvestorMobile. The branch that used to be
-  // here kept the desktop deck's shape (19 cells of 100svh with the copy floated over
-  // the device), which took 16,000px of scrolling to read 320 characters.
-  if (mobile) return <InvestorMobile />;
-
-  // ── DESKTOP: one pinned stage; phone + copy glide to each chapter's composition ──
+  // ── One pinned stage, desktop and phone alike; the device + copy glide to each
+  //    chapter's composition. The phone sizes itself to the viewport (stageGridStyle).
   return (
     <div className="mx-root mx-invstage" id="top" style={{ background: BG, minHeight: "100vh", color: NAVY }}>
       <MarketingStyles />
@@ -529,10 +545,10 @@ export default function InvestorPage() {
 
             {/* ONE stage for all 19 states: narrative left, device right, both fixed. */}
             <div style={{ position: "absolute", left: 0, right: 0, top: SAFE_TOP, bottom: SAFE_BOTTOM, zIndex: 20 }}>
-              <div style={stageGrid}>
+              <div style={mobile ? stageGridMobile : stageGrid}>
                 {/* narrative — fixed column, so the device slot never moves */}
                 <div style={{ minHeight: 300, display: "flex", flexDirection: "column", justifyContent: "center" }}>
-                  <div style={copyStyleFor(phase, reduce)}><BeatCopy i={shown} /></div>
+                  <div style={copyStyleFor(phase, reduce)}><BeatCopy i={shown} compact={mobile} /></div>
                 </div>
                 {/* device — constant slot, constant scale, no entrance */}
                 <div style={{ position: "relative", height: "100%", pointerEvents: "none" }}>

@@ -19,10 +19,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { MX, EASE, useTrack, step, useViewport, useReduce } from "../system.jsx";
 import { DirectedEmbed } from "../demo/DirectedEmbed.jsx";
-const FastPhoneLazy = React.lazy(() => import("../demo/FastPhone.jsx"));
-// Comparison flag (?fastphone=1): render the hardware phone with AppUI DOM inside instead
-// of the real app in an iframe. See demo/FastPhone.jsx for why.
-const FAST_PHONE = typeof window !== "undefined" && /[?&]fastphone=1/.test(window.location.search);
 import ConferenceScene from "./ConferenceScene.jsx";
 import HeroHandPhone from "./HeroHandPhone.jsx";
 // The Pricing deck slides up as the chapter after the template gallery (paged panels; see below).
@@ -448,8 +444,10 @@ export default function AppSection() {
   // sheet at its FINAL resting geometry: it is revealed when the Hero sheet leaves and hidden
   // when the App sheet itself leaves into the Conference — it never enters/scales/fades. Only
   // the narrative + real phone product change between states 01–06 (unchanged). ──
+  // SAFE_TOP reserves 92px for the 64px desktop nav. The phone nav is 54, so on mobile that
+  // was 30px of the device's own height spent on nothing; the phone takes it back.
   const appLayer = (
-    <div className="mx-story" style={{ position: "absolute", left: 0, right: 0, top: SAFE_TOP, bottom: SAFE_BOTTOM, zIndex: 3, pointerEvents: appVisible ? "auto" : "none" }}>
+    <div className="mx-story" style={{ position: "absolute", left: 0, right: 0, top: mobile ? 62 : SAFE_TOP, bottom: mobile ? 12 : SAFE_BOTTOM, zIndex: 3, pointerEvents: appVisible ? "auto" : "none" }}>
       <div style={stageGridStyle(mobile)}>
         <WalkthroughNarrative total={BEATS.length} index={appBeat} page={beat.page}
           head={pubStep ? PUB_HEADS[pubStep - 1] : beat.head}
@@ -461,9 +459,7 @@ export default function AppSection() {
             </a>) : null} />
         <div style={{ position: "relative", height: "100%" }}>
           {PRNOTIFY && !mobile && <PushPreview show={pubStep === 1} />}
-          {FAST_PHONE
-            ? <React.Suspense fallback={null}><FastPhoneLazy beat={appBeat} /></React.Suspense>
-            : <DirectedEmbed variant="home" hardware cutout />}
+          <DirectedEmbed variant="home" hardware cutout />
         </div>
       </div>
     </div>

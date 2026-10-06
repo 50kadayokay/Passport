@@ -20,8 +20,17 @@ export const STAGE = {
   gap: "clamp(84px, 10vw, 120px)",
   cols: "minmax(0, max-content) 320px",
 };
+// On a phone the two rows were auto-sized and vertically centred, so the copy took what
+// it needed and the DEVICE got the remainder — measured at 194px of height on a 740px
+// viewport, which rendered the app 81px wide. The device is the product; it gets the
+// remaining height, and the copy sits above it at its natural size.
 export const stageGridStyle = (mobile) => (mobile
-  ? { display: "grid", gridTemplateColumns: "1fr", alignItems: "center", height: "100%", padding: "0 22px", gap: 12 }
+  // The copy row is a FIXED height. Desktop puts copy and device in separate columns, so
+  // a longer beat cannot move the phone; stacked on a phone it can, and every beat change
+  // nudged the device (CLS 0.157 on mobile vs 0.012 on desktop). Reserving the tallest
+  // beat keeps the device still — it is the one thing on screen that must not move.
+  ? { display: "grid", gridTemplateColumns: "1fr", gridTemplateRows: "clamp(150px, 30svh, 200px) minmax(0, 1fr)",
+      alignItems: "stretch", height: "100%", padding: "0 22px 6px", gap: 10 }
   : { display: "grid", gridTemplateColumns: STAGE.cols, justifyContent: "center", alignItems: "center", height: "100%", maxWidth: STAGE.maxWidth, margin: "0 auto", padding: STAGE.padding, gap: STAGE.gap });
 
 // The vertical progress rail — one segment per beat, filled to the active one.
@@ -59,8 +68,8 @@ export function WalkthroughNarrative({ total, index, page, head, body, tail, mot
             <span style={{ color: MX.mute, margin: "0 8px" }}>·</span>
             {page}
           </p>
-          <h2 className="mx-h2" style={{ marginTop: 18, maxWidth: "16ch", color: MX.text }}>{head}</h2>
-          <p className="mx-lead" style={{ color: MX.dim, marginTop: 20, maxWidth: "38ch" }}>{body}</p>
+          <h2 className="mx-h2" style={{ marginTop: mobile ? 9 : 18, maxWidth: mobile ? "22ch" : "16ch", color: MX.text }}>{head}</h2>
+          <p className="mx-lead" style={{ color: MX.dim, marginTop: mobile ? 10 : 20, maxWidth: "38ch" }}>{body}</p>
           {tail}
         </div>
       </div>
