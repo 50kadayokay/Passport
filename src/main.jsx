@@ -173,28 +173,30 @@ const root = ReactDOM.createRoot(document.getElementById("root"));
 // Wise-style pre-auth welcome for logged-out users: an animated brand splash that
 // resolves into the "MineEx" wordmark, auto-advances to a "Get started" landing, then
 // a Log in / Register choice that hands off to <InvestorAuth> in the chosen mode.
-// Splash only plays on the first view per app load (splashSeen) so returning from the
-// form via "back" doesn't replay the intro.
+// Splash plays ONCE, then never again. `splashSeen` guards within one app load (so
+// returning from the form via "back" doesn't replay it); localStorage — which the
+// Capacitor webview persists across launches — guards cold starts, so a returning
+// user never sits through the intro again.
 let splashSeen = false;
-const WELCOME_GREEN = "#2563eb";
-// Splash logo reveal: the icon tile rises in large and centred, then dissolves down
-// into the "M" (same slot) while "ineEx" completes the wordmark — so the logo "merges"
-// into the M of MineEx. mxLockup nudges the whole lockup left (~38px ≈ half of "ineEx")
-// so the M reads as centred before the rest appears.
+function splashPersisted() { try { return localStorage.getItem("mx.splashSeen") === "1"; } catch (_) { return false; } }
+function persistSplash() { try { localStorage.setItem("mx.splashSeen", "1"); } catch (_) {} }
+const WELCOME_GREEN = "#2563eb";   // primary CTA colour (NOT the splash background)
+const SPLASH_BG = "#000000";       // opening-animation background — black
+// Opening animation: the drill-core MARK fades/scales in first, then the "MineEx"
+// wordmark accordions open to the right (max-width reveal). Short + premium.
 const WELCOME_KF = `
-@keyframes mxLockup{0%,52%{transform:translateX(38px)}100%{transform:translateX(0)}}
-@keyframes mxMerge{0%{opacity:0;transform:translateY(16px) scale(1.5)}28%{opacity:1;transform:translateY(0) scale(1.5)}58%{opacity:1;transform:scale(1.08)}82%,100%{opacity:0;transform:scale(.62)}}
-@keyframes mxM{0%,64%{opacity:0}86%,100%{opacity:1}}
-@keyframes mxRest{0%,68%{opacity:0;transform:translateX(-6px)}100%{opacity:1;transform:translateX(0)}}
+@keyframes mxMarkIn{0%{opacity:0;transform:scale(.82)}60%{opacity:1}100%{opacity:1;transform:scale(1)}}
+@keyframes mxWord{0%,26%{max-width:0;opacity:0;margin-left:0}46%{opacity:1}100%{max-width:280px;opacity:1;margin-left:14px}}
 @keyframes mxFade{from{opacity:0}to{opacity:1}}`;
 
 function WelcomeIntro({ onChoose }) {
-  const [phase, setPhase] = useState(splashSeen ? "start" : "splash"); // splash | start | choose
+  const [phase, setPhase] = useState((splashSeen || splashPersisted()) ? "start" : "splash"); // splash | start | choose
 
   useEffect(() => {
     if (phase !== "splash") return;
     splashSeen = true;
-    const t = setTimeout(() => setPhase("start"), 2600);
+    persistSplash();
+    const t = setTimeout(() => setPhase("start"), 1900);
     return () => clearTimeout(t);
   }, [phase]);
 
@@ -206,14 +208,11 @@ function WelcomeIntro({ onChoose }) {
 
   if (phase === "splash") {
     return (
-      <div onClick={() => setPhase("start")} style={{ position: "fixed", inset: 0, background: WELCOME_GREEN, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div onClick={() => setPhase("start")} style={{ position: "fixed", inset: 0, background: SPLASH_BG, display: "flex", alignItems: "center", justifyContent: "center" }}>
         <style>{WELCOME_KF}</style>
-        <div style={{ display: "inline-flex", alignItems: "center", animation: "mxLockup 1.9s cubic-bezier(.2,.8,.2,1) both" }}>
-          <span style={{ position: "relative", display: "inline-flex", alignItems: "center", justifyContent: "center", width: 44, height: 54 }}>
-            <img src="/icon-192.png" alt="" style={{ position: "absolute", width: 52, height: 52, borderRadius: 13, boxShadow: "0 14px 44px rgba(0,0,0,.20)", animation: "mxMerge 1.9s cubic-bezier(.2,.8,.2,1) both" }} />
-            <span style={{ position: "absolute", fontSize: 46, fontWeight: 800, color: "#fff", letterSpacing: "-0.02em", animation: "mxM 1.9s ease both" }}>M</span>
-          </span>
-          <span style={{ fontSize: 46, fontWeight: 800, color: "#fff", letterSpacing: "-0.02em", animation: "mxRest 1.9s ease both" }}>ineEx</span>
+        <div style={{ display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+          <img src="/icon-512.png" alt="" style={{ width: 60, height: 60, borderRadius: 15, flexShrink: 0, animation: "mxMarkIn 1.0s cubic-bezier(.2,.8,.2,1) both" }} />
+          <span style={{ overflow: "hidden", whiteSpace: "nowrap", color: "#fff", fontSize: 44, fontWeight: 800, letterSpacing: "-0.02em", animation: "mxWord 1.5s cubic-bezier(.2,.8,.2,1) both" }}>MineEx</span>
         </div>
       </div>
     );
