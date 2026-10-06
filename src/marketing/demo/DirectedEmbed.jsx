@@ -82,6 +82,10 @@ const CUTOUT_BLEED = 1.004;
 export const phoneSmall = () => typeof window !== "undefined" && window.innerWidth < 760;
 const sm = (u) => u.replace(/\.webp$/, ".sm.webp");
 export const PHONE_SRC = () => (phoneSmall() ? sm(PHONE.src) : PHONE.src);
+// Vertical panning MUST stay with the page on a phone: these chapters advance by scroll
+// progress, so a stage that eats the swipe freezes the page and strands the walkthrough.
+// Desktop navigates by wheel and keeps "none".
+const stageTouchAction = () => (phoneSmall() ? "pan-y" : "none");
 export const PHONE_CUTOUT = () => (phoneSmall() ? sm(PHONE.cutout) : PHONE.cutout);
 export const PHONE_MASK = () => (phoneSmall() ? sm(PHONE.screenMask) : PHONE.screenMask);
 
@@ -902,7 +906,7 @@ export function DirectedEmbed({ variant = "full", hardware = false, cutout = fal
     // where the screen ends. No CSS rounded rect, no inset, no separate Dynamic Island layer,
     // and no backing colour can appear anywhere the app does not reach.
     return (
-      <div className="mx-demo" style={{ position: "relative", height: "100svh", overflow: "visible", background: "transparent", display: "flex", alignItems: "center", justifyContent: "center", touchAction: "none" }}>
+      <div className="mx-demo" style={{ position: "relative", height: "100svh", overflow: "visible", background: "transparent", display: "flex", alignItems: "center", justifyContent: "center", touchAction: stageTouchAction() }}>
         <StateDots idx={idx} total={STATES.length} />
         <div ref={boxRef} style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
           <div style={{ position: "relative", width: dims.w, aspectRatio: "971 / 1620", flexShrink: 0 }}>
@@ -952,7 +956,7 @@ export function DirectedEmbed({ variant = "full", hardware = false, cutout = fal
     // Real app composited as a picture in a frame: live display (z1) BEHIND the hardware PNG (z2),
     // which has the OLED opening cut transparent and the rim + Dynamic Island baked in. No CSS bezel.
     return (
-      <div className="mx-demo" style={{ position: "relative", height: "100svh", overflow: "visible", background: "transparent", display: "flex", alignItems: "center", justifyContent: "center", touchAction: "none" }}>
+      <div className="mx-demo" style={{ position: "relative", height: "100svh", overflow: "visible", background: "transparent", display: "flex", alignItems: "center", justifyContent: "center", touchAction: stageTouchAction() }}>
         <StateDots idx={idx} total={STATES.length} />
         <div ref={boxRef} style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
           {/* Box matches the original photo (aspect-ratio 971:1620). */}
@@ -991,7 +995,7 @@ export function DirectedEmbed({ variant = "full", hardware = false, cutout = fal
   }
 
   return (
-    <div className="mx-demo" style={{ position: "relative", height: "100svh", overflow: "hidden", background: MX.sheet, display: "flex", alignItems: "center", justifyContent: "center", touchAction: "none" }}>
+    <div className="mx-demo" style={{ position: "relative", height: "100svh", overflow: "hidden", background: MX.sheet, display: "flex", alignItems: "center", justifyContent: "center", touchAction: stageTouchAction() }}>
       <StateDots idx={idx} total={STATES.length} />
       <div ref={boxRef} style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
         <div style={{ width: dims.w, height: dims.h, overflow: "hidden", borderRadius: Math.round(46 * dims.scale), background: "#000", boxShadow: "0 40px 100px -24px rgba(15,23,42,0.5), 0 0 0 " + Math.max(2, Math.round(10 * dims.scale)) + "px #111", position: "relative" }}>

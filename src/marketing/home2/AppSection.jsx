@@ -291,15 +291,25 @@ export default function AppSection() {
   }, [mobile, reduce, slow]);
 
   // ── MOBILE / reduced-motion: native-scroll paging ──
+  //
+  // Pricing used to be unreachable on a phone. openPricing() was called from exactly one
+  // place — the wheel handler — which returns early for mobile, so scrolling past the last
+  // Conference state (TEMPLATES) simply ended the page and the pricing sheet, which is the
+  // whole close of the sales story, never appeared. The track therefore carries ONE extra
+  // state's worth of scroll beyond NSTATES, and entering it lifts the sheet exactly as a
+  // deliberate downward wheel does on desktop. Scrolling back up closes it again.
   const mp = useTrack(trackRef);
   useEffect(() => {
     if (!(mobile || reduce)) return;
-    const want = reduce ? 0 : step(mp, NSTATES);
-    if (want !== idxRef.current) {
-      setIdx(want);
-      if (want >= APP0 && want <= CONF0 - 1) { desiredRef.current = subOf(want - APP0); try { window.__demoGo && window.__demoGo(subOf(want - APP0)); } catch (_) {} }
+    const want = reduce ? 0 : step(mp, NSTATES + 1);
+    const wantPricing = want >= NSTATES;
+    if (wantPricing !== pricingUpRef.current) { if (wantPricing) openPricing(); else closePricing(); }
+    const idxWant = Math.min(want, NSTATES - 1);
+    if (idxWant !== idxRef.current) {
+      setIdx(idxWant);
+      if (idxWant >= APP0 && idxWant <= CONF0 - 1) { desiredRef.current = subOf(idxWant - APP0); try { window.__demoGo && window.__demoGo(subOf(idxWant - APP0)); } catch (_) {} }
     }
-  }, [mp, mobile, reduce]);
+  }, [mp, mobile, reduce, openPricing, closePricing]);
 
   // Pause the ambient blooms during a product slide so all GPU budget goes to the move.
   useEffect(() => {
@@ -500,7 +510,7 @@ export default function AppSection() {
   );
 
   return (
-    <section id="app" ref={trackRef} className="mx-appstage" style={{ position: "relative", height: (mobile || reduce) ? `${NSTATES * 90}svh` : "100svh", background: "#fbfcfe", overscrollBehavior: "none" }}>
+    <section id="app" ref={trackRef} className="mx-appstage" style={{ position: "relative", height: (mobile || reduce) ? `${(NSTATES + 1) * 90}svh` : "100svh", background: "#fbfcfe", overscrollBehavior: "none" }}>
       <span id="app-scroll" style={{ position: "absolute", top: 0 }} />
       {sideNav}
       <style>{`

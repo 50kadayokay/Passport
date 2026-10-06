@@ -72,7 +72,12 @@ const NARR_W = "clamp(360px, 40vw, 560px)";
 const stageGridMobile = {
   display: "grid",
   gridTemplateColumns: "1fr",
-  gridTemplateRows: "clamp(150px, 30svh, 200px) minmax(0, 1fr)",
+  // Sized to the TALLEST walkthrough beat, not the average. At 200px the longest of them
+  // ("Coverage of this sector lives across newsletters, forums and filings...") rendered
+  // 236px and its last two lines sat 36px inside the device — measured at 390x844, 390x740,
+  // 390x690, 393x852 and 430x932 alike. The row is a constant rather than per-beat `auto`
+  // so the device still never moves between beats (per-beat sizing is what cost 0.312 CLS).
+  gridTemplateRows: "clamp(214px, 36svh, 252px) minmax(0, 1fr)",
   alignItems: "stretch",
   height: "100%",
   padding: "0 22px 6px",

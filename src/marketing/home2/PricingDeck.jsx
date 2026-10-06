@@ -338,8 +338,14 @@ export default function PricingDeck({ embedded = false, active = true, onExitTop
       <div className="mx-root" id="top" style={{ background: BG, minHeight: "100vh", color: NAVY }}>
         {!embedded && (<><MarketingStyles /><Nav /></>)}
         <PricingStyles />
-        <main style={{ paddingTop: embedded ? 40 : 92 }}>
-          {PANELS.map((P, k) => <section key={k} style={{ padding: "clamp(40px,7vh,80px) 0" }}><P gut={gut} /></section>)}
+        {/* Spacing is set for the PHONE here, not inherited from the desktop deck. The nav
+            is ~52px, so 92px of main padding plus the section's own clamp(40px,7vh,80px)
+            put the first word ~151px down an empty screen, and the same padding top AND
+            bottom opened ~118px between cards that are already taller than the viewport.
+            Each panel is its own full-bleed card, so the gutter between them is the only
+            separation they need. */}
+        <main style={{ paddingTop: embedded ? 40 : 64 }}>
+          {PANELS.map((P, k) => <section key={k} style={{ padding: `${k === 0 ? 10 : 30}px 0 30px` }}><P gut={gut} /></section>)}
         </main>
       </div>
     );
