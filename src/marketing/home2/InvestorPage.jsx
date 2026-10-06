@@ -555,7 +555,7 @@ export default function InvestorPage() {
         <section ref={sectionRef} style={{ position: "relative", height: `${N * 100}svh` }}>
           {Array.from({ length: N }).map((_, i) => <div key={i} aria-hidden className="inv-cell" style={{ position: "absolute", top: `${i * 100}svh`, left: 0, right: 0, height: "100svh", pointerEvents: "none" }} />)}
 
-          <div style={{ position: "sticky", top: 0, height: "100svh", overflow: "hidden" }}>
+          <div className="mx-vstage" style={{ position: "sticky", top: 0, height: "100svh", overflow: "hidden" }}>
             <Atmosphere reduce={reduce} />
 
             {/* ONE stage for all 19 states: narrative left, device right, both fixed. */}

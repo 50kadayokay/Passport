@@ -535,7 +535,7 @@ export default function AppSection() {
         .mx-appstage[data-busy="1"] .mx-fa, .mx-appstage[data-busy="1"] .mx-fb, .mx-appstage[data-busy="1"] .mx-fc, .mx-appstage[data-busy="1"] .mx-fd { animation-play-state: paused !important; }
         .mx-appstage .mx-demo iframe { will-change: transform; backface-visibility: hidden; }
       `}</style>
-      <div ref={stickyRef} style={{ position: "sticky", top: 0, height: "100svh", overflow: "hidden" }}>
+      <div ref={stickyRef} className="mx-vstage" style={{ position: "sticky", top: 0, height: "100svh", overflow: "hidden" }}>
         {/* Three stacked, opaque CHAPTER SHEETS (iOS layers). Each carries the identical
             atmosphere so the reveal is seamless; the top sheet TRANSLATES up to expose the
             one already resting underneath. Hero (top) → App (middle) → Conference (bottom).
