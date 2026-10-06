@@ -24,10 +24,13 @@ Everything from `0043` onward is unambiguous.
 
 ## Which are applied
 
-As of the merge, applied to production:
+Applied to production and verified:
 
 ```
+0042  push token ownership              (from main; closed a live privacy bug)
 0047  company messaging access
+0048  company engagement analytics
+0049  company notifications
 0050a MineIQ schema, functions, outbox widening
 0050b MineIQ full-text indexes (built CONCURRENTLY, one at a time)
 0051  release revisions, profile timeline, event chain
@@ -37,13 +40,16 @@ As of the merge, applied to production:
 0056  function EXECUTE hardening
 ```
 
-Deliberately **not** applied:
+Deliberately **not** applied — both only needed before push is turned on:
 
 ```
-0048  company engagement analytics      — ready
-0049  company notifications             — ready
-0055  enable device push                — arms real notifications; see the file
+0041  outbox claim lease   (from main)  — PREREQUISITE for 0055. Without it two
+                                          overlapping sender runs claim the same
+                                          rows and deliver twice.
+0055  enable device push                — arms real notifications. Read the file.
 ```
+
+Apply them in that order, and only when you intend investors' phones to buzz.
 
 `main`'s two were checked after the merge: **both were unapplied.**
 
