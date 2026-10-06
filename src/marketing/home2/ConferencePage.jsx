@@ -132,7 +132,7 @@ function LiveCard({ tpl, name, isNew, slug, idx, mobile }) {
           aspect; on a phone the thumbnail IS the thing being shown, so the box takes the
           thumbnail's aspect and nothing is cropped off the sides. */}
       <div ref={ref} style={{ position: "relative", width: "100%", aspectRatio: mobile ? "1920 / 1200" : "1194 / 820", overflow: "hidden",
-        backgroundColor: "#0c0f15", backgroundImage: `url(/thumbs/${tpl}.jpg)`, backgroundSize: mobile ? "contain" : "cover", backgroundPosition: mobile ? "center" : "top center", backgroundRepeat: "no-repeat" }}>
+        backgroundColor: "#0c0f15", backgroundImage: `url(/thumbs/${tpl}${mobile ? ".sm.webp" : ".jpg"})`, backgroundSize: mobile ? "contain" : "cover", backgroundPosition: mobile ? "center" : "top center", backgroundRepeat: "no-repeat" }}>
         {live && <div style={{ position: "absolute", inset: 0 }}>
           <TabletFrame bare src={previewSrc} interactive={false} showBootCover={false} screenBg="transparent" renderW={1194} renderH={820} title={`${name} — ${slug}`} />
         </div>}

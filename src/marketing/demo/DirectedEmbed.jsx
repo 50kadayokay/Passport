@@ -35,7 +35,11 @@ const BOOT_SCREEN = "#f4f5f7";
 // whole time. This is the identical first frame, so the device is complete from the first
 // paint of the page and the live app cross-fades in underneath it when it is ready —
 // nothing changes on screen at the swap, it simply becomes interactive.
+// Phones get a 590px capture: the full one decodes to 11.5MB of bitmap for a device
+// that is ~200px wide on screen.
 const BOOT_POSTER = "/marketing/app-opening-poster.webp";
+const BOOT_POSTER_SM = "/marketing/app-opening-poster.sm.webp";
+const POSTER_FOR = () => (typeof window !== "undefined" && window.innerWidth < 760 ? BOOT_POSTER_SM : BOOT_POSTER);
 
 // The boot cover: the real opening frame over the device-coloured fill, faded out once
 // the app has painted. `settled` keeps it mounted through the fade so there is no flash.
@@ -46,7 +50,7 @@ function BootCover({ ready }) {
       opacity: ready ? 0 : 1, pointerEvents: "none",
       transition: "opacity 420ms cubic-bezier(0.22,1,0.36,1)",
     }}>
-      <img src={BOOT_POSTER} alt="" decoding="async" fetchpriority="high"
+      <img src={POSTER_FOR()} alt="" decoding="async" fetchpriority="high"
         style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "top center", display: "block" }} />
     </div>
   );
@@ -70,6 +74,16 @@ function BootCover({ ready }) {
 // Sub-pixel bleed so the app cannot leave a seam where it meets the photo's own bezel edge.
 // Costs ~1.1pt horizontally / ~1.7pt vertically of the 393×852 viewport, concealed by the bezel.
 const CUTOUT_BLEED = 1.004;
+
+// Phones get 560px hardware art. The full 971x1620 photo decodes to 6MB of bitmap, and
+// the composite loads the photo AND its cutout AND the mask — 18MB for a device drawn
+// ~200px wide. Decoded bitmaps never appear in performance.memory, which is why the heap
+// readings looked healthy while the tab was dying.
+export const phoneSmall = () => typeof window !== "undefined" && window.innerWidth < 760;
+const sm = (u) => u.replace(/\.webp$/, ".sm.webp");
+export const PHONE_SRC = () => (phoneSmall() ? sm(PHONE.src) : PHONE.src);
+export const PHONE_CUTOUT = () => (phoneSmall() ? sm(PHONE.cutout) : PHONE.cutout);
+export const PHONE_MASK = () => (phoneSmall() ? sm(PHONE.screenMask) : PHONE.screenMask);
 
 export const PHONE = {
   src: "/marketing/pro-phone-79.webp",   // ORIGINAL, unmodified reference image (971×1620)
@@ -894,7 +908,7 @@ export function DirectedEmbed({ variant = "full", hardware = false, cutout = fal
           <div style={{ position: "relative", width: dims.w, aspectRatio: "971 / 1620", flexShrink: 0 }}>
             {/* Soft body shadow — the phone silhouette, blackened + blurred (unchanged). */}
             <div aria-hidden style={{ position: "absolute", inset: 0, zIndex: 0, pointerEvents: "none",
-              backgroundImage: `url(${PHONE.src})`, backgroundSize: "100% 100%", backgroundRepeat: "no-repeat",
+              backgroundImage: `url(${PHONE_SRC()})`, backgroundSize: "100% 100%", backgroundRepeat: "no-repeat",
               filter: "brightness(0) blur(26px)", opacity: 0.24, transform: "translateY(20px) translateZ(0)" }} />
             {/* z0–z1 — the backing and the live app, CLIPPED to the hardware's real screen
                 opening by the mask generated from the same measurement as the cutout. Both are
@@ -903,7 +917,7 @@ export function DirectedEmbed({ variant = "full", hardware = false, cutout = fal
                 the whole phone box, so it aligns with the photo by construction. */}
             <div aria-hidden={false} style={{
               position: "absolute", inset: 0, zIndex: 1,
-              WebkitMaskImage: `url(${PHONE.screenMask})`, maskImage: `url(${PHONE.screenMask})`,
+              WebkitMaskImage: `url(${PHONE_MASK()})`, maskImage: `url(${PHONE_MASK()})`,
               WebkitMaskSize: "100% 100%", maskSize: "100% 100%",
               WebkitMaskRepeat: "no-repeat", maskRepeat: "no-repeat",
             }}>
@@ -927,7 +941,7 @@ export function DirectedEmbed({ variant = "full", hardware = false, cutout = fal
                 black bezel, side buttons, reflections and the Dynamic Island are untouched
                 original pixels, and this single layer draws the entire display boundary. */}
             <div aria-hidden style={{ position: "absolute", inset: 0, zIndex: 2, pointerEvents: "none",
-              backgroundImage: `url(${PHONE.cutout})`, backgroundSize: "100% 100%", backgroundRepeat: "no-repeat", backgroundPosition: "0 0" }} />
+              backgroundImage: `url(${PHONE_CUTOUT()})`, backgroundSize: "100% 100%", backgroundRepeat: "no-repeat", backgroundPosition: "0 0" }} />
           </div>
         </div>
       </div>
@@ -945,12 +959,12 @@ export function DirectedEmbed({ variant = "full", hardware = false, cutout = fal
           <div style={{ position: "relative", width: dims.w, aspectRatio: "971 / 1620", flexShrink: 0 }}>
             {/* Soft body shadow — the phone silhouette (from the original), blackened + blurred. */}
             <div aria-hidden style={{ position: "absolute", inset: 0, zIndex: 0, pointerEvents: "none",
-              backgroundImage: `url(${PHONE.src})`, backgroundSize: "100% 100%", backgroundRepeat: "no-repeat",
+              backgroundImage: `url(${PHONE_SRC()})`, backgroundSize: "100% 100%", backgroundRepeat: "no-repeat",
               filter: "brightness(0) blur(26px)", opacity: 0.24, transform: "translateY(20px) translateZ(0)" }} />
             {/* BOTTOM (z0) — the ORIGINAL, UNMODIFIED phone photo: titanium, black bezel, corners, buttons,
                 reflections, shadows, Dynamic Island and the baked-in screenshot all come from here. */}
             <div aria-hidden style={{ position: "absolute", inset: 0, zIndex: 0, pointerEvents: "none", transform: "translateZ(0)",
-              backgroundImage: `url(${PHONE.src})`, backgroundSize: "100% 100%", backgroundRepeat: "no-repeat", backgroundPosition: "0 0" }} />
+              backgroundImage: `url(${PHONE_SRC()})`, backgroundSize: "100% 100%", backgroundRepeat: "no-repeat", backgroundPosition: "0 0" }} />
             {/* MIDDLE (z1) — the live app (or hot-pink calibration fill) OVER the baked screenshot, clipped to
                 the white display shape so it stops at the inner edge of the original black bezel. ONE clip. */}
             <div style={{ position: "absolute", left: dims.appLeft, top: dims.appTop, width: dims.appW, height: dims.appH, overflow: "hidden", borderRadius: dims.appRadius, zIndex: 1, background: DEBUG_SCREEN ? "#ff1493" : "#ffffff", isolation: "isolate", transform: "translateZ(0)" }}>
@@ -969,7 +983,7 @@ export function DirectedEmbed({ variant = "full", hardware = false, cutout = fal
             {/* TOP (z2) — the Dynamic Island, extracted straight from the ORIGINAL photo (same image, aligned
                 by background-position) and clipped to the pill, placed above the live app. Not manufactured. */}
             <div aria-hidden style={{ position: "absolute", left: dims.diLeft, top: dims.diTop, width: dims.diW, height: dims.diH, overflow: "hidden", borderRadius: dims.diH / 2, zIndex: 2, pointerEvents: "none",
-              backgroundImage: `url(${PHONE.src})`, backgroundSize: `${dims.w}px ${dims.boxH}px`, backgroundRepeat: "no-repeat", backgroundPosition: `-${dims.diLeft}px -${dims.diTop}px` }} />
+              backgroundImage: `url(${PHONE_SRC()})`, backgroundSize: `${dims.w}px ${dims.boxH}px`, backgroundRepeat: "no-repeat", backgroundPosition: `-${dims.diLeft}px -${dims.diTop}px` }} />
           </div>
         </div>
       </div>

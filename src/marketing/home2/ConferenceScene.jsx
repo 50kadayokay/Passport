@@ -281,7 +281,7 @@ export default function ConferenceScene({ mobile = false, reduce = false, confIn
         // triangles on the light background. The two-axis form restores a true circle.
         borderRadius: `${(GLASS.Rg / (GLASS.R - GLASS.L)) * 100}% / ${(GLASS.Rg / (GLASS.B - GLASS.T)) * 100}%`,
         zIndex: 0, pointerEvents: "none" }} />
-      <img src={IPAD_SRC} alt="MineEx Conference Mode on an iPad at a conference booth" draggable={false}
+      <img src={mobile ? IPAD_SRC.replace(/\.webp(\?.*)?$/, ".sm.webp") : IPAD_SRC} alt="MineEx Conference Mode on an iPad at a conference booth" draggable={false}
         style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "contain", pointerEvents: "none", zIndex: 1 }} />
       {/* No camera overlay — this asset has no front camera. */}
       <div style={{ position: "absolute", top: 0, left: 0, width: SW, height: SH, zIndex: 2, transformOrigin: "0 0", transform: screenTransform,
@@ -334,8 +334,10 @@ export default function ConferenceScene({ mobile = false, reduce = false, confIn
                       // and on the home deck every scene exists from the start. That pulled ~4MB of
                       // gallery imagery before the page had drawn its own phone. It now waits for the
                       // same proximity flag the live tiles use.
-                      backgroundImage: galleryNear ? `url(/thumbs/${k}.jpg)` : "none",
-                      backgroundSize: "cover",
+                      // A phone renders these tiles ~80px wide but was decoding the 1920x1200 source:
+                      // 8.8MB of bitmap each, 141MB across the sixteen. That is invisible to
+                      // performance.memory (which stayed at 18MB) and is what killed the tab.
+                      backgroundImage: galleryNear ? `url(/thumbs/${k}${mobile ? ".sm.webp" : ".jpg"})` : "none",
                       backgroundSize: "cover", backgroundPosition: "top center" }}>
                       {galleryNear && idx < liveN && (
                         <div style={{ position: "absolute", top: 0, left: 0, right: 0 }}>

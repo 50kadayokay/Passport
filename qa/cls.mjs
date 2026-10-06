@@ -10,7 +10,7 @@ await p.evaluateOnNewDocument(()=>{ window.__shifts=[];
       const n=s.node; return n? (n.tagName+(n.className&&typeof n.className==='string'?'.'+n.className.split(' ')[0]:'')+' "'+(n.innerText||'').slice(0,28).replace(/\s+/g,' ')+'"') : '?';})});
   }).observe({type:"layout-shift",buffered:true});
 });
-await p.goto("http://localhost:5197/pro",{waitUntil:"networkidle2"}); await sleep(3500);
+await p.goto("http://localhost:5197/investor",{waitUntil:"networkidle2"}); await sleep(3500);
 for(let f=0;f<=100;f+=6){ await p.evaluate(x=>window.scrollTo(0,document.body.scrollHeight*x/100),f); await sleep(240); }
 const sh=await p.evaluate(()=>window.__shifts.sort((a,b)=>b.v-a.v).slice(0,6));
 for(const s of sh) console.log(s.v, "|", s.srcs.join(" ;; ").slice(0,150));

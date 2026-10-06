@@ -12,6 +12,7 @@
 // is transparent and so cannot conceal them. Kept as its own component so the sales-page
 // DirectedEmbed stays untouched.
 // ─────────────────────────────────────────────────────────────────────────────
+import { PHONE_CUTOUT, PHONE_MASK, PHONE_SRC } from "./DirectedEmbed.jsx";
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { DEVICE_W, DEVICE_H } from "./MobileAppFrame.jsx";
 
@@ -21,7 +22,11 @@ const BOOT_SCREEN = "#f4f5f7";
 // The demo app's own opening frame (qa/poster2.mjs), shown while the iframe boots so the
 // device is complete from the page's first paint rather than a flat grey fill for ~2s.
 // Same 393x852 viewport as the iframe, so the swap to the live app changes nothing on screen.
+// Phones get a 590px capture: the full one decodes to 11.5MB of bitmap for a device
+// that is ~200px wide on screen.
 const BOOT_POSTER = "/marketing/appdemo-opening-poster.webp";
+const BOOT_POSTER_SM = "/marketing/appdemo-opening-poster.sm.webp";
+const POSTER_FOR = () => (typeof window !== "undefined" && window.innerWidth < 760 ? BOOT_POSTER_SM : BOOT_POSTER);
 
 
 // Sub-pixel bleed so the app cannot leave a seam against the photo's own bezel edge.
@@ -106,13 +111,13 @@ export default function InvestorShellPhone({ active = "today", insetTop = 92, in
         <div style={{ position: "relative", width: dims.w, aspectRatio: "971 / 1620", flexShrink: 0 }}>
           {/* soft body shadow — from the original photo (unchanged) */}
           <div aria-hidden style={{ position: "absolute", inset: 0, zIndex: 0, pointerEvents: "none",
-            backgroundImage: `url(${PHONE.src})`, backgroundSize: "100% 100%", backgroundRepeat: "no-repeat",
+            backgroundImage: `url(${PHONE_SRC()})`, backgroundSize: "100% 100%", backgroundRepeat: "no-repeat",
             filter: "brightness(0) blur(26px)", opacity: 0.24, transform: "translateY(20px) translateZ(0)" }} />
           {/* z0–z1 — backing + live app, CLIPPED to the hardware's real screen opening by the
               mask generated from the same measurement as the cutout. */}
           <div style={{
             position: "absolute", inset: 0, zIndex: 1,
-            WebkitMaskImage: `url(${PHONE.screenMask})`, maskImage: `url(${PHONE.screenMask})`,
+            WebkitMaskImage: `url(${PHONE_MASK()})`, maskImage: `url(${PHONE_MASK()})`,
             WebkitMaskSize: "100% 100%", maskSize: "100% 100%",
             WebkitMaskRepeat: "no-repeat", maskRepeat: "no-repeat",
           }}>
@@ -130,7 +135,7 @@ export default function InvestorShellPhone({ active = "today", insetTop = 92, in
               />
               <div aria-hidden style={{ position: "absolute", inset: 0, background: BOOT_SCREEN, zIndex: 2, pointerEvents: "none",
                 opacity: ready ? 0 : 1, transition: "opacity 420ms cubic-bezier(0.22,1,0.36,1)" }}>
-                <img src={BOOT_POSTER} alt="" decoding="async" fetchpriority="high"
+                <img src={POSTER_FOR()} alt="" decoding="async" fetchpriority="high"
                   style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "top center", display: "block" }} />
               </div>
             </div>
@@ -139,7 +144,7 @@ export default function InvestorShellPhone({ active = "today", insetTop = 92, in
               reflections and the Dynamic Island are untouched original pixels, and this single
               layer draws the entire display boundary. */}
           <div aria-hidden style={{ position: "absolute", inset: 0, zIndex: 2, pointerEvents: "none",
-            backgroundImage: `url(${PHONE.cutout})`, backgroundSize: "100% 100%", backgroundRepeat: "no-repeat", backgroundPosition: "0 0" }} />
+            backgroundImage: `url(${PHONE_CUTOUT()})`, backgroundSize: "100% 100%", backgroundRepeat: "no-repeat", backgroundPosition: "0 0" }} />
         </div>
       </div>
     </div>

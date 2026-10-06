@@ -78,6 +78,15 @@ const stageGridMobile = {
   padding: "0 22px 6px",
   gap: 10,
 };
+// The intro and the close carry a display-sized headline and a CTA block — several times
+// the height of a walkthrough beat (333px and 437px against ~150px) — so on a phone they
+// overflowed the fixed row and ran behind the device.
+//
+// Changing the GRID for those beats is what caused the shift: the device moved 245px when
+// it reappeared at beat 1 (0.312 CLS on the one element that must never move). So the grid
+// never changes. The device keeps its slot on every beat and is simply made invisible on
+// the two endpoints, where the copy is the point — layout identical, nothing to reflow,
+// and the long copy spills into a row that has nothing visible in it.
 const stageGrid = {
   display: "grid",
   gridTemplateColumns: `${NARR_W} 320px`,
@@ -526,6 +535,7 @@ export default function InvestorPage() {
   // itself to the whole viewport (443px wide) instead of its grid row and ran off the
   // bottom of the screen. `matchSales` stays desktop-only — that deliberately sizes off
   // the viewport to match the sales page's stage, which is wrong once the layout stacks.
+  const endpointBeat = shown === 0 || shown === N - 1;
   const phone = mobile
     ? <InvestorShellPhone active={active} fill insetTop={0} insetBottom={0} />
     : <InvestorShellPhone active={active} fill matchSales />;
@@ -551,7 +561,7 @@ export default function InvestorPage() {
                   <div style={copyStyleFor(phase, reduce)}><BeatCopy i={shown} compact={mobile} /></div>
                 </div>
                 {/* device — constant slot, constant scale, no entrance */}
-                <div style={{ position: "relative", height: "100%", pointerEvents: "none" }}>
+                <div style={{ position: "relative", height: "100%", pointerEvents: "none", opacity: mobile && endpointBeat ? 0 : 1, transition: "opacity 220ms ease" }}>
                   {phone}
                   {/* The story's point, in one frame: the company publishes, the follower is
                       notified, and the update is already in the feed behind the banner. Fires
