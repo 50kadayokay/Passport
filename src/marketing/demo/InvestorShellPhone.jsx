@@ -18,6 +18,10 @@ import { DEVICE_W, DEVICE_H } from "./MobileAppFrame.jsx";
 // The screen for the ~240ms before the real app paints. It is the APP'S OWN background,
 // so the hand-off is invisible rather than a contrasting slab flashing to light UI.
 const BOOT_SCREEN = "#f4f5f7";
+// The demo app's own opening frame (qa/poster2.mjs), shown while the iframe boots so the
+// device is complete from the page's first paint rather than a flat grey fill for ~2s.
+// Same 393x852 viewport as the iframe, so the swap to the live app changes nothing on screen.
+const BOOT_POSTER = "/marketing/appdemo-opening-poster.webp";
 
 
 // Sub-pixel bleed so the app cannot leave a seam against the photo's own bezel edge.
@@ -124,7 +128,11 @@ export default function InvestorShellPhone({ active = "today", insetTop = 92, in
                 loading="eager"
                 style={{ border: 0, display: "block", width: DEVICE_W, height: DEVICE_H, transform: `scale(${dims.scale})`, transformOrigin: "top left", pointerEvents: "none" }}
               />
-              {!ready && <div aria-hidden style={{ position: "absolute", inset: 0, background: BOOT_SCREEN, transition: "opacity 400ms ease" }} />}
+              <div aria-hidden style={{ position: "absolute", inset: 0, background: BOOT_SCREEN, zIndex: 2, pointerEvents: "none",
+                opacity: ready ? 0 : 1, transition: "opacity 420ms cubic-bezier(0.22,1,0.36,1)" }}>
+                <img src={BOOT_POSTER} alt="" decoding="async" fetchpriority="high"
+                  style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "top center", display: "block" }} />
+              </div>
             </div>
           </div>
           {/* z2 — the ORIGINAL photo with the opening cut transparent. Titanium, bezel, buttons,

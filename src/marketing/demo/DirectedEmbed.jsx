@@ -29,6 +29,28 @@ import { PP_ASSETS } from "./ppAssets.js";
 // The screen for the ~240ms before the real app paints. It is the APP'S OWN background,
 // so the hand-off is invisible rather than a contrasting slab flashing to light UI.
 const BOOT_SCREEN = "#f4f5f7";
+// The app's OWN opening frame, captured from /app?c=kingsmen-resources&embed=1 at the
+// iframe's exact 393x852 viewport (qa/poster.mjs). The app needs ~1.8s to boot even with
+// the connection to itself, and until now the phone showed a flat grey fill for that
+// whole time. This is the identical first frame, so the device is complete from the first
+// paint of the page and the live app cross-fades in underneath it when it is ready —
+// nothing changes on screen at the swap, it simply becomes interactive.
+const BOOT_POSTER = "/marketing/app-opening-poster.webp";
+
+// The boot cover: the real opening frame over the device-coloured fill, faded out once
+// the app has painted. `settled` keeps it mounted through the fade so there is no flash.
+function BootCover({ ready }) {
+  return (
+    <div aria-hidden style={{
+      position: "absolute", inset: 0, background: BOOT_SCREEN, zIndex: 2,
+      opacity: ready ? 0 : 1, pointerEvents: "none",
+      transition: "opacity 420ms cubic-bezier(0.22,1,0.36,1)",
+    }}>
+      <img src={BOOT_POSTER} alt="" decoding="async" fetchpriority="high"
+        style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "top center", display: "block" }} />
+    </div>
+  );
+}
 
 
 // ── Marketing hardware frame (SALES PAGE ONLY). With `hardware`, the real app renders inside
@@ -177,7 +199,15 @@ export function DirectedEmbed({ variant = "full", hardware = false, cutout = fal
 
   // Preload the profile's images in the PARENT (same origin → the iframe reuses the
   // HTTP cache), so a tab's hero never slides in blank on a cold first navigation.
+  //
+  // WAITS FOR THE APP TO PAINT. This used to start on mount, which meant 58 images were
+  // queued against the iframe's own critical resources while it was still booting — the
+  // app renders in 1.8s alone but took ~6s on the home page, and this was most of the
+  // difference. Nothing it warms is on screen in those first seconds: it exists so a
+  // LATER tab's hero is instant. Starting it once the phone has painted keeps that
+  // benefit and gives the boot the full connection.
   useEffect(() => {
+    if (!ready) return;
     let stop = false, i = 0;
     const ric = window.requestIdleCallback || ((fn) => setTimeout(() => fn({ timeRemaining: () => 8 }), 150));
     const pump = (dl) => {
@@ -186,7 +216,7 @@ export function DirectedEmbed({ variant = "full", hardware = false, cutout = fal
     };
     ric(pump);
     return () => { stop = true; };
-  }, []);
+  }, [ready]);
 
   // A neutral device-coloured cover sits over the iframe whenever the app is
   // (re)booting — before its first paint AND across any reload (e.g. a dev HMR
@@ -890,7 +920,7 @@ export function DirectedEmbed({ variant = "full", hardware = false, cutout = fal
                 style={{ border: 0, display: "block", width: DEVICE_W, height: DEVICE_H, transform: `scale(${dims.scale})`, transformOrigin: "top left", pointerEvents: "none" }}
               />}
               {DEBUG_SCREEN && <div style={{ position: "absolute", inset: 0, background: "#ff1493" }} />}
-              {!DEBUG_SCREEN && !ready && <div style={{ position: "absolute", inset: 0, background: BOOT_SCREEN }} />}
+              {!DEBUG_SCREEN && <BootCover ready={ready} />}
             </div>
             </div>
             {/* z2 — the ORIGINAL photo with the display opening cut transparent. Titanium frame,
@@ -934,7 +964,7 @@ export function DirectedEmbed({ variant = "full", hardware = false, cutout = fal
                 onLoad={() => { setReady(false); settleApp(); }}
                 style={{ border: 0, display: "block", width: DEVICE_W, height: DEVICE_H, transform: `translate(${dims.appOffX}px, ${dims.appOffY}px) scale(${dims.scale})`, transformOrigin: "top left", pointerEvents: "none" }}
               />}
-              {!DEBUG_SCREEN && !ready && <div style={{ position: "absolute", inset: 0, background: BOOT_SCREEN }} />}
+              {!DEBUG_SCREEN && <BootCover ready={ready} />}
             </div>
             {/* TOP (z2) — the Dynamic Island, extracted straight from the ORIGINAL photo (same image, aligned
                 by background-position) and clipped to the pill, placed above the live app. Not manufactured. */}
@@ -963,7 +993,7 @@ export function DirectedEmbed({ variant = "full", hardware = false, cutout = fal
           />
           {/* Neutral device-coloured cover while the app (re)boots — no text, no white,
               never a screenshot of content. Removed once the profile has painted. */}
-          {!ready && <div style={{ position: "absolute", inset: 0, background: BOOT_SCREEN }} />}
+          <BootCover ready={ready} />
         </div>
       </div>
     </div>
