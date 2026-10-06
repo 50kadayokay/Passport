@@ -26,7 +26,7 @@ function Wordmark({ dark }) {
     <a href="/home" aria-label="MineEx home" style={{ display: "inline-flex", alignItems: "center", gap: 7, textDecoration: "none" }}>
       {/* MineEx drill-core mark (assets/brand/mineex-core-sample.svg), inlined so it stays crisp.
           Height matches the M's cap height; a small translate aligns it flush top-and-bottom. */}
-      <svg aria-hidden width="7" height="22" viewBox="0 0 512 1706.67" style={{ display: "block", flexShrink: 0 }}>
+      <svg aria-hidden className="mx-wordmark-mark" width="7" height="22" viewBox="0 0 512 1706.67" style={{ display: "block", flexShrink: 0 }}>
         <defs><clipPath id="mxCoreMark"><rect x="0" y="0" width="512" height="1706.67" rx="120.89" /></clipPath></defs>
         <g clipPath="url(#mxCoreMark)">
           <rect x="0" y="0" width="512" height="426.67" fill="#7A4E33" />
@@ -35,7 +35,7 @@ function Wordmark({ dark }) {
           <rect x="0" y="1280" width="512" height="426.67" fill="#D9A24C" />
         </g>
       </svg>
-      <span style={{ fontWeight: 800, fontSize: 32, letterSpacing: "-0.03em", lineHeight: 1, color: dark ? MX.onDark : MX.text, transition: `color 450ms ${EASE}` }}>MineEx</span>
+      <span className="mx-wordmark-text" style={{ fontWeight: 800, fontSize: 32, letterSpacing: "-0.03em", lineHeight: 1, color: dark ? MX.onDark : MX.text, transition: `color 450ms ${EASE}` }}>MineEx</span>
     </a>
   );
 }
@@ -67,6 +67,16 @@ export default function Nav({ recede = false, dark = false, solid = false }) {
   const scrolled = scrolledRaw || solid;
   const [open, setOpen] = useState(false);
   useEffect(() => { if (recede) setOpen(false); }, [recede]);   // close any open drawer as the nav recedes
+  // While the phone drawer is open the page behind it must not scroll — otherwise a drag
+  // that starts on the drawer carries the page away underneath it.
+  useEffect(() => {
+    if (!open) return;
+    const b = document.body, prev = b.style.overflow;
+    b.style.overflow = "hidden";
+    const onKey = (e) => { if (e.key === "Escape") setOpen(false); };
+    window.addEventListener("keydown", onKey);
+    return () => { b.style.overflow = prev; window.removeEventListener("keydown", onKey); };
+  }, [open]);
 
   useEffect(() => {
     const onScroll = () => setScrolled((window.scrollY || 0) > 12);
@@ -92,7 +102,7 @@ export default function Nav({ recede = false, dark = false, solid = false }) {
       <header
         style={{
           position: "fixed", top: 0, left: 0, right: 0, zIndex: 100,
-          height: 64, display: "flex", alignItems: "center",
+          height: "var(--mx-nav-h, 64px)", display: "flex", alignItems: "center",
           background: scrolled ? (dark ? "rgba(8,9,12,0.72)" : "rgba(245,246,247,0.82)") : "transparent",
           backdropFilter: scrolled ? "saturate(1.2) blur(14px)" : "none",
           WebkitBackdropFilter: scrolled ? "saturate(1.2) blur(14px)" : "none",
@@ -106,7 +116,7 @@ export default function Nav({ recede = false, dark = false, solid = false }) {
           transition: `background 300ms ${EASE}, border-color 300ms ${EASE}, opacity 460ms ${EASE}, transform 460ms ${EASE}`,
         }}
       >
-        <nav style={{ position: "relative", width: "100%", maxWidth: MX.maxW, margin: "0 auto", padding: "0 clamp(20px, 5vw, 64px)", display: "flex", alignItems: "center", gap: 20 }}>
+        <nav className="mx-nav-inner" style={{ position: "relative", width: "100%", maxWidth: MX.maxW, margin: "0 auto", padding: "0 clamp(20px, 5vw, 64px)", display: "flex", alignItems: "center", gap: 20 }}>
           <Wordmark dark={dark} />
 
           {/* desktop links — horizontally centered in the header */}
@@ -130,7 +140,7 @@ export default function Nav({ recede = false, dark = false, solid = false }) {
           {/* mobile cluster */}
           <div className="mx-nav-mobile" style={{ display: "none", alignItems: "center", gap: 12 }}>
             <a href="/get-the-app" style={{ fontSize: 14, fontWeight: 600, color: T, textDecoration: "none" }}>Get the App</a>
-            <button aria-label="Menu" aria-expanded={open} onClick={() => setOpen((v) => !v)} style={{ width: 40, height: 40, display: "inline-grid", placeItems: "center", background: "transparent", border: `1px solid ${HAIR}`, borderRadius: 10, cursor: "pointer" }}>
+            <button aria-label="Menu" className="mx-nav-burger" aria-expanded={open} onClick={() => setOpen((v) => !v)} style={{ width: 40, height: 40, display: "inline-grid", placeItems: "center", background: "transparent", border: `1px solid ${HAIR}`, borderRadius: 10, cursor: "pointer" }}>
               <span aria-hidden style={{ display: "block", width: 16, height: 10, position: "relative" }}>
                 <span style={{ position: "absolute", left: 0, right: 0, top: open ? 4 : 0, height: 2, background: T, borderRadius: 2, transform: open ? "rotate(45deg)" : "none", transition: `all 240ms ${EASE}` }} />
                 <span style={{ position: "absolute", left: 0, right: 0, bottom: open ? 4 : 0, height: 2, background: T, borderRadius: 2, transform: open ? "rotate(-45deg)" : "none", transition: `all 240ms ${EASE}` }} />
@@ -142,19 +152,19 @@ export default function Nav({ recede = false, dark = false, solid = false }) {
 
       {/* mobile drawer */}
       <div style={{
-        position: "fixed", top: 64, left: 0, right: 0, zIndex: 99,
+        position: "fixed", top: "var(--mx-nav-h, 64px)", left: 0, right: 0, zIndex: 99,
         background: dark ? "rgba(8,9,12,0.96)" : "rgba(245,246,247,0.96)", backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)",
         borderBottom: `1px solid ${HAIR}`,
         transform: open ? "translateY(0)" : "translateY(-8px)", opacity: open ? 1 : 0,
         pointerEvents: open ? "auto" : "none",
         transition: `opacity 240ms ${EASE}, transform 240ms ${EASE}`,
       }}>
-        <div style={{ padding: "10px clamp(20px,5vw,64px) 18px", display: "flex", flexDirection: "column", gap: 2 }}>
+        <div style={{ padding: "10px clamp(20px,5vw,64px) calc(18px + env(safe-area-inset-bottom, 0px))", display: "flex", flexDirection: "column", gap: 2 }}>
           {PRIMARY.map((l) => (
-            <a key={l.label} href={l.href || "#"} onClick={l.href ? undefined : dead} style={{ padding: "12px 2px", fontSize: 16, fontWeight: 600, color: TD, textDecoration: "none", opacity: 0.82, borderBottom: `1px solid ${HAIR}` }} title={l.href ? undefined : "Coming soon"}>{l.label}</a>
+            <a key={l.label} href={l.href || "#"} onClick={l.href ? undefined : dead} style={{ display: "flex", alignItems: "center", minHeight: 48, padding: "12px 2px", fontSize: 16.5, fontWeight: 600, color: TD, textDecoration: "none", opacity: 0.82, borderBottom: `1px solid ${HAIR}` }} title={l.href ? undefined : "Coming soon"}>{l.label}</a>
           ))}
           <div style={{ display: "flex", gap: 14, marginTop: 14 }}>
-            <a href="/get-the-app" style={{ fontSize: 15, fontWeight: 700, color: T, textDecoration: "none" }}>Get the App</a>
+            <a href="/get-the-app" style={{ display: "inline-flex", alignItems: "center", minHeight: 48, fontSize: 16.5, fontWeight: 700, color: T, textDecoration: "none" }}>Get the App</a>
           </div>
         </div>
       </div>
@@ -163,6 +173,27 @@ export default function Nav({ recede = false, dark = false, solid = false }) {
         @media (max-width: 860px) {
           .mx-nav-links, .mx-nav-right { display: none !important; }
           .mx-nav-mobile { display: flex !important; }
+        }
+        /* Phone header. The desktop wordmark is 32px, which on a 390px screen reads as
+           a logo demanding attention rather than a mark identifying the page, and 64px
+           of chrome costs 7.5% of the viewport before anything is said. */
+        @media (max-width: 759px) {
+          :root { --mx-nav-h: 54px; }
+          .mx-nav-inner { padding-left: 22px !important; padding-right: 22px !important; }
+          .mx-wordmark-text { font-size: 23px !important; letter-spacing: -0.032em !important; }
+          .mx-wordmark-mark { width: 5px !important; height: 16px !important; }
+          .mx-nav-mobile { gap: 14px !important; }
+          .mx-nav-mobile > a {
+            font-size: 14.5px !important;
+            display: inline-flex !important; align-items: center !important; min-height: 44px !important;
+          }
+          .mx-nav-inner > a[aria-label="MineEx home"] { min-height: 44px !important; }
+          /* A quieter control: no heavy box, a real 44px target. */
+          .mx-nav-burger {
+            width: 44px !important; height: 44px !important;
+            border-color: transparent !important; border-radius: 12px !important;
+            margin-right: -8px !important;
+          }
         }
         .mx-navlink:hover { color: ${T} !important; opacity: 1 !important; }
       `}</style>

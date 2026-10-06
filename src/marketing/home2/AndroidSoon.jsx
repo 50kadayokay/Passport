@@ -66,7 +66,7 @@ export default function AndroidSoon() {
             </div>
 
             <p style={{ marginTop: "clamp(24px,3.5vh,36px)" }}>
-              <a href="/get-the-app" style={{ color: T.SLATE, fontSize: 14, textDecoration: "underline" }}>Back to the app page</a>
+              <a href="/get-the-app" style={{ display: "inline-flex", alignItems: "center", minHeight: 44, color: T.SLATE, fontSize: 15, textDecoration: "underline" }}>Back to the app page</a>
             </p>
           </div>
         </div>

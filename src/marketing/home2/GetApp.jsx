@@ -90,9 +90,9 @@ export default function GetApp() {
               <StoreBadge href={ANDROID_SOON} logo={<PlayLogo />} top="GET IT ON" bottom="Google Play" sameTab />
             </div>
 
-            <p style={{ marginTop: 20, fontSize: 13.5, color: MUTE }}>Free for investors · on iPhone today, Android soon</p>
+            <p style={{ marginTop: 20, fontSize: 15.5, lineHeight: 1.5, color: MUTE }}>Free for investors · on iPhone today, Android soon</p>
             <p style={{ marginTop: "clamp(26px,4vh,40px)" }}>
-              <a href="/investor" className="ga-link" style={{ display: "inline-flex", alignItems: "center", gap: 8, color: NAVY, fontSize: 15, fontWeight: 600, letterSpacing: "-0.01em", textDecoration: "none" }}>See what you can do <span aria-hidden className="ga-arw">→</span></a>
+              <a href="/investor" className="ga-link" style={{ display: "inline-flex", alignItems: "center", minHeight: 44, gap: 8, color: NAVY, fontSize: 15, fontWeight: 600, letterSpacing: "-0.01em", textDecoration: "none" }}>See what you can do <span aria-hidden className="ga-arw">→</span></a>
             </p>
           </div>
         </div>

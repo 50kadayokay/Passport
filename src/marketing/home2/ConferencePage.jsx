@@ -60,7 +60,7 @@ function IntroCarousel({ lead, steps, mobile }) {
   const anim = phase === "out"
     ? { opacity: 0, transform: "translateY(-8px)", transition: "opacity 210ms cubic-bezier(0.4,0,0.2,1), transform 210ms cubic-bezier(0.4,0,0.2,1)" }
     : { animation: "cfStepIn 340ms cubic-bezier(0.22,1,0.36,1) both" };
-  const arrow = { flex: "0 0 auto", width: 40, height: 40, borderRadius: 999, border: `1px solid ${HAIR}`, background: "#fff", color: NAVY, cursor: "pointer", display: "grid", placeItems: "center", fontSize: 15, transition: `border-color 200ms ${EASE}, color 200ms ${EASE}` };
+  const arrow = { flex: "0 0 auto", width: mobile ? 44 : 40, height: mobile ? 44 : 40, borderRadius: 999, border: `1px solid ${HAIR}`, background: "#fff", color: NAVY, cursor: "pointer", display: "grid", placeItems: "center", fontSize: 15, transition: `border-color 200ms ${EASE}, color 200ms ${EASE}` };
   const Body = (
     <div key={i} style={{ width: "100%", ...anim }}>
       {cur.lead ? (
@@ -74,9 +74,10 @@ function IntroCarousel({ lead, steps, mobile }) {
     </div>
   );
   const dots = (
-    <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+    <div style={{ display: "flex", gap: mobile ? 6 : 8, alignItems: "center" }}>
       {slides.map((_, k) => (
-        <button key={k} type="button" onClick={() => go(k)} aria-label={`Slide ${k + 1}`} className="cf-dot" style={{ padding: "6px 0", border: "none", background: "transparent", cursor: "pointer" }}>
+        <button key={k} type="button" onClick={() => go(k)} aria-label={`Slide ${k + 1}`} className="cf-dot" style={{ padding: 0, border: "none", background: "transparent", cursor: "pointer",
+          ...(mobile ? { width: 40, height: 44, display: "grid", placeItems: "center" } : { padding: "6px 0" }) }}>
           <span aria-hidden style={{ display: "block", height: 6, borderRadius: 99, width: k === i ? 24 : 6, background: k === i ? COBALT : "rgba(37,99,235,0.24)", transition: "width 320ms cubic-bezier(0.22,1,0.36,1), background 320ms ease" }} />
         </button>
       ))}
@@ -86,8 +87,8 @@ function IntroCarousel({ lead, steps, mobile }) {
   if (mobile) {
     return (
       <div>
-        <div style={{ minHeight: 172, display: "flex", alignItems: "center" }}>{Body}</div>
-        <div style={{ marginTop: 20, display: "flex", alignItems: "center", justifyContent: "center", gap: 16 }}>
+        <div style={{ minHeight: 150, display: "flex", alignItems: "center" }}>{Body}</div>
+        <div style={{ marginTop: 18, display: "flex", alignItems: "center", justifyContent: "center", gap: 10 }}>
           <button type="button" onClick={() => go(i - 1)} aria-label="Previous" className="cf-nav" style={arrow}>←</button>
           {dots}
           <button type="button" onClick={() => go(i + 1)} aria-label="Next" className="cf-nav" style={arrow}>→</button>
@@ -111,30 +112,36 @@ function IntroCarousel({ lead, steps, mobile }) {
 
 
 // One template card — thumb placeholder, live hero booted only when it scrolls near.
-function LiveCard({ tpl, name, isNew, slug, idx }) {
+function LiveCard({ tpl, name, isNew, slug, idx, mobile }) {
   const ref = useRef(null);
   const [live, setLive] = useState(false);
   useEffect(() => {
+    // A phone cannot afford sixteen live tablet renders; the captured thumbnail is the same frame.
+    if (mobile) return;
     const el = ref.current; if (!el) return;
     const io = new IntersectionObserver((es) => { if (es.some((e) => e.isIntersecting)) { setLive(true); io.disconnect(); } }, { rootMargin: "300px 0px" });
     io.observe(el);
     return () => io.disconnect();
-  }, []);
+  }, [mobile]);
   const previewSrc = `/confv3demo?c=${slug}&t=${tpl}&bar=0`;
   const openHref = `/site?conftemplate=1&t=${tpl}&c=${slug}`;
   return (
     <a href={openHref} className="cf-card" style={{ display: "block", textDecoration: "none", color: "inherit", borderRadius: 14, overflow: "hidden", border: `1px solid ${HAIR}`, background: "#fff" }}>
-      <div ref={ref} style={{ position: "relative", width: "100%", aspectRatio: "1194 / 820", overflow: "hidden",
-        backgroundColor: "#0c0f15", backgroundImage: `url(/thumbs/${tpl}.jpg)`, backgroundSize: "cover", backgroundPosition: "top center" }}>
+      {/* The captured thumbnails are 1920x1200 (16:10) while the live TabletFrame renders at
+          1194x820. On desktop the frame is the thing being shown, so the box keeps the frame's
+          aspect; on a phone the thumbnail IS the thing being shown, so the box takes the
+          thumbnail's aspect and nothing is cropped off the sides. */}
+      <div ref={ref} style={{ position: "relative", width: "100%", aspectRatio: mobile ? "1920 / 1200" : "1194 / 820", overflow: "hidden",
+        backgroundColor: "#0c0f15", backgroundImage: `url(/thumbs/${tpl}.jpg)`, backgroundSize: mobile ? "contain" : "cover", backgroundPosition: mobile ? "center" : "top center", backgroundRepeat: "no-repeat" }}>
         {live && <div style={{ position: "absolute", inset: 0 }}>
           <TabletFrame bare src={previewSrc} interactive={false} showBootCover={false} screenBg="transparent" renderW={1194} renderH={820} title={`${name} — ${slug}`} />
         </div>}
       </div>
-      <div style={{ display: "flex", alignItems: "center", gap: 9, padding: "13px 15px", borderTop: `1px solid ${HAIR}` }}>
-        <span style={{ fontSize: 12, color: MUTE, fontVariantNumeric: "tabular-nums", fontWeight: 600 }}>{String(idx + 1).padStart(2, "0")}</span>
-        <span style={{ fontSize: 15.5, fontWeight: 700, letterSpacing: "-0.01em", color: NAVY }}>{name}</span>
+      <div style={{ display: "flex", alignItems: "center", gap: 9, minHeight: mobile ? 52 : 0, padding: mobile ? "0 16px" : "13px 15px", borderTop: `1px solid ${HAIR}` }}>
+        <span style={{ fontSize: mobile ? 13 : 12, color: MUTE, fontVariantNumeric: "tabular-nums", fontWeight: 600 }}>{String(idx + 1).padStart(2, "0")}</span>
+        <span style={{ fontSize: mobile ? 17 : 15.5, fontWeight: 700, letterSpacing: "-0.01em", color: NAVY }}>{name}</span>
         {isNew ? <span style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: "0.12em", color: COBALT, border: `1px solid ${COBALT}`, borderRadius: 4, padding: "2px 6px", lineHeight: 1 }}>NEW</span> : null}
-        <span className="cf-open" style={{ marginLeft: "auto", fontSize: 11, color: MUTE, letterSpacing: "0.1em", fontWeight: 700, textTransform: "uppercase" }}>Open ↗</span>
+        <span className="cf-open" style={{ marginLeft: "auto", fontSize: mobile ? 12 : 11, color: MUTE, letterSpacing: "0.1em", fontWeight: 700, textTransform: "uppercase" }}>Open ↗</span>
       </div>
     </a>
   );
@@ -151,7 +158,7 @@ export default function ConferencePage() {
       <main style={{ fontFamily: "'Switzer', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}>
 
         {/* ── Intro: eyebrow, then headline left with the supporting text beside it on the right ── */}
-        <section style={{ maxWidth: MAXW, margin: "0 auto", padding: `clamp(118px,14vh,160px) ${gut} clamp(40px,5vh,64px)` }}>
+        <section style={{ maxWidth: MAXW, margin: "0 auto", padding: mobile ? `86px ${gut} 40px` : `clamp(118px,14vh,160px) ${gut} clamp(40px,5vh,64px)` }}>
           <p className="mx-label" style={{ color: COBALT, letterSpacing: "0.22em", margin: 0 }}>Conference Mode</p>
           <div style={{ marginTop: "clamp(20px,2.6vh,30px)", display: "grid", gridTemplateColumns: mobile ? "1fr" : "1.1fr 0.9fr", gap: "clamp(24px,4vw,64px)", alignItems: "center" }}>
             <h1 className="mx-h2" style={{ margin: 0, color: NAVY, maxWidth: "15ch" }}>
@@ -164,19 +171,20 @@ export default function ConferencePage() {
         </section>
 
         {/* ── TEMPLATE GALLERY — a quiet lead-in, then the existing collection ── */}
-        <section style={{ maxWidth: MAXW, margin: "0 auto", padding: `clamp(28px,4vh,52px) ${gut} clamp(80px,12vh,140px)` }}>
-          <div style={{ marginBottom: "clamp(26px,3.5vh,40px)", display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 24, flexWrap: "wrap" }}>
+        <section style={{ maxWidth: MAXW, margin: "0 auto", padding: mobile ? `clamp(28px,4vh,52px) ${gut} 72px` : `clamp(28px,4vh,52px) ${gut} clamp(80px,12vh,140px)` }}>
+          <div style={{ marginBottom: "clamp(26px,3.5vh,40px)", display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: mobile ? 22 : 24, flexWrap: "wrap" }}>
             <div>
               <p className="mx-label" style={{ color: MUTE, letterSpacing: "0.22em", margin: 0 }}>Premium Designs</p>
               <h2 className="mx-h3" style={{ margin: "12px 0 0", color: NAVY }}>Choose your starting point.</h2>
+              {mobile ? <p style={{ margin: "10px 0 0", fontSize: 16, lineHeight: 1.5, color: SLATE }}>Tap any design to open the full experience.</p> : null}
             </div>
-            <a href={"/get-started"} className="cf-cta" style={{ display: "inline-flex", alignItems: "center", gap: 10, height: 50, padding: "0 28px", borderRadius: 999, background: COBALT, color: "#fff", border: `1px solid ${COBALT}`, fontSize: 15.5, fontWeight: 700, letterSpacing: "-0.01em", textDecoration: "none", whiteSpace: "nowrap" }}>
+            <a href={"/get-started"} className="cf-cta" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 10, height: mobile ? 54 : 50, width: mobile ? "100%" : "auto", padding: "0 28px", borderRadius: 999, background: COBALT, color: "#fff", border: `1px solid ${COBALT}`, fontSize: 15.5, fontWeight: 700, letterSpacing: "-0.01em", textDecoration: "none", whiteSpace: "nowrap" }}>
               Get Started <span aria-hidden className="cf-cta-arw">→</span>
             </a>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: mobile ? "1fr" : "repeat(4, minmax(0, 1fr))", gap: "clamp(14px,1.4vw,22px)" }}>
             {TEMPLATES.map(([tpl, name, isNew, slug], i) => (
-              <LiveCard key={tpl} tpl={tpl} name={name} isNew={isNew} slug={slug} idx={i} />
+              <LiveCard key={tpl} tpl={tpl} name={name} isNew={isNew} slug={slug} idx={i} mobile={mobile} />
             ))}
           </div>
         </section>

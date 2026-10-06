@@ -36,6 +36,7 @@ import PushPreview, { PR_INVESTOR } from "./PushPreview.jsx";
 import { STAGE } from "./WalkthroughNarrative.jsx";
 
 import Footer from "./Footer.jsx";
+import InvestorMobile from "./InvestorMobile.jsx";
 const BG = "#fbfcfe";
 const NAVY = "#0a1b2e";
 const SLATE = "#565f6e";
@@ -79,7 +80,7 @@ const stageGrid = {
 
 // Guided beats (states 1…17). State 0 = intro, state 18 = close. `k` is the phone
 // directive handed to window.__appDemoGo; `ch` (0-3) groups beats into the four chapters.
-const STATES = [
+export const STATES = [
   { ch: 0, k: "today:lead",        n: "01", label: "Discover", head: "Junior mining news is scattered. This isn\u2019t.", body: "Coverage of this sector lives across newswires, exchange filings and company websites. MineEx pulls it into one feed, ranked around the companies you follow." },
   { ch: 0, k: "today:scroll",      n: "01", label: "Discover", head: "Built for how investors actually read.", body: "Editorial coverage, press releases, company updates and company media sit side by side, newest first \u2014 so one scroll tells you what moved." },
   { ch: 0, k: "story",             n: "01", label: "Discover", head: "Headlines rarely explain themselves.", body: "Every story opens with a plain-language MineEx summary: what was announced, why it matters, and the numbers worth remembering." },
@@ -509,29 +510,10 @@ export default function InvestorPage() {
     ? <InvestorShellPhone active={active} insetTop={0} insetBottom={0} />
     : <InvestorShellPhone active={active} fill matchSales />;
 
-  if (mobile) {
-    return (
-      <div className="mx-root" id="top" style={{ background: BG, minHeight: "100vh", color: NAVY }}>
-        <MarketingStyles />
-        <Nav />
-        <main style={{ fontFamily: "'Switzer', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}>
-          <section ref={sectionRef} style={{ position: "relative", height: `${N * 100}svh` }}>
-            {Array.from({ length: N }).map((_, i) => <div key={i} aria-hidden className="inv-cell" style={{ position: "absolute", top: `${i * 100}svh`, left: 0, right: 0, height: "100svh", pointerEvents: "none" }} />)}
-            <div style={{ position: "sticky", top: 0, height: "100svh", overflow: "hidden" }}>
-              <Atmosphere reduce={reduce} />
-              <div style={{ position: "absolute", inset: 0, zIndex: 20, opacity: showPhone ? 1 : 0, transition: `opacity 520ms ${EASE}` }}>{phone}</div>
-              <div key={shown} className="inv-mcopy" style={{ position: "absolute", left: 16, right: 16, zIndex: 30,
-                ...(showPhone ? { bottom: "calc(env(safe-area-inset-bottom, 0px) + 20px)" } : { top: "50%", transform: "translateY(-50%)" }),
-                background: "rgba(255,255,255,0.92)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", border: `1px solid ${HAIR}`, borderRadius: 18, padding: "18px 20px", boxShadow: "0 20px 44px -26px rgba(10,27,46,0.4)" }}>
-                <BeatCopy i={shown} compact />
-              </div>
-            </div>
-          </section>
-        </main>
-        <InvStyles />
-      </div>
-    );
-  }
+  // A phone gets its own composition — see InvestorMobile. The branch that used to be
+  // here kept the desktop deck's shape (19 cells of 100svh with the copy floated over
+  // the device), which took 16,000px of scrolling to read 320 characters.
+  if (mobile) return <InvestorMobile />;
 
   // ── DESKTOP: one pinned stage; phone + copy glide to each chapter's composition ──
   return (

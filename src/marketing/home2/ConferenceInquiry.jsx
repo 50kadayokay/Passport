@@ -140,8 +140,8 @@ export default function ConferenceInquiry() {
                   <ol style={{ listStyle: "none", margin: 0, padding: 0 }}>
                     {STEPS.map(([n, t], idx) => (
                       <li key={n} style={{ display: "flex", gap: 16, alignItems: "baseline", padding: "15px 0", borderTop: idx === 0 ? "none" : `1px solid ${HAIR}` }}>
-                        <span style={{ fontSize: 13, fontWeight: 700, color: COBALT, fontVariantNumeric: "tabular-nums", letterSpacing: "0.08em", flex: "0 0 auto" }}>{n}</span>
-                        <span style={{ fontSize: 15.5, color: NAVY, letterSpacing: "-0.01em", lineHeight: 1.35 }}>{t}</span>
+                        <span style={{ fontSize: mobile ? 14 : 13, fontWeight: 700, color: COBALT, fontVariantNumeric: "tabular-nums", letterSpacing: "0.08em", flex: "0 0 auto" }}>{n}</span>
+                        <span style={{ fontSize: mobile ? 16.5 : 15.5, color: NAVY, letterSpacing: "-0.01em", lineHeight: mobile ? 1.45 : 1.35 }}>{t}</span>
                       </li>
                     ))}
                   </ol>
@@ -150,7 +150,7 @@ export default function ConferenceInquiry() {
 
               {/* RIGHT — the inquiry panel */}
               <div style={{ background: "#fff", border: `1px solid ${HAIR}`, borderRadius: 20, boxShadow: "0 30px 70px -50px rgba(10,27,46,0.4)", padding: mobile ? "22px 18px" : "clamp(26px,2.4vw,38px)" }}>
-                <h2 style={{ margin: "0 0 clamp(18px,2.2vh,24px)", fontSize: "clamp(18px,1.6vw,21px)", fontWeight: 700, letterSpacing: "-0.02em", color: NAVY }}>Tell us about your project</h2>
+                <h2 style={{ margin: "0 0 clamp(18px,2.2vh,24px)", fontSize: mobile ? 22 : "clamp(18px,1.6vw,21px)", fontWeight: 700, letterSpacing: "-0.02em", color: NAVY }}>Tell us about your project</h2>
 
                 <form onSubmit={submit} style={{ display: "grid", gap: "clamp(16px,2vh,20px)" }}>
                   <div style={{ display: "grid", gridTemplateColumns: mobile ? "1fr" : "1fr 1fr", gap: 16 }}>
@@ -192,7 +192,7 @@ export default function ConferenceInquiry() {
                         <Pill key={key} name="ci-interest" value={key} label={label} selected={inquiry.interest === key} onSelect={() => toggle("interest", key)} />
                       ))}
                     </div>
-                    <p style={{ margin: "10px 2px 0", minHeight: 18, fontSize: 13, lineHeight: 1.45, color: inquiry.interest ? SLATE : "transparent" }}>
+                    <p style={{ margin: "10px 2px 0", minHeight: 18, fontSize: mobile ? 15 : 13, lineHeight: mobile ? 1.5 : 1.45, color: inquiry.interest ? SLATE : "transparent" }}>
                       {inquiry.interest ? INTEREST_LINE[inquiry.interest] : "\u00a0"}
                     </p>
                   </fieldset>
@@ -200,7 +200,7 @@ export default function ConferenceInquiry() {
                   {/* Pro Profile interest — signal, not an upsell */}
                   <fieldset style={{ border: "none", margin: 0, padding: 0 }}>
                     <legend className="mx-label" style={{ color: NAVY, letterSpacing: "0.12em", padding: 0, marginBottom: 6 }}>Interested in a MineEx Pro Profile?</legend>
-                    <p style={{ margin: "0 0 10px", fontSize: 13, lineHeight: 1.5, color: SLATE, maxWidth: "54ch" }}>
+                    <p style={{ margin: "0 0 10px", fontSize: mobile ? 15 : 13, lineHeight: 1.5, color: SLATE, maxWidth: "54ch" }}>
                       Conference Mode can connect investors directly to your company on MineEx, where they can continue exploring your story and follow future updates.
                     </p>
                     <div role="radiogroup" aria-label="Pro Profile interest" style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
@@ -215,7 +215,7 @@ export default function ConferenceInquiry() {
                   </Field>
 
                   {error && (
-                    <p role="alert" style={{ margin: 0, color: "#b91c1c", fontSize: 14, background: "rgba(185,28,28,0.06)", border: "1px solid rgba(185,28,28,0.22)", borderRadius: 12, padding: "11px 14px" }}>{error}</p>
+                    <p role="alert" style={{ margin: 0, color: "#b91c1c", fontSize: mobile ? 15.5 : 14, lineHeight: mobile ? 1.5 : undefined, background: "rgba(185,28,28,0.06)", border: "1px solid rgba(185,28,28,0.22)", borderRadius: 12, padding: "11px 14px" }}>{error}</p>
                   )}
 
                   <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap", marginTop: 2 }}>
@@ -223,7 +223,7 @@ export default function ConferenceInquiry() {
                       style={{ display: "inline-flex", alignItems: "center", gap: 9, height: 50, padding: "0 26px", borderRadius: 999, background: COBALT, color: "#fff", border: `1px solid ${COBALT}`, fontSize: 15.5, fontWeight: 700, letterSpacing: "-0.01em", cursor: busy ? "default" : "pointer", opacity: busy ? 0.7 : 1, fontFamily: "inherit" }}>
                       {busy ? "Sending…" : <>Request Conference Mode <span aria-hidden className="ci-arw">→</span></>}
                     </button>
-                    <span style={{ fontSize: 13, color: MUTE }}>We'll follow up personally to discuss next steps.</span>
+                    <span style={{ fontSize: mobile ? 15 : 13, color: MUTE, textAlign: mobile ? "center" : "left" }}>We'll follow up personally to discuss next steps.</span>
                   </div>
                 </form>
               </div>
@@ -262,6 +262,16 @@ export default function ConferenceInquiry() {
         .ci-pill.sel .ci-radio { border-color: ${COBALT}; }
         .ci-radio::after { content: ""; width: 8px; height: 8px; border-radius: 999px; background: ${COBALT}; transform: scale(0); transition: transform 160ms ${EASE}; }
         .ci-pill.sel .ci-radio::after { transform: scale(1); }
+        /* Phone form. 16px type is the hard floor — below it iOS zooms the page on focus
+           and never zooms back — and every control becomes a real 52px row. */
+        @media (max-width: 759px) {
+          .ci-input { font-size: 16px !important; padding: 15px 14px !important; border-radius: 13px !important; }
+          .ci-pill { font-size: 16px !important; padding: 14px 15px !important; min-height: 52px !important; border-radius: 13px !important; }
+          .ci-radio { width: 18px !important; height: 18px !important; }
+          .ci-cta { height: 54px !important; width: 100% !important; justify-content: center !important; font-size: 16.5px !important; }
+          .ci-back { min-height: 44px !important; }
+          .ci-hint { font-size: 13px !important; }
+        }
         .ci-cta { transition: transform 160ms ${EASE}, box-shadow 160ms ${EASE}; }
         .ci-cta:not(:disabled):hover { transform: translateY(-1px); box-shadow: 0 16px 34px -18px rgba(37,99,235,0.7); }
         .ci-arw { transition: transform 200ms ${EASE}; }
@@ -293,7 +303,7 @@ function Field({ id, label, required, hint, children }) {
         <label htmlFor={id} className="mx-label" style={{ color: NAVY, letterSpacing: "0.12em" }}>
           {label}{required ? <span style={{ color: COBALT }}> *</span> : null}
         </label>
-        {hint ? <span style={{ fontSize: 11.5, color: MUTE, letterSpacing: "0.02em" }}>{hint}</span> : null}
+        {hint ? <span className="ci-hint" style={{ fontSize: 11.5, color: MUTE, letterSpacing: "0.02em" }}>{hint}</span> : null}
       </div>
       {children}
     </div>

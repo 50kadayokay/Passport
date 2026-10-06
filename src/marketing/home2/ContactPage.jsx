@@ -12,7 +12,7 @@
 // reads as one flow. No checkout or billing behaviour.
 // ─────────────────────────────────────────────────────────────────────────────
 import React, { useState } from "react";
-import { EASE, MarketingStyles } from "../system.jsx";
+import { EASE, MarketingStyles, useViewport } from "../system.jsx";
 import Nav from "./Nav.jsx";
 import { PRICE_TOKENS as T } from "./SalesPricing.jsx";
 
@@ -35,10 +35,10 @@ const planFromUrl = () => {
   } catch { return "general"; }
 };
 
-function Field({ id, label, required, children }) {
+function Field({ id, label, required, children, mobile }) {
   return (
     <label htmlFor={id} style={{ display: "block" }}>
-      <span style={{ display: "block", fontSize: 12.5, fontWeight: 600, color: T.SLATE, marginBottom: 6 }}>
+      <span style={{ display: "block", fontSize: mobile ? 14.5 : 12.5, fontWeight: 600, color: T.SLATE, marginBottom: mobile ? 8 : 6 }}>
         {label}{required && <span style={{ color: T.COBALT }}> *</span>}
       </span>
       {children}
@@ -46,13 +46,18 @@ function Field({ id, label, required, children }) {
   );
 }
 
-const inputStyle = {
-  width: "100%", height: 46, borderRadius: 12, border: `1px solid rgba(10,27,46,0.14)`,
-  background: "#fff", padding: "0 14px", fontSize: 14.5, color: T.NAVY,
+const inputBase = {
+  width: "100%", borderRadius: 12, border: `1px solid rgba(10,27,46,0.14)`,
+  background: "#fff", padding: "0 14px", color: T.NAVY,
   fontFamily: "inherit", outline: "none", boxSizing: "border-box",
 };
+// 16px is not a style choice on iOS: anything smaller makes Safari zoom the page the
+// moment the field takes focus, and the layout never comes back on its own.
+const fieldStyle = (mobile) => ({ ...inputBase, height: mobile ? 52 : 46, fontSize: mobile ? 16 : 14.5 });
 
 export default function ContactPage() {
+  const { mobile } = useViewport();
+  const inputStyle = fieldStyle(mobile);
   const [form, setForm] = useState(() => ({
     name: "", email: "", company: "", ticker: "", phone: "",
     plan: typeof window === "undefined" ? "general" : planFromUrl(), message: "",
@@ -86,75 +91,76 @@ export default function ContactPage() {
       <MarketingStyles />
       <Nav />
       <main style={{ fontFamily: "'Switzer', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
-        padding: "clamp(96px,11vw,140px) clamp(22px,5vw,64px) clamp(80px,10vw,120px)" }}>
+        padding: mobile ? "92px 22px 72px" : "clamp(96px,11vw,140px) clamp(22px,5vw,64px) clamp(80px,10vw,120px)" }}>
         <div style={{ maxWidth: 980, margin: "0 auto" }}>
           <p className="mx-label" style={{ color: T.COBALT, letterSpacing: "0.22em", margin: 0 }}>Contact</p>
           <h1 className="mx-h2" style={{ margin: "12px 0 0", color: T.NAVY, maxWidth: "18ch" }}>Let's get your company in front of investors.</h1>
-          <p style={{ color: T.SLATE, fontSize: "clamp(14.5px,1.1vw,16px)", marginTop: 12, maxWidth: "56ch" }}>
+          <p style={{ color: T.SLATE, fontSize: mobile ? 17 : "clamp(14.5px,1.1vw,16px)", lineHeight: mobile ? 1.5 : undefined, marginTop: mobile ? 14 : 12, maxWidth: "56ch" }}>
             Tell us a little about your company and what you're interested in. We'll come back to you by email — usually the same day.
           </p>
 
           <div style={{ marginTop: "clamp(26px,4vw,44px)", background: T.SURFACE, borderRadius: 24, padding: "clamp(8px,0.7vw,12px)" }}>
-            <div style={{ background: "#fff", borderRadius: 20, padding: "clamp(22px,2.4vw,34px)" }}>
+            <div style={{ background: "#fff", borderRadius: 20, padding: mobile ? "22px 18px 24px" : "clamp(22px,2.4vw,34px)" }}>
               {done ? (
                 <div style={{ padding: "clamp(16px,2vw,28px) 0" }}>
                   <h2 style={{ margin: 0, fontSize: "clamp(20px,1.8vw,24px)", fontWeight: 700, letterSpacing: "-0.025em", color: T.NAVY }}>Thanks — we've got it.</h2>
-                  <p style={{ color: T.SLATE, fontSize: 14.5, marginTop: 10, maxWidth: "52ch", lineHeight: 1.5 }}>
+                  <p style={{ color: T.SLATE, fontSize: mobile ? 16.5 : 14.5, marginTop: 10, maxWidth: "52ch", lineHeight: mobile ? 1.55 : 1.5 }}>
                     Your enquiry is with the MineEx team and we'll reply to <strong style={{ color: T.NAVY }}>{form.email}</strong>.
                     {!done.emailed && " (It's saved on our side — if you don't hear back within a day, email support@mineex.ca.)"}
                   </p>
                   <a href="/pricing" className="sp-cta" style={{ marginTop: 20, display: "inline-flex", alignItems: "center", justifyContent: "center",
-                    height: 42, padding: "0 24px", borderRadius: 999, background: T.NAVY, color: "#fff", fontSize: 14.5, fontWeight: 700, textDecoration: "none" }}>
+                    height: mobile ? 52 : 42, padding: "0 24px", borderRadius: 999, background: T.NAVY, color: "#fff", fontSize: mobile ? 16.5 : 14.5, fontWeight: 700, textDecoration: "none" }}>
                     Back to pricing
                   </a>
                 </div>
               ) : (
                 <form onSubmit={submit} noValidate>
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 16 }}>
-                    <Field id="c-name" label="Your name" required>
+                  <div style={{ display: "grid", gridTemplateColumns: mobile ? "1fr" : "repeat(auto-fit, minmax(240px, 1fr))", gap: mobile ? 14 : 16 }}>
+                    <Field mobile={mobile} id="c-name" label="Your name" required>
                       <input id="c-name" style={inputStyle} value={form.name} onChange={set("name")} autoComplete="name" />
                     </Field>
-                    <Field id="c-email" label="Email" required>
+                    <Field mobile={mobile} id="c-email" label="Email" required>
                       <input id="c-email" type="email" style={inputStyle} value={form.email} onChange={set("email")} autoComplete="email" />
                     </Field>
-                    <Field id="c-company" label="Company" required>
+                    <Field mobile={mobile} id="c-company" label="Company" required>
                       <input id="c-company" style={inputStyle} value={form.company} onChange={set("company")} autoComplete="organization" />
                     </Field>
-                    <Field id="c-ticker" label="Ticker">
+                    <Field mobile={mobile} id="c-ticker" label="Ticker">
                       <input id="c-ticker" style={inputStyle} value={form.ticker} onChange={set("ticker")} placeholder="TSXV: ABC" />
                     </Field>
                   </div>
 
-                  <div style={{ marginTop: 16 }}>
-                    <Field id="c-plan" label="What are you interested in?">
+                  <div style={{ marginTop: mobile ? 14 : 16 }}>
+                    <Field mobile={mobile} id="c-plan" label="What are you interested in?">
                       <select id="c-plan" style={{ ...inputStyle, appearance: "none", cursor: "pointer" }} value={form.plan} onChange={set("plan")}>
                         {PLANS.map(([k, label]) => <option key={k} value={k}>{label}</option>)}
                       </select>
                     </Field>
                   </div>
 
-                  <div style={{ marginTop: 16 }}>
-                    <Field id="c-message" label="Anything you'd like us to know">
+                  <div style={{ marginTop: mobile ? 14 : 16 }}>
+                    <Field mobile={mobile} id="c-message" label="Anything you'd like us to know">
                       <textarea id="c-message" rows={5} value={form.message} onChange={set("message")}
                         style={{ ...inputStyle, height: "auto", padding: "12px 14px", lineHeight: 1.5, resize: "vertical" }} />
                     </Field>
                   </div>
 
-                  {error && <p role="alert" style={{ marginTop: 14, fontSize: 13.5, color: "#b91c1c" }}>{error}</p>}
+                  {error && <p role="alert" style={{ marginTop: 14, fontSize: mobile ? 15 : 13.5, lineHeight: 1.5, color: "#b91c1c" }}>{error}</p>}
 
-                  <div style={{ marginTop: 20, display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+                  <div style={{ marginTop: mobile ? 22 : 20, display: "flex", alignItems: mobile ? "stretch" : "center",
+                    flexDirection: mobile ? "column" : "row", gap: mobile ? 14 : 16, flexWrap: "wrap" }}>
                     <button type="submit" disabled={!valid || busy} className="sp-cta"
                       style={{ appearance: "none", border: 0, cursor: valid && !busy ? "pointer" : "not-allowed",
-                        height: 46, padding: "0 28px", borderRadius: 999, background: T.NAVY, color: "#fff",
-                        fontSize: 15, fontWeight: 700, letterSpacing: "-0.01em", opacity: valid && !busy ? 1 : 0.45,
+                        height: mobile ? 54 : 46, width: mobile ? "100%" : "auto", padding: "0 28px", borderRadius: 999, background: T.NAVY, color: "#fff",
+                        fontSize: mobile ? 16.5 : 15, fontWeight: 700, letterSpacing: "-0.01em", opacity: valid && !busy ? 1 : 0.45,
                         fontFamily: "inherit" }}>
                       {busy ? "Sending…" : "Send enquiry"}
                     </button>
-                    <span style={{ fontSize: 12.5, color: T.MUTE }}>Or email <a href="mailto:support@mineex.ca" style={{ color: T.SLATE }}>support@mineex.ca</a></span>
+                    <span style={{ fontSize: mobile ? 15 : 12.5, color: T.MUTE, textAlign: mobile ? "center" : "left" }}>Or email <a href="mailto:support@mineex.ca" style={{ color: T.SLATE }}>support@mineex.ca</a></span>
                   </div>
                   {/* Stated at the point of submission, not buried: this form posts
                       personal data to MineEx and is delivered by email. */}
-                  <p style={{ margin: "14px 0 0", fontSize: 12, lineHeight: 1.5, color: T.MUTE, maxWidth: "62ch" }}>
+                  <p style={{ margin: mobile ? "18px 0 0" : "14px 0 0", fontSize: mobile ? 14 : 12, lineHeight: mobile ? 1.55 : 1.5, color: T.MUTE, maxWidth: "62ch" }}>
                     By submitting this form, you agree that MineEx may use the information provided to respond to your inquiry. See our{" "}
                     <a href="/privacy.html" style={{ color: T.SLATE, textDecoration: "underline" }}>Privacy Policy</a>.
                   </p>

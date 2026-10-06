@@ -1,0 +1,11 @@
+import puppeteer from "puppeteer-core";
+const base=(p)=>(/\.html($|\?)/.test(p)?"http://localhost:5198":"http://localhost:5197")+p;
+const b=await puppeteer.launch({executablePath:"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",headless:"new",args:["--no-sandbox"]});
+const p=await b.newPage();
+await p.setViewport({width:390,height:844,deviceScaleFactor:2,isMobile:true,hasTouch:true});
+p.on("pageerror",e=>console.log("PAGEERROR:",e.message.split("\n")[0]));
+p.on("console",m=>{if(m.type()==="error")console.log("CONSOLE:",m.text().slice(0,300));});
+await p.goto(base(process.argv[2]),{waitUntil:"networkidle2"}).catch(e=>console.log("NAV",e.message));
+await new Promise(r=>setTimeout(r,6000));
+console.log("textLen",await p.evaluate(()=>document.body.innerText.trim().length),"h",await p.evaluate(()=>document.body.scrollHeight));
+await b.close();

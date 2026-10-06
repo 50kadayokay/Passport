@@ -7,7 +7,7 @@
 // copy mirrors PricingDeck / ProPricing; no checkout/billing behaviour.
 // ─────────────────────────────────────────────────────────────────────────────
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { EASE } from "../system.jsx";
+import { EASE, useViewport } from "../system.jsx";
 
 import Footer from "./Footer.jsx";
 export const PRICE_TOKENS = { BG: "#fbfcfe", NAVY: "#0a1b2e", SLATE: "#565f6e", COBALT: "#2563EB", MUTE: "#9aa1ad", SURFACE: "#eef1f6", PANEL: "#0b1220" };
@@ -56,31 +56,39 @@ const CONF = {
 // Monthly ⟷ Annually, as a switch (the reference's form). Buttons are type="button" with
 // preventDefault, so a click can never navigate, submit, or reach the sheet's gesture gate.
 export function BillingToggle({ value, onChange, dark, compact }) {
+  const { mobile } = useViewport();
   const annual = value === "annual";
   const onInk  = dark ? "#fff" : NAVY;
   const offInk = dark ? "rgba(255,255,255,0.48)" : MUTE;
   const track  = dark ? "rgba(255,255,255,0.22)" : "rgba(10,27,46,0.18)";
   const label = (id, text) => (
     <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); onChange(id); }}
-      style={{ appearance: "none", border: 0, background: "none", cursor: "pointer", padding: 0,
-        fontSize: 12.5, fontWeight: 600, letterSpacing: "-0.01em",
+      style={{ appearance: "none", border: 0, background: "none", cursor: "pointer",
+        padding: 0, ...(mobile ? { minHeight: 44, minWidth: 44, display: "inline-grid", placeItems: "center" } : null),
+        fontSize: mobile ? 15 : 12.5, fontWeight: 600, letterSpacing: "-0.01em",
         color: (id === "annual") === annual ? onInk : offInk }}>{text}</button>
   );
   return (
     <div style={{ display: "inline-flex", alignItems: "center", gap: 9 }}>
       {label("monthly", "Monthly")}
+      {/* On a phone the control itself is 44px tall — the coloured track is drawn inside it
+          rather than being the hit box, so the switch is a real target without looking heavy. */}
       <button type="button" role="switch" aria-checked={annual} aria-label="Bill annually"
         onClick={(e) => { e.preventDefault(); e.stopPropagation(); onChange(annual ? "monthly" : "annual"); }}
         style={{ appearance: "none", border: 0, cursor: "pointer", padding: 0,
-          width: 38, height: 22, borderRadius: 999, position: "relative",
-          background: annual ? COBALT : track,
+          width: mobile ? 50 : 38, height: mobile ? 44 : 22, borderRadius: 999, position: "relative",
+          background: mobile ? "transparent" : (annual ? COBALT : track),
           transition: `background 220ms ${EASE}` }}>
-        <span aria-hidden style={{ position: "absolute", top: 3, left: annual ? 19 : 3,
-          width: 16, height: 16, borderRadius: 999, background: "#fff",
+        {mobile && (
+          <span aria-hidden style={{ position: "absolute", top: 7, left: 0, width: 50, height: 30,
+            borderRadius: 999, background: annual ? COBALT : track, transition: `background 220ms ${EASE}` }} />
+        )}
+        <span aria-hidden style={{ position: "absolute", top: mobile ? 11 : 3, left: mobile ? (annual ? 26 : 4) : (annual ? 19 : 3),
+          width: mobile ? 22 : 16, height: mobile ? 22 : 16, borderRadius: 999, background: "#fff",
           boxShadow: "0 1px 2px rgba(10,27,46,0.28)", transition: `left 220ms ${EASE}` }} />
       </button>
       {label("annual", "Annually")}
-      {!compact && <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "-0.005em",
+      {!compact && <span style={{ fontSize: mobile ? 12.5 : 11, fontWeight: 700, letterSpacing: "-0.005em",
         color: dark ? "#9dc0ff" : COBALT, background: dark ? "rgba(37,99,235,0.26)" : "rgba(37,99,235,0.10)",
         borderRadius: 999, padding: "3px 8px" }}>Save 15%</span>}
     </div>
@@ -92,25 +100,26 @@ export function BillingToggle({ value, onChange, dark, compact }) {
 // number, and this reads as what it is — real work with a finished deliverable, priced
 // once — rather than an activation fee bolted onto the rate.
 export function Setup({ amount, per = "one-time", qualifier, blurb, dark }) {
+  const { mobile } = useViewport();
   const ink   = dark ? "#fff" : NAVY;
   const muted = dark ? "rgba(255,255,255,0.62)" : SLATE;
   const faint = dark ? "rgba(255,255,255,0.45)" : MUTE;
   const rule  = dark ? "rgba(255,255,255,0.14)" : "rgba(10,27,46,0.10)";
   return (
-    <div style={{ marginTop: "clamp(11px,1.6vh,16px)", paddingTop: "clamp(10px,1.4vh,13px)", borderTop: `1px solid ${rule}` }}>
-      <p style={{ margin: 0, fontSize: 10.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: dark ? "#9dc0ff" : COBALT }}>Professional Setup</p>
+    <div style={{ marginTop: mobile ? 20 : "clamp(11px,1.6vh,16px)", paddingTop: mobile ? 16 : "clamp(10px,1.4vh,13px)", borderTop: `1px solid ${rule}` }}>
+      <p style={{ margin: 0, fontSize: mobile ? 11.5 : 10.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: dark ? "#9dc0ff" : COBALT }}>Professional Setup</p>
       <div style={{ display: "flex", alignItems: "baseline", gap: 7, marginTop: 6, flexWrap: "wrap" }}>
-        <span style={{ fontSize: 19, fontWeight: 700, letterSpacing: "-0.03em", color: ink }}>{amount}</span>
-        {per && <span style={{ fontSize: 12.5, fontWeight: 600, color: faint }}>{per}</span>}
+        <span style={{ fontSize: mobile ? 23 : 19, fontWeight: 700, letterSpacing: "-0.03em", color: ink }}>{amount}</span>
+        {per && <span style={{ fontSize: mobile ? 14.5 : 12.5, fontWeight: 600, color: faint }}>{per}</span>}
         {qualifier && (
-          <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase",
+          <span style={{ fontSize: mobile ? 11 : 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase",
             color: faint, border: `1px solid ${rule}`, borderRadius: 999, padding: "2px 7px" }}>{qualifier}</span>
         )}
       </div>
       {/* Reserved to the longest blurb (three lines) so the three cards' setup rules land on
           one line instead of stair-stepping — the blocks are bottom-anchored, so equal
           internal height is what aligns them. */}
-      <p style={{ margin: "5px 0 0", fontSize: 12.5, lineHeight: "17px", minHeight: 34, color: muted }}>{blurb}</p>
+      <p style={{ margin: mobile ? "8px 0 0" : "5px 0 0", fontSize: mobile ? 15 : 12.5, lineHeight: mobile ? "22px" : "17px", minHeight: mobile ? 0 : 34, color: muted }}>{blurb}</p>
     </div>
   );
 }

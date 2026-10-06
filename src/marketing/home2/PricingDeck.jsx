@@ -84,7 +84,7 @@ const WEB_FEATURES = WEB_GROUPS.flatMap((g) => g.items);
 
 function Arrow({ label, href, strong }) {
   return (
-    <a href={href} className="pd-arrow" style={{ display: "inline-flex", alignItems: "center", gap: 8, color: strong ? COBALT : NAVY, fontSize: 15, fontWeight: 600, letterSpacing: "-0.01em", textDecoration: "none" }}>
+    <a href={href} className="pd-arrow" style={{ display: "inline-flex", alignItems: "center", minHeight: 44, gap: 8, color: strong ? COBALT : NAVY, fontSize: 16, fontWeight: 600, letterSpacing: "-0.01em", textDecoration: "none" }}>
       {label}<span aria-hidden className="pd-arw" style={{ transition: `transform 220ms ${EASE}` }}>→</span>
     </a>
   );
@@ -108,15 +108,16 @@ function Features({ items, inherits }) {
   );
 }
 function Head({ n, eyebrow, head, body, headMax = "18ch", compact }) {
+  const { mobile } = useViewport();
   return (
     <div>
       <div style={{ display: "flex", alignItems: "baseline", gap: 14 }}>
-        <span style={{ fontSize: 12.5, fontWeight: 800, color: COBALT, fontVariantNumeric: "tabular-nums" }}>{n}</span>
+        <span style={{ fontSize: mobile ? 13.5 : 12.5, fontWeight: 800, color: COBALT, fontVariantNumeric: "tabular-nums" }}>{n}</span>
         <p className="mx-label" style={{ color: COBALT, letterSpacing: "0.22em", margin: 0 }}>{eyebrow}</p>
       </div>
       <h2 style={{ margin: compact ? "10px 0 0" : "14px 0 0", color: NAVY, fontWeight: 600, letterSpacing: "-0.03em", lineHeight: 1.02,
-        fontSize: compact ? "clamp(24px, min(2.7vw, 4.4vh), 38px)" : "clamp(26px, min(3.2vw, 5.2vh), 44px)", maxWidth: headMax }}>{head}</h2>
-      {body && <p style={{ color: SLATE, fontSize: compact ? "clamp(14px,1.05vw,15.5px)" : "clamp(15px,1.2vw,17px)", marginTop: compact ? 9 : 14, maxWidth: "52ch", lineHeight: 1.45 }}>{body}</p>}
+        fontSize: mobile ? "clamp(31px, 8.6vw, 39px)" : (compact ? "clamp(24px, min(2.7vw, 4.4vh), 38px)" : "clamp(26px, min(3.2vw, 5.2vh), 44px)"), maxWidth: mobile ? "none" : headMax }}>{head}</h2>
+      {body && <p style={{ color: SLATE, fontSize: mobile ? 17 : (compact ? "clamp(14px,1.05vw,15.5px)" : "clamp(15px,1.2vw,17px)"), lineHeight: mobile ? 1.5 : undefined, marginTop: mobile ? 14 : (compact ? 9 : 14), maxWidth: "52ch", lineHeight: 1.45 }}>{body}</p>}
     </div>
   );
 }
@@ -205,7 +206,7 @@ function PanelConf({ gut }) {
             {/* Browsing the designs stays available — demoted to the secondary action,
                 since nothing here is bought without talking to us first. */}
             {c.browse && (
-              <a href={c.browse} className="pd-arrow" style={{ marginTop: 12, display: "inline-flex", alignItems: "center", gap: 7, color: SLATE, fontSize: 13.5, fontWeight: 600, letterSpacing: "-0.01em", textDecoration: "none" }}>
+              <a href={c.browse} className="pd-arrow" style={{ marginTop: 12, display: "inline-flex", alignItems: "center", minHeight: 44, gap: 7, color: SLATE, fontSize: 15, fontWeight: 600, letterSpacing: "-0.01em", textDecoration: "none" }}>
                 Explore Templates <span aria-hidden className="pd-arw" style={{ transition: `transform 220ms ${EASE}` }}>→</span>
               </a>
             )}
@@ -218,12 +219,13 @@ function PanelConf({ gut }) {
 
 // A labelled group of capabilities. Chevron marks and type scale match the plan cards.
 function Group({ label, items }) {
+  const { mobile } = useViewport();
   return (
     <div>
-      <p style={{ margin: "0 0 8px", fontSize: 10.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: T.MUTE }}>{label}</p>
-      <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+      <p style={{ margin: "0 0 8px", fontSize: mobile ? 11.5 : 10.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: T.MUTE }}>{label}</p>
+      <div style={{ display: "flex", flexDirection: "column", gap: mobile ? 11 : 7 }}>
         {items.map((f, i) => (
-          <div key={i} style={{ display: "flex", gap: 9, alignItems: "flex-start", color: T.SLATE, fontSize: 13.5, lineHeight: 1.45 }}>
+          <div key={i} style={{ display: "flex", gap: mobile ? 11 : 9, alignItems: "flex-start", color: T.SLATE, fontSize: mobile ? 16 : 13.5, lineHeight: mobile ? 1.5 : 1.45 }}>
             <Mark c={T.COBALT} /><span>{f}</span>
           </div>
         ))}
@@ -233,6 +235,7 @@ function Group({ label, items }) {
 }
 
 function PanelWeb({ gut }) {
+  const { mobile } = useViewport();
   return (
     // Fills the panel and pins the closing block to the BOTTOM EDGE of the window: the
     // content was taller than the viewport, so that block was being clipped mid-way while
@@ -259,9 +262,9 @@ function PanelWeb({ gut }) {
 
         {/* What it covers, grouped so the scope is legible at a glance. */}
         <div style={{ display: "flex", flexDirection: "column", gap: "clamp(12px,1.4vw,18px)", padding: "clamp(16px,1.4vw,24px)" }}>
-          <p style={{ margin: 0, fontSize: "clamp(17px,1.4vw,19px)", fontWeight: 700, letterSpacing: "-0.02em", color: T.NAVY }}>What's included</p>
+          <p style={{ margin: 0, fontSize: mobile ? 21 : "clamp(17px,1.4vw,19px)", fontWeight: 700, letterSpacing: "-0.02em", color: T.NAVY }}>What's included</p>
           {WEB_GROUPS.map((g) => <Group key={g.label} label={g.label} items={g.items} />)}
-          <p style={{ margin: "2px 0 0", fontSize: 12.5, lineHeight: 1.5, color: T.MUTE }}>
+          <p style={{ margin: "2px 0 0", fontSize: mobile ? 15 : 12.5, lineHeight: 1.5, color: T.MUTE }}>
             Every build is quoted against your scope — tell us what you need and we'll come back with a plan and a price.
           </p>
         </div>
@@ -270,13 +273,13 @@ function PanelWeb({ gut }) {
       {/* Closing contact block — follows the cards immediately rather than being pushed to
           the bottom; whatever height is left over stays white. */}
       <div style={{ marginTop: "clamp(14px,2vh,24px)", background: T.SURFACE, borderRadius: 24, padding: "clamp(8px,0.7vw,12px)", flexShrink: 0 }}>
-        <div style={{ borderRadius: 20, padding: "clamp(13px,1.5vw,20px) clamp(16px,2vw,28px)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 20, flexWrap: "wrap" }}>
+        <div style={{ borderRadius: 20, padding: mobile ? "24px 20px 26px" : "clamp(13px,1.5vw,20px) clamp(16px,2vw,28px)", display: "flex", alignItems: mobile ? "stretch" : "center", flexDirection: mobile ? "column" : "row", justifyContent: "space-between", gap: mobile ? 18 : 20, flexWrap: "wrap" }}>
           <div style={{ minWidth: 0 }}>
-            <h2 style={{ margin: 0, color: T.NAVY, fontWeight: 700, letterSpacing: "-0.025em", lineHeight: 1.15, fontSize: "clamp(17px,1.5vw,21px)", maxWidth: "30ch" }}>Let’s build your investor experience.</h2>
+            <h2 style={{ margin: 0, color: T.NAVY, fontWeight: 700, letterSpacing: "-0.025em", lineHeight: 1.15, fontSize: mobile ? 23 : "clamp(17px,1.5vw,21px)", maxWidth: "30ch" }}>Let’s build your investor experience.</h2>
           </div>
-          <div style={{ display: "flex", gap: 16, alignItems: "center", flexWrap: "wrap" }}>
-            <a href="/contact?plan=general" className="sp-cta" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", height: 38, padding: "0 22px", borderRadius: 999, background: T.NAVY, color: "#fff", fontSize: 14, fontWeight: 700, textDecoration: "none", whiteSpace: "nowrap" }}>Contact us</a>
-            <a href="mailto:support@mineex.ca" style={{ fontSize: 13, color: T.SLATE, textDecoration: "underline" }}>support@mineex.ca</a>
+          <div style={{ display: "flex", gap: mobile ? 8 : 16, alignItems: mobile ? "stretch" : "center", flexDirection: mobile ? "column" : "row", flexWrap: "wrap" }}>
+            <a href="/contact?plan=general" className="sp-cta" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", height: mobile ? 52 : 38, padding: "0 22px", borderRadius: 999, background: T.NAVY, color: "#fff", fontSize: mobile ? 16.5 : 14, fontWeight: 700, textDecoration: "none", whiteSpace: "nowrap" }}>Contact us</a>
+            <a href="mailto:support@mineex.ca" style={{ display: "inline-flex", alignItems: "center", justifyContent: mobile ? "center" : "flex-start", minHeight: 44, fontSize: mobile ? 16 : 13, color: T.SLATE, textDecoration: "underline" }}>support@mineex.ca</a>
           </div>
         </div>
       </div>
