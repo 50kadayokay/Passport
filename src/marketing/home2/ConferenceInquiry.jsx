@@ -79,7 +79,7 @@ export default function ConferenceInquiry() {
     company_id: null, user_id: null,
   });
   const [busy, setBusy] = useState(false);
-  const [done, setDone] = useState(false);
+  const [done, setDone] = useState(null);
   const [error, setError] = useState("");
 
   const set = (key) => (e) => setInquiry((v) => ({ ...v, [key]: e.target.value }));
@@ -90,8 +90,11 @@ export default function ConferenceInquiry() {
     setError("");
     setBusy(true);
     try {
-      await submitInquiry(inquiry);
-      setDone(true);
+      // Keep whether the notification actually went out: stored and announced are not
+      // the same thing, and a success screen over a failed send is how a request sits
+      // unread. The endpoint reports { emailed }.
+      const r = await submitInquiry(inquiry);
+      setDone({ emailed: r && r.emailed !== false });
       if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (err) {
       setError("We couldn't send that just now. Please try again in a moment.");
@@ -111,10 +114,25 @@ export default function ConferenceInquiry() {
             /* ── SUCCESS STATE ─────────────────────────────────────────────── */
             <div style={{ maxWidth: 620, animation: "ciIn 420ms cubic-bezier(0.22,1,0.36,1) both" }}>
               <p className="mx-label" style={{ color: COBALT, letterSpacing: "0.22em", margin: 0 }}>Conference Mode</p>
-              <h1 className="mx-h2" style={{ margin: "clamp(16px,2.2vh,24px) 0 0", color: NAVY }}>Request received.</h1>
-              <p className="mx-lead" style={{ margin: "clamp(14px,1.8vh,20px) 0 0", color: SLATE, maxWidth: "46ch" }}>
-                Thanks, {firstNameOf(inquiry.name)}. We'll be in touch to discuss your Conference Mode and next steps.
-              </p>
+              <h1 className="mx-h2" style={{ margin: "clamp(16px,2.2vh,24px) 0 0", color: NAVY }}>
+                {done.emailed ? "Request received." : "Saved \u2014 please email us directly."}
+              </h1>
+              {done.emailed ? (
+                <p className="mx-lead" style={{ margin: "clamp(14px,1.8vh,20px) 0 0", color: SLATE, maxWidth: "46ch" }}>
+                  Thanks, {firstNameOf(inquiry.name)}. We'll be in touch to discuss your Conference Mode and next steps.
+                </p>
+              ) : (
+                <div style={{ margin: "clamp(14px,1.8vh,20px) 0 0", padding: "14px 18px", borderRadius: 14,
+                  background: "rgba(180,83,9,0.07)", border: "1px solid rgba(180,83,9,0.22)", maxWidth: "52ch" }}>
+                  <p style={{ margin: 0, color: "#92400e", fontSize: 15.5, lineHeight: 1.55 }}>
+                    Thanks, {firstNameOf(inquiry.name)} \u2014 we\u2019ve stored your request, but our notification
+                    email didn\u2019t go through, so nobody has been alerted yet. Please email{" "}
+                    <a href={`mailto:support@mineex.ca?subject=${encodeURIComponent("Conference Mode \u2014 " + (inquiry.company || inquiry.name))}`}
+                      style={{ color: "#92400e", fontWeight: 700 }}>support@mineex.ca</a>{" "}
+                    so we can pick it up today.
+                  </p>
+                </div>
+              )}
               <div style={{ marginTop: "clamp(28px,4vh,40px)" }}>
                 <a href="/conference-mode" className="ci-back" style={{ display: "inline-flex", alignItems: "center", gap: 9, color: COBALT, fontSize: 15.5, fontWeight: 700, letterSpacing: "-0.01em", textDecoration: "none" }}>
                   Back to Conference Mode <span aria-hidden className="ci-arw">→</span>

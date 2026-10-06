@@ -103,11 +103,29 @@ export default function ContactPage() {
             <div style={{ background: "#fff", borderRadius: 20, padding: mobile ? "22px 18px 24px" : "clamp(22px,2.4vw,34px)" }}>
               {done ? (
                 <div style={{ padding: "clamp(16px,2vw,28px) 0" }}>
-                  <h2 style={{ margin: 0, fontSize: "clamp(20px,1.8vw,24px)", fontWeight: 700, letterSpacing: "-0.025em", color: T.NAVY }}>Thanks — we've got it.</h2>
-                  <p style={{ color: T.SLATE, fontSize: mobile ? 16.5 : 14.5, marginTop: 10, maxWidth: "52ch", lineHeight: mobile ? 1.55 : 1.5 }}>
-                    Your enquiry is with the MineEx team and we'll reply to <strong style={{ color: T.NAVY }}>{form.email}</strong>.
-                    {!done.emailed && " (It's saved on our side — if you don't hear back within a day, email support@mineex.ca.)"}
-                  </p>
+                  {/* The enquiry is saved either way, but "saved" and "someone has been told"
+                      are different things. When the notification could not be sent, say so
+                      plainly and give a route that does not depend on it — a success screen
+                      over a failed notification is how an enquiry goes unanswered. */}
+                  <h2 style={{ margin: 0, fontSize: "clamp(20px,1.8vw,24px)", fontWeight: 700, letterSpacing: "-0.025em", color: T.NAVY }}>
+                    {done.emailed ? "Thanks — we've got it." : "Saved, but please email us directly."}
+                  </h2>
+                  {done.emailed ? (
+                    <p style={{ color: T.SLATE, fontSize: mobile ? 16.5 : 14.5, marginTop: 10, maxWidth: "52ch", lineHeight: mobile ? 1.55 : 1.5 }}>
+                      Your enquiry is with the MineEx team and we'll reply to <strong style={{ color: T.NAVY }}>{form.email}</strong>.
+                    </p>
+                  ) : (
+                    <div style={{ marginTop: 12, padding: mobile ? "14px 16px" : "14px 18px", borderRadius: 14,
+                      background: "rgba(180,83,9,0.07)", border: "1px solid rgba(180,83,9,0.22)" }}>
+                      <p style={{ margin: 0, color: "#92400e", fontSize: mobile ? 16 : 14.5, lineHeight: 1.55, maxWidth: "52ch" }}>
+                        We've stored your details, but our notification email didn't go through, so nobody
+                        has been alerted yet. Please email{" "}
+                        <a href={`mailto:support@mineex.ca?subject=${encodeURIComponent("Enquiry from " + (form.company || form.name))}`}
+                          style={{ color: "#92400e", fontWeight: 700 }}>support@mineex.ca</a>{" "}
+                        so we can pick it up today.
+                      </p>
+                    </div>
+                  )}
                   <a href="/pricing" className="sp-cta" style={{ marginTop: 20, display: "inline-flex", alignItems: "center", justifyContent: "center",
                     height: mobile ? 52 : 42, padding: "0 24px", borderRadius: 999, background: T.NAVY, color: "#fff", fontSize: mobile ? 16.5 : 14.5, fontWeight: 700, textDecoration: "none" }}>
                     Back to pricing
