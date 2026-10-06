@@ -1617,10 +1617,10 @@ function TimelineView() {
             aria-pressed={highOnly}
             className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-full transition active:scale-90"
             style={highOnly
-              ? { background: EM, boxShadow: "0 4px 12px -5px rgba(37,99,235,0.75)" }
+              ? { background: "#059669", boxShadow: "0 4px 12px -5px rgba(5,150,105,0.75)" }
               : { background: "#fff", border: "1px solid #e2e8f0" }}
           >
-            <Gem size={14} style={{ color: highOnly ? "#fff" : EM }} strokeWidth={2.4} />
+            <Gem size={14} style={{ color: highOnly ? "#fff" : "#059669" }} strokeWidth={2.4} />
           </button>
           <span className="mr-0.5 h-5 w-px flex-shrink-0 bg-slate-200" />
           {PR_YEARS.map((yr) => {
