@@ -1645,9 +1645,9 @@ function TimelineView() {
       {highOnly && (
         <section className="relative mt-3">
           <div className="sticky top-0 z-30 -mx-5 flex items-center gap-2 px-5 py-2.5" style={{ background: "#ffffff", borderBottom: "1px solid #f1f5f9" }}>
-            <Gem size={15} style={{ color: EM }} strokeWidth={2.4} />
+            <Gem size={15} style={{ color: "#059669" }} strokeWidth={2.4} />
             <span className="text-[15px] font-extrabold tracking-tight text-slate-900">Key Milestones</span>
-            <span className="text-[11px] font-medium" style={{ color: EM_TEXT }}>All-time · {PR_YEARS.reduce((n, y) => n + y.items.filter((it) => it.key).length, 0)} highlights</span>
+            <span className="text-[11px] font-medium" style={{ color: "#047857" }}>All-time · {PR_YEARS.reduce((n, y) => n + y.items.filter((it) => it.key).length, 0)} highlights</span>
           </div>
           <div className="space-y-4 pb-0 pt-3">
             {PR_YEARS.map((yrX, yIdx) => {
@@ -1669,8 +1669,8 @@ function TimelineView() {
                           className="relative flex w-full items-stretch gap-3 py-1.5 text-left transition active:scale-[0.99]"
                         >
                           <span className="relative z-10 flex flex-shrink-0 justify-center pt-4" style={{ width: 25 }}>
-                            <span className="grid place-items-center rounded-full" style={{ height: 20, width: 20, background: EM, boxShadow: "0 0 0 4px rgba(37,99,235,0.15)" }}>
-                              <Gem size={11} style={{ color: "#0a1f38" }} />
+                            <span className="grid place-items-center rounded-full" style={{ height: 20, width: 20, background: "#059669", boxShadow: "0 0 0 4px rgba(5,150,105,0.15)" }}>
+                              <Gem size={11} style={{ color: "#ffffff" }} />
                             </span>
                           </span>
                           <span className="min-w-0 flex-1 rounded-2xl border border-slate-100 bg-white p-3" style={{ boxShadow: "0 1px 2px rgba(15,23,42,0.04), 0 10px 24px -18px rgba(15,23,42,0.35)" }}>
@@ -6514,7 +6514,7 @@ function StoryReader({ it, onOpen, onClose }) {
         <div className="flex-shrink-0 border-t border-slate-100 px-5 py-3" style={{ paddingBottom: `calc(env(safe-area-inset-bottom,0px) + ${12 + DEMO_SAFE_B}px)` }}>
           <div className="flex items-center gap-2.5">
             {it.live && onOpen && <button onClick={() => { haptic(); onClose(); onOpen(it); }} className={`h-12 rounded-2xl border border-slate-200 px-4 text-[13px] font-bold text-slate-700 active:scale-95 ${isBrief ? "flex-1" : "flex-shrink-0"}`}>Open Company</button>}
-            {!isBrief && <button onClick={() => { haptic(); try { window.open(it.fullUrl, "_blank", "noopener"); } catch {} }} className="flex h-12 flex-1 items-center justify-center gap-1.5 rounded-2xl text-[14px] font-bold text-white active:scale-[0.98]" style={{ background: "#2563eb" }}>{origLabel} <ArrowUpRight size={15} /></button>}
+            {!isBrief && <button onClick={() => { haptic(); try { window.open(it.fullUrl, "_blank", "noopener"); } catch {} }} className="flex h-12 flex-1 items-center justify-center gap-1.5 rounded-2xl text-[14px] font-bold text-white active:scale-[0.98]" style={{ background: "#0f172a" }}>{origLabel} <ArrowUpRight size={15} /></button>}
           </div>
         </div>
       </div>
