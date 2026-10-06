@@ -14,18 +14,31 @@
 // them by viewport.
 // ─────────────────────────────────────────────────────────────────────────────
 import React from "react";
-import { Body, Cta, Ctas, Eyebrow, Head, HeroWash, M_COBALT as COBALT, M_INK as NAVY, M_MUTE as MUTE, M_SLATE as SLATE, MobilePage, Section, Shot, pad } from "../mobileKit.jsx";
+import { Body, Cta, Ctas, Eyebrow, Head, HeroWash, M_COBALT as COBALT, M_INK as NAVY, M_MUTE as MUTE, M_SLATE as SLATE, MobilePage, ProductChapter, Section, pad } from "../mobileKit.jsx";
 import { M_LEAD, M_RHYTHM, M_TRACK, M_TYPE } from "../mobile.js";
+import { DiscoverDemo, ProfileDemo } from "../mobile/demos.jsx";
 
 // The app walkthrough, verbatim from AppSection.BEATS, paired with the matching
 // product screen already shipped for the Pro page.
 const APP_BEATS = [
-  { n: "01", page: "PROFILE",    head: "Your company, built for investors.",             body: "Give investors one living profile for the essential facts — what you own, where you operate, what stage you’re at and what you’re focused on now.", shot: "overview" },
-  { n: "02", page: "PROJECTS",   head: "Let investors explore what you’re building.",    body: "Bring each project into one clear experience — location, stage, imagery and the information investors need to understand the opportunity.", shot: "projects" },
-  { n: "03", page: "PROGRESS",   head: "Show how the story is moving forward.",          body: "Turn drilling, results and company milestones into a clear timeline so investors can immediately see how the story is developing.", shot: "timeline" },
-  { n: "04", page: "CAPITAL",    head: "Put the financial picture in context.",          body: "Show investors your capital structure and funding position alongside the projects and exploration programs that capital is being used to advance.", shot: "capital" },
-  { n: "05", page: "LEADERSHIP", head: "Put the people behind the company.",             body: "Introduce the management and leadership responsible for advancing the projects and executing the company’s strategy.", shot: "team" },
-  { n: "06", page: "UPDATES",    head: "Keep investors connected to what happens next.", body: "Bring company news, press releases and media into the same profile so the relationship continues after the first visit.", shot: "media" },
+  { n: "01", page: "PROFILE",    head: "Your company, built for investors.",
+    body: "Give investors one living profile for the essential facts — what you own, where you operate, what stage you’re at and what you’re focused on now.",
+    screen: "overview", detail: "Tap through the profile sections — this is the real interface, not a picture of it." },
+  { n: "02", page: "PROJECTS",   head: "Let investors explore what you’re building.",
+    body: "Bring each project into one clear experience — location, stage, imagery and the information investors need to understand the opportunity.",
+    screen: "projects", detail: "Switch between projects and sections; every figure is the company’s own." },
+  { n: "03", page: "PROGRESS",   head: "Show how the story is moving forward.",
+    body: "Turn drilling, results and company milestones into a clear timeline so investors can immediately see how the story is developing.",
+    screen: "timeline", detail: "Milestones carry their impact and category, newest first." },
+  { n: "04", page: "CAPITAL",    head: "Put the financial picture in context.",
+    body: "Show investors your capital structure and funding position alongside the projects and exploration programs that capital is being used to advance.",
+    screen: "capital", detail: "Listings, runway and share structure sit beside the work they fund." },
+  { n: "05", page: "LEADERSHIP", head: "Put the people behind the company.",
+    body: "Introduce the management and leadership responsible for advancing the projects and executing the company’s strategy.",
+    screen: "team", detail: "The team investors are backing, with the experience behind each name." },
+  { n: "06", page: "UPDATES",    head: "Keep investors connected to what happens next.",
+    body: "Bring company news, press releases and media into the same profile so the relationship continues after the first visit.",
+    screen: "discover", detail: "Tap a story to read it, then come back — the way investors actually use the feed." },
 ];
 
 // The Conference chapter, verbatim from ConferenceScene.
@@ -64,12 +77,12 @@ export default function HomeMobile() {
           </h2>
         </section>
         {APP_BEATS.map((b) => (
-          <section key={b.n} style={{ ...pad, paddingTop: M_RHYTHM.sectionY }}>
-            <Eyebrow n={b.n}>{b.page}</Eyebrow>
-            <Head long={b.head.length > 38}>{b.head}</Head>
-            <Body>{b.body}</Body>
-            <Shot name={b.shot} alt={`MineEx ${b.page.toLowerCase()} screen`} />
-          </section>
+          <ProductChapter key={b.n} n={b.n} eyebrow={b.page} head={b.head} body={b.body}
+            detail={b.detail} label={`MineEx ${b.page.toLowerCase()} screen`}>
+            {b.screen === "discover"
+              ? <DiscoverDemo />
+              : <ProfileDemo start={b.screen} projects={b.screen === "projects"} />}
+          </ProductChapter>
         ))}
         <section style={{ ...pad, paddingTop: "clamp(28px,7vw,38px)" }}>
           <Cta href="/pro">See the full Pro Profile →</Cta>

@@ -15,6 +15,8 @@ import Nav from "./home2/Nav.jsx";
 import Footer from "./home2/Footer.jsx";
 import { MarketingStyles } from "./system.jsx";
 import { M_GUTTER, M_LEAD, M_RHYTHM, M_TAP, M_TRACK, M_TYPE } from "./mobile.js";
+import MobilePhone, { PHONE_CSS_HEIGHT } from "./mobile/MobilePhone.jsx";
+import ProductStage from "./mobile/ProductStage.jsx";
 
 export const M_INK = "#0a1b2e";
 export const M_SLATE = "#565f6e";
@@ -107,4 +109,29 @@ export function Cta({ href, children, primary }) {
 // Stacked buttons — the phone's only button layout.
 export function Ctas({ children, top = M_RHYTHM.ctaGap }) {
   return <div style={{ position: "relative", marginTop: top, display: "flex", flexDirection: "column", gap: 11 }}>{children}</div>;
+}
+
+// ── The product chapter — the one grammar every phone page tells its story in:
+//
+//      eyebrow · headline · copy · [ live device ] · supporting detail
+//
+// The device is evidence and the copy explains it, so nothing is ever laid over the
+// screen. The stage reserves the device's exact height, so a scene mounting or
+// unmounting as it passes the viewport shifts nothing.
+export function ProductChapter({ n, eyebrow, head, body, detail, children, label }) {
+  return (
+    <Section>
+      {eyebrow ? <Eyebrow n={n}>{eyebrow}</Eyebrow> : null}
+      <Head long={String(head).length > 38}>{head}</Head>
+      {body ? <Body>{body}</Body> : null}
+      <div style={{ marginTop: "clamp(30px,7.5vw,38px)" }}>
+        <ProductStage minHeight={PHONE_CSS_HEIGHT}>
+          <MobilePhone label={label}>{children}</MobilePhone>
+        </ProductStage>
+      </div>
+      {detail ? (
+        <p style={{ margin: "clamp(22px,5.5vw,30px) 0 0", fontSize: M_TYPE.bodySm, lineHeight: 1.55, color: M_MUTE, textAlign: "center" }}>{detail}</p>
+      ) : null}
+    </Section>
+  );
 }

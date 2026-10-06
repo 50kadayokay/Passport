@@ -13,35 +13,35 @@
 // the site. The desktop walkthrough and its dark stage are untouched.
 // ─────────────────────────────────────────────────────────────────────────────
 import React from "react";
-import { Body, Cta, Ctas, Eyebrow, Head, HeroWash, MobilePage, Section, Shot, pad } from "../mobileKit.jsx";
-import { M_RHYTHM, M_TYPE } from "../mobile.js";
+import { Body, Cta, Ctas, Eyebrow, Head, HeroWash, MobilePage, ProductChapter, Section } from "../mobileKit.jsx";
+import { DiscoverDemo, MediaDemo, ProfileDemo } from "../mobile/demos.jsx";
 
-// The approved walkthrough beats, verbatim, paired with the app screen each describes.
+// The approved walkthrough beats, verbatim, each paired with the live product surface
+// it describes and a line explaining why that surface matters. Interaction only where
+// the product has something real to offer: the profile's own tab bar everywhere, the
+// project selector on Projects, and opening a story on Media.
 const BEATS = [
   { n: "01", eyebrow: "PROFILE",      head: "Your company, built for investors.",
     body: "Give investors one living profile for the essential facts — what you own, where you operate, what stage you're at and what you're focused on now.",
-    shot: "overview" },
-  { n: "02", eyebrow: "AI BRIEF",     head: "Understand the company in under a minute.",
-    body: "MineEx turns your company information into a plain-English orientation — what you do, how you create value and why it matters.",
-    shot: "release" },
-  { n: "03", eyebrow: "YOUR PROJECTS", head: "Give every asset its own investor-ready profile.",
+    screen: "overview", detail: "Everything an investor asks first, answered before they have to ask." },
+  { n: "02", eyebrow: "YOUR PROJECTS", head: "Give every asset its own investor-ready profile.",
     body: "Each project brings together real imagery, stage, location, geology and the information investors need to understand the asset.",
-    shot: "projects" },
-  { n: "04", eyebrow: "PROGRESS",     head: "Turn years of disclosure into a story investors can follow.",
+    screen: "projects", projects: true, detail: "Tap between projects — each one carries its own imagery, district and stage." },
+  { n: "03", eyebrow: "PROGRESS",     head: "Turn years of disclosure into a story investors can follow.",
     body: "Organize milestones chronologically, then explain what happened, why it mattered and how each event moved the company forward.",
-    shot: "timeline" },
-  { n: "05", eyebrow: "CAPITAL",      head: "Make your capital position immediately understandable.",
+    screen: "timeline", detail: "Each milestone carries its impact and category, so the arc is readable at a glance." },
+  { n: "04", eyebrow: "CAPITAL",      head: "Make your capital position immediately understandable.",
     body: "Show funding runway, listings and key capital metrics up front — with the underlying share structure and dilution available when investors want to go deeper.",
-    shot: "capital" },
-  { n: "06", eyebrow: "LEADERSHIP",   head: "Put the people behind the company front and centre.",
+    screen: "capital", detail: "The numbers investors would otherwise dig through filings to assemble." },
+  { n: "05", eyebrow: "LEADERSHIP",   head: "Put the people behind the company front and centre.",
     body: "Give investors a clear view of the management team and board behind the assets and strategy.",
-    shot: "team" },
-  { n: "07", eyebrow: "MEDIA",        head: "Keep your investor content in one place.",
+    screen: "team", detail: "The people investors are really backing, with the track record behind each name." },
+  { n: "06", eyebrow: "MEDIA",        head: "Keep your investor content in one place.",
     body: "Publish project photos, videos and interviews directly to your profile so investors can keep exploring your story.",
-    shot: "media" },
-  { n: "08", eyebrow: "FOLLOW",       head: "Turn investor interest into a lasting connection.",
+    screen: "media", detail: "Photography and video from the project, in the profile rather than scattered across the web." },
+  { n: "07", eyebrow: "FOLLOW",       head: "Turn investor interest into a lasting connection.",
     body: "Investors don't just understand your company and leave. They can follow your company and stay connected as your story develops.",
-    shot: "feed" },
+    screen: "discover", detail: "Once an investor follows you, your updates reach them here. Tap a story to read it." },
 ];
 
 export default function ProMobile() {
@@ -63,12 +63,12 @@ export default function ProMobile() {
       </Section>
 
       {BEATS.map((b) => (
-        <Section key={b.n}>
-          <Eyebrow n={b.n}>{b.eyebrow}</Eyebrow>
-          <Head long={b.head.length > 38}>{b.head}</Head>
-          <Body>{b.body}</Body>
-          <Shot name={b.shot} alt={`MineEx ${b.eyebrow.toLowerCase()} screen`} />
-        </Section>
+        <ProductChapter key={b.n} n={b.n} eyebrow={b.eyebrow} head={b.head} body={b.body}
+          detail={b.detail} label={`MineEx ${b.eyebrow.toLowerCase()} screen`}>
+          {b.screen === "discover" ? <DiscoverDemo />
+            : b.screen === "media" ? <MediaDemo />
+            : <ProfileDemo start={b.screen} projects={!!b.projects} />}
+        </ProductChapter>
       ))}
 
       <Section top="clamp(60px,15vw,88px)" bottom="clamp(16px,4vw,24px)">

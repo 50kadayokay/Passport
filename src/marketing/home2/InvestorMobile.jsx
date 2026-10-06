@@ -14,17 +14,21 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import React from "react";
 import { STATES } from "./InvestorPage.jsx";
-import { Body, Cta, Ctas, Eyebrow, Head, HeroWash, M_COBALT as COBALT, M_INK as NAVY, M_MUTE as MUTE, M_SLATE as SLATE, MobilePage, Section, Shot, SubHead, pad } from "../mobileKit.jsx";
+import { Body, Cta, Ctas, Eyebrow, Head, HeroWash, M_COBALT as COBALT, M_INK as NAVY, M_MUTE as MUTE, M_SLATE as SLATE, MobilePage, ProductChapter, Section, SubHead, pad } from "../mobileKit.jsx";
+import { DiscoverDemo, ExploreDemo, ProfileDemo } from "../mobile/demos.jsx";
 import { M_LEAD, M_RHYTHM, M_TRACK, M_TYPE } from "../mobile.js";
 
-// The chapters the walkthrough is built from, and the product screens that show what
-// each one is talking about. Advanced Search gets its own full-width screen because
-// the filter sheet is the thing that has to be legible.
+// The chapters, and the LIVE screen each one is talking about. The phone is the
+// evidence; the copy sits above and below it and never over it.
 const CHAPTERS = [
-  { n: "01", label: "Discover", lead: "The sector's news, in one feed.", shots: ["feed", "release"] },
-  { n: "02", label: "Explore",  lead: "Find companies worth understanding.", shots: ["explore", "advanced"] },
-  { n: "03", label: "Research", lead: "The whole company story, in one place.", shots: ["overview", "projects", "capital", "team"] },
-  { n: "04", label: "Follow",   lead: "Keep hearing from the names you track.", shots: ["media"] },
+  { n: "01", label: "Discover", lead: "The sector’s news, in one feed.",
+    scene: "discover", detail: "Tap a story to open it and the chevron to come back — the real feed, not a picture of one." },
+  { n: "02", label: "Explore",  lead: "Find companies worth understanding.",
+    scene: "explore", detail: "Open Advanced Search and tick a commodity: the count is the live tally across the demo directory." },
+  { n: "03", label: "Research", lead: "The whole company story, in one place.",
+    scene: "research", detail: "Move through overview, projects, progress, capital and the team with the profile’s own tab bar." },
+  { n: "04", label: "Follow",   lead: "Keep hearing from the names you track.",
+    scene: "follow", detail: "Follow is a local demo state — nothing is saved to an account." },
 ];
 
 export default function InvestorMobile() {
@@ -48,20 +52,26 @@ export default function InvestorMobile() {
 
         {CHAPTERS.map((ch) => {
           const beats = STATES.filter((s) => s.label === ch.label);
+          const scene = ch.scene === "discover" ? <DiscoverDemo />
+            : ch.scene === "explore" ? <ExploreDemo />
+            : ch.scene === "research" ? <ProfileDemo start="overview" projects />
+            : <ProfileDemo start="updates" />;
           return (
-            <section key={ch.n} style={{ ...pad, paddingTop: M_RHYTHM.sectionY }}>
-              <p style={{ margin: 0, fontSize: M_TYPE.eyebrow, fontWeight: 800, letterSpacing: M_TRACK.eyebrow, textTransform: "uppercase", color: MUTE }}>
-                <span style={{ color: COBALT }}>{ch.n}</span>&nbsp;&nbsp;{ch.label}
-              </p>
-              <h2 style={{ margin: "11px 0 0", fontSize: M_TYPE.h2, lineHeight: M_LEAD.h2, letterSpacing: M_TRACK.h2, fontWeight: 700, color: NAVY }}>{ch.lead}</h2>
-              {beats.map((b, i) => (
-                <div key={b.k} style={{ marginTop: i === 0 ? "clamp(26px,6vw,34px)" : "clamp(30px,7vw,40px)" }}>
-                  <h3 style={{ margin: 0, fontSize: M_TYPE.h3, lineHeight: 1.22, letterSpacing: "-0.025em", fontWeight: 700, color: NAVY }}>{b.head}</h3>
-                  <p style={{ margin: "9px 0 0", fontSize: M_TYPE.body, lineHeight: M_LEAD.body, color: SLATE }}>{b.body}</p>
-                  {ch.shots[i] && <Shot name={ch.shots[i]} alt={`MineEx ${ch.label.toLowerCase()} screen`} />}
-                </div>
-              ))}
-            </section>
+            <React.Fragment key={ch.n}>
+              <ProductChapter n={ch.n} eyebrow={ch.label} head={ch.lead} detail={ch.detail}
+                label={`MineEx ${ch.label.toLowerCase()} screen`}>
+                {scene}
+              </ProductChapter>
+              {/* The approved beat copy reads as the explanation beneath the evidence. */}
+              <Section top="clamp(26px,6vw,34px)">
+                {beats.map((b, i) => (
+                  <div key={b.k} style={{ marginTop: i === 0 ? 0 : "clamp(26px,6vw,34px)" }}>
+                    <SubHead>{b.head}</SubHead>
+                    <Body top={9}>{b.body}</Body>
+                  </div>
+                ))}
+              </Section>
+            </React.Fragment>
           );
         })}
 

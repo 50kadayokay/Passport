@@ -1,0 +1,21 @@
+import puppeteer from "puppeteer-core";
+const sleep=(ms)=>new Promise(r=>setTimeout(r,ms));
+const b=await puppeteer.launch({executablePath:"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",headless:"new",args:["--no-sandbox"]});
+const p=await b.newPage();
+await p.setViewport({width:390,height:844,deviceScaleFactor:3,isMobile:true,hasTouch:true});
+await p.setUserAgent("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1");
+const chunks=[]; p.on("request",r=>{const u=r.url(); if(/\.js(\?|$)/.test(u)) chunks.push(u.split("/").pop());});
+await p.goto("http://localhost:5197/",{waitUntil:"networkidle2"}); await sleep(4000);
+const at=async(frac)=>{await p.evaluate((f)=>window.scrollTo(0,document.body.scrollHeight*f),frac);await sleep(1500);
+  return p.evaluate(()=>({nodes:document.querySelectorAll("*").length,device:!!document.querySelector('[role="group"]')}));};
+console.log("top        ",JSON.stringify(await at(0)));
+console.log("projects   ",JSON.stringify(await at(0.19)));
+console.log("far below  ",JSON.stringify(await at(0.75)));
+console.log("bottom     ",JSON.stringify(await at(1)));
+const cdp=await p.target().createCDPSession(); await cdp.send("Performance.enable");
+const mm=(await cdp.send("Performance.getMetrics")).metrics;
+console.log("\njsHeapMB",Math.round((mm.find(x=>x.name==="JSHeapUsedSize")||{}).value/1048576),
+            "| iframes",await p.evaluate(()=>document.querySelectorAll("iframe").length));
+console.log("PassportProto chunk loaded:",chunks.some(c=>/PassportProto/i.test(c)));
+console.log("js chunks:",[...new Set(chunks)].join(", "));
+await b.close();

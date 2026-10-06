@@ -295,16 +295,22 @@ function tabIndex(tab) {
   return i < 0 ? 0 : i;
 }
 
-function ProfileTabsBase({ tab = "overview" }) {
+function ProfileTabsBase({ tab = "overview", onSelect }) {
   const idx = tabIndex(tab);
+  // The marketing pages drive this bar from scroll, so by default it is presentation:
+  // plain cells, no handlers, exactly as before. Pass onSelect and the same cells
+  // become real buttons — that is what makes the phone on the mobile pages tappable.
+  const Cell = onSelect ? "button" : "div";
   return (
     <div style={{ position: "relative", background: "#fff", display: "flex", padding: "12px 12px 0", borderBottom: `1px solid ${HAIR}` }}>
       {PROFILE_TABS.map(({ id, Icon }, i) => {
         const on = i === idx;
         return (
-          <div key={id} style={{ flex: 1, display: "grid", placeItems: "center", paddingBottom: 9 }}>
+          <Cell key={id} {...(onSelect ? { type: "button", onClick: () => onSelect(id), "aria-label": id, "aria-pressed": on } : null)}
+            style={{ flex: 1, display: "grid", placeItems: "center", paddingBottom: 9,
+              ...(onSelect ? { appearance: "none", border: 0, background: "transparent", cursor: "pointer", paddingTop: 2, font: "inherit" } : null) }}>
             <Icon size={19} strokeWidth={on ? 2.4 : 1.85} color={on ? INK : MUTE} style={{ transform: on ? "scale(1.08)" : "scale(1)", transition: `transform 300ms ${EASE}, color 260ms ${EASE}` }} />
-          </div>
+          </Cell>
         );
       })}
       {/* the one sliding indicator */}
@@ -513,8 +519,9 @@ function TabOverview({ flip = false, briefPress = false }) {
   );
 }
 
-function TabProjects() {
-  const p = PROJECTS[0];
+function TabProjects({ project = 0, onProject }) {
+  const p = PROJECTS[project] || PROJECTS[0];
+  const Pick = onProject ? "button" : "span";
   return (
     <div style={{ padding: "14px 12px 24px" }}>
       <p className="mx-label" style={{ color: "#c2410c", fontSize: 11, letterSpacing: "0.14em", padding: "0 4px" }}>Assets</p>
@@ -523,7 +530,11 @@ function TabProjects() {
       {/* project selector */}
       <div style={{ display: "flex", gap: 6, background: "#eef2f7", borderRadius: 14, padding: 4, marginTop: 14 }}>
         {PROJECTS.map((pr, i) => (
-          <span key={pr.name} style={{ flex: 1, textAlign: "center", padding: "10px 8px", borderRadius: 11, fontSize: 14.5, fontWeight: 700, letterSpacing: "-0.02em", background: i === 0 ? EM : "transparent", color: i === 0 ? "#fff" : SLATE }}>{pr.name}</span>
+          <Pick key={pr.name} {...(onProject ? { type: "button", onClick: () => onProject(i) } : null)}
+            style={{ flex: 1, textAlign: "center", padding: "10px 8px", borderRadius: 11, fontSize: 14.5, fontWeight: 700, letterSpacing: "-0.02em",
+              background: i === project ? EM : "transparent", color: i === project ? "#fff" : SLATE,
+              transition: `background 260ms ${EASE}, color 260ms ${EASE}`,
+              ...(onProject ? { appearance: "none", border: 0, cursor: "pointer", font: "inherit" } : null) }}>{pr.name}</Pick>
         ))}
       </div>
 
@@ -772,7 +783,7 @@ const TAB_VIEW = {
   media: TabMedia,
 };
 
-function ProfileScreenBase({ tab = "overview", following = false, onFollow, showNav = true, nav = "explore", flip = false, aiBrief = 0, aiBriefScroll = 0, aiBriefPress = false }) {
+function ProfileScreenBase({ tab = "overview", onTab, following = false, onFollow, showNav = true, nav = "explore", flip = false, aiBrief = 0, aiBriefScroll = 0, aiBriefPress = false, project = 0, onProject }) {
   const View = TAB_VIEW[tab] || TabOverview;
   // The heavy phone tree depends only on the tab and the (discrete) press flag —
   // never on the continuous aiBrief scrub/scroll. Memoising it means a scrub only
@@ -780,14 +791,14 @@ function ProfileScreenBase({ tab = "overview", following = false, onFollow, show
   const body = useMemo(() => (
     <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
       <ProfileHeader following={following} onFollow={onFollow} />
-      <ProfileTabs tab={tab} />
+      <ProfileTabs tab={tab} onSelect={onTab} />
       <div className="mx-noscroll" style={{ flex: 1, minHeight: 0, overflow: "hidden", background: APP_BG }}>
         <div key={tab} className="pp-fade" style={{ height: "100%" }}>
-          <View flip={flip} briefPress={aiBriefPress} />
+          <View flip={flip} briefPress={aiBriefPress} project={project} onProject={onProject} />
         </div>
       </div>
     </div>
-  ), [View, tab, following, onFollow, flip, aiBriefPress]);
+  ), [View, tab, onTab, following, onFollow, flip, aiBriefPress, project, onProject]);
   return (
     <AppShell nav={nav} showNav={showNav}>
       {body}
@@ -838,8 +849,11 @@ function CarouselCard({ c }) {
   );
 }
 
-function ExploreScreenBase({ activeFilters = [], results = DIRECTORY, dimNonMatching = false, sheet = null }) {
+function ExploreScreenBase({ activeFilters = [], results = DIRECTORY, dimNonMatching = false, sheet = null, onOpenSheet }) {
   const hasF = activeFilters.length > 0;
+  // The Advanced Search chip opens the sheet when a handler is passed; without one it
+  // stays the static chip every existing surface already renders.
+  const Chip = onOpenSheet ? "button" : "span";
   return (
     <AppShell nav="explore" bg="#fff">
       <div style={{ height: "100%", display: "flex", flexDirection: "column", background: APP_BG, position: "relative" }}>
@@ -857,9 +871,11 @@ function ExploreScreenBase({ activeFilters = [], results = DIRECTORY, dimNonMatc
           {/* filter row */}
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 12 }}>
             <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.14em", textTransform: "uppercase", color: MUTE }}>Filter</span>
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 6, borderRadius: 999, padding: "7px 14px", fontSize: 12.5, fontWeight: 700, letterSpacing: "-0.01em", border: `1px solid ${hasF ? "#0f172a" : HAIR}`, background: hasF ? "#0f172a" : "#fff", color: hasF ? "#fff" : "#475569" }}>
+            <Chip {...(onOpenSheet ? { type: "button", onClick: onOpenSheet } : null)}
+              style={{ display: "inline-flex", alignItems: "center", gap: 6, borderRadius: 999, padding: "7px 14px", fontSize: 12.5, fontWeight: 700, letterSpacing: "-0.01em", border: `1px solid ${hasF ? "#0f172a" : HAIR}`, background: hasF ? "#0f172a" : "#fff", color: hasF ? "#fff" : "#475569",
+                ...(onOpenSheet ? { cursor: "pointer", font: "inherit", appearance: "none" } : null) }}>
               <SlidersHorizontal size={13} />Advanced Search{hasF ? ` · ${activeFilters.length}` : ""}
-            </span>
+            </Chip>
           </div>
         </div>
         <div className="mx-noscroll" style={{ flex: 1, minHeight: 0, overflow: "hidden", padding: "10px 12px 20px" }}>
@@ -893,7 +909,8 @@ function ExploreScreenBase({ activeFilters = [], results = DIRECTORY, dimNonMatc
 
 const FEED_TABS = ["For You", "News", "Press Releases", "Media"];
 
-function FeedScreenBase({ tab = 0, reveal = 3 }) {
+function FeedScreenBase({ tab = 0, reveal = 3, onOpen }) {
+  const Story = onOpen ? "button" : "div";
   return (
     <AppShell nav="today">
       <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
@@ -910,10 +927,12 @@ function FeedScreenBase({ tab = 0, reveal = 3 }) {
         </div>
         <div className="mx-noscroll" style={{ flex: 1, minHeight: 0, overflow: "hidden", padding: "12px 12px 20px", display: "grid", gap: 10, alignContent: "start" }}>
           {RELEASES.slice(0, 4).map((r, i) => (
-            <div
+            <Story
               key={r.date}
+              {...(onOpen ? { type: "button", onClick: () => onOpen(i) } : null)}
               style={{
                 background: "#fff", borderRadius: 16, padding: 14,
+                ...(onOpen ? { appearance: "none", border: 0, cursor: "pointer", font: "inherit", textAlign: "left", display: "block", width: "100%" } : null),
                 opacity: i < reveal ? 1 : 0,
                 transform: i < reveal ? "none" : "translateY(16px)",
                 transition: `opacity 520ms ${EASE} ${i * 70}ms, transform 520ms ${EASE} ${i * 70}ms`,
@@ -927,7 +946,7 @@ function FeedScreenBase({ tab = 0, reveal = 3 }) {
               </div>
               <p style={{ fontSize: 15, fontWeight: 700, letterSpacing: "-0.022em", marginTop: 9, lineHeight: 1.25 }}>{r.label}</p>
               <p style={{ fontSize: 12.5, color: SLATE, marginTop: 6, lineHeight: 1.42 }}>{r.why}</p>
-            </div>
+            </Story>
           ))}
         </div>
       </div>
@@ -937,27 +956,33 @@ function FeedScreenBase({ tab = 0, reveal = 3 }) {
 
 /* ── press-release reader ────────────────────────────────────────────────── */
 
-function ReleaseScreenBase({ release = RELEASES[3] }) {
+function ReleaseScreenBase({ release, index, onBack }) {
+  const rel = release || RELEASES[index != null ? index : 3] || RELEASES[3];
   return (
     <AppShell nav="today" showNav={false}>
       <div className="mx-noscroll" style={{ height: "100%", overflow: "hidden", background: "#fff" }}>
         <div style={{ padding: "8px 18px 22px" }}>
-          <ChevronLeft size={22} color={INK} strokeWidth={2.2} style={{ marginLeft: -4 }} />
+          {onBack
+          ? <button type="button" onClick={onBack} aria-label="Back"
+              style={{ appearance: "none", border: 0, background: "transparent", padding: "6px 10px 6px 0", marginLeft: -4, cursor: "pointer", display: "block" }}>
+              <ChevronLeft size={22} color={INK} strokeWidth={2.2} />
+            </button>
+          : <ChevronLeft size={22} color={INK} strokeWidth={2.2} style={{ marginLeft: -4 }} />}
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 12 }}>
             <img src={IMG.avatar} alt="" width={24} height={24} loading="lazy" style={{ width: 24, height: 24, borderRadius: 999, objectFit: "cover" }} />
             <span style={{ fontSize: 12.5, fontWeight: 700 }}>{CO.name}</span>
-            <span style={{ fontSize: 11.5, color: MUTE }}>· {release.d}, 2026</span>
+            <span style={{ fontSize: 11.5, color: MUTE }}>· {rel.d}, 2026</span>
           </div>
-          <h3 style={{ fontSize: 23, fontWeight: 800, letterSpacing: "-0.035em", lineHeight: 1.14, marginTop: 12 }}>{release.label}</h3>
+          <h3 style={{ fontSize: 23, fontWeight: 800, letterSpacing: "-0.035em", lineHeight: 1.14, marginTop: 12 }}>{rel.label}</h3>
 
           <div style={{ background: EM_SOFT, borderRadius: 16, padding: 14, marginTop: 16 }}>
             <p style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.14em", textTransform: "uppercase", color: EM_TEXT }}>Why It Matters</p>
-            <p style={{ fontSize: 14, lineHeight: 1.5, marginTop: 7, color: "#0f2f4d" }}>{release.why}</p>
+            <p style={{ fontSize: 14, lineHeight: 1.5, marginTop: 7, color: "#0f2f4d" }}>{rel.why}</p>
           </div>
 
           <p style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.14em", textTransform: "uppercase", color: MUTE, marginTop: 20 }}>Key Takeaways</p>
           <div style={{ display: "grid", gap: 8, marginTop: 9 }}>
-            {release.takeaways.map((t) => (
+            {rel.takeaways.map((t) => (
               <div key={t} style={{ display: "flex", gap: 9, alignItems: "flex-start", background: "#f8fafc", borderRadius: 12, padding: "11px 12px" }}>
                 <Check size={14} strokeWidth={3} color={EM} style={{ marginTop: 2, flex: "0 0 auto" }} />
                 <span style={{ fontSize: 13, lineHeight: 1.4 }}>{t}</span>
