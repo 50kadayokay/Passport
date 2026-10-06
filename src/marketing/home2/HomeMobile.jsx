@@ -17,6 +17,7 @@ import React from "react";
 import { Body, Cta, Ctas, Eyebrow, Head, HeroWash, M_COBALT as COBALT, M_INK as NAVY, M_MUTE as MUTE, M_SLATE as SLATE, MobilePage, ProductChapter, Section, pad } from "../mobileKit.jsx";
 import { M_LEAD, M_RHYTHM, M_TRACK, M_TYPE } from "../mobile.js";
 import { DiscoverDemo, ProfileDemo } from "../mobile/demos.jsx";
+import ProductDeck from "../mobile/ProductDeck.jsx";
 
 // The app walkthrough, verbatim from AppSection.BEATS, paired with the matching
 // product screen already shipped for the Pro page.
@@ -76,14 +77,12 @@ export default function HomeMobile() {
             One profile investors actually read.
           </h2>
         </section>
-        {APP_BEATS.map((b) => (
-          <ProductChapter key={b.n} n={b.n} eyebrow={b.page} head={b.head} body={b.body}
-            detail={b.detail} label={`MineEx ${b.page.toLowerCase()} screen`}>
-            {b.screen === "discover"
-              ? <DiscoverDemo />
-              : <ProfileDemo start={b.screen} projects={b.screen === "projects"} />}
-          </ProductChapter>
-        ))}
+        <ProductDeck label="MineEx app" beats={APP_BEATS.map((b) => ({
+          eyebrow: b.page, head: b.head, body: b.body,
+          screen: b.screen === "discover"
+            ? <DiscoverDemo />
+            : <ProfileDemo start={b.screen} projects={b.screen === "projects"} />,
+        }))} />
         <section style={{ ...pad, paddingTop: "clamp(28px,7vw,38px)" }}>
           <Cta href="/pro">See the full Pro Profile →</Cta>
         </section>

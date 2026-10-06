@@ -16,6 +16,7 @@ import React from "react";
 import { STATES } from "./InvestorPage.jsx";
 import { Body, Cta, Ctas, Eyebrow, Head, HeroWash, M_COBALT as COBALT, M_INK as NAVY, M_MUTE as MUTE, M_SLATE as SLATE, MobilePage, ProductChapter, Section, SubHead, pad } from "../mobileKit.jsx";
 import { DiscoverDemo, ExploreDemo, ProfileDemo } from "../mobile/demos.jsx";
+import ProductDeck from "../mobile/ProductDeck.jsx";
 import { M_LEAD, M_RHYTHM, M_TRACK, M_TYPE } from "../mobile.js";
 
 // The chapters, and the LIVE screen each one is talking about. The phone is the
@@ -50,28 +51,28 @@ export default function InvestorMobile() {
           </div>
         </section>
 
-        {CHAPTERS.map((ch) => {
-          const beats = STATES.filter((s) => s.label === ch.label);
-          const scene = ch.scene === "discover" ? <DiscoverDemo />
+        <ProductDeck label="MineEx investor app" beats={CHAPTERS.map((ch) => ({
+          eyebrow: ch.label, head: ch.lead, body: ch.detail,
+          screen: ch.scene === "discover" ? <DiscoverDemo />
             : ch.scene === "explore" ? <ExploreDemo />
             : ch.scene === "research" ? <ProfileDemo start="overview" projects />
-            : <ProfileDemo start="updates" />;
+            : <ProfileDemo start="updates" />,
+        }))} />
+
+        {/* The approved beat copy follows the deck as the detail behind each chapter. */}
+        {CHAPTERS.map((ch) => {
+          const beats = STATES.filter((s) => s.label === ch.label);
           return (
-            <React.Fragment key={ch.n}>
-              <ProductChapter n={ch.n} eyebrow={ch.label} head={ch.lead} detail={ch.detail}
-                label={`MineEx ${ch.label.toLowerCase()} screen`}>
-                {scene}
-              </ProductChapter>
-              {/* The approved beat copy reads as the explanation beneath the evidence. */}
-              <Section top="clamp(26px,6vw,34px)">
-                {beats.map((b, i) => (
-                  <div key={b.k} style={{ marginTop: i === 0 ? 0 : "clamp(26px,6vw,34px)" }}>
-                    <SubHead>{b.head}</SubHead>
-                    <Body top={9}>{b.body}</Body>
-                  </div>
-                ))}
-              </Section>
-            </React.Fragment>
+            <Section key={ch.n}>
+              <Eyebrow n={ch.n}>{ch.label}</Eyebrow>
+              <Head long={String(ch.lead).length > 38}>{ch.lead}</Head>
+              {beats.map((b, i) => (
+                <div key={b.k} style={{ marginTop: "clamp(24px,6vw,32px)" }}>
+                  <SubHead>{b.head}</SubHead>
+                  <Body top={9}>{b.body}</Body>
+                </div>
+              ))}
+            </Section>
           );
         })}
 

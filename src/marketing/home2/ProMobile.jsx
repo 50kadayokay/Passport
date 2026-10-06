@@ -15,6 +15,7 @@
 import React from "react";
 import { Body, Cta, Ctas, Eyebrow, Head, HeroWash, MobilePage, ProductChapter, Section } from "../mobileKit.jsx";
 import { DiscoverDemo, MediaDemo, ProfileDemo } from "../mobile/demos.jsx";
+import ProductDeck from "../mobile/ProductDeck.jsx";
 
 // The approved walkthrough beats, verbatim, each paired with the live product surface
 // it describes and a line explaining why that surface matters. Interaction only where
@@ -62,14 +63,12 @@ export default function ProMobile() {
         </Ctas>
       </Section>
 
-      {BEATS.map((b) => (
-        <ProductChapter key={b.n} n={b.n} eyebrow={b.eyebrow} head={b.head} body={b.body}
-          detail={b.detail} label={`MineEx ${b.eyebrow.toLowerCase()} screen`}>
-          {b.screen === "discover" ? <DiscoverDemo />
-            : b.screen === "media" ? <MediaDemo />
-            : <ProfileDemo start={b.screen} projects={!!b.projects} />}
-        </ProductChapter>
-      ))}
+      <ProductDeck label="MineEx Pro Profile" beats={BEATS.map((b) => ({
+        eyebrow: b.eyebrow, head: b.head, body: b.body,
+        screen: b.screen === "discover" ? <DiscoverDemo />
+          : b.screen === "media" ? <MediaDemo />
+          : <ProfileDemo start={b.screen} projects={!!b.projects} />,
+      }))} />
 
       <Section top="clamp(60px,15vw,88px)" bottom="clamp(16px,4vw,24px)">
         <Head>Ready to build your investor presence?</Head>
