@@ -5303,13 +5303,10 @@ function MemberAvatar({ photo, name, initials, size = 64, className = "" }) {
 function TeamView({ onOpenCompany }) {
   const [open, setOpen] = useState(null);
   const [ceoFollow, setCeoFollow] = useState(false);
-  const [profile, setProfile] = useState(false);
-  // Android back: the CEO/person profile sits above the team bottom-sheet.
-  useBackHandler(!!profile || open != null, () => {
-    if (profile) return setProfile(false);
+  // Android back: close the open leader bio sheet.
+  useBackHandler(open != null, () => {
     setOpen(null);
   });
-  const [pfTab, setPfTab] = useState("updates"); // CEO profile: updates · media · reposts
   const [dm, setDm] = useState(false);           // direct-message thread with the leader
 
   // A company with no team yet (every fresh onboarding — team is entered by hand)
@@ -5382,13 +5379,7 @@ function TeamView({ onOpenCompany }) {
         <BottomSheet onClose={() => setOpen(null)}>
           <div className="flex items-start gap-3.5 pr-9">
             <div className="relative flex-shrink-0">
-              {open === 0 ? (
-                <button onClick={() => setProfile(true)} className="block transition active:scale-95" aria-label="Open profile">
-                  <MemberAvatar photo={active.photo} name={active.name} initials={active.initials} size={64} />
-                </button>
-              ) : (
-                <MemberAvatar photo={active.photo} name={active.name} initials={active.initials} size={64} />
-              )}
+              <MemberAvatar photo={active.photo} name={active.name} initials={active.initials} size={64} />
               {open === 0 && (
                 <span className="pointer-events-none absolute -bottom-0.5 -right-0.5 grid h-5 w-5 place-items-center rounded-full bg-white">
                   <BadgeCheck size={17} style={{ color: "#0ea5e9" }} fill="rgba(14,165,233,0.18)" />
@@ -5427,130 +5418,6 @@ function TeamView({ onOpenCompany }) {
             ))}
           </div>
         </BottomSheet>
-      )}
-
-      {/* ===== CEO PROFILE TEMPLATE (Instagram-style) — reused for every CEO ===== */}
-      {profile && createPortal(
-        <div className="absolute inset-0 z-[90] flex flex-col bg-white pp-fade">
-          {/* top bar — clears the safe area so nothing is cut off by the tabs above */}
-          <div className="flex flex-shrink-0 items-center gap-3 border-b border-slate-100 px-3" style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 12px)", paddingBottom: 12 }}>
-            <button onClick={() => setProfile(false)} className="grid h-8 w-8 place-items-center rounded-full text-slate-700 transition active:scale-90" aria-label="Back">
-              <ChevronLeft size={20} />
-            </button>
-            <div className="flex items-center gap-1.5">
-              <span className="text-[15px] font-extrabold tracking-tight text-slate-900">{lead.name}</span>
-              <BadgeCheck size={15} style={{ color: "#0ea5e9" }} fill="rgba(14,165,233,0.15)" />
-            </div>
-          </div>
-
-          <div className="pp-scroll flex-1 overflow-y-auto">
-            {/* header — photo + a single combined Connections count */}
-            <div className="px-5 pt-5">
-              <div className="flex items-center gap-8">
-                <MemberAvatar photo={lead.photo} name={lead.name} initials={lead.initials} size={80} />
-                <div className="flex flex-1 items-center justify-around text-center">
-                  {[["0", "Posts"], [String(148 + (ceoFollow ? 1 : 0)), "Connections"]].map(([n, l]) => (
-                    <div key={l}>
-                      <p className="text-[17px] font-extrabold leading-none tracking-tight text-slate-900 tabular-nums">{n}</p>
-                      <p className="mt-1 text-[11px] font-medium text-slate-500">{l}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <div className="mt-3">
-                <p className="text-[14px] font-extrabold tracking-tight text-slate-900">{lead.name}</p>
-                <p className="text-[12px] font-bold" style={{ color: THEME.team.t }}>{lead.role}</p>
-                {/* company name listed directly under the title */}
-                <div className="mt-0.5 flex items-center gap-1">
-                  <span className="text-[12px] font-semibold text-slate-500">{COMPANY.name}</span>
-                  <BadgeCheck size={11} style={{ color: "#0ea5e9" }} fill="rgba(14,165,233,0.15)" />
-                </div>
-                {/* bio */}
-                <p className="mt-2.5 text-[12px] font-medium leading-relaxed text-slate-500">{lead.short}</p>
-                {/* company account button — under the bio, left-aligned */}
-                <button
-                  onClick={() => onOpenCompany && onOpenCompany()}
-                  className="mt-2.5 inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 py-1.5 pl-1.5 pr-2.5 transition active:scale-[0.97]"
-                >
-                  <span className="grid h-6 w-6 place-items-center overflow-hidden rounded-full bg-white" style={{ border: "1px solid #e2e8f0" }}>
-                    {AVATAR ? <img src={AVATAR} alt={COMPANY.name || ""} className="h-full w-full object-cover" />
-            : <span className="text-[18px] font-extrabold text-slate-400">{(COMPANY.name || "?").trim().slice(0, 1).toUpperCase()}</span>}
-                  </span>
-                  <span className="text-[11.5px] font-bold tracking-tight text-slate-900">{COMPANY.name}</span>
-                  <BadgeCheck size={12} style={{ color: "#0ea5e9" }} fill="rgba(14,165,233,0.15)" />
-                  <ChevronRight size={13} className="text-slate-400" />
-                </button>
-                {/* website beneath */}
-                {COMPANY.website && (
-                  <a
-                    href={/^https?:\/\//.test(COMPANY.website) ? COMPANY.website : `https://${COMPANY.website}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="mt-2 flex w-fit items-center gap-1 text-[12px] font-semibold tracking-tight transition active:scale-95"
-                    style={{ color: "#0ea5e9" }}
-                  >
-                    <ArrowUpRight size={12} /> {COMPANY.website.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "")}
-                  </a>
-                )}
-              </div>
-              <div className="mt-3.5 flex gap-2">
-                <button
-                  onClick={() => setCeoFollow((f) => !f)}
-                  className="flex h-9 flex-1 items-center justify-center gap-1.5 rounded-lg border text-[12px] font-bold tracking-wide transition-all active:scale-[0.98]"
-                  style={ceoFollow
-                    ? { background: "#ffffff", color: "#0f172a", borderColor: "#cbd5e1" }
-                    : { background: "#0f172a", color: "#fff", borderColor: "#0f172a" }}
-                  aria-pressed={ceoFollow}
-                >
-                  {ceoFollow ? <><Check size={13} strokeWidth={2.8} /> Connected</> : <><Plus size={13} strokeWidth={2.8} /> Connect</>}
-                </button>
-                <button onClick={() => { haptic(); setDm(true); }} className="flex h-9 flex-1 items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white text-[12px] font-bold tracking-wide text-slate-700 transition-all active:scale-[0.98]">
-                  <MessageSquare size={13} strokeWidth={2.6} /> Message
-                </button>
-              </div>
-            </div>
-
-            {/* tab bar — Updates · Media · Reposts */}
-            <div className="mt-5 flex border-t border-slate-100">
-              {[
-                { id: "updates", label: "Updates", Icon: Grid3x3 },
-                { id: "media", label: "Media", Icon: Camera },
-                { id: "reposts", label: "Reposts", Icon: ArrowDownUp },
-              ].map((t) => {
-                const on = pfTab === t.id;
-                return (
-                  <button key={t.id} onClick={() => setPfTab(t.id)}
-                    className="relative flex flex-1 items-center justify-center gap-1.5 py-3 transition active:opacity-70"
-                    style={{ color: on ? "#0f172a" : "#94a3b8" }}>
-                    <t.Icon size={16} strokeWidth={on ? 2.4 : 2} />
-                    <span className="text-[11.5px] font-bold tracking-tight">{t.label}</span>
-                    {on && <span className="absolute inset-x-3 -bottom-px h-0.5 rounded-full" style={{ background: "#0f172a" }} />}
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* empty state — per tab */}
-            <div className="flex flex-col items-center justify-center px-6 py-16 text-center">
-              <div className="grid h-16 w-16 place-items-center rounded-full border-2 border-slate-900">
-                {pfTab === "media" ? <Camera size={28} className="text-slate-900" strokeWidth={1.6} />
-                  : pfTab === "reposts" ? <ArrowDownUp size={28} className="text-slate-900" strokeWidth={1.6} />
-                  : <Grid3x3 size={28} className="text-slate-900" strokeWidth={1.6} />}
-              </div>
-              <p className="mt-4 text-[20px] font-extrabold tracking-tight text-slate-900">
-                {pfTab === "media" ? "No Media Yet" : pfTab === "reposts" ? "No Reposts Yet" : "No Updates Yet"}
-              </p>
-              <p className="mt-1 text-[12.5px] font-medium leading-relaxed text-slate-400">
-                {pfTab === "media"
-                  ? `Photos and videos ${lead.name.split(" ")[0]} shares will appear here.`
-                  : pfTab === "reposts"
-                  ? `Company posts ${lead.name.split(" ")[0]} reposts will appear here.`
-                  : `When ${lead.name.split(" ")[0]} shares updates, they'll appear here.`}
-              </p>
-            </div>
-          </div>
-        </div>,
-        ppFrameEl || document.body
       )}
 
       {/* direct message thread with the leader (Instagram-style, opens over everything) */}
