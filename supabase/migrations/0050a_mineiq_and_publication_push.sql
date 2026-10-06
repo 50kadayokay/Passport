@@ -192,7 +192,7 @@ begin
   );
 end $$;
 
-revoke execute on function public.mineiq_search(uuid, text, integer) from public;
+revoke execute on function public.mineiq_search(uuid, text, integer) from public, anon;
 grant  execute on function public.mineiq_search(uuid, text, integer) to authenticated;
 
 -- ---------------------------------------------------------------------------

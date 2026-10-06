@@ -72,7 +72,7 @@ begin
       where p.company_id = p_company and p.removed_at is null);
 end $$;
 
-revoke execute on function public.company_engagement_totals(uuid) from public;
+revoke execute on function public.company_engagement_totals(uuid) from public, anon;
 grant  execute on function public.company_engagement_totals(uuid) to authenticated;
 
 -- -------------------------------------------------------------------- daily
@@ -110,7 +110,7 @@ begin
    order by s.day;
 end $$;
 
-revoke execute on function public.company_engagement_daily(uuid, integer) from public;
+revoke execute on function public.company_engagement_daily(uuid, integer) from public, anon;
 grant  execute on function public.company_engagement_daily(uuid, integer) to authenticated;
 
 -- ---------------------------------------------------------------- per post
@@ -141,7 +141,7 @@ begin
    limit greatest(least(p_limit, 100), 1);
 end $$;
 
-revoke execute on function public.company_post_engagement(uuid, integer) from public;
+revoke execute on function public.company_post_engagement(uuid, integer) from public, anon;
 grant  execute on function public.company_post_engagement(uuid, integer) to authenticated;
 
 -- Supports the daily rollup's date filter.

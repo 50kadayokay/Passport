@@ -100,7 +100,7 @@ begin
    limit greatest(least(p_limit, 200), 1);
 end $$;
 
-revoke execute on function public.company_notifications(uuid, integer) from public;
+revoke execute on function public.company_notifications(uuid, integer) from public, anon;
 grant  execute on function public.company_notifications(uuid, integer) to authenticated;
 
 -- ------------------------------------------------------------- mark as seen
@@ -120,7 +120,7 @@ begin
   return v_now;
 end $$;
 
-revoke execute on function public.mark_notifications_seen(uuid) from public;
+revoke execute on function public.mark_notifications_seen(uuid) from public, anon;
 grant  execute on function public.mark_notifications_seen(uuid) to authenticated;
 
 create index if not exists idx_post_likes_slug_created
