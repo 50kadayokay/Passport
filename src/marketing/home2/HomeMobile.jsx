@@ -14,17 +14,8 @@
 // them by viewport.
 // ─────────────────────────────────────────────────────────────────────────────
 import React from "react";
-import Nav from "./Nav.jsx";
-import Footer from "./Footer.jsx";
-import { MarketingStyles } from "../system.jsx";
-import { M_GUTTER, M_TYPE, M_LEAD, M_TRACK, M_RHYTHM, M_TAP } from "../mobile.js";
-
-const NAVY = "#0a1b2e";
-const INK = "#0a0c0f";
-const SLATE = "#565f6e";
-const MUTE = "#9aa1ad";
-const COBALT = "#2563EB";
-const BG = "#fbfcfe";
+import { Body, Cta, Ctas, Eyebrow, Head, HeroWash, M_COBALT as COBALT, M_INK as NAVY, M_MUTE as MUTE, M_SLATE as SLATE, MobilePage, Section, Shot, pad } from "../mobileKit.jsx";
+import { M_LEAD, M_RHYTHM, M_TRACK, M_TYPE } from "../mobile.js";
 
 // The app walkthrough, verbatim from AppSection.BEATS, paired with the matching
 // product screen already shipped for the Pro page.
@@ -45,66 +36,13 @@ const CONF_BEATS = [
   { n: "04", page: "CONNECT",  head: "Turn every conversation into a lasting connection.", body: "Investors scan to continue exploring your company on MineEx, follow your profile and stay connected after the conference ends." },
 ];
 
-const pad = { paddingLeft: M_GUTTER, paddingRight: M_GUTTER };
-
-function Eyebrow({ n, page }) {
-  return (
-    <p style={{ margin: 0, fontSize: M_TYPE.eyebrow, fontWeight: 800, letterSpacing: M_TRACK.eyebrow, textTransform: "uppercase", color: MUTE }}>
-      <span style={{ color: COBALT }}>{n}</span>&nbsp;&nbsp;{page}
-    </p>
-  );
-}
-
-function Head({ children, long }) {
-  return (
-    <h2 style={{ margin: `${M_RHYTHM.eyebrowGap}px 0 0`, fontSize: long ? M_TYPE.h2Long : M_TYPE.h2,
-      lineHeight: M_LEAD.h2, letterSpacing: M_TRACK.h2, fontWeight: 700, color: NAVY }}>{children}</h2>
-  );
-}
-
-function Body({ children }) {
-  return (
-    <p style={{ margin: `${M_RHYTHM.headGap}px 0 0`, fontSize: M_TYPE.body, lineHeight: M_LEAD.body, color: SLATE }}>{children}</p>
-  );
-}
-
-// A product screen at a size you can actually read: full content width, in a frame
-// that reads as a device without pretending to be a photoreal one.
-function Shot({ name, alt }) {
-  return (
-    <div style={{ marginTop: M_RHYTHM.mediaGap, borderRadius: 20, overflow: "hidden",
-      border: "1px solid rgba(10,27,46,0.08)", background: "#fff",
-      boxShadow: "0 24px 60px -32px rgba(10,27,46,0.38)" }}>
-      <img src={`/marketing/appshots/${name}.webp`} alt={alt} loading="lazy" decoding="async"
-        style={{ display: "block", width: "100%", height: "auto" }} />
-    </div>
-  );
-}
-
-function Cta({ href, children, primary }) {
-  return (
-    <a href={href} style={{
-      display: "inline-flex", alignItems: "center", justifyContent: "center",
-      minHeight: M_TAP, padding: "0 26px", borderRadius: 999, textDecoration: "none",
-      fontSize: M_TYPE.cta, fontWeight: 700, letterSpacing: "-0.015em",
-      background: primary ? COBALT : "transparent", color: primary ? "#fff" : NAVY,
-      border: `1px solid ${primary ? COBALT : "rgba(10,27,46,0.18)"}`,
-    }}>{children}</a>
-  );
-}
-
 export default function HomeMobile() {
   return (
-    <div className="mx-root" id="top" style={{ background: BG, minHeight: "100svh", color: NAVY }}>
-      <MarketingStyles />
-      <Nav />
-      <main style={{ fontFamily: "'Switzer', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}>
+    <MobilePage>
 
         {/* HERO — the gradient frames the headline instead of floating beside it. */}
         <section style={{ ...pad, position: "relative", paddingTop: 96, paddingBottom: "clamp(44px,11vw,64px)", overflow: "hidden" }}>
-          <div aria-hidden style={{ position: "absolute", top: -90, right: -140, width: 420, height: 420, borderRadius: "50%",
-            background: "radial-gradient(circle at 50% 50%, rgba(37,99,235,0.26), rgba(132,204,22,0.16) 46%, rgba(255,255,255,0) 70%)",
-            filter: "blur(14px)", pointerEvents: "none" }} />
+          <HeroWash />
           <h1 style={{ position: "relative", margin: 0, fontSize: M_TYPE.h1, lineHeight: M_LEAD.h1,
             letterSpacing: M_TRACK.h1, fontWeight: 700, color: NAVY }}>
             The investor platform built for <span style={{ color: COBALT }}>mining.</span>
@@ -127,7 +65,7 @@ export default function HomeMobile() {
         </section>
         {APP_BEATS.map((b) => (
           <section key={b.n} style={{ ...pad, paddingTop: M_RHYTHM.sectionY }}>
-            <Eyebrow n={b.n} page={b.page} />
+            <Eyebrow n={b.n}>{b.page}</Eyebrow>
             <Head long={b.head.length > 38}>{b.head}</Head>
             <Body>{b.body}</Body>
             <Shot name={b.shot} alt={`MineEx ${b.page.toLowerCase()} screen`} />
@@ -152,7 +90,7 @@ export default function HomeMobile() {
         </section>
         {CONF_BEATS.map((b) => (
           <section key={b.n} style={{ ...pad, paddingTop: M_RHYTHM.sectionY }}>
-            <Eyebrow n={b.n} page={b.page} />
+            <Eyebrow n={b.n}>{b.page}</Eyebrow>
             <Head long={b.head.length > 38}>{b.head}</Head>
             <Body>{b.body}</Body>
           </section>
@@ -174,8 +112,6 @@ export default function HomeMobile() {
           </div>
         </section>
 
-        <Footer />
-      </main>
-    </div>
+    </MobilePage>
   );
 }

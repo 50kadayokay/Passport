@@ -13,18 +13,9 @@
 // re-typed, so the approved copy cannot drift between the two compositions.
 // ─────────────────────────────────────────────────────────────────────────────
 import React from "react";
-import Nav from "./Nav.jsx";
-import Footer from "./Footer.jsx";
-import { MarketingStyles } from "../system.jsx";
 import { STATES } from "./InvestorPage.jsx";
-import { M_GUTTER, M_TYPE, M_LEAD, M_TRACK, M_RHYTHM, M_TAP } from "../mobile.js";
-
-const NAVY = "#0a1b2e";
-const SLATE = "#565f6e";
-const MUTE = "#9aa1ad";
-const COBALT = "#2563EB";
-const BG = "#fbfcfe";
-const pad = { paddingLeft: M_GUTTER, paddingRight: M_GUTTER };
+import { Body, Cta, Ctas, Eyebrow, Head, HeroWash, M_COBALT as COBALT, M_INK as NAVY, M_MUTE as MUTE, M_SLATE as SLATE, MobilePage, Section, Shot, SubHead, pad } from "../mobileKit.jsx";
+import { M_LEAD, M_RHYTHM, M_TRACK, M_TYPE } from "../mobile.js";
 
 // The chapters the walkthrough is built from, and the product screens that show what
 // each one is talking about. Advanced Search gets its own full-width screen because
@@ -36,38 +27,12 @@ const CHAPTERS = [
   { n: "04", label: "Follow",   lead: "Keep hearing from the names you track.", shots: ["media"] },
 ];
 
-function Shot({ name, alt }) {
-  return (
-    <div style={{ marginTop: M_RHYTHM.mediaGap, borderRadius: 20, overflow: "hidden",
-      border: "1px solid rgba(10,27,46,0.08)", background: "#fff",
-      boxShadow: "0 24px 60px -32px rgba(10,27,46,0.38)" }}>
-      <img src={`/marketing/appshots/${name}.webp`} alt={alt} loading="lazy" decoding="async"
-        style={{ display: "block", width: "100%", height: "auto" }} />
-    </div>
-  );
-}
-
-function Cta({ href, children, primary }) {
-  return (
-    <a href={href} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center",
-      minHeight: M_TAP, padding: "0 26px", borderRadius: 999, textDecoration: "none",
-      fontSize: M_TYPE.cta, fontWeight: 700, letterSpacing: "-0.015em",
-      background: primary ? COBALT : "transparent", color: primary ? "#fff" : NAVY,
-      border: `1px solid ${primary ? COBALT : "rgba(10,27,46,0.18)"}` }}>{children}</a>
-  );
-}
-
 export default function InvestorMobile() {
   return (
-    <div className="mx-root" id="top" style={{ background: BG, minHeight: "100svh", color: NAVY }}>
-      <MarketingStyles />
-      <Nav />
-      <main style={{ fontFamily: "'Switzer', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}>
+    <MobilePage>
 
         <section style={{ ...pad, position: "relative", paddingTop: 92, paddingBottom: "clamp(8px,2vw,14px)", overflow: "hidden" }}>
-          <div aria-hidden style={{ position: "absolute", top: -80, right: -150, width: 400, height: 400, borderRadius: "50%",
-            background: "radial-gradient(circle at 50% 50%, rgba(37,99,235,0.24), rgba(132,204,22,0.14) 48%, rgba(255,255,255,0) 72%)",
-            filter: "blur(14px)", pointerEvents: "none" }} />
+          <HeroWash />
           <p style={{ position: "relative", margin: 0, fontSize: M_TYPE.eyebrow, fontWeight: 800, letterSpacing: M_TRACK.eyebrow, textTransform: "uppercase", color: COBALT }}>For investors</p>
           <h1 style={{ position: "relative", margin: "12px 0 0", fontSize: M_TYPE.h1, lineHeight: M_LEAD.h1, letterSpacing: M_TRACK.h1, fontWeight: 700, color: NAVY }}>
             Discover, research and follow the junior mining market.
@@ -115,8 +80,6 @@ export default function InvestorMobile() {
           <p style={{ margin: "16px 0 0", fontSize: 13, color: MUTE }}>Free for investors.</p>
         </section>
 
-        <Footer />
-      </main>
-    </div>
+    </MobilePage>
   );
 }

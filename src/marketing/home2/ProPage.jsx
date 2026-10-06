@@ -14,6 +14,10 @@ import ProMobile from "./ProMobile.jsx";
 
 export default function ProPage() {
   const { mobile } = useViewport();
+  // The phone composition is a whole light page (its own nav, ground and footer), the
+  // same shell Home and Investor use — not a body dropped into the walkthrough's dark
+  // stage, which is what made Pro the only black page on the phone.
+  if (mobile) return <ProMobile />;
   const [demoActive, setDemoActive] = useState(false);
   // The closing pricing sheet is a LIGHT screen; the walkthrough behind it is near-black.
   // The nav follows whichever is in front, so a dark bar never sits over the light sheet.
@@ -30,9 +34,7 @@ export default function ProPage() {
       {/* The pinned, wheel-driven walkthrough is a desktop experience. On a phone it has no
           meaning and rendered as a full-bleed device over the nav, so mobile gets its own
           composition of the same story. Desktop is untouched. */}
-      {mobile
-        ? <ProMobile />
-        : <main><ProProfileChapter onActive={setDemoActive} onPricing={setPricingUp} /></main>}
+      <main><ProProfileChapter onActive={setDemoActive} onPricing={setPricingUp} /></main>
     </div>
   );
 }

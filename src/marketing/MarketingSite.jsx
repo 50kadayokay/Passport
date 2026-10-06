@@ -25,6 +25,7 @@ import { MX, MarketingStyles, useReduce } from "./system.jsx";
 const Home2 = React.lazy(() => import("./home2/Home2.jsx"));
 const ProPage = React.lazy(() => import("./home2/ProPage.jsx"));
 const PricingPage = React.lazy(() => import("./home2/PricingDeck.jsx"));
+const AppShotStage = React.lazy(() => import("./ui/AppShotStage.jsx"));
 const ComparePlans = React.lazy(() => import("./home2/ComparePlans.jsx"));
 // Ecosystem finale — static compositions review harness (?ecostory=1&state=0..5).
 const EcoStoryRoute = React.lazy(() => import("./home2/EcoStoryRoute.jsx"));
@@ -169,6 +170,10 @@ export default function MarketingSite() {
 
   // Directed-automation proof: the real iframe app driven by the DemoDirector.
   if (/[?&]directedEmbed/.test(search)) return <Shell><DirectedEmbed /></Shell>;
+
+  // Build-time capture surface for the app screenshots (its own chunk, nothing links here).
+  if (/[?&]appshot=/.test(search))
+    return <React.Suspense fallback={fallback}><AppShotStage /></React.Suspense>;
 
   // Phone lab — ISOLATED working version of the device composition. Imports nothing that the
   // sales page, Pro page or Investor page render. Safe to experiment in.
