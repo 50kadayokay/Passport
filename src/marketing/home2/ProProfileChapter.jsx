@@ -261,7 +261,7 @@ export default function ProProfileChapter({ onActive, onPricing}) {
     // already drives the same demo on mobile (AppSection), so there is no new mechanism.
     return (
       <section ref={mTrackRef} aria-label="MineEx Pro Profile" style={{ position: "relative", background: NS_BG, height: `${PRO_STATES * 72}svh` }}>
-        <div style={{ position: "sticky", top: 0, height: "100svh", overflow: "hidden" }}>
+        <div className="mx-vstage" style={{ position: "sticky", top: 0, height: "100svh", overflow: "hidden" }}>
           <NarrativeStory variant="full" hardware cutout />
         </div>
       </section>

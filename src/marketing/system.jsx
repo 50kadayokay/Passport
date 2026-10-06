@@ -633,6 +633,20 @@ export function MarketingStyles() {
          scene content is centred BELOW the nav and its headline never hides under it. */
       .mx-stage { position: sticky; top: 0; height: 100svh; display: flex; align-items: center; overflow: hidden; padding-top: 62px; }
 
+      /* PHONES: svh is the SMALLEST viewport — the height with Safari's chrome showing.
+         It never changes, which is why it is safe for layout, but it is the wrong height
+         the moment Safari retracts its chrome mid-swipe: the visible viewport grows, the
+         stage does not, and a black strip opens under it while the device inside gets
+         measured against a height that is no longer real and clips its own status bar.
+         dvh tracks the live viewport, so the stage always fills exactly what is on screen.
+         Guarded by @supports and scoped to phones — desktop keeps svh untouched, and a
+         browser without dvh simply keeps today's behaviour rather than losing its height. */
+      @supports (height: 100dvh) {
+        @media (max-width: 759px) {
+          .mx-stage, .mx-demo, .mx-vstage { height: 100dvh !important; }
+        }
+      }
+
       @keyframes mx-cue { 0%,100% { transform: translateY(0); opacity: .55 } 50% { transform: translateY(6px); opacity: 1 } }
       .mx-cue { animation: mx-cue 2.4s ease-in-out infinite; }
       @keyframes mx-drift { from { transform: scale(1) } to { transform: scale(1.07) } }
