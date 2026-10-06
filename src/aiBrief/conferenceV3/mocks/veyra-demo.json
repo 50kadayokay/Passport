@@ -1,0 +1,520 @@
+{
+ "slug": "veyra-demo",
+ "name": "Veyra Uranium Corp.",
+ "profile": {
+  "team": [
+   {
+    "name": "Astrid Nygaard",
+    "full": "Astrid Nygaard",
+    "role": "President & CEO"
+   },
+   {
+    "name": "Colin Mercer",
+    "full": "Colin Mercer",
+    "role": "Chair"
+   },
+   {
+    "name": "Priyanka Dev",
+    "full": "Priyanka Dev",
+    "role": "Chief Financial Officer"
+   },
+   {
+    "name": "Liam Beaulieu",
+    "full": "Liam Beaulieu",
+    "role": "VP Exploration"
+   },
+   {
+    "name": "Hana Sato",
+    "full": "Hana Sato",
+    "role": "VP Environment & Permitting"
+   },
+   {
+    "name": "Daniel Rowe",
+    "full": "Daniel Rowe",
+    "role": "VP Community Relations"
+   },
+   {
+    "name": "Grace Okonjo",
+    "full": "Grace Okonjo",
+    "role": "Director"
+   },
+   {
+    "name": "Pierre Lavoie",
+    "full": "Pierre Lavoie",
+    "role": "Director"
+   }
+  ],
+  "brand": {
+   "hero": "/demo/veyra/v15.jpg"
+  },
+  "capital": {
+   "fd": "152M",
+   "cash": "C$42M",
+   "debt": "Nil",
+   "options": "8M",
+   "warrants": "13M",
+   "marketCap": "C$356M",
+   "outstanding": "131M",
+   "financing": [
+    {
+     "date": "2026-02",
+     "type": "Flow-through financing",
+     "amount": "C$28M",
+     "purpose": "2026 winter drill program at Ember Lake"
+    },
+    {
+     "date": "2025-08",
+     "type": "Strategic investment",
+     "amount": "C$15M",
+     "purpose": "Utility takes a 9.9% stake"
+    }
+   ]
+  },
+  "company": {
+   "name": "Veyra Uranium Corp.",
+   "slogan": "High-grade uranium for the next generation of clean power.",
+   "ticker": "VYU",
+   "website": "veyra.example",
+   "listings": [
+    {
+     "ex": "TSXV",
+     "sym": "VYU"
+    },
+    {
+     "ex": "OTCQB",
+     "sym": "VYRUF"
+    }
+   ],
+   "commodity": "Uranium",
+   "headquarters": "Saskatoon, Saskatchewan",
+   "jurisdiction": "Saskatchewan, Canada"
+  },
+  "projects": [
+   {
+    "key": "ember-lake",
+    "tag": "Resource Definition",
+    "name": "Ember Lake",
+    "brief": {
+     "overview": "A high-grade unconformity-related uranium deposit on the eastern side of the Athabasca Basin, with a maiden resource of 48.2 million pounds U3O8 Indicated at 2.9% U3O8, open along strike."
+    },
+    "unique": {
+     "evidence": [
+      "48.2 Mlb U3O8 Indicated at 2.9%",
+      "Open along strike",
+      "Winter-road access"
+     ]
+    },
+    "gallery": [
+     {
+      "src": "/demo/veyra/v11.jpg"
+     },
+     {
+      "src": "/demo/veyra/v07.jpg"
+     },
+     {
+      "src": "/demo/veyra/v04.jpg"
+     }
+    ],
+    "geology": {
+     "body": "Basement-hosted uranium along a graphitic shear beneath the Athabasca sandstone unconformity."
+    },
+    "resource": {
+     "rows": [
+      {
+       "grade": "2.9% U3O8",
+       "tonnes": "0.75 Mt",
+       "category": "Indicated",
+       "contained": "48.2 Mlb U3O8"
+      },
+      {
+       "grade": "1.4% U3O8",
+       "tonnes": "0.70 Mt",
+       "category": "Inferred",
+       "contained": "21.6 Mlb U3O8"
+      }
+     ],
+     "summary": "Ember Lake hosts an Indicated resource of 0.75 million tonnes at 2.9% U3O8 for 48.2 million pounds, plus 0.70 million tonnes Inferred at 1.4% U3O8 for 21.6 million pounds."
+    },
+    "snapshot": {
+     "land": "41,300 ha",
+     "location": {
+      "value": "Athabasca Basin, Saskatchewan, Canada"
+     },
+     "commodity": {
+      "value": "Uranium"
+     },
+     "ownership": {
+      "value": "100%"
+     }
+    },
+    "stageName": "Resource Definition",
+    "drillResults": {
+     "rows": [
+      {
+       "hole": "VE-25-018",
+       "note": "incl. 2.0 m @ 31.2% U3O8",
+       "grade": "8.41% U3O8",
+       "interval": "12.5 m"
+      },
+      {
+       "hole": "VE-25-027",
+       "note": "basement-hosted",
+       "grade": "3.12% U3O8",
+       "interval": "21.0 m"
+      },
+      {
+       "hole": "VE-25-033",
+       "note": "highest grade to date",
+       "grade": "14.6% U3O8",
+       "interval": "6.5 m"
+      },
+      {
+       "hole": "VE-26-004",
+       "note": "widest intercept to date",
+       "grade": "1.05% U3O8",
+       "interval": "34.0 m"
+      },
+      {
+       "hole": "VE-26-011",
+       "note": "200 m step-out to the east",
+       "grade": "5.80% U3O8",
+       "interval": "9.0 m"
+      }
+     ]
+    },
+    "coords": {
+     "lat": 58.32,
+     "lng": -103.72
+    }
+   },
+   {
+    "key": "tamarack-trend",
+    "tag": "Exploration",
+    "name": "Tamarack Trend",
+    "brief": {
+     "overview": "A 22 km conductive corridor with anomalous boulder geochemistry and alteration in first-pass drilling, north of Ember Lake."
+    },
+    "unique": {
+     "evidence": [
+      "22 km conductive corridor",
+      "Alteration in first drilling",
+      "Helicopter-supported"
+     ]
+    },
+    "gallery": [
+     {
+      "src": "/demo/veyra/v02.jpg"
+     },
+     {
+      "src": "/demo/veyra/v17.jpg"
+     },
+     {
+      "src": "/demo/veyra/v28.jpg"
+     }
+    ],
+    "geology": {
+     "body": "Graphitic pelitic gneiss beneath 250–400 m of sandstone."
+    },
+    "resource": {
+     "rows": [],
+     "summary": ""
+    },
+    "snapshot": {
+     "land": "27,800 ha",
+     "location": {
+      "value": "Athabasca Basin, Saskatchewan, Canada"
+     },
+     "commodity": {
+      "value": "Uranium"
+     },
+     "ownership": {
+      "value": "100%"
+     }
+    },
+    "stageName": "Exploration",
+    "drillResults": {
+     "rows": []
+    },
+    "coords": {
+     "lat": 58.61,
+     "lng": -104.28
+    }
+   },
+   {
+    "key": "caribou-narrows",
+    "tag": "Early-stage",
+    "name": "Caribou Narrows",
+    "brief": {
+     "overview": "A shallow-basin target on the southern margin of the Athabasca Basin, held under an option to earn 70%."
+    },
+    "unique": {
+     "evidence": [
+      "Shallow unconformity",
+      "Airborne EM targets",
+      "Option to earn 70%"
+     ]
+    },
+    "gallery": [
+     {
+      "src": "/demo/veyra/v10.jpg"
+     },
+     {
+      "src": "/demo/veyra/v34.jpg"
+     },
+     {
+      "src": "/demo/veyra/v13.jpg"
+     }
+    ],
+    "geology": {
+     "body": "Basement conductors at the basin margin under thin sandstone cover."
+    },
+    "resource": {
+     "rows": [],
+     "summary": ""
+    },
+    "snapshot": {
+     "land": "12,600 ha",
+     "location": {
+      "value": "Athabasca Basin, Saskatchewan, Canada"
+     },
+     "commodity": {
+      "value": "Uranium"
+     },
+     "ownership": {
+      "value": "Option to earn 70%"
+     }
+    },
+    "stageName": "Early-stage",
+    "drillResults": {
+     "rows": []
+    },
+    "coords": {
+     "lat": 57.94,
+     "lng": -106.05
+    }
+   }
+  ],
+  "timeline": [
+   {
+    "date": "2026-07-09",
+    "headline": "VE-26-011 intersects 9.0 m @ 5.80% U3O8, 200 m east",
+    "keyNumbers": [
+     "5.80% U3O8"
+    ],
+    "whyItMatters": "Extends high grade along strike."
+   },
+   {
+    "date": "2026-04-16",
+    "headline": "Maiden Ember Lake resource: 48.2 Mlb U3O8 Indicated",
+    "keyNumbers": [
+     "48.2 Mlb"
+    ],
+    "whyItMatters": "Establishes a high-grade resource base."
+   },
+   {
+    "date": "2026-02-24",
+    "headline": "C$28M flow-through financing closed",
+    "keyNumbers": [
+     "C$28M"
+    ],
+    "whyItMatters": "Funds the 2026 winter and summer programs."
+   },
+   {
+    "date": "2026-01-12",
+    "headline": "Winter program begins with six rigs",
+    "keyNumbers": [
+     "6 rigs"
+    ],
+    "whyItMatters": "Largest program in company history."
+   },
+   {
+    "date": "2025-10-02",
+    "headline": "VE-25-033 returns 6.5 m @ 14.6% U3O8",
+    "keyNumbers": [
+     "14.6% U3O8"
+    ],
+    "whyItMatters": "Highest-grade intercept on the property."
+   },
+   {
+    "date": "2025-08-19",
+    "headline": "Utility takes a 9.9% strategic stake",
+    "keyNumbers": [
+     "C$15M",
+     "9.9%"
+    ],
+    "whyItMatters": "A long-term strategic partner."
+   }
+  ],
+  "catalysts": [
+   {
+    "label": "Ember Lake PEA",
+    "impact": "First economic assessment of an underground operation.",
+    "timing": "H1 2027"
+   }
+  ],
+  "conference": {
+   "hook": "High-grade uranium in Saskatchewan's Athabasca Basin.",
+   "studio": {
+    "theme": "obsidian",
+    "accent": "",
+    "template": "beacon"
+   },
+   "enabled": true,
+   "gallery": {
+    "overview": [
+     "/demo/veyra/v11.jpg"
+    ],
+    "results": [
+     "/demo/veyra/v39.jpg"
+    ],
+    "follow": [
+     "/demo/veyra/v38.jpg"
+    ],
+    "jurisdiction": [
+     "/demo/veyra/v08.jpg"
+    ],
+    "extra": [
+     "/demo/veyra/v01.jpg",
+     "/demo/veyra/v03.jpg",
+     "/demo/veyra/v05.jpg",
+     "/demo/veyra/v06.jpg",
+     "/demo/veyra/v09.jpg",
+     "/demo/veyra/v12.jpg",
+     "/demo/veyra/v14.jpg",
+     "/demo/veyra/v16.jpg",
+     "/demo/veyra/v18.jpg",
+     "/demo/veyra/v19.jpg",
+     "/demo/veyra/v20.jpg",
+     "/demo/veyra/v21.jpg",
+     "/demo/veyra/v22.jpg",
+     "/demo/veyra/v23.jpg",
+     "/demo/veyra/v24.jpg",
+     "/demo/veyra/v25.jpg",
+     "/demo/veyra/v26.jpg",
+     "/demo/veyra/v27.jpg",
+     "/demo/veyra/v29.jpg",
+     "/demo/veyra/v30.jpg",
+     "/demo/veyra/v31.jpg",
+     "/demo/veyra/v32.jpg",
+     "/demo/veyra/v33.jpg",
+     "/demo/veyra/v35.jpg",
+     "/demo/veyra/v36.jpg",
+     "/demo/veyra/v37.jpg",
+     "/demo/veyra/v40.jpg",
+     "/demo/veyra/v41.jpg",
+     "/demo/veyra/v42.jpg",
+     "/demo/veyra/v43.jpg",
+     "/demo/veyra/v44.jpg",
+     "/demo/veyra/v45.jpg",
+     "/demo/veyra/v46.jpg",
+     "/demo/veyra/v47.jpg",
+     "/demo/veyra/v48.jpg",
+     "/demo/veyra/v49.jpg"
+    ]
+   },
+   "_derived": true,
+   "overview": "Veyra is advancing the high-grade Ember Lake uranium deposit in Saskatchewan's Athabasca Basin.",
+   "highlights": [
+    {
+     "label": "Uranium (Indicated)",
+     "value": "48.2 Mlb U3O8",
+     "context": "2.9% U3O8",
+     "featured": true
+    },
+    {
+     "label": "Inferred",
+     "value": "21.6 Mlb U3O8",
+     "context": "1.4% U3O8",
+     "featured": false
+    },
+    {
+     "label": "Best intercept",
+     "value": "6.5 m",
+     "context": "@ 14.6% U3O8",
+     "featured": false
+    },
+    {
+     "label": "Land",
+     "value": "81,700 ha",
+     "context": "three projects",
+     "featured": false
+    },
+    {
+     "label": "Cash",
+     "value": "C$42M",
+     "context": "no debt",
+     "featured": false
+    }
+   ],
+   "evidenceType": "drill_results",
+   "featuredGrade": {
+    "grade": "14.6% U3O8",
+    "width": "6.5 m",
+    "context": "VE-25-033",
+    "location": "Ember Lake"
+   },
+   "heroStatistic": {
+    "label": "Uranium (Indicated)",
+    "value": "48.2 Mlb U3O8",
+    "context": "at 2.9% U3O8 · + 21.6 Mlb Inferred"
+   },
+   "investmentCase": [
+    {
+     "reason": "Grade: an Indicated resource averaging 2.9% U3O8, with intercepts up to 14.6%.",
+     "featured": true
+    },
+    {
+     "reason": "Scale: 48.2 million pounds Indicated and 21.6 million pounds Inferred, open along strike.",
+     "featured": false
+    },
+    {
+     "reason": "Location: Saskatchewan's Athabasca Basin, home to the world's highest-grade uranium mines.",
+     "featured": false
+    },
+    {
+     "reason": "Funded: C$42 million in cash and no debt through the PEA.",
+     "featured": false
+    }
+   ],
+   "projectGallery": {
+    "ember-lake": [
+     "/demo/veyra/v11.jpg",
+     "/demo/veyra/v07.jpg",
+     "/demo/veyra/v04.jpg"
+    ]
+   },
+   "currentActivity": "Summer drill program underway",
+   "featuredProjectKey": "ember-lake",
+   "jurisdictionWidgets": {
+    "district": "Athabasca Basin",
+    "commodity": "Uranium",
+    "provinceState": "Saskatchewan"
+   }
+  },
+  "companyBrief": {
+   "headline": "High-grade uranium in Saskatchewan's Athabasca Basin.",
+   "keyPoints": [
+    "48.2 Mlb U3O8 Indicated at 2.9%",
+    "Intercepts up to 14.6% U3O8",
+    "PEA underway",
+    "Utility strategic shareholder",
+    "C$42M cash, no debt"
+   ],
+   "shortSummary": "A uranium explorer advancing Ember Lake toward a PEA.",
+   "businessDescription": "Veyra Uranium explores for high-grade unconformity uranium in the Athabasca Basin."
+  },
+  "companyStatus": {
+   "expected": "H1 2027",
+   "progressBar": {
+    "unit": "milestones",
+    "label": "2026–27 plan",
+    "total": 7,
+    "current": 4
+   },
+   "nextCatalyst": "Ember Lake PEA",
+   "statusHeadline": "Summer drilling extends high grade at Ember Lake",
+   "investmentImpact": "PEA expected to define the development case."
+  },
+  "_demo": "FICTIONAL demo company for Conference Mode template previews. All names, figures and people are invented."
+ }
+}

@@ -23,6 +23,7 @@ export function ConferenceMode() {
   const reduce = useReduce();
   const i = reduce ? 0 : step(p, BOOTH_BEATS.length);
   const enter = reduce ? 1 : ramp(p, 0.0, 0.18);
+  const sweep = reduce ? 1 : win(p, 0.04, 0.26);   // one-pass accent light across the device
 
   // Stable element identity, so the memoised booth deck isn't re-rendered on every
   // scroll frame just because this prop was rebuilt.
@@ -39,7 +40,20 @@ export function ConferenceMode() {
   );
 
   return (
-    <div ref={track} className="mx-track" style={{ height: mobile ? "320vh" : "380vh", background: MX.ink }}>
+    <div ref={track} className="mx-track" style={{ height: mobile ? "260vh" : "300vh", background: MX.ink, position: "relative", zIndex: 2 }}>
+      {/* the dark section rises up under the light one — a soft curved lip that
+          overlaps the outgoing light section, so the boundary reads as an
+          emergence rather than a hard horizontal cut. Purely decorative. */}
+      <div
+        aria-hidden
+        style={{
+          position: "absolute", left: 0, right: 0, top: 0,
+          height: "clamp(56px, 8vh, 128px)", transform: "translateY(-99%)",
+          background: MX.ink,
+          borderRadius: "50% 50% 0 0 / 100% 100% 0 0",
+          zIndex: 1,
+        }}
+      />
       <div className="mx-stage" style={{ background: MX.ink, color: MX.onDark, flexDirection: "column", justifyContent: "center" }}>
         {/* room light */}
         <div
@@ -87,15 +101,20 @@ export function ConferenceMode() {
               position: "relative",
               margin: "0 auto",
               marginTop: mobile ? 26 : 42,
-              width: mobile ? "min(92vw, 520px)" : "min(72vw, 880px)",
+              width: mobile ? "min(92vw, 520px)" : "min(70vw, 820px, 72vh)",
               opacity: enter,
-              transform: `translate3d(0, ${mix(30, 0, enter).toFixed(1)}px, 0)`,
+              transform: `perspective(1600px) translate3d(0, ${mix(48, 0, enter).toFixed(1)}px, 0) scale(${mix(1.07, 1, enter).toFixed(3)}) rotateX(${mix(7, 0, enter).toFixed(2)}deg)`,
+              transformOrigin: "50% 78%",
               willChange: "transform, opacity",
             }}
           >
             <Tablet>
               <BoothDeck scene={i} phone={phone} />
             </Tablet>
+            {/* one-time accent light-sweep as the device resolves */}
+            <span aria-hidden style={{ position: "absolute", inset: 0, overflow: "hidden", borderRadius: "clamp(20px, 2vw, 30px)", pointerEvents: "none", zIndex: 4 }}>
+              <span style={{ position: "absolute", top: "-25%", bottom: "-25%", width: "55%", left: 0, background: "linear-gradient(100deg, transparent 15%, rgba(198,240,74,0.30), transparent 85%)", transform: `translateX(${mix(-190, 250, sweep).toFixed(0)}%) skewX(-14deg)`, opacity: 0.95 * (1 - Math.abs(sweep * 2 - 1)) }} />
+            </span>
             {/* booth surface + reflection */}
             <div
               aria-hidden
@@ -136,7 +155,7 @@ export function BoothToAudience() {
   const reached = (n) => p >= 0.1 + n * 0.15;
 
   return (
-    <div ref={track} className="mx-track" style={{ height: mobile ? "300vh" : "300vh", background: MX.inkSoft }}>
+    <div ref={track} className="mx-track" style={{ height: mobile ? "170vh" : "185vh", background: MX.inkSoft }}>
       <div className="mx-stage" style={{ background: MX.inkSoft, color: MX.onDark }}>
         <Wrap style={{ width: "100%" }}>
           <div style={{ textAlign: "center", maxWidth: 680, margin: "0 auto" }}>
@@ -164,9 +183,10 @@ export function BoothToAudience() {
                       style={{
                         width: mobile ? 42 : 52, height: mobile ? 42 : 52, borderRadius: 999,
                         display: "grid", placeItems: "center", flex: "0 0 auto",
-                        border: `1px solid ${on ? MX.emDark : MX.hairDark}`,
-                        background: on ? "rgba(255,255,255,0.09)" : "transparent",
-                        color: on ? MX.emDark : MX.onDarkMute,
+                        border: `1px solid ${on ? "var(--mx-accent)" : MX.hairDark}`,
+                        background: on ? "rgba(198,240,74,0.12)" : "transparent",
+                        color: on ? "var(--mx-accent)" : MX.onDarkMute,
+                        boxShadow: on ? "0 0 20px -6px var(--mx-accent)" : "none",
                         transition: `all 520ms ${EASE}`,
                       }}
                     >
@@ -195,7 +215,7 @@ export function BoothToAudience() {
                 aria-hidden
                 style={{
                   position: "absolute", left: "10%", right: "10%", top: mobile ? 0 : 26, height: 1,
-                  background: `linear-gradient(90deg, ${MX.emDark}, ${MX.hairDark})`,
+                  background: `linear-gradient(90deg, var(--mx-accent), ${MX.hairDark})`,
                   transform: `scaleX(${reduce ? 1 : Math.min(1, Math.max(0, (p - 0.1) / 0.62))})`,
                   transformOrigin: "left",
                   zIndex: -1,
@@ -216,7 +236,7 @@ export function BoothToAudience() {
             }}
           >
             <div style={{ position: "relative" }}>
-              <QrCode value="https://mineex.app/app?c=kingsmen-resources&utm_campaign=booth" size={mobile ? 108 : 132} />
+              <QrCode value="https://mineex.ca/app?c=kingsmen-resources&utm_campaign=booth" size={mobile ? 108 : 132} />
               {!reduce && (
                 <span
                   aria-hidden

@@ -23,3 +23,13 @@ __acct.*
 # match a symlink, so these showed as untracked and could be committed by accident).
 /.node
 /node_modules
+
+# Agent/working scratch — screenshots, probe scripts, .bak files. Never shipped.
+scratchpad/
+
+# Conference booth attract loop — a single 160MB video, above GitHub's 100MB
+# per-file hard limit, so it cannot live here. ConferenceV3Booth falls back to
+# /conference-media/<slug>/attract.mp4, so upload it to the deploy target (or set
+# profile.conference.attractVideo to a hosted URL) for the booth's attract loop.
+# The public marketing site does not use it.
+public/conference-media/

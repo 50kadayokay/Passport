@@ -7,12 +7,16 @@
 import { SUPABASE_URL, SUPABASE_ANON } from "./supabase.js";
 import { authHeaders, getUser } from "./auth.js";
 
+import { blockedForGuest } from "./appPrompt.js";
 const anon = { apikey: SUPABASE_ANON, Authorization: `Bearer ${SUPABASE_ANON}` };
 
 /* ---------------- follows ---------------- */
 
 export async function follow(companyId) {
   const u = getUser();
+  // A signed-out visitor on the web gets the "get the app" prompt instead of a
+  // button that silently snaps back. In the native app this is unchanged.
+  if (!u && blockedForGuest(false, "follow")) return false;
   if (!u || !companyId) return false;
   try {
     const h = await authHeaders();
@@ -127,6 +131,9 @@ export async function companiesInfo(ids) {
 // engagement + follow boost + recency + per-company diversity cap; personalized by auth.uid()),
 // then hydrated with each company's display info. Returns [] on any failure (feed still renders).
 export async function fetchCompanyFeedPosts(limit = 30) {
+  // Marketing Investor demo: company updates come from the fixture's window.__FEED__
+  // instead of feed_discover, so there is nothing to fetch here. See InvestorDemo.
+  if (typeof window !== "undefined" && window.__INVESTOR_DEMO__ && Array.isArray(window.__DEMO_POSTS__)) return window.__DEMO_POSTS__.slice(0, limit);
   try {
     const posts = await feedDiscover({ limit });
     if (!Array.isArray(posts) || !posts.length) return [];

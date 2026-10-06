@@ -7,7 +7,9 @@
 // browser, surfacing as an auth error rather than a configuration one.
 import { SB_URL as SB, ANON_KEY as ANON } from "./_supabase.js";
 
-const APP_URL = process.env.PUBLIC_APP_URL || "https://passport-xi-five.vercel.app";
+// Canonical public origin (main). PUBLIC_APP_URL still overrides for preview
+// deploys. The old default pointed at the Vercel preview host.
+const APP_URL = process.env.PUBLIC_APP_URL || "https://mineex.ca";
 const esc = (s) => String(s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
 export default async function handler(req, res) {

@@ -1,11 +1,15 @@
 import React, { useState, useEffect, useRef } from "react";
+import { isMarketingPath } from "./marketing/routes.js";
+import { isPublicDemoSlug } from "./aiBrief/conferenceV3/demoSlugs.js";
 import ReactDOM from "react-dom/client";
 import "./index.css";
 import { SUPABASE_URL, SUPABASE_ANON } from "./lib/supabase.js";
 import { useAuth } from "./auth/useAuth.js";
-import { signIn, signUp, requestPasswordReset, consumeHashSession, updatePassword, getUser, signInWithApple, signInWithGoogle, googleConfigured } from "./lib/auth.js";
+import { signIn, signUp, requestPasswordReset, consumeHashSession, updatePassword, getUser, signInWithApple, signInWithGoogle, googleConfigured, appleAvailable } from "./lib/auth.js";
 import * as investorData from "./lib/investorData.js";
 import { isNativeApp } from "./lib/platform.js";
+import { wireAndroidBack } from "./lib/androidBack.js"; // Android hardware back (no-op on web/iOS)
+import { useBackHandler } from "./lib/useBackHandler.js";
 import { SecureStorage } from "@aparajita/capacitor-secure-storage"; // iOS Keychain for "Remember me"
 
 // Surfaces are code-split so the marketing bundle stays lean:
@@ -14,15 +18,21 @@ const Admin = React.lazy(() => import("./admin/MissionControl.jsx"));         //
 const Portal = React.lazy(() => import("./portal/Portal.jsx"));               // Company Portal (desktop, paying companies)
 const Studio = React.lazy(() => import("./studio/Studio.tsx"));                // Story Studio (desktop, admin) — release → carousel/video
 const PortalGate = React.lazy(() => import("./portal/PortalGate.jsx"));       // resolves company + entitlement
-const EditorDemo = React.lazy(() => import("./portal/EditorDemo.jsx"));       // localhost-only editor harness
-const FeedDemo = React.lazy(() => import("./aiBrief/FeedDemo.jsx"));          // localhost-only Today-feed harness
-const PortalDemo = React.lazy(() => import("./portal/PortalDemo.jsx"));       // localhost-only portal-shell harness
+const EditorDemo = import.meta.env.DEV ? React.lazy(() => import("./portal/EditorDemo.jsx")) : null;       // localhost-only editor harness
+const FeedDemo = import.meta.env.DEV ? React.lazy(() => import("./aiBrief/FeedDemo.jsx")) : null;          // localhost-only Today-feed harness
+const PortalDemo = import.meta.env.DEV ? React.lazy(() => import("./portal/PortalDemo.jsx")) : null;       // localhost-only portal-shell harness
 const PostDetailRoute = React.lazy(() => import("./aiBrief/Feed.jsx").then((m) => ({ default: m.PostDetailRoute }))); // /p/<id> deep link
-const BlueprintDemo = React.lazy(() => import("./admin/blueprints/BlueprintDemo.jsx")); // /bpdemo — dev harness (no auth/DB), removable
-const OnboardDemo = React.lazy(() => import("./admin/onboarding/OnboardDemo.jsx")); // /onboarddemo — dev harness (no auth), removable
-const ConferenceV3Demo = React.lazy(() => import("./aiBrief/conferenceV3/ConferenceV3Demo.jsx")); // /confv3demo — dev harness (no auth), removable
+const BlueprintDemo = import.meta.env.DEV ? React.lazy(() => import("./admin/blueprints/BlueprintDemo.jsx")) : null; // /bpdemo — dev harness (no auth/DB), removable
+const OnboardDemo = import.meta.env.DEV ? React.lazy(() => import("./admin/onboarding/OnboardDemo.jsx")) : null; // /onboarddemo — dev harness (no auth), removable
+// /confv3demo — dev harness AND, for whitelisted demo slugs only, the renderer behind
+// the public Conference template gallery (see isPublicConfDemo below). It therefore
+// cannot be null in production, or every gallery tile renders a null component.
+// Still lazy, so the chunk is only fetched when the route actually renders; access is
+// restricted by the route gate, not by dropping the import.
+const ConferenceV3Demo = React.lazy(() => import("./aiBrief/conferenceV3/ConferenceV3Demo.jsx"));
 const ConferenceBooth = React.lazy(() => import("./aiBrief/conferenceV3/ConferenceV3Booth.jsx")); // /conference — PRODUCTION standalone iPad booth
-const ShowcaseTemplates = React.lazy(() => import("./marketing/ShowcaseTemplates.jsx")); // /templatesdemo — template showcase gallery (dev), removable
+const InvestorDemo = React.lazy(() => import("./aiBrief/InvestorDemo.jsx")); // /appdemo — PRODUCTION chromeless investor-shell render for the marketing site phone (no auth, demo data)
+const ShowcaseTemplates = import.meta.env.DEV ? React.lazy(() => import("./marketing/ShowcaseTemplates.jsx")) : null; // /templatesdemo — template showcase gallery (dev), removable
 // /studiodemo — dev harness (no auth/DB), removable. The lazy import is behind an
 // import.meta.env.DEV guard so a production build drops the chunk entirely, taking
 // the sample releases with it. Without the guard Rollup emits them as a fetchable
@@ -33,6 +43,7 @@ const StudioDemo = import.meta.env.DEV ? React.lazy(() => import("./studio/dev/S
 // at /site/legacy.
 const MarketingSite = React.lazy(() => import("./marketing/MarketingSite.jsx"));
 const LegacySite = React.lazy(() => import("./site/Site.jsx"));
+const MarketingV2 = React.lazy(() => import("./marketing/v2/MarketingV2.jsx")); // /sitex — redesigned sales page (dev preview)
 import AuthGate from "./auth/AuthGate.jsx";
 
 // Surfaces are split by URL path:
@@ -53,7 +64,7 @@ function DesktopOnly({ children }) {
         <div style={{ fontSize: 40, marginBottom: 12 }}>🖥️</div>
         <h1 style={{ fontSize: 22, fontWeight: 800, color: "#0f172a", margin: 0 }}>Onboarding is a desktop tool</h1>
         <p style={{ fontSize: 14, color: "#64748b", marginTop: 10, lineHeight: 1.5 }}>
-          Building a company profile needs a larger screen. Open this page on a desktop or laptop to continue. The Passport app itself works great on your phone.
+          Building a company profile needs a larger screen. Open this page on a desktop or laptop to continue. The MineEx app itself works great on your phone.
         </p>
       </div>
     </div>
@@ -89,15 +100,37 @@ const isApp = isNativeApp || path === "/app" || path.startsWith("/app/") || path
 // renders one company's chosen template full-screen, independent of the investor app, and QR-links
 // visitors to that company's Pro profile. Reached at /conference?c=<slug> on the booth's own host.
 const isConference = path === "/conference" || path.startsWith("/conference/") || path.startsWith("/conference?");
+// PRODUCTION chromeless investor-shell render for the marketing site's phone (iframed
+// by the Investor page). No auth, demo data only; renders the real app screens.
+const isInvestorDemo = path === "/appdemo" || path.startsWith("/appdemo/") || path.startsWith("/appdemo?");
 const isReset = path === "/reset" || path.startsWith("/reset");
 // Blueprint workspace dev harness — LOCALHOST ONLY. In production /bpdemo falls through
 // to the normal app (never renders sample Blueprint content publicly).
 const isLocalhost = (() => {
   try { const h = window.location.hostname; return h === "localhost" || h === "127.0.0.1"; } catch (_) { return false; }
 })();
-const isBpDemo = path.startsWith("/bpdemo") && isLocalhost;
+const isBpDemo = path.startsWith("/bpdemo") && isLocalhost && import.meta.env.DEV;
 const isOnboardDemo = path.startsWith("/onboarddemo") && isLocalhost && import.meta.env.DEV;
-const isConfV3Demo = path.startsWith("/confv3demo") && isLocalhost && import.meta.env.DEV;
+// Conference Mode template harness. It stays LOCALHOST + DEV only, with ONE narrow
+// exception the public marketing gallery depends on: a request for one of the fictional
+// demo companies whose dataset is already bundled locally (ConferenceV3Demo's LOCAL_MOCKS
+// — no Supabase row exists for any of them), with no preview token and no QA fixture.
+// Without that exception every gallery tile renders "Profile not available" in a
+// production build, because the route simply does not exist there.
+//
+// The whitelist is what keeps this safe: an unlisted slug never reaches the harness, so
+// the Supabase preview path (which carries a default token) can never be driven from a
+// public URL, and arbitrary company data can never be rendered.
+const confDemoParams = (() => {
+  try { return new URLSearchParams(window.location.search); } catch (_) { return new URLSearchParams(); }
+})();
+const isPublicConfDemo =
+  path.startsWith("/confv3demo") &&
+  !confDemoParams.get("preview") &&                       // Supabase token path: dev + localhost only
+  !confDemoParams.get("fixture") &&                       // QA fixtures:         dev + localhost only
+  !confDemoParams.get("coverage") &&                      // dev coverage overlay: dev + localhost only
+  isPublicDemoSlug(confDemoParams.get("c"));
+const isConfV3Demo = path.startsWith("/confv3demo") && ((isLocalhost && import.meta.env.DEV) || isPublicConfDemo);
 const isTemplatesDemo = path.startsWith("/templatesdemo") && isLocalhost && import.meta.env.DEV;
 // Story Studio pipeline harness — LOCALHOST ONLY, same rule as /bpdemo. In production
 // /studiodemo falls through to the normal app and never renders sample releases.
@@ -113,12 +146,23 @@ const isPortalDemo = path.startsWith("/portaldemo") && isLocalhost && import.met
 // the app itself lives at /app. Host-gated so passport-xi-five and native are unaffected.
 const mkHost = (typeof window !== "undefined" ? window.location.hostname : "").replace(/^www\./, "");
 const isMarketingHost = mkHost === "mineex.ca";
-const isMarketing = path === "/site" || path.startsWith("/site/") || (isMarketingHost && !isNativeApp && (path === "/" || path === ""));
+const isSiteX = path.startsWith("/sitex") && isLocalhost; // redesigned sales page, dev preview only
+const isMarketing = path === "/site" || path.startsWith("/site/") || isMarketingPath(path) || (isMarketingHost && !isNativeApp && (path === "/" || path === ""));
 const isLegacySite = path === "/site/legacy" || path.startsWith("/site/legacy/");
 
 const lazyFallback = (label) => (
   <div style={{ minHeight: "100dvh", display: "grid", placeItems: "center", background: "#f4f5f7", color: "#94a3b8" }}>Loading {label}…</div>
 );
+
+// Android hardware back, wired ONCE for every surface this entry renders.
+//
+// This cannot live inside a single screen component. @capacitor/app registers an
+// always-enabled OnBackPressedCallback, and when no JS "backButton" listener exists
+// AND the webview cannot go back it does nothing at all — swallowing the press and
+// trapping the user (e.g. on the signed-out welcome screen, where the investor app
+// component is not mounted). Wiring here guarantees a back contract always exists.
+// No-op unless the Capacitor platform is "android".
+wireAndroidBack();
 
 const root = ReactDOM.createRoot(document.getElementById("root"));
 
@@ -335,16 +379,18 @@ function InvestorAuth({ onSuccess, initialMode, onBack }) {
         </button>
       </form>
 
-      {isNativeApp && mode !== "forgot" && (
+      {isNativeApp && mode !== "forgot" && (appleAvailable() || googleConfigured()) && (
         <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 10 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <div style={{ flex: 1, height: 1, background: "#e2e8f0" }} />
             <span style={{ fontSize: 12, color: "#94a3b8", fontWeight: 600 }}>or</span>
             <div style={{ flex: 1, height: 1, background: "#e2e8f0" }} />
           </div>
-          <button type="button" onClick={() => social("apple")} disabled={busy} style={{ height: 50, borderRadius: 12, border: "none", background: "#0f172a", color: "#fff", fontSize: 15, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, opacity: busy ? 0.6 : 1 }}>
+          {appleAvailable() && (
+            <button type="button" onClick={() => social("apple")} disabled={busy} style={{ height: 50, borderRadius: 12, border: "none", background: "#0f172a", color: "#fff", fontSize: 15, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, opacity: busy ? 0.6 : 1 }}>
              Continue with Apple
           </button>
+          )}
           {googleConfigured() && (
             <button type="button" onClick={() => social("google")} disabled={busy} style={{ height: 50, borderRadius: 12, border: "1px solid #e2e8f0", background: "#fff", color: "#0f172a", fontSize: 15, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, opacity: busy ? 0.6 : 1 }}>
               <span style={{ fontSize: 16, fontWeight: 800, color: "#4285F4" }}>G</span> Continue with Google
@@ -593,6 +639,8 @@ function AppRoot() {
   // Pre-auth welcome flow: null = show the animated welcome intro; "signin"/"signup" =
   // the user picked an option, so render the auth form in that mode.
   const [authMode, setAuthMode] = useState(null);
+  // Android back: the sign-in/register form returns to the welcome intro.
+  useBackHandler(!!authMode, () => setAuthMode(null));
 
   // When a session appears, ask the cloud whether this investor has finished onboarding.
   // Fail-open (treat as done) on any error so a transient fetch failure never traps a
@@ -633,6 +681,26 @@ function AppRoot() {
       const slug = requestedSlug || "kingsmen-resources";
       const previewToken = params.get("preview");
       let ok = false;
+
+      // The Explore/Today directory is independent of THIS company's profile, but the app
+      // cannot mount until window.__DIRECTORY__ exists (PassportProto reads it at module
+      // scope). It used to be fetched AFTER the profile, so the profile sat waiting ~335ms
+      // on data it never reads. Start it here so the two run concurrently.
+      // An EMBEDDED single profile (?c=slug&embed=1 — every marketing phone) renders a company
+      // profile and never opens Explore or Today, so it does not need PR_YEARS: the press-release
+      // archive of every published company, and by far the heaviest column here. Dropping it for
+      // that case cuts the payload roughly in half and gets the profile on screen sooner. The
+      // real app is unchanged and still selects everything.
+      const embeddedProfile = params.get("embed") === "1" && !!requestedSlug;
+      const DIR_COLS = "slug,name,primary_ticker,updated_at,co:profile->pp->COMPANY,brand:profile->brand,cap:profile->capital,tier:profile->pp->TIER,brief:profile->pp->LISTING_BRIEF,ctier:tier";
+      const dirPromise = (async () => {
+        try {
+          const h = { apikey: SUPABASE_ANON, Authorization: `Bearer ${SUPABASE_ANON}` };
+          const cols = embeddedProfile ? DIR_COLS : `${DIR_COLS.replace(",ctier:tier", "")},pr:profile->pp->PR_YEARS,ctier:tier`;
+          const r = await fetch(`${SUPABASE_URL}/rest/v1/companies?status=eq.published&select=${cols}&order=name`, { headers: h });
+          return await r.json().catch(() => []);
+        } catch (_) { return []; }
+      })();
       try {
         const base = { apikey: SUPABASE_ANON, Authorization: `Bearer ${SUPABASE_ANON}` };
         let coId = null;
@@ -645,13 +713,19 @@ function AppRoot() {
             body: JSON.stringify({ p_slug: slug, p_token: previewToken }),
           });
           const row = await res.json().catch(() => null);
+          // Canonical project data (projects[].drillResults etc.) is the single source of
+          // truth the Pro Profile reads for results — captured whether or not a compiled pp exists.
+          if (row && row.profile) { try { window.__CANON_PROJECTS__ = Array.isArray(row.profile.projects) ? row.profile.projects : null; } catch (_) {} }
           if (row && row.profile && row.profile.pp) { window.__PP__ = row.profile.pp; try { window.__PP__.ACCOUNT_TIER = row.tier; } catch (_) {} coId = row.id || null; ok = true; }
         } else {
           const res = await fetch(
-            `${SUPABASE_URL}/rest/v1/companies?slug=eq.${encodeURIComponent(slug)}&select=id,tier,pp:profile->pp`,
+            `${SUPABASE_URL}/rest/v1/companies?slug=eq.${encodeURIComponent(slug)}&select=id,tier,pp:profile->pp,projects:profile->projects`,
             { headers: base }
           );
           const rows = await res.json().catch(() => []);
+          // Canonical projects[] (source of truth for drill/results) — captured for every
+          // company, independent of whether a compiled pp is present.
+          if (rows && rows[0]) { try { window.__CANON_PROJECTS__ = Array.isArray(rows[0].projects) ? rows[0].projects : null; } catch (_) {} }
           if (rows && rows[0] && rows[0].pp) {
             window.__PP__ = rows[0].pp; try { window.__PP__.ACCOUNT_TIER = rows[0].tier; } catch (_) {} coId = rows[0].id || null; ok = true;
           } else if (rows && rows[0] && slug === "kingsmen-resources") {
@@ -667,62 +741,72 @@ function AppRoot() {
         if (ok && coId && window.__PP__) { try { await mergeCompanyPosts(coId, base); } catch (_) {} }
       } catch (_) { /* handled below */ }
 
-      // Load published companies → Explore/search directory + the Today feed (their
-      // recent press releases). One query, both derived.
-      try {
-        const base = { apikey: SUPABASE_ANON, Authorization: `Bearer ${SUPABASE_ANON}` };
-        const dres = await fetch(`${SUPABASE_URL}/rest/v1/companies?status=eq.published&select=slug,name,primary_ticker,updated_at,co:profile->pp->COMPANY,brand:profile->brand,cap:profile->capital,tier:profile->pp->TIER,brief:profile->pp->LISTING_BRIEF,pr:profile->pp->PR_YEARS,ctier:tier&order=name`, { headers: base });
-        const drows = await dres.json().catch(() => []);
-        // Parse a "C$41.2M" / "$1.2B" style figure into a number of dollars, for market-cap buckets.
-        const money = (v) => {
-          const s = String(v || ""); const m = s.replace(/[, ]/g, "").match(/([\d.]+)\s*([bmk])?/i);
-          if (!m) return null;
-          const n = parseFloat(m[1]); const u = (m[2] || "").toLowerCase();
-          return u === "b" ? n * 1e9 : u === "m" ? n * 1e6 : u === "k" ? n * 1e3 : n;
-        };
-        if (Array.isArray(drows)) {
-          window.__DIRECTORY__ = drows.map((r) => {
-            const co = r.co || {}, brand = r.brand || {}, cap = r.cap || {};
-            const name = r.name || co.name || r.slug;
-            const mono = String(name).trim().split(/\s+/).slice(0, 2).map((w) => w[0] || "").join("").toUpperCase() || "?";
-            return {
-              id: r.slug, slug: r.slug, name, live: true,
-              ticker: r.primary_ticker || co.ticker || "",
-              commodity: co.commodity || "", region: co.jurisdiction || co.region || "",
-              stage: co.stage || "", website: co.website || "", headquarters: co.headquarters || "",
-              brief: r.brief || co.slogan || "", tier: r.tier || "", updatedAt: r.updated_at || "",
-              funding: cap.state || "", mcap: cap.marketCap || "", mcapNum: money(cap.marketCap),
-              logo: brand.avatar || brand.logo || "", mono, c: "#334155",
-              tags: [name, r.slug, r.primary_ticker, co.commodity, co.jurisdiction].filter(Boolean).join(" ").toLowerCase().split(/[^a-z0-9]+/).filter(Boolean),
-            };
-          });
-          const feed = [];
-          // RECENCY SAFEGUARD: only releases from the last N days reach the feed, so a
-          // company's back-catalogue of old press releases can never flood it.
-          const FEED_MAX_AGE_DAYS = 30;
-          const feedCutoff = new Date(Date.now() - FEED_MAX_AGE_DAYS * 86400000).toISOString().slice(0, 10);
-          for (const r of drows) {
-            // Releases in the feed are a PAID feature (basic/pro). Free/listing companies —
-            // incl. demo profiles like Argenta — don't push their profile press releases here.
-            if (!["basic", "pro"].includes(r.ctier)) continue;
-            const logo = (r.brand && (r.brand.avatar || r.brand.logo)) || "";
-            for (const y of (Array.isArray(r.pr) ? r.pr : [])) for (const it of (y.items || [])) {
-              if (!it.id) continue;
-              if (String(it.id).slice(0, 10) < feedCutoff) continue; // stale release — keep off the feed
-              feed.push({
-                coId: r.slug, slug: r.slug, co: r.name, logo, date: it.id,
-                headline: it.headline || it.label || "", key: !!it.key,
-                // Enough for an inline reader on the feed (no navigation needed to read it).
-                whatHappened: it.whatHappened || "", why: it.why || "",
-                takeaways: Array.isArray(it.takeaways) ? it.takeaways : [],
-                originalTitle: it.originalTitle || "",
-              });
+      // The directory feeds Explore + Today. An EMBEDDED single profile (?c=slug&embed=1 —
+      // every marketing phone) never shows either, so making it await this query only
+      // delayed the profile paint by the length of the request. Build it in the background
+      // there, and keep the original blocking behaviour for the real app.
+      const buildDirectory = async () => {
+        // Load published companies → Explore/search directory + the Today feed (their
+        // recent press releases). One query, both derived.
+        try {
+          const drows = await dirPromise;   // already in flight since boot
+
+          // Parse a "C$41.2M" / "$1.2B" style figure into a number of dollars, for market-cap buckets.
+          const money = (v) => {
+            const s = String(v || ""); const m = s.replace(/[, ]/g, "").match(/([\d.]+)\s*([bmk])?/i);
+            if (!m) return null;
+            const n = parseFloat(m[1]); const u = (m[2] || "").toLowerCase();
+            return u === "b" ? n * 1e9 : u === "m" ? n * 1e6 : u === "k" ? n * 1e3 : n;
+          };
+          if (Array.isArray(drows)) {
+            window.__DIRECTORY__ = drows.map((r) => {
+              const co = r.co || {}, brand = r.brand || {}, cap = r.cap || {};
+              const name = r.name || co.name || r.slug;
+              const mono = String(name).trim().split(/\s+/).slice(0, 2).map((w) => w[0] || "").join("").toUpperCase() || "?";
+              return {
+                id: r.slug, slug: r.slug, name, live: true,
+                ticker: r.primary_ticker || co.ticker || "",
+                commodity: co.commodity || "", region: co.jurisdiction || co.region || "",
+                stage: co.stage || "", website: co.website || "", headquarters: co.headquarters || "",
+                brief: r.brief || co.slogan || "", tier: r.tier || "", updatedAt: r.updated_at || "",
+                funding: cap.state || "", mcap: cap.marketCap || "", mcapNum: money(cap.marketCap),
+                logo: brand.avatar || brand.logo || "", mono, c: "#334155",
+                tags: [name, r.slug, r.primary_ticker, co.commodity, co.jurisdiction].filter(Boolean).join(" ").toLowerCase().split(/[^a-z0-9]+/).filter(Boolean),
+              };
+            });
+            const feed = [];
+            // RECENCY SAFEGUARD: only releases from the last N days reach the feed, so a
+            // company's back-catalogue of old press releases can never flood it.
+            const FEED_MAX_AGE_DAYS = 30;
+            const feedCutoff = new Date(Date.now() - FEED_MAX_AGE_DAYS * 86400000).toISOString().slice(0, 10);
+            for (const r of drows) {
+              // Releases in the feed are a PAID feature (basic/pro). Free/listing companies —
+              // incl. demo profiles like Argenta — don't push their profile press releases here.
+              if (!["basic", "pro"].includes(r.ctier)) continue;
+              const logo = (r.brand && (r.brand.avatar || r.brand.logo)) || "";
+              for (const y of (Array.isArray(r.pr) ? r.pr : [])) for (const it of (y.items || [])) {
+                if (!it.id) continue;
+                if (String(it.id).slice(0, 10) < feedCutoff) continue; // stale release — keep off the feed
+                feed.push({
+                  coId: r.slug, slug: r.slug, co: r.name, logo, date: it.id,
+                  headline: it.headline || it.label || "", key: !!it.key,
+                  // Enough for an inline reader on the feed (no navigation needed to read it).
+                  whatHappened: it.whatHappened || "", why: it.why || "",
+                  takeaways: Array.isArray(it.takeaways) ? it.takeaways : [],
+                  originalTitle: it.originalTitle || "",
+                });
+              }
             }
+            feed.sort((a, b) => String(b.date).localeCompare(String(a.date)));
+            window.__FEED__ = feed.slice(0, 40);
           }
-          feed.sort((a, b) => String(b.date).localeCompare(String(a.date)));
-          window.__FEED__ = feed.slice(0, 40);
-        }
-      } catch (_) {}
+        } catch (_) {}
+      };
+      // NOTE: this MUST be awaited. PassportProto reads window.__DIRECTORY__ / __FEED__ when
+      // its module first executes, and mounting before they exist makes the app start on the
+      // Today feed instead of the requested profile. The win comes from the fetch above
+      // already being in flight since boot, not from skipping the wait.
+      await buildDirectory();
 
       const mod = await import("./aiBrief/PassportProto.jsx");
       modRef.current = mod;
@@ -811,6 +895,9 @@ if (isEditorDemo) {
   root.render(<React.Suspense fallback={lazyFallback("release")}><PostDetailRoute postId={postId} /></React.Suspense>);
 } else if (isReset) {
   root.render(<ResetPassword />);
+} else if (isInvestorDemo) {
+  // PRODUCTION chromeless investor-shell render for the marketing phone. Additive; no auth.
+  root.render(<React.Suspense fallback={lazyFallback("app")}><InvestorDemo /></React.Suspense>);
 } else if (isApp) {
   root.render(<AppRoot />);
 } else {
@@ -818,7 +905,7 @@ if (isEditorDemo) {
     <React.StrictMode>
       {isPortal ? (
         <DesktopOnly>
-          <AuthGate title="Sign in to your Company Portal" subtitle="Manage your company on Passport">
+          <AuthGate title="Sign in to your Company Portal" subtitle="Manage your company on MineEx">
             <React.Suspense fallback={lazyFallback("portal")}>
               <PortalGate render={(company, opts) => <Portal company={company} switchCompany={opts?.switchCompany} adminMode={opts?.adminMode} />} />
             </React.Suspense>
@@ -826,7 +913,7 @@ if (isEditorDemo) {
         </DesktopOnly>
       ) : isOnboarding ? (
         <DesktopOnly>
-          <AuthGate title="Sign in to your company" subtitle="Build and manage your Passport profile">
+          <AuthGate title="Sign in to your company" subtitle="Build and manage your MineEx profile">
             <React.Suspense fallback={lazyFallback("onboarding")}><Onboarding /></React.Suspense>
           </AuthGate>
         </DesktopOnly>
@@ -838,10 +925,12 @@ if (isEditorDemo) {
         </DesktopOnly>
       ) : isAdmin ? (
         <DesktopOnly>
-          <AuthGate requireAdmin title="Sign in to Admin" subtitle="Passport operations console">
+          <AuthGate requireAdmin title="Sign in to Admin" subtitle="MineEx operations console">
             <React.Suspense fallback={lazyFallback("admin")}><Admin /></React.Suspense>
           </AuthGate>
         </DesktopOnly>
+      ) : isSiteX ? (
+        <React.Suspense fallback={lazyFallback("MineEx")}><MarketingV2 /></React.Suspense>
       ) : isMarketing ? (
         <React.Suspense fallback={lazyFallback("MineEx")}>
           {isLegacySite ? <LegacySite /> : <MarketingSite />}

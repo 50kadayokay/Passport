@@ -1,4 +1,18 @@
-// api/news-push-send.js — the APNs sender: drains notification_outbox to Apple.
+// api/news-push-send.js — the push sender: drains notification_outbox to the
+// provider that matches each row's RECORDED platform.
+//
+//   pending outbox -> partition by platform -> ios  -> APNs (HTTP/2 + ES256 JWT)
+//                                           -> android -> FCM HTTP v1 (OAuth2)
+//
+// CORE INVARIANT: a token is only ever sent to the provider for its recorded
+// platform. No fallback, no token-format sniffing. Anything not exactly
+// "ios"/"android" is parked as 'skipped', never guessed onto a provider.
+//
+// The two providers are isolated: an FCM outage cannot stop APNs rows going out,
+// and an APNs/credential failure cannot stop FCM rows. Each bucket has its own
+// try/catch and its own configuration check.
+//
+// The APNs path below is unchanged from the shipping iOS sender.
 //
 // APNs requires HTTP/2 + a short-lived ES256 JWT signed with the .p8 auth key.
 // We use Node's built-in http2 + crypto (no SDK). One JWT signs the whole batch
@@ -15,13 +29,19 @@
 //                                  = creds ACCEPTED; 403 InvalidProviderToken = creds bad.
 import crypto from "node:crypto";
 import http2 from "node:http2";
-import { serviceConfigured, serviceRest } from "./_service.js";
+import { serviceConfigured, serviceRest, serviceRpc } from "./_service.js";
 import { checkNewsAuth } from "./_news.js";
+import { deliverBatch, buildApnsPayload, buildFcmMessage } from "./_push.js";
+import { fcmConfigured, fcmAccessToken, fcmSendOne } from "./_fcm.js";
 
 export const config = { maxDuration: 120 };
 
 const BATCH = 200;
+const LEASE_SECONDS = 300;          // a claim a dead worker never finishes is reclaimable after this
+const MAX_ATTEMPTS = 5;             // then the row is terminal 'failed'
+const BASE_BACKOFF_SECONDS = 60;    // 60s, 120s, 240s, 480s … capped at 1h in SQL
 const BUNDLE = () => process.env.APNS_BUNDLE_ID || "com.liquidjungle.mineex";
+const apnsConfigured = () => !!(process.env.APNS_KEY_ID && process.env.APNS_TEAM_ID && process.env.APNS_P8);
 const HOST = () => (String(process.env.APNS_ENV || "production").toLowerCase() === "sandbox"
   ? "https://api.sandbox.push.apple.com" : "https://api.push.apple.com");
 
@@ -115,26 +135,31 @@ export default async function handler(req, res) {
     });
   }
 
-  if (!process.env.APNS_KEY_ID || !process.env.APNS_TEAM_ID || !process.env.APNS_P8) {
-    return res.status(500).json({ error: "APNS not configured (need APNS_KEY_ID, APNS_TEAM_ID, APNS_P8)" });
+  // Provider config is checked PER BUCKET inside the drain, not up front: a
+  // missing APNs key must not block a pending Android batch (and vice versa).
+  // The route only fails outright when neither provider can send at all.
+  if (!apnsConfigured() && !fcmConfigured()) {
+    return res.status(500).json({
+      error: "No push provider configured (need APNS_KEY_ID/APNS_TEAM_ID/APNS_P8 for iOS, and/or FCM_PROJECT_ID/FCM_CLIENT_EMAIL/FCM_PRIVATE_KEY for Android)",
+    });
   }
 
-  let jwt;
-  try { jwt = apnsJwt(); }
-  catch (e) { return res.status(500).json({ error: `JWT signing failed: ${String((e && e.message) || e)}` }); }
-
   const q = { ...(req.query || {}), ...(req.body || {}) };
-  const client = http2.connect(HOST());
-  const clientErr = new Promise((r) => client.on("error", (e) => r(String((e && e.message) || e))));
 
   try {
-    // PROBE — verify credentials without the outbox / a real token.
+    // PROBE — verify APNs credentials without the outbox / a real token.
     if (q.probe) {
+      if (!apnsConfigured()) return res.status(500).json({ error: "APNS not configured" });
+      let jwt;
+      try { jwt = apnsJwt(); }
+      catch (e) { return res.status(500).json({ error: `JWT signing failed: ${String((e && e.message) || e)}` }); }
       const token = String(q.probe) === "1" ? "00".repeat(32) : String(q.probe);
+      const probeClient = http2.connect(HOST());
+      const probeErr = new Promise((r) => probeClient.on("error", (e) => r(String((e && e.message) || e))));
       const out = await Promise.race([
-        sendOne(client, token, jwt, { aps: { alert: { title: "MineEx", body: "Push credential probe" } } }),
-        clientErr.then((e) => ({ status: 0, reason: e })),
-      ]);
+        sendOne(probeClient, token, jwt, { aps: { alert: { title: "MineEx", body: "Push credential probe" } } }),
+        probeErr.then((e) => ({ status: 0, reason: e })),
+      ]).finally(() => { try { probeClient.close(); } catch { /* ignore */ } });
       const credsOk = out.status === 400 && (out.reason === "BadDeviceToken" || out.reason === "DeviceTokenNotForTopic");
       return res.status(200).json({
         ok: true, mode: "probe", host: HOST(), topic: BUNDLE(),
@@ -149,30 +174,79 @@ export default async function handler(req, res) {
 
     if (!serviceConfigured()) return res.status(500).json({ error: "Supabase service env missing" });
 
-    // DRAIN — pending rows, oldest first.
-    const r = await serviceRest(`notification_outbox?status=eq.pending&order=created_at.asc&limit=${BATCH}&select=id,token,title,body,data`);
-    if (!r.ok) return res.status(500).json({ error: `outbox query HTTP ${r.status}` });
-    const rowsPending = await r.json().catch(() => []);
-    if (!rowsPending.length) return res.status(200).json({ ok: true, sent: 0, failed: 0, message: "outbox empty" });
-
-    let sent = 0, failed = 0;
-    for (const row of rowsPending) {
-      const payload = { aps: { alert: { title: row.title, body: row.body }, sound: "default" }, ...(row.data || {}) };
-      const out = await sendOne(client, row.token, jwt, payload);
-      const ok = out.status === 200;
-      if (ok) sent++; else failed++;
-      // A dead token → drop it so we stop trying it.
-      if (out.reason === "BadDeviceToken" || out.reason === "Unregistered") {
-        await serviceRest(`push_tokens?token=eq.${encodeURIComponent(row.token)}`, { method: "DELETE", prefer: "return=minimal" }).catch(() => {});
-      }
-      await serviceRest(`notification_outbox?id=eq.${row.id}`, {
-        method: "PATCH",
-        body: { status: ok ? "sent" : "failed", attempts: 1, last_error: ok ? null : (out.reason || `status ${out.status}`), sent_at: ok ? new Date().toISOString() : null },
-        prefer: "return=minimal",
-      }).catch(() => {});
+    // CLAIM — atomic. Two concurrent workers can never receive the same row:
+    // claim_notification_outbox() selects FOR UPDATE SKIP LOCKED and flips the
+    // rows to 'sending' with a lease in ONE transaction (migration 0041).
+    // Expired leases (a worker that died mid-batch) are reclaimed by the same
+    // call, so nothing is stranded.
+    const worker = `${process.env.VERCEL_REGION || "local"}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+    const claimRes = await serviceRpc("claim_notification_outbox", {
+      p_limit: BATCH, p_lease_seconds: LEASE_SECONDS, p_max_attempts: MAX_ATTEMPTS, p_worker: worker,
+    });
+    if (!claimRes.ok) {
+      const detail = await claimRes.text().catch(() => "");
+      // Fail CLOSED. Falling back to the old read-then-write drain would
+      // reintroduce the duplicate-delivery window this phase exists to remove.
+      return res.status(500).json({
+        error: `outbox claim failed (HTTP ${claimRes.status})`,
+        hint: claimRes.status === 404
+          ? "migration 0041_outbox_claim_lease.sql has not been applied to this database"
+          : detail.slice(0, 300),
+        sent: 0, failed: 0,
+      });
     }
-    return res.status(200).json({ ok: true, sent, failed, batch: rowsPending.length });
-  } finally {
-    try { client.close(); } catch { /* ignore */ }
+    const rowsPending = await claimRes.json().catch(() => []);
+    if (!rowsPending.length) return res.status(200).json({ ok: true, sent: 0, failed: 0, message: "nothing claimable" });
+
+    // Delivery is orchestrated by deliverBatch() in ./_push.js — the same code the
+    // offline suite drives, so the routing/isolation/retry invariants proven there
+    // are the ones that ship.
+    let apnsClient = null;
+    let apnsJwtValue = null;
+    const apnsReady = apnsConfigured();
+    if (apnsReady) {
+      try { apnsJwtValue = apnsJwt(); } catch (_) { apnsJwtValue = null; }
+    }
+
+    let fcmToken = null;
+    const fcmReady = fcmConfigured();
+
+    const out = await deliverBatch({
+      rows: rowsPending,
+      apnsReady: apnsReady && !!apnsJwtValue,
+      fcmReady,
+      sendApns: async (row) => {
+        if (!apnsClient) apnsClient = http2.connect(HOST());   // opened only for real iOS work
+        return sendOne(apnsClient, row.token, apnsJwtValue, buildApnsPayload(row));
+      },
+      sendFcm: async (row) => {
+        if (!fcmToken) fcmToken = await fcmAccessToken();       // one exchange per batch
+        return fcmSendOne(fcmToken, buildFcmMessage(row));
+      },
+      // Outcome + backoff are computed in the DATABASE (one clock, one place),
+      // so a worker can never leave a row stuck in 'sending'.
+      markRow: (row, { outcome, error }) => serviceRpc("finish_notification_outbox", {
+        p_id: row.id, p_outcome: outcome, p_error: error || null,
+        p_max_attempts: MAX_ATTEMPTS, p_base_backoff: BASE_BACKOFF_SECONDS,
+      }).catch(() => {}),
+      // Platform-scoped: an Android dead token can never delete an iOS registration.
+      dropToken: (token, platform) => serviceRest(
+        `push_tokens?token=eq.${encodeURIComponent(token)}&platform=eq.${encodeURIComponent(platform)}`,
+        { method: "DELETE", prefer: "return=minimal" }
+      ).catch(() => {}),
+    });
+
+    try { if (apnsClient) apnsClient.close(); } catch { /* ignore */ }
+
+    return res.status(200).json({
+      ok: true,
+      sent: out.sent, failed: out.failed, skipped: out.skipped,
+      retried: out.retried, released: out.released,
+      batch: rowsPending.length, worker,
+      routed: out.routed,
+      ...(Object.keys(out.errors).length ? { provider_errors: out.errors } : {}),
+    });
+  } catch (e) {
+    return res.status(500).json({ error: String((e && e.message) || e) });
   }
 }

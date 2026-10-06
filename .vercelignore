@@ -3,8 +3,12 @@ ios
 android
 *.xcarchive
 # Company data-pipeline working files (not needed at runtime).
-companies
-backups
-__acct
+# Leading slash matters: these are gitignore-style patterns, so a bare "companies"
+# matches a directory of that name at ANY depth — which silently stripped
+# src/conference/companies (the Conference registry's bundled company packages) from
+# the deployment and broke `vite build` on an unresolved import.
+/companies
+/backups
+/__acct
 # Scratch / logs
 *.log

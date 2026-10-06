@@ -1,0 +1,434 @@
+[
+ {
+  "file": "q01.jpg",
+  "theme": "saguaro",
+  "alt": "A tall saguaro cactus against a dark sky",
+  "author": "",
+  "source": "https://unsplash.com/photos/a-tall-saguaro-cactus-against-a-dark-sky-dob98HhlqcI",
+  "license": "Unsplash License (free commercial use, no attribution required)",
+  "size": [
+   1200,
+   1800
+  ]
+ },
+ {
+  "file": "q02.jpg",
+  "theme": "sonoran desert",
+  "alt": "green trees near brown rock formation under blue sky during daytime",
+  "author": "",
+  "source": "https://unsplash.com/photos/green-trees-near-brown-rock-formation-under-blue-sky-during-daytime-Y0tBqbtB2DM",
+  "license": "Unsplash License (free commercial use, no attribution required)",
+  "size": [
+   1800,
+   1350
+  ]
+ },
+ {
+  "file": "q03.jpg",
+  "theme": "saguaro",
+  "alt": "green plants on brown field near brown mountains under blue sky during daytime",
+  "author": "",
+  "source": "https://unsplash.com/photos/green-plants-on-brown-field-near-brown-mountains-under-blue-sky-during-daytime-Md-rgK-zwgU",
+  "license": "Unsplash License (free commercial use, no attribution required)",
+  "size": [
+   1800,
+   1221
+  ]
+ },
+ {
+  "file": "q04.jpg",
+  "theme": "sonoran desert",
+  "alt": "a large group of cactus plants in the desert",
+  "author": "",
+  "source": "https://unsplash.com/photos/a-large-group-of-cactus-plants-in-the-desert-tD790KOTchM",
+  "license": "Unsplash License (free commercial use, no attribution required)",
+  "size": [
+   1800,
+   1223
+  ]
+ },
+ {
+  "file": "q05.jpg",
+  "theme": "sonoran desert",
+  "alt": "mountains during daytime",
+  "author": "",
+  "source": "https://unsplash.com/photos/mountains-during-daytime-XjdluiYla6Q",
+  "license": "Unsplash License (free commercial use, no attribution required)",
+  "size": [
+   1800,
+   1112
+  ]
+ },
+ {
+  "file": "q06.jpg",
+  "theme": "saguaro",
+  "alt": "Rain puddles reflecting a warm orange sky in a desert landscape with cacti",
+  "author": "",
+  "source": "https://unsplash.com/photos/desert-landscape-with-cacti-and-puddles-hr1smkEtjzI",
+  "license": "Unsplash License (free commercial use, no attribution required)",
+  "size": [
+   1800,
+   1418
+  ]
+ },
+ {
+  "file": "q07.jpg",
+  "theme": "saguaro",
+  "alt": "A paved path winding through a desert landscape with saguaro cacti and distant mountains",
+  "author": "",
+  "source": "https://unsplash.com/photos/paved-path-through-desert-saguaro-landscape-kjA82leKmJc",
+  "license": "Unsplash License (free commercial use, no attribution required)",
+  "size": [
+   1800,
+   1200
+  ]
+ },
+ {
+  "file": "q08.jpg",
+  "theme": "arizona desert mountains",
+  "alt": "A desert landscape with cactus trees and mountains in the background",
+  "author": "",
+  "source": "https://unsplash.com/photos/a-desert-landscape-with-cactus-trees-and-mountains-in-the-background-3yDn67QTpHg",
+  "license": "Unsplash License (free commercial use, no attribution required)",
+  "size": [
+   1800,
+   1200
+  ]
+ },
+ {
+  "file": "q09.jpg",
+  "theme": "arizona desert mountains",
+  "alt": "a rocky mountain with green grass",
+  "author": "",
+  "source": "https://unsplash.com/photos/a-rocky-mountain-with-green-grass-p0kvNWSPb8U",
+  "license": "Unsplash License (free commercial use, no attribution required)",
+  "size": [
+   1800,
+   1200
+  ]
+ },
+ {
+  "file": "q10.jpg",
+  "theme": "arizona desert mountains",
+  "alt": "a group of people hiking up a hill in the desert",
+  "author": "",
+  "source": "https://unsplash.com/photos/a-group-of-people-hiking-up-a-hill-in-the-desert-Mm23H9jqvn8",
+  "license": "Unsplash License (free commercial use, no attribution required)",
+  "size": [
+   1800,
+   1193
+  ]
+ },
+ {
+  "file": "q11.jpg",
+  "theme": "arizona desert mountains",
+  "alt": "green-leafed plants during daytime",
+  "author": "",
+  "source": "https://unsplash.com/photos/green-leafed-plants-during-daytime-t3wdraaj72Q",
+  "license": "Unsplash License (free commercial use, no attribution required)",
+  "size": [
+   1800,
+   1198
+  ]
+ },
+ {
+  "file": "q12.jpg",
+  "theme": "arizona desert mountains",
+  "alt": "a rocky mountain with green plants",
+  "author": "",
+  "source": "https://unsplash.com/photos/a-rocky-mountain-with-green-plants-kVmRgNgw-Iw",
+  "license": "Unsplash License (free commercial use, no attribution required)",
+  "size": [
+   1800,
+   1200
+  ]
+ },
+ {
+  "file": "q13.jpg",
+  "theme": "arizona sunset desert",
+  "alt": "brown and green grass",
+  "author": "",
+  "source": "https://unsplash.com/photos/brown-and-green-grass-9-WVTrFrlWI",
+  "license": "Unsplash License (free commercial use, no attribution required)",
+  "size": [
+   1800,
+   1048
+  ]
+ },
+ {
+  "file": "q14.jpg",
+  "theme": "arizona sunset desert",
+  "alt": "silhouette of cactus during sunset",
+  "author": "",
+  "source": "https://unsplash.com/photos/silhouette-of-cactus-during-sunset-qcofFqnGjww",
+  "license": "Unsplash License (free commercial use, no attribution required)",
+  "size": [
+   1800,
+   1200
+  ]
+ },
+ {
+  "file": "q15.jpg",
+  "theme": "arizona sunset desert",
+  "alt": "silhouette of cactus during sunset",
+  "author": "",
+  "source": "https://unsplash.com/photos/silhouette-of-cactus-during-sunset-VJNVw8Pxq5g",
+  "license": "Unsplash License (free commercial use, no attribution required)",
+  "size": [
+   1800,
+   1201
+  ]
+ },
+ {
+  "file": "q16.jpg",
+  "theme": "arizona desert mountains",
+  "alt": "a lightning bolt is seen in the sky over a field",
+  "author": "",
+  "source": "https://unsplash.com/photos/a-lightning-bolt-is-seen-in-the-sky-over-a-field-TGgxrqA0q9A",
+  "license": "Unsplash License (free commercial use, no attribution required)",
+  "size": [
+   1800,
+   1201
+  ]
+ },
+ {
+  "file": "q17.jpg",
+  "theme": "desert aerial",
+  "alt": "a view of a mountain range with a river running through it",
+  "author": "",
+  "source": "https://unsplash.com/photos/a-view-of-a-mountain-range-with-a-river-running-through-it-v-aAI1ilFm4",
+  "license": "Unsplash License (free commercial use, no attribution required)",
+  "size": [
+   1800,
+   1200
+  ]
+ },
+ {
+  "file": "q18.jpg",
+  "theme": "sonoran desert",
+  "alt": "Arizona Sonoran Desert",
+  "author": "",
+  "source": "https://unsplash.com/photos/arizona-sonoran-desert-_Izx9jxX8kI",
+  "license": "Unsplash License (free commercial use, no attribution required)",
+  "size": [
+   1800,
+   1303
+  ]
+ },
+ {
+  "file": "q19.jpg",
+  "theme": "malachite",
+  "alt": "A rough green malachite mineral specimen on a white background",
+  "author": "",
+  "source": "https://unsplash.com/photos/a-rough-green-malachite-mineral-specimen-on-a-white-background-TfrHnnZCZcE",
+  "license": "Unsplash License (free commercial use, no attribution required)",
+  "size": [
+   1339,
+   1800
+  ]
+ },
+ {
+  "file": "q20.jpg",
+  "theme": "azurite",
+  "alt": "a close up of a rock on a black background",
+  "author": "",
+  "source": "https://unsplash.com/photos/a-close-up-of-a-rock-on-a-black-background-qsVdNQubLrQ",
+  "license": "Unsplash License (free commercial use, no attribution required)",
+  "size": [
+   1800,
+   1200
+  ]
+ },
+ {
+  "file": "q21.jpg",
+  "theme": "azurite",
+  "alt": "A blue and green rock on a black background",
+  "author": "",
+  "source": "https://unsplash.com/photos/a-blue-and-green-rock-on-a-black-background-79sbaNpL7_M",
+  "license": "Unsplash License (free commercial use, no attribution required)",
+  "size": [
+   1800,
+   1197
+  ]
+ },
+ {
+  "file": "q22.jpg",
+  "theme": "azurite",
+  "alt": "Macro view of deep blue azurite crystals with small patches of yellow mineral",
+  "author": "",
+  "source": "https://unsplash.com/photos/azurite-crystals-with-yellow-mineral-3qTFV8fE7aw",
+  "license": "Unsplash License (free commercial use, no attribution required)",
+  "size": [
+   1800,
+   1350
+  ]
+ },
+ {
+  "file": "q23.jpg",
+  "theme": "chalcopyrite",
+  "alt": "a blue and yellow rock on a black background",
+  "author": "",
+  "source": "https://unsplash.com/photos/a-blue-and-yellow-rock-on-a-black-background-wDLZZs61hn8",
+  "license": "Unsplash License (free commercial use, no attribution required)",
+  "size": [
+   1440,
+   1800
+  ]
+ },
+ {
+  "file": "q24.jpg",
+  "theme": "chalcopyrite",
+  "alt": "Golden metallic mineral cluster with grey accents",
+  "author": "",
+  "source": "https://unsplash.com/photos/golden-metallic-mineral-cluster-with-grey-accents-XxGJX-4aQ-M",
+  "license": "Unsplash License (free commercial use, no attribution required)",
+  "size": [
+   1800,
+   1350
+  ]
+ },
+ {
+  "file": "q25.jpg",
+  "theme": "chalcopyrite",
+  "alt": "gray and black stone fragment",
+  "author": "",
+  "source": "https://unsplash.com/photos/gray-and-black-stone-fragment-dY6aiBKKD3I",
+  "license": "Unsplash License (free commercial use, no attribution required)",
+  "size": [
+   1800,
+   1200
+  ]
+ },
+ {
+  "file": "q26.jpg",
+  "theme": "chalcopyrite",
+  "alt": "green and white plastic pack",
+  "author": "",
+  "source": "https://unsplash.com/photos/green-and-white-plastic-pack-cO0pNIZGftk",
+  "license": "Unsplash License (free commercial use, no attribution required)",
+  "size": [
+   1706,
+   1800
+  ]
+ },
+ {
+  "file": "q27.jpg",
+  "theme": "mineral specimen",
+  "alt": "a blue rock with white spots",
+  "author": "",
+  "source": "https://unsplash.com/photos/a-blue-rock-with-white-spots-5tYc5-gSrD8",
+  "license": "Unsplash License (free commercial use, no attribution required)",
+  "size": [
+   1800,
+   1200
+  ]
+ },
+ {
+  "file": "q28.jpg",
+  "theme": "malachite",
+  "alt": "Green mineral deposits on rough brown rock",
+  "author": "",
+  "source": "https://unsplash.com/photos/green-mineral-deposits-on-rough-brown-rock-SkbSidIFzuY",
+  "license": "Unsplash License (free commercial use, no attribution required)",
+  "size": [
+   1800,
+   1198
+  ]
+ },
+ {
+  "file": "q29.jpg",
+  "theme": "azurite",
+  "alt": "Close-up of a mineral rock with blue and green crystals",
+  "author": "",
+  "source": "https://unsplash.com/photos/close-up-of-a-mineral-rock-with-blue-and-green-crystals-adr7jlGCf18",
+  "license": "Unsplash License (free commercial use, no attribution required)",
+  "size": [
+   1800,
+   1198
+  ]
+ },
+ {
+  "file": "q30.jpg",
+  "theme": "rock hammer geology",
+  "alt": "blue and black handle hammer on brown wooden log",
+  "author": "",
+  "source": "https://unsplash.com/photos/blue-and-black-handle-hammer-on-brown-wooden-log-dEA9mJ5rkzg",
+  "license": "Unsplash License (free commercial use, no attribution required)",
+  "size": [
+   1800,
+   1200
+  ]
+ },
+ {
+  "file": "q31.jpg",
+  "theme": "rock hammer geology",
+  "alt": "A man standing on top of a rocky cliff",
+  "author": "",
+  "source": "https://unsplash.com/photos/a-man-standing-on-top-of-a-rocky-cliff-mCdcOOPW71c",
+  "license": "Unsplash License (free commercial use, no attribution required)",
+  "size": [
+   1800,
+   1200
+  ]
+ },
+ {
+  "file": "q32.jpg",
+  "theme": "rock hammer geology",
+  "alt": "a rocky area with a blue sky",
+  "author": "",
+  "source": "https://unsplash.com/photos/a-rocky-area-with-a-blue-sky-j3QMkV2eY-8",
+  "license": "Unsplash License (free commercial use, no attribution required)",
+  "size": [
+   1800,
+   1200
+  ]
+ },
+ {
+  "file": "q33.jpg",
+  "theme": "open pit copper mine",
+  "alt": "an aerial view of a quarry with a blue pool",
+  "author": "",
+  "source": "https://unsplash.com/photos/an-aerial-view-of-a-quarry-with-a-blue-pool-oF7hh97lVqA",
+  "license": "Unsplash License (free commercial use, no attribution required)",
+  "size": [
+   1800,
+   948
+  ]
+ },
+ {
+  "file": "q34.jpg",
+  "theme": "open pit copper mine",
+  "alt": "aerial photo of desert",
+  "author": "",
+  "source": "https://unsplash.com/photos/aerial-photo-of-desert-D5kMHGxgZMI",
+  "license": "Unsplash License (free commercial use, no attribution required)",
+  "size": [
+   1800,
+   1349
+  ]
+ },
+ {
+  "file": "q35.jpg",
+  "theme": "saguaro",
+  "alt": "green cactus",
+  "author": "",
+  "source": "https://unsplash.com/photos/green-cactus-lW5yf-EQFDs",
+  "license": "Unsplash License (free commercial use, no attribution required)",
+  "size": [
+   1201,
+   1800
+  ]
+ },
+ {
+  "file": "q36.jpg",
+  "theme": "sonoran desert",
+  "alt": "a large group of cactus plants in a field",
+  "author": "",
+  "source": "https://unsplash.com/photos/a-large-group-of-cactus-plants-in-a-field-Wz948zPlxf8",
+  "license": "Unsplash License (free commercial use, no attribution required)",
+  "size": [
+   1188,
+   1800
+  ]
+ }
+]

@@ -1,0 +1,494 @@
+{
+ "slug": "northvale-demo",
+ "name": "Northvale Copper-Gold Corp.",
+ "profile": {
+  "team": [
+   {
+    "name": "Elena Marsh",
+    "full": "Elena Marsh",
+    "role": "President & CEO"
+   },
+   {
+    "name": "Callum Reid",
+    "full": "Callum Reid",
+    "role": "Chair"
+   },
+   {
+    "name": "Nadia Okafor",
+    "full": "Nadia Okafor",
+    "role": "Chief Financial Officer"
+   },
+   {
+    "name": "Soren Lindqvist",
+    "full": "Soren Lindqvist",
+    "role": "VP Exploration"
+   },
+   {
+    "name": "Maya Tran",
+    "full": "Maya Tran",
+    "role": "Chief Geologist"
+   },
+   {
+    "name": "Joseph Whitehorse",
+    "full": "Joseph Whitehorse",
+    "role": "VP Community & Indigenous Relations"
+   },
+   {
+    "name": "Ines Carvalho",
+    "full": "Ines Carvalho",
+    "role": "Director"
+   },
+   {
+    "name": "Ben Adeyemi",
+    "full": "Ben Adeyemi",
+    "role": "Director"
+   }
+  ],
+  "brand": {
+   "hero": "/demo/northvale/n01.jpg"
+  },
+  "capital": {
+   "fd": "118.4M",
+   "cash": "C$31M",
+   "debt": "Nil",
+   "options": "7.6M",
+   "warrants": "14.6M",
+   "marketCap": "C$284M",
+   "outstanding": "96.2M",
+   "financing": [
+    {
+     "date": "2026-03",
+     "type": "Flow-through financing",
+     "amount": "C$22M",
+     "purpose": "2026 Aurelia drill season"
+    },
+    {
+     "date": "2025-05",
+     "type": "Strategic investment",
+     "amount": "C$12.5M",
+     "purpose": "Major-miner strategic stake (9.9%)"
+    }
+   ]
+  },
+  "company": {
+   "name": "Northvale Copper-Gold Corp.",
+   "slogan": "Copper for the century ahead, found above the treeline.",
+   "ticker": "NVC",
+   "website": "northvale.example",
+   "listings": [
+    {
+     "ex": "TSXV",
+     "sym": "NVC"
+    },
+    {
+     "ex": "OTCQX",
+     "sym": "NVCGF"
+    }
+   ],
+   "commodity": "Copper-Gold",
+   "headquarters": "Vancouver, British Columbia",
+   "jurisdiction": "British Columbia, Canada"
+  },
+  "projects": [
+   {
+    "key": "aurelia",
+    "tag": "Resource Definition",
+    "name": "Aurelia",
+    "brief": {
+     "overview": "A large copper-gold porphyry system exposed by retreating glaciers in the Golden Triangle, hosting a 2.9 billion-pound copper and 6.1 million-ounce gold Inferred resource that remains open in three directions."
+    },
+    "unique": {
+     "evidence": [
+      "2.9 Blb Cu + 6.1 Moz Au Inferred",
+      "Open to depth and along a 3.4 km trend",
+      "Road-accessible from Highway 37"
+     ]
+    },
+    "gallery": [
+     {
+      "src": "/demo/northvale/n01.jpg"
+     },
+     {
+      "src": "/demo/northvale/n21.jpg"
+     },
+     {
+      "src": "/demo/northvale/n05.jpg"
+     }
+    ],
+    "geology": {
+     "body": "Calc-alkaline porphyry centred on a monzonite stock, with a high-grade potassic core and a peripheral gold-rich phyllic shell."
+    },
+    "resource": {
+     "rows": [
+      {
+       "grade": "0.34% Cu \u00b7 0.31 g/t Au",
+       "tonnes": "612 Mt",
+       "category": "Inferred",
+       "contained": "2.9 Blb Cu \u00b7 6.1 Moz Au"
+      }
+     ],
+     "summary": "The Aurelia deposit hosts an Inferred resource of 612 million tonnes grading 0.34% copper and 0.31 g/t gold, containing 2.9 billion pounds of copper and 6.1 million ounces of gold, at a 0.20% CuEq cut-off."
+    },
+    "snapshot": {
+     "land": "42,500 ha",
+     "location": {
+      "value": "Golden Triangle, British Columbia, Canada"
+     },
+     "commodity": {
+      "value": "Copper-Gold"
+     },
+     "ownership": {
+      "value": "100%"
+     }
+    },
+    "stageName": "Resource Definition",
+    "drillResults": {
+     "rows": [
+      {
+       "hole": "NV-25-014",
+       "note": "from surface, potassic core",
+       "grade": "0.61% Cu \u00b7 0.58 g/t Au",
+       "interval": "402 m"
+      },
+      {
+       "hole": "NV-25-019",
+       "note": "incl. 88 m @ 1.12% Cu",
+       "grade": "0.74% Cu \u00b7 0.66 g/t Au",
+       "interval": "286 m"
+      },
+      {
+       "hole": "NV-25-022",
+       "note": "500 m step-out to the north",
+       "grade": "0.41% Cu \u00b7 0.37 g/t Au",
+       "interval": "318 m"
+      },
+      {
+       "hole": "NV-26-003",
+       "note": "deepest hole to date, ends in mineralisation",
+       "grade": "0.52% Cu \u00b7 0.49 g/t Au",
+       "interval": "554 m"
+      },
+      {
+       "hole": "NV-26-007",
+       "note": "new gold-rich shell",
+       "grade": "0.22% Cu \u00b7 1.84 g/t Au",
+       "interval": "96 m"
+      }
+     ]
+    },
+    "coords": {
+     "lat": 56.62,
+     "lng": -130.28
+    }
+   },
+   {
+    "key": "glacier-creek",
+    "tag": "Exploration",
+    "name": "Glacier Creek",
+    "brief": {
+     "overview": "High-grade gold-silver veins exposed along a 6 km structural corridor beside a receding icefield, with rock samples up to 48 g/t gold."
+    },
+    "unique": {
+     "evidence": [
+      "Rock samples up to 48 g/t Au",
+      "6 km structural corridor",
+      "Helicopter-supported camp"
+     ]
+    },
+    "gallery": [
+     {
+      "src": "/demo/northvale/n08.jpg"
+     },
+     {
+      "src": "/demo/northvale/n12.jpg"
+     },
+     {
+      "src": "/demo/northvale/n22.jpg"
+     }
+    ],
+    "geology": {
+     "body": "Epithermal quartz-carbonate veins hosted in Hazelton Group volcanics along a north-trending fault system."
+    },
+    "resource": {
+     "rows": [],
+     "summary": ""
+    },
+    "snapshot": {
+     "land": "18,200 ha",
+     "location": {
+      "value": "Stikine Region, British Columbia, Canada"
+     },
+     "commodity": {
+      "value": "Gold-Silver"
+     },
+     "ownership": {
+      "value": "100%"
+     }
+    },
+    "stageName": "Exploration",
+    "drillResults": {
+     "rows": []
+    },
+    "coords": {
+     "lat": 56.95,
+     "lng": -130.85
+    }
+   },
+   {
+    "key": "kettle-ridge",
+    "tag": "Early-stage",
+    "name": "Kettle Ridge",
+    "brief": {
+     "overview": "A copper-molybdenum skarn target defined by a 4 km magnetic anomaly and coincident soil geochemistry, optioned to add a third discovery opportunity."
+    },
+    "unique": {
+     "evidence": [
+      "4 km magnetic anomaly",
+      "Coincident Cu-Mo soil anomaly",
+      "Option to earn 70%"
+     ]
+    },
+    "gallery": [
+     {
+      "src": "/demo/northvale/n13.jpg"
+     },
+     {
+      "src": "/demo/northvale/n15.jpg"
+     },
+     {
+      "src": "/demo/northvale/n24.jpg"
+     }
+    ],
+    "geology": {
+     "body": "Garnet-pyroxene skarn developed at the contact between limestone and a Jurassic intrusion."
+    },
+    "resource": {
+     "rows": [],
+     "summary": ""
+    },
+    "snapshot": {
+     "land": "9,600 ha",
+     "location": {
+      "value": "Iskut River area, British Columbia, Canada"
+     },
+     "commodity": {
+      "value": "Copper-Molybdenum"
+     },
+     "ownership": {
+      "value": "Option to earn 70%"
+     }
+    },
+    "stageName": "Early-stage",
+    "drillResults": {
+     "rows": []
+    },
+    "coords": {
+     "lat": 56.35,
+     "lng": -130.55
+    }
+   }
+  ],
+  "timeline": [
+   {
+    "date": "2026-06-02",
+    "headline": "2026 season: 18,000 m drill program underway at Aurelia",
+    "keyNumbers": [
+     "18,000 m",
+     "4 rigs"
+    ],
+    "whyItMatters": "Largest program in company history; targets resource expansion and the gold-rich shell."
+   },
+   {
+    "date": "2026-03-18",
+    "headline": "C$22M flow-through financing closed",
+    "keyNumbers": [
+     "C$22M"
+    ],
+    "whyItMatters": "Funds the 2026 season in full."
+   },
+   {
+    "date": "2026-01-27",
+    "headline": "NV-26-003 ends in mineralisation at 554 m",
+    "keyNumbers": [
+     "554 m",
+     "0.52% Cu"
+    ],
+    "whyItMatters": "System remains open at depth."
+   },
+   {
+    "date": "2025-11-10",
+    "headline": "Maiden Aurelia resource: 2.9 Blb Cu + 6.1 Moz Au Inferred",
+    "keyNumbers": [
+     "2.9 Blb Cu",
+     "6.1 Moz Au"
+    ],
+    "whyItMatters": "Establishes Aurelia as a district-scale porphyry."
+   },
+   {
+    "date": "2025-05-20",
+    "headline": "Strategic investment from a major miner (9.9%)",
+    "keyNumbers": [
+     "C$12.5M",
+     "9.9%"
+    ],
+    "whyItMatters": "Technical validation and a strategic partner."
+   },
+   {
+    "date": "2024-09-05",
+    "headline": "Glacier Creek rock samples return up to 48 g/t gold",
+    "keyNumbers": [
+     "48 g/t Au"
+    ],
+    "whyItMatters": "Adds a high-grade gold opportunity."
+   }
+  ],
+  "catalysts": [
+   {
+    "label": "Aurelia resource update",
+    "impact": "Incorporates the 2026 drilling and the gold-rich shell.",
+    "timing": "Q2 2027"
+   }
+  ],
+  "conference": {
+   "hook": "District-scale copper-gold above the treeline.",
+   "studio": {
+    "theme": "obsidian",
+    "accent": "",
+    "template": "folio"
+   },
+   "enabled": true,
+   "gallery": {
+    "overview": [
+     "/demo/northvale/n03.jpg"
+    ],
+    "results": [
+     "/demo/northvale/n18.jpg"
+    ],
+    "follow": [
+     "/demo/northvale/n25.jpg"
+    ],
+    "jurisdiction": [
+     "/demo/northvale/n23.jpg"
+    ],
+    "extra": [
+     "/demo/northvale/n02.jpg",
+     "/demo/northvale/n04.jpg",
+     "/demo/northvale/n06.jpg",
+     "/demo/northvale/n07.jpg",
+     "/demo/northvale/n09.jpg",
+     "/demo/northvale/n10.jpg",
+     "/demo/northvale/n11.jpg",
+     "/demo/northvale/n14.jpg",
+     "/demo/northvale/n16.jpg",
+     "/demo/northvale/n17.jpg",
+     "/demo/northvale/n19.jpg",
+     "/demo/northvale/n20.jpg",
+     "/demo/northvale/n26.jpg"
+    ]
+   },
+   "_derived": true,
+   "overview": "Northvale is advancing the Aurelia copper-gold porphyry in British Columbia's Golden Triangle.",
+   "highlights": [
+    {
+     "label": "Copper (Inferred)",
+     "value": "2.9 Blb Cu",
+     "context": "612 Mt @ 0.34% Cu",
+     "featured": true
+    },
+    {
+     "label": "Gold (Inferred)",
+     "value": "6.1 Moz Au",
+     "context": "@ 0.31 g/t Au",
+     "featured": false
+    },
+    {
+     "label": "Best intercept",
+     "value": "402 m",
+     "context": "@ 0.61% Cu \u00b7 0.58 g/t Au",
+     "featured": false
+    },
+    {
+     "label": "Land package",
+     "value": "70,300 ha",
+     "context": "three projects",
+     "featured": false
+    },
+    {
+     "label": "Cash",
+     "value": "C$31M",
+     "context": "no debt",
+     "featured": false
+    }
+   ],
+   "evidenceType": "drill_results",
+   "featuredGrade": {
+    "grade": "0.61% Cu \u00b7 0.58 g/t Au",
+    "width": "402 m",
+    "context": "NV-25-014, from surface",
+    "location": "Aurelia"
+   },
+   "heroStatistic": {
+    "label": "Copper (Inferred)",
+    "value": "2.9 Blb Cu",
+    "context": "+ 6.1 Moz Au \u00b7 612 Mt"
+   },
+   "investmentCase": [
+    {
+     "reason": "Scale: a 2.9 billion-pound copper and 6.1 million-ounce gold Inferred resource at Aurelia, open in three directions.",
+     "featured": true
+    },
+    {
+     "reason": "Location: road-accessible from Highway 37 in British Columbia's Golden Triangle, a Tier-1 mining jurisdiction.",
+     "featured": false
+    },
+    {
+     "reason": "Momentum: a fully funded 18,000-metre drill season is underway, the largest in company history.",
+     "featured": false
+    },
+    {
+     "reason": "Backing: a 9.9% strategic investment from a major miner.",
+     "featured": false
+    }
+   ],
+   "projectGallery": {
+    "aurelia": [
+     "/demo/northvale/n01.jpg",
+     "/demo/northvale/n21.jpg",
+     "/demo/northvale/n05.jpg"
+    ]
+   },
+   "currentActivity": "18,000 m drill program underway",
+   "featuredProjectKey": "aurelia",
+   "jurisdictionWidgets": {
+    "district": "Golden Triangle",
+    "commodity": "Copper-Gold",
+    "provinceState": "British Columbia"
+   }
+  },
+  "companyBrief": {
+   "headline": "District-scale copper-gold in British Columbia's Golden Triangle.",
+   "keyPoints": [
+    "2.9 Blb Cu + 6.1 Moz Au Inferred at Aurelia",
+    "Open in three directions",
+    "Fully funded 18,000 m 2026 program",
+    "Strategic major-miner shareholder",
+    "Road-accessible, Tier-1 jurisdiction"
+   ],
+   "shortSummary": "An explorer advancing the Aurelia copper-gold porphyry toward a resource update.",
+   "businessDescription": "Northvale Copper-Gold explores for large copper-gold porphyry and high-grade gold systems in north-western British Columbia."
+  },
+  "companyStatus": {
+   "expected": "Q2 2027",
+   "progressBar": {
+    "unit": "milestones",
+    "label": "2026 plan",
+    "total": 8,
+    "current": 5
+   },
+   "nextCatalyst": "Aurelia resource update",
+   "statusHeadline": "18,000 m drill program underway at Aurelia",
+   "investmentImpact": "Resource update expected to incorporate the 2026 season."
+  },
+  "_demo": "FICTIONAL demo company for Conference Mode template previews. All names, figures and people are invented."
+ }
+}

@@ -56,7 +56,7 @@ export function Dashboard() {
               willChange: "transform",
             }}
           >
-            <Desktop label="mineex.app/portal">
+            <Desktop label="mineex.ca/portal">
               <div style={{ height: mobile ? 420 : 520, overflow: "hidden" }}>
                 <div style={{ width: mobile ? 900 : "100%", height: "100%", transform: mobile ? "scale(0.62)" : "none", transformOrigin: "top left" }}>
                   <DashboardUI section="home" />
@@ -129,7 +129,7 @@ export function Analytics() {
           </div>
 
           <Reveal kind="media">
-            <Desktop label="mineex.app/portal — analytics">
+            <Desktop label="mineex.ca/portal — analytics">
               <div style={{ height: mobile ? 330 : 400, overflow: "hidden" }}>
                 <div style={{ width: mobile ? 900 : "100%", height: "100%", transform: mobile ? "scale(0.62)" : "none", transformOrigin: "top left" }}>
                   <DashboardUI section="analytics" />

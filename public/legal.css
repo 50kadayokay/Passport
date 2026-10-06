@@ -1,0 +1,109 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   MineEx legal/reference surface — Privacy, Terms, Support.
+
+   One stylesheet for all three (they previously each carried a duplicate inline
+   copy). Typography is a document scale, not the marketing scale: ~15.5px body,
+   19px section headings, a 38px title and tight section rhythm, so several
+   sections read at once instead of two filling the viewport.
+
+   Palette and type are MineEx's own: Switzer, navy ink, restrained cobalt.
+   ───────────────────────────────────────────────────────────────────────────── */
+:root {
+  color-scheme: light;
+  --bg: #fbfcfe; --navy: #0a1b2e; --slate: #4b5563; --mute: #9aa1ad;
+  --cobalt: #2563EB; --hair: rgba(10,27,46,0.10); --surface: #eef1f6;
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0; background: var(--bg); color: var(--slate);
+  font: 15.5px/1.65 "Switzer", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
+}
+
+/* ── header ───────────────────────────────────────────────────────────────── */
+.nav {
+  position: sticky; top: 0; z-index: 10;
+  background: rgba(251,252,254,0.88); backdrop-filter: saturate(180%) blur(14px);
+  -webkit-backdrop-filter: saturate(180%) blur(14px);
+  border-bottom: 1px solid var(--hair);
+}
+.nav-in {
+  max-width: 800px; margin: 0 auto; padding: 0 clamp(20px,4vw,28px);
+  height: 58px; display: flex; align-items: center; justify-content: space-between; gap: 20px;
+}
+/* Scaled to the document, not the marketing nav: the 32px wordmark would tower
+   over 15.5px body copy. Same mark, same proportions, smaller. */
+.wordmark {
+  display: inline-flex; align-items: center; gap: 6px; text-decoration: none; border-bottom: 0;
+  color: #0a0c0f; font-size: 22px; font-weight: 800; letter-spacing: -0.03em; line-height: 1;
+}
+.wordmark .mark { display: block; flex-shrink: 0; }
+.nav-links { display: flex; align-items: center; gap: 17px; }
+.nav-links a { color: var(--slate); font-size: 13.5px; font-weight: 600; text-decoration: none; letter-spacing: -0.01em; border-bottom: 0; }
+.nav-links a:hover { color: var(--navy); }
+.nav-links a[aria-current="page"] { color: var(--navy); }
+
+/* ── document ─────────────────────────────────────────────────────────────── */
+.wrap { max-width: 800px; margin: 0 auto; padding: 40px clamp(20px,4vw,28px) 72px; }
+
+.brand {
+  display: block; font-weight: 800; letter-spacing: 0.18em; text-transform: uppercase;
+  font-size: 10.5px; color: var(--cobalt); margin-bottom: 10px;
+}
+h1 {
+  font-size: 38px; line-height: 1.08; letter-spacing: -0.035em;
+  font-weight: 700; color: var(--navy); margin: 0 0 7px;
+}
+.muted { color: var(--mute); font-size: 13px; margin: 0 0 22px; }
+
+h2 {
+  font-size: 19px; line-height: 1.3; letter-spacing: -0.02em;
+  font-weight: 650; color: var(--navy); margin: 0 0 9px;
+}
+p { margin: 0 0 11px; }
+p:last-child { margin-bottom: 0; }
+ul { padding-left: 0; list-style: none; margin: 0; }
+li { position: relative; padding-left: 17px; margin-bottom: 7px; }
+li:last-child { margin-bottom: 0; }
+li::before {
+  content: ""; position: absolute; left: 1px; top: 9.5px;
+  width: 4px; height: 4px; border-radius: 50%; background: var(--cobalt); opacity: 0.5;
+}
+b, strong { color: var(--navy); font-weight: 640; }
+
+/* A section is a quiet rule plus its content — no cards, no shadows. */
+.card {
+  background: transparent; border: 0; border-top: 1px solid var(--hair);
+  border-radius: 0; box-shadow: none;
+  padding: 20px 0 0; margin: 20px 0 0;
+}
+.card > h2:first-child { margin-top: 0; }
+
+a { color: var(--cobalt); text-decoration: none; border-bottom: 1px solid rgba(37,99,235,0.26); }
+a:hover { border-bottom-color: var(--cobalt); }
+code { background: var(--surface); padding: 1px 6px; border-radius: 5px; font-size: 13.5px; color: var(--navy); }
+
+/* ── footer ───────────────────────────────────────────────────────────────── */
+.foot { border-top: 1px solid var(--hair); background: var(--bg); }
+.foot-in {
+  max-width: 800px; margin: 0 auto; padding: 20px clamp(20px,4vw,28px) 30px;
+  display: flex; align-items: center; justify-content: space-between; gap: 18px; flex-wrap: wrap;
+}
+.foot-in a { color: var(--slate); font-size: 12.5px; font-weight: 500; border-bottom: 0; }
+.foot-in a:hover { color: var(--navy); text-decoration: underline; }
+.foot-links { display: flex; gap: 17px; flex-wrap: wrap; }
+.copy { color: var(--mute); font-size: 12px; }
+
+/* ── mobile: a document, not a shrunken desktop page ──────────────────────── */
+@media (max-width: 640px) {
+  body { font-size: 15.5px; line-height: 1.62; }
+  .nav-in { height: 54px; padding: 0 20px; }
+  .wordmark { font-size: 20px; }
+  .nav-links { gap: 14px; }
+  .nav-links a { font-size: 13px; }
+  .wrap { padding: 30px 20px 56px; }
+  h1 { font-size: 31px; letter-spacing: -0.032em; }
+  h2 { font-size: 18.5px; }
+  .foot-in { padding: 18px 20px 26px; align-items: flex-start; }
+}

@@ -1,0 +1,534 @@
+{
+ "slug": "plataalta-demo",
+ "name": "Plata Alta Silver Corp.",
+ "profile": {
+  "team": [
+   {
+    "name": "Mariana Echeverría",
+    "full": "Mariana Echeverría",
+    "role": "President & Chief Executive Officer"
+   },
+   {
+    "name": "Robert Hensley",
+    "full": "Robert Hensley",
+    "role": "Non-Executive Chair"
+   },
+   {
+    "name": "Laura Whitfield",
+    "full": "Laura Whitfield",
+    "role": "Chief Financial Officer"
+   },
+   {
+    "name": "Jorge Luis Cárdenas",
+    "full": "Jorge Luis Cárdenas",
+    "role": "Vice President, Exploration"
+   },
+   {
+    "name": "Rodrigo Villaseñor",
+    "full": "Rodrigo Villaseñor",
+    "role": "Chief Operating Officer"
+   },
+   {
+    "name": "Ana Sofía Treviño",
+    "full": "Ana Sofía Treviño",
+    "role": "Vice President, Sustainability & Community"
+   },
+   {
+    "name": "Katherine Moyo",
+    "full": "Katherine Moyo",
+    "role": "Non-Executive Director"
+   },
+   {
+    "name": "Hiroshi Tanabe",
+    "full": "Hiroshi Tanabe",
+    "role": "Non-Executive Director"
+   }
+  ],
+  "brand": {
+   "hero": "/demo/plataalta/z01.jpg"
+  },
+  "capital": {
+   "fd": "204M",
+   "cash": "US$58M",
+   "debt": "Nil",
+   "options": "9M",
+   "warrants": "19M",
+   "marketCap": "US$412M",
+   "outstanding": "176M",
+   "financing": [
+    {
+     "date": "2026-05",
+     "type": "Bought deal",
+     "amount": "US$45M",
+     "purpose": "Cerro Plateado Feasibility Study and exploration decline"
+    },
+    {
+     "date": "2025-11",
+     "type": "Strategic investment",
+     "amount": "US$18M",
+     "purpose": "Mid-tier Mexican silver producer takes a 9.9% stake"
+    }
+   ]
+  },
+  "company": {
+   "name": "Plata Alta Silver Corp.",
+   "slogan": "High-grade silver veins in the heart of Zacatecas.",
+   "ticker": "PAS",
+   "website": "plataalta.example",
+   "listings": [
+    {
+     "ex": "TSX",
+     "sym": "PAS"
+    },
+    {
+     "ex": "NYSE American",
+     "sym": "PLTA"
+    }
+   ],
+   "commodity": "Silver-Gold",
+   "headquarters": "Vancouver, Canada · Zacatecas, Mexico",
+   "jurisdiction": "Zacatecas, Mexico"
+  },
+  "projects": [
+   {
+    "key": "cerro-plateado",
+    "tag": "Feasibility",
+    "name": "Cerro Plateado",
+    "brief": {
+     "overview": "A high-grade epithermal silver-gold vein system in the Fresnillo–Sombrerete belt, with 142 million ounces silver-equivalent Measured & Indicated at 318 g/t AgEq, planned as a ramp-access underground mine."
+    },
+    "unique": {
+     "evidence": [
+      "142 Moz AgEq @ 318 g/t M&I",
+      "PFS: 14-year underground mine",
+      "Madre vein open at depth"
+     ]
+    },
+    "gallery": [
+     {
+      "src": "/demo/plataalta/z20.jpg"
+     },
+     {
+      "src": "/demo/plataalta/z02.jpg"
+     },
+     {
+      "src": "/demo/plataalta/z30.jpg"
+     }
+    ],
+    "geology": {
+     "body": "Intermediate-sulphidation quartz-carbonate veins with silver sulphosalts, galena and sphalerite, hosted by Cretaceous sediments beneath Tertiary volcanics."
+    },
+    "resource": {
+     "rows": [
+      {
+       "grade": "318 g/t AgEq",
+       "tonnes": "13.9 Mt",
+       "category": "Measured & Indicated",
+       "contained": "142 Moz AgEq"
+      },
+      {
+       "grade": "265 g/t AgEq",
+       "tonnes": "6.1 Mt",
+       "category": "Inferred",
+       "contained": "52 Moz AgEq"
+      }
+     ],
+     "summary": "Cerro Plateado hosts Measured & Indicated resources of 13.9 million tonnes at 318 g/t silver-equivalent for 142 million ounces AgEq, plus 6.1 million tonnes Inferred at 265 g/t AgEq for 52 million ounces."
+    },
+    "snapshot": {
+     "land": "11,400 ha",
+     "location": {
+      "value": "Fresnillo–Sombrerete belt, Zacatecas, Mexico"
+     },
+     "commodity": {
+      "value": "Silver-Gold"
+     },
+     "ownership": {
+      "value": "100%"
+     }
+    },
+    "stageName": "Feasibility",
+    "drillResults": {
+     "rows": [
+      {
+       "hole": "CP-25-118",
+       "note": "Madre vein · true width ≈ 3.9 m",
+       "grade": "1,240 g/t AgEq",
+       "interval": "4.6 m"
+      },
+      {
+       "hole": "CP-25-131",
+       "note": "incl. 1.1 m @ 3,480 g/t AgEq · true width ≈ 6.5 m",
+       "grade": "612 g/t AgEq",
+       "interval": "7.8 m"
+      },
+      {
+       "hole": "CP-26-007",
+       "note": "Ramal footwall vein · true width ≈ 2.7 m",
+       "grade": "884 g/t AgEq",
+       "interval": "3.2 m"
+      },
+      {
+       "hole": "CP-26-019",
+       "note": "deepest to date, 520 m vertical · true width ≈ 4.6 m",
+       "grade": "471 g/t AgEq",
+       "interval": "5.5 m"
+      },
+      {
+       "hole": "CP-26-033",
+       "note": "400 m NW along strike · true width ≈ 2.4 m",
+       "grade": "1,015 g/t AgEq",
+       "interval": "2.9 m"
+      }
+     ]
+    },
+    "coords": {
+     "lat": 23.42,
+     "lng": -103.18
+    }
+   },
+   {
+    "key": "mesa-colorada",
+    "tag": "Exploration",
+    "name": "Mesa Colorada",
+    "brief": {
+     "overview": "A 4.5 km vein corridor south-west of Jerez where first drilling cut banded quartz with silver sulphosalts beneath historic colonial-era workings."
+    },
+    "unique": {
+     "evidence": [
+      "4.5 km mapped vein corridor",
+      "Historic colonial workings",
+      "First drilling hit banded quartz"
+     ]
+    },
+    "gallery": [
+     {
+      "src": "/demo/plataalta/z40.jpg"
+     },
+     {
+      "src": "/demo/plataalta/z15.jpg"
+     },
+     {
+      "src": "/demo/plataalta/z53.jpg"
+     }
+    ],
+    "geology": {
+     "body": "Low- to intermediate-sulphidation banded quartz veins in rhyolitic volcanics."
+    },
+    "resource": {
+     "rows": [],
+     "summary": ""
+    },
+    "snapshot": {
+     "land": "7,800 ha",
+     "location": {
+      "value": "Jerez district, Zacatecas, Mexico"
+     },
+     "commodity": {
+      "value": "Silver-Gold"
+     },
+     "ownership": {
+      "value": "100%"
+     }
+    },
+    "stageName": "Exploration",
+    "drillResults": {
+     "rows": []
+    },
+    "coords": {
+     "lat": 22.45,
+     "lng": -103.22
+    }
+   },
+   {
+    "key": "santa-brigida",
+    "tag": "Early-stage",
+    "name": "Santa Brígida",
+    "brief": {
+     "overview": "A silver-lead-zinc target near Concepción del Oro defined by rock-chip sampling and alteration mapping, under an option to earn 80%."
+    },
+    "unique": {
+     "evidence": [
+      "Silver-lead-zinc rock chips",
+      "Paved road access",
+      "Option to earn 80%"
+     ]
+    },
+    "gallery": [
+     {
+      "src": "/demo/plataalta/z57.jpg"
+     },
+     {
+      "src": "/demo/plataalta/z47.jpg"
+     },
+     {
+      "src": "/demo/plataalta/z56.jpg"
+     }
+    ],
+    "geology": {
+     "body": "Skarn and carbonate-replacement mineralization at an intrusive contact."
+    },
+    "resource": {
+     "rows": [],
+     "summary": ""
+    },
+    "snapshot": {
+     "land": "5,300 ha",
+     "location": {
+      "value": "Concepción del Oro district, Zacatecas, Mexico"
+     },
+     "commodity": {
+      "value": "Silver-Lead-Zinc"
+     },
+     "ownership": {
+      "value": "Option to earn 80%"
+     }
+    },
+    "stageName": "Early-stage",
+    "drillResults": {
+     "rows": []
+    },
+    "coords": {
+     "lat": 24.36,
+     "lng": -101.72
+    }
+   }
+  ],
+  "timeline": [
+   {
+    "date": "2026-08-12",
+    "headline": "Cerro Plateado Feasibility Study commenced",
+    "keyNumbers": [
+     "FS"
+    ],
+    "whyItMatters": "The final study before a construction decision."
+   },
+   {
+    "date": "2026-06-24",
+    "headline": "CP-26-033 cuts 2.9 m @ 1,015 g/t AgEq 400 m along strike",
+    "keyNumbers": [
+     "1,015 g/t"
+    ],
+    "whyItMatters": "Extends high grade to the north-west."
+   },
+   {
+    "date": "2026-05-20",
+    "headline": "US$45M bought deal closed",
+    "keyNumbers": [
+     "US$45M"
+    ],
+    "whyItMatters": "Funds the Feasibility Study and exploration decline."
+   },
+   {
+    "date": "2026-02-10",
+    "headline": "Pre-Feasibility Study outlines a 14-year underground mine",
+    "keyNumbers": [
+     "PFS",
+     "14 years"
+    ],
+    "whyItMatters": "Defines the mine plan the Feasibility Study will refine."
+   },
+   {
+    "date": "2025-11-18",
+    "headline": "Mid-tier Mexican silver producer takes a 9.9% stake",
+    "keyNumbers": [
+     "US$18M",
+     "9.9%"
+    ],
+    "whyItMatters": "A strategic partner with operating experience in the state."
+   }
+  ],
+  "catalysts": [
+   {
+    "label": "Cerro Plateado Feasibility Study",
+    "impact": "Supports a construction decision on a ramp-access underground silver mine.",
+    "timing": "Q2 2027"
+   },
+   {
+    "label": "Environmental impact statement (MIA) filing",
+    "impact": "Starts the federal permitting review.",
+    "timing": "Q4 2026"
+   },
+   {
+    "label": "Mesa Colorada Phase 2 drilling",
+    "impact": "Tests the corridor beneath the historic workings.",
+    "timing": "Q1 2027"
+   }
+  ],
+  "conference": {
+   "hook": "High-grade silver veins in the heart of Zacatecas.",
+   "studio": {
+    "theme": "obsidian",
+    "accent": "",
+    "template": "vein"
+   },
+   "enabled": true,
+   "gallery": {
+    "overview": [
+     "/demo/plataalta/z49.jpg"
+    ],
+    "results": [
+     "/demo/plataalta/z03.jpg"
+    ],
+    "follow": [
+     "/demo/plataalta/z33.jpg"
+    ],
+    "jurisdiction": [
+     "/demo/plataalta/z32.jpg"
+    ],
+    "extra": [
+     "/demo/plataalta/z04.jpg",
+     "/demo/plataalta/z05.jpg",
+     "/demo/plataalta/z06.jpg",
+     "/demo/plataalta/z07.jpg",
+     "/demo/plataalta/z08.jpg",
+     "/demo/plataalta/z09.jpg",
+     "/demo/plataalta/z10.jpg",
+     "/demo/plataalta/z11.jpg",
+     "/demo/plataalta/z12.jpg",
+     "/demo/plataalta/z13.jpg",
+     "/demo/plataalta/z14.jpg",
+     "/demo/plataalta/z16.jpg",
+     "/demo/plataalta/z17.jpg",
+     "/demo/plataalta/z18.jpg",
+     "/demo/plataalta/z19.jpg",
+     "/demo/plataalta/z21.jpg",
+     "/demo/plataalta/z22.jpg",
+     "/demo/plataalta/z23.jpg",
+     "/demo/plataalta/z24.jpg",
+     "/demo/plataalta/z25.jpg",
+     "/demo/plataalta/z26.jpg",
+     "/demo/plataalta/z27.jpg",
+     "/demo/plataalta/z28.jpg",
+     "/demo/plataalta/z29.jpg",
+     "/demo/plataalta/z31.jpg",
+     "/demo/plataalta/z34.jpg",
+     "/demo/plataalta/z35.jpg",
+     "/demo/plataalta/z36.jpg",
+     "/demo/plataalta/z37.jpg",
+     "/demo/plataalta/z38.jpg",
+     "/demo/plataalta/z39.jpg",
+     "/demo/plataalta/z41.jpg",
+     "/demo/plataalta/z42.jpg",
+     "/demo/plataalta/z43.jpg",
+     "/demo/plataalta/z44.jpg",
+     "/demo/plataalta/z45.jpg",
+     "/demo/plataalta/z46.jpg",
+     "/demo/plataalta/z48.jpg",
+     "/demo/plataalta/z50.jpg",
+     "/demo/plataalta/z51.jpg",
+     "/demo/plataalta/z52.jpg",
+     "/demo/plataalta/z54.jpg",
+     "/demo/plataalta/z55.jpg",
+     "/demo/plataalta/z58.jpg",
+     "/demo/plataalta/z59.jpg",
+     "/demo/plataalta/z60.jpg",
+     "/demo/plataalta/z61.jpg"
+    ]
+   },
+   "_derived": true,
+   "overview": "Plata Alta is advancing the high-grade Cerro Plateado silver-gold vein project in Zacatecas, Mexico.",
+   "highlights": [
+    {
+     "label": "Silver equivalent (M&I)",
+     "value": "142 Moz",
+     "context": "318 g/t AgEq",
+     "featured": true
+    },
+    {
+     "label": "Inferred",
+     "value": "52 Moz",
+     "context": "265 g/t AgEq",
+     "featured": false
+    },
+    {
+     "label": "Best intercept",
+     "value": "1,240 g/t",
+     "context": "AgEq over 4.6 m",
+     "featured": false
+    },
+    {
+     "label": "Land",
+     "value": "24,500 ha",
+     "context": "three projects",
+     "featured": false
+    },
+    {
+     "label": "Cash",
+     "value": "US$58M",
+     "context": "no debt",
+     "featured": false
+    }
+   ],
+   "evidenceType": "drill_results",
+   "featuredGrade": {
+    "grade": "1,240 g/t AgEq",
+    "width": "4.6 m",
+    "context": "CP-25-118",
+    "location": "Cerro Plateado"
+   },
+   "heroStatistic": {
+    "label": "Silver equivalent · Measured & Indicated",
+    "value": "142 Moz AgEq",
+    "context": "@ 318 g/t AgEq · 13.9 Mt"
+   },
+   "investmentCase": [
+    {
+     "reason": "Grade: 142 million ounces AgEq Measured & Indicated at 318 g/t, with the Madre vein open at depth.",
+     "featured": true
+    },
+    {
+     "reason": "Study-backed: a Pre-Feasibility Study outlines a 14-year ramp-access underground mine.",
+     "featured": false
+    },
+    {
+     "reason": "Location: Zacatecas, Mexico's leading silver state, with paved roads, grid power and a skilled mining workforce.",
+     "featured": false
+    },
+    {
+     "reason": "Funded: US$58 million in cash and no debt through the Feasibility Study.",
+     "featured": false
+    }
+   ],
+   "projectGallery": {
+    "cerro-plateado": [
+     "/demo/plataalta/z20.jpg",
+     "/demo/plataalta/z02.jpg",
+     "/demo/plataalta/z30.jpg"
+    ]
+   },
+   "currentActivity": "Feasibility Study underway",
+   "featuredProjectKey": "cerro-plateado",
+   "jurisdictionWidgets": {
+    "district": "Fresnillo–Sombrerete belt",
+    "commodity": "Silver-Gold",
+    "provinceState": "Zacatecas"
+   }
+  },
+  "companyBrief": {
+   "headline": "High-grade silver veins in the heart of Zacatecas.",
+   "keyPoints": [
+    "142 Moz AgEq @ 318 g/t M&I",
+    "PFS: 14-year underground mine",
+    "Feasibility Study underway",
+    "Strategic producer shareholder",
+    "US$58M cash, no debt"
+   ],
+   "shortSummary": "A silver developer advancing Cerro Plateado toward a construction decision.",
+   "businessDescription": "Plata Alta explores and develops high-grade epithermal silver-gold veins in Zacatecas, Mexico."
+  },
+  "companyStatus": {
+   "expected": "Q2 2027",
+   "progressBar": {
+    "unit": "milestones",
+    "label": "2026–27 plan",
+    "total": 8,
+    "current": 5
+   },
+   "nextCatalyst": "Cerro Plateado Feasibility Study",
+   "statusHeadline": "Feasibility Study underway at Cerro Plateado",
+   "investmentImpact": "FS expected to support a construction decision."
+  },
+  "_demo": "FICTIONAL demo company for Conference Mode template previews. All names, figures and people are invented."
+ }
+}

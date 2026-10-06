@@ -1,0 +1,522 @@
+{
+ "slug": "pampanegra-demo",
+ "name": "Pampa Negra Copper Corp.",
+ "profile": {
+  "team": [
+   {
+    "name": "Carolina Vergara",
+    "full": "Carolina Vergara",
+    "role": "Chief Executive Officer"
+   },
+   {
+    "name": "James Whitfield",
+    "full": "James Whitfield",
+    "role": "Non-Executive Chair"
+   },
+   {
+    "name": "Rodrigo Echeverría",
+    "full": "Rodrigo Echeverría",
+    "role": "Chief Financial Officer"
+   },
+   {
+    "name": "Ingrid Salas",
+    "full": "Ingrid Salas",
+    "role": "VP Geology & Resources"
+   },
+   {
+    "name": "Martín Aravena",
+    "full": "Martín Aravena",
+    "role": "VP Projects"
+   },
+   {
+    "name": "Hannah Oyelaran",
+    "full": "Hannah Oyelaran",
+    "role": "Head of Sustainability & Water"
+   },
+   {
+    "name": "Tomás Ibáñez",
+    "full": "Tomás Ibáñez",
+    "role": "VP Community Relations"
+   },
+   {
+    "name": "Keiko Nakamura",
+    "full": "Keiko Nakamura",
+    "role": "Non-Executive Director"
+   }
+  ],
+  "brand": {
+   "hero": "/demo/pampanegra/p01.jpg"
+  },
+  "capital": {
+   "fd": "458M",
+   "cash": "US$86M",
+   "debt": "Nil",
+   "options": "19M",
+   "warrants": "27M",
+   "marketCap": "US$1.12B",
+   "outstanding": "412M",
+   "financing": [
+    {
+     "date": "2026-05",
+     "type": "Bought deal",
+     "amount": "US$65M",
+     "purpose": "Llano Negro Feasibility Study and desalination permitting"
+    },
+    {
+     "date": "2025-09",
+     "type": "Strategic investment",
+     "amount": "US$40M",
+     "purpose": "An Asian smelting group takes a 9.9% stake"
+    }
+   ]
+  },
+  "company": {
+   "name": "Pampa Negra Copper Corp.",
+   "slogan": "A copper district in the making, in the Atacama.",
+   "ticker": "PNC",
+   "website": "pampanegra.example",
+   "listings": [
+    {
+     "ex": "TSX",
+     "sym": "PNC"
+    },
+    {
+     "ex": "OTCQX",
+     "sym": "PNCCF"
+    }
+   ],
+   "commodity": "Copper",
+   "headquarters": "Santiago, Chile",
+   "jurisdiction": "Antofagasta, Chile"
+  },
+  "projects": [
+   {
+    "key": "llano-negro",
+    "tag": "Feasibility",
+    "name": "Llano Negro",
+    "brief": {
+     "overview": "A large copper-molybdenum porphyry on the Atacama's central pampa, with 14.4 billion pounds of copper Measured & Indicated, planned as a conventional open pit and concentrator with desalinated seawater."
+    },
+    "unique": {
+     "evidence": [
+      "14.4 Blb Cu M&I + 375 Mlb Mo",
+      "Open pit · 95,000 t/d concentrator",
+      "Desalinated water, no aquifer draw"
+     ]
+    },
+    "gallery": [
+     {
+      "src": "/demo/pampanegra/p02.jpg"
+     },
+     {
+      "src": "/demo/pampanegra/p05.jpg"
+     },
+     {
+      "src": "/demo/pampanegra/p13.jpg"
+     }
+    ],
+    "geology": {
+     "body": "A quartz-monzonite porphyry stock with a chalcopyrite-bornite core under a leached cap and a supergene chalcocite blanket."
+    },
+    "resource": {
+     "rows": [
+      {
+       "grade": "0.46% Cu · 0.012% Mo",
+       "tonnes": "1,420 Mt",
+       "category": "Measured & Indicated",
+       "contained": "14.4 Blb Cu · 375 Mlb Mo"
+      },
+      {
+       "grade": "0.38% Cu · 0.009% Mo",
+       "tonnes": "610 Mt",
+       "category": "Inferred",
+       "contained": "5.1 Blb Cu · 121 Mlb Mo"
+      }
+     ],
+     "summary": "Llano Negro hosts Measured & Indicated resources of 1,420 million tonnes at 0.46% copper and 0.012% molybdenum for 14.4 billion pounds of copper, plus 610 million tonnes Inferred at 0.38% copper."
+    },
+    "snapshot": {
+     "land": "21,400 ha",
+     "location": {
+      "value": "Sierra Gorda district, Antofagasta, Chile"
+     },
+     "commodity": {
+      "value": "Copper-Molybdenum"
+     },
+     "ownership": {
+      "value": "100%"
+     }
+    },
+    "stageName": "Feasibility",
+    "drillResults": {
+     "rows": [
+      {
+       "hole": "LN-25-118",
+       "note": "from 84 m, supergene blanket into hypogene",
+       "grade": "0.71% Cu",
+       "interval": "612 m"
+      },
+      {
+       "hole": "LN-25-131",
+       "note": "incl. 148 m @ 1.12% Cu",
+       "grade": "0.84% Cu",
+       "interval": "436 m"
+      },
+      {
+       "hole": "LN-25-142",
+       "note": "bornite-rich core, 0.021% Mo",
+       "grade": "0.63% Cu",
+       "interval": "704 m"
+      },
+      {
+       "hole": "LN-26-007",
+       "note": "deepest hole to date, open at depth",
+       "grade": "0.52% Cu",
+       "interval": "898 m"
+      },
+      {
+       "hole": "LN-26-019",
+       "note": "400 m south-east step-out",
+       "grade": "0.58% Cu",
+       "interval": "388 m"
+      }
+     ]
+    },
+    "coords": {
+     "lat": -22.97,
+     "lng": -69.08
+    }
+   },
+   {
+    "key": "quebrada-azufre",
+    "tag": "Exploration",
+    "name": "Quebrada Azufre",
+    "brief": {
+     "overview": "A 9 km porphyry corridor in the Domeyko Cordillera, where first-pass drilling cut 212 m of leached cap over chalcocite enrichment."
+    },
+    "unique": {
+     "evidence": [
+      "Chalcocite enrichment in first drilling",
+      "9 km magnetic-IP corridor",
+      "Same Eocene-Oligocene porphyry belt"
+     ]
+    },
+    "gallery": [
+     {
+      "src": "/demo/pampanegra/p27.jpg"
+     },
+     {
+      "src": "/demo/pampanegra/p15.jpg"
+     },
+     {
+      "src": "/demo/pampanegra/p39.jpg"
+     }
+    ],
+    "geology": {
+     "body": "Porphyry intrusions along the Domeyko fault system under gravel cover."
+    },
+    "resource": {
+     "rows": [],
+     "summary": ""
+    },
+    "snapshot": {
+     "land": "14,800 ha",
+     "location": {
+      "value": "Domeyko Cordillera, Antofagasta, Chile"
+     },
+     "commodity": {
+      "value": "Copper"
+     },
+     "ownership": {
+      "value": "100%"
+     }
+    },
+    "stageName": "Exploration",
+    "drillResults": {
+     "rows": []
+    },
+    "coords": {
+     "lat": -24.28,
+     "lng": -69.18
+    }
+   },
+   {
+    "key": "pampa-carmen",
+    "tag": "Early-stage",
+    "name": "Pampa Carmen",
+    "brief": {
+     "overview": "A copper-gold target inland from Taltal defined by alteration mapping and a buried magnetic high, under an option to earn 80%."
+    },
+    "unique": {
+     "evidence": [
+      "Buried magnetic high",
+      "Road access from Taltal",
+      "Option to earn 80%"
+     ]
+    },
+    "gallery": [
+     {
+      "src": "/demo/pampanegra/p32.jpg"
+     },
+     {
+      "src": "/demo/pampanegra/p57.jpg"
+     },
+     {
+      "src": "/demo/pampanegra/p40.jpg"
+     }
+    ],
+    "geology": {
+     "body": "Iron-oxide copper-gold style alteration in the Coastal Cordillera."
+    },
+    "resource": {
+     "rows": [],
+     "summary": ""
+    },
+    "snapshot": {
+     "land": "9,300 ha",
+     "location": {
+      "value": "Coastal Cordillera near Taltal, Antofagasta, Chile"
+     },
+     "commodity": {
+      "value": "Copper-Gold"
+     },
+     "ownership": {
+      "value": "Option to earn 80%"
+     }
+    },
+    "stageName": "Early-stage",
+    "drillResults": {
+     "rows": []
+    },
+    "coords": {
+     "lat": -25.28,
+     "lng": -70.12
+    }
+   }
+  ],
+  "timeline": [
+   {
+    "date": "2026-08-04",
+    "headline": "Llano Negro Feasibility Study commenced",
+    "keyNumbers": [
+     "FS"
+    ],
+    "whyItMatters": "The final study before a construction decision."
+   },
+   {
+    "date": "2026-05-21",
+    "headline": "US$65M bought deal closed",
+    "keyNumbers": [
+     "US$65M"
+    ],
+    "whyItMatters": "Fully funds the Feasibility Study."
+   },
+   {
+    "date": "2026-03-10",
+    "headline": "LN-26-007 cuts 898 m @ 0.52% Cu, open at depth",
+    "keyNumbers": [
+     "898 m"
+    ],
+    "whyItMatters": "Deepest mineralisation yet — the system keeps going."
+   },
+   {
+    "date": "2025-12-02",
+    "headline": "Pre-Feasibility Study: 31-year open-pit mine",
+    "keyNumbers": [
+     "31 yr"
+    ],
+    "whyItMatters": "Established the base case for the Feasibility Study."
+   },
+   {
+    "date": "2025-09-16",
+    "headline": "Asian smelting group takes a 9.9% stake",
+    "keyNumbers": [
+     "US$40M",
+     "9.9%"
+    ],
+    "whyItMatters": "A strategic, long-term offtake-minded partner."
+   }
+  ],
+  "catalysts": [
+   {
+    "label": "Llano Negro Feasibility Study",
+    "impact": "Supports a construction decision on a large open-pit copper-molybdenum mine.",
+    "timing": "Q2 2027"
+   }
+  ],
+  "conference": {
+   "hook": "A copper district in the making, in the Atacama.",
+   "studio": {
+    "theme": "obsidian",
+    "accent": "",
+    "template": "terminal2"
+   },
+   "enabled": true,
+   "gallery": {
+    "overview": [
+     "/demo/pampanegra/p03.jpg"
+    ],
+    "results": [
+     "/demo/pampanegra/p13.jpg"
+    ],
+    "follow": [
+     "/demo/pampanegra/p04.jpg"
+    ],
+    "jurisdiction": [
+     "/demo/pampanegra/p48.jpg"
+    ],
+    "extra": [
+     "/demo/pampanegra/p06.jpg",
+     "/demo/pampanegra/p07.jpg",
+     "/demo/pampanegra/p08.jpg",
+     "/demo/pampanegra/p09.jpg",
+     "/demo/pampanegra/p10.jpg",
+     "/demo/pampanegra/p11.jpg",
+     "/demo/pampanegra/p12.jpg",
+     "/demo/pampanegra/p14.jpg",
+     "/demo/pampanegra/p16.jpg",
+     "/demo/pampanegra/p17.jpg",
+     "/demo/pampanegra/p18.jpg",
+     "/demo/pampanegra/p19.jpg",
+     "/demo/pampanegra/p20.jpg",
+     "/demo/pampanegra/p21.jpg",
+     "/demo/pampanegra/p22.jpg",
+     "/demo/pampanegra/p23.jpg",
+     "/demo/pampanegra/p24.jpg",
+     "/demo/pampanegra/p25.jpg",
+     "/demo/pampanegra/p26.jpg",
+     "/demo/pampanegra/p28.jpg",
+     "/demo/pampanegra/p29.jpg",
+     "/demo/pampanegra/p30.jpg",
+     "/demo/pampanegra/p31.jpg",
+     "/demo/pampanegra/p33.jpg",
+     "/demo/pampanegra/p34.jpg",
+     "/demo/pampanegra/p35.jpg",
+     "/demo/pampanegra/p36.jpg",
+     "/demo/pampanegra/p37.jpg",
+     "/demo/pampanegra/p38.jpg",
+     "/demo/pampanegra/p41.jpg",
+     "/demo/pampanegra/p42.jpg",
+     "/demo/pampanegra/p43.jpg",
+     "/demo/pampanegra/p44.jpg",
+     "/demo/pampanegra/p45.jpg",
+     "/demo/pampanegra/p46.jpg",
+     "/demo/pampanegra/p47.jpg",
+     "/demo/pampanegra/p49.jpg",
+     "/demo/pampanegra/p50.jpg",
+     "/demo/pampanegra/p51.jpg",
+     "/demo/pampanegra/p52.jpg",
+     "/demo/pampanegra/p53.jpg",
+     "/demo/pampanegra/p55.jpg",
+     "/demo/pampanegra/p56.jpg",
+     "/demo/pampanegra/p58.jpg",
+     "/demo/pampanegra/p59.jpg",
+     "/demo/pampanegra/p60.jpg"
+    ]
+   },
+   "_derived": true,
+   "overview": "Pampa Negra is advancing the Llano Negro copper-molybdenum porphyry in Chile's Antofagasta Region.",
+   "highlights": [
+    {
+     "label": "Copper (M&I)",
+     "value": "14.4 Blb",
+     "context": "0.46% Cu",
+     "featured": true
+    },
+    {
+     "label": "Molybdenum (M&I)",
+     "value": "375 Mlb",
+     "context": "0.012% Mo",
+     "featured": false
+    },
+    {
+     "label": "Best intercept",
+     "value": "612 m",
+     "context": "@ 0.71% Cu",
+     "featured": false
+    },
+    {
+     "label": "Land",
+     "value": "45,500 ha",
+     "context": "three projects",
+     "featured": false
+    },
+    {
+     "label": "Cash",
+     "value": "US$86M",
+     "context": "no debt",
+     "featured": false
+    }
+   ],
+   "evidenceType": "drill_results",
+   "featuredGrade": {
+    "grade": "0.71% Cu",
+    "width": "612 m",
+    "context": "LN-25-118",
+    "location": "Llano Negro"
+   },
+   "heroStatistic": {
+    "label": "Copper · Measured & Indicated",
+    "value": "14.4 Blb",
+    "context": "@ 0.46% Cu · 1.42 Bt"
+   },
+   "investmentCase": [
+    {
+     "reason": "Scale: 14.4 billion pounds of copper Measured & Indicated, plus 375 million pounds of molybdenum, open at depth.",
+     "featured": true
+    },
+    {
+     "reason": "Water: designed on desalinated seawater from the Antofagasta coast, with no draw on Atacama aquifers.",
+     "featured": false
+    },
+    {
+     "reason": "District: Chile's premier copper region, with ports, power, roads and a skilled mining workforce in reach.",
+     "featured": false
+    },
+    {
+     "reason": "Funded: US$86 million in cash and no debt through the Feasibility Study.",
+     "featured": false
+    }
+   ],
+   "projectGallery": {
+    "llano-negro": [
+     "/demo/pampanegra/p02.jpg",
+     "/demo/pampanegra/p05.jpg",
+     "/demo/pampanegra/p13.jpg"
+    ]
+   },
+   "currentActivity": "Feasibility Study underway",
+   "featuredProjectKey": "llano-negro",
+   "jurisdictionWidgets": {
+    "district": "Sierra Gorda",
+    "commodity": "Copper",
+    "provinceState": "Antofagasta"
+   }
+  },
+  "companyBrief": {
+   "headline": "A copper district in the making, in the Atacama.",
+   "keyPoints": [
+    "14.4 Blb Cu @ 0.46% M&I",
+    "375 Mlb Mo by-product",
+    "Feasibility Study underway",
+    "Strategic smelter shareholder",
+    "US$86M cash, no debt"
+   ],
+   "shortSummary": "A copper developer advancing Llano Negro toward a construction decision.",
+   "businessDescription": "Pampa Negra explores and develops porphyry copper-molybdenum deposits in Chile's Antofagasta Region."
+  },
+  "companyStatus": {
+   "expected": "Q2 2027",
+   "progressBar": {
+    "unit": "milestones",
+    "label": "2026–27 plan",
+    "total": 9,
+    "current": 6
+   },
+   "nextCatalyst": "Llano Negro Feasibility Study",
+   "statusHeadline": "Feasibility Study underway at Llano Negro",
+   "investmentImpact": "FS expected to support a construction decision."
+  },
+  "_demo": "FICTIONAL demo company for Conference Mode template previews. All names, figures, coordinates and people are invented."
+ }
+}

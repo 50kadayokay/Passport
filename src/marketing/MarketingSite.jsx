@@ -1,22 +1,61 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// The MineEx public marketing site.
+// The MineEx public marketing site — a THIN ROUTE LOADER.
 //
-// Mounted only at /site (see src/main.jsx) and lazily loaded, so nothing here is
-// in the application's bundle and nothing here can touch application state. It
-// imports exactly one thing from the app — the Supabase URL/anon key, to file a
-// demo request into the existing `demo_bookings` table.
+// Mounted only at /site (see src/main.jsx) and lazily loaded, so nothing here is in
+// the application's bundle. This module itself stays tiny: every surface below —
+// the primary homepage, the legacy homepage, and each deeper demo — is a separate
+// React.lazy chunk, so opening one route never downloads the code for the others.
 //
-// The public brand is MineEx throughout. The internal codename never appears on
-// this surface.
+// PERFORMANCE CONTRACT (Phase 0): the primary homepage (/home) must not pull
+// any product-demonstration code. The following load ONLY via their own route/CTA:
+//   DirectedEmbed · NarrativeStory · SalesStory · ConferenceAct · PortalAct ·
+//   DemoStage(ProjectsAct) · Conference fixtures · kingsmenPortalProfile ·
+//   ConferenceV3 · ProfileEditor · MobileAppFrame · legacy homepage sections.
+//
+// The public brand is MineEx throughout. The internal codename never appears here.
 // ─────────────────────────────────────────────────────────────────────────────
-import React, { useEffect, useState } from "react";
-import { MX, EASE, MarketingStyles, Wrap, useViewport, useReduce, DEV } from "./system.jsx";
-import { Hero, Problem, CompanyProfileSection } from "./sections/Opening.jsx";
-import { Discovered, FollowMoment, StayInformed } from "./sections/Discovery.jsx";
-import { PressReleases, Media } from "./sections/Content.jsx";
-import { Dashboard, Analytics } from "./sections/Company.jsx";
-import { ConferenceMode, BoothToAudience } from "./sections/Conference.jsx";
-import { Journey, Offerings, FinalCta } from "./sections/Close.jsx";
+import React, { useEffect } from "react";
+import { effectiveSearch } from "./routes.js";
+import { MX, MarketingStyles, useReduce } from "./system.jsx";
+
+/* ── lazy surfaces — each its own chunk, loaded only when its route is opened ─── */
+
+// Primary homepage (lean: Nav + Hero + system only; the deeper sections arrive in
+// later phases and load their product surfaces on demand).
+const Home2 = React.lazy(() => import("./home2/Home2.jsx"));
+const ProPage = React.lazy(() => import("./home2/ProPage.jsx"));
+const PricingPage = React.lazy(() => import("./home2/PricingDeck.jsx"));
+const ComparePlans = React.lazy(() => import("./home2/ComparePlans.jsx"));
+// Ecosystem finale — static compositions review harness (?ecostory=1&state=0..5).
+const EcoStoryRoute = React.lazy(() => import("./home2/EcoStoryRoute.jsx"));
+// Conference Mode service + template library (the "Conference" nav destination).
+const ConferencePage = React.lazy(() => import("./home2/ConferencePage.jsx"));
+// Conference Mode inquiry — the page the Conference "Get Started" button opens.
+const ConferenceInquiry = React.lazy(() => import("./home2/ConferenceInquiry.jsx"));
+const ContactPage = React.lazy(() => import("./home2/ContactPage.jsx"));
+const AndroidSoon = React.lazy(() => import("./home2/AndroidSoon.jsx"));
+// Investor-side product walkthrough (the "Investor" nav destination).
+const InvestorPage = React.lazy(() => import("./home2/InvestorPage.jsx"));
+// App download page — the "Get the App" destination (App Store + Google Play).
+const GetApp = React.lazy(() => import("./home2/GetApp.jsx"));
+// A single Conference template, full-screen, with a Back-to-templates control.
+const ConfTemplateRoute = React.lazy(() => import("./home2/ConfTemplateRoute.jsx"));
+// The original long-form homepage (default /site), preserved.
+const LegacyHome = React.lazy(() => import("./sections/LegacyHome.jsx"));
+
+// Deep Pro Profile / Conference / Portal demos — preserved, code-split.
+const DirectedEmbed = React.lazy(() => import("./demo/DirectedEmbed.jsx").then((m) => ({ default: m.DirectedEmbed })));
+const NarrativeStory = React.lazy(() => import("./demo/NarrativeStory.jsx").then((m) => ({ default: m.NarrativeStory })));
+const SalesStory = React.lazy(() => import("./demo/SalesStory.jsx"));
+const ConferenceAct = React.lazy(() => import("./demo/ConferenceAct.jsx").then((m) => ({ default: m.ConferenceAct })));
+const PortalSlice = React.lazy(() => import("./demo/PortalAct.jsx").then((m) => ({ default: m.PortalSlice })));
+const ProProfileDemoStage = React.lazy(() => import("./demo/DemoStage.jsx").then((m) => ({ default: m.ProProfileDemoStage })));
+
+// Full-screen route wrappers (each bundles its own heavy deps into its own chunk).
+const ConferenceFixtureRoute = React.lazy(() => import("./demo/ConferenceFixtureRoute.jsx"));
+const PhoneLab = React.lazy(() => import("./home2/PhoneLab.jsx"));
+const PortalDemoRoute = React.lazy(() => import("./demo/PortalDemoRoute.jsx"));
+const EmbedProofRoute = React.lazy(() => import("./demo/EmbedProofRoute.jsx"));
 
 const TITLE = "MineEx — The investor platform built for junior mining";
 const DESCRIPTION =
@@ -43,130 +82,71 @@ function useDocumentMeta() {
       };
     };
 
+    // Canonical + og:url point at the page actually being viewed, minus the junk: these
+    // routes are query-string based, so a canonical that kept utm or cache-buster params
+    // would split every share. Only the route-selecting params survive.
+    const ROUTE_PARAMS = new Set(["home2", "pro", "conference", "investor", "pricing", "contact", "compare", "getapp", "android", "confstart", "plan"]);
+    const canonicalUrl = (() => {
+      try {
+        const u = new URL(window.location.href);
+        const keep = new URLSearchParams();
+        for (const [k, v] of u.searchParams) if (ROUTE_PARAMS.has(k)) keep.set(k, v);
+        const q = keep.toString();
+        return u.origin + u.pathname + (q ? "?" + q : "");
+      } catch (_) { return ""; }
+    })();
+    const ogImage = (() => {
+      try { return new URL("/og-image.jpg", window.location.origin).href; } catch (_) { return "/og-image.jpg"; }
+    })();
+
+    // <link rel="canonical"> — created if absent, restored on unmount like the meta tags.
+    let linkEl = document.head.querySelector('link[rel="canonical"]');
+    const linkCreated = !linkEl;
+    const prevHref = linkEl ? linkEl.getAttribute("href") : null;
+    if (!linkEl) { linkEl = document.createElement("link"); linkEl.setAttribute("rel", "canonical"); document.head.appendChild(linkEl); }
+    if (canonicalUrl) linkEl.setAttribute("href", canonicalUrl);
+
     const undo = [
       set("name", "description", DESCRIPTION),
+      set("property", "og:site_name", "MineEx"),
       set("property", "og:title", TITLE),
       set("property", "og:description", DESCRIPTION),
       set("property", "og:type", "website"),
+      set("property", "og:url", canonicalUrl),
+      set("property", "og:image", ogImage),
+      set("property", "og:image:width", "1200"),
+      set("property", "og:image:height", "630"),
+      set("property", "og:image:alt", "MineEx — the investor platform built for junior mining"),
       set("name", "twitter:card", "summary_large_image"),
+      set("name", "twitter:title", TITLE),
+      set("name", "twitter:description", DESCRIPTION),
+      set("name", "twitter:image", ogImage),
     ];
 
     return () => {
       document.title = prevTitle;
       undo.forEach((fn) => fn());
+      if (linkCreated) linkEl.remove();
+      else if (prevHref != null) linkEl.setAttribute("href", prevHref);
     };
   }, []);
 }
 
-/* ── navigation ──────────────────────────────────────────────────────────── */
+/* ── suspense helpers ────────────────────────────────────────────────────────── */
 
-const LINKS = [
-  ["Profile", "#profile"],
-  ["Discovery", "#discovery"],
-  ["Company", "#company"],
-  ["Conference", "#conference"],
-  ["Plans", "#plans"],
-];
+const fallback = <div style={{ position: "fixed", inset: 0, background: MX.sheet }} />;
 
-function Nav() {
-  const [solid, setSolid] = useState(false);
-  const { mobile } = useViewport();
-
-  useEffect(() => {
-    let raf = 0;
-    const on = () => {
-      cancelAnimationFrame(raf);
-      raf = requestAnimationFrame(() => setSolid(window.scrollY > 80));
-    };
-    on();
-    window.addEventListener("scroll", on, { passive: true });
-    return () => {
-      window.removeEventListener("scroll", on);
-      cancelAnimationFrame(raf);
-    };
-  }, []);
-
+// Deep-demo surfaces that expect the marketing root + global styles around them.
+function Shell({ children }) {
   return (
-    <header
-      style={{
-        position: "fixed",
-        top: 0,
-        left: 0,
-        right: 0,
-        zIndex: 60,
-        // Deliberately NOT a backdrop-filter: blurring a full-width strip on every
-        // scroll frame is one of the most expensive things a fixed header can do.
-        background: solid ? "rgba(255,255,255,0.94)" : "transparent",
-        borderBottom: `1px solid ${solid ? MX.hair : "transparent"}`,
-        transition: `background 380ms ${EASE}, border-color 380ms ${EASE}`,
-      }}
-    >
-      <Wrap style={{ display: "flex", alignItems: "center", justifyContent: "space-between", height: 62 }}>
-        <a href="#top" style={{ textDecoration: "none" }}>
-          <span style={{ fontSize: 19, fontWeight: 700, letterSpacing: "-0.035em" }}>MineEx</span>
-        </a>
-        {!mobile && (
-          <nav style={{ display: "flex", gap: 26 }}>
-            {LINKS.map(([label, href]) => (
-              <a key={href} href={href} style={{ fontSize: 14, fontWeight: 600, color: MX.dim, textDecoration: "none" }}>
-                {label}
-              </a>
-            ))}
-          </nav>
-        )}
-        <a
-          href="#demo"
-          style={{
-            display: "inline-flex", alignItems: "center", height: 38, padding: "0 17px", borderRadius: 999,
-            background: MX.text, color: "#fff", fontSize: 13.5, fontWeight: 700, textDecoration: "none",
-          }}
-        >
-          Claim Your Company
-        </a>
-      </Wrap>
-    </header>
+    <div className="mx-root" id="top">
+      <MarketingStyles />
+      <React.Suspense fallback={fallback}>{children}</React.Suspense>
+    </div>
   );
 }
 
-/* ── footer ──────────────────────────────────────────────────────────────── */
-
-function Footer() {
-  const { mobile } = useViewport();
-  return (
-    <footer style={{ background: MX.ink, color: MX.onDark, borderTop: `1px solid ${MX.hairDark}`, padding: "44px 0 54px" }}>
-      <Wrap
-        style={{
-          display: "flex",
-          flexDirection: mobile ? "column" : "row",
-          alignItems: mobile ? "flex-start" : "center",
-          justifyContent: "space-between",
-          gap: 22,
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <img src="/marketing/mineex-core.webp" alt="" width={13} height={38} style={{ width: 13, height: 38 }} />
-          <div>
-            <p style={{ fontSize: 17, fontWeight: 700, letterSpacing: "-0.03em" }}>MineEx</p>
-            <p style={{ fontSize: 12.5, color: MX.onDarkMute, marginTop: 2 }}>The investor platform built for junior mining.</p>
-          </div>
-        </div>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 20 }}>
-          {[["Privacy", "/privacy.html"], ["Terms", "/terms.html"], ["Support", "/support.html"], ["Book a demo", "#demo"]].map(([l, h]) => (
-            <a key={h} href={h} style={{ fontSize: 13.5, fontWeight: 600, color: MX.onDarkDim, textDecoration: "none" }}>{l}</a>
-          ))}
-        </div>
-      </Wrap>
-      <Wrap style={{ marginTop: 26 }}>
-        <p style={{ fontSize: 12, color: MX.onDarkMute }}>
-          © {new Date().getFullYear()} MineEx. Company information shown on this page is drawn from published MineEx profiles; dashboard
-          figures are demonstration data.
-        </p>
-      </Wrap>
-    </footer>
-  );
-}
-
-/* ── page ────────────────────────────────────────────────────────────────── */
+/* ── page ────────────────────────────────────────────────────────────────────── */
 
 export default function MarketingSite() {
   useDocumentMeta();
@@ -181,49 +161,111 @@ export default function MarketingSite() {
     };
   }, [reduce]);
 
-  // Localhost-only single-section preview (see DEV in system.jsx).
-  if (DEV.only) {
-    const ONE = {
-      hero: Hero, problem: Problem, profile: CompanyProfileSection, discovered: Discovered,
-      follow: FollowMoment, informed: StayInformed, releases: PressReleases, media: Media,
-      dashboard: Dashboard, analytics: Analytics, conference: ConferenceMode,
-      booth: BoothToAudience, journey: Journey, offerings: Offerings, cta: FinalCta,
-    }[DEV.only];
-    if (ONE)
-      return (
-        <div className="mx-root" id="top">
-          <MarketingStyles />
-          <ONE />
-        </div>
-      );
+  // A readable path (/pricing) resolves to the query this file already routes on
+  // (?pricing=1), so both URL forms select the same surface. See marketing/routes.js.
+  const search = typeof window !== "undefined"
+    ? effectiveSearch(window.location.pathname, window.location.search)
+    : "";
+
+  // Directed-automation proof: the real iframe app driven by the DemoDirector.
+  if (/[?&]directedEmbed/.test(search)) return <Shell><DirectedEmbed /></Shell>;
+
+  // Phone lab — ISOLATED working version of the device composition. Imports nothing that the
+  // sales page, Pro page or Investor page render. Safe to experiment in.
+  if (/[?&]phonelab(=|&|$)/.test(search))
+    return <React.Suspense fallback={fallback}><PhoneLab /></React.Suspense>;
+
+  // Company Portal chapter — isolated first-slice preview.
+  if (/[?&]portalslice(=|&|$)/.test(search)) return <Shell><PortalSlice /></Shell>;
+
+  // Marketing-only Company-Portal render surface (full-screen, own chunk).
+  if (/[?&]portaldemo(=|&|$)/.test(search))
+    return <React.Suspense fallback={fallback}><PortalDemoRoute /></React.Suspense>;
+
+
+  // Marketing-only Conference fixture renderer (full-screen, own chunk).
+  if (/[?&]conffixture=/.test(search))
+    return <React.Suspense fallback={fallback}><ConferenceFixtureRoute /></React.Suspense>;
+
+  // PRIMARY homepage — lean surface (its own chunk).
+  if (/[?&]ecostory(=|&|$)/.test(search))
+    return <React.Suspense fallback={fallback}><EcoStoryRoute /></React.Suspense>;
+
+  if (/[?&]conftemplate(=|&|$)/.test(search))
+    return <React.Suspense fallback={fallback}><ConfTemplateRoute /></React.Suspense>;
+
+  // Conference Mode inquiry — checked before the Conference page (own chunk).
+  if (/[?&]confstart(=|&|$)/.test(search))
+    return <React.Suspense fallback={fallback}><ConferenceInquiry /></React.Suspense>;
+
+  if (/[?&]conference(=|&|$)/.test(search))
+    return <React.Suspense fallback={fallback}><ConferencePage /></React.Suspense>;
+
+  if (/[?&]investor(=|&|$)/.test(search))
+    return <React.Suspense fallback={fallback}><InvestorPage /></React.Suspense>;
+
+  // Contact / plan enquiry — where every pricing CTA leads.
+  if (/[?&]contact(=|&|$)/.test(search))
+    return <React.Suspense fallback={fallback}><ContactPage /></React.Suspense>;
+
+  // Android interstitial — where the Play badge leads until that listing publishes.
+  if (/[?&]android(=|&|$)/.test(search))
+    return <React.Suspense fallback={fallback}><AndroidSoon /></React.Suspense>;
+
+  if (/[?&]getapp(=|&|$)/.test(search))
+    return <React.Suspense fallback={fallback}><GetApp /></React.Suspense>;
+
+  if (/[?&]home2(=|&|$)/.test(search))
+    return <React.Suspense fallback={fallback}><Home2 /></React.Suspense>;
+
+  // Pricing tab — the pricing ONLY (nav + ProPricing), no Pro intro/walkthrough (its own chunk).
+  if (/[?&]compare(=|&|$)/.test(search))
+    return <React.Suspense fallback={fallback}><ComparePlans /></React.Suspense>;
+
+  if (/[?&]pricing(=|&|$)/.test(search))
+    return <React.Suspense fallback={fallback}><PricingPage /></React.Suspense>;
+
+  // Pro tab — intro → the full walkthrough → pricing (its own chunk).
+  if (/[?&]pro(=|&|$)/.test(search))
+    return <React.Suspense fallback={fallback}><ProPage /></React.Suspense>;
+
+  // Six-chapter desktop sales section (?story, optional &act=projects).
+  if (/[?&]story/.test(search))
+    return <Shell><NarrativeStory variant={/[?&]act=projects/.test(search) ? "projects" : "full"} /></Shell>;
+
+  // Pro Profile sales demo — the walkthrough alone (terminates at Follow).
+  if (/[?&]salesstory(=|&|$)/.test(search)) return <Shell><NarrativeStory variant="full" /></Shell>;
+
+  // Preserved integrated experience: Pro Profile → Conference → Portal.
+  if (/[?&]integratedstory(=|&|$)/.test(search)) return <Shell><SalesStory /></Shell>;
+
+  // Conference chapter — vertical-slice preview, with light/dark spacers.
+  if (/[?&]conf(=|&|$)/.test(search))
+    return (
+      <div className="mx-root" id="top">
+        <MarketingStyles />
+        <div style={{ height: "42vh", background: MX.sheet }} />
+        <React.Suspense fallback={fallback}><ConferenceAct /></React.Suspense>
+        <div style={{ height: "40vh", background: MX.ink }} />
+      </div>
+    );
+
+  // Three-state fidelity proof (full-screen, own chunk).
+  if (/[?&]embed(=|&|$)/.test(search))
+    return <React.Suspense fallback={fallback}><EmbedProofRoute /></React.Suspense>;
+
+  // Pro Profile demo stage: ?slice (current model) or ?directedDemo (A/B).
+  if (/[?&](slice|directedDemo)/.test(search)) {
+    const directed = /[?&]directedDemo/.test(search);
+    return (
+      <div className="mx-root" id="top">
+        <MarketingStyles />
+        <React.Suspense fallback={fallback}><ProProfileDemoStage /></React.Suspense>
+        {!directed && <div style={{ height: "70vh", background: MX.sheet }} />}
+      </div>
+    );
   }
 
-  return (
-    <div className="mx-root" id="top">
-      <MarketingStyles />
-      <Nav />
-      <main>
-        <Hero />
-        <Problem />
-        <span id="profile" style={{ display: "block", scrollMarginTop: 0 }} />
-        <CompanyProfileSection />
-        <span id="discovery" style={{ display: "block" }} />
-        <Discovered />
-        <FollowMoment />
-        <StayInformed />
-        <PressReleases />
-        <Media />
-        <span id="company" style={{ display: "block" }} />
-        <Dashboard />
-        <Analytics />
-        <span id="conference" style={{ display: "block" }} />
-        <ConferenceMode />
-        <BoothToAudience />
-        <Journey />
-        <Offerings />
-        <FinalCta />
-      </main>
-      <Footer />
-    </div>
-  );
+  // Default /site — the preserved legacy homepage (also serves the DEV.only preview).
+  return <React.Suspense fallback={fallback}><LegacyHome /></React.Suspense>;
 }

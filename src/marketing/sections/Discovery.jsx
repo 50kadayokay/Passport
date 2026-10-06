@@ -6,7 +6,7 @@ import {
   useTrack, useViewport, useReduce, ramp, win, mix, phoneWidth,
 } from "../system.jsx";
 import {
-  Fit, ExploreScreen, FeedScreen, ProfileScreen, FollowButton, PushNotification,
+  Fit, ExploreScreen, FeedScreen, ProfileScreen, FollowButton, PushNotification, AppShot,
 } from "../ui/AppUI.jsx";
 import { DIRECTORY, CO, RELEASES, IMG } from "../data.js";
 
@@ -35,7 +35,7 @@ export function Discovered() {
   }, [n]);
 
   return (
-    <div ref={track} className="mx-track" style={{ height: "300vh", background: MX.paper }}>
+    <div ref={track} className="mx-track" style={{ height: "160vh", background: MX.paper }}>
       <div className="mx-stage" style={{ background: MX.paper }}>
         <Wrap style={{ width: "100%" }}>
           <div style={{ display: "grid", gridTemplateColumns: mobile ? "1fr" : "minmax(0, 1fr) auto", gap: mobile ? 24 : 70, alignItems: "center" }}>
@@ -60,9 +60,9 @@ export function Discovered() {
                         padding: "9px 15px",
                         fontSize: 13.5,
                         fontWeight: 700,
-                        border: `1px solid ${on ? MX.em : "rgba(18,22,29,0.14)"}`,
-                        background: on ? MX.em : "transparent",
-                        color: on ? "#fff" : MX.mute,
+                        border: `1px solid ${on ? "var(--mx-accent)" : "rgba(18,22,29,0.14)"}`,
+                        background: on ? "var(--mx-accent)" : "transparent",
+                        color: on ? MX.ink : MX.mute,
                         transition: `all 460ms ${EASE} ${n * 40}ms`,
                       }}
                     >
@@ -78,9 +78,7 @@ export function Discovered() {
 
             <div style={{ order: mobile ? 1 : 2, display: "flex", justifyContent: "center" }}>
               <Phone width={phoneWidth(mobile)}>
-                <Fit>
-                  <ExploreScreen activeFilters={filters} results={results.length ? results : DIRECTORY} />
-                </Fit>
+                <AppShot name="explore" />
               </Phone>
             </div>
           </div>
@@ -104,7 +102,7 @@ export function FollowMoment() {
   const toggle = useCallback(() => setManual((m) => !(m == null ? auto : m)), [auto]);
 
   return (
-    <div ref={track} className="mx-track" style={{ height: "230vh", background: MX.ink }}>
+    <div ref={track} className="mx-track" style={{ height: "120vh", background: MX.ink }}>
       <div className="mx-stage" style={{ background: MX.ink, color: MX.onDark }}>
         <div
           aria-hidden
@@ -130,7 +128,7 @@ export function FollowMoment() {
               alignItems: "center",
               justifyContent: "center",
               gap: mobile ? 22 : 54,
-              marginTop: mobile ? 26 : 44,
+              marginTop: mobile ? 20 : 24,
             }}
           >
             <div style={{ position: "relative" }}>
@@ -145,9 +143,7 @@ export function FollowMoment() {
                 />
               )}
               <Phone width={phoneWidth(mobile)}>
-                <Fit>
-                  <ProfileScreen tab="overview" nav="explore" following={following} onFollow={toggle} />
-                </Fit>
+                <AppShot name="overview" />
               </Phone>
             </div>
 
@@ -194,7 +190,7 @@ export function StayInformed() {
   const notif = p >= 0.46 && p < 0.86;
 
   return (
-    <div ref={track} className="mx-track" style={{ height: "300vh", background: MX.sheet }}>
+    <div ref={track} className="mx-track" style={{ height: "150vh", background: MX.sheet }}>
       <div className="mx-stage" style={{ background: MX.sheet }}>
         <Wrap style={{ width: "100%" }}>
           <div style={{ textAlign: mobile ? "center" : "left", maxWidth: 620 }}>
@@ -210,7 +206,7 @@ export function StayInformed() {
               gridTemplateColumns: mobile ? "1fr" : "minmax(0, 1fr) 90px auto",
               alignItems: "center",
               gap: mobile ? 18 : 30,
-              marginTop: mobile ? 26 : 44,
+              marginTop: mobile ? 18 : 20,
             }}
           >
             {/* the company publishes */}
@@ -292,9 +288,7 @@ export function StayInformed() {
                   <PushNotification shown={notif} />
                 </div>
                 <Phone width={phoneWidth(mobile)}>
-                  <Fit>
-                    <FeedScreen reveal={cards} />
-                  </Fit>
+                  <AppShot name="feed" />
                 </Phone>
               </div>
             </div>

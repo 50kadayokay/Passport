@@ -4,7 +4,7 @@ import { signIn, signUp } from "../lib/auth.js";
 
 // Email/password auth card. `title`/`subtitle` let callers reframe it
 // (e.g. company hub vs. admin). onSuccess fires after a session is established.
-export default function LoginScreen({ onSuccess, title = "Sign in to Passport", subtitle = "Manage your company profile", brand = null, lockedEmail = "", defaultMode = "signin" }) {
+export default function LoginScreen({ onSuccess, title = "Sign in to MineEx", subtitle = "Manage your company profile", brand = null, lockedEmail = "", defaultMode = "signin" }) {
   const [mode, setMode] = useState(defaultMode); // signin | signup
   const [email, setEmail] = useState(lockedEmail || "");
   const [password, setPassword] = useState("");
@@ -55,7 +55,7 @@ export default function LoginScreen({ onSuccess, title = "Sign in to Passport", 
           <p className="mt-1.5 text-[13.5px] text-slate-500">{mode === "signup" ? "Create your MineEx company account to continue." : "Sign in to your MineEx company account to continue."}</p>
         </div>
       ) : (<>
-        <p className="text-[13px] font-bold uppercase tracking-[0.16em] text-blue-600">Passport</p>
+        <p className="text-[13px] font-bold uppercase tracking-[0.16em] text-blue-600">MineEx</p>
         <h1 className="mt-1 text-[26px] font-extrabold tracking-tight text-slate-900">{mode === "signup" ? "Create your account" : title}</h1>
         <p className="mt-1.5 text-[14px] text-slate-500">{mode === "signup" ? "Start building your company profile." : subtitle}</p>
       </>)}

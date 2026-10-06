@@ -286,12 +286,12 @@ function mapOneProject(p, i) {
       body: str(history.body), timeline: list(history.timeline) });
   }
   if (list(drills.rows).length) {
-    cards.push({ icon: "Drill", label: "Best Drill Results", sub: "Intercepts · assays", kind: "drills",
+    cards.push({ icon: "Drill", label: "Drill Intercepts", sub: "Intercepts · assays", kind: "drills",
       body: str(drills.body), rows: list(drills.rows) });
   } else {
     // Pre-drill is a real, meaningful state for a junior — say so rather than
     // hiding the card, which would read as "we're not telling you".
-    cards.push({ icon: "Drill", label: "Best Drill Results", sub: "Pre-drilling", kind: "drills",
+    cards.push({ icon: "Drill", label: "Drill Intercepts", sub: "Pre-drilling", kind: "drills",
       body: str(drills.body), empty: true,
       emptyMsg: str(drills.emptyMsg) || "No drill results disclosed for this project yet." });
   }

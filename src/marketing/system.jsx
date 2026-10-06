@@ -142,7 +142,7 @@ export function useInView(ref) {
 
 const MOTION = {
   eyebrow: { y: 10, dur: 480, delay: 0, stagger: 60 },
-  heading: { y: 30, dur: 620, delay: 60, stagger: 0, blur: 5 },
+  heading: { y: 24, dur: 560, delay: 60, stagger: 0 },
   copy: { y: 16, dur: 520, delay: 190, stagger: 90 },
   item: { y: 18, dur: 520, delay: 160, stagger: 70 },
   media: { y: 30, dur: 760, delay: 120, stagger: 0, scaleFrom: 0.965 },
@@ -229,7 +229,7 @@ function schedule() {
   requestAnimationFrame(runTick);
 }
 
-function subscribe(fn) {
+export function subscribe(fn) {
   tickers.add(fn);
   if (!listening) {
     listening = true;
@@ -351,7 +351,7 @@ export function Eyebrow({ children, color, style, order = 0 }) {
   return (
     <Reveal kind="eyebrow" order={order}>
       <div className="mx-label" style={{ color: color || MX.emText, display: "inline-flex", alignItems: "center", gap: 12, ...style }}>
-        <span style={{ width: 22, height: 2, borderRadius: 2, background: "currentColor", opacity: 0.85 }} />
+        <span style={{ width: 22, height: 2, borderRadius: 2, background: "var(--mx-accent)", opacity: 1 }} />
         {children}
       </div>
     </Reveal>
@@ -424,7 +424,7 @@ export function Cta({ children, href = "#claim", kind = "primary", dark = false,
 // Device widths are capped by viewport HEIGHT as well as width, so a sticky scene
 // never grows taller than the stage it has to sit inside on a short laptop screen.
 export const phoneWidth = (mobile) =>
-  mobile ? "min(60vw, 250px, 30vh)" : "min(27vw, 320px, 31vh)";
+  mobile ? "min(64vw, 270px, 30vh)" : "min(31vw, 320px, 32vh)";
 
 
 // iPhone. Matches the frame the product itself uses in Conference Mode, so the
@@ -532,7 +532,7 @@ export function Tablet({ children, style, className = "" }) {
 }
 
 // Desktop browser chrome — for the company dashboard.
-export function Desktop({ children, label = "mineex.com/portal", style, className = "" }) {
+export function Desktop({ children, label = "mineex.ca/portal", style, className = "" }) {
   return (
     <div
       className={`mx-desktop ${className}`}
@@ -590,6 +590,10 @@ export function MarketingStyles() {
         color: ${MX.text};
         -webkit-font-smoothing: antialiased;
         overflow-x: clip;
+        /* One swappable accent. --mx-accent for dark grounds, --mx-accent-ink for
+           legibility on white. Overridden at runtime while comparing candidates. */
+        --mx-accent: #C6F04A;
+        --mx-accent-ink: #5f7a12;
       }
       .mx-root h1, .mx-root h2, .mx-root h3, .mx-root p, .mx-root figure { margin: 0; }
       .mx-root ul { margin: 0; padding: 0; list-style: none; }
@@ -608,15 +612,26 @@ export function MarketingStyles() {
       .mx-serif { font-family: ${SERIF}; font-weight: 400; letter-spacing: -0.01em; }
       .mx-num { font-variant-numeric: tabular-nums; }
 
+      .mx-cta { transition: transform 240ms ${EASE}, box-shadow 240ms ${EASE}, background 240ms ${EASE}, border-color 240ms ${EASE}, color 240ms ${EASE}; }
       .mx-cta:hover { transform: translateY(-1px); }
       .mx-cta:active { transform: translateY(0); }
+      .mx-cta svg { transition: transform 220ms ${EASE}; }
+      .mx-cta:hover svg { transform: translateX(3px); }
+      /* accent micro-interactions */
+      .mx-navlink { transition: color 200ms ease; }
+      .mx-navlink:hover { color: var(--mx-accent-ink); }
 
       /* Sticky demonstration scenes. */
       /* A 30,000px page keeps every scene in the DOM. content-visibility lets the
          browser skip layout and paint for the tracks that are nowhere near the
          viewport; each track has an explicit height, so nothing shifts. */
-      .mx-track { position: relative; content-visibility: auto; }
-      .mx-stage { position: sticky; top: 0; height: 100svh; display: flex; align-items: center; overflow: hidden; }
+      /* No content-visibility:auto — with a 100svh sticky child it mis-estimates
+         height and causes scroll-anchor jumps. The tracks are transform/opacity
+         only (device screens are static images), so rendering them is cheap. */
+      .mx-track { position: relative; }
+      /* padding-top reserves the fixed nav's band (62px), so vertically-centred
+         scene content is centred BELOW the nav and its headline never hides under it. */
+      .mx-stage { position: sticky; top: 0; height: 100svh; display: flex; align-items: center; overflow: hidden; padding-top: 62px; }
 
       @keyframes mx-cue { 0%,100% { transform: translateY(0); opacity: .55 } 50% { transform: translateY(6px); opacity: 1 } }
       .mx-cue { animation: mx-cue 2.4s ease-in-out infinite; }

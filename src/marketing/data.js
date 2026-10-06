@@ -26,6 +26,10 @@ const pair = (name) => ({ src: `${M}/${name}.webp`, sm: `${M}/${name}-sm.webp` }
 export const IMG = {
   avatar: `${M}/kingsmen-avatar.webp`,
   status: `${M}/kingsmen-status.webp`,
+  // White/transparent horizontal wordmark for the identity-card front. Drop the
+  // file at public/marketing/kingsmen-logo.webp; the front falls back to the
+  // avatar + name until it exists.
+  logo: `${M}/kingsmen-logo.webp`,
   drill: pair("site-7-active-drill-site"),
   colonial: pair("site-8-colonial-era-workings"),
   adit: pair("site-9-historic-adit"),
@@ -51,8 +55,8 @@ export const CO = {
     ["FSE", "TUY"],
   ],
   facts: [
-    { label: "Commodity", value: "Silver · Gold", icon: "gem" },
-    { label: "Jurisdiction", value: "Mexico", icon: "pin" },
+    { label: "Commodity", value: "Silver & Gold", icon: "gem" },
+    { label: "Jurisdiction", value: "Chihuahua, Mexico", icon: "pin" },
     { label: "Flagship project", value: "Las Coloradas", icon: "mountain" },
     { label: "Stage", value: "Explorer", icon: "trend" },
     { label: "Projects", value: "2 Projects", icon: "layers" },
@@ -71,6 +75,7 @@ export const CO = {
   },
   capital: {
     headline: "Fully Funded Through 2026",
+    desc: "The C$13M February bought deal fully funds the planned 2026 exploration program, with no near-term financing required.",
     rows: [
       ["Cash", "C$4.2M"],
       ["Debt", "C$0"],
@@ -86,6 +91,17 @@ export const CO = {
     "District-scale package expanded via the Claudia 2 acquisition",
   ],
 };
+
+// The 60-second AI Brief, as the app's own analyzer produces it (BRIEF_SECTIONS
+// in the shipped app). Orientation, not data — every line is drawn from the real
+// Kingsmen facts above, nothing invented.
+export const BRIEF = [
+  { k: "What they do", v: "A silver–gold explorer in Chihuahua, Mexico, advancing the Las Coloradas flagship alongside the Almoloya project." },
+  { k: "Why it matters", bullets: CO.keyPoints },
+  { k: "Right now", v: CO.status.detail },
+  { k: "Next catalyst", v: `${CO.status.next} — ${CO.status.eta}.` },
+  { k: "Funding", v: CO.capital.desc },
+];
 
 export const PROJECTS = [
   {
@@ -112,11 +128,12 @@ export const PROJECTS = [
   },
 ];
 
+// The real Kingsmen board & management, as the app's Leadership tab lists them.
 export const TEAM = [
-  { name: "Scott Emerson", role: "President, CEO & Director", initials: "SE" },
-  { name: "Jeremy Hanson", role: "VP Exploration", initials: "JH" },
-  { name: "Trevor Thomas", role: "Corporate Secretary", initials: "TT" },
-  { name: "Robert Eadie", role: "Director", initials: "RE" },
+  { name: "Scott Emerson", role: "President, CEO & Director", initials: "SE", verified: true, bio: "Resource and technology executive with senior management and directorship experience across public companies." },
+  { name: "Rodney B. Johnston", role: "Director", initials: "RJ", bio: "FCPA, FCA who retired from PricewaterhouseCoopers LLP after 35 years in audit and advisory." },
+  { name: "Nick DeMare", role: "CFO & Director", initials: "ND", bio: "President of Chase Management since 1991, providing accounting, compliance and corporate services to public companies." },
+  { name: "Kieran Downes", role: "Director", initials: "KD", bio: "Professional Geologist with over 40 years of diversified experience in gold, base metals and industrial minerals." },
 ];
 
 // Real releases, with the summary layer the app actually produces.
@@ -126,6 +143,7 @@ export const RELEASES = [
     d: "May 12",
     label: "60 km² satellite topo survey",
     category: "Exploration",
+    impact: "Notable",
     headline:
       "Kingsmen Completes 60 km² Precision Satellite Topographic Surveys at Las Coloradas and Almoloya",
     why: "Precision topography sharpens drill-hole positioning across both projects.",
@@ -140,6 +158,7 @@ export const RELEASES = [
     d: "Apr 7",
     label: "Acquires Claudia 2 claim & Saddle target",
     category: "Acquisition",
+    impact: "High",
     headline:
       "Kingsmen Acquires 100% Ownership of the Claudia 2 Claim, Adding Never-Drilled Saddle Target",
     why: "Adds a large, never-drilled target royalty-free — district upside at low cost.",
@@ -154,6 +173,7 @@ export const RELEASES = [
     d: "Feb 17",
     label: "Unveils fully-funded 2026 plan",
     category: "Financing",
+    impact: "High",
     headline:
       "Kingsmen Resources Announces Exploration Plans for Las Coloradas and Almoloya Following Fully Funded Financing",
     why: "A funded, detailed plan turns capital into a concrete catalyst calendar.",
@@ -169,6 +189,7 @@ export const RELEASES = [
     label: "Closes C$13M bought deal",
     category: "Financing",
     key: true,
+    impact: "Transformational",
     headline:
       "Kingsmen Resources Announces Closing of Bought Deal Private Placement for Gross Proceeds of C$13 Million",
     why: "Closing at C$13M makes the company fully funded and removes the dilution overhang.",

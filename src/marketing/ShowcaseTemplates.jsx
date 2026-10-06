@@ -79,7 +79,7 @@ export default function ShowcaseTemplates() {
         <div className="wrap">
           <div className="hero">
             <div className="ek">MineEx · Conference Mode</div>
-            <h1>Ten designs.<br />Your data. One booth.</h1>
+            <h1>{TEMPLATE_LIST.length} designs.<br />Your data. One booth.</h1>
             <p>Every template is populated automatically from your company's MineEx profile, then swiped through on an iPad at your booth. Pick a look — and a palette.</p>
             <div className="themebar">
               <span className="lab">Palette</span>

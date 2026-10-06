@@ -3,7 +3,7 @@ import React, { useRef } from "react";
 import {
   MX, EASE, Wrap, Reveal, Eyebrow, Phone, useTrack, useViewport, useReduce, ramp, win, mix, phoneWidth,
 } from "../system.jsx";
-import { Fit, ReleaseScreen, MediaScreen } from "../ui/AppUI.jsx";
+import { Fit, ReleaseScreen, MediaScreen, AppShot } from "../ui/AppUI.jsx";
 import { RAW_RELEASE, RELEASES, IMG } from "../data.js";
 
 /* ═════════════════════════════════════════ 7 · PRESS RELEASES ════════════ */
@@ -17,7 +17,7 @@ export function PressReleases() {
   const rawOut = win(p, 0.24, 0.6);
 
   return (
-    <div ref={track} className="mx-track" style={{ height: "300vh", background: MX.sheetDeep }}>
+    <div ref={track} className="mx-track" style={{ height: "165vh", background: MX.sheetDeep }}>
       <div className="mx-stage" style={{ background: MX.sheetDeep }}>
         <Wrap style={{ width: "100%" }}>
           <div style={{ textAlign: "center", maxWidth: 700, margin: "0 auto" }}>
@@ -33,7 +33,7 @@ export function PressReleases() {
               gridTemplateColumns: mobile ? "1fr" : "minmax(0, 1fr) auto",
               gap: mobile ? 24 : 60,
               alignItems: "center",
-              marginTop: mobile ? 26 : 46,
+              marginTop: mobile ? 20 : 26,
             }}
           >
             {/* the wall of text it arrives as */}
@@ -87,14 +87,12 @@ export function PressReleases() {
               }}
             >
               <Phone width={phoneWidth(mobile)}>
-                <Fit>
-                  <ReleaseScreen release={RELEASES[3]} />
-                </Fit>
+                <AppShot name="release" />
               </Phone>
             </div>
           </div>
 
-          <div style={{ textAlign: "center", marginTop: mobile ? 22 : 38, opacity: hand }}>
+          <div style={{ textAlign: "center", marginTop: mobile ? 16 : 24, opacity: hand }}>
             <p className="mx-lead" style={{ color: MX.dim, maxWidth: "52ch", margin: "0 auto" }}>
               Headline, why it matters, the key takeaways, the company behind it — and the full release, unchanged, one tap away.
               MineEx never edits the facts. It makes them navigable.
@@ -119,7 +117,20 @@ export function Media() {
   const drift = reduce ? 0 : (p - 0.5) * 2;
 
   return (
-    <div ref={track} className="mx-track" style={{ height: mobile ? "220vh" : "260vh", background: MX.ink }}>
+    <div ref={track} className="mx-track" style={{ height: mobile ? "125vh" : "140vh", background: MX.ink, position: "relative", zIndex: 2 }}>
+      {/* quieter echo of the Conference boundary: the dark Media section rises
+          under the light Press Releases section above. Flatter, so it feels
+          intentional rather than a repeat. Purely decorative. */}
+      <div
+        aria-hidden
+        style={{
+          position: "absolute", left: 0, right: 0, top: 0,
+          height: "clamp(34px, 5vh, 76px)", transform: "translateY(-99%)",
+          background: MX.ink,
+          borderRadius: "50% 50% 0 0 / 100% 100% 0 0",
+          zIndex: 1,
+        }}
+      />
       <div className="mx-stage" style={{ background: MX.ink, color: MX.onDark }}>
         <Wrap style={{ width: "100%" }}>
           <div style={{ display: "grid", gridTemplateColumns: mobile ? "1fr" : "minmax(0, 1fr) auto minmax(0, 0.85fr)", gap: mobile ? 24 : 46, alignItems: "center" }}>
@@ -136,9 +147,7 @@ export function Media() {
 
             <div style={{ order: mobile ? 3 : 2, display: "flex", justifyContent: "center" }}>
               <Phone width={phoneWidth(mobile)}>
-                <Fit>
-                  <MediaScreen />
-                </Fit>
+                <AppShot name="media" />
               </Phone>
             </div>
 

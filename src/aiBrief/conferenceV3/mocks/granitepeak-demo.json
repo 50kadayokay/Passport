@@ -1,0 +1,521 @@
+{
+  "slug": "granitepeak-demo",
+  "name": "Granite Peak Gold",
+  "profile": {
+    "team": [
+      {
+        "name": "Isla MacLeod",
+        "full": "Isla MacLeod",
+        "role": "Chief Executive Officer"
+      },
+      {
+        "name": "Alasdair Grant",
+        "full": "Alasdair Grant",
+        "role": "Non-Executive Chair"
+      },
+      {
+        "name": "Priya Menon",
+        "full": "Priya Menon",
+        "role": "Chief Financial Officer"
+      },
+      {
+        "name": "Callum Fraser",
+        "full": "Callum Fraser",
+        "role": "Head of Geology"
+      },
+      {
+        "name": "Morven Ross",
+        "full": "Morven Ross",
+        "role": "Project Director"
+      },
+      {
+        "name": "Euan Granite Peak",
+        "full": "Euan Granite Peak",
+        "role": "Head of Community & Environment"
+      },
+      {
+        "name": "Helen Achterberg",
+        "full": "Helen Achterberg",
+        "role": "Non-Executive Director"
+      },
+      {
+        "name": "David Osei",
+        "full": "David Osei",
+        "role": "Non-Executive Director"
+      }
+    ],
+    "brand": {
+      "hero": "/demo/granitepeak/a01.jpg"
+    },
+    "capital": {
+      "fd": "388M",
+      "cash": "$34M",
+      "debt": "Nil",
+      "options": "16M",
+      "warrants": "27M",
+      "marketCap": "$246M",
+      "outstanding": "345M",
+      "financing": [
+        {
+          "date": "2026-06",
+          "type": "Placing",
+          "amount": "$24M",
+          "purpose": "Granite Peak Feasibility Study and decline design"
+        },
+        {
+          "date": "2025-10",
+          "type": "Strategic investment",
+          "amount": "$10M",
+          "purpose": "Mid-tier gold producer takes a 9.2% stake"
+        }
+      ]
+    },
+    "company": {
+      "name": "Granite Peak Gold",
+      "slogan": "Ounces in the ground, value in the making.",
+      "ticker": "GPG",
+      "website": "granitepeak.example",
+      "listings": [
+        {
+          "ex": "TSX",
+          "sym": "GPG"
+        },
+        {
+          "ex": "NYSE American",
+          "sym": "GPGX"
+        }
+      ],
+      "commodity": "Gold",
+      "headquarters": "Reno, Nevada",
+      "jurisdiction": "Lander County, Nevada"
+    },
+    "projects": [
+      {
+        "key": "granite-peak",
+        "tag": "Pre-Feasibility",
+        "name": "Granite Peak",
+        "brief": {
+          "overview": "A large disseminated gold system in Lander County, Nevada — 3.20 million ounces Measured & Indicated at 0.85 g/t, advancing through a Pre-Feasibility Study toward a construction decision."
+        },
+        "unique": {
+          "evidence": [
+            "3.20 Moz Au @ 0.85 g/t M&I",
+            "Small-footprint underground mine",
+            "Planning consent in application"
+          ]
+        },
+        "gallery": [
+          {
+            "src": "/demo/granitepeak/a08.jpg"
+          },
+          {
+            "src": "/demo/granitepeak/a07.jpg"
+          },
+          {
+            "src": "/demo/granitepeak/a40.jpg"
+          }
+        ],
+        "geology": {
+          "body": "Quartz-sulphide veins along a steep shear in Dalradian metasediments, with high-grade shoots open at depth."
+        },
+        "resource": {
+          "rows": [
+            {
+              "grade": "0.85 g/t Au",
+              "tonnes": "117 Mt",
+              "category": "Measured & Indicated",
+              "contained": "3.20 Moz Au"
+            },
+            {
+              "grade": "5.1 g/t Au",
+              "tonnes": "2.6 Mt",
+              "category": "Inferred",
+              "contained": "0.43 Moz Au"
+            }
+          ],
+          "summary": "Granite Peak hosts Measured & Indicated resources of 5.4 million tonnes at 0.85 g/t gold for 3.20 million ounces, plus 2.6 million tonnes Inferred at 5.1 g/t gold."
+        },
+        "snapshot": {
+          "land": "8,600 ha",
+          "location": {
+            "value": "Granite Peak, Highland, Nevada"
+          },
+          "commodity": {
+            "value": "Gold"
+          },
+          "ownership": {
+            "value": "100%"
+          }
+        },
+        "stageName": "Feasibility",
+        "drillResults": {
+          "rows": [
+            {
+              "hole": "BR-25-022",
+              "note": "main vein, 180 m below surface",
+              "grade": "14.8 g/t Au",
+              "interval": "5.1 m"
+            },
+            {
+              "hole": "BR-25-031",
+              "note": "incl. 1.2 m @ 62.0 g/t Au",
+              "grade": "9.6 g/t Au",
+              "interval": "7.4 m"
+            },
+            {
+              "hole": "BR-25-044",
+              "note": "new footwall vein",
+              "grade": "6.2 g/t Au",
+              "interval": "4.0 m"
+            },
+            {
+              "hole": "BR-26-008",
+              "note": "deepest intercept to date",
+              "grade": "8.9 g/t Au",
+              "interval": "6.3 m"
+            },
+            {
+              "hole": "BR-26-015",
+              "note": "250 m along strike",
+              "grade": "11.2 g/t Au",
+              "interval": "3.8 m"
+            }
+          ]
+        },
+        "coords": {
+          "lat": 57.05,
+          "lng": -4.95
+        }
+      },
+      {
+        "key": "silver-ridge",
+        "tag": "Exploration",
+        "name": "Silver Ridge",
+        "brief": {
+          "overview": "A gold-silver exploration trend adjacent to Granite Peak, where early drilling has returned encouraging intercepts."
+        },
+        "unique": {
+          "evidence": [
+            "Visible gold in first drilling",
+            "6 km soil anomaly",
+            "Same structural corridor"
+          ]
+        },
+        "gallery": [
+          {
+            "src": "/demo/granitepeak/a12.jpg"
+          },
+          {
+            "src": "/demo/granitepeak/a23.jpg"
+          },
+          {
+            "src": "/demo/granitepeak/a41.jpg"
+          }
+        ],
+        "geology": {
+          "body": "Shear-hosted quartz veins in Moine schists."
+        },
+        "resource": {
+          "rows": [],
+          "summary": ""
+        },
+        "snapshot": {
+          "land": "5,200 ha",
+          "location": {
+            "value": "Lander County, Nevada, Highland, Nevada"
+          },
+          "commodity": {
+            "value": "Gold"
+          },
+          "ownership": {
+            "value": "100%"
+          }
+        },
+        "stageName": "Exploration",
+        "drillResults": {
+          "rows": []
+        },
+        "coords": {
+          "lat": 57.55,
+          "lng": -5.2
+        }
+      },
+      {
+        "key": "copper-basin",
+        "tag": "Early-stage",
+        "name": "Copper Basin",
+        "brief": {
+          "overview": "An early-stage copper-gold target in the district, defined by surface geochemistry and geophysics."
+        },
+        "unique": {
+          "evidence": [
+            "Gold-copper stream anomalies",
+            "Road access",
+            "Option to earn 75%"
+          ]
+        },
+        "gallery": [
+          {
+            "src": "/demo/granitepeak/a49.jpg"
+          },
+          {
+            "src": "/demo/granitepeak/a45.jpg"
+          },
+          {
+            "src": "/demo/granitepeak/a38.jpg"
+          }
+        ],
+        "geology": {
+          "body": "Intrusion-related veining at a granite margin."
+        },
+        "resource": {
+          "rows": [],
+          "summary": ""
+        },
+        "snapshot": {
+          "land": "3,900 ha",
+          "location": {
+            "value": "Lander County, Nevada, Highland, Nevada"
+          },
+          "commodity": {
+            "value": "Gold-Copper"
+          },
+          "ownership": {
+            "value": "Option to earn 75%"
+          }
+        },
+        "stageName": "Early-stage",
+        "drillResults": {
+          "rows": []
+        },
+        "coords": {
+          "lat": 57.9,
+          "lng": -4.4
+        }
+      }
+    ],
+    "timeline": [
+      {
+        "date": "2026-07-30",
+        "headline": "Granite Peak Feasibility Study commenced",
+        "keyNumbers": [
+          "FS"
+        ],
+        "whyItMatters": "The final study before a construction decision."
+      },
+      {
+        "date": "2026-06-18",
+        "headline": "$24M placing completed",
+        "keyNumbers": [
+          "$24M"
+        ],
+        "whyItMatters": "Funds the Feasibility Study and decline design."
+      },
+      {
+        "date": "2026-04-09",
+        "headline": "BR-26-015 cuts 3.8 m @ 11.2 g/t Au 250 m along strike",
+        "keyNumbers": [
+          "11.2 g/t"
+        ],
+        "whyItMatters": "Extends high grade along strike."
+      },
+      {
+        "date": "2026-01-21",
+        "headline": "Planning application lodged for Granite Peak",
+        "keyNumbers": [
+          "Planning"
+        ],
+        "whyItMatters": "Starts the formal consent process."
+      },
+      {
+        "date": "2025-10-14",
+        "headline": "Mid-tier gold producer takes a 9.2% stake",
+        "keyNumbers": [
+          "$10M",
+          "9.2%"
+        ],
+        "whyItMatters": "A strategic partner."
+      }
+    ],
+    "catalysts": [
+      {
+        "label": "Granite Peak Feasibility Study",
+        "impact": "Supports a construction decision on a small-footprint underground gold mine.",
+        "timing": "Q3 2027"
+      }
+    ],
+    "conference": {
+      "hook": "Ounces in the ground, value in the making.",
+      "studio": {
+        "theme": "obsidian",
+        "accent": "",
+        "template": "vista"
+      },
+      "enabled": true,
+      "gallery": {
+        "overview": [
+          "/demo/granitepeak/a02.jpg"
+        ],
+        "results": [
+          "/demo/granitepeak/a41.jpg"
+        ],
+        "follow": [
+          "/demo/granitepeak/a03.jpg"
+        ],
+        "jurisdiction": [
+          "/demo/granitepeak/a13.jpg"
+        ],
+        "extra": [
+          "/demo/granitepeak/a04.jpg",
+          "/demo/granitepeak/a05.jpg",
+          "/demo/granitepeak/a06.jpg",
+          "/demo/granitepeak/a09.jpg",
+          "/demo/granitepeak/a10.jpg",
+          "/demo/granitepeak/a11.jpg",
+          "/demo/granitepeak/a14.jpg",
+          "/demo/granitepeak/a15.jpg",
+          "/demo/granitepeak/a16.jpg",
+          "/demo/granitepeak/a17.jpg",
+          "/demo/granitepeak/a18.jpg",
+          "/demo/granitepeak/a19.jpg",
+          "/demo/granitepeak/a20.jpg",
+          "/demo/granitepeak/a21.jpg",
+          "/demo/granitepeak/a22.jpg",
+          "/demo/granitepeak/a24.jpg",
+          "/demo/granitepeak/a25.jpg",
+          "/demo/granitepeak/a26.jpg",
+          "/demo/granitepeak/a27.jpg",
+          "/demo/granitepeak/a28.jpg",
+          "/demo/granitepeak/a29.jpg",
+          "/demo/granitepeak/a30.jpg",
+          "/demo/granitepeak/a31.jpg",
+          "/demo/granitepeak/a32.jpg",
+          "/demo/granitepeak/a33.jpg",
+          "/demo/granitepeak/a34.jpg",
+          "/demo/granitepeak/a35.jpg",
+          "/demo/granitepeak/a36.jpg",
+          "/demo/granitepeak/a37.jpg",
+          "/demo/granitepeak/a39.jpg",
+          "/demo/granitepeak/a42.jpg",
+          "/demo/granitepeak/a43.jpg",
+          "/demo/granitepeak/a44.jpg",
+          "/demo/granitepeak/a46.jpg",
+          "/demo/granitepeak/a47.jpg",
+          "/demo/granitepeak/a48.jpg",
+          "/demo/granitepeak/a50.jpg",
+          "/demo/granitepeak/a51.jpg",
+          "/demo/granitepeak/a52.jpg",
+          "/demo/granitepeak/a53.jpg",
+          "/demo/granitepeak/a54.jpg",
+          "/demo/granitepeak/a55.jpg",
+          "/demo/granitepeak/a56.jpg",
+          "/demo/granitepeak/a57.jpg",
+          "/demo/granitepeak/a58.jpg"
+        ]
+      },
+      "_derived": true,
+      "overview": "Granite Peak is advancing the high-grade Granite Peak gold project in the Nevada.",
+      "highlights": [
+        {
+          "label": "Gold (M&I)",
+          "value": "3.20 Moz",
+          "context": "0.85 g/t Au",
+          "featured": true
+        },
+        {
+          "label": "Inferred",
+          "value": "0.43 Moz",
+          "context": "5.1 g/t Au",
+          "featured": false
+        },
+        {
+          "label": "Best intercept",
+          "value": "14.8 g/t",
+          "context": "over 5.1 m",
+          "featured": false
+        },
+        {
+          "label": "Land",
+          "value": "17,700 ha",
+          "context": "three projects",
+          "featured": false
+        },
+        {
+          "label": "Cash",
+          "value": "$34M",
+          "context": "no debt",
+          "featured": false
+        }
+      ],
+      "evidenceType": "drill_results",
+      "featuredGrade": {
+        "grade": "14.8 g/t Au",
+        "width": "5.1 m",
+        "context": "BR-25-022",
+        "location": "Granite Peak"
+      },
+      "heroStatistic": {
+        "label": "Gold · Measured & Indicated",
+        "value": "3.20 Moz",
+        "context": "@ 0.85 g/t Au · 117 Mt"
+      },
+      "investmentCase": [
+        {
+          "reason": "Grade: 3.20 million ounces Measured & Indicated at 0.85 g/t gold, open at depth.",
+          "featured": true
+        },
+        {
+          "reason": "Footprint: planned as a small underground mine with a dry-stack tailings design.",
+          "featured": false
+        },
+        {
+          "reason": "Location: the Nevada, with road, grid and a regional airport within reach.",
+          "featured": false
+        },
+        {
+          "reason": "Funded: $34 million in cash and no debt through the Feasibility Study.",
+          "featured": false
+        }
+      ],
+      "projectGallery": {
+        "beinn-ruadh": [
+          "/demo/granitepeak/a08.jpg",
+          "/demo/granitepeak/a07.jpg",
+          "/demo/granitepeak/a40.jpg"
+        ]
+      },
+      "currentActivity": "Feasibility Study underway",
+      "featuredProjectKey": "beinn-ruadh",
+      "jurisdictionWidgets": {
+        "district": "Granite Peak",
+        "commodity": "Gold",
+        "provinceState": "Highland"
+      }
+    },
+    "companyBrief": {
+      "headline": "Ounces in the ground, value in the making.",
+      "keyPoints": [
+        "3.20 Moz Au @ 0.85 g/t M&I",
+        "117 Mt Measured & Indicated",
+        "Pre-Feasibility Study underway",
+        "Advancing toward a construction decision",
+        "Lander County, Nevada"
+      ],
+      "shortSummary": "A 3.2-million-ounce gold developer advancing Granite Peak toward a construction decision in Nevada.",
+      "businessDescription": "Granite Peak Gold is advancing the Granite Peak gold project in Lander County, Nevada — 3.20 million ounces Measured & Indicated at 0.85 g/t — through a Pre-Feasibility Study toward a construction decision."
+    },
+    "companyStatus": {
+      "expected": "Q3 2026",
+      "progressBar": {
+        "unit": "milestones",
+        "label": "2026–27 plan",
+        "total": 8,
+        "current": 5
+      },
+      "nextCatalyst": "Granite Peak Pre-Feasibility Study results",
+      "statusHeadline": "Pre-Feasibility Study underway at Granite Peak",
+      "investmentImpact": "PFS results expected to support a construction decision."
+    },
+    "_demo": "FICTIONAL demo company for Conference Mode template previews. All names, figures and people are invented."
+  }
+}

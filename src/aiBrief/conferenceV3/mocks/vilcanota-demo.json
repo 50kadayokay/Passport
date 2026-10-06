@@ -1,0 +1,519 @@
+{
+ "slug": "vilcanota-demo",
+ "name": "Vilcanota Silver Corp.",
+ "profile": {
+  "team": [
+   {
+    "name": "Isabel Quispe",
+    "full": "Isabel Quispe",
+    "role": "President & CEO"
+   },
+   {
+    "name": "Andrew Hollis",
+    "full": "Andrew Hollis",
+    "role": "Chair"
+   },
+   {
+    "name": "Carolina Vargas",
+    "full": "Carolina Vargas",
+    "role": "Chief Financial Officer"
+   },
+   {
+    "name": "Diego Mamani",
+    "full": "Diego Mamani",
+    "role": "VP Exploration"
+   },
+   {
+    "name": "Hannah Okafor",
+    "full": "Hannah Okafor",
+    "role": "VP Projects & Engineering"
+   },
+   {
+    "name": "Rodrigo Chávez",
+    "full": "Rodrigo Chávez",
+    "role": "VP Community & Social Performance"
+   },
+   {
+    "name": "Margaret Lin",
+    "full": "Margaret Lin",
+    "role": "Director"
+   },
+   {
+    "name": "Julián Ferreyra",
+    "full": "Julián Ferreyra",
+    "role": "Director"
+   }
+  ],
+  "brand": {
+   "hero": "/demo/vilcanota/v01.jpg"
+  },
+  "capital": {
+   "fd": "241M",
+   "cash": "US$46M",
+   "debt": "Nil",
+   "options": "11M",
+   "warrants": "18M",
+   "marketCap": "US$388M",
+   "outstanding": "212M",
+   "financing": [
+    {
+     "date": "2026-04",
+     "type": "Bought-deal financing",
+     "amount": "US$35M",
+     "purpose": "Qolqepata Feasibility Study and Ananta drilling"
+    },
+    {
+     "date": "2025-11",
+     "type": "Strategic investment",
+     "amount": "US$18M",
+     "purpose": "9.9% equity stake by a mid-tier copper producer"
+    }
+   ]
+  },
+  "company": {
+   "name": "Vilcanota Silver Corp.",
+   "slogan": "Silver and copper from the high Andes of Cusco.",
+   "ticker": "VLC",
+   "website": "vilcanota.example",
+   "listings": [
+    {
+     "ex": "TSX",
+     "sym": "VLC"
+    },
+    {
+     "ex": "NYSE American",
+     "sym": "VLCS"
+    }
+   ],
+   "commodity": "Silver-Copper",
+   "headquarters": "Lima, Peru",
+   "jurisdiction": "Cusco, Peru"
+  },
+  "projects": [
+   {
+    "key": "qolqepata",
+    "tag": "Feasibility",
+    "name": "Qolqepata",
+    "brief": {
+     "overview": "A silver-copper deposit on the high plateau of Espinar province with 157 million ounces of silver and 704 million pounds of copper Measured & Indicated, now in a Feasibility Study."
+    },
+    "unique": {
+     "evidence": [
+      "157 Moz Ag + 704 Mlb Cu M&I",
+      "16-year open pit (PFS)",
+      "Road and grid within 25 km"
+     ]
+    },
+    "gallery": [
+     {
+      "src": "/demo/vilcanota/v04.jpg"
+     },
+     {
+      "src": "/demo/vilcanota/v02.jpg"
+     },
+     {
+      "src": "/demo/vilcanota/v37.jpg"
+     }
+    ],
+    "geology": {
+     "body": "Silver-rich copper skarn and overprinting epithermal veins at the contact of a Miocene porphyry intrusion with Cretaceous limestone."
+    },
+    "resource": {
+     "rows": [
+      {
+       "grade": "58 g/t Ag · 0.38% Cu",
+       "tonnes": "84 Mt",
+       "category": "Measured & Indicated",
+       "contained": "157 Moz Ag · 704 Mlb Cu"
+      },
+      {
+       "grade": "44 g/t Ag · 0.29% Cu",
+       "tonnes": "31 Mt",
+       "category": "Inferred",
+       "contained": "44 Moz Ag · 198 Mlb Cu"
+      }
+     ],
+     "summary": "Qolqepata hosts Measured & Indicated resources of 84 million tonnes at 58 g/t silver and 0.38% copper, plus 31 million tonnes Inferred."
+    },
+    "snapshot": {
+     "land": "14,200 ha",
+     "location": {
+      "value": "Espinar, Cusco, Peru"
+     },
+     "commodity": {
+      "value": "Silver-Copper"
+     },
+     "ownership": {
+      "value": "100%"
+     }
+    },
+    "stageName": "Feasibility",
+    "drillResults": {
+     "rows": [
+      {
+       "hole": "QP-25-031",
+       "note": "skarn core",
+       "grade": "184 g/t Ag · 0.72% Cu",
+       "interval": "62.4 m"
+      },
+      {
+       "hole": "QP-25-044",
+       "note": "from surface",
+       "grade": "71 g/t Ag · 0.46% Cu",
+       "interval": "118.0 m"
+      },
+      {
+       "hole": "QP-26-007",
+       "note": "high-grade silver vein",
+       "grade": "612 g/t Ag · 1.35% Cu",
+       "interval": "14.2 m"
+      },
+      {
+       "hole": "QP-26-015",
+       "note": "deepest intercept to date",
+       "grade": "96 g/t Ag · 0.51% Cu",
+       "interval": "88.6 m"
+      },
+      {
+       "hole": "QP-26-022",
+       "note": "new eastern zone",
+       "grade": "238 g/t Ag · 0.94% Cu",
+       "interval": "41.0 m"
+      }
+     ]
+    },
+    "coords": {
+     "lat": -14.58,
+     "lng": -71.52
+    }
+   },
+   {
+    "key": "ananta",
+    "tag": "Exploration",
+    "name": "Ananta",
+    "brief": {
+     "overview": "A 6 km silver-copper trend in the Canchis highlands, where the first ten holes intersected skarn and vein mineralisation."
+    },
+    "unique": {
+     "evidence": [
+      "Skarn in first drilling",
+      "6 km soil trend",
+      "Same Miocene intrusive belt"
+     ]
+    },
+    "gallery": [
+     {
+      "src": "/demo/vilcanota/v16.jpg"
+     },
+     {
+      "src": "/demo/vilcanota/v30.jpg"
+     },
+     {
+      "src": "/demo/vilcanota/v33.jpg"
+     }
+    ],
+    "geology": {
+     "body": "Copper-silver skarn along a limestone-intrusion contact."
+    },
+    "resource": {
+     "rows": [],
+     "summary": ""
+    },
+    "snapshot": {
+     "land": "9,600 ha",
+     "location": {
+      "value": "Canchis, Cusco, Peru"
+     },
+     "commodity": {
+      "value": "Silver-Copper"
+     },
+     "ownership": {
+      "value": "100%"
+     }
+    },
+    "stageName": "Exploration",
+    "drillResults": {
+     "rows": []
+    },
+    "coords": {
+     "lat": -14.05,
+     "lng": -71.02
+    }
+   },
+   {
+    "key": "wayra",
+    "tag": "Early-stage",
+    "name": "Wayra",
+    "brief": {
+     "overview": "A silver vein target defined by mapping and rock sampling in Chumbivilcas, held under an option to earn 80%."
+    },
+    "unique": {
+     "evidence": [
+      "Rock samples to 1,140 g/t Ag",
+      "Historic small-scale workings",
+      "Option to earn 80%"
+     ]
+    },
+    "gallery": [
+     {
+      "src": "/demo/vilcanota/v50.jpg"
+     },
+     {
+      "src": "/demo/vilcanota/v19.jpg"
+     },
+     {
+      "src": "/demo/vilcanota/v45.jpg"
+     }
+    ],
+    "geology": {
+     "body": "Epithermal silver-base-metal veins in Tertiary volcanic rocks."
+    },
+    "resource": {
+     "rows": [],
+     "summary": ""
+    },
+    "snapshot": {
+     "land": "5,300 ha",
+     "location": {
+      "value": "Chumbivilcas, Cusco, Peru"
+     },
+     "commodity": {
+      "value": "Silver"
+     },
+     "ownership": {
+      "value": "Option to earn 80%"
+     }
+    },
+    "stageName": "Early-stage",
+    "drillResults": {
+     "rows": []
+    },
+    "coords": {
+     "lat": -14.33,
+     "lng": -72.12
+    }
+   }
+  ],
+  "timeline": [
+   {
+    "date": "2026-08-18",
+    "headline": "Qolqepata Feasibility Study commenced",
+    "keyNumbers": [
+     "FS"
+    ],
+    "whyItMatters": "The final study before a construction decision."
+   },
+   {
+    "date": "2026-06-09",
+    "headline": "Community agreement signed with two host communities",
+    "keyNumbers": [
+     "2"
+    ],
+    "whyItMatters": "Twenty-year access, employment and water-monitoring framework."
+   },
+   {
+    "date": "2026-04-22",
+    "headline": "US$35M bought-deal financing closed",
+    "keyNumbers": [
+     "US$35M"
+    ],
+    "whyItMatters": "Funds the Feasibility Study and Ananta drilling."
+   },
+   {
+    "date": "2026-02-11",
+    "headline": "QP-26-007 cuts 14.2 m @ 612 g/t Ag in a silver vein",
+    "keyNumbers": [
+     "612 g/t Ag"
+    ],
+    "whyItMatters": "A new high-grade vein above the skarn core."
+   },
+   {
+    "date": "2025-10-15",
+    "headline": "Pre-Feasibility Study outlines a 16-year open-pit mine",
+    "keyNumbers": [
+     "16 years"
+    ],
+    "whyItMatters": "First development case for Qolqepata."
+   }
+  ],
+  "catalysts": [
+   {
+    "label": "Qolqepata Feasibility Study",
+    "impact": "Supports a construction decision on a silver-copper mine in Cusco.",
+    "timing": "Q3 2027"
+   }
+  ],
+  "conference": {
+   "hook": "Silver and copper from the high Andes of Cusco.",
+   "studio": {
+    "theme": "obsidian",
+    "accent": "",
+    "template": "keynote"
+   },
+   "enabled": true,
+   "gallery": {
+    "overview": [
+     "/demo/vilcanota/v03.jpg"
+    ],
+    "results": [
+     "/demo/vilcanota/v36.jpg"
+    ],
+    "follow": [
+     "/demo/vilcanota/v46.jpg"
+    ],
+    "jurisdiction": [
+     "/demo/vilcanota/v27.jpg"
+    ],
+    "extra": [
+     "/demo/vilcanota/v05.jpg",
+     "/demo/vilcanota/v06.jpg",
+     "/demo/vilcanota/v07.jpg",
+     "/demo/vilcanota/v08.jpg",
+     "/demo/vilcanota/v09.jpg",
+     "/demo/vilcanota/v10.jpg",
+     "/demo/vilcanota/v11.jpg",
+     "/demo/vilcanota/v12.jpg",
+     "/demo/vilcanota/v13.jpg",
+     "/demo/vilcanota/v14.jpg",
+     "/demo/vilcanota/v15.jpg",
+     "/demo/vilcanota/v17.jpg",
+     "/demo/vilcanota/v18.jpg",
+     "/demo/vilcanota/v20.jpg",
+     "/demo/vilcanota/v21.jpg",
+     "/demo/vilcanota/v22.jpg",
+     "/demo/vilcanota/v23.jpg",
+     "/demo/vilcanota/v24.jpg",
+     "/demo/vilcanota/v25.jpg",
+     "/demo/vilcanota/v26.jpg",
+     "/demo/vilcanota/v28.jpg",
+     "/demo/vilcanota/v29.jpg",
+     "/demo/vilcanota/v31.jpg",
+     "/demo/vilcanota/v32.jpg",
+     "/demo/vilcanota/v34.jpg",
+     "/demo/vilcanota/v35.jpg",
+     "/demo/vilcanota/v38.jpg",
+     "/demo/vilcanota/v39.jpg",
+     "/demo/vilcanota/v40.jpg",
+     "/demo/vilcanota/v41.jpg",
+     "/demo/vilcanota/v42.jpg",
+     "/demo/vilcanota/v43.jpg",
+     "/demo/vilcanota/v44.jpg",
+     "/demo/vilcanota/v47.jpg",
+     "/demo/vilcanota/v48.jpg",
+     "/demo/vilcanota/v49.jpg",
+     "/demo/vilcanota/v51.jpg",
+     "/demo/vilcanota/v52.jpg",
+     "/demo/vilcanota/v53.jpg",
+     "/demo/vilcanota/v54.jpg",
+     "/demo/vilcanota/v55.jpg",
+     "/demo/vilcanota/v56.jpg",
+     "/demo/vilcanota/v57.jpg",
+     "/demo/vilcanota/v58.jpg"
+    ]
+   },
+   "_derived": true,
+   "overview": "Vilcanota is advancing the Qolqepata silver-copper project in Cusco, Peru.",
+   "highlights": [
+    {
+     "label": "Silver (M&I)",
+     "value": "157 Moz",
+     "context": "58 g/t Ag",
+     "featured": true
+    },
+    {
+     "label": "Copper (M&I)",
+     "value": "704 Mlb",
+     "context": "0.38% Cu",
+     "featured": false
+    },
+    {
+     "label": "Best silver",
+     "value": "612 g/t Ag",
+     "context": "over 14.2 m",
+     "featured": false
+    },
+    {
+     "label": "Mine life (PFS)",
+     "value": "16 years",
+     "context": "open pit",
+     "featured": false
+    },
+    {
+     "label": "Cash",
+     "value": "US$46M",
+     "context": "no debt",
+     "featured": false
+    }
+   ],
+   "evidenceType": "drill_results",
+   "featuredGrade": {
+    "grade": "184 g/t Ag · 0.72% Cu",
+    "width": "62.4 m",
+    "context": "QP-25-031",
+    "location": "Qolqepata"
+   },
+   "heroStatistic": {
+    "label": "Silver · Measured & Indicated",
+    "value": "157 Moz",
+    "context": "+ 704 Mlb copper · 84 Mt"
+   },
+   "investmentCase": [
+    {
+     "reason": "Scale: 157 million ounces of silver and 704 million pounds of copper Measured & Indicated.",
+     "featured": true
+    },
+    {
+     "reason": "Economics: a Pre-Feasibility Study outlines a 16-year open-pit mine.",
+     "featured": false
+    },
+    {
+     "reason": "Infrastructure: paved road and the national grid within 25 km of Qolqepata.",
+     "featured": false
+    },
+    {
+     "reason": "Funded: US$46 million in cash, no debt, and a strategic copper producer on the register.",
+     "featured": false
+    }
+   ],
+   "projectGallery": {
+    "qolqepata": [
+     "/demo/vilcanota/v04.jpg",
+     "/demo/vilcanota/v02.jpg",
+     "/demo/vilcanota/v37.jpg"
+    ]
+   },
+   "currentActivity": "Feasibility Study underway",
+   "featuredProjectKey": "qolqepata",
+   "jurisdictionWidgets": {
+    "district": "Southern Cusco highlands",
+    "commodity": "Silver-Copper",
+    "provinceState": "Cusco"
+   }
+  },
+  "companyBrief": {
+   "headline": "Silver and copper from the high Andes of Cusco.",
+   "keyPoints": [
+    "157 Moz Ag + 704 Mlb Cu M&I",
+    "16-year mine life (PFS)",
+    "Feasibility Study underway",
+    "Community agreement signed",
+    "US$46M cash, no debt"
+   ],
+   "shortSummary": "A silver-copper developer advancing Qolqepata toward a construction decision.",
+   "businessDescription": "Vilcanota explores and develops silver and copper in the Cusco Region of southern Peru."
+  },
+  "companyStatus": {
+   "expected": "Q3 2027",
+   "progressBar": {
+    "unit": "milestones",
+    "label": "2026–27 plan",
+    "total": 8,
+    "current": 5
+   },
+   "nextCatalyst": "Qolqepata Feasibility Study",
+   "statusHeadline": "Feasibility Study underway at Qolqepata",
+   "investmentImpact": "FS expected to support a construction decision."
+  },
+  "_demo": "FICTIONAL demo company for Conference Mode template previews. All names, figures and people are invented; project coordinates are illustrative points inside the Cusco Region."
+ }
+}
