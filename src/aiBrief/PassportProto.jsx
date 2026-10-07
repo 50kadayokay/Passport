@@ -957,6 +957,27 @@ function ProfileHeader({ tab, setTab, following, setFollowing, onBack, onContact
             </a>
           )}
           {COMPANY.slogan && <p className="mt-0.5 text-[12px] font-medium tracking-tight text-slate-500">{COMPANY.slogan}</p>}
+          {/* company social links (NOT phone/email — those live only in the Contact sheet) */}
+          {(() => {
+            const c = CONTACT || {};
+            const soc = (v, base) => (v ? (/^https?:/.test(v) ? v : base + String(v).replace(/^[@/]+/, "")) : "");
+            const items = [
+              (COMPANY.linkedin || c.linkedin) && { href: soc(COMPANY.linkedin || c.linkedin, "https://www.linkedin.com/"), Icon: Linkedin, label: "LinkedIn" },
+              (COMPANY.twitter || c.twitter) && { href: soc(COMPANY.twitter || c.twitter, "https://x.com/"), Icon: Twitter, label: "X" },
+              COMPANY.instagram && { href: soc(COMPANY.instagram, "https://instagram.com/"), Icon: Instagram, label: "Instagram" },
+            ].filter(Boolean);
+            if (!items.length) return null;
+            return (
+              <div className="mt-2 flex items-center gap-1.5">
+                {items.map((it, i) => (
+                  <a key={i} href={it.href} target="_blank" rel="noreferrer" aria-label={it.label}
+                    className="grid h-8 w-8 place-items-center rounded-full border border-slate-200 bg-white text-slate-500 transition active:scale-90 hover:text-slate-900">
+                    <it.Icon size={14} strokeWidth={2.2} />
+                  </a>
+                ))}
+              </div>
+            );
+          })()}
         </div>
       </div>
 
@@ -9701,15 +9722,15 @@ export function CompanyProfile({ onBack, onScan, tab: controlledTab, onTabChange
         ].filter(Boolean);
         return (
           <BottomSheet onClose={() => setContactOpen(false)} fit>
-            {/* company — logo + name, centered header */}
+            {/* company — logo on the left of the name */}
             {(COMPANY.name || AVATAR) && (
-              <div className="flex flex-col items-center text-center">
+              <div className="flex items-center gap-3 pr-9">
                 {AVATAR && (
                   <div className="grid h-16 w-16 flex-shrink-0 place-items-center overflow-hidden rounded-full border border-slate-200 bg-white">
                     <img src={AVATAR} alt={COMPANY.name || ""} className="h-full w-full object-cover" />
                   </div>
                 )}
-                {COMPANY.name && <h3 className="mt-2 max-w-full truncate text-[17px] font-extrabold tracking-tight text-slate-900">{COMPANY.name}</h3>}
+                {COMPANY.name && <h3 className="min-w-0 flex-1 truncate text-[18px] font-extrabold tracking-tight text-slate-900">{COMPANY.name}</h3>}
               </div>
             )}
             {/* contact list — one uniform column: the IR person first, then direct rows */}
