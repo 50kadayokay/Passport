@@ -50,16 +50,44 @@ export default function ProProfileChapter({ onActive, onPricing}) {
 
   // The directed demo's 25 states, driven from scroll on a phone (it only handles wheel).
   const PRO_STATES = 25;
+  // Long enough to swallow a fling's run of steps, short enough that a deliberate scroll
+  // still feels immediate.
+  const PRO_SETTLE = 170;
+  // States per second. Above this nobody is reading them, so they are momentum.
+  const PRO_MAX_RATE = 2.5;
   const mTrackRef = useRef(null);
   const mp = useTrack(mTrackRef);
   const mStepRef = useRef(-1);
+  const mSettleRef = useRef(0);
+  const mLastRef = useRef(0);
   useEffect(() => {
     if (!mobile) return;
     const want = step(mp, PRO_STATES);
     if (want === mStepRef.current) return;
-    mStepRef.current = want;
-    try { window.__demoGo && window.__demoGo(want); } catch (_) {}
+    const apply = () => { mStepRef.current = want; mLastRef.current = performance.now();
+      try { window.__demoGo && window.__demoGo(want); } catch (_) {} };
+    clearTimeout(mSettleRef.current);
+    // 25 states over a 1800svh track is ~607px of scroll each, and an iOS momentum fling
+    // carries several thousand — so the demo walked through its own pages after the finger
+    // had already left the glass. Measured: one hard fling drove FIVE state changes.
+    //
+    // Gating on the size of the jump does not work, and was the first thing I tried: a
+    // fling does not jump, it emits a rapid RUN of single steps, so every one of them
+    // looked deliberate. The distinguishing signal is TIME, not distance. A state that
+    // arrives slowly is someone scrolling on purpose and is followed at once; states
+    // arriving faster than a person can read them are momentum, so they are coalesced and
+    // only where the fling actually lands is shown.
+    //
+    // A fixed settle window does not work either, and was the second thing I tried: every
+    // applied state restarts the clock, so a long fling still stepped through roughly one
+    // state per window. Rate is the signal that does not drift.
+    const now = performance.now();
+    const dt = now - mLastRef.current; mLastRef.current = now;
+    const rate = dt > 0 ? Math.abs(want - (mStepRef.current < 0 ? want : mStepRef.current)) / (dt / 1000) : 0;
+    if (rate <= PRO_MAX_RATE) apply();
+    else mSettleRef.current = setTimeout(apply, PRO_SETTLE);
   }, [mp, mobile]);
+  useEffect(() => () => clearTimeout(mSettleRef.current), []);
   const [mounted, setMounted] = useState(false);
   const [active, setActive] = useState(false);
   // Tell the page when the walkthrough owns the viewport, so the global nav can recede.

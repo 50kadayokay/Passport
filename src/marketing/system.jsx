@@ -643,7 +643,10 @@ export function MarketingStyles() {
          browser without dvh simply keeps today's behaviour rather than losing its height. */
       @supports (height: 100dvh) {
         @media (max-width: 759px) {
-          .mx-stage, .mx-demo, .mx-vstage { height: 100dvh !important; }
+          /* Only the containers that PAINT a full-viewport background. .mx-demo is the
+             inner demo and is sized by its container (.mx-story-m forces it to 100%), so
+             forcing a viewport height on it would fight the stage grid on other pages. */
+          .mx-stage, .mx-vstage, .mx-story-m { height: 100dvh !important; }
         }
       }
 
