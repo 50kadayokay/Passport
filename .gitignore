@@ -28,3 +28,7 @@ scratchpad/
 # profile.conference.attractVideo to a hosted URL) for the booth's attract loop.
 # The public marketing site does not use it.
 public/conference-media/
+
+# Temporary local PR-ingest review fixture (regenerated; real ingest uploads to Storage)
+public/pr-fixture/
+public/pr-fixture.json
