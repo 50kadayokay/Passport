@@ -957,29 +957,6 @@ function ProfileHeader({ tab, setTab, following, setFollowing, onBack, onContact
             </a>
           )}
           {COMPANY.slogan && <p className="mt-0.5 text-[12px] font-medium tracking-tight text-slate-500">{COMPANY.slogan}</p>}
-          {/* Contact links — each shows only when the company supplied it. */}
-          {(() => {
-            const c = CONTACT || {};
-            const tw = c.twitter && (/^https?:/.test(c.twitter) ? c.twitter : `https://twitter.com/${String(c.twitter).replace(/^@/, "")}`);
-            const li = c.linkedin && (/^https?:/.test(c.linkedin) ? c.linkedin : `https://www.linkedin.com/${String(c.linkedin).replace(/^\//, "")}`);
-            const items = [
-              c.phone && { href: `tel:${c.phone}`, Icon: Phone, label: "Call" },
-              c.email && { href: `mailto:${c.email}`, Icon: Mail, label: "Email" },
-              tw && { href: tw, Icon: Twitter, label: "Twitter" },
-              li && { href: li, Icon: Linkedin, label: "LinkedIn" },
-            ].filter(Boolean);
-            if (!items.length) return null;
-            return (
-              <div className="mt-2 flex items-center gap-1.5">
-                {items.map((it, i) => (
-                  <a key={i} href={it.href} target="_blank" rel="noreferrer" aria-label={it.label}
-                    className="grid h-8 w-8 place-items-center rounded-full border border-slate-200 bg-white text-slate-500 transition active:scale-90 hover:text-slate-900">
-                    <it.Icon size={14} strokeWidth={2.2} />
-                  </a>
-                ))}
-              </div>
-            );
-          })()}
         </div>
       </div>
 
@@ -9723,13 +9700,19 @@ export function CompanyProfile({ onBack, onScan, tab: controlledTab, onTabChange
         ].filter(Boolean);
         return (
           <BottomSheet onClose={() => setContactOpen(false)} fit>
-            {/* 1 — contact person (or company fallback) */}
-            <div className="flex items-center gap-3.5 pr-9">
-              <MemberAvatar photo={personPhoto} name={personName} initials={personInitials} size={56} />
-              <div className="min-w-0">
-                <h3 className="truncate text-[16.5px] font-extrabold tracking-tight text-slate-900">{personName}</h3>
-                <p className="truncate text-[12.5px] font-semibold" style={{ color: THEME.team.t }}>{personRole}</p>
-                {hasPerson && COMPANY.name && <p className="truncate text-[11.5px] font-medium text-slate-400">{COMPANY.name}</p>}
+            {/* company name — title at top */}
+            {COMPANY.name && <h3 className="truncate pr-9 text-[17px] font-extrabold tracking-tight text-slate-900">{COMPANY.name}</h3>}
+            {/* 1 — contact person (or company fallback); avatar sized to match the row icons, with a verified check */}
+            <div className={`flex items-center gap-3 ${COMPANY.name ? "mt-3.5" : "pr-9"}`}>
+              <div className="relative flex-shrink-0">
+                <MemberAvatar photo={personPhoto} name={personName} initials={personInitials} size={36} />
+                <span className="absolute -bottom-1 -right-1 grid h-[15px] w-[15px] place-items-center rounded-full bg-white">
+                  <BadgeCheck size={13} style={{ color: "#0ea5e9" }} fill="rgba(14,165,233,0.18)" />
+                </span>
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-[14px] font-extrabold tracking-tight text-slate-900">{hasPerson ? personName : "Investor Relations"}</p>
+                {hasPerson && personRole && <p className="truncate text-[12px] font-semibold" style={{ color: THEME.team.t }}>{personRole}</p>}
               </div>
             </div>
             {/* 2 — direct contact info (secondary; small rows, not buttons) */}
