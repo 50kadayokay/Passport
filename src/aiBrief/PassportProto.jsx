@@ -9622,6 +9622,26 @@ export function CompanyProfile({ onBack, onScan, tab: controlledTab, onTabChange
   const [overlay, setOverlay] = useState(null);
   const [dm, setDm] = useState(false);
   const [contactOpen, setContactOpen] = useState(false);
+  // Tap a phone/email/address row to copy it to the clipboard (shows a brief "Copied" toast).
+  const [copiedLabel, setCopiedLabel] = useState("");
+  const copiedT = useRef(null);
+  const copyContact = async (label, value) => {
+    haptic();
+    let ok = false;
+    try { await navigator.clipboard.writeText(value); ok = true; }
+    catch (_) {
+      try {
+        const ta = document.createElement("textarea");
+        ta.value = value; ta.setAttribute("readonly", ""); ta.style.position = "absolute"; ta.style.left = "-9999px";
+        document.body.appendChild(ta); ta.select(); ok = document.execCommand("copy"); document.body.removeChild(ta);
+      } catch (_) { ok = false; }
+    }
+    if (ok) {
+      setCopiedLabel(label);
+      clearTimeout(copiedT.current);
+      copiedT.current = setTimeout(() => setCopiedLabel(""), 1500);
+    }
+  };
   const companyDm = {
     id: currentSlug() || "company",
     name: COMPANY.name,
@@ -9687,10 +9707,10 @@ export function CompanyProfile({ onBack, onScan, tab: controlledTab, onTabChange
         // DIRECT contact (secondary) — omit any that are absent; never show placeholders.
         const website = COMPANY.website ? (/^https?:/.test(COMPANY.website) ? COMPANY.website : `https://${COMPANY.website}`) : "";
         const direct = [
-          c.email && { Icon: Mail, label: "Email", value: c.email, href: `mailto:${c.email}`, color: "#2563eb" },
-          c.phone && { Icon: Phone, label: "Phone", value: c.phone, href: `tel:${c.phone}`, color: "#059669" },
-          website && { Icon: Globe, label: "Website", value: COMPANY.website.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, ""), href: website, ext: true, color: "#0ea5e9" },
-          COMPANY.headquarters && { Icon: MapPin, label: "Address", value: COMPANY.headquarters, href: `https://maps.google.com/?q=${encodeURIComponent(COMPANY.headquarters)}`, ext: true, color: "#ea580c" },
+          c.email && { Icon: Mail, label: "Email", value: c.email, copy: true },
+          c.phone && { Icon: Phone, label: "Phone", value: c.phone, copy: true },
+          website && { Icon: Globe, label: "Website", value: COMPANY.website.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, ""), href: website, ext: true },
+          COMPANY.headquarters && { Icon: MapPin, label: "Address", value: COMPANY.headquarters, copy: true },
         ].filter(Boolean);
         // COMPANY social (tertiary) — company-level, falling back to legacy contact.{linkedin,twitter}.
         const soc = (v, base) => (v ? (/^https?:/.test(v) ? v : base + String(v).replace(/^[@/]+/, "")) : "");
@@ -9727,17 +9747,34 @@ export function CompanyProfile({ onBack, onScan, tab: controlledTab, onTabChange
                   {hasPerson && personRole && <p className="truncate text-[12px] font-semibold text-slate-500">{personRole}</p>}
                 </div>
               </div>
-              {/* direct contact rows (neutral icons) */}
-              {direct.map((r, i) => (
-                <a key={i} href={r.href} {...(r.ext ? { target: "_blank", rel: "noreferrer" } : {})}
-                  className="flex items-center gap-3 transition active:opacity-60">
-                  <span className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-full bg-slate-100 text-slate-500"><r.Icon size={15} strokeWidth={2.2} /></span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-[9.5px] font-bold uppercase tracking-[0.12em] text-slate-400">{r.label}</span>
-                    <span className="block truncate text-[13.5px] font-semibold text-slate-900">{r.value}{r.ext ? " ↗" : ""}</span>
-                  </span>
-                </a>
-              ))}
+              {/* direct contact rows — email/phone/address copy to clipboard on tap; website opens */}
+              {direct.map((r, i) => {
+                const copiedNow = copiedLabel === r.label;
+                const inner = (
+                  <>
+                    <span className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-full bg-slate-100 text-slate-500">
+                      {copiedNow ? <Check size={16} strokeWidth={2.8} style={{ color: "#059669" }} /> : <r.Icon size={15} strokeWidth={2.2} />}
+                    </span>
+                    <span className="min-w-0 flex-1 text-left">
+                      <span className="block text-[9.5px] font-bold uppercase tracking-[0.12em] text-slate-400">{r.label}</span>
+                      <span className="block truncate text-[13.5px] font-semibold" style={{ color: copiedNow ? "#059669" : "#0f172a" }}>
+                        {copiedNow ? "Copied" : r.value}{(!copiedNow && r.ext) ? " ↗" : ""}
+                      </span>
+                    </span>
+                  </>
+                );
+                return r.copy ? (
+                  <button key={i} type="button" onClick={() => copyContact(r.label, r.value)}
+                    className="flex w-full items-center gap-3 transition active:opacity-60">
+                    {inner}
+                  </button>
+                ) : (
+                  <a key={i} href={r.href} {...(r.ext ? { target: "_blank", rel: "noreferrer" } : {})}
+                    className="flex items-center gap-3 transition active:opacity-60">
+                    {inner}
+                  </a>
+                );
+              })}
             </div>
             {/* 3 — PRIMARY action: Message in MineEx (dominant cobalt) */}
             <button onClick={() => { haptic(); setContactOpen(false); setDm(true); }}
