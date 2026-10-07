@@ -8014,6 +8014,19 @@ const dmStore = {
   stopPolling() { if (this.poll) { clearInterval(this.poll); this.poll = null; } this.activeId = null; },
 };
 
+// Resolve a company's CURRENT logo by slug from the live published directory, so message
+// threads/inbox always render a company's most recently updated profile picture (app-wide,
+// any company). Falls back to a provided value (e.g. the viewed company's freshly-loaded
+// AVATAR) and then to initials.
+function liveLogoForSlug(slug, fallback) {
+  try {
+    const dir = (typeof window !== "undefined" && Array.isArray(window.__DIRECTORY__)) ? window.__DIRECTORY__ : DIRECTORY;
+    const c = slug && dir.find((x) => x.slug === slug);
+    if (c && c.logo) return c.logo;
+  } catch (_) {}
+  return fallback || "";
+}
+
 function Avatar({ mono, c, size = 52, logo }) {
   if (logo) {
     return (
@@ -8043,6 +8056,7 @@ function MessageThread({ convo, onBack }) {
     return () => { off(); dmStore.stopPolling(); };
   }, [convo.id]);
   const stored = dmStore.get(convo.id);
+  const coLogo = liveLogoForSlug(convo.id, convo.logo);
   const msgs = (stored && stored.msgs) || [];
   const err = stored && stored.error;
   useEffect(() => { if (endRef.current) endRef.current.scrollIntoView({ block: "end" }); }, [msgs.length]);
@@ -8058,7 +8072,7 @@ function MessageThread({ convo, onBack }) {
       {/* header */}
       <div className="flex flex-shrink-0 items-center gap-3 border-b border-slate-100 px-3 py-2.5">
         <button onClick={onBack} aria-label="Back" className="grid h-9 w-9 place-items-center rounded-full text-slate-700 transition active:scale-90"><ChevronLeft size={22} /></button>
-        <Avatar mono={convo.mono} c={convo.c} logo={convo.logo} size={36} />
+        <Avatar mono={convo.mono} c={convo.c} logo={coLogo} size={36} />
         <div className="min-w-0 flex-1">
           <p className="truncate text-[14px] font-bold tracking-tight text-slate-900">{convo.name}</p>
           <p className="truncate text-[11px] font-medium text-slate-400">{convo.sub}</p>
@@ -8068,7 +8082,7 @@ function MessageThread({ convo, onBack }) {
       <div className="pp-scroll flex-1 space-y-2 overflow-y-auto px-4 py-4" style={{ overscrollBehaviorY: "contain" }}>
         {msgs.length === 0 && (
           <div className="grid place-items-center px-8 py-16 text-center">
-            <Avatar mono={convo.mono} c={convo.c} logo={convo.logo} size={54} />
+            <Avatar mono={convo.mono} c={convo.c} logo={coLogo} size={54} />
             <p className="mt-3 text-[14px] font-bold tracking-tight text-slate-800">{convo.name}</p>
             <p className="mt-1 text-[12px] font-medium leading-relaxed text-slate-400">Messages you send reach the company’s team directly. Replies land right here.</p>
           </div>
@@ -8141,7 +8155,7 @@ function MessagesScreen() {
         <div className="pp-scroll flex-1 overflow-y-auto px-2 pb-24">
           {people.map((p) => (
             <button key={p.id} onClick={() => { setComposing(false); setQuery(""); setOpen({ ...p, seed: [] }); }} className="flex w-full items-center gap-3 rounded-xl px-2.5 py-2.5 text-left transition active:bg-slate-50">
-              <Avatar mono={p.mono} c={p.c} logo={p.logo} size={46} />
+              <Avatar mono={p.mono} c={p.c} logo={liveLogoForSlug(p.id, p.logo)} size={46} />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-[14px] font-bold tracking-tight text-slate-900">{p.name}</p>
                 <p className="truncate text-[11.5px] font-medium text-slate-400">{p.sub}</p>
@@ -8172,7 +8186,7 @@ function MessagesScreen() {
       <div className="pp-scroll flex-1 overflow-y-auto px-2 pb-24 pt-1">
         {convos.map((c) => (
           <button key={c.id} onClick={() => { haptic(); setOpen(c); }} className="flex w-full items-center gap-3 rounded-xl px-2.5 py-2.5 text-left transition active:bg-slate-50">
-            <Avatar mono={c.mono} c={c.c} logo={c.logo} size={52} />
+            <Avatar mono={c.mono} c={c.c} logo={liveLogoForSlug(c.id, c.logo)} size={52} />
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1.5">
                 <p className="truncate text-[14.5px] font-bold tracking-tight text-slate-900">{c.name}</p>
