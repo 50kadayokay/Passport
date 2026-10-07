@@ -522,6 +522,11 @@ export function mapProfileToPP(profile = {}) {
   const COMPANY = {
     name: str(c.name),
     website: str(c.website),
+    // Official company social links (company-level). The Contact card reads these,
+    // falling back to the legacy profile.contact.{linkedin,twitter} for old data.
+    linkedin: str(c.linkedin),
+    twitter: str(c.twitter),
+    instagram: str(c.instagram),
     slogan: str(c.slogan),
     ticker: str(c.ticker),
     commodity: str(c.commodity),
@@ -730,7 +735,9 @@ export function mapProfileToPP(profile = {}) {
     // Contact links shown on the profile — each rendered only when present.
     CONTACT: (() => {
       const cn = profile.contact || {};
-      return { phone: str(cn.phone), email: str(cn.email), twitter: str(cn.twitter), linkedin: str(cn.linkedin) };
+      // IR PERSON: name/role/photo/email/phone. twitter/linkedin kept only as a read
+      // fallback for COMPANY social links (company.{linkedin,twitter} take priority).
+      return { name: str(cn.name), role: str(cn.role), photo: str(cn.photo), phone: str(cn.phone), email: str(cn.email), twitter: str(cn.twitter), linkedin: str(cn.linkedin) };
     })(),
     // A short CEO note shown near the top of the profile — a human voice from the person
     // running the company. Empty text → the card is hidden.

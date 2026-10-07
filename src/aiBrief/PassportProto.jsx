@@ -304,7 +304,7 @@ let ONE_LINER = _PP.ONE_LINER ??
 // (no default Kingsmen note) so only companies that write one show the card.
 let CEO_NOTE = _PP.CEO_NOTE ?? { text: "", name: "", title: "CEO", photo: "" };
 // Contact links (phone / email / twitter / linkedin). Each renders only when present.
-let CONTACT = _PP.CONTACT ?? { name: "", title: "", photo: "", initials: "", phone: "", email: "", linkedin: "", address: "", twitter: "" };
+let CONTACT = _PP.CONTACT ?? { name: "", role: "", photo: "", email: "", phone: "", twitter: "", linkedin: "" };
 
 // 60-second AI Brief orientation sections. Data-driven; the default is Kingsmen's so
 // the live Kingsmen profile reads identically. Every other company supplies its own
@@ -8985,7 +8985,7 @@ export function applyPP(pp) {
   if (pp.STAGE_DESC !== undefined) STAGE_DESC = pp.STAGE_DESC;
   if (pp.ONE_LINER !== undefined) ONE_LINER = pp.ONE_LINER;
   if (pp.CEO_NOTE !== undefined) CEO_NOTE = pp.CEO_NOTE || { text: "", name: "", title: "CEO", photo: "" };
-  if (pp.CONTACT !== undefined) CONTACT = pp.CONTACT || { name: "", title: "", photo: "", initials: "", phone: "", email: "", linkedin: "", address: "", twitter: "" };
+  if (pp.CONTACT !== undefined) CONTACT = pp.CONTACT || { name: "", role: "", photo: "", email: "", phone: "", twitter: "", linkedin: "" };
   if (pp.BRIEF_SECTIONS !== undefined) BRIEF_SECTIONS = pp.BRIEF_SECTIONS;
   if (pp.FUNDING !== undefined) FUNDING = pp.FUNDING;
   if (pp.CAPSTATUS !== undefined) CAPSTATUS = pp.CAPSTATUS;
@@ -9699,46 +9699,73 @@ export function CompanyProfile({ onBack, onScan, tab: controlledTab, onTabChange
       {dm && <MessageThread convo={companyDm} onBack={() => setDm(false)} />}
       {contactOpen && (() => {
         const c = CONTACT || {};
-        // Primary contact person: the company's stated contact, else the lead (CEO) as the
-        // de-facto contact. Only populated reach methods render.
-        const lead = (Array.isArray(TEAM_MEMBERS) && TEAM_MEMBERS[0]) || null;
-        const personName = c.name || (lead && lead.name) || COMPANY.name;
-        const personRole = c.title || (lead && lead.role) || "Investor Relations";
-        const personPhoto = c.photo || (lead && lead.photo) || "";
-        const personInitials = c.initials || (lead && lead.initials) || "";
-        const rows = [
+        // IR PERSON — EXPLICIT only. Never auto-substitute the CEO/team. With no configured
+        // IR person, fall back to the COMPANY (logo + name + "Investor Relations").
+        const hasPerson = !!(c.name || c.photo);
+        const personName = hasPerson ? (c.name || COMPANY.name) : COMPANY.name;
+        const personRole = (hasPerson && c.role) ? c.role : "Investor Relations";
+        const personPhoto = hasPerson ? c.photo : AVATAR;
+        const personInitials = (personName || "?").trim().split(/\s+/).slice(0, 2).map((w) => w[0] || "").join("").toUpperCase();
+        // DIRECT contact (secondary) — omit any that are absent; never show placeholders.
+        const website = COMPANY.website ? (/^https?:/.test(COMPANY.website) ? COMPANY.website : `https://${COMPANY.website}`) : "";
+        const direct = [
           c.email && { Icon: Mail, label: "Email", value: c.email, href: `mailto:${c.email}` },
           c.phone && { Icon: Phone, label: "Phone", value: c.phone, href: `tel:${c.phone}` },
+          website && { Icon: Globe, label: "Website", value: COMPANY.website.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, ""), href: website, ext: true },
+        ].filter(Boolean);
+        // COMPANY social (tertiary) — company-level, falling back to legacy contact.{linkedin,twitter}.
+        const soc = (v, base) => (v ? (/^https?:/.test(v) ? v : base + String(v).replace(/^[@/]+/, "")) : "");
+        const socials = [
+          (COMPANY.linkedin || c.linkedin) && { Icon: Linkedin, label: "LinkedIn", href: soc(COMPANY.linkedin || c.linkedin, "https://www.linkedin.com/") },
+          (COMPANY.twitter || c.twitter) && { Icon: Twitter, label: "X", href: soc(COMPANY.twitter || c.twitter, "https://x.com/") },
+          COMPANY.instagram && { Icon: Instagram, label: "Instagram", href: soc(COMPANY.instagram, "https://instagram.com/") },
         ].filter(Boolean);
         return (
           <BottomSheet onClose={() => setContactOpen(false)}>
+            {/* 1 — contact person (or company fallback) */}
             <div className="flex items-center gap-3.5 pr-9">
               <MemberAvatar photo={personPhoto} name={personName} initials={personInitials} size={56} />
               <div className="min-w-0">
-                <h3 className="truncate text-[16px] font-extrabold tracking-tight text-slate-900">{personName}</h3>
-                <p className="truncate text-[12px] font-semibold" style={{ color: THEME.team.t }}>{personRole}</p>
+                <h3 className="truncate text-[16.5px] font-extrabold tracking-tight text-slate-900">{personName}</h3>
+                <p className="truncate text-[12.5px] font-semibold" style={{ color: THEME.team.t }}>{personRole}</p>
+                {hasPerson && COMPANY.name && <p className="truncate text-[11.5px] font-medium text-slate-400">{COMPANY.name}</p>}
               </div>
             </div>
-            {rows.length > 0 && (
-              <div className="mt-4 space-y-2">
-                {rows.map((r, i) => (
-                  <a key={i} href={r.href} target="_blank" rel="noreferrer"
-                    className="flex items-center gap-3 rounded-2xl border border-slate-100 bg-white px-3.5 py-3 transition active:scale-[0.99]">
-                    <span className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-full bg-slate-100 text-slate-600"><r.Icon size={16} strokeWidth={2.2} /></span>
+            {/* 2 — direct contact info (secondary; small rows, not buttons) */}
+            {direct.length > 0 && (
+              <div className="mt-4 space-y-3">
+                {direct.map((r, i) => (
+                  <a key={i} href={r.href} {...(r.ext ? { target: "_blank", rel: "noreferrer" } : {})}
+                    className="flex items-center gap-3 transition active:opacity-60">
+                    <span className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-full bg-slate-100 text-slate-500"><r.Icon size={15} strokeWidth={2.2} /></span>
                     <span className="min-w-0 flex-1">
-                      <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">{r.label}</span>
-                      <span className="block truncate text-[13.5px] font-semibold text-slate-900">{r.value}</span>
+                      <span className="block text-[9.5px] font-bold uppercase tracking-[0.12em] text-slate-400">{r.label}</span>
+                      <span className="block truncate text-[13.5px] font-semibold text-slate-900">{r.value}{r.ext ? " ↗" : ""}</span>
                     </span>
-                    <ChevronRight size={16} className="flex-shrink-0 text-slate-300" />
                   </a>
                 ))}
               </div>
             )}
+            {/* 3 — PRIMARY action: Message in MineEx (dominant cobalt) */}
             <button onClick={() => { haptic(); setContactOpen(false); setDm(true); }}
-              className="mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-2xl text-[14px] font-bold text-white active:scale-[0.98]"
-              style={{ background: "#2563eb" }}>
-              <MessageSquare size={16} strokeWidth={2.4} /> Message
+              className="mt-5 flex w-full items-center justify-center gap-2 rounded-2xl text-[15px] font-bold text-white active:scale-[0.98]"
+              style={{ height: 52, background: "#2563eb", boxShadow: "0 12px 26px -12px rgba(37,99,235,0.75)" }}>
+              <MessageSquare size={17} strokeWidth={2.5} /> Message in MineEx
             </button>
+            {/* 4 — company social links (tertiary) */}
+            {socials.length > 0 && (
+              <div className="mt-5 border-t border-slate-100 pt-4">
+                <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">Company links</p>
+                <div className="mt-2.5 flex items-center gap-2.5">
+                  {socials.map((s, i) => (
+                    <a key={i} href={s.href} target="_blank" rel="noreferrer" aria-label={s.label}
+                      className="grid h-9 w-9 place-items-center rounded-full border border-slate-200 bg-white text-slate-500 transition active:scale-90 hover:text-slate-900">
+                      <s.Icon size={15} strokeWidth={2.2} />
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
           </BottomSheet>
         );
       })()}
