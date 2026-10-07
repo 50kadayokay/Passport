@@ -3669,175 +3669,154 @@ const LC_SITE_GALLERY = [
 // Swipeable photo carousel (tile + fullscreen lightbox). Tap a photo to expand;
 // the > control advances and loops; X closes the lightbox.
 function ProjectGallery({ slides }) {
-  const [idx, setIdx] = useState(0);        // tile position
-  const [open, setOpen] = useState(false);
-  // Android back: close the project-image lightbox.
-  useBackHandler(open, () => setOpen(false));
-  const [expIdx, setExpIdx] = useState(0);  // lightbox position
-  const ref = useRef(null);
-  const expRef = useRef(null);
+  const S = (slides || []).map((s) => (typeof s === "string" ? { src: s } : (s || {}))).filter((s) => s && s.src);
+  const [idx, setIdx] = useState(0);          // tile (preview) position
+  const [cardOpen, setCardOpen] = useState(false);
+  const [heroIdx, setHeroIdx] = useState(0);  // large hero photo in the card
+  const [full, setFull] = useState(false);    // fullscreen enlarge
+  // Android back: close the enlarge first, then the card.
+  useBackHandler(full, () => setFull(false));
+  useBackHandler(cardOpen && !full, () => setCardOpen(false));
+  const tileRef = useRef(null);
+  const heroRef = useRef(null);
+  const fullRef = useRef(null);
   const tapRef = useRef(null);
 
-  const onScroll = () => {
-    const el = ref.current; if (!el) return;
-    setIdx(Math.round(el.scrollLeft / el.clientWidth));
-  };
-  const onExpScroll = () => {
-    const el = expRef.current; if (!el) return;
-    setExpIdx(Math.round(el.scrollLeft / el.clientWidth));
-  };
+  // Group photos by their `kicker` (the group title companies author), keeping first-seen order.
+  const groups = useMemo(() => {
+    const order = []; const map = {};
+    S.forEach((s, i) => {
+      const key = ((s.kicker || "Photos") + "").trim() || "Photos";
+      if (!map[key]) { map[key] = []; order.push(key); }
+      map[key].push(i);
+    });
+    return order.map((title) => ({ title, idxs: map[title] }));
+  }, [slides]);
 
-  // Distinguish a tap (open lightbox) from a swipe (scroll through).
-  const onPointerDown = (e) => { tapRef.current = { x: e.clientX, y: e.clientY }; };
-  const onPointerUp = (e) => {
+  const onTileScroll = () => { const el = tileRef.current; if (el) setIdx(Math.round(el.scrollLeft / el.clientWidth)); };
+  const onHeroScroll = () => { const el = heroRef.current; if (el) setHeroIdx(Math.round(el.scrollLeft / el.clientWidth)); };
+  const onFullScroll = () => { const el = fullRef.current; if (el) setHeroIdx(Math.round(el.scrollLeft / el.clientWidth)); };
+
+  // Distinguish a tap from a swipe so a horizontal drag scrolls instead of triggering the tap action.
+  const onDown = (e) => { tapRef.current = { x: e.clientX, y: e.clientY }; };
+  const onTap = (fn) => (e) => {
     const d = tapRef.current; tapRef.current = null;
-    if (!d) return;
-    if (Math.abs(e.clientX - d.x) < 8 && Math.abs(e.clientY - d.y) < 8) {
-      setExpIdx(idx); setOpen(true);
-    }
+    if (d && Math.abs(e.clientX - d.x) < 8 && Math.abs(e.clientY - d.y) < 8) fn();
   };
 
-  // Advance the tile, looping back to the first photo.
-  const nextTile = (e) => {
-    e.stopPropagation();
-    const el = ref.current; if (!el) return;
-    const n = (idx + 1) % slides.length;
-    el.scrollTo({ left: n * el.clientWidth, behavior: "smooth" });
-  };
-  // Advance the lightbox, looping.
-  const nextExp = (e) => {
-    if (e) e.stopPropagation();
-    const el = expRef.current; if (!el) return;
-    const n = (expIdx + 1) % slides.length;
-    el.scrollTo({ left: n * el.clientWidth, behavior: "smooth" });
-  };
-  // Step the lightbox back, looping to the last photo.
-  const prevExp = (e) => {
-    if (e) e.stopPropagation();
-    const el = expRef.current; if (!el) return;
-    const n = (expIdx - 1 + slides.length) % slides.length;
-    el.scrollTo({ left: n * el.clientWidth, behavior: "smooth" });
+  const openCardAt = (i) => { setHeroIdx(i); setCardOpen(true); };
+  const goHero = (i) => {
+    setHeroIdx(i);
+    const el = heroRef.current;
+    if (el) el.scrollTo({ left: i * el.clientWidth, behavior: "smooth" });
   };
 
-  // Sync lightbox to the tile position when it opens.
+  // Keep the hero / fullscreen scrollers aligned to the current photo when each opens.
+  useEffect(() => { if (cardOpen && heroRef.current) heroRef.current.scrollLeft = heroIdx * heroRef.current.clientWidth; }, [cardOpen]);
   useEffect(() => {
-    if (open && expRef.current) {
-      const el = expRef.current;
-      el.scrollLeft = idx * el.clientWidth;
-    }
-  }, [open]);
-
-  // When closing, reflect the lightbox position back onto the tile.
-  const closeLightbox = () => {
-    setOpen(false);
-    const el = ref.current;
-    if (el) { setIdx(expIdx); requestAnimationFrame(() => { el.scrollLeft = expIdx * el.clientWidth; }); }
-  };
-
-  const stop = (e) => e.stopPropagation();
+    if (full && fullRef.current) fullRef.current.scrollLeft = heroIdx * fullRef.current.clientWidth;
+    else if (!full && cardOpen && heroRef.current) heroRef.current.scrollLeft = heroIdx * heroRef.current.clientWidth;
+  }, [full]);
 
   // Pre-decode the first photo as soon as the gallery mounts (it mounts as the swipe neighbour,
   // ~half a second before you land on Projects) so it's ready — no decode flash on arrival.
   useEffect(() => {
-    const first = slides && slides[0] && (typeof slides[0] === "string" ? slides[0] : slides[0].src);
+    const first = S[0] && S[0].src;
     if (!first) return;
-    const im = new Image();
-    im.src = first;
+    const im = new Image(); im.src = first;
     if (im.decode) im.decode().catch(() => {});
   }, []);
 
+  const stop = (e) => e.stopPropagation();
+  const hero = S[heroIdx] || {};
+
   return (
     <div>
-      {/* TILE — same footprint as the map it replaces: 300 tall, rounded, bordered. A LIGHT
-          placeholder (never dark) shows only for the split second before the photo paints. */}
+      {/* TILE — 300 tall preview. Tap opens the grouped gallery card at the shown photo. */}
       <div className="relative overflow-hidden rounded-2xl border border-slate-200" style={{ height: 300, background: "linear-gradient(135deg, #eef2f7, #e2e8f0)" }}>
         <div
-          ref={ref}
-          onScroll={onScroll}
-          onPointerDown={onPointerDown}
-          onPointerUp={onPointerUp}
+          ref={tileRef}
+          onScroll={onTileScroll}
+          onPointerDown={onDown}
+          onPointerUp={onTap(() => openCardAt(idx))}
           className="pp-scroll flex cursor-pointer overflow-x-auto"
           style={{ height: "100%", scrollSnapType: "x mandatory", WebkitOverflowScrolling: "touch" }}
         >
-          {slides.map((s, i) => (
+          {S.map((s, i) => (
             <div key={i} className="relative flex-shrink-0" style={{ width: "100%", height: "100%", scrollSnapAlign: "center" }}>
               <img src={s.src} alt={s.label} draggable={false} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
             </div>
           ))}
         </div>
-
-        {/* dot indicators */}
         <div className="pointer-events-none absolute inset-x-0 flex justify-center" style={{ bottom: 12, gap: 6 }}>
-          {slides.map((_, i) => (
+          {S.map((_, i) => (
             <span key={i} style={{ height: 5, width: i === idx ? 16 : 5, borderRadius: 999, background: i === idx ? "#fff" : "rgba(255,255,255,0.5)", transition: "all .3s", boxShadow: "0 1px 2px rgba(2,6,23,0.4)" }} />
           ))}
         </div>
-
       </div>
 
-      {/* FULLSCREEN LIGHTBOX */}
-      {open && createPortal(
-        <div onClick={closeLightbox} className="absolute inset-0 z-[80] flex flex-col bg-slate-950/95 backdrop-blur-sm pp-fade">
-          <button
-            onClick={closeLightbox}
-            aria-label="Close gallery"
-            className="absolute z-10 grid place-items-center active:scale-90"
-            style={{ top: 16, right: 16, height: 40, width: 40, borderRadius: 999, ...GLASS }}
-          >
-            <X size={18} className="text-white" strokeWidth={2.5} />
-          </button>
-
-          {/* image band — arrows live inside it so they align to the image's centre, not the screen */}
-          <div className="relative flex flex-1 items-center">
+      {/* GROUPED GALLERY CARD — swipeable hero on top, titled thumbnail rows beneath */}
+      {cardOpen && createPortal(
+        <div className="absolute inset-0 z-[80] flex flex-col bg-white pp-fade" style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}>
+          {/* hero */}
+          <div className="relative flex-shrink-0">
             <div
-              ref={expRef}
-              onScroll={onExpScroll}
-              className="pp-scroll flex w-full overflow-x-auto"
+              ref={heroRef}
+              onScroll={onHeroScroll}
+              onPointerDown={onDown}
+              onPointerUp={onTap(() => setFull(true))}
+              className="pp-scroll flex cursor-zoom-in overflow-x-auto"
               style={{ scrollSnapType: "x mandatory", WebkitOverflowScrolling: "touch" }}
             >
-              {slides.map((s, i) => (
-                <div key={i} className="flex flex-shrink-0 items-center justify-center" style={{ width: "100%", scrollSnapAlign: "center", paddingLeft: 16, paddingRight: 16 }}>
-                  {/* hug the real image size (don't force full width) so portrait shots keep rounded corners */}
-                  <img onClick={stop} src={s.src} alt={s.label} draggable={false} style={{ maxWidth: "100%", maxHeight: "66vh", width: "auto", height: "auto", objectFit: "contain", borderRadius: 16, display: "block" }} />
+              {S.map((s, i) => (
+                <div key={i} className="flex-shrink-0" style={{ width: "100%", scrollSnapAlign: "center" }}>
+                  <img src={s.src} alt={s.label} draggable={false} style={{ width: "100%", height: 300, objectFit: "cover", display: "block" }} />
                 </div>
               ))}
             </div>
-
-            {/* left-arrow step back */}
-            {slides.length > 1 && (
-              <button
-                onClick={prevExp}
-                aria-label="Previous photo"
-                className="absolute grid place-items-center active:scale-90"
-                style={{ top: "50%", left: 14, transform: "translateY(-50%)", height: 42, width: 42, borderRadius: 999, zIndex: 5, ...GLASS }}
-              >
-                <ChevronLeft size={20} className="text-white" strokeWidth={2.5} />
-              </button>
-            )}
-
-            {/* right-arrow advance */}
-            {slides.length > 1 && (
-              <button
-                onClick={nextExp}
-                aria-label="Next photo"
-                className="absolute grid place-items-center active:scale-90"
-                style={{ top: "50%", right: 14, transform: "translateY(-50%)", height: 42, width: 42, borderRadius: 999, zIndex: 5, ...GLASS }}
-              >
-                <ChevronRight size={20} className="text-white" strokeWidth={2.5} />
-              </button>
+            <button onClick={() => setCardOpen(false)} aria-label="Close" className="absolute z-10 grid place-items-center active:scale-90" style={{ top: 12, right: 12, height: 38, width: 38, borderRadius: 999, ...GLASS }}>
+              <X size={18} className="text-white" strokeWidth={2.5} />
+            </button>
+            {(hero.kicker || hero.label) && (
+              <div className="pointer-events-none absolute inset-x-0" style={{ bottom: 0, padding: "30px 16px 12px", background: "linear-gradient(0deg, rgba(2,6,23,0.72), transparent)" }}>
+                {hero.kicker && <p style={{ fontSize: 9, fontWeight: 800, letterSpacing: "0.16em", textTransform: "uppercase", color: "rgba(255,255,255,0.72)" }}>{hero.kicker}</p>}
+                {hero.label && <p style={{ fontSize: 15, fontWeight: 800, color: "#fff", marginTop: 1 }}>{hero.label}</p>}
+              </div>
             )}
           </div>
 
-          {/* caption + dots */}
-          <div onClick={stop} style={{ paddingBottom: 28, paddingTop: 12 }}>
-            <p style={{ textAlign: "center", fontSize: 8, fontWeight: 800, letterSpacing: "0.18em", textTransform: "uppercase", color: "rgba(255,255,255,0.55)" }}>{slides[expIdx] ? slides[expIdx].kicker : ""}</p>
-            <p style={{ textAlign: "center", fontSize: 13, fontWeight: 700, color: "#fff", marginTop: 2 }}>{slides[expIdx] ? slides[expIdx].label : ""}</p>
-            <div className="flex justify-center" style={{ gap: 6, marginTop: 10 }}>
-              {slides.map((_, i) => (
-                <span key={i} style={{ height: 5, width: i === expIdx ? 16 : 5, borderRadius: 999, background: i === expIdx ? "#fff" : "rgba(255,255,255,0.35)", transition: "all .3s" }} />
-              ))}
+          {/* titled thumbnail rows */}
+          <div className="pp-scroll flex-1 overflow-y-auto px-4 pb-10 pt-4" style={{ overscrollBehaviorY: "contain" }}>
+            {groups.map((g) => (
+              <div key={g.title} className="mb-5">
+                <p className="mb-2 text-[12.5px] font-extrabold tracking-tight text-slate-900">{g.title} <span className="font-semibold text-slate-400">· {g.idxs.length}</span></p>
+                <div className="pp-scroll flex gap-2 overflow-x-auto pb-1" style={{ WebkitOverflowScrolling: "touch" }}>
+                  {g.idxs.map((i) => (
+                    <button key={i} onClick={() => goHero(i)} className="relative flex-shrink-0 overflow-hidden rounded-xl transition active:scale-95"
+                      style={{ height: 72, width: 96, boxShadow: i === heroIdx ? "0 0 0 2px #2563eb" : "0 0 0 1px rgba(15,23,42,0.08)" }}>
+                      <img src={S[i].src} alt={S[i].label} draggable={false} style={{ height: "100%", width: "100%", objectFit: "cover", display: "block" }} />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* FULLSCREEN ENLARGE */}
+          {full && (
+            <div onClick={() => setFull(false)} className="absolute inset-0 z-[85] flex items-center bg-slate-950/95 backdrop-blur-sm pp-fade">
+              <button onClick={(e) => { e.stopPropagation(); setFull(false); }} aria-label="Close" className="absolute z-10 grid place-items-center active:scale-90" style={{ top: 16, right: 16, height: 40, width: 40, borderRadius: 999, ...GLASS }}>
+                <X size={18} className="text-white" strokeWidth={2.5} />
+              </button>
+              <div ref={fullRef} onScroll={onFullScroll} className="pp-scroll flex w-full overflow-x-auto" style={{ scrollSnapType: "x mandatory", WebkitOverflowScrolling: "touch" }}>
+                {S.map((s, i) => (
+                  <div key={i} className="flex flex-shrink-0 items-center justify-center" style={{ width: "100%", scrollSnapAlign: "center", paddingLeft: 16, paddingRight: 16 }}>
+                    <img onClick={stop} src={s.src} alt={s.label} draggable={false} style={{ maxWidth: "100%", maxHeight: "80vh", width: "auto", height: "auto", objectFit: "contain", borderRadius: 14, display: "block" }} />
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
         </div>,
         ppFrameEl || document.body
       )}
