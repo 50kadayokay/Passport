@@ -31,6 +31,7 @@ import { COUNTS } from "../demo/investorFixture.js";
 import { EASE, MarketingStyles, useReduce, useViewport } from "../system.jsx";
 import { SHEET_MS, EASE_SHEET, WHEEL_TRIGGER, NEW_GESTURE_GAP, FIRM_DELTA, FRESH_FLICK } from "./motion.js";
 import Nav from "./Nav.jsx";
+import StageArrows from "./StageArrows.jsx";
 import InvestorShellPhone from "../demo/InvestorShellPhone.jsx";
 import PushPreview, { PR_INVESTOR } from "./PushPreview.jsx";
 import { STAGE } from "./WalkthroughNarrative.jsx";
@@ -284,9 +285,13 @@ function usePagedWheel(sectionRef, n, enabled) {
 }
 
 /* ── native-scroll index: one index per snapped viewport, no preventDefault ──────── */
-function useScrollIndex(ref, n) {
+// `enabled` is false on phones: they drive the index with the two arrow controls instead
+// (one press, one state), because scroll position kept advancing the story on momentum
+// after the finger had left the glass. The setter is returned so the controls can drive it.
+function useScrollIndex(ref, n, enabled = true) {
   const [idx, setIdx] = useState(0);
   useEffect(() => {
+    if (!enabled) return undefined;
     let raf = 0;
     const calc = () => {
       raf = 0;
@@ -303,8 +308,8 @@ function useScrollIndex(ref, n) {
     window.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("resize", onScroll, { passive: true });
     return () => { window.removeEventListener("scroll", onScroll); window.removeEventListener("resize", onScroll); if (raf) cancelAnimationFrame(raf); };
-  }, [ref, n]);
-  return idx;
+  }, [ref, n, enabled]);
+  return [idx, setIdx];
 }
 
 /* ── copy cross-fade: out → prep → in, keyed on the active beat (matches sales page) ── */
@@ -516,7 +521,7 @@ export default function InvestorPage() {
   const { mobile } = useViewport();
   const reduce = useReduce();
   const sectionRef = useRef(null);
-  const idx = useScrollIndex(sectionRef, N);
+  const [idx, setIdx] = useScrollIndex(sectionRef, N, !mobile);
   const { shown, phase } = useCopyPhase(idx, reduce);
 
   // Desktop uses the sales page's paged-wheel controller; native CSS scroll-snap stays
@@ -552,10 +557,10 @@ export default function InvestorPage() {
       <MarketingStyles />
       <Nav />
       <main style={{ fontFamily: "'Switzer', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}>
-        <section ref={sectionRef} style={{ position: "relative", height: `${N * 100}svh` }}>
-          {Array.from({ length: N }).map((_, i) => <div key={i} aria-hidden className="inv-cell" style={{ position: "absolute", top: `${i * 100}svh`, left: 0, right: 0, height: "100svh", pointerEvents: "none" }} />)}
+        <section ref={sectionRef} style={{ position: "relative", height: mobile ? "100svh" : `${N * 100}svh`, overflow: mobile ? "hidden" : undefined }}>
+          {!mobile && Array.from({ length: N }).map((_, i) => <div key={i} aria-hidden className="inv-cell" style={{ position: "absolute", top: `${i * 100}svh`, left: 0, right: 0, height: "100svh", pointerEvents: "none" }} />)}
 
-          <div className="mx-vstage" style={{ position: "sticky", top: 0, height: "100svh", overflow: "hidden" }}>
+          <div className="mx-vstage" style={{ position: mobile ? "relative" : "sticky", top: 0, height: "100svh", overflow: "hidden" }}>
             <Atmosphere reduce={reduce} />
 
             {/* ONE stage for all 19 states: narrative left, device right, both fixed. */}
@@ -584,6 +589,9 @@ export default function InvestorPage() {
                 </div>
               </div>
             </div>
+            {/* One press, one state. The investor stage is a light screen, so the controls
+                take their light palette. */}
+            {mobile && <StageArrows i={idx} n={N} onGo={setIdx} bottom="30%" />}
           </div>
         </section>
       </main>

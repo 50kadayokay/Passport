@@ -26,8 +26,9 @@
 // These indices MIRROR the frozen demo (25 states: floor = status face = 1, terminal
 // = Following = 24). They are read-only; the demo is untouched.
 // ─────────────────────────────────────────────────────────────────────────────
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState , useCallback} from "react";
 import { useViewport, EASE, useTrack, step } from "../system.jsx";
+import StageArrows from "./StageArrows.jsx";
 import { NarrativeStory } from "../demo/NarrativeStory.jsx";
 // The sheet shows the REAL pricing page, not a second pricing component: PricingDeck is
 // what /pricing renders, and it already supports an `embedded` mode (the sales page
@@ -48,46 +49,19 @@ const TERMINAL = 24;   // "following" — the last state (Follow / Stay Connecte
 export default function ProProfileChapter({ onActive, onPricing}) {
   const { mobile } = useViewport();
 
-  // The directed demo's 25 states, driven from scroll on a phone (it only handles wheel).
+  // The directed demo's 25 states. On a phone these are driven by the two arrow controls,
+  // NOT by scroll. Scroll position was the wrong input: momentum kept advancing the demo
+  // after the finger had left the glass, and every governor tried for it (rate limits,
+  // settle windows, scroll snapping) either failed to stop it or added motion of its own.
+  // A press is unambiguous — one press, one state, and nothing moves unasked.
   const PRO_STATES = 25;
-  // Long enough to swallow a fling's run of steps, short enough that a deliberate scroll
-  // still feels immediate.
-  const PRO_SETTLE = 170;
-  // States per second. Above this nobody is reading them, so they are momentum.
-  const PRO_MAX_RATE = 2.5;
   const mTrackRef = useRef(null);
-  const mp = useTrack(mTrackRef);
-  const mStepRef = useRef(-1);
-  const mSettleRef = useRef(0);
-  const mLastRef = useRef(0);
-  useEffect(() => {
-    if (!mobile) return;
-    const want = step(mp, PRO_STATES);
-    if (want === mStepRef.current) return;
-    const apply = () => { mStepRef.current = want; mLastRef.current = performance.now();
-      try { window.__demoGo && window.__demoGo(want); } catch (_) {} };
-    clearTimeout(mSettleRef.current);
-    // 25 states over a 1800svh track is ~607px of scroll each, and an iOS momentum fling
-    // carries several thousand — so the demo walked through its own pages after the finger
-    // had already left the glass. Measured: one hard fling drove FIVE state changes.
-    //
-    // Gating on the size of the jump does not work, and was the first thing I tried: a
-    // fling does not jump, it emits a rapid RUN of single steps, so every one of them
-    // looked deliberate. The distinguishing signal is TIME, not distance. A state that
-    // arrives slowly is someone scrolling on purpose and is followed at once; states
-    // arriving faster than a person can read them are momentum, so they are coalesced and
-    // only where the fling actually lands is shown.
-    //
-    // A fixed settle window does not work either, and was the second thing I tried: every
-    // applied state restarts the clock, so a long fling still stepped through roughly one
-    // state per window. Rate is the signal that does not drift.
-    const now = performance.now();
-    const dt = now - mLastRef.current; mLastRef.current = now;
-    const rate = dt > 0 ? Math.abs(want - (mStepRef.current < 0 ? want : mStepRef.current)) / (dt / 1000) : 0;
-    if (rate <= PRO_MAX_RATE) apply();
-    else mSettleRef.current = setTimeout(apply, PRO_SETTLE);
-  }, [mp, mobile]);
-  useEffect(() => () => clearTimeout(mSettleRef.current), []);
+  const [mIdx, setMIdx] = useState(0);
+  const goM = useCallback((next) => {
+    setMIdx(next);
+    try { window.__demoGo && window.__demoGo(next); } catch (_) {}
+  }, []);
+
   const [mounted, setMounted] = useState(false);
   const [active, setActive] = useState(false);
   // Tell the page when the walkthrough owns the viewport, so the global nav can recede.
@@ -288,14 +262,15 @@ export default function ProProfileChapter({ onActive, onPricing}) {
     // window.__demoGo() called when the step changes. That is exactly how the sales page
     // already drives the same demo on mobile (AppSection), so there is no new mechanism.
     return (
-      <section ref={mTrackRef} aria-label="MineEx Pro Profile" style={{ position: "relative", background: NS_BG, height: `${PRO_STATES * 72}svh` }}>
+      <section ref={mTrackRef} aria-label="MineEx Pro Profile" style={{ position: "relative", background: NS_BG, height: "100svh", overflow: "hidden" }}>
         {/* Scroll snapping lived here and has been removed. It did stop one swipe crossing
             several states, but mandatory snapping makes the page GLIDE to a snap point on
             its own once the finger lifts — which is the page moving by itself, exactly what
             must not happen. The state rate-limit below is the only governor now: the page
             goes where the finger put it and nowhere else. */}
-        <div className="mx-vstage" style={{ position: "sticky", top: 0, height: "100svh", overflow: "hidden" }}>
+        <div className="mx-vstage" style={{ position: "relative", height: "100svh", overflow: "hidden" }}>
           <NarrativeStory variant="full" hardware cutout />
+          <StageArrows i={mIdx} n={PRO_STATES} onGo={goM} dark />
         </div>
       </section>
     );
