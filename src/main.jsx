@@ -818,6 +818,23 @@ function AppRoot() {
           mod.applyPP({ COMPANY: company, CONTACT: contact, ACCOUNT_TIER: "pro" });
         }
       } catch (_) {}
+      // LOCAL-ONLY press-release content-block fixture (never production). ?prfixture=1 loads a
+      // real Kingsmen release (parsed into text+figure blocks) from /pr-fixture.json and MERGES
+      // it into the timeline (PR_YEARS) + FULL so the content-block reader can be demoed. No DB.
+      try {
+        const pf = params.get("prfixture");
+        if (pf && /^(localhost|127\.0\.0\.1|\[::1\])$/i.test(location.hostname) && mod.applyPP) {
+          const r = await fetch("/pr-fixture.json").then((x) => x.json()).catch(() => null);
+          if (r && r.item && r.full) {
+            const years = (mod.PR_YEARS || []).map((y) => ({ ...y, items: [...y.items] }));
+            let yr = years.find((y) => y.year === r.year);
+            if (!yr) { yr = { year: r.year, items: [] }; years.unshift(yr); }
+            if (!yr.items.some((it) => it.id === r.item.id)) yr.items.unshift(r.item);
+            const full = Object.assign({}, mod.FULL, { [r.id]: r.full });
+            mod.applyPP({ PR_YEARS: years, FULL: full, ACCOUNT_TIER: "pro" });
+          }
+        }
+      } catch (_) {}
       setApp(() => mod.default);
       // A specific company was requested but its data didn't load (e.g. a draft opened
       // without its preview token) → show an honest "unavailable" instead of the demo
