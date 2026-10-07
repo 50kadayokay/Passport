@@ -9704,7 +9704,11 @@ export function CompanyProfile({ onBack, onScan, tab: controlledTab, onTabChange
             {/* company — logo + name, title at top */}
             {(COMPANY.name || AVATAR) && (
               <div className="flex items-center gap-2.5 pr-9">
-                {AVATAR && <img src={AVATAR} alt="" className="h-9 w-9 flex-shrink-0 rounded-full object-cover ring-1 ring-slate-200" />}
+                {AVATAR && (
+                  <div className="grid h-16 w-16 flex-shrink-0 place-items-center overflow-hidden rounded-full border border-slate-200 bg-white">
+                    <img src={AVATAR} alt={COMPANY.name || ""} className="h-full w-full object-cover" />
+                  </div>
+                )}
                 {COMPANY.name && <h3 className="truncate text-[17px] font-extrabold tracking-tight text-slate-900">{COMPANY.name}</h3>}
               </div>
             )}
