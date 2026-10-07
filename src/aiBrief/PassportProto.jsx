@@ -304,7 +304,7 @@ let ONE_LINER = _PP.ONE_LINER ??
 // (no default Kingsmen note) so only companies that write one show the card.
 let CEO_NOTE = _PP.CEO_NOTE ?? { text: "", name: "", title: "CEO", photo: "" };
 // Contact links (phone / email / twitter / linkedin). Each renders only when present.
-let CONTACT = _PP.CONTACT ?? { name: "", title: "", phone: "", email: "", linkedin: "", address: "", twitter: "" };
+let CONTACT = _PP.CONTACT ?? { name: "", title: "", photo: "", initials: "", phone: "", email: "", linkedin: "", address: "", twitter: "" };
 
 // 60-second AI Brief orientation sections. Data-driven; the default is Kingsmen's so
 // the live Kingsmen profile reads identically. Every other company supplies its own
@@ -925,6 +925,9 @@ function PageBar({ tab, setTab, following, setFollowing, onBack }) {
    ============================================================ */
 function ProfileHeader({ tab, setTab, following, setFollowing, onBack, onContact, followEmphasis, followPress }) {
   const pages = profilePagesForTier();
+  // Contact is a paid feature — Basic + Pro only (legacy/unknown tiers are pro-equivalent).
+  // Free-plan accounts don't get it; free INDEXED listings never reach here (BasicListing).
+  const canContact = ACCOUNT_TIER !== "free";
   return (
     <div className="flex-shrink-0 px-5 pt-1">
       {/* plain back arrow sitting above the avatar (no circle, not touching it) */}
@@ -982,7 +985,7 @@ function ProfileHeader({ tab, setTab, following, setFollowing, onBack, onContact
 
       {/* actions — follow + message */}
       {followEmphasis && <style>{`@keyframes ppFollowPulse{0%,100%{box-shadow:0 0 0 0 rgba(37,99,235,0)}50%{box-shadow:0 0 0 5px rgba(37,99,235,0.20)}}`}</style>}
-      <div className="mt-2 grid grid-cols-2 gap-2">
+      <div className={`mt-2 grid ${canContact ? "grid-cols-2" : "grid-cols-1"} gap-2`}>
         <button
           onClick={() => setFollowing((f) => !f)}
           className="flex h-9 items-center justify-center gap-1.5 rounded-full border text-[12px] font-bold tracking-tight active:scale-[0.97]"
@@ -1000,12 +1003,14 @@ function ProfileHeader({ tab, setTab, following, setFollowing, onBack, onContact
           {following ? <Check size={13} strokeWidth={2.8} /> : <Plus size={13} strokeWidth={2.8} />}
           {following ? "Following" : "Follow"}
         </button>
-        <button
-          onClick={() => { haptic(); onContact && onContact(); }}
-          className="flex h-9 items-center justify-center gap-1.5 rounded-full border border-slate-200 bg-white text-[12px] font-bold tracking-tight text-slate-700 transition active:scale-[0.97]"
-        >
-          <User size={13} strokeWidth={2.6} /> Contact
-        </button>
+        {canContact && (
+          <button
+            onClick={() => { haptic(); onContact && onContact(); }}
+            className="flex h-9 items-center justify-center gap-1.5 rounded-full border border-slate-200 bg-white text-[12px] font-bold tracking-tight text-slate-700 transition active:scale-[0.97]"
+          >
+            <User size={13} strokeWidth={2.6} /> Contact
+          </button>
+        )}
       </div>
 
       {/* page tabs */}
@@ -8980,7 +8985,7 @@ export function applyPP(pp) {
   if (pp.STAGE_DESC !== undefined) STAGE_DESC = pp.STAGE_DESC;
   if (pp.ONE_LINER !== undefined) ONE_LINER = pp.ONE_LINER;
   if (pp.CEO_NOTE !== undefined) CEO_NOTE = pp.CEO_NOTE || { text: "", name: "", title: "CEO", photo: "" };
-  if (pp.CONTACT !== undefined) CONTACT = pp.CONTACT || { name: "", title: "", phone: "", email: "", linkedin: "", address: "", twitter: "" };
+  if (pp.CONTACT !== undefined) CONTACT = pp.CONTACT || { name: "", title: "", photo: "", initials: "", phone: "", email: "", linkedin: "", address: "", twitter: "" };
   if (pp.BRIEF_SECTIONS !== undefined) BRIEF_SECTIONS = pp.BRIEF_SECTIONS;
   if (pp.FUNDING !== undefined) FUNDING = pp.FUNDING;
   if (pp.CAPSTATUS !== undefined) CAPSTATUS = pp.CAPSTATUS;
@@ -9694,25 +9699,24 @@ export function CompanyProfile({ onBack, onScan, tab: controlledTab, onTabChange
       {dm && <MessageThread convo={companyDm} onBack={() => setDm(false)} />}
       {contactOpen && (() => {
         const c = CONTACT || {};
-        const website = COMPANY.website ? (/^https?:/.test(COMPANY.website) ? COMPANY.website : `https://${COMPANY.website}`) : "";
-        const li = c.linkedin && (/^https?:/.test(c.linkedin) ? c.linkedin : `https://www.linkedin.com/${String(c.linkedin).replace(/^\//, "")}`);
-        // Only populated methods render — the sheet makes it trivial to reach the right person.
+        // Primary contact person: the company's stated contact, else the lead (CEO) as the
+        // de-facto contact. Only populated reach methods render.
+        const lead = (Array.isArray(TEAM_MEMBERS) && TEAM_MEMBERS[0]) || null;
+        const personName = c.name || (lead && lead.name) || COMPANY.name;
+        const personRole = c.title || (lead && lead.role) || "Investor Relations";
+        const personPhoto = c.photo || (lead && lead.photo) || "";
+        const personInitials = c.initials || (lead && lead.initials) || "";
         const rows = [
           c.email && { Icon: Mail, label: "Email", value: c.email, href: `mailto:${c.email}` },
           c.phone && { Icon: Phone, label: "Phone", value: c.phone, href: `tel:${c.phone}` },
-          li && { Icon: Linkedin, label: "LinkedIn", value: "View profile", href: li },
-          website && { Icon: Globe, label: "Website", value: COMPANY.website.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, ""), href: website },
-          c.address && { Icon: MapPin, label: "Address", value: c.address, href: `https://maps.google.com/?q=${encodeURIComponent(c.address)}` },
         ].filter(Boolean);
         return (
           <BottomSheet onClose={() => setContactOpen(false)}>
-            <div className="flex items-center gap-3 pr-9">
-              <span className="grid h-11 w-11 flex-shrink-0 place-items-center rounded-full" style={{ background: "rgba(37,99,235,0.1)" }}>
-                <User size={20} style={{ color: "#2563eb" }} strokeWidth={2.2} />
-              </span>
+            <div className="flex items-center gap-3.5 pr-9">
+              <MemberAvatar photo={personPhoto} name={personName} initials={personInitials} size={56} />
               <div className="min-w-0">
-                <h3 className="truncate text-[16px] font-extrabold tracking-tight text-slate-900">{c.name || COMPANY.name}</h3>
-                <p className="truncate text-[12px] font-semibold text-slate-500">{c.title || "Investor Relations"}</p>
+                <h3 className="truncate text-[16px] font-extrabold tracking-tight text-slate-900">{personName}</h3>
+                <p className="truncate text-[12px] font-semibold" style={{ color: THEME.team.t }}>{personRole}</p>
               </div>
             </div>
             {rows.length > 0 && (
@@ -9733,7 +9737,7 @@ export function CompanyProfile({ onBack, onScan, tab: controlledTab, onTabChange
             <button onClick={() => { haptic(); setContactOpen(false); setDm(true); }}
               className="mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-2xl text-[14px] font-bold text-white active:scale-[0.98]"
               style={{ background: "#2563eb" }}>
-              <MessageSquare size={16} strokeWidth={2.4} /> Message in MineEx
+              <MessageSquare size={16} strokeWidth={2.4} /> Message
             </button>
           </BottomSheet>
         );
