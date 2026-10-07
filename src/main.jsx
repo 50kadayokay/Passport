@@ -720,6 +720,25 @@ function AppRoot() {
             // company still requires its own pp, so it correctly shows "unavailable".)
             ok = true;
           }
+          // LOCAL-ONLY Contact-card QA fixture (never production). ?contactfixture=full|partial
+          // overlays demo IR-contact + company-social values IN MEMORY so the full Contact
+          // component can be viewed via a link. Localhost only; writes NOTHING to the DB.
+          try {
+            const fx = params.get("contactfixture");
+            if (fx && /^(localhost|127\.0\.0\.1|\[::1\])$/i.test(location.hostname) && window.__PP__) {
+              window.__PP__.ACCOUNT_TIER = "pro";
+              window.__PP__.COMPANY = Object.assign({}, window.__PP__.COMPANY, {
+                name: (window.__PP__.COMPANY && window.__PP__.COMPANY.name) || "Kingsmen Resources",
+                website: (window.__PP__.COMPANY && window.__PP__.COMPANY.website) || "https://kingsmenresources.com",
+                linkedin: fx === "partial" ? "" : "company/kingsmen-resources",
+                twitter: "kingsmenres",
+                instagram: fx === "partial" ? "" : "kingsmenresources",
+              });
+              window.__PP__.CONTACT = fx === "partial"
+                ? { name: "Scott Emerson", role: "President & CEO", photo: "", email: "scott@example.com", phone: "" }
+                : { name: "Scott Emerson", role: "President & CEO", photo: "https://rvptronniomlqumjhyrr.supabase.co/storage/v1/object/public/company-media/kingsmen/portrait-0-photo-0.jpg", email: "scott@example.com", phone: "+1 604 555 0123" };
+            }
+          } catch (_) {}
         }
         // Surface the company's real published posts (press releases + media) on the profile.
         if (ok && coId && window.__PP__) { try { await mergeCompanyPosts(coId, base); } catch (_) {} }
