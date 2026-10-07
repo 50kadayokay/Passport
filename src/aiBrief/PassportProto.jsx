@@ -2083,7 +2083,7 @@ function StageTimeline() {
   );
 }
 
-function BottomSheet({ children, onClose, mediaKey, topBanner }) {
+function BottomSheet({ children, onClose, mediaKey, topBanner, fit }) {
   const [shown, setShown] = useState(false);
   const [drag, setDrag] = useState(0);
   const [dragging, setDragging] = useState(false);
@@ -2131,7 +2131,8 @@ function BottomSheet({ children, onClose, mediaKey, topBanner }) {
       <div
         className="relative flex w-full flex-col overflow-hidden bg-white shadow-2xl"
         style={{
-          height: "82%",
+          height: fit ? "auto" : "82%",
+          maxHeight: fit ? "88%" : undefined,
           borderRadius: "26px 26px 0 0",
           transform: scrub ? "translateY(calc((1 - var(--pp-sheet, 0)) * 100%))" : (shown ? `translateY(${drag}px)` : "translateY(110%)"),
           transition: scrub ? "none" : (dragging ? "none" : "transform .32s cubic-bezier(0.16,1,0.3,1)"),
@@ -2162,7 +2163,7 @@ function BottomSheet({ children, onClose, mediaKey, topBanner }) {
         </button>
         {/* scrollable content — card stays still while this scrolls */}
         {mediaKey ? <div style={{ flexShrink: 0, padding: "0 20px" }}><CardHeader mediaKey={mediaKey} /></div> : null}
-        <RubberScroll className="pp-scroll overflow-y-auto" style={{ flex: 1, minHeight: 0, padding: "6px 20px 0 20px", paddingBottom: "calc(28px + env(safe-area-inset-bottom, 0px))" }}>
+        <RubberScroll className="pp-scroll overflow-y-auto" style={{ flex: fit ? "0 1 auto" : 1, minHeight: 0, padding: "6px 20px 0 20px", paddingBottom: "calc(28px + env(safe-area-inset-bottom, 0px))" }}>
           {typeof children === "function" ? children(close) : children}
         </RubberScroll>
       </div>
@@ -9721,7 +9722,7 @@ export function CompanyProfile({ onBack, onScan, tab: controlledTab, onTabChange
           COMPANY.instagram && { Icon: Instagram, label: "Instagram", href: soc(COMPANY.instagram, "https://instagram.com/") },
         ].filter(Boolean);
         return (
-          <BottomSheet onClose={() => setContactOpen(false)}>
+          <BottomSheet onClose={() => setContactOpen(false)} fit>
             {/* 1 — contact person (or company fallback) */}
             <div className="flex items-center gap-3.5 pr-9">
               <MemberAvatar photo={personPhoto} name={personName} initials={personInitials} size={56} />
