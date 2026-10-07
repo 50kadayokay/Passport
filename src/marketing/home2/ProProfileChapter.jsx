@@ -88,14 +88,6 @@ export default function ProProfileChapter({ onActive, onPricing}) {
     else mSettleRef.current = setTimeout(apply, PRO_SETTLE);
   }, [mp, mobile]);
   useEffect(() => () => clearTimeout(mSettleRef.current), []);
-  // Snapping is a document-level property, so it is attached only while the phone
-  // walkthrough is on screen and removed on the way out — never left on for other routes.
-  useEffect(() => {
-    if (!mobile) return;
-    const el = document.documentElement;
-    el.classList.add("mx-snap");
-    return () => el.classList.remove("mx-snap");
-  }, [mobile]);
   const [mounted, setMounted] = useState(false);
   const [active, setActive] = useState(false);
   // Tell the page when the walkthrough owns the viewport, so the global nav can recede.
@@ -297,18 +289,11 @@ export default function ProProfileChapter({ onActive, onPricing}) {
     // already drives the same demo on mobile (AppSection), so there is no new mechanism.
     return (
       <section ref={mTrackRef} aria-label="MineEx Pro Profile" style={{ position: "relative", background: NS_BG, height: `${PRO_STATES * 72}svh` }}>
-        {/* ONE SWIPE = ONE STATE. Rate-limiting the state changes treated the symptom and
-            only got a hard fling from five states down to three, because the scroll itself
-            still travelled that far — the demo was simply told about fewer of the states it
-            passed. Snap points fix the cause: the scroll can no longer come to rest between
-            states, so a flick settles on the next one and the walkthrough stops running away
-            after the finger leaves the glass. One marker per state, at that state's offset;
-            they are 1px and invisible, and the stage above them is pinned, so nothing moves
-            on screen except which state is showing. */}
-        <style>{`html.mx-snap, html.mx-snap body { scroll-snap-type: y mandatory; }`}</style>
-        {Array.from({ length: PRO_STATES }, (_, i) => (
-          <div key={i} aria-hidden style={{ position: "absolute", top: `${i * 72}svh`, left: 0, width: 1, height: 1, scrollSnapAlign: "start", scrollSnapStop: "always", pointerEvents: "none" }} />
-        ))}
+        {/* Scroll snapping lived here and has been removed. It did stop one swipe crossing
+            several states, but mandatory snapping makes the page GLIDE to a snap point on
+            its own once the finger lifts — which is the page moving by itself, exactly what
+            must not happen. The state rate-limit below is the only governor now: the page
+            goes where the finger put it and nowhere else. */}
         <div className="mx-vstage" style={{ position: "sticky", top: 0, height: "100svh", overflow: "hidden" }}>
           <NarrativeStory variant="full" hardware cutout />
         </div>

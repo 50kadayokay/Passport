@@ -170,12 +170,20 @@ function ConfCard({ c }) {
 // The three panels share SalesPricing's language: one light-gray surface per panel, the
 // leading plan as a near-black card inside it, the same type scale, marks and pill CTA.
 // Only the presentation changed — the plans, prices and feature copy are untouched.
+// Fit squeezes a panel into ONE viewport, which is what the desktop deck needs. On a phone
+// the panels are ordinary scrolling sections, so Fit re-measured its parent on every scroll
+// and rescaled the content — the cards visibly shrank as the page moved. Phones skip it.
+function FitMaybe({ children }) {
+  const { mobile } = useViewport();
+  return mobile ? <>{children}</> : <Fit>{children}</Fit>;
+}
+
 function PanelApp({ gut }) {
   const { mobile } = useViewport();
   const [billing, setBilling] = React.useState("annual");
   const b = BILLING[billing];
   return (
-    <Fit><div style={{ maxWidth: MAXW, margin: "0 auto", width: "100%", padding: `0 ${gut}` }}>
+    <FitMaybe><div style={{ maxWidth: MAXW, margin: "0 auto", width: "100%", padding: `0 ${gut}` }}>
       <Head n="01" eyebrow="MINEEX APP" head="Build your investor presence." body="Choose how much of your MineEx presence you want to manage yourself." />
       <Surface cols="1fr 1.26fr 1fr">
         {/* Desktop keeps Basic · Pro · Fully Managed, where Pro sits in the middle because
@@ -197,13 +205,13 @@ function PanelApp({ gut }) {
           </Plan>
         ))}
       </Surface>
-    </div></Fit>
+    </div></FitMaybe>
   );
 }
 
 function PanelConf({ gut }) {
   return (
-    <Fit><div style={{ maxWidth: MAXW, margin: "0 auto", width: "100%", padding: `0 ${gut}` }}>
+    <FitMaybe><div style={{ maxWidth: MAXW, margin: "0 auto", width: "100%", padding: `0 ${gut}` }}>
       <Head n="02" eyebrow="CONFERENCE MODE" head="Bring your investor story to the booth." body="Interactive conference experiences designed to help investors explore your company in person and stay connected after the conversation." headMax="15ch" />
       <Surface cols="1fr 1fr">
         {CONF.map((c) => (
@@ -220,7 +228,7 @@ function PanelConf({ gut }) {
           </Plan>
         ))}
       </Surface>
-    </div></Fit>
+    </div></FitMaybe>
   );
 }
 

@@ -23,6 +23,14 @@ export default function ProPage() {
   return (
     <div className="mx-root" id="top" style={{ background: pricingUp ? "#fbfcfe" : "#07080b", transition: "background 420ms ease" }}>
       <MarketingStyles />
+      {/* THE CANVAS. The page colour was set on this div and on a position:fixed backdrop,
+          and the black line survived both. What neither covers is the strip iOS exposes
+          below a fixed element while its toolbars move: that area paints the CANVAS, which
+          comes from html/body, not from any div. html had no dark background, so the strip
+          rendered near-black against the page's #07080b and read as a hard line. Setting it
+          on html and body is the only thing that paints there. Reverted to light while the
+          pricing sheet is up, since that sheet is a light screen. */}
+      <style>{`html, body { background: ${pricingUp ? "#fbfcfe" : "#07080b"} !important; }`}</style>
       {/* The SAME nav component the sales page renders, never receding: it must stay visible
             through every walkthrough state. `dark` is the component's existing theme prop,
             needed because this page's stage is #07080b — not a walkthrough-specific design. */}
