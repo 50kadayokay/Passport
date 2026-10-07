@@ -72,7 +72,12 @@ export default function InvestorShellPhone({ active = "today", insetTop = 92, in
       const opW = opR - opL, opH = opB - opT;
       // Map the app's own 393×852 viewport onto the measured opening: uniform cover scale,
       // centred, plus the bleed. No manufactured radius, no calibration offsets.
-      const appScale = Math.max(opW / DEVICE_W, opH / DEVICE_H) * CUTOUT_BLEED;
+      // CONTAIN, no bleed — same correction as DirectedEmbed. Cover plus a 1.004 bleed
+      // rendered the app 0.4% larger than the opening and centred it, cropping every edge;
+      // the app draws its status bar at y=0, so the top crop landed on it. The opening and
+      // the device viewport share an aspect ratio to four decimals, so contain fills the
+      // opening to within a sub-pixel.
+      const appScale = Math.min(opW / DEVICE_W, opH / DEVICE_H);
       const appVW = DEVICE_W * appScale, appVH = DEVICE_H * appScale;
       setDims({
         scale: appScale, w: boxW, boxH,

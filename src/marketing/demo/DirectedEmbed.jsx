@@ -306,7 +306,15 @@ export function DirectedEmbed({ variant = "full", hardware = false, cutout = fal
         const opL = op.left * boxW, opR = op.right * boxW;
         const opT = op.top * boxH,  opB = op.bottom * boxH;
         const opW = opR - opL, opH = opB - opT;
-        const appScale = Math.max(opW / DEVICE_W, opH / DEVICE_H) * CUTOUT_BLEED;
+        // ONE coordinate system, CONTAIN, no bleed. This was Math.max (cover) times a 1.004
+        // bleed, i.e. the app deliberately rendered 0.4% larger than the opening and centred,
+        // so it was cropped on every edge — and the app draws its status bar at y=0 of its own
+        // viewport, so the top crop lands straight on it. The bleed existed to stop a seam
+        // appearing between the app and the photo's bezel, but it is not needed: the opening
+        // and the device viewport share an aspect ratio to four decimal places (0.46038 vs
+        // 0.460369), so a contain fit fills the opening to within a sub-pixel on both axes,
+        // and the backing behind it is the app's own colour, which cannot read as a seam.
+        const appScale = Math.min(opW / DEVICE_W, opH / DEVICE_H);
         const appVW = DEVICE_W * appScale, appVH = DEVICE_H * appScale;
         setDims({
           scale: appScale, w: boxW, boxH,
