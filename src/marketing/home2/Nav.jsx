@@ -153,7 +153,11 @@ export default function Nav({ recede = false, dark = false, solid = false }) {
       {/* mobile drawer */}
       <div style={{
         position: "fixed", top: "var(--mx-nav-h, 64px)", left: 0, right: 0, zIndex: 99,
-        background: dark ? "rgba(8,9,12,0.96)" : "rgba(245,246,247,0.96)", backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)",
+        // The panel fill is 96% opaque, so this backdrop blur was doing almost nothing you
+        // could see while costing a full-width composited blur layer that iOS Safari
+        // re-rasterises whenever anything behind it moves — and it stayed mounted with the
+        // menu closed. Opaque fill instead; visually equivalent, no backdrop layer.
+        background: dark ? "rgba(8,9,12,0.985)" : "rgba(245,246,247,0.985)",
         borderBottom: `1px solid ${HAIR}`,
         transform: open ? "translateY(0)" : "translateY(-8px)", opacity: open ? 1 : 0,
         pointerEvents: open ? "auto" : "none",

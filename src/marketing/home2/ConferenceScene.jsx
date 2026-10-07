@@ -266,7 +266,10 @@ export default function ConferenceScene({ mobile = false, reduce = false, confIn
           around the base), blurred and subtle. */}
       <div aria-hidden style={{ position: "absolute", left: 0, right: 0, bottom: "-3%", height: "40%", zIndex: 0, pointerEvents: "none",
         background: "radial-gradient(38% 78% at 33% 74%, rgba(37,99,235,0.55), rgba(37,99,235,0) 72%), radial-gradient(40% 82% at 70% 76%, rgba(198,240,74,0.52), rgba(198,240,74,0) 72%)",
-        filter: "blur(34px)" }} />
+        // blur(34px) on a layer this size sits behind the animating tablet and is
+        // re-filtered on iOS whenever the tablet moves. A radial gradient is already soft,
+        // so phones take the gradient alone; desktop keeps the filter.
+        filter: (typeof window !== "undefined" && window.innerWidth < 760) ? "none" : "blur(34px)" }} />
       {/* Opaque screen backing — fills the glass rectangle BEHIND the (transparent-screened) iPad asset so the
           display can never show the page through it as a pale ring at the aperture edge. Sits under the asset;
           only the asset's transparent screen area reveals it, and the bezel covers any overhang. */}

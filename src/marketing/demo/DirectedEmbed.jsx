@@ -914,7 +914,13 @@ export function DirectedEmbed({ variant = "full", hardware = false, cutout = fal
             {/* Soft body shadow — the phone silhouette, blackened + blurred (unchanged). */}
             <div aria-hidden style={{ position: "absolute", inset: 0, zIndex: 0, pointerEvents: "none",
               backgroundImage: `url(${PHONE_SRC()})`, backgroundSize: "100% 100%", backgroundRepeat: "no-repeat",
-              filter: "brightness(0) blur(26px)", opacity: 0.24, transform: "translateY(20px) translateZ(0)" }} />
+              // Phones: a 332x554 filtered layer sitting directly behind the device that moves is
+              // re-filtered on every frame by iOS Safari. The same soft shadow is drawn with a
+              // gradient instead, which composites for free. Desktop keeps the filtered photo.
+              ...(phoneSmall()
+                ? { backgroundImage: "radial-gradient(60% 46% at 50% 62%, rgba(0,0,0,0.42) 0%, rgba(0,0,0,0.20) 46%, rgba(0,0,0,0) 72%)", filter: "none", opacity: 0.85 }
+                : { filter: "brightness(0) blur(26px)", opacity: 0.24 }),
+              transform: "translateY(20px) translateZ(0)" }} />
             {/* z0–z1 — the backing and the live app, CLIPPED to the hardware's real screen
                 opening by the mask generated from the same measurement as the cutout. Both are
                 rectangles whose corners would otherwise sit outside the phone's curved body,
@@ -926,7 +932,16 @@ export function DirectedEmbed({ variant = "full", hardware = false, cutout = fal
               WebkitMaskSize: "100% 100%", maskSize: "100% 100%",
               WebkitMaskRepeat: "no-repeat", maskRepeat: "no-repeat",
             }}>
-            <div aria-hidden style={{ position: "absolute", left: dims.opL, top: dims.opT, width: dims.opW, height: dims.opH, background: "#000", pointerEvents: "none" }} />
+            {/* THE SCREEN BACKING. This was #000. It sits inside the screen opening, behind the live
+                app, and it is only ever visible when the app above it is not painting — during a
+                state transition, while the embedded app repaints, or any frame the device is too
+                busy to composite the iframe. On a fast machine that never happens, which is why
+                geometry checks kept showing the app fully covering this layer and the bar was
+                never reproducible here; on a real iPhone under load it is exposed constantly, and
+                a black fill behind a white app reads as a black bar across the bottom of the
+                screen. The backing is the SCREEN: it takes the app's own background colour, so an
+                unpainted frame is indistinguishable from a painted one instead of flashing black. */}
+            <div aria-hidden style={{ position: "absolute", left: dims.opL, top: dims.opT, width: dims.opW, height: dims.opH, background: BOOT_SCREEN, pointerEvents: "none" }} />
             <div style={{ position: "absolute", left: dims.appLeft, top: dims.appTop, width: dims.appW, height: dims.appH, overflow: "hidden" }}>
               {!DEBUG_SCREEN && <iframe
                 ref={frameRef}
@@ -965,7 +980,13 @@ export function DirectedEmbed({ variant = "full", hardware = false, cutout = fal
             {/* Soft body shadow — the phone silhouette (from the original), blackened + blurred. */}
             <div aria-hidden style={{ position: "absolute", inset: 0, zIndex: 0, pointerEvents: "none",
               backgroundImage: `url(${PHONE_SRC()})`, backgroundSize: "100% 100%", backgroundRepeat: "no-repeat",
-              filter: "brightness(0) blur(26px)", opacity: 0.24, transform: "translateY(20px) translateZ(0)" }} />
+              // Phones: a 332x554 filtered layer sitting directly behind the device that moves is
+              // re-filtered on every frame by iOS Safari. The same soft shadow is drawn with a
+              // gradient instead, which composites for free. Desktop keeps the filtered photo.
+              ...(phoneSmall()
+                ? { backgroundImage: "radial-gradient(60% 46% at 50% 62%, rgba(0,0,0,0.42) 0%, rgba(0,0,0,0.20) 46%, rgba(0,0,0,0) 72%)", filter: "none", opacity: 0.85 }
+                : { filter: "brightness(0) blur(26px)", opacity: 0.24 }),
+              transform: "translateY(20px) translateZ(0)" }} />
             {/* BOTTOM (z0) — the ORIGINAL, UNMODIFIED phone photo: titanium, black bezel, corners, buttons,
                 reflections, shadows, Dynamic Island and the baked-in screenshot all come from here. */}
             <div aria-hidden style={{ position: "absolute", inset: 0, zIndex: 0, pointerEvents: "none", transform: "translateZ(0)",

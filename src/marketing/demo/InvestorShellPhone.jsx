@@ -12,7 +12,7 @@
 // is transparent and so cannot conceal them. Kept as its own component so the sales-page
 // DirectedEmbed stays untouched.
 // ─────────────────────────────────────────────────────────────────────────────
-import { PHONE_CUTOUT, PHONE_MASK, PHONE_SRC } from "./DirectedEmbed.jsx";
+import { PHONE_CUTOUT, PHONE_MASK, PHONE_SRC, phoneSmall } from "./DirectedEmbed.jsx";
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { DEVICE_W, DEVICE_H } from "./MobileAppFrame.jsx";
 
@@ -112,7 +112,13 @@ export default function InvestorShellPhone({ active = "today", insetTop = 92, in
           {/* soft body shadow — from the original photo (unchanged) */}
           <div aria-hidden style={{ position: "absolute", inset: 0, zIndex: 0, pointerEvents: "none",
             backgroundImage: `url(${PHONE_SRC()})`, backgroundSize: "100% 100%", backgroundRepeat: "no-repeat",
-            filter: "brightness(0) blur(26px)", opacity: 0.24, transform: "translateY(20px) translateZ(0)" }} />
+            // Phones: a 332x554 filtered layer sitting directly behind the device that moves is
+              // re-filtered on every frame by iOS Safari. The same soft shadow is drawn with a
+              // gradient instead, which composites for free. Desktop keeps the filtered photo.
+              ...(phoneSmall()
+                ? { backgroundImage: "radial-gradient(60% 46% at 50% 62%, rgba(0,0,0,0.42) 0%, rgba(0,0,0,0.20) 46%, rgba(0,0,0,0) 72%)", filter: "none", opacity: 0.85 }
+                : { filter: "brightness(0) blur(26px)", opacity: 0.24 }),
+              transform: "translateY(20px) translateZ(0)" }} />
           {/* z0–z1 — backing + live app, CLIPPED to the hardware's real screen opening by the
               mask generated from the same measurement as the cutout. */}
           <div style={{
@@ -121,7 +127,16 @@ export default function InvestorShellPhone({ active = "today", insetTop = 92, in
             WebkitMaskSize: "100% 100%", maskSize: "100% 100%",
             WebkitMaskRepeat: "no-repeat", maskRepeat: "no-repeat",
           }}>
-            <div aria-hidden style={{ position: "absolute", left: dims.opL, top: dims.opT, width: dims.opW, height: dims.opH, background: "#000", pointerEvents: "none" }} />
+            {/* THE SCREEN BACKING. This was #000. It sits inside the screen opening, behind the live
+                app, and it is only ever visible when the app above it is not painting — during a
+                state transition, while the embedded app repaints, or any frame the device is too
+                busy to composite the iframe. On a fast machine that never happens, which is why
+                geometry checks kept showing the app fully covering this layer and the bar was
+                never reproducible here; on a real iPhone under load it is exposed constantly, and
+                a black fill behind a white app reads as a black bar across the bottom of the
+                screen. The backing is the SCREEN: it takes the app's own background colour, so an
+                unpainted frame is indistinguishable from a painted one instead of flashing black. */}
+            <div aria-hidden style={{ position: "absolute", left: dims.opL, top: dims.opT, width: dims.opW, height: dims.opH, background: BOOT_SCREEN, pointerEvents: "none" }} />
             <div style={{ position: "absolute", left: dims.appLeft, top: dims.appTop, width: dims.appW, height: dims.appH, overflow: "hidden" }}>
               <iframe
                 ref={frameRef}

@@ -35,7 +35,7 @@ function Arrow({ dir, onPress, disabled, dark }) {
   // Over a near-black stage the disc lifts off the background; over the light one it sits
   // into it. Same shape, same size, same position — only the palette differs.
   const ink = dark ? "rgba(255,255,255,0.92)" : "#0a1b2e";
-  const fill = dark ? "rgba(255,255,255,0.10)" : "rgba(255,255,255,0.72)";
+  const fill = dark ? "rgba(255,255,255,0.14)" : "rgba(255,255,255,0.90)";
   const edge = dark ? "rgba(255,255,255,0.18)" : "rgba(10,27,46,0.12)";
   return (
     <button
@@ -51,8 +51,9 @@ function Arrow({ dir, onPress, disabled, dark }) {
         color: ink,
         background: fill,
         border: `1px solid ${edge}`,
-        WebkitBackdropFilter: "blur(14px) saturate(140%)",
-        backdropFilter: "blur(14px) saturate(140%)",
+        // No backdrop-filter. These sit directly over the animating device, and a
+        // backdrop blur forces iOS Safari to re-rasterise everything behind them on every
+        // frame the device moves. A slightly more opaque fill reads the same.
         boxShadow: dark ? "0 10px 26px -14px rgba(0,0,0,0.9)" : "0 10px 26px -16px rgba(10,27,46,0.55)",
         opacity: disabled ? 0.28 : 1,
         pointerEvents: disabled ? "none" : "auto",
@@ -84,9 +85,8 @@ export function StageStart({ onGo, dark = false, bottom = "16%", label = "Explor
           appearance: "none", padding: 0, margin: 0, cursor: "pointer",
           width: 54, height: 54, borderRadius: 999, display: "grid", placeItems: "center",
           color: ink,
-          background: dark ? "rgba(255,255,255,0.10)" : "rgba(255,255,255,0.78)",
+          background: dark ? "rgba(255,255,255,0.14)" : "rgba(255,255,255,0.92)",
           border: `1px solid ${dark ? "rgba(255,255,255,0.18)" : "rgba(10,27,46,0.12)"}`,
-          WebkitBackdropFilter: "blur(14px) saturate(140%)", backdropFilter: "blur(14px) saturate(140%)",
           boxShadow: dark ? "0 12px 30px -16px rgba(0,0,0,0.9)" : "0 12px 30px -18px rgba(10,27,46,0.55)",
           WebkitTapHighlightColor: "transparent", touchAction: "manipulation",
         }}>
