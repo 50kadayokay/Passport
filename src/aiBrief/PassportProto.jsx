@@ -226,6 +226,9 @@ let STATUS_LOGO = _PP.STATUS_LOGO ?? "/kingsmen-fixture/05-status-logo.png";
 export let COMPANY = _PP.COMPANY ?? {
   name: "Kingsmen Resources",
   website: "https://www.kingsmenresources.com",
+  linkedin: "company/kingsmen-resources-ltd",
+  twitter: "Kingsmen_Res",
+  instagram: "KingsmenResources",
   slogan: "Chihuahua's preeminent explorationist",
   ticker: "TSXV: KNG",
   commodity: "Silver & Gold",
@@ -3709,12 +3712,16 @@ function ProjectGallery({ slides }) {
   const goHero = (i) => {
     setHeroIdx(i);
     const el = heroRef.current;
-    if (el) el.scrollTo({ left: i * el.clientWidth, behavior: "smooth" });
+    if (el) el.scrollLeft = i * el.clientWidth;   // instant replace — no animated sweep/flicker
   };
 
-  // Keep the hero / fullscreen scrollers aligned to the current photo when each opens.
-  useEffect(() => { if (cardOpen && heroRef.current) heroRef.current.scrollLeft = heroIdx * heroRef.current.clientWidth; }, [cardOpen]);
-  useEffect(() => {
+  // Position the hero / fullscreen scrollers at the current photo BEFORE paint, so the card
+  // opens already on the tapped image — no scroll-jump and no caption flicker sweeping through
+  // the in-between photos.
+  React.useLayoutEffect(() => {
+    if (cardOpen && heroRef.current) heroRef.current.scrollLeft = heroIdx * heroRef.current.clientWidth;
+  }, [cardOpen]);
+  React.useLayoutEffect(() => {
     if (full && fullRef.current) fullRef.current.scrollLeft = heroIdx * fullRef.current.clientWidth;
     else if (!full && cardOpen && heroRef.current) heroRef.current.scrollLeft = heroIdx * heroRef.current.clientWidth;
   }, [full]);
