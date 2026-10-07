@@ -20,7 +20,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { MX, EASE, useTrack, step, useViewport, useReduce } from "../system.jsx";
 import { DirectedEmbed } from "../demo/DirectedEmbed.jsx";
 import ConferenceScene from "./ConferenceScene.jsx";
-import StageArrows from "./StageArrows.jsx";
+import StageArrows, { StageStart } from "./StageArrows.jsx";
 import HeroHandPhone from "./HeroHandPhone.jsx";
 // The Pricing deck slides up as the chapter after the template gallery (paged panels; see below).
 const PricingDeckLazy = React.lazy(() => import("./PricingDeck.jsx"));
@@ -455,9 +455,14 @@ export default function AppSection() {
           <p style={{ color: SLATE, fontWeight: 400, fontSize: "clamp(18px,1.7vw,22px)", lineHeight: 1.45, margin: "26px 0 0", maxWidth: "32ch" }}>
             Present your story. Engage investors. Build lasting connections.
           </p>
-          <p style={{ marginTop: 44, color: MX.mute, fontSize: 12.5, letterSpacing: "0.18em", fontWeight: 700, textTransform: "uppercase", opacity: heroIn ? 0.9 : 0, transition: "opacity 300ms" }}>
-            Scroll to explore the product ↓
-          </p>
+          {/* Phones no longer scroll through the story, so this line would be both wrong and
+              sitting underneath the control that replaces it. The StageStart control below
+              carries the same invitation. */}
+          {!mobile && (
+            <p style={{ marginTop: 44, color: MX.mute, fontSize: 12.5, letterSpacing: "0.18em", fontWeight: 700, textTransform: "uppercase", opacity: heroIn ? 0.9 : 0, transition: "opacity 300ms" }}>
+              Scroll to explore the product ↓
+            </p>
+          )}
         </div>
       </div>
     </div>
@@ -588,9 +593,9 @@ export default function AppSection() {
             live above it. Hidden while the pricing sheet is up — that sheet is the end of
             the story and carries its own way back. The sales stage is light, so the
             controls take their light palette. */}
-        {mobile && !pricingUp && (
-          <StageArrows i={idx} n={NSTATES} onGo={goM} atEnd={openPricing} bottom="30%" />
-        )}
+        {mobile && !pricingUp && (idx === S_HERO
+          ? <StageStart onGo={() => goM(S_HERO + 1)} />
+          : <StageArrows i={idx} n={NSTATES} onGo={goM} atEnd={openPricing} bottom="30%" />)}
       </div>
     </section>
   );

@@ -9,6 +9,9 @@ for(const [route,label] of [["/","home"],["/pro","pro"],["/investor","investor"]
   await p.setViewport({width:390,height:844,deviceScaleFactor:2,isMobile:true,hasTouch:true});
   await p.setUserAgent("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1");
   await p.goto(B+route,{waitUntil:"domcontentloaded",timeout:90000}); await sleep(5200);
+  // the opening screen offers a single centred "down" control; press it to start the story
+  const started=await p.evaluate(()=>{const e=document.querySelector('button[aria-label="Explore the product"]'); if(!e) return false; e.click(); return true;});
+  if(started) await sleep(900);
   const info=await p.evaluate(()=>({
     pageH:document.body.scrollHeight, win:innerHeight,
     next:!!document.querySelector('button[aria-label="Next"]'),

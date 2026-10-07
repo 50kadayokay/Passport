@@ -17,6 +17,12 @@
 import React from "react";
 import { EASE } from "../system.jsx";
 
+const DownChevron = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
+    <path d="M5 9l7 7 7-7" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
 const Chevron = ({ dir }) => (
   <svg width="19" height="19" viewBox="0 0 24 24" fill="none" aria-hidden
     style={{ transform: dir === "prev" ? "translateX(-1px)" : "translateX(1px)" }}>
@@ -58,6 +64,36 @@ function Arrow({ dir, onPress, disabled, dark }) {
     >
       <Chevron dir={dir} />
     </button>
+  );
+}
+
+/**
+ * The opening screen has nothing to go back to and no device beside it yet, so the pair of
+ * side controls had nothing to flank and sat on top of the hero's own line. It gets a
+ * single centred control pointing DOWN to the walkthrough instead; the left/right pair
+ * appears once the story has started.
+ */
+export function StageStart({ onGo, dark = false, bottom = "16%", label = "Explore the product" }) {
+  const ink = dark ? "rgba(255,255,255,0.92)" : "#0a1b2e";
+  return (
+    <div style={{ position: "absolute", left: 0, right: 0, bottom, zIndex: 40, display: "grid", placeItems: "center", gap: 12 }}>
+      <span style={{ color: dark ? "rgba(255,255,255,0.55)" : "#6b7382", fontSize: 12, fontWeight: 700,
+        letterSpacing: "0.18em", textTransform: "uppercase" }}>{label}</span>
+      <button type="button" onClick={onGo} aria-label={label} className="mx-arrowbtn"
+        style={{
+          appearance: "none", padding: 0, margin: 0, cursor: "pointer",
+          width: 54, height: 54, borderRadius: 999, display: "grid", placeItems: "center",
+          color: ink,
+          background: dark ? "rgba(255,255,255,0.10)" : "rgba(255,255,255,0.78)",
+          border: `1px solid ${dark ? "rgba(255,255,255,0.18)" : "rgba(10,27,46,0.12)"}`,
+          WebkitBackdropFilter: "blur(14px) saturate(140%)", backdropFilter: "blur(14px) saturate(140%)",
+          boxShadow: dark ? "0 12px 30px -16px rgba(0,0,0,0.9)" : "0 12px 30px -18px rgba(10,27,46,0.55)",
+          WebkitTapHighlightColor: "transparent", touchAction: "manipulation",
+        }}>
+        <DownChevron />
+      </button>
+      <style>{`.mx-arrowbtn:active:not(:disabled){transform:scale(0.93)}`}</style>
+    </div>
   );
 }
 

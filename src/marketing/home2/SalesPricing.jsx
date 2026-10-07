@@ -181,6 +181,7 @@ export function Mark({ c = COBALT }) {
 // rhythm either way, so the two columns line up: name · description · toggle · price ·
 // explanation · CTA · features · note.
 function Plan({ name, desc, price, per, sub, features, note, cta, dark, control, children }) {
+  const { mobile } = useViewport();
   const ink   = dark ? "#fff" : NAVY;
   const muted = dark ? "rgba(255,255,255,0.62)" : SLATE;
   const faint = dark ? "rgba(255,255,255,0.45)" : MUTE;
@@ -191,12 +192,18 @@ function Plan({ name, desc, price, per, sub, features, note, cta, dark, control,
       padding: "clamp(17px,1.5vw,24px)",
       background: dark ? "#0b1220" : "transparent",
     }}>
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 26, minHeight: 24 }}>
-        <div style={{ minWidth: 0 }}>
-          <h3 style={{ margin: 0, fontSize: "clamp(17px,1.4vw,19px)", fontWeight: 700, letterSpacing: "-0.02em", color: ink }}>{name}</h3>
-          <p style={{ margin: "5px 0 0", fontSize: 13.5, lineHeight: 1.4, color: muted, maxWidth: control ? "20ch" : "30ch", minHeight: 38 }}>{desc}</p>
+      {/* The name and the billing toggle share a row on desktop, where there is width for
+          both. On a phone there is not: "MineEx Pro" was squeezed onto two lines beside the
+          toggle and the description was forced into a 20ch column four lines deep. Phones
+          stack them — name, then the toggle on its own line, then the description at full
+          width — which is also the order you read them in. */}
+      <div style={{ display: "flex", flexDirection: mobile ? "column" : "row", alignItems: mobile ? "stretch" : "flex-start", justifyContent: "space-between", gap: mobile ? 12 : 26, minHeight: mobile ? 0 : 24 }}>
+        <div style={{ minWidth: 0, order: mobile ? 0 : undefined }}>
+          <h3 style={{ margin: 0, fontSize: mobile ? 20 : "clamp(17px,1.4vw,19px)", fontWeight: 700, letterSpacing: "-0.02em", color: ink, whiteSpace: mobile ? "nowrap" : undefined }}>{name}</h3>
+          {!mobile && <p style={{ margin: "5px 0 0", fontSize: 13.5, lineHeight: 1.4, color: muted, maxWidth: control ? "20ch" : "30ch", minHeight: 38 }}>{desc}</p>}
         </div>
-        {control && <div style={{ flexShrink: 0, marginTop: 1 }}>{control}</div>}
+        {control && <div style={{ flexShrink: 0, marginTop: 1, order: mobile ? 1 : undefined, alignSelf: mobile ? "flex-start" : undefined }}>{control}</div>}
+        {mobile && <p style={{ margin: 0, order: 2, fontSize: 15, lineHeight: 1.45, color: muted }}>{desc}</p>}
       </div>
 
       <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginTop: 13 }}>
