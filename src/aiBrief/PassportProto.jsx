@@ -9701,49 +9701,48 @@ export function CompanyProfile({ onBack, onScan, tab: controlledTab, onTabChange
         ].filter(Boolean);
         return (
           <BottomSheet onClose={() => setContactOpen(false)} fit>
-            {/* company — logo + name, title at top */}
+            {/* company — logo + name, centered header */}
             {(COMPANY.name || AVATAR) && (
-              <div className="flex items-center gap-2.5 pr-9">
+              <div className="flex flex-col items-center text-center">
                 {AVATAR && (
                   <div className="grid h-16 w-16 flex-shrink-0 place-items-center overflow-hidden rounded-full border border-slate-200 bg-white">
                     <img src={AVATAR} alt={COMPANY.name || ""} className="h-full w-full object-cover" />
                   </div>
                 )}
-                {COMPANY.name && <h3 className="truncate text-[17px] font-extrabold tracking-tight text-slate-900">{COMPANY.name}</h3>}
+                {COMPANY.name && <h3 className="mt-2 max-w-full truncate text-[17px] font-extrabold tracking-tight text-slate-900">{COMPANY.name}</h3>}
               </div>
             )}
-            {/* 1 — contact person (or company fallback); avatar sized to match the row icons, with a verified check */}
-            <div className={`flex items-center gap-3 ${(COMPANY.name || AVATAR) ? "mt-3.5" : "pr-9"}`}>
-              <div className="relative flex-shrink-0">
-                <MemberAvatar photo={personPhoto} name={personName} initials={personInitials} size={36} />
-                <span className="absolute -bottom-1 -right-1 grid h-[15px] w-[15px] place-items-center rounded-full bg-white">
-                  <BadgeCheck size={13} style={{ color: "#0ea5e9" }} fill="rgba(14,165,233,0.18)" />
-                </span>
+            {/* contact list — one uniform column: the IR person first, then direct rows */}
+            <div className="mt-5 space-y-3.5">
+              {/* person (or company fallback); avatar sized to the row icons, with a verified check */}
+              <div className="flex items-center gap-3">
+                <div className="relative flex-shrink-0">
+                  <MemberAvatar photo={personPhoto} name={personName} initials={personInitials} size={36} />
+                  <span className="absolute -bottom-1 -right-1 grid h-[15px] w-[15px] place-items-center rounded-full bg-white">
+                    <BadgeCheck size={13} style={{ color: "#0ea5e9" }} fill="rgba(14,165,233,0.18)" />
+                  </span>
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[14px] font-extrabold tracking-tight text-slate-900">{hasPerson ? personName : "Investor Relations"}</p>
+                  {hasPerson && personRole && <p className="truncate text-[12px] font-semibold text-slate-500">{personRole}</p>}
+                </div>
               </div>
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-[14px] font-extrabold tracking-tight text-slate-900">{hasPerson ? personName : "Investor Relations"}</p>
-                {hasPerson && personRole && <p className="truncate text-[12px] font-semibold" style={{ color: THEME.team.t }}>{personRole}</p>}
-              </div>
+              {/* direct contact rows (neutral icons) */}
+              {direct.map((r, i) => (
+                <a key={i} href={r.href} {...(r.ext ? { target: "_blank", rel: "noreferrer" } : {})}
+                  className="flex items-center gap-3 transition active:opacity-60">
+                  <span className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-full bg-slate-100 text-slate-500"><r.Icon size={15} strokeWidth={2.2} /></span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-[9.5px] font-bold uppercase tracking-[0.12em] text-slate-400">{r.label}</span>
+                    <span className="block truncate text-[13.5px] font-semibold text-slate-900">{r.value}{r.ext ? " ↗" : ""}</span>
+                  </span>
+                </a>
+              ))}
             </div>
-            {/* 2 — direct contact info (secondary; small rows, not buttons) */}
-            {direct.length > 0 && (
-              <div className="mt-4 space-y-3">
-                {direct.map((r, i) => (
-                  <a key={i} href={r.href} {...(r.ext ? { target: "_blank", rel: "noreferrer" } : {})}
-                    className="flex items-center gap-3 transition active:opacity-60">
-                    <span className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-full" style={{ background: "rgba(37,99,235,0.08)", color: "#2563eb" }}><r.Icon size={15} strokeWidth={2.2} /></span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block text-[9.5px] font-bold uppercase tracking-[0.12em] text-slate-400">{r.label}</span>
-                      <span className="block truncate text-[13.5px] font-semibold text-slate-900">{r.value}{r.ext ? " ↗" : ""}</span>
-                    </span>
-                  </a>
-                ))}
-              </div>
-            )}
             {/* 3 — PRIMARY action: Message in MineEx (dominant cobalt) */}
             <button onClick={() => { haptic(); setContactOpen(false); setDm(true); }}
               className="mt-5 flex w-full items-center justify-center gap-2 rounded-2xl text-[15px] font-bold text-white active:scale-[0.98]"
-              style={{ height: 52, background: "#2563eb", boxShadow: "0 12px 26px -12px rgba(37,99,235,0.75)" }}>
+              style={{ height: 52, background: "linear-gradient(135deg, #3b82f6 0%, #2563eb 45%, #4f46e5 100%)", boxShadow: "0 14px 30px -10px rgba(79,70,229,0.6)" }}>
               <MessageSquare size={17} strokeWidth={2.5} /> Message in MineEx
             </button>
             {/* 4 — company social links (tertiary) */}
