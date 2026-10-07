@@ -730,6 +730,7 @@ function AppRoot() {
               window.__PP__.COMPANY = Object.assign({}, window.__PP__.COMPANY, {
                 name: (window.__PP__.COMPANY && window.__PP__.COMPANY.name) || "Kingsmen Resources",
                 website: (window.__PP__.COMPANY && window.__PP__.COMPANY.website) || "https://kingsmenresources.com",
+                slogan: (window.__PP__.COMPANY && window.__PP__.COMPANY.slogan) || "High-grade silver-gold explorer in Mexico's Parral district",
                 headquarters: fx === "partial" ? "" : "1500 West Georgia St, Vancouver, BC, Canada",
                 linkedin: fx === "partial" ? "" : "company/kingsmen-resources",
                 twitter: "kingsmenres",
