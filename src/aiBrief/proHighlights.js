@@ -409,8 +409,8 @@ export function buildCompanyIdentity(ctx = {}) {
     stage: S(co.stage) || ARCHETYPE_BADGE[archetype] || "",
     flagship: { projectName: S(proj && proj.name), location, ownership, image },
     meta: {
-      commodity: S(co.commodity) || cleanCommodityList(snapVal(proj || {}, "commodity") || (proj && proj.commodities)),
-      jurisdiction: S(co.jurisdiction) || primaryJurisdiction(location),
+      commodity: cleanCommodityList(S(co.commodity) || snapVal(proj || {}, "commodity") || (proj && proj.commodities)),
+      jurisdiction: primaryJurisdiction(S(co.jurisdiction) || location),
       projects: S(co.projectsLabel) || (count ? (count === 1 ? "1 Project" : `${count} Projects`) : ""),
       focus: S(co.focus) || deriveFocus(ctx, archetype),
     },
