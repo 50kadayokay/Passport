@@ -562,7 +562,14 @@ export default function InvestorPage() {
             <div style={{ position: "absolute", left: 0, right: 0, top: SAFE_TOP, bottom: SAFE_BOTTOM, zIndex: 20 }}>
               <div style={mobile ? stageGridMobile : stageGrid}>
                 {/* narrative — fixed column, so the device slot never moves */}
-                <div style={{ minHeight: 300, display: "flex", flexDirection: "column", justifyContent: "center" }}>
+                {/* Phones align the copy to the TOP of its row. Centring it was fine while every
+                    beat was short, but the closing beat carries 437px of copy and minHeight:300
+                    is taller than the row itself, so centring pushed the overflow out BOTH ways
+                    and the eyebrow and headline ended up above the nav (measured at top=7 and
+                    top=43 against a nav bottom of 49 — the cut-off text). Aligned to the top,
+                    the overflow can only go downwards, into the device row, which is already
+                    invisible on exactly those beats. */}
+                <div style={{ minHeight: mobile ? 0 : 300, display: "flex", flexDirection: "column", justifyContent: mobile ? "flex-start" : "center" }}>
                   <div style={copyStyleFor(phase, reduce)}><BeatCopy i={shown} compact={mobile} /></div>
                 </div>
                 {/* device — constant slot, constant scale, no entrance */}

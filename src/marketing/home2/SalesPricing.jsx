@@ -132,6 +132,9 @@ export function Setup({ amount, per = "one-time", qualifier, blurb, dark }) {
 // content overflow, we measure its natural (untransformed) height against the space the
 // panel actually has, and scale the whole column down to fit. Scaling keeps the design
 // exactly as drawn — nothing reflows — and it never scales UP past 1.
+// Fit on desktop, plain pass-through on phones.
+function Maybe({ fit, children }) { return fit ? <Fit>{children}</Fit> : <>{children}</>; }
+
 export function Fit({ children }) {
   const ref = useRef(null);
   const [fit, setFit] = useState({ s: 1, h: 0 });
@@ -243,8 +246,17 @@ export default function SalesPricing({ active, onExitTop, mobile }) {
   }, [active, onExitTop, mobile]);
 
   return (
-    <div className="sp-panel" style={{ position: "absolute", inset: 0, background: BG, overflow: "hidden", display: "flex", flexDirection: "column", padding: `clamp(76px,9vh,96px) clamp(22px,5vw,64px) clamp(24px,3.4vh,48px)` }}>
-      <Fit><div style={{ maxWidth: 1040, width: "100%", margin: "0 auto" }}>
+    <div className="sp-panel" style={{ position: "absolute", inset: 0, background: BG,
+      // PHONES scroll this panel instead of squeezing it. Fit scales the whole block down
+      // until it fits one viewport, which is right for the desktop sheet but wrong here:
+      // the two plans stack on a phone, so the natural height roughly doubles, Fit shrank
+      // everything to match (the "too thin" card) and what would not fit — the Conference
+      // Mode plan — was clipped by the panel's overflow:hidden. Scrolling costs nothing on
+      // a phone and shows both plans at their proper size.
+      overflow: mobile ? "auto" : "hidden", WebkitOverflowScrolling: "touch",
+      display: "flex", flexDirection: "column",
+      padding: mobile ? "74px 20px 32px" : `clamp(76px,9vh,96px) clamp(22px,5vw,64px) clamp(24px,3.4vh,48px)` }}>
+      <Maybe fit={!mobile}><div style={{ maxWidth: 1040, width: "100%", margin: "0 auto" }}>
         <div style={{ display: "flex", alignItems: "baseline", gap: 14 }}>
           <p className="mx-label" style={{ color: COBALT, letterSpacing: "0.22em", margin: 0 }}>Pricing</p>
         </div>
@@ -284,7 +296,7 @@ export default function SalesPricing({ active, onExitTop, mobile }) {
         </div>
         {!mobile && <p style={{ marginTop: 14, textAlign: "center", fontSize: 12.5, color: MUTE, letterSpacing: "0.06em" }}>↑ Swipe up to go back</p>}
         <Footer compact />
-      </div></Fit>
+      </div></Maybe>
       <style>{`
         .sp-cta { transition: transform 160ms ${EASE}, box-shadow 160ms ${EASE}; }
         .sp-cta:hover { transform: translateY(-1px); box-shadow: 0 16px 34px -18px rgba(10,27,46,0.5); }

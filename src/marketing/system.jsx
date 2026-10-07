@@ -633,21 +633,23 @@ export function MarketingStyles() {
          scene content is centred BELOW the nav and its headline never hides under it. */
       .mx-stage { position: sticky; top: 0; height: 100svh; display: flex; align-items: center; overflow: hidden; padding-top: 62px; }
 
-      /* PHONES: svh is the SMALLEST viewport — the height with Safari's chrome showing.
-         It never changes, which is why it is safe for layout, but it is the wrong height
-         the moment Safari retracts its chrome mid-swipe: the visible viewport grows, the
-         stage does not, and a black strip opens under it while the device inside gets
-         measured against a height that is no longer real and clips its own status bar.
-         dvh tracks the live viewport, so the stage always fills exactly what is on screen.
-         Guarded by @supports and scoped to phones — desktop keeps svh untouched, and a
-         browser without dvh simply keeps today's behaviour rather than losing its height. */
-      @supports (height: 100dvh) {
-        @media (max-width: 759px) {
-          /* Only the containers that PAINT a full-viewport background. .mx-demo is the
-             inner demo and is sized by its container (.mx-story-m forces it to 100%), so
-             forcing a viewport height on it would fight the stage grid on other pages. */
-          .mx-stage, .mx-vstage, .mx-story-m { height: 100dvh !important; }
-        }
+      /* A dvh rule lived here. It was an attempt at the black line on the Pro walkthrough
+         and it did not fix it — the recording showed the line with Safari's toolbar FULLY
+         EXPANDED, i.e. at the smallest viewport, where svh already matched. Worse, dvh
+         re-evaluates as the chrome animates during a scroll, so the pinned stage resized
+         continuously and everything inside it, the tablet render included, jittered up and
+         down. Removed: it fixed nothing and caused that. The line is handled where it
+         belongs, by fading the stage's own glow to the page colour before its bottom edge
+         (NarrativeStory), which does not depend on the geometry being right. */
+
+      /* The embedded app is pointer-events:none, so the "drag the phone around like the
+         real app" feel is not the app at all — it is the PAGE rubber-banding in two axes
+         under the finger, which slides the device render with it. Phones therefore pan
+         vertically only, and vertical overscroll is contained so a flick at either end
+         does not peel the whole page. pinch-zoom is kept: removing it would cost
+         accessibility for a cosmetic gain. */
+      @media (max-width: 759px) {
+        html, body { touch-action: pan-y pinch-zoom; }
       }
 
       @keyframes mx-cue { 0%,100% { transform: translateY(0); opacity: .55 } 50% { transform: translateY(6px); opacity: 1 } }

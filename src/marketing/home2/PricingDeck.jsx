@@ -39,6 +39,8 @@ const GALLERY = "/conference-mode";
 // Explore, managed from the Portal. Its press releases are INGESTED into the timeline —
 // never described as "kept current", which would imply MineEx manages the whole presence
 // for $299. Projects, Capital, Leadership, Media and publishing are the Pro differentiation.
+// Phone stacking order for the app plans; desktop uses the array's own order.
+const APP_MOBILE_ORDER = ["pro", "managed", "basic"];
 const APP = [
   { key: "basic", label: "Basic", price: "$299", per: "/ month", title: "Establish your presence on MineEx.",
     features: ["Company Overview", "Company Timeline", "Tickers, exchanges, commodity and jurisdiction", "Discoverable in MineEx Explore & Search", "Investor-facing mobile profile", "Company Portal", "Press releases ingested into your Timeline"],
@@ -169,13 +171,18 @@ function ConfCard({ c }) {
 // leading plan as a near-black card inside it, the same type scale, marks and pill CTA.
 // Only the presentation changed — the plans, prices and feature copy are untouched.
 function PanelApp({ gut }) {
+  const { mobile } = useViewport();
   const [billing, setBilling] = React.useState("annual");
   const b = BILLING[billing];
   return (
     <Fit><div style={{ maxWidth: MAXW, margin: "0 auto", width: "100%", padding: `0 ${gut}` }}>
       <Head n="01" eyebrow="MINEEX APP" head="Build your investor presence." body="Choose how much of your MineEx presence you want to manage yourself." />
       <Surface cols="1fr 1.26fr 1fr">
-        {APP.map((p) => p.lead ? (
+        {/* Desktop keeps Basic · Pro · Fully Managed, where Pro sits in the middle because
+            it is the featured column and the row reads cheapest-to-dearest across. Stacked
+            on a phone there is no middle, so the recommended plan would be buried under the
+            cheapest one: phones lead with Pro, then Fully Managed, then Basic. */}
+        {(mobile ? [...APP].sort((a, b) => APP_MOBILE_ORDER.indexOf(a.key) - APP_MOBILE_ORDER.indexOf(b.key)) : APP).map((p) => p.lead ? (
           <Plan key={p.key} dark name={p.label} badge={p.tag} blurb={p.title}
             price={b.price} per={b.per} sub={b.sub} note={b.note}
             inherits={p.inherits} features={p.features} cta={p.cta}
