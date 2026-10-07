@@ -304,7 +304,7 @@ let ONE_LINER = _PP.ONE_LINER ??
 // (no default Kingsmen note) so only companies that write one show the card.
 let CEO_NOTE = _PP.CEO_NOTE ?? { text: "", name: "", title: "CEO", photo: "" };
 // Contact links (phone / email / twitter / linkedin). Each renders only when present.
-let CONTACT = _PP.CONTACT ?? { name: "", role: "", photo: "", email: "", phone: "", twitter: "", linkedin: "" };
+let CONTACT = _PP.CONTACT ?? { name: "Scott Emerson", role: "President & CEO", photo: "https://rvptronniomlqumjhyrr.supabase.co/storage/v1/object/public/company-media/kingsmen/portrait-0-photo-0.jpg", email: "se@kingsmenresources.com", phone: "604-685-9316", twitter: "", linkedin: "" };
 
 // 60-second AI Brief orientation sections. Data-driven; the default is Kingsmen's so
 // the live Kingsmen profile reads identically. Every other company supplies its own
@@ -3790,10 +3790,10 @@ function ProjectGallery({ slides }) {
             {groups.map((g) => (
               <div key={g.title} className="mb-5">
                 <p className="mb-2 text-[12.5px] font-extrabold tracking-tight text-slate-900">{g.title} <span className="font-semibold text-slate-400">· {g.idxs.length}</span></p>
-                <div className="pp-scroll flex gap-2 overflow-x-auto pb-1" style={{ WebkitOverflowScrolling: "touch" }}>
+                <div className="grid grid-cols-3 gap-2">
                   {g.idxs.map((i) => (
-                    <button key={i} onClick={() => goHero(i)} className="relative flex-shrink-0 overflow-hidden rounded-xl transition active:scale-95"
-                      style={{ height: 72, width: 96, boxShadow: i === heroIdx ? "0 0 0 2px #2563eb" : "0 0 0 1px rgba(15,23,42,0.08)" }}>
+                    <button key={i} onClick={() => goHero(i)} className="relative w-full overflow-hidden rounded-xl transition active:scale-95"
+                      style={{ aspectRatio: "4 / 3", boxShadow: i === heroIdx ? "0 0 0 2px #2563eb" : "0 0 0 1px rgba(15,23,42,0.08)" }}>
                       <img src={S[i].src} alt={S[i].label} draggable={false} style={{ height: "100%", width: "100%", objectFit: "cover", display: "block" }} />
                     </button>
                   ))}
