@@ -304,7 +304,7 @@ let ONE_LINER = _PP.ONE_LINER ??
 // (no default Kingsmen note) so only companies that write one show the card.
 let CEO_NOTE = _PP.CEO_NOTE ?? { text: "", name: "", title: "CEO", photo: "" };
 // Contact links (phone / email / twitter / linkedin). Each renders only when present.
-let CONTACT = _PP.CONTACT ?? { phone: "", email: "", twitter: "", linkedin: "" };
+let CONTACT = _PP.CONTACT ?? { name: "", title: "", phone: "", email: "", linkedin: "", address: "", twitter: "" };
 
 // 60-second AI Brief orientation sections. Data-driven; the default is Kingsmen's so
 // the live Kingsmen profile reads identically. Every other company supplies its own
@@ -923,7 +923,7 @@ function PageBar({ tab, setTab, following, setFollowing, onBack }) {
 /* ============================================================
    PROFILE HEADER  —  static Kingsmen banner shown on every page
    ============================================================ */
-function ProfileHeader({ tab, setTab, following, setFollowing, onBack, onMessage, followEmphasis, followPress }) {
+function ProfileHeader({ tab, setTab, following, setFollowing, onBack, onContact, followEmphasis, followPress }) {
   const pages = profilePagesForTier();
   return (
     <div className="flex-shrink-0 px-5 pt-1">
@@ -1001,10 +1001,10 @@ function ProfileHeader({ tab, setTab, following, setFollowing, onBack, onMessage
           {following ? "Following" : "Follow"}
         </button>
         <button
-          onClick={() => { haptic(); onMessage && onMessage(); }}
+          onClick={() => { haptic(); onContact && onContact(); }}
           className="flex h-9 items-center justify-center gap-1.5 rounded-full border border-slate-200 bg-white text-[12px] font-bold tracking-tight text-slate-700 transition active:scale-[0.97]"
         >
-          <MessageSquare size={13} strokeWidth={2.6} /> Message
+          <User size={13} strokeWidth={2.6} /> Contact
         </button>
       </div>
 
@@ -8980,7 +8980,7 @@ export function applyPP(pp) {
   if (pp.STAGE_DESC !== undefined) STAGE_DESC = pp.STAGE_DESC;
   if (pp.ONE_LINER !== undefined) ONE_LINER = pp.ONE_LINER;
   if (pp.CEO_NOTE !== undefined) CEO_NOTE = pp.CEO_NOTE || { text: "", name: "", title: "CEO", photo: "" };
-  if (pp.CONTACT !== undefined) CONTACT = pp.CONTACT || { phone: "", email: "", twitter: "", linkedin: "" };
+  if (pp.CONTACT !== undefined) CONTACT = pp.CONTACT || { name: "", title: "", phone: "", email: "", linkedin: "", address: "", twitter: "" };
   if (pp.BRIEF_SECTIONS !== undefined) BRIEF_SECTIONS = pp.BRIEF_SECTIONS;
   if (pp.FUNDING !== undefined) FUNDING = pp.FUNDING;
   if (pp.CAPSTATUS !== undefined) CAPSTATUS = pp.CAPSTATUS;
@@ -9638,6 +9638,7 @@ export function CompanyProfile({ onBack, onScan, tab: controlledTab, onTabChange
   const [saved, setSaved] = useState([]);
   const [overlay, setOverlay] = useState(null);
   const [dm, setDm] = useState(false);
+  const [contactOpen, setContactOpen] = useState(false);
   const companyDm = {
     id: currentSlug() || "company",
     name: COMPANY.name,
@@ -9681,7 +9682,7 @@ export function CompanyProfile({ onBack, onScan, tab: controlledTab, onTabChange
     <DemoCtx.Provider value={demo || null}>
     <div className="flex h-full flex-col pp-fade" style={{ background: "#ffffff" }}>
       <div className="flex-shrink-0" style={{ background: "linear-gradient(180deg, #F1F6FD 0%, #F8FBFE 55%, #FFFFFF 100%)" }}>
-        <ProfileHeader onBack={onBack} onMessage={() => setDm(true)} tab={displayTab} setTab={setTab} following={following} setFollowing={setFollowing} followEmphasis={followEmphasis} followPress={followPress} />
+        <ProfileHeader onBack={onBack} onContact={() => setContactOpen(true)} tab={displayTab} setTab={setTab} following={following} setFollowing={setFollowing} followEmphasis={followEmphasis} followPress={followPress} />
       </div>
       <div className="flex-1" style={{ minHeight: 0 }}>
         <SwipePager
@@ -9691,6 +9692,52 @@ export function CompanyProfile({ onBack, onScan, tab: controlledTab, onTabChange
         />
       </div>
       {dm && <MessageThread convo={companyDm} onBack={() => setDm(false)} />}
+      {contactOpen && (() => {
+        const c = CONTACT || {};
+        const website = COMPANY.website ? (/^https?:/.test(COMPANY.website) ? COMPANY.website : `https://${COMPANY.website}`) : "";
+        const li = c.linkedin && (/^https?:/.test(c.linkedin) ? c.linkedin : `https://www.linkedin.com/${String(c.linkedin).replace(/^\//, "")}`);
+        // Only populated methods render — the sheet makes it trivial to reach the right person.
+        const rows = [
+          c.email && { Icon: Mail, label: "Email", value: c.email, href: `mailto:${c.email}` },
+          c.phone && { Icon: Phone, label: "Phone", value: c.phone, href: `tel:${c.phone}` },
+          li && { Icon: Linkedin, label: "LinkedIn", value: "View profile", href: li },
+          website && { Icon: Globe, label: "Website", value: COMPANY.website.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, ""), href: website },
+          c.address && { Icon: MapPin, label: "Address", value: c.address, href: `https://maps.google.com/?q=${encodeURIComponent(c.address)}` },
+        ].filter(Boolean);
+        return (
+          <BottomSheet onClose={() => setContactOpen(false)}>
+            <div className="flex items-center gap-3 pr-9">
+              <span className="grid h-11 w-11 flex-shrink-0 place-items-center rounded-full" style={{ background: "rgba(37,99,235,0.1)" }}>
+                <User size={20} style={{ color: "#2563eb" }} strokeWidth={2.2} />
+              </span>
+              <div className="min-w-0">
+                <h3 className="truncate text-[16px] font-extrabold tracking-tight text-slate-900">{c.name || COMPANY.name}</h3>
+                <p className="truncate text-[12px] font-semibold text-slate-500">{c.title || "Investor Relations"}</p>
+              </div>
+            </div>
+            {rows.length > 0 && (
+              <div className="mt-4 space-y-2">
+                {rows.map((r, i) => (
+                  <a key={i} href={r.href} target="_blank" rel="noreferrer"
+                    className="flex items-center gap-3 rounded-2xl border border-slate-100 bg-white px-3.5 py-3 transition active:scale-[0.99]">
+                    <span className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-full bg-slate-100 text-slate-600"><r.Icon size={16} strokeWidth={2.2} /></span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">{r.label}</span>
+                      <span className="block truncate text-[13.5px] font-semibold text-slate-900">{r.value}</span>
+                    </span>
+                    <ChevronRight size={16} className="flex-shrink-0 text-slate-300" />
+                  </a>
+                ))}
+              </div>
+            )}
+            <button onClick={() => { haptic(); setContactOpen(false); setDm(true); }}
+              className="mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-2xl text-[14px] font-bold text-white active:scale-[0.98]"
+              style={{ background: "#2563eb" }}>
+              <MessageSquare size={16} strokeWidth={2.4} /> Message in MineEx
+            </button>
+          </BottomSheet>
+        );
+      })()}
       {brief && <BriefOverlay onClose={() => setBrief(false)} />}
       {overlay === "watchlist" && <WatchlistSheet saved={saved} setSaved={setSaved} onClose={() => setOverlay(null)} />}
       {overlay === "compare" && <CompareSheet onClose={() => setOverlay(null)} />}
