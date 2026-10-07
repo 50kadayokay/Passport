@@ -230,6 +230,7 @@ export let COMPANY = _PP.COMPANY ?? {
   ticker: "TSXV: KNG",
   commodity: "Silver & Gold",
   jurisdiction: "Chihuahua, Mexico",
+  headquarters: "Suite 1305, 1090 West Georgia Street, Vancouver, British Columbia",
   status: "Drilling Underway / Assays Pending",
   marketCap: "C$18.5M",
   sharePrice: "C$0.21",
