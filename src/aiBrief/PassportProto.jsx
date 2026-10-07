@@ -9704,7 +9704,7 @@ export function CompanyProfile({ onBack, onScan, tab: controlledTab, onTabChange
             {/* company — logo + name, title at top */}
             {(COMPANY.name || AVATAR) && (
               <div className="flex items-center gap-2.5 pr-9">
-                {AVATAR && <img src={AVATAR} alt="" className="h-8 w-8 flex-shrink-0 rounded-full object-cover ring-1 ring-slate-200" />}
+                {AVATAR && <img src={AVATAR} alt="" className="h-9 w-9 flex-shrink-0 rounded-full object-cover ring-1 ring-slate-200" />}
                 {COMPANY.name && <h3 className="truncate text-[17px] font-extrabold tracking-tight text-slate-900">{COMPANY.name}</h3>}
               </div>
             )}
@@ -9727,7 +9727,7 @@ export function CompanyProfile({ onBack, onScan, tab: controlledTab, onTabChange
                 {direct.map((r, i) => (
                   <a key={i} href={r.href} {...(r.ext ? { target: "_blank", rel: "noreferrer" } : {})}
                     className="flex items-center gap-3 transition active:opacity-60">
-                    <span className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-full" style={{ background: (r.color || "#64748b") + "1A", color: r.color || "#64748b" }}><r.Icon size={15} strokeWidth={2.4} /></span>
+                    <span className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-full" style={{ background: "rgba(37,99,235,0.08)", color: "#2563eb" }}><r.Icon size={15} strokeWidth={2.2} /></span>
                     <span className="min-w-0 flex-1">
                       <span className="block text-[9.5px] font-bold uppercase tracking-[0.12em] text-slate-400">{r.label}</span>
                       <span className="block truncate text-[13.5px] font-semibold text-slate-900">{r.value}{r.ext ? " ↗" : ""}</span>
@@ -9749,9 +9749,8 @@ export function CompanyProfile({ onBack, onScan, tab: controlledTab, onTabChange
                 <div className="mt-2.5 flex items-center gap-2.5">
                   {socials.map((s, i) => (
                     <a key={i} href={s.href} target="_blank" rel="noreferrer" aria-label={s.label}
-                      className="grid h-9 w-9 place-items-center rounded-full transition active:scale-90"
-                      style={{ background: (s.color || "#64748b") + "16", color: s.color || "#64748b" }}>
-                      <s.Icon size={15} strokeWidth={2.4} />
+                      className="grid h-9 w-9 place-items-center rounded-full border border-slate-200 bg-white text-slate-500 transition active:scale-90 hover:text-slate-900">
+                      <s.Icon size={15} strokeWidth={2.2} />
                     </a>
                   ))}
                 </div>
