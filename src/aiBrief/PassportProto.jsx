@@ -3193,7 +3193,7 @@ function CapitalView() {
 
       {/* ===== CAPITAL STATUS CARD (the only shadowed element on the page) ===== */}
       <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white" style={{ boxShadow: cardShadow }}>
-        <div className="px-5 pb-5 pt-5">
+        <div className="px-5 pb-9 pt-6">
           <div className="flex items-center justify-between">
             <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1" style={{ border: `1px solid ${capTone.ring}`, background: "transparent" }}>
               <span className="relative flex h-1.5 w-1.5">
