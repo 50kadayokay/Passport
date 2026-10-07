@@ -201,13 +201,12 @@ export function NarrativeStory({ variant = "full", hardware = false, cutout = fa
     <div aria-hidden style={{
       position: "absolute", inset: 0, zIndex: 0, pointerEvents: "none",
       background: [
-        // PHONES: fade the field to the page colour before the stage's own bottom edge.
-        // Two attempts to make the stage match the viewport exactly both failed, because
-        // Safari does not re-evaluate viewport units while a momentum scroll runs — for a
-        // few frames the stage is simply the wrong height and a strip of flat page shows
-        // through as a hard black line. If the glow has already reached #07080b by the
-        // time it reaches that edge there is no edge to see, whatever the geometry does.
-        ...(mobile ? ["linear-gradient(to bottom, rgba(7,8,11,0) 62%, rgba(7,8,11,0.82) 86%, #07080b 100%)"] : []),
+        // A bottom fade to #07080b lived here, to hide a hard edge where the stage ended.
+        // It became the problem: fading the lower 38% of the stage to near-black IS a black
+        // band, which is what shows from the value-drivers beat onward. Removed. The edge it
+        // was hiding came from the stage being a different height than the viewport during a
+        // scroll, and these walkthroughs no longer scroll at all — the stage is a static
+        // 100svh — so there is nothing left for it to hide.
         "radial-gradient(62% 52% at 70% 46%, rgba(37,99,235,0.34) 0%, rgba(37,99,235,0.15) 40%, rgba(37,99,235,0) 74%)",
         "radial-gradient(46% 40% at 79% 70%, rgba(45,212,191,0.22) 0%, rgba(45,212,191,0) 72%)",
         "radial-gradient(42% 36% at 61% 22%, rgba(56,189,248,0.17) 0%, rgba(56,189,248,0) 70%)",
