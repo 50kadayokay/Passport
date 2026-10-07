@@ -957,27 +957,6 @@ function ProfileHeader({ tab, setTab, following, setFollowing, onBack, onContact
             </a>
           )}
           {COMPANY.slogan && <p className="mt-0.5 text-[12px] font-medium tracking-tight text-slate-500">{COMPANY.slogan}</p>}
-          {/* company social links (NOT phone/email — those live only in the Contact sheet) */}
-          {(() => {
-            const c = CONTACT || {};
-            const soc = (v, base) => (v ? (/^https?:/.test(v) ? v : base + String(v).replace(/^[@/]+/, "")) : "");
-            const items = [
-              (COMPANY.linkedin || c.linkedin) && { href: soc(COMPANY.linkedin || c.linkedin, "https://www.linkedin.com/"), Icon: Linkedin, label: "LinkedIn" },
-              (COMPANY.twitter || c.twitter) && { href: soc(COMPANY.twitter || c.twitter, "https://x.com/"), Icon: Twitter, label: "X" },
-              COMPANY.instagram && { href: soc(COMPANY.instagram, "https://instagram.com/"), Icon: Instagram, label: "Instagram" },
-            ].filter(Boolean);
-            if (!items.length) return null;
-            return (
-              <div className="mt-2 flex items-center gap-1.5">
-                {items.map((it, i) => (
-                  <a key={i} href={it.href} target="_blank" rel="noreferrer" aria-label={it.label}
-                    className="grid h-8 w-8 place-items-center rounded-full border border-slate-200 bg-white text-slate-500 transition active:scale-90 hover:text-slate-900">
-                    <it.Icon size={14} strokeWidth={2.2} />
-                  </a>
-                ))}
-              </div>
-            );
-          })()}
         </div>
       </div>
 
