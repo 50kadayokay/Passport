@@ -73,12 +73,12 @@ const NARR_W = "clamp(360px, 40vw, 560px)";
 const stageGridMobile = {
   display: "grid",
   gridTemplateColumns: "1fr",
-  // Sized to the TALLEST walkthrough beat, not the average. At 200px the longest of them
-  // ("Coverage of this sector lives across newsletters, forums and filings...") rendered
-  // 236px and its last two lines sat 36px inside the device — measured at 390x844, 390x740,
-  // 390x690, 393x852 and 430x932 alike. The row is a constant rather than per-beat `auto`
-  // so the device still never moves between beats (per-beat sizing is what cost 0.312 CLS).
-  gridTemplateRows: "clamp(214px, 36svh, 252px) minmax(0, 1fr)",
+  // The SAME row as the home walkthrough (stageGridStyle), so the device comes out at the
+  // same size on every phone page. It was raised to 252px to stop the longest beat running
+  // into the device; the headline now wraps at 22ch like home's instead, which shortens the
+  // copy enough that the original row holds it. A constant, not per-beat `auto` — per-beat
+  // sizing is what cost 0.312 CLS.
+  gridTemplateRows: "clamp(150px, 30svh, 200px) minmax(0, 1fr)",
   alignItems: "stretch",
   height: "100%",
   padding: "0 22px 6px",
@@ -506,7 +506,10 @@ function BeatCopy({ i, compact }) {
   return (
     <>
       <Eyebrow n={s.n} label={s.label} />
-      <h2 className="mx-h2" style={{ margin: compact ? "8px 0 0" : "18px 0 0", color: NAVY, maxWidth: "16ch", fontSize: compact ? 21 : undefined }}>{s.head}</h2>
+      {/* 22ch on a phone, matching the home walkthrough. At 16ch the same headline wrapped
+          onto more lines, the copy block grew, and the row had to be made taller to hold it
+          — which is what shrank the device here to 289px against home's 332px. */}
+      <h2 className="mx-h2" style={{ margin: compact ? "8px 0 0" : "18px 0 0", color: NAVY, maxWidth: compact ? "22ch" : "16ch", fontSize: compact ? 21 : undefined }}>{s.head}</h2>
       <p className="mx-lead" style={{ margin: compact ? "8px 0 0" : "20px 0 0", color: SLATE, maxWidth: "38ch", fontSize: compact ? 14.5 : undefined }}>{s.body}</p>
       {/* The supporting card sits under the copy in the desktop LEFT COLUMN. Stacked on a
           phone it overflows the copy row and lands behind the device. Nothing is lost by
@@ -564,7 +567,10 @@ export default function InvestorPage() {
             <Atmosphere reduce={reduce} />
 
             {/* ONE stage for all 19 states: narrative left, device right, both fixed. */}
-            <div style={{ position: "absolute", left: 0, right: 0, top: SAFE_TOP, bottom: SAFE_BOTTOM, zIndex: 20 }}>
+            {/* Phones use the home walkthrough's insets (62 / 12) rather than this page's
+                desktop ones (78 / 16), so the stage the device is sized from is identical
+                and the render comes out the same size on every phone page. */}
+            <div style={{ position: "absolute", left: 0, right: 0, top: mobile ? 62 : SAFE_TOP, bottom: mobile ? 12 : SAFE_BOTTOM, zIndex: 20 }}>
               <div style={mobile ? stageGridMobile : stageGrid}>
                 {/* narrative — fixed column, so the device slot never moves */}
                 {/* Phones align the copy to the TOP of its row. Centring it was fine while every
