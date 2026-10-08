@@ -501,13 +501,16 @@ export default function AppSection() {
     <div style={{ position: "absolute", inset: 0, zIndex: 4, pointerEvents: confSceneIn ? "auto" : "none",
       opacity: confSceneIn ? 1 : 0, transform: confSceneIn ? "translateY(0)" : "translateY(18px)",
       transition: `opacity ${T(520)} ${EASE}, transform ${T(560)} ${EASE_SHEET}` }}>
-      {/* The Conference tablet mounts ONE STATE EARLY, on every device, so it is loaded and
-          painted before its chapter is revealed. I had delayed this on phones to avoid two
-          live product iframes overlapping during the app walkthrough; the cost was the tablet
-          arriving empty on the state where it first appears, which is worse than the overlap
-          it saved. Reverted — the device must never be shown without its content. */}
+      {/* The Conference tablet mounts at the START of the walkthrough, not one state before
+          its own chapter. One state is one arrow press — nowhere near enough for a whole
+          template app to load over a phone connection, so the visitor arrived at the chapter
+          looking at the unloaded placeholder, which is a near-black gradient. That is the
+          black screen. Mounting from the first app state gives it the entire walkthrough to
+          load and paint. It costs a second product iframe on the page during that stretch,
+          which is the thing I previously tried to avoid for performance; a black device is
+          worse, and the expensive filters that made that overlap hurt are gone now. */}
       <ConferenceScene mobile={mobile} reduce={reduce} confIndex={Math.max(0, Math.min(CONF_STATES - 1, confIndex))}
-        mount={idx >= CONF0 - 1} active={confSceneIn} />
+        mount={idx >= APP0} active={confSceneIn} />
     </div>
   );
 
