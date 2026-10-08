@@ -8758,12 +8758,15 @@ function CompanyProfileScreen({ onScan }) {
   ].filter(Boolean);
   const cardBig = { boxShadow: "0 1px 2px rgba(15,23,42,0.04), 0 12px 26px -20px rgba(15,23,42,0.4)" };
   const cardFlat = { boxShadow: "0 1px 2px rgba(15,23,42,0.04)" };
+  // Posting media is a PAID company feature — basic/pro only (never on the investor profile).
+  const canPost = ACCOUNT_TIER === "basic" || ACCOUNT_TIER === "pro";
   return (
     <div className="relative flex h-full flex-col">
-      <ScreenHead eyebrow="Company" title="Profile" onScan={onScan} trailing={
-        <button onClick={() => { haptic(); setComposing(true); }} aria-label="Post media" className="grid h-9 w-9 place-items-center rounded-full text-white transition active:scale-90" style={{ background: EM }}>
-          <Plus size={22} strokeWidth={2.6} />
-        </button>
+      <ScreenHead eyebrow="Company" title="Profile" trailing={
+        <>
+          <button onClick={() => { haptic(); onScan && onScan(); }} aria-label="Scan a company QR code" className="grid h-9 w-9 place-items-center text-slate-800 transition active:scale-90"><QrCode size={24} strokeWidth={2.1} /></button>
+          {canPost && <button onClick={() => { haptic(); setComposing(true); }} aria-label="Post media" className="grid h-9 w-9 place-items-center text-slate-800 transition active:scale-90"><Plus size={26} strokeWidth={2.3} /></button>}
+        </>
       } />
       <div className="pp-scroll flex-1 overflow-y-auto px-5 pb-28 pt-1">
 
@@ -8813,23 +8816,6 @@ function CompanyProfileScreen({ onScan }) {
           )}
         </div>
 
-        <div className="flex items-baseline justify-between px-1 pb-2 pt-5">
-          <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Posts</p>
-          <button onClick={() => { haptic(); setComposing(true); }} className="flex items-center gap-1 text-[12px] font-bold" style={{ color: EM_TEXT }}><Plus size={13} strokeWidth={2.8} /> New post</button>
-        </div>
-        {posts.length === 0 ? (
-          <button onClick={() => { haptic(); setComposing(true); }} className="grid w-full place-items-center rounded-2xl border border-dashed border-slate-300 bg-slate-50 py-10 text-slate-400 transition active:scale-[0.99]">
-            <Camera size={26} /><span className="mt-2 text-[12.5px] font-bold">Post photos &amp; videos to your profile</span>
-          </button>
-        ) : (
-          <div className="grid grid-cols-3 gap-1.5">
-            {posts.map((p, i) => (
-              <div key={i} className="relative overflow-hidden rounded-xl bg-slate-100" style={{ aspectRatio: "1 / 1" }}>
-                {p.image ? <img src={p.image} alt="" className="h-full w-full object-cover" /> : <span className="grid h-full w-full place-items-center p-2 text-center text-[10px] font-semibold text-slate-500">{p.caption}</span>}
-              </div>
-            ))}
-          </div>
-        )}
       </div>
 
       {editing && <EditCompanyProfile initial={co} onSave={setCo} onClose={() => setEditing(false)} />}
