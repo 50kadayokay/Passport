@@ -171,7 +171,8 @@ export default function InvestorShellPhone({ active = "today", insetTop = 92, in
                         "html,body{overflow:hidden !important;overscroll-behavior:none !important;}" +
                         ".pp-scroll,[class*='overflow-y-auto'],[class*='overflow-auto'],[class*='overflow-y-scroll']{" +
                         "overflow:hidden !important;overscroll-behavior:none !important;" +
-                        "touch-action:none !important;-webkit-overflow-scrolling:auto !important;}";
+                        "touch-action:none !important;-webkit-overflow-scrolling:auto !important;}" +
+                        ".pp-view{transition-duration:180ms !important;animation-duration:180ms !important;}";
                       d.head.appendChild(sl);
                     }
                   } catch (_) {}

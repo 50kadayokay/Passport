@@ -283,7 +283,17 @@ export function DirectedEmbed({ variant = "full", hardware = false, cutout = fal
             "html,body{overflow:hidden !important;overscroll-behavior:none !important;}" +
             ".pp-scroll,[class*='overflow-y-auto'],[class*='overflow-auto'],[class*='overflow-y-scroll']{" +
             "overflow:hidden !important;overscroll-behavior:none !important;" +
-            "touch-action:none !important;-webkit-overflow-scrolling:auto !important;}";
+            "touch-action:none !important;-webkit-overflow-scrolling:auto !important;}" +
+            // The incoming view slides in from the right, so mid-animation it sits past the
+            // right edge — measured at 490 against a 424 viewport, settling to exactly 0-424.
+            // Horizontal CLIPPING is already handled: html/body above are overflow:hidden, so
+            // nothing paints outside the screen. Adding overflow-x:clip to the view and its
+            // children as well looked right and broke the project carousel — `clip` removes
+            // the scroll container, and the walkthrough drives that carousel with
+            // scrollTo({left}), so its 6500px track stopped being scrollable at all. What is
+            // left is the duration: the slide runs in 180ms, so the overhanging frame is on
+            // screen for a fraction as long. Demo iframe only; production app untouched.
+            ".pp-view{transition-duration:180ms !important;animation-duration:180ms !important;}";
           d0.head.appendChild(sl);
         }
       } catch (_) {}
