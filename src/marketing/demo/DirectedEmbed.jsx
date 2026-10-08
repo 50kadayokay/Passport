@@ -298,7 +298,19 @@ export function DirectedEmbed({ variant = "full", hardware = false, cutout = fal
             // what broke the project carousel last time, because it removed the scroll
             // container the walkthrough drives with scrollTo({left}). overflow-x on the view
             // alone leaves every descendant's own scrolling intact.
-            ".pp-view{overflow-x:hidden !important;transition-duration:180ms !important;animation-duration:180ms !important;}";
+            ".pp-view{overflow-x:hidden !important;transition-duration:180ms !important;animation-duration:180ms !important;}" +
+            // HAIRLINES. The app is drawn at 0.5466 scale, so a 1px border becomes 0.55px and
+            // sub-pixel rounding paints it on one edge of a box and drops it on the opposite
+            // one — measured on the milestone card, which sits fully inside the viewport
+            // (left 20, right 404 of 424) with border-right:1px set and no right edge drawn.
+            // 2px survives the downscale and lands back at ~1.1px on screen.
+            //
+            // Scoped to CARDS, not everything. The first attempt applied it globally and the
+            // bottom navigation's own top border grew with it, pushing the nav 3px off on pro
+            // and home. The app is Tailwind, so box-sizing is border-box and a card's outer
+            // size does not change; the chrome is excluded so nothing structural can move.
+            ".pp-view [class*='rounded'][class*='border']:not(.pp-bottomnav):not(.pp-bottomnav *)" +
+            "{border-width:2px !important;}";
           d0.head.appendChild(sl);
         }
       } catch (_) {}
