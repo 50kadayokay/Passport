@@ -218,6 +218,9 @@ function cardMediaId(kindOrLabel) {
 }
 let LOGO = _PP.LOGO ?? "/kingsmen-fixture/00-logo.png";
 export let AVATAR = _PP.AVATAR ?? "/kingsmen-fixture/01-avatar.jpeg";
+// true when this device is signed in as the COMPANY itself (role=company): the Profile tab
+// becomes the company's own editable profile (name locked) with a + button to post media.
+export let COMPANY_ACCOUNT = _PP.COMPANY_ACCOUNT ?? false;
 let SITE_PHOTO = _PP.SITE_PHOTO ?? "/kingsmen-fixture/02-site-photo.jpeg"; // Las Coloradas drone photo (square, 720px crisp)
 let KR_AVATAR = _PP.KR_AVATAR ?? "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
 export let STATUS_IMG = _PP.STATUS_IMG ?? "/kingsmen-fixture/04-status-img.jpeg";
@@ -8649,6 +8652,179 @@ function SavedPanel({ onBack }) {
   );
 }
 
+/* ============================================================
+   COMPANY ACCOUNT — the Profile tab for a logged-in COMPANY (role=company).
+   Same slot as the investor Profile tab, but it shows the company's own
+   editable profile (company NAME is locked) and a + button to post media.
+   ============================================================ */
+function EditCompanyProfile({ initial, onSave, onClose }) {
+  const [f, setF] = useState(() => ({ avatar: "", bio: "", website: "", email: "", phone: "", address: "", linkedin: "", twitter: "", instagram: "", ...initial }));
+  const set = (k) => (e) => setF((s) => ({ ...s, [k]: e.target.value }));
+  const fileRef = useRef(null);
+  const pickAvatar = (e) => { const file = e.target.files && e.target.files[0]; if (file) { try { setF((s) => ({ ...s, avatar: URL.createObjectURL(file) })); } catch (_) {} } };
+  const field = ({ label, k, ph, Icon, textarea, maxLength }) => (
+    <label className="block">
+      <span className="mb-1.5 flex items-center gap-1.5 text-[10.5px] font-bold uppercase tracking-wider text-slate-400">{Icon && <Icon size={12} />}{label}</span>
+      {textarea
+        ? <textarea value={f[k]} onChange={set(k)} placeholder={ph} maxLength={maxLength} rows={3} className="w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-[13.5px] text-slate-800 outline-none transition focus:border-slate-300 focus:bg-white" />
+        : <input value={f[k]} onChange={set(k)} placeholder={ph} maxLength={maxLength} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-[13.5px] text-slate-800 outline-none transition focus:border-slate-300 focus:bg-white" />}
+    </label>
+  );
+  return (
+    <BottomSheet onClose={onClose} topBanner={
+      <div style={{ padding: "26px 20px 16px", background: `linear-gradient(120deg, ${EM}, ${EM_TEXT})` }}>
+        <p className="text-[9.5px] font-extrabold uppercase tracking-[0.2em] text-white/75">Company profile</p>
+        <h3 className="text-[20px] font-extrabold tracking-tight text-white">Edit profile</h3>
+      </div>
+    }>
+      {(close) => (
+        <div className="space-y-4 pb-2">
+          <div className="flex items-center gap-3">
+            <div className="grid h-16 w-16 flex-shrink-0 place-items-center overflow-hidden rounded-full border border-slate-200 bg-white">
+              {f.avatar ? <img src={f.avatar} alt="" className="h-full w-full object-cover" /> : <Building2 size={22} className="text-slate-400" />}
+            </div>
+            <button type="button" onClick={() => fileRef.current && fileRef.current.click()} className="flex items-center gap-1.5 rounded-full border border-slate-200 px-3 py-2 text-[12px] font-bold text-slate-700 active:scale-95"><Camera size={14} /> Change logo</button>
+            <input ref={fileRef} type="file" accept="image/*" onChange={pickAvatar} className="hidden" />
+          </div>
+          <div>
+            <span className="mb-1.5 flex items-center gap-1.5 text-[10.5px] font-bold uppercase tracking-wider text-slate-400"><Building2 size={12} />Company name · locked</span>
+            <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-100 px-3 py-2.5 text-[13.5px] font-semibold text-slate-500">{initial.name}<span className="text-[9.5px] font-bold uppercase tracking-wide text-slate-400">Locked</span></div>
+          </div>
+          {field({ label: "Bio", k: "bio", ph: "A sentence about the company.", textarea: true, maxLength: 240 })}
+          {field({ label: "Website", k: "website", ph: "yourdomain.com", Icon: Globe, maxLength: 100 })}
+          {field({ label: "Email", k: "email", ph: "ir@company.com", Icon: Mail, maxLength: 100 })}
+          {field({ label: "Phone", k: "phone", ph: "+1 604 ...", Icon: Phone, maxLength: 40 })}
+          {field({ label: "Address", k: "address", ph: "Head office address", Icon: MapPin, maxLength: 120 })}
+          {field({ label: "LinkedIn", k: "linkedin", ph: "company/your-co", Icon: Linkedin, maxLength: 100 })}
+          {field({ label: "X (Twitter)", k: "twitter", ph: "handle", Icon: Twitter, maxLength: 60 })}
+          {field({ label: "Instagram", k: "instagram", ph: "handle", Icon: Instagram, maxLength: 60 })}
+          <button type="button" onClick={() => { haptic(); onSave(f); close(); }} className="mt-2 flex h-12 w-full items-center justify-center rounded-xl text-[13px] font-bold uppercase tracking-wide text-white transition active:scale-95" style={{ background: EM }}>Save profile</button>
+        </div>
+      )}
+    </BottomSheet>
+  );
+}
+
+function PostComposer({ onPost, onClose }) {
+  const [caption, setCaption] = useState("");
+  const [img, setImg] = useState("");
+  const fileRef = useRef(null);
+  const pick = (e) => { const file = e.target.files && e.target.files[0]; if (file) { try { setImg(URL.createObjectURL(file)); } catch (_) {} } };
+  return (
+    <BottomSheet onClose={onClose} fit topBanner={
+      <div style={{ padding: "22px 20px 14px", background: `linear-gradient(120deg, ${EM}, ${EM_TEXT})` }}>
+        <p className="text-[9.5px] font-extrabold uppercase tracking-[0.2em] text-white/75">Post</p>
+        <h3 className="text-[20px] font-extrabold tracking-tight text-white">New media post</h3>
+      </div>
+    }>
+      {(close) => (
+        <div className="space-y-3 pb-2">
+          <button type="button" onClick={() => fileRef.current && fileRef.current.click()} className="grid w-full place-items-center overflow-hidden rounded-xl border border-dashed border-slate-300 bg-slate-50" style={{ aspectRatio: "4 / 3" }}>
+            {img ? <img src={img} alt="" className="h-full w-full object-cover" /> : <span className="flex flex-col items-center gap-2 text-slate-400"><Camera size={26} /><span className="text-[12px] font-bold">Add a photo or video</span></span>}
+          </button>
+          <input ref={fileRef} type="file" accept="image/*,video/*" onChange={pick} className="hidden" />
+          <textarea value={caption} onChange={(e) => setCaption(e.target.value)} placeholder="Write a caption…" rows={3} maxLength={400} className="w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-[13.5px] text-slate-800 outline-none focus:border-slate-300 focus:bg-white" />
+          <button type="button" disabled={!img && !caption.trim()} onClick={() => { haptic(); onPost({ image: img, caption: caption.trim(), at: Date.now() }); close(); }} className="flex h-12 w-full items-center justify-center rounded-xl text-[13px] font-bold uppercase tracking-wide text-white transition active:scale-95 disabled:opacity-40" style={{ background: EM }}>Post</button>
+        </div>
+      )}
+    </BottomSheet>
+  );
+}
+
+function CompanyProfileScreen({ onScan }) {
+  const [editing, setEditing] = useState(false);
+  const [composing, setComposing] = useState(false);
+  const [co, setCo] = useState(() => ({
+    name: COMPANY.name || "Your Company", avatar: AVATAR || "",
+    bio: COMPANY.slogan || "", website: COMPANY.website || "",
+    email: (CONTACT && CONTACT.email) || "", phone: (CONTACT && CONTACT.phone) || "",
+    address: COMPANY.headquarters || "",
+    linkedin: COMPANY.linkedin || "", twitter: COMPANY.twitter || "", instagram: COMPANY.instagram || "",
+  }));
+  const [posts, setPosts] = useState([]);
+  useBackHandler(editing || composing, () => { setComposing(false); setEditing(false); });
+  const soc = (v, base) => (v ? (/^https?:/.test(v) ? v : base + String(v).replace(/^[@/]+/, "")) : "");
+  const webHost = (co.website || "").replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "");
+  const socials = [
+    co.linkedin && { href: soc(co.linkedin, "https://www.linkedin.com/"), Icon: Linkedin, label: "LinkedIn" },
+    co.twitter && { href: soc(co.twitter, "https://x.com/"), Icon: Twitter, label: "X" },
+    co.instagram && { href: soc(co.instagram, "https://instagram.com/"), Icon: Instagram, label: "Instagram" },
+  ].filter(Boolean);
+  const contactRows = [
+    co.email && { Icon: Mail, label: "Email", value: co.email },
+    co.phone && { Icon: Phone, label: "Phone", value: co.phone },
+    co.address && { Icon: MapPin, label: "Address", value: co.address },
+  ].filter(Boolean);
+  const cardBig = { boxShadow: "0 1px 2px rgba(15,23,42,0.04), 0 12px 26px -20px rgba(15,23,42,0.4)" };
+  return (
+    <div className="relative flex h-full flex-col">
+      <ScreenHead eyebrow="Company" title="Profile" onScan={onScan} trailing={
+        <button onClick={() => { haptic(); setComposing(true); }} aria-label="Post media" className="grid h-9 w-9 place-items-center rounded-full text-white transition active:scale-90" style={{ background: EM }}>
+          <Plus size={22} strokeWidth={2.6} />
+        </button>
+      } />
+      <div className="pp-scroll flex-1 overflow-y-auto px-5 pb-28 pt-1">
+        <div className="relative overflow-hidden rounded-2xl p-5" style={{ background: `linear-gradient(135deg, ${EM} 0%, ${EM_TEXT} 100%)`, ...cardBig }}>
+          <div className="absolute inset-0" style={{ background: "radial-gradient(120% 130% at 86% -12%, rgba(255,255,255,0.20) 0%, rgba(255,255,255,0) 46%)" }} />
+          <button onClick={() => { haptic(); setEditing(true); }} className="absolute right-3 top-3 flex items-center gap-1.5 rounded-full bg-white/20 px-3 py-1.5 text-[11.5px] font-bold text-white backdrop-blur transition active:scale-95"><PenSquare size={12} /> Edit</button>
+          <div className="relative flex items-center gap-3.5">
+            <div className="grid h-16 w-16 flex-shrink-0 place-items-center overflow-hidden rounded-full border-2 border-white/70 bg-white">
+              {co.avatar ? <img src={co.avatar} alt="" className="h-full w-full object-cover" /> : <Building2 size={24} className="text-slate-400" />}
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5">
+                <h2 className="truncate text-[19px] font-extrabold tracking-tight text-white">{co.name}</h2>
+                <BadgeCheck size={16} className="flex-shrink-0 text-white" />
+              </div>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-white/70">Company account · name locked</p>
+            </div>
+          </div>
+          {co.bio && <p className="relative mt-3 text-[12.5px] font-medium leading-relaxed text-white/90">{co.bio}</p>}
+          {webHost && <a href={soc(co.website, "https://")} target="_blank" rel="noreferrer" className="relative mt-2 inline-flex items-center gap-1 text-[12px] font-bold text-white/90"><Globe size={12} /> {webHost}</a>}
+          {socials.length > 0 && (
+            <div className="relative mt-3 flex items-center gap-2">
+              {socials.map((s, i) => <a key={i} href={s.href} target="_blank" rel="noreferrer" aria-label={s.label} className="grid h-8 w-8 place-items-center rounded-full bg-white/20 text-white transition active:scale-90"><s.Icon size={14} /></a>)}
+            </div>
+          )}
+        </div>
+
+        {contactRows.length > 0 && (<>
+          <p className="px-1 pb-2 pt-5 text-[11px] font-bold uppercase tracking-widest text-slate-400">Contact</p>
+          <div className="rounded-2xl border border-slate-100 bg-white p-2" style={cardBig}>
+            {contactRows.map((r, i) => (
+              <div key={i} className="flex items-center gap-3 px-2.5 py-2.5">
+                <span className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-full bg-slate-100 text-slate-500"><r.Icon size={15} /></span>
+                <span className="min-w-0"><span className="block text-[9.5px] font-bold uppercase tracking-[0.12em] text-slate-400">{r.label}</span><span className="block truncate text-[13.5px] font-semibold text-slate-900">{r.value}</span></span>
+              </div>
+            ))}
+          </div>
+        </>)}
+
+        <div className="flex items-baseline justify-between px-1 pb-2 pt-5">
+          <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Posts</p>
+          <button onClick={() => { haptic(); setComposing(true); }} className="flex items-center gap-1 text-[12px] font-bold" style={{ color: EM_TEXT }}><Plus size={13} strokeWidth={2.8} /> New post</button>
+        </div>
+        {posts.length === 0 ? (
+          <button onClick={() => { haptic(); setComposing(true); }} className="grid w-full place-items-center rounded-2xl border border-dashed border-slate-300 bg-slate-50 py-10 text-slate-400 transition active:scale-[0.99]">
+            <Camera size={26} /><span className="mt-2 text-[12.5px] font-bold">Post photos &amp; videos to your profile</span>
+          </button>
+        ) : (
+          <div className="grid grid-cols-3 gap-1.5">
+            {posts.map((p, i) => (
+              <div key={i} className="relative overflow-hidden rounded-xl bg-slate-100" style={{ aspectRatio: "1 / 1" }}>
+                {p.image ? <img src={p.image} alt="" className="h-full w-full object-cover" /> : <span className="grid h-full w-full place-items-center p-2 text-center text-[10px] font-semibold text-slate-500">{p.caption}</span>}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {editing && <EditCompanyProfile initial={co} onSave={setCo} onClose={() => setEditing(false)} />}
+      {composing && <PostComposer onPost={(p) => setPosts((x) => [p, ...x])} onClose={() => setComposing(false)} />}
+    </div>
+  );
+}
+
 function ProfileScreen({ onScan }) {
   const [toast, setToast] = useState("");
   const [signingOut, setSigningOut] = useState(false);
@@ -8970,6 +9146,7 @@ export function applyPP(pp) {
   if (pp.ONE_LINER !== undefined) ONE_LINER = pp.ONE_LINER;
   if (pp.CEO_NOTE !== undefined) CEO_NOTE = pp.CEO_NOTE || { text: "", name: "", title: "CEO", photo: "" };
   if (pp.CONTACT !== undefined) CONTACT = pp.CONTACT || { name: "", role: "", photo: "", email: "", phone: "", twitter: "", linkedin: "" };
+  if (pp.COMPANY_ACCOUNT !== undefined) COMPANY_ACCOUNT = !!pp.COMPANY_ACCOUNT;
   if (pp.BRIEF_SECTIONS !== undefined) BRIEF_SECTIONS = pp.BRIEF_SECTIONS;
   if (pp.FUNDING !== undefined) FUNDING = pp.FUNDING;
   if (pp.CAPSTATUS !== undefined) CAPSTATUS = pp.CAPSTATUS;
@@ -11322,7 +11499,7 @@ export default function App({ guest = false } = {}) {
     : n === "explore" ? <DiscoverScreen onOpenCompany={openCompany} onScan={() => setNav("scan")} />
     : n === "messages" ? <MessagesScreen onOpenCompany={openCompany} />
     : n === "following" ? <FollowingScreen followed={followed} onOpenCompany={openCompany} onScan={() => setNav("scan")} />
-    : n === "profile" ? <ProfileScreen onScan={() => setNav("scan")} />
+    : n === "profile" ? (COMPANY_ACCOUNT ? <CompanyProfileScreen onScan={() => setNav("scan")} /> : <ProfileScreen onScan={() => setNav("scan")} />)
     : null;
 
   // Browser/OS back & forward: sync the view to the URL rather than reloading the page.

@@ -831,6 +831,13 @@ function AppRoot() {
           }
         }
       } catch (_) {}
+      // LOCAL-ONLY company-account demo (never production). ?companyaccount=1 flips the Profile
+      // tab to the company's own editable profile + post button, as if signed in as the company.
+      try {
+        if (params.get("companyaccount") === "1" && /^(localhost|127\.0\.0\.1|\[::1\])$/i.test(location.hostname) && mod.applyPP) {
+          mod.applyPP({ COMPANY_ACCOUNT: true, ACCOUNT_TIER: "pro" });
+        }
+      } catch (_) {}
       setApp(() => mod.default);
       // A specific company was requested but its data didn't load (e.g. a draft opened
       // without its preview token) → show an honest "unavailable" instead of the demo
