@@ -933,17 +933,26 @@ function PageBar({ tab, setTab, following, setFollowing, onBack }) {
 /* ============================================================
    PROFILE HEADER  —  static Kingsmen banner shown on every page
    ============================================================ */
-function ProfileHeader({ tab, setTab, following, setFollowing, onBack, onContact, followEmphasis, followPress }) {
+function ProfileHeader({ tab, setTab, following, setFollowing, onBack, onContact, followEmphasis, followPress, owner, onEdit, onCreate, onAnalytics, onShare, onSettings }) {
   const pages = profilePagesForTier();
   // Contact is a paid feature — Basic + Pro only (legacy/unknown tiers are pro-equivalent).
   // Free-plan accounts don't get it; free INDEXED listings never reach here (BasicListing).
   const canContact = ACCOUNT_TIER !== "free";
   return (
     <div className="flex-shrink-0 px-5 pt-1">
-      {/* plain back arrow sitting above the avatar (no circle, not touching it) */}
-      <button onClick={() => { haptic(); onBack && onBack(); }} aria-label="Back" className="-ml-1 mb-1 grid h-8 w-8 place-items-center text-slate-700 transition active:scale-90">
-        <ChevronLeft size={26} strokeWidth={2.2} />
-      </button>
+      {owner ? (
+        /* Owner viewing their OWN live profile: no back (root tab). Top-right = Settings
+           (same account settings investors get) + the create (+). */
+        <div className="-ml-1 mb-1 flex h-8 items-center justify-end gap-0.5">
+          {onSettings && <button onClick={() => { haptic(); onSettings(); }} aria-label="Settings" className="grid h-8 w-8 place-items-center text-slate-700 transition active:scale-90"><Settings size={20} strokeWidth={2.1} /></button>}
+          {onCreate && <button onClick={() => { haptic(); onCreate(); }} aria-label="Create" className="grid h-8 w-8 place-items-center text-slate-800 transition active:scale-90"><Plus size={24} strokeWidth={2.3} /></button>}
+        </div>
+      ) : (
+        /* plain back arrow sitting above the avatar (no circle, not touching it) */
+        <button onClick={() => { haptic(); onBack && onBack(); }} aria-label="Back" className="-ml-1 mb-1 grid h-8 w-8 place-items-center text-slate-700 transition active:scale-90">
+          <ChevronLeft size={26} strokeWidth={2.2} />
+        </button>
+      )}
       {/* profile — circular avatar, name beside it */}
       <div className="flex items-center gap-4">
         <div className="grid h-16 w-16 flex-shrink-0 place-items-center overflow-hidden rounded-full border border-slate-200 bg-white">
@@ -970,7 +979,27 @@ function ProfileHeader({ tab, setTab, following, setFollowing, onBack, onContact
         </div>
       </div>
 
-      {/* actions — follow + message */}
+      {/* actions — owner edits their profile; investors follow + contact */}
+      {owner ? (
+        /* Owner actions — same premium pill language as the investor Follow/Message row.
+           Share profile · Contacts. Editing lives INSIDE the Contacts card (owner-only pencil,
+           top-right), so there is no separate Edit button here. */
+        <div className="mt-2 grid grid-cols-2 gap-2">
+          <button
+            onClick={() => { haptic(); onShare && onShare(); }}
+            className="flex h-9 items-center justify-center gap-1.5 rounded-full border border-slate-200 bg-white text-[12px] font-bold tracking-tight text-slate-700 transition active:scale-[0.97]"
+          >
+            <Share2 size={13} strokeWidth={2.4} /> Share profile
+          </button>
+          <button
+            onClick={() => { haptic(); onContact && onContact(); }}
+            className="flex h-9 items-center justify-center gap-1.5 rounded-full border border-slate-200 bg-white text-[12px] font-bold tracking-tight text-slate-700 transition active:scale-[0.97]"
+          >
+            <User size={13} strokeWidth={2.6} /> Contacts
+          </button>
+        </div>
+      ) : (
+      <>
       {followEmphasis && <style>{`@keyframes ppFollowPulse{0%,100%{box-shadow:0 0 0 0 rgba(37,99,235,0)}50%{box-shadow:0 0 0 5px rgba(37,99,235,0.20)}}`}</style>}
       <div className={`mt-2 grid ${canContact ? "grid-cols-2" : "grid-cols-1"} gap-2`}>
         <button
@@ -999,6 +1028,8 @@ function ProfileHeader({ tab, setTab, following, setFollowing, onBack, onContact
           </button>
         )}
       </div>
+      </>
+      )}
 
       {/* page tabs */}
       <div className="mt-2 grid grid-cols-6 border-b border-slate-200">
@@ -5652,7 +5683,7 @@ function CompanyRow({ co, onOpen }) {
 }
 
 // Consistent screen header (large title + optional eyebrow / trailing slot).
-function ScreenHead({ eyebrow, title, trailing, onScan, accent = EM_TEXT }) {
+function ScreenHead({ eyebrow, title, trailing, onScan, onCreate, accent = EM_TEXT }) {
   return (
     <div className="flex items-end justify-between px-5 pb-3 pt-3">
       <div>
@@ -5664,6 +5695,13 @@ function ScreenHead({ eyebrow, title, trailing, onScan, accent = EM_TEXT }) {
         {onScan && (
           <button onClick={() => { haptic(); onScan(); }} aria-label="Scan a company QR code" className="grid h-9 w-9 place-items-center text-slate-800 transition active:scale-90">
             <QrCode size={24} strokeWidth={2.1} />
+          </button>
+        )}
+        {/* Company-account create (+). Sits to the RIGHT of the QR, Instagram-style; shown on
+            every tab except Messages (which never passes onCreate). Gated to basic/pro upstream. */}
+        {onCreate && (
+          <button onClick={() => { haptic(); onCreate(); }} aria-label="Create" className="grid h-9 w-9 place-items-center text-slate-800 transition active:scale-90">
+            <Plus size={26} strokeWidth={2.3} />
           </button>
         )}
       </div>
@@ -6652,7 +6690,7 @@ function demoSeatLastCard(matchText, gap = 14, dur = 520) {
   } catch (_) {}
 }
 
-export function TodayScreen({ onOpenCompany, onScan }) {
+export function TodayScreen({ onOpenCompany, onScan, onCreate }) {
   const [tab, setTab] = useState("foryou");
   const [, bump] = useState(0);
   useEffect(() => listStore.sub(() => bump((x) => x + 1)), []);
@@ -6854,7 +6892,7 @@ export function TodayScreen({ onOpenCompany, onScan }) {
   return (
     <div className="flex h-full flex-col">
       <div onPointerDown={startHold} onPointerUp={cancelHold} onPointerLeave={cancelHold} onPointerCancel={cancelHold} style={{ touchAction: "manipulation", userSelect: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none" }}>
-        <ScreenHead eyebrow="Junior Mining" title="Today" onScan={onScan} />
+        <ScreenHead eyebrow="Junior Mining" title="Today" onScan={onScan} onCreate={onCreate} />
       </div>
       <div className="px-5">
         <FeedTabs active={tab} onChange={setTab} />
@@ -7074,7 +7112,7 @@ function CarouselCard({ co, onOpen, tag }) {
 
 const SORTS = [["recommended", "Recommended"], ["updated", "Recently updated"], ["az", "A–Z"], ["za", "Z–A"]];
 
-function DiscoverScreen({ onOpenCompany, onScan }) {
+function DiscoverScreen({ onOpenCompany, onScan, onCreate }) {
   const [q, setQ] = useState("");
   const [filters, setFilters] = useState({ commodity: [], location: [], stage: [], activity: [], funding: [] });
   const [sheet, setSheet] = useState(null); // legacy (unused)
@@ -7208,7 +7246,7 @@ function DiscoverScreen({ onOpenCompany, onScan }) {
 
   return (
     <div className="flex h-full flex-col">
-      <ScreenHead eyebrow="Discover Companies" title="Explore" onScan={onScan} />
+      <ScreenHead eyebrow="Discover Companies" title="Explore" onScan={onScan} onCreate={onCreate} />
       <div className="px-5 pb-2">
         {/* Search bar → opens the Instagram-style search card (Recent + typeahead) */}
         <button onClick={openSearchCard} className="flex w-full items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-left transition active:scale-[0.99]">
@@ -7475,7 +7513,7 @@ const EmptyList = ({ Icon, text }) => (
   </div>
 );
 
-function FollowingScreen({ followed, onOpenCompany, onScan }) {
+function FollowingScreen({ followed, onOpenCompany, onScan, onCreate }) {
   const [seg, setSeg] = useState("following");
   const [sortBy, setSortBy] = useState("recent");
   const [q, setQ] = useState("");
@@ -7537,7 +7575,7 @@ function FollowingScreen({ followed, onOpenCompany, onScan }) {
 
   return (
     <div className="flex h-full flex-col">
-      <ScreenHead eyebrow="Your Workspace" title="Following" onScan={onScan} />
+      <ScreenHead eyebrow="Your Workspace" title="Following" onScan={onScan} onCreate={onCreate} />
       <div className="px-5 pb-1">
         {/* segmented toggle — Following / Favourites / Watchlist, each with its live count */}
         <div className="flex gap-1 rounded-2xl bg-slate-100 p-1">
@@ -8772,11 +8810,62 @@ function CompanyCreateMenu({ onClose, onChoose }) {
   );
 }
 
-function CompanyProfileScreen({ onScan }) {
+// Company-account Settings — the account essentials (sign out, password, legal). Opened from
+// the gear on the owner's Profile tab. (A fuller parity with the investor Settings panel —
+// notifications etc. — can share one component later.)
+function CompanySettings({ onClose }) {
+  const user = (() => { try { return getUser(); } catch { return null; } })();
+  const email = (user && user.email) || "";
+  const [signingOut, setSigningOut] = useState(false);
+  const [pwSending, setPwSending] = useState(false);
+  const [pwMsg, setPwMsg] = useState("");
+  const card = { boxShadow: "0 1px 2px rgba(15,23,42,0.04)" };
+  const doSignOut = async () => { setSigningOut(true); try { await signOut(); } catch (_) {} try { location.href = "/app"; } catch (_) { location.reload(); } };
+  const doChangePassword = async () => { if (!email) return; setPwSending(true); setPwMsg(""); try { await requestPasswordReset(email); setPwMsg("Reset link sent to your email"); } catch (_) { setPwMsg("Couldn't send — try again"); } finally { setPwSending(false); } };
+  return (
+    <BottomSheet onClose={onClose} topBanner={
+      <div style={{ padding: "26px 20px 16px", background: `linear-gradient(120deg, ${EM}, ${EM_TEXT})` }}>
+        <p className="text-[9.5px] font-extrabold uppercase tracking-[0.2em] text-white/75">Company account</p>
+        <h3 className="text-[20px] font-extrabold tracking-tight text-white">Settings</h3>
+      </div>
+    }>
+      {() => (
+        <div className="space-y-3 pb-2">
+          <div>
+            <p className="mb-1.5 text-[10.5px] font-bold uppercase tracking-wider text-slate-400">Signed in as</p>
+            <div className="rounded-2xl border border-slate-100 bg-white px-4 py-3.5" style={card}>
+              <p className="truncate text-[13.5px] font-bold text-slate-800">{COMPANY.name || "Your Company"}</p>
+              {email && <p className="truncate text-[11.5px] font-medium text-slate-400">{email}</p>}
+            </div>
+          </div>
+          <button onClick={doChangePassword} disabled={pwSending} className="flex w-full items-center gap-3 rounded-2xl border border-slate-100 bg-white px-4 py-3.5 text-left transition active:bg-slate-50 disabled:opacity-60" style={card}>
+            <ShieldCheck size={18} className="flex-shrink-0 text-slate-500" />
+            <div className="min-w-0 flex-1">
+              <p className="text-[13.5px] font-bold tracking-tight text-slate-800">{pwSending ? "Sending…" : "Change password"}</p>
+              <p className="mt-0.5 text-[11.5px] font-medium text-slate-400">{pwMsg || "We'll email you a secure reset link."}</p>
+            </div>
+            <ChevronRight size={16} className="flex-shrink-0 text-slate-300" />
+          </button>
+          <button onClick={doSignOut} disabled={signingOut} className="flex w-full items-center gap-3 rounded-2xl border border-slate-100 bg-white px-4 py-3.5 text-left transition active:bg-slate-50 disabled:opacity-60" style={card}>
+            <LogOut size={18} className="flex-shrink-0 text-rose-500" />
+            <p className="text-[13.5px] font-bold tracking-tight text-rose-600">{signingOut ? "Signing out…" : "Sign out"}</p>
+          </button>
+          <div className="pt-2">
+            <div className="flex items-center gap-4">
+              <a href="https://mineex.ca/privacy.html" target="_blank" rel="noreferrer" className="text-[11.5px] font-bold text-slate-500 underline underline-offset-2">Privacy Policy</a>
+              <a href="https://mineex.ca/terms.html" target="_blank" rel="noreferrer" className="text-[11.5px] font-bold text-slate-500 underline underline-offset-2">Terms of Use</a>
+            </div>
+            <p className="mt-3 text-[10px] font-semibold uppercase tracking-widest text-slate-300">MineEx · v1.0</p>
+          </div>
+        </div>
+      )}
+    </BottomSheet>
+  );
+}
+
+function CompanyProfileScreen({ onScan, onCreate }) {
   const [editing, setEditing] = useState(false);
-  const [creating, setCreating] = useState(false);   // the + "create" card
-  const [composing, setComposing] = useState(false);  // a specific composer
-  const [composeKind, setComposeKind] = useState("media");
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [co, setCo] = useState(() => ({
     name: COMPANY.name || "Your Company", avatar: AVATAR || "",
     bio: COMPANY.slogan || "", website: COMPANY.website || "",
@@ -8784,11 +8873,10 @@ function CompanyProfileScreen({ onScan }) {
     address: COMPANY.headquarters || "",
     linkedin: COMPANY.linkedin || "", twitter: COMPANY.twitter || "", instagram: COMPANY.instagram || "",
   }));
-  const [posts, setPosts] = useState([]);
   const [toast, setToast] = useState("");
   const toastT = useRef(null);
   const flash = (m) => { setToast(m); clearTimeout(toastT.current); toastT.current = setTimeout(() => setToast(""), 1800); };
-  useBackHandler(editing || creating || composing, () => { setComposing(false); setCreating(false); setEditing(false); });
+  useBackHandler(editing || settingsOpen, () => { setSettingsOpen(false); setEditing(false); });
   // Persist profile edits to THIS company's row (when signed in as the owner). Falls back to a
   // local-only update in the demo (no real company id). Media (a new logo) uploads to Storage.
   const saveCompany = async (f) => {
@@ -8811,80 +8899,23 @@ function CompanyProfileScreen({ onScan }) {
       else flash("Couldn't save — try again");
     } catch (_) { flash("Couldn't save — try again"); }
   };
-  const soc = (v, base) => (v ? (/^https?:/.test(v) ? v : base + String(v).replace(/^[@/]+/, "")) : "");
-  const webHost = (co.website || "").replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "");
-  const socials = [
-    co.linkedin && { href: soc(co.linkedin, "https://www.linkedin.com/"), Icon: Linkedin, label: "LinkedIn" },
-    co.twitter && { href: soc(co.twitter, "https://x.com/"), Icon: Twitter, label: "X" },
-    co.instagram && { href: soc(co.instagram, "https://instagram.com/"), Icon: Instagram, label: "Instagram" },
-  ].filter(Boolean);
-  const detailRows = [
-    co.email && { Icon: Mail, label: "Email", value: co.email, icBg: "rgba(37,99,235,0.1)", ic: "#2563eb" },
-    co.phone && { Icon: Phone, label: "Phone", value: co.phone, icBg: "rgba(5,150,105,0.12)", ic: "#059669" },
-    co.address && { Icon: MapPin, label: "Address", value: co.address, icBg: "rgba(176,118,46,0.13)", ic: "#b0762e" },
-    webHost && { Icon: Globe, label: "Website", value: webHost, icBg: "rgba(14,165,233,0.12)", ic: "#0ea5e9" },
-  ].filter(Boolean);
-  const cardBig = { boxShadow: "0 1px 2px rgba(15,23,42,0.04), 0 12px 26px -20px rgba(15,23,42,0.4)" };
-  const cardFlat = { boxShadow: "0 1px 2px rgba(15,23,42,0.04)" };
-  // Posting media is a PAID company feature — basic/pro only (never on the investor profile).
-  const canPost = ACCOUNT_TIER === "basic" || ACCOUNT_TIER === "pro";
   return (
     <div className="relative flex h-full flex-col">
-      <ScreenHead eyebrow="Company" title="Profile" trailing={
-        <>
-          <button onClick={() => { haptic(); onScan && onScan(); }} aria-label="Scan a company QR code" className="grid h-9 w-9 place-items-center text-slate-800 transition active:scale-90"><QrCode size={24} strokeWidth={2.1} /></button>
-          {canPost && <button onClick={() => { haptic(); setCreating(true); }} aria-label="Create" className="grid h-9 w-9 place-items-center text-slate-800 transition active:scale-90"><Plus size={26} strokeWidth={2.3} /></button>}
-        </>
-      } />
-      <div className="pp-scroll flex-1 overflow-y-auto px-5 pb-28 pt-1">
-
-        {/* 1 — IDENTITY hero (same look as the investor profile) */}
-        <div className="relative overflow-hidden rounded-2xl p-5" style={{ background: "linear-gradient(135deg,#0e7a53 0%,#0b3d2e 100%)", ...cardBig }}>
-          <div className="absolute inset-0" style={{ background: "radial-gradient(120% 130% at 86% -12%, rgba(255,255,255,0.20) 0%, rgba(255,255,255,0) 46%)" }} />
-          <button onClick={() => { haptic(); setEditing(true); }} className="absolute right-3 top-3 flex items-center gap-1.5 rounded-full bg-white/20 px-3 py-1.5 text-[11.5px] font-bold text-white backdrop-blur transition active:scale-95"><PenSquare size={12} /> Edit</button>
-          <div className="relative">
-            <div className="grid h-[76px] w-[76px] place-items-center overflow-hidden rounded-full bg-white ring-4 ring-white/25">
-              {co.avatar ? <img src={co.avatar} alt="" className="h-full w-full object-cover" /> : <Building2 size={26} className="text-slate-400" />}
-            </div>
-            <div className="mt-3 flex items-center gap-1.5">
-              <p className="text-[19px] font-extrabold tracking-tight text-white">{co.name}</p>
-              <BadgeCheck size={16} className="flex-shrink-0 text-white" />
-            </div>
-            {webHost && <a href={soc(co.website, "https://")} target="_blank" rel="noreferrer" className="mt-0.5 inline-flex items-center gap-1 text-[12.5px] font-bold text-white/85"><Globe size={12} />{webHost}</a>}
-            <div className="mt-2.5 inline-flex items-center gap-1 rounded-full bg-white/15 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-white/80">Company account · name locked</div>
-          </div>
-        </div>
-
-        {/* 2 — COMPANY card: bio + editable details + socials (mirrors the investor card) */}
-        <div className="mt-3 rounded-2xl border p-4" style={{ borderColor: "#e4efe9", background: "linear-gradient(180deg, #f3faf6 0%, #ffffff 58%)", ...cardFlat }}>
-          <div className="mb-2.5 flex items-center gap-1.5">
-            <Building2 size={12} style={{ color: EM_TEXT }} />
-            <p className="text-[10.5px] font-bold uppercase tracking-widest" style={{ color: EM_TEXT }}>Company</p>
-          </div>
-          {co.bio
-            ? <p className="text-[13px] leading-relaxed text-slate-600">{co.bio}</p>
-            : <button onClick={() => { haptic(); setEditing(true); }} className="text-left text-[13px] italic leading-relaxed text-slate-400">Add a short bio for investors →</button>}
-          {detailRows.length > 0 && (
-            <div className="mt-3.5 space-y-1.5">
-              {detailRows.map((r) => (
-                <div key={r.label} className="flex items-center justify-between gap-3 rounded-xl border border-slate-100 bg-white px-3 py-2.5">
-                  <span className="flex flex-shrink-0 items-center gap-2.5">
-                    <span className="grid h-7 w-7 place-items-center rounded-lg" style={{ background: r.icBg }}><r.Icon size={14} style={{ color: r.ic }} /></span>
-                    <span className="text-[12px] font-bold text-slate-500">{r.label}</span>
-                  </span>
-                  <span className="truncate text-right text-[12.5px] font-bold text-slate-800">{r.value}</span>
-                </div>
-              ))}
-            </div>
-          )}
-          {socials.length > 0 && (
-            <div className="mt-3.5 flex items-center gap-2">
-              {socials.map((s, i) => <a key={i} href={s.href} target="_blank" rel="noreferrer" aria-label={s.label} className="grid h-8 w-8 place-items-center rounded-full border border-slate-200 bg-white text-slate-500 transition active:scale-90 hover:text-slate-900"><s.Icon size={14} /></a>)}
-            </div>
-          )}
-        </div>
-
-      </div>
+      {/* The owner's Profile tab IS their live Pro profile (the same one investors see),
+          rendered in `owner` mode: no back/Follow. Header = Settings + create (+); actions =
+          Share profile + Contacts. Editing is the pencil inside the Contacts card. */}
+      <CompanyProfile owner onCreate={onCreate} onScan={onScan}
+        onEdit={() => { haptic(); setEditing(true); }}
+        onSettings={() => { haptic(); setSettingsOpen(true); }}
+        onShare={async () => {
+          const slug = (typeof window !== "undefined" && (window.__CO_SLUG__ || currentSlug())) || "";
+          const url = `${location.origin}/app?c=${slug}`;
+          try {
+            if (navigator.share) { await navigator.share({ title: COMPANY.name || "MineEx", url }); }
+            else { await navigator.clipboard.writeText(url); flash("Profile link copied"); }
+          } catch (_) { /* user cancelled share — no-op */ }
+        }}
+      />
 
       {toast && createPortal(
         <div className="pointer-events-none absolute inset-x-0 z-[120] flex justify-center pp-fade" style={{ bottom: 96 }}>
@@ -8892,8 +8923,7 @@ function CompanyProfileScreen({ onScan }) {
         </div>, ppFrameEl || document.body)}
 
       {editing && <EditCompanyProfile initial={co} onSave={(f) => { saveCompany(f); setEditing(false); }} onClose={() => setEditing(false)} />}
-      {creating && <CompanyCreateMenu onClose={() => setCreating(false)} onChoose={(k) => { setComposeKind(k); setCreating(false); setComposing(true); }} />}
-      {composing && <PostComposer kind={composeKind} onPost={(p) => setPosts((x) => [p, ...x])} onClose={() => setComposing(false)} />}
+      {settingsOpen && <CompanySettings onClose={() => setSettingsOpen(false)} />}
     </div>
   );
 }
@@ -9003,8 +9033,8 @@ function ProfileScreen({ onScan }) {
 
         {/* 1 — IDENTITY: full-gradient hero, avatar sits fully on the gradient */}
         <div className="relative overflow-hidden rounded-2xl p-5" style={{ background: "linear-gradient(135deg,#0e7a53 0%,#0b3d2e 100%)", ...cardBig }}>
-          <div className="absolute inset-0" style={{ background: "radial-gradient(120% 130% at 86% -12%, rgba(255,255,255,0.20) 0%, rgba(255,255,255,0) 46%)" }} />
-          <button onClick={() => { haptic(); setEditing(true); }} className="absolute right-3 top-3 flex items-center gap-1.5 rounded-full bg-white/20 px-3 py-1.5 text-[11.5px] font-bold text-white backdrop-blur transition active:scale-95">
+          <div className="pointer-events-none absolute inset-0" style={{ background: "radial-gradient(120% 130% at 86% -12%, rgba(255,255,255,0.20) 0%, rgba(255,255,255,0) 46%)" }} />
+          <button onClick={() => { haptic(); setEditing(true); }} className="absolute right-3 top-3 z-10 flex items-center gap-1.5 rounded-full bg-white/20 px-3 py-1.5 text-[11.5px] font-bold text-white backdrop-blur transition active:scale-95">
             <PenSquare size={12} /> Edit
           </button>
           <div className="relative">
@@ -9809,7 +9839,7 @@ function SwipePager({ tabs, tab, setTab, render, pageClassName = "", onLead, onE
   );
 }
 
-export function CompanyProfile({ onBack, onScan, tab: controlledTab, onTabChange, demo }) {
+export function CompanyProfile({ onBack, onScan, tab: controlledTab, onTabChange, demo, owner, onEdit, onCreate, onAnalytics, onShare, onSettings }) {
   // Basic "listing" tier → compact single-page profile, skipping the full tabbed layout.
   if ((typeof window !== "undefined" && window.__PP__ && window.__PP__.TIER) === "listing") {
     return <BasicListing onBack={onBack} />;
@@ -9942,7 +9972,7 @@ export function CompanyProfile({ onBack, onScan, tab: controlledTab, onTabChange
     <DemoCtx.Provider value={demo || null}>
     <div className="flex h-full flex-col pp-fade" style={{ background: "#ffffff" }}>
       <div className="flex-shrink-0" style={{ background: "linear-gradient(180deg, #F1F6FD 0%, #F8FBFE 55%, #FFFFFF 100%)" }}>
-        <ProfileHeader onBack={onBack} onContact={() => setContactOpen(true)} tab={displayTab} setTab={setTab} following={following} setFollowing={setFollowing} followEmphasis={followEmphasis} followPress={followPress} />
+        <ProfileHeader onBack={onBack} onContact={() => setContactOpen(true)} tab={displayTab} setTab={setTab} following={following} setFollowing={setFollowing} followEmphasis={followEmphasis} followPress={followPress} owner={owner} onEdit={onEdit} onCreate={onCreate} onAnalytics={onAnalytics} onShare={onShare} onSettings={onSettings} />
       </div>
       <div className="flex-1" style={{ minHeight: 0 }}>
         <SwipePager
@@ -9987,6 +10017,12 @@ export function CompanyProfile({ onBack, onScan, tab: controlledTab, onTabChange
                   </div>
                 )}
                 {COMPANY.name && <h3 className="min-w-0 flex-1 truncate text-[18px] font-extrabold tracking-tight text-slate-900">{COMPANY.name}</h3>}
+                {/* Owner-only: edit this contact/profile. Investors viewing a company never see it. */}
+                {owner && onEdit && (
+                  <button onClick={() => { haptic(); setContactOpen(false); onEdit(); }} aria-label="Edit profile" className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-full border border-slate-200 bg-white text-slate-600 transition active:scale-90">
+                    <PenSquare size={14} />
+                  </button>
+                )}
               </div>
             )}
             {/* contact list — one uniform column: the IR person first, then direct rows */}
@@ -11567,12 +11603,23 @@ export default function App({ guest = false } = {}) {
   const NAV_TABS = ["today", "explore", "messages", "following", "profile"];
   const [navLead, setNavLead] = useState(null);
   useEffect(() => { setNavLead(null); }, [nav]);   // drop the lead once the tab settles
+
+  // Company-account "+" create, lifted to the shell so it persists on every tab (except
+  // Messages). Gated to paid company accounts; investors never see it. The create card and
+  // its composer render once, here, rather than per-screen.
+  const canCreate = COMPANY_ACCOUNT && (ACCOUNT_TIER === "basic" || ACCOUNT_TIER === "pro");
+  const [creating, setCreating] = useState(false);
+  const [composing, setComposing] = useState(false);
+  const [composeKind, setComposeKind] = useState("media");
+  useBackHandler(creating || composing, () => { setComposing(false); setCreating(false); });
+  const onCreateProp = canCreate ? () => setCreating(true) : undefined;
+
   const renderNav = (n) =>
-    n === "today" ? <TodayScreen onOpenCompany={openCompany} onScan={() => setNav("scan")} />
-    : n === "explore" ? <DiscoverScreen onOpenCompany={openCompany} onScan={() => setNav("scan")} />
+    n === "today" ? <TodayScreen onOpenCompany={openCompany} onScan={() => setNav("scan")} onCreate={onCreateProp} />
+    : n === "explore" ? <DiscoverScreen onOpenCompany={openCompany} onScan={() => setNav("scan")} onCreate={onCreateProp} />
     : n === "messages" ? <MessagesScreen onOpenCompany={openCompany} />
-    : n === "following" ? <FollowingScreen followed={followed} onOpenCompany={openCompany} onScan={() => setNav("scan")} />
-    : n === "profile" ? (COMPANY_ACCOUNT ? <CompanyProfileScreen onScan={() => setNav("scan")} /> : <ProfileScreen onScan={() => setNav("scan")} />)
+    : n === "following" ? <FollowingScreen followed={followed} onOpenCompany={openCompany} onScan={() => setNav("scan")} onCreate={onCreateProp} />
+    : n === "profile" ? (COMPANY_ACCOUNT ? <CompanyProfileScreen onScan={() => setNav("scan")} onCreate={onCreateProp} /> : <ProfileScreen onScan={() => setNav("scan")} />)
     : null;
 
   // Browser/OS back & forward: sync the view to the URL rather than reloading the page.
@@ -11718,6 +11765,9 @@ export default function App({ guest = false } = {}) {
             )}
           </div>
           {!(focused && inCompany) && <BottomNav nav={inCompany ? null : (navLead ?? nav)} setNav={goNav} />}
+          {/* Shell-level company create flow — the "+" on every tab opens this. */}
+          {creating && <CompanyCreateMenu onClose={() => setCreating(false)} onChoose={(k) => { setComposeKind(k); setCreating(false); setComposing(true); }} />}
+          {composing && <PostComposer kind={composeKind} onPost={() => {}} onClose={() => setComposing(false)} />}
         </div>
       </div>
     </div>
