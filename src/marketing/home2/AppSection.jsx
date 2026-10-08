@@ -556,6 +556,14 @@ export default function AppSection() {
         @keyframes fD{0%{transform:translate(-50%,-50%) translate(3%,-2%) scale(1.06)}50%{transform:translate(-50%,-50%) translate(-6%,6%) scale(.92)}100%{transform:translate(-50%,-50%) translate(3%,-2%) scale(1.06)}}
         .mx-fa{animation:fA 24s ease-in-out infinite}.mx-fb{animation:fB 30s ease-in-out infinite}.mx-fc{animation:fC 27s ease-in-out infinite}.mx-fd{animation:fD 33s ease-in-out infinite}
         .mx-appstage[data-busy="1"] .mx-fa, .mx-appstage[data-busy="1"] .mx-fb, .mx-appstage[data-busy="1"] .mx-fc, .mx-appstage[data-busy="1"] .mx-fd { animation-play-state: paused !important; }
+        /* Phones halve the blob blur rather than dropping it. Removing it entirely made these
+           gradients render as a hard saturated column — they are tuned to be seen through a
+           blur — but 24px of it is the most expensive thing on the page for iOS to re-filter
+           every animation frame. 12px keeps the softness the design depends on at roughly a
+           quarter of the cost. */
+        @media (max-width: 759px) {
+          .mx-fa, .mx-fb, .mx-fc, .mx-fd { filter: blur(12px) !important; }
+        }
         /* The blur on the ambient blobs is BACK on phones. I removed it to cut iOS paint
            cost — animated filters are genuinely expensive — but these blobs are radial
            gradients tuned to be seen THROUGH a 24px blur. Without it they render as a hard,
