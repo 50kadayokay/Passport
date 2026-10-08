@@ -8705,7 +8705,13 @@ function EditCompanyProfile({ initial, onSave, onClose }) {
   );
 }
 
-function PostComposer({ onPost, onClose }) {
+const COMPOSE_KINDS = {
+  media:   { eyebrow: "Post",    title: "New media post",   drop: "Add a photo or video",  cap: "Write a caption…",                     accept: "image/*,video/*", cta: "Post" },
+  release: { eyebrow: "Publish", title: "New press release", drop: "Add a cover figure",     cap: "Headline, then the release text…",     accept: "image/*",         cta: "Publish" },
+  update:  { eyebrow: "Post",    title: "New update",        drop: "Add a photo (optional)", cap: "Share a quick update with followers…", accept: "image/*",         cta: "Post" },
+};
+function PostComposer({ kind = "media", onPost, onClose }) {
+  const m = COMPOSE_KINDS[kind] || COMPOSE_KINDS.media;
   const [caption, setCaption] = useState("");
   const [img, setImg] = useState("");
   const fileRef = useRef(null);
@@ -8713,18 +8719,50 @@ function PostComposer({ onPost, onClose }) {
   return (
     <BottomSheet onClose={onClose} fit topBanner={
       <div style={{ padding: "22px 20px 14px", background: `linear-gradient(120deg, ${EM}, ${EM_TEXT})` }}>
-        <p className="text-[9.5px] font-extrabold uppercase tracking-[0.2em] text-white/75">Post</p>
-        <h3 className="text-[20px] font-extrabold tracking-tight text-white">New media post</h3>
+        <p className="text-[9.5px] font-extrabold uppercase tracking-[0.2em] text-white/75">{m.eyebrow}</p>
+        <h3 className="text-[20px] font-extrabold tracking-tight text-white">{m.title}</h3>
       </div>
     }>
       {(close) => (
         <div className="space-y-3 pb-2">
           <button type="button" onClick={() => fileRef.current && fileRef.current.click()} className="grid w-full place-items-center overflow-hidden rounded-xl border border-dashed border-slate-300 bg-slate-50" style={{ aspectRatio: "4 / 3" }}>
-            {img ? <img src={img} alt="" className="h-full w-full object-cover" /> : <span className="flex flex-col items-center gap-2 text-slate-400"><Camera size={26} /><span className="text-[12px] font-bold">Add a photo or video</span></span>}
+            {img ? <img src={img} alt="" className="h-full w-full object-cover" /> : <span className="flex flex-col items-center gap-2 text-slate-400"><Camera size={26} /><span className="text-[12px] font-bold">{m.drop}</span></span>}
           </button>
-          <input ref={fileRef} type="file" accept="image/*,video/*" onChange={pick} className="hidden" />
-          <textarea value={caption} onChange={(e) => setCaption(e.target.value)} placeholder="Write a caption…" rows={3} maxLength={400} className="w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-[13.5px] text-slate-800 outline-none focus:border-slate-300 focus:bg-white" />
-          <button type="button" disabled={!img && !caption.trim()} onClick={() => { haptic(); onPost({ image: img, caption: caption.trim(), at: Date.now() }); close(); }} className="flex h-12 w-full items-center justify-center rounded-xl text-[13px] font-bold uppercase tracking-wide text-white transition active:scale-95 disabled:opacity-40" style={{ background: EM }}>Post</button>
+          <input ref={fileRef} type="file" accept={m.accept} onChange={pick} className="hidden" />
+          <textarea value={caption} onChange={(e) => setCaption(e.target.value)} placeholder={m.cap} rows={kind === "release" ? 5 : 3} maxLength={kind === "release" ? 6000 : 400} className="w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-[13.5px] text-slate-800 outline-none focus:border-slate-300 focus:bg-white" />
+          <button type="button" disabled={!img && !caption.trim()} onClick={() => { haptic(); onPost({ kind, image: img, caption: caption.trim(), at: Date.now() }); close(); }} className="flex h-12 w-full items-center justify-center rounded-xl text-[13px] font-bold uppercase tracking-wide text-white transition active:scale-95 disabled:opacity-40" style={{ background: EM }}>{m.cta}</button>
+        </div>
+      )}
+    </BottomSheet>
+  );
+}
+
+// Instagram-style "create" card: the + button opens this list of publishing options.
+function CompanyCreateMenu({ onClose, onChoose }) {
+  const opts = [
+    { id: "release", Icon: Newspaper,     label: "Press Release", sub: "Full announcement, with figures", c: "#2563eb" },
+    { id: "media",   Icon: Camera,        label: "Photo / Video", sub: "Post media to your profile",      c: "#059669" },
+    { id: "update",  Icon: MessageSquare, label: "Update",        sub: "A short note to your followers",  c: "#7c3aed" },
+  ];
+  return (
+    <BottomSheet onClose={onClose} fit topBanner={
+      <div style={{ padding: "22px 20px 14px", background: `linear-gradient(120deg, ${EM}, ${EM_TEXT})` }}>
+        <p className="text-[9.5px] font-extrabold uppercase tracking-[0.2em] text-white/75">Create</p>
+        <h3 className="text-[20px] font-extrabold tracking-tight text-white">Publish to your profile</h3>
+      </div>
+    }>
+      {() => (
+        <div className="space-y-2 pb-1">
+          {opts.map((o) => (
+            <button key={o.id} type="button" onClick={() => { haptic(); onChoose(o.id); }} className="flex w-full items-center gap-3 rounded-2xl border border-slate-100 bg-white p-3.5 text-left transition active:scale-[0.99]" style={{ boxShadow: "0 1px 2px rgba(15,23,42,0.04)" }}>
+              <span className="grid h-11 w-11 flex-shrink-0 place-items-center rounded-xl" style={{ background: o.c + "18", color: o.c }}><o.Icon size={20} /></span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-[14px] font-bold tracking-tight text-slate-900">{o.label}</span>
+                <span className="block text-[11.5px] font-medium text-slate-400">{o.sub}</span>
+              </span>
+              <ChevronRight size={18} className="flex-shrink-0 text-slate-300" />
+            </button>
+          ))}
         </div>
       )}
     </BottomSheet>
@@ -8733,7 +8771,9 @@ function PostComposer({ onPost, onClose }) {
 
 function CompanyProfileScreen({ onScan }) {
   const [editing, setEditing] = useState(false);
-  const [composing, setComposing] = useState(false);
+  const [creating, setCreating] = useState(false);   // the + "create" card
+  const [composing, setComposing] = useState(false);  // a specific composer
+  const [composeKind, setComposeKind] = useState("media");
   const [co, setCo] = useState(() => ({
     name: COMPANY.name || "Your Company", avatar: AVATAR || "",
     bio: COMPANY.slogan || "", website: COMPANY.website || "",
@@ -8742,7 +8782,7 @@ function CompanyProfileScreen({ onScan }) {
     linkedin: COMPANY.linkedin || "", twitter: COMPANY.twitter || "", instagram: COMPANY.instagram || "",
   }));
   const [posts, setPosts] = useState([]);
-  useBackHandler(editing || composing, () => { setComposing(false); setEditing(false); });
+  useBackHandler(editing || creating || composing, () => { setComposing(false); setCreating(false); setEditing(false); });
   const soc = (v, base) => (v ? (/^https?:/.test(v) ? v : base + String(v).replace(/^[@/]+/, "")) : "");
   const webHost = (co.website || "").replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "");
   const socials = [
@@ -8765,7 +8805,7 @@ function CompanyProfileScreen({ onScan }) {
       <ScreenHead eyebrow="Company" title="Profile" trailing={
         <>
           <button onClick={() => { haptic(); onScan && onScan(); }} aria-label="Scan a company QR code" className="grid h-9 w-9 place-items-center text-slate-800 transition active:scale-90"><QrCode size={24} strokeWidth={2.1} /></button>
-          {canPost && <button onClick={() => { haptic(); setComposing(true); }} aria-label="Post media" className="grid h-9 w-9 place-items-center text-slate-800 transition active:scale-90"><Plus size={26} strokeWidth={2.3} /></button>}
+          {canPost && <button onClick={() => { haptic(); setCreating(true); }} aria-label="Create" className="grid h-9 w-9 place-items-center text-slate-800 transition active:scale-90"><Plus size={26} strokeWidth={2.3} /></button>}
         </>
       } />
       <div className="pp-scroll flex-1 overflow-y-auto px-5 pb-28 pt-1">
@@ -8819,7 +8859,8 @@ function CompanyProfileScreen({ onScan }) {
       </div>
 
       {editing && <EditCompanyProfile initial={co} onSave={setCo} onClose={() => setEditing(false)} />}
-      {composing && <PostComposer onPost={(p) => setPosts((x) => [p, ...x])} onClose={() => setComposing(false)} />}
+      {creating && <CompanyCreateMenu onClose={() => setCreating(false)} onChoose={(k) => { setComposeKind(k); setCreating(false); setComposing(true); }} />}
+      {composing && <PostComposer kind={composeKind} onPost={(p) => setPosts((x) => [p, ...x])} onClose={() => setComposing(false)} />}
     </div>
   );
 }
