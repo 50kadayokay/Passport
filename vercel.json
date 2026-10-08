@@ -1,6 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "vite build",
+  "buildCommand": "node scripts/predeploy-ai-guard.mjs && vite build",
   "outputDirectory": "dist",
   "rewrites": [
     { "source": "/support", "destination": "/support.html" },

@@ -11,6 +11,8 @@
 // returns 500 until then. The shapes are stable so the intake UI + mapper can be
 // wired against them now and verified the moment the key lands.
 
+import { authHeaders } from "./auth.js";
+
 const API = "/api/structure-release";
 
 // Errors worth retrying: provider overload (529), rate limit (429), gateway/
@@ -27,7 +29,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // corpus (100+ calls) Anthropic overload (529) is near-certain on some calls; a
 // single retry pass turns "silently dropped release" into "arrived a few seconds
 // late". `attempts` total tries (default 4 → up to ~1+2+4s of backoff).
-export async function structureRelease(input, context = {}, { attempts = 4 } = {}) {
+export async function structureRelease(input, context = {}, { attempts = 4, companyId = null, slug = null, onboarding = false } = {}) {
   const payload = typeof input === "string"
     ? { text: input }
     : { text: input.text || "", pdf: input.pdf || "" };
@@ -38,10 +40,14 @@ export async function structureRelease(input, context = {}, { attempts = 4 } = {
     // be trusted to encode retryability.
     let retryable = false;
     try {
+      // Signed-in, entitled callers only: this endpoint spends AI credits per
+      // request. companyId/slug is the authorization subject; `onboarding`
+      // declares the profile-builder exception explicitly. See api/_aiGuard.js.
+      const h = await authHeaders();
       const res = await fetch(API, {
         method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ mode: "extract", ...payload, context }),
+        headers: { ...h, "content-type": "application/json" },
+        body: JSON.stringify({ mode: "extract", ...payload, context, companyId, slug, onboarding }),
       });
       if (res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -137,7 +143,7 @@ export async function structureReleasesBatched(items, { token, context = {}, bat
 // `onProgress(done, total, item)` fires after each completes.
 // Returns [{ item, analysis }] on success or [{ item, error }] per failed item —
 // one bad release never sinks the batch. (Legacy per-doc path; batched is cheaper.)
-export async function structureReleases(items, { context = {}, concurrency = 4, onProgress } = {}) {
+export async function structureReleases(items, { context = {}, concurrency = 4, onProgress, companyId = null, slug = null, onboarding = false } = {}) {
   const list = Array.isArray(items) ? items.filter((it) => it && (String(it.text || "").trim() || it.pdf)) : [];
   const results = new Array(list.length);
   let done = 0;
@@ -147,7 +153,7 @@ export async function structureReleases(items, { context = {}, concurrency = 4, 
       const i = cursor++;
       const item = list[i];
       try {
-        results[i] = { item, analysis: await structureRelease({ text: item.text, pdf: item.pdf }, context) };
+        results[i] = { item, analysis: await structureRelease({ text: item.text, pdf: item.pdf }, context, { companyId, slug, onboarding }) };
       } catch (e) {
         results[i] = { item, error: (e && e.message) || "failed" };
       }
@@ -285,17 +291,19 @@ export function toTimelineEntries(assembled) {
 
 // Layer 2 — synthesize the Company Status card + Brief from the assembled timeline.
 // Returns { companyStatus, companyBrief, warnings } or null on failure.
-export async function synthesizeProfile({ company = {}, timeline = [], projects = [] } = {}, { attempts = 3 } = {}) {
+export async function synthesizeProfile({ company = {}, timeline = [], projects = [] } = {}, { attempts = 3, companyId = null, slug = null, onboarding = false } = {}) {
   if (!Array.isArray(timeline) || !timeline.length) return null;
   // The synthesis call intermittently returns a 200 with an empty overview (the model
   // occasionally emits the forced tool with no content). Retry until we get a usable
   // status headline, so a one-off empty response doesn't leave the profile blank.
   for (let i = 0; i < attempts; i++) {
     try {
+      // Signed-in, entitled callers only: spends AI credits per request.
+      const h = await authHeaders();
       const res = await fetch("/api/synthesize-profile", {
         method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ company, timeline, projects }),
+        headers: { ...h, "content-type": "application/json" },
+        body: JSON.stringify({ company, timeline, projects, companyId, slug, onboarding }),
       });
       const data = await res.json().catch(() => ({}));
       const ov = res.ok ? data.overview : null;

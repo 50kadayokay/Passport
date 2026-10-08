@@ -8,6 +8,8 @@
 //
 // The Anthropic key lives ONLY here (server-side env var). Model via AI_MODEL.
 
+import { requireAiCaller } from "./_aiGuard.js";
+
 const MODEL = process.env.AI_MODEL || "claude-sonnet-5";
 const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
 const SCHEMA_VERSION = 1;
@@ -95,6 +97,13 @@ function bad(res, code, msg) { res.status(code).json({ error: msg }); }
 
 export default async function handler(req, res) {
   if (req.method !== "POST") return bad(res, 405, "Method not allowed");
+
+  // SPENDING GATE. Size ceiling, then authentication, then company
+  // authorisation + paid entitlement, then a rate limit that FAILS CLOSED.
+  // Nothing below this line runs for an unauthorised caller, so no
+  // unauthorised request can reach Anthropic. See api/_aiGuard.js.
+  const caller = await requireAiCaller(req, res, { label: "synthesize-profile", feature: "company_memory", allowOnboarding: true });
+  if (!caller) return;
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key) return bad(res, 500, "Server not configured: ANTHROPIC_API_KEY is missing.");
 
