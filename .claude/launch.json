@@ -3,7 +3,7 @@
   "configurations": [
     {
       "name": "portal-dev-5180",
-      "runtimeExecutable": "/Users/leifer/Claude Projects/Passport V1/.node/node-v24.18.0-darwin-arm64/bin/node",
+      "runtimeExecutable": "node",
       "runtimeArgs": [
         "node_modules/vite/bin/vite.js",
         "--host",
@@ -14,7 +14,7 @@
     },
     {
       "name": "passport-dev",
-      "runtimeExecutable": "/Users/leifer/Claude Projects/Passport V1/.node/node-v24.18.0-darwin-arm64/bin/node",
+      "runtimeExecutable": "node",
       "runtimeArgs": [
         "node_modules/vite/bin/vite.js",
         "--host",
@@ -25,7 +25,7 @@
     },
     {
       "name": "passport-preview",
-      "runtimeExecutable": "/Users/leifer/Claude Projects/Passport V1/.node/node-v24.18.0-darwin-arm64/bin/node",
+      "runtimeExecutable": "node",
       "runtimeArgs": [
         "node_modules/vite/bin/vite.js",
         "preview",
@@ -37,7 +37,7 @@
     },
     {
       "name": "confv4-dev",
-      "runtimeExecutable": "/Users/leifer/Claude Projects/Passport V1/.node/node-v24.18.0-darwin-arm64/bin/node",
+      "runtimeExecutable": "node",
       "runtimeArgs": [
         "/Users/leifer/Claude Projects/Passport-ConfV4/node_modules/vite/bin/vite.js",
         "--host",
