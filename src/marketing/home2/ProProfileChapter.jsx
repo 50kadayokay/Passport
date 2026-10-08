@@ -271,8 +271,26 @@ export default function ProProfileChapter({ onActive, onPricing}) {
             goes where the finger put it and nowhere else. */}
         <div className="mx-vstage" style={{ position: "relative", height: "100svh", overflow: "hidden" }}>
           <NarrativeStory variant="full" hardware cutout />
-          <StageArrows i={mIdx} n={PRO_STATES} onGo={goM} dark />
+          {/* Pressing next on the LAST state closes the walkthrough into pricing, the same
+              ending the desktop page has. The sheet was only rendered on the desktop branch,
+              so on a phone the story simply stopped at the final beat. */}
+          <StageArrows i={mIdx} n={PRO_STATES} onGo={goM} dark atEnd={openPricing} />
           {diagOn() && <PhoneDiag state={mIdx} label="pro" />}
+        </div>
+        {/* The real pricing page, as a sheet. Phones scroll it (its panels are a stacked,
+            scrolling section there, not the desktop paged deck). */}
+        <div aria-hidden={!pricingUp} style={{
+          position: "fixed", inset: 0, zIndex: 60, background: "#fbfcfe",
+          overflow: pricingUp ? "auto" : "hidden", WebkitOverflowScrolling: "touch",
+          overscrollBehavior: "contain",
+          transform: pricingUp ? "translateY(0)" : "translateY(100%)",
+          transition: "transform 720ms cubic-bezier(0.32, 0.72, 0, 1)",
+          visibility: pricingUp ? "visible" : "hidden",
+          pointerEvents: pricingUp ? "auto" : "none",
+        }}>
+          <React.Suspense fallback={null}>
+            {pricingUp ? <PricingDeckLazy embedded active={pricingUp} /> : null}
+          </React.Suspense>
         </div>
       </section>
     );
