@@ -28,6 +28,9 @@ function demoFocusStyle(on, restShadow) {
   };
 }
 import { fetchCompany, SUPABASE_URL, SUPABASE_ANON } from "../lib/supabase.js";
+import { updateCompanyProfile } from "../lib/portal.js";        // company-account: persist profile edits
+import { uploadCompanyMedia } from "../lib/storage.js";          // company-account: upload a new logo/media
+import { mapProfileToPP } from "../lib/profileToPP.js";          // company-account: rebuild pp after an edit
 import { API_BASE, isNativeApp } from "../lib/platform.js";
 import QRCode from "qrcode";
 import jsQR from "jsqr"; // pure-JS QR decode — works on iOS WebKit (BarcodeDetector doesn't)
@@ -8661,7 +8664,7 @@ function EditCompanyProfile({ initial, onSave, onClose }) {
   const [f, setF] = useState(() => ({ avatar: "", bio: "", website: "", email: "", phone: "", address: "", linkedin: "", twitter: "", instagram: "", ...initial }));
   const set = (k) => (e) => setF((s) => ({ ...s, [k]: e.target.value }));
   const fileRef = useRef(null);
-  const pickAvatar = (e) => { const file = e.target.files && e.target.files[0]; if (file) { try { setF((s) => ({ ...s, avatar: URL.createObjectURL(file) })); } catch (_) {} } };
+  const pickAvatar = (e) => { const file = e.target.files && e.target.files[0]; if (file) { try { setF((s) => ({ ...s, avatar: URL.createObjectURL(file), avatarFile: file })); } catch (_) {} } };
   const field = ({ label, k, ph, Icon, textarea, maxLength }) => (
     <label className="block">
       <span className="mb-1.5 flex items-center gap-1.5 text-[10.5px] font-bold uppercase tracking-wider text-slate-400">{Icon && <Icon size={12} />}{label}</span>
@@ -8782,7 +8785,32 @@ function CompanyProfileScreen({ onScan }) {
     linkedin: COMPANY.linkedin || "", twitter: COMPANY.twitter || "", instagram: COMPANY.instagram || "",
   }));
   const [posts, setPosts] = useState([]);
+  const [toast, setToast] = useState("");
+  const toastT = useRef(null);
+  const flash = (m) => { setToast(m); clearTimeout(toastT.current); toastT.current = setTimeout(() => setToast(""), 1800); };
   useBackHandler(editing || creating || composing, () => { setComposing(false); setCreating(false); setEditing(false); });
+  // Persist profile edits to THIS company's row (when signed in as the owner). Falls back to a
+  // local-only update in the demo (no real company id). Media (a new logo) uploads to Storage.
+  const saveCompany = async (f) => {
+    setCo(f);
+    const coId = (typeof window !== "undefined" && window.__CO_ID__) || null;
+    if (!coId) { flash("Saved"); return; }
+    flash("Saving…");
+    try {
+      let avatar = f.avatar;
+      if (f.avatarFile) { try { const url = await uploadCompanyMedia(f.avatarFile); if (url) avatar = url; } catch (_) {} }
+      const h = await authHeaders();
+      const cur = await fetch(`${SUPABASE_URL}/rest/v1/companies?id=eq.${coId}&select=profile`, { headers: h }).then((r) => r.json()).catch(() => []);
+      const profile = (cur && cur[0] && cur[0].profile) || {};
+      profile.company = { ...(profile.company || {}), slogan: f.bio, website: f.website, headquarters: f.address, linkedin: f.linkedin, twitter: f.twitter, instagram: f.instagram };
+      profile.contact = { ...(profile.contact || {}), email: f.email, phone: f.phone };
+      profile.brand = { ...(profile.brand || {}), avatar };
+      try { profile.pp = mapProfileToPP(profile); } catch (_) {}
+      const saved = await updateCompanyProfile(coId, profile);
+      if (saved) { try { if (saved.pp) applyPP(saved.pp); } catch (_) {} flash("Profile updated"); }
+      else flash("Couldn't save — try again");
+    } catch (_) { flash("Couldn't save — try again"); }
+  };
   const soc = (v, base) => (v ? (/^https?:/.test(v) ? v : base + String(v).replace(/^[@/]+/, "")) : "");
   const webHost = (co.website || "").replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "");
   const socials = [
@@ -8858,7 +8886,12 @@ function CompanyProfileScreen({ onScan }) {
 
       </div>
 
-      {editing && <EditCompanyProfile initial={co} onSave={setCo} onClose={() => setEditing(false)} />}
+      {toast && createPortal(
+        <div className="pointer-events-none absolute inset-x-0 z-[120] flex justify-center pp-fade" style={{ bottom: 96 }}>
+          <span className="rounded-full px-4 py-2 text-[12.5px] font-bold text-white" style={{ background: "rgba(15,23,42,0.92)", boxShadow: "0 8px 22px -8px rgba(15,23,42,0.5)" }}>{toast}</span>
+        </div>, ppFrameEl || document.body)}
+
+      {editing && <EditCompanyProfile initial={co} onSave={(f) => { saveCompany(f); setEditing(false); }} onClose={() => setEditing(false)} />}
       {creating && <CompanyCreateMenu onClose={() => setCreating(false)} onChoose={(k) => { setComposeKind(k); setCreating(false); setComposing(true); }} />}
       {composing && <PostComposer kind={composeKind} onPost={(p) => setPosts((x) => [p, ...x])} onClose={() => setComposing(false)} />}
     </div>

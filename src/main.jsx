@@ -5,7 +5,7 @@ import ReactDOM from "react-dom/client";
 import "./index.css";
 import { SUPABASE_URL, SUPABASE_ANON } from "./lib/supabase.js";
 import { useAuth } from "./auth/useAuth.js";
-import { signIn, signUp, requestPasswordReset, consumeHashSession, updatePassword, getUser, signInWithApple, signInWithGoogle, googleConfigured, appleAvailable } from "./lib/auth.js";
+import { signIn, signUp, requestPasswordReset, consumeHashSession, updatePassword, getUser, getAccessToken, signInWithApple, signInWithGoogle, googleConfigured, appleAvailable } from "./lib/auth.js";
 import * as investorData from "./lib/investorData.js";
 import { isNativeApp } from "./lib/platform.js";
 import { wireAndroidBack } from "./lib/androidBack.js"; // Android hardware back (no-op on web/iOS)
@@ -721,9 +721,14 @@ function AppRoot() {
           if (row && row.profile) { try { window.__CANON_PROJECTS__ = Array.isArray(row.profile.projects) ? row.profile.projects : null; } catch (_) {} }
           if (row && row.profile && row.profile.pp) { window.__PP__ = row.profile.pp; try { window.__PP__.ACCOUNT_TIER = row.tier; } catch (_) {} coId = row.id || null; ok = true; }
         } else {
+          // Auth-aware read: a signed-in user sends their token so RLS also returns a company
+          // they OWN that isn't published yet (so a company can open + manage its own draft).
+          let h = base;
+          const me = (() => { try { return getUser(); } catch (_) { return null; } })();
+          if (me) { try { const tok = await getAccessToken(); if (tok) h = { apikey: SUPABASE_ANON, Authorization: `Bearer ${tok}` }; } catch (_) {} }
           const res = await fetch(
-            `${SUPABASE_URL}/rest/v1/companies?slug=eq.${encodeURIComponent(slug)}&select=id,tier,pp:profile->pp,projects:profile->projects`,
-            { headers: base }
+            `${SUPABASE_URL}/rest/v1/companies?slug=eq.${encodeURIComponent(slug)}&select=id,tier,owner_id,pp:profile->pp,projects:profile->projects`,
+            { headers: h }
           );
           const rows = await res.json().catch(() => []);
           // Canonical projects[] (source of truth for drill/results) — captured for every
@@ -731,6 +736,14 @@ function AppRoot() {
           if (rows && rows[0]) { try { window.__CANON_PROJECTS__ = Array.isArray(rows[0].projects) ? rows[0].projects : null; } catch (_) {} }
           if (rows && rows[0] && rows[0].pp) {
             window.__PP__ = rows[0].pp; try { window.__PP__.ACCOUNT_TIER = rows[0].tier; } catch (_) {} coId = rows[0].id || null; ok = true;
+            // Company account: this signed-in user OWNS this company → the Profile tab becomes
+            // their editable company profile (+ publish). Captured for the save path.
+            try {
+              if (me && rows[0].owner_id && rows[0].owner_id === me.id) {
+                window.__PP__.COMPANY_ACCOUNT = true;
+                window.__CO_ID__ = rows[0].id; window.__CO_SLUG__ = slug;
+              }
+            } catch (_) {}
           } else if (rows && rows[0] && slug === "kingsmen-resources") {
             // The published Kingsmen row exists but carries no `pp`. Kingsmen is the app's
             // built-in flagship: PassportProto ships the full original profile as its
