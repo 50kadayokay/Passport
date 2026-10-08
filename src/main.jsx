@@ -164,6 +164,12 @@ const lazyFallback = (label) => (
 // No-op unless the Capacitor platform is "android".
 wireAndroidBack();
 
+// Stamp the build into every document (sales page AND the app embedded in the phone), so
+// the on-device diagnostic can show whether the two are the same build. A service worker
+// can serve one from cache and the other from the network, and that mismatch is invisible
+// from a test harness, which never has a service worker at all.
+try { window.__MX_BUILD = typeof __MX_BUILD__ !== "undefined" ? __MX_BUILD__ : "dev"; } catch (_) {}
+
 const root = ReactDOM.createRoot(document.getElementById("root"));
 
 // Investor sign-in / sign-up card for the app (companies onboard separately on

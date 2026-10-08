@@ -29,6 +29,7 @@
 import React, { useEffect, useRef, useState , useCallback} from "react";
 import { useViewport, EASE, useTrack, step } from "../system.jsx";
 import StageArrows from "./StageArrows.jsx";
+import PhoneDiag, { diagOn } from "./PhoneDiag.jsx";
 import { NarrativeStory } from "../demo/NarrativeStory.jsx";
 // The sheet shows the REAL pricing page, not a second pricing component: PricingDeck is
 // what /pricing renders, and it already supports an `embedded` mode (the sales page
@@ -271,6 +272,7 @@ export default function ProProfileChapter({ onActive, onPricing}) {
         <div className="mx-vstage" style={{ position: "relative", height: "100svh", overflow: "hidden" }}>
           <NarrativeStory variant="full" hardware cutout />
           <StageArrows i={mIdx} n={PRO_STATES} onGo={goM} dark />
+          {diagOn() && <PhoneDiag state={mIdx} label="pro" />}
         </div>
       </section>
     );
