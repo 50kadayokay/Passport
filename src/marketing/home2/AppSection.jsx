@@ -501,13 +501,13 @@ export default function AppSection() {
     <div style={{ position: "absolute", inset: 0, zIndex: 4, pointerEvents: confSceneIn ? "auto" : "none",
       opacity: confSceneIn ? 1 : 0, transform: confSceneIn ? "translateY(0)" : "translateY(18px)",
       transition: `opacity ${T(520)} ${EASE}, transform ${T(560)} ${EASE_SHEET}` }}>
-      {/* Desktop pre-mounts the Conference tablet one state early so its reveal is instant —
-          the wheel gets there fast. On a phone that put TWO live product iframes on the page
-          at once during the app walkthrough, both rendering, which is what makes the app
-          stutter there. The arrows give the visitor a beat between states, so phones mount
-          it when the chapter is actually reached and run one iframe at a time. */}
+      {/* The Conference tablet mounts ONE STATE EARLY, on every device, so it is loaded and
+          painted before its chapter is revealed. I had delayed this on phones to avoid two
+          live product iframes overlapping during the app walkthrough; the cost was the tablet
+          arriving empty on the state where it first appears, which is worse than the overlap
+          it saved. Reverted — the device must never be shown without its content. */}
       <ConferenceScene mobile={mobile} reduce={reduce} confIndex={Math.max(0, Math.min(CONF_STATES - 1, confIndex))}
-        mount={idx >= (mobile ? CONF0 : CONF0 - 1)} active={confSceneIn} />
+        mount={idx >= CONF0 - 1} active={confSceneIn} />
     </div>
   );
 
