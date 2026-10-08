@@ -104,6 +104,13 @@ const isConference = path === "/conference" || path.startsWith("/conference/") |
 // by the Investor page). No auth, demo data only; renders the real app screens.
 const isInvestorDemo = path === "/appdemo" || path.startsWith("/appdemo/") || path.startsWith("/appdemo?");
 const isReset = path === "/reset" || path.startsWith("/reset");
+// A Supabase recovery link can land on the project's Site URL ROOT (not /reset) when the
+// app's /reset origin isn't in the dashboard redirect allow-list — the token then arrives
+// in the hash on "/" (or any route) and the password form is never reached. Detect the
+// recovery token anywhere and treat it as a reset, so the link always lands on the form.
+const hasRecoveryHash = (() => {
+  try { return /(?:^|[#&])type=recovery(?:&|$)/.test(window.location.hash || ""); } catch (_) { return false; }
+})();
 // Blueprint workspace dev harness — LOCALHOST ONLY. In production /bpdemo falls through
 // to the normal app (never renders sample Blueprint content publicly).
 const isLocalhost = (() => {
@@ -330,17 +337,29 @@ function InvestorAuth({ onSuccess, initialMode, onBack }) {
 
   if (confirm || sent) {
     const isConfirm = confirm;
+    const centerCol = { maxWidth: 320, marginLeft: "auto", marginRight: "auto" };
     return (
       <div style={wrap}>
         <div style={{ textAlign: "center" }}>
-          <div style={{ fontSize: 40, marginBottom: 10 }}>{isConfirm ? "📬" : "🔑"}</div>
-          <h1 style={{ fontSize: 24, fontWeight: 800, color: "#0f172a", margin: 0 }}>Check your email</h1>
-          <p style={{ fontSize: 14, color: "#64748b", marginTop: 10, lineHeight: 1.5 }}>
+          {/* Branded app mark with a cobalt mail badge — the same icon the Welcome flow uses,
+              so the confirmation reads as MineEx, not a generic system screen. */}
+          <div style={{ display: "inline-flex", position: "relative", marginBottom: 22 }}>
+            <img src="/icon-192.png" alt="" style={{ width: 78, height: 78, borderRadius: 19, boxShadow: "0 16px 40px rgba(15,23,42,0.18)" }} />
+            <span style={{ position: "absolute", right: -7, bottom: -7, width: 36, height: 36, borderRadius: "50%", background: "#2563eb", display: "grid", placeItems: "center", boxShadow: "0 8px 18px rgba(37,99,235,0.45)", border: "3px solid #fff" }}>
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="5" width="18" height="14" rx="2.5" /><path d="m3.5 7.5 8.5 6 8.5-6" /></svg>
+            </span>
+          </div>
+          <p style={{ fontSize: 12, fontWeight: 800, letterSpacing: "0.18em", textTransform: "uppercase", color: "#2563eb", margin: 0 }}>MineEx</p>
+          <h1 style={{ fontSize: 25, fontWeight: 800, letterSpacing: "-0.02em", color: "#0f172a", margin: "8px 0 0" }}>Check your email</h1>
+          <p style={{ fontSize: 14.5, color: "#64748b", marginTop: 10, lineHeight: 1.55, ...centerCol }}>
             {isConfirm
-              ? <>We sent a confirmation link to <b>{email}</b>. Tap it, then come back and sign in.</>
-              : <>If an account exists for <b>{email}</b>, we've sent a link to reset your password.</>}
+              ? <>We sent a confirmation link to <b style={{ color: "#0f172a" }}>{email}</b>. Tap it, then come back to sign in.</>
+              : <>If an account exists for <b style={{ color: "#0f172a" }}>{email}</b>, you'll get a link to reset your password.</>}
           </p>
-          <button onClick={() => { setConfirm(false); setSent(false); go("signin"); }} style={{ marginTop: 22, ...link, fontSize: 14 }}>Back to sign in</button>
+          <div style={{ marginTop: 18, padding: "11px 14px", background: "#f8fafc", border: "1px solid #eef2f7", borderRadius: 12, fontSize: 12.5, color: "#94a3b8", lineHeight: 1.5, ...centerCol }}>
+            Didn't get it? Check your spam folder — delivery can take a minute.
+          </div>
+          <button onClick={() => { setConfirm(false); setSent(false); go("signin"); }} style={{ marginTop: 22, height: 52, width: "100%", maxWidth: 360, marginLeft: "auto", marginRight: "auto", display: "block", borderRadius: 9999, border: "none", background: "#0f172a", color: "#fff", fontSize: 15, fontWeight: 700, cursor: "pointer" }}>Back to sign in</button>
         </div>
       </div>
     );
@@ -914,7 +933,10 @@ if (isEditorDemo) {
 } else if (isPost) {
   // Public deep link to a single release (shared links, notification taps).
   root.render(<React.Suspense fallback={lazyFallback("release")}><PostDetailRoute postId={postId} /></React.Suspense>);
-} else if (isReset) {
+} else if (isReset || hasRecoveryHash) {
+  // If the recovery token landed somewhere other than /reset, normalise the path so a
+  // refresh keeps working — the form reads the token from the hash, which is preserved.
+  try { if (hasRecoveryHash && !isReset) window.history.replaceState(null, "", "/reset" + window.location.hash); } catch (_) {}
   root.render(<ResetPassword />);
 } else if (isInvestorDemo) {
   // PRODUCTION chromeless investor-shell render for the marketing phone. Additive; no auth.
