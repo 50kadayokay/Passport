@@ -8,7 +8,7 @@
 //   • assets/images → cache-first (same- AND cross-origin: JS/CSS, Fontshare/Google fonts,
 //                     Supabase Storage images), revalidating in the background
 // Bump CACHE_VERSION on a breaking change to evict old caches.
-const CACHE_VERSION = "passport-booth-v75";
+const CACHE_VERSION = "passport-booth-v76";
 const SHELL = ["/app", "/manifest.webmanifest", "/booth-icon.svg"];
 
 self.addEventListener("install", (e) => {
@@ -57,6 +57,25 @@ self.addEventListener("fetch", (e) => {
 
   // Assets, fonts, images → serve from cache first (instant + offline), and refresh the
   // cached copy in the background when a network is available.
+  // ── THE MARKETING SITE IS NEVER SERVED FROM CACHE ───────────────────────────────
+  // This worker exists so the conference booth at /app runs offline after one load, and
+  // it was registered at the site root, so it also took over mineex.ca's marketing pages
+  // with a CACHE-FIRST rule for JS and CSS. The consequence is that a visitor who has
+  // ever opened the site keeps being served the build they first loaded: deploys appear
+  // to change nothing, and the only way to see the current site is a private tab. The
+  // booth needs offline; the sales site needs to be current. Marketing assets therefore
+  // go straight to the network, and only fall back to cache when genuinely offline.
+  const isBooth = /\/app(\b|\/|\?)|\/conference|\/confv3demo|\/appdemo/.test(new URL(req.url, self.location.origin).pathname)
+    || /supabase|\/rest\/v1\//.test(req.url);
+  if (!isBooth) {
+    e.respondWith(
+      fetch(req)
+        .then((res) => { cachePut(req, res.clone()); return res; })
+        .catch(() => caches.match(req))
+    );
+    return;
+  }
+
   e.respondWith(
     caches.match(req).then((cached) => {
       const net = fetch(req)
