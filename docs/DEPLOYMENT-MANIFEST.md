@@ -64,7 +64,19 @@ Apply in that order, and only when investors' phones are meant to buzz.
 
 ---
 
-## APPLIED and verified
+## APPLIED 2026-10-08, verified
+
+| Migration | Evidence |
+|---|---|
+| `0057_submission_throttle` | Both tables present, RLS on with **0 policies**, browser grants `[]`, function ACLs `postgres \| service_role` only, `search_path = public, pg_temp` on all three. Counter test: 20 calls → 20 distinct values, 1–20, final 20. Kill switch verified **both ways** — `enabled=false` → endpoints `503 ai-disabled-db`, re-enabled → back to normal |
+| `0060_publish_actor_hardening` | `publish_publication` went from `=X/postgres \| anon=X \| authenticated=X \| service_role=X` to `postgres=X/postgres \| service_role=X/postgres` — matching the already-hardened `revise_publication` and `unpublish_publication`. The 2-arg signature from `0008` no longer exists, so the guarded second revoke was a no-op |
+
+Note on `0060`: the revoke had to name **`public`**, not just `anon, authenticated`.
+The leading `=X/` in an aclitem is the grant to PUBLIC and every role belongs to
+it, so an earlier draft that revoked only the two named roles would have closed
+nothing. All 13 pre-existing revokes in this set include `public`.
+
+## APPLIED earlier and verified
 
 From the live metadata: 62 tables, 71 functions, 43 triggers, 7 event triggers,
 4 storage buckets, 12 storage policies.
@@ -121,8 +133,6 @@ Everything from `0043` on is unambiguous.
 |---|---|---|---|
 | `0000_baseline` | The 18 unversioned objects: 4 tables, 3 functions, 3 indexes, 5 policies, 1 trigger, 1 event trigger | **No-op on production** — everything is `IF NOT EXISTS` / `OR REPLACE` / guarded. Needed only so other environments can be built | Staging first |
 | `0059_auth_user_trigger` | `on_auth_user_created` on `auth.users` | No-op on production | With `0000` |
-| `0060_publish_actor_hardening` | Revokes browser EXECUTE on `publish_publication` | Drop-in; `api/publish.js` already passes a verified actor | Safe any time |
-| `0057_submission_throttle` | Throttle table + atomic increment | Additive; one table, two service-role-only functions | Safe any time |
 | `0058_close_public_insert` | Revokes anon INSERT on the three public forms | **Breaks the forms unless `/api/submit` is deployed first** | After the client ships |
 
 `0000` and `0059` must be applied **as the SQL-editor role (`postgres`)** —

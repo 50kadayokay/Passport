@@ -22,18 +22,21 @@ export const DEFERRED = {
     "Arms real push to investors' phones. Requires 0041 (from main) first, and a deliberate decision.",
 };
 
+// Applied to production on 2026-10-08 and verified. Listed here, not in
+// PENDING, so replay-migrations.mjs stops describing them as unapplied.
+//   0057 - throttle table + ai_controls kill switch (drill-tested both ways)
+//   0060 - publish_publication revoked from public/anon/authenticated
+//
 // Written this session; awaiting approval. Replay applies these in staging.
 export const PENDING = {
   "0000_baseline.sql":
     "The 18 unversioned objects. No-op on production; required for every other environment.",
-  "0057_submission_throttle.sql":
-    "Submission throttle table + atomic increment. Additive.",
+
   "0058_close_public_insert.sql":
     "Revokes anon INSERT on the three public forms. MUST follow the /api/submit deploy.",
   "0059_auth_user_trigger.sql":
     "on_auth_user_created on auth.users. No-op on production.",
-  "0060_publish_actor_hardening.sql":
-    "Revokes browser EXECUTE on publish_publication. Drop-in.",
+
 };
 
 // Applied to production and verified against live catalog metadata.
