@@ -8750,12 +8750,14 @@ function CompanyProfileScreen({ onScan }) {
     co.twitter && { href: soc(co.twitter, "https://x.com/"), Icon: Twitter, label: "X" },
     co.instagram && { href: soc(co.instagram, "https://instagram.com/"), Icon: Instagram, label: "Instagram" },
   ].filter(Boolean);
-  const contactRows = [
-    co.email && { Icon: Mail, label: "Email", value: co.email },
-    co.phone && { Icon: Phone, label: "Phone", value: co.phone },
-    co.address && { Icon: MapPin, label: "Address", value: co.address },
+  const detailRows = [
+    co.email && { Icon: Mail, label: "Email", value: co.email, icBg: "rgba(37,99,235,0.1)", ic: "#2563eb" },
+    co.phone && { Icon: Phone, label: "Phone", value: co.phone, icBg: "rgba(5,150,105,0.12)", ic: "#059669" },
+    co.address && { Icon: MapPin, label: "Address", value: co.address, icBg: "rgba(176,118,46,0.13)", ic: "#b0762e" },
+    webHost && { Icon: Globe, label: "Website", value: webHost, icBg: "rgba(14,165,233,0.12)", ic: "#0ea5e9" },
   ].filter(Boolean);
   const cardBig = { boxShadow: "0 1px 2px rgba(15,23,42,0.04), 0 12px 26px -20px rgba(15,23,42,0.4)" };
+  const cardFlat = { boxShadow: "0 1px 2px rgba(15,23,42,0.04)" };
   return (
     <div className="relative flex h-full flex-col">
       <ScreenHead eyebrow="Company" title="Profile" onScan={onScan} trailing={
@@ -8764,41 +8766,52 @@ function CompanyProfileScreen({ onScan }) {
         </button>
       } />
       <div className="pp-scroll flex-1 overflow-y-auto px-5 pb-28 pt-1">
-        <div className="relative overflow-hidden rounded-2xl p-5" style={{ background: `linear-gradient(135deg, ${EM} 0%, ${EM_TEXT} 100%)`, ...cardBig }}>
+
+        {/* 1 — IDENTITY hero (same look as the investor profile) */}
+        <div className="relative overflow-hidden rounded-2xl p-5" style={{ background: "linear-gradient(135deg,#0e7a53 0%,#0b3d2e 100%)", ...cardBig }}>
           <div className="absolute inset-0" style={{ background: "radial-gradient(120% 130% at 86% -12%, rgba(255,255,255,0.20) 0%, rgba(255,255,255,0) 46%)" }} />
           <button onClick={() => { haptic(); setEditing(true); }} className="absolute right-3 top-3 flex items-center gap-1.5 rounded-full bg-white/20 px-3 py-1.5 text-[11.5px] font-bold text-white backdrop-blur transition active:scale-95"><PenSquare size={12} /> Edit</button>
-          <div className="relative flex items-center gap-3.5">
-            <div className="grid h-16 w-16 flex-shrink-0 place-items-center overflow-hidden rounded-full border-2 border-white/70 bg-white">
-              {co.avatar ? <img src={co.avatar} alt="" className="h-full w-full object-cover" /> : <Building2 size={24} className="text-slate-400" />}
+          <div className="relative">
+            <div className="grid h-[76px] w-[76px] place-items-center overflow-hidden rounded-full bg-white ring-4 ring-white/25">
+              {co.avatar ? <img src={co.avatar} alt="" className="h-full w-full object-cover" /> : <Building2 size={26} className="text-slate-400" />}
             </div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-1.5">
-                <h2 className="truncate text-[19px] font-extrabold tracking-tight text-white">{co.name}</h2>
-                <BadgeCheck size={16} className="flex-shrink-0 text-white" />
-              </div>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-white/70">Company account · name locked</p>
+            <div className="mt-3 flex items-center gap-1.5">
+              <p className="text-[19px] font-extrabold tracking-tight text-white">{co.name}</p>
+              <BadgeCheck size={16} className="flex-shrink-0 text-white" />
             </div>
+            {webHost && <a href={soc(co.website, "https://")} target="_blank" rel="noreferrer" className="mt-0.5 inline-flex items-center gap-1 text-[12.5px] font-bold text-white/85"><Globe size={12} />{webHost}</a>}
+            <div className="mt-2.5 inline-flex items-center gap-1 rounded-full bg-white/15 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-white/80">Company account · name locked</div>
           </div>
-          {co.bio && <p className="relative mt-3 text-[12.5px] font-medium leading-relaxed text-white/90">{co.bio}</p>}
-          {webHost && <a href={soc(co.website, "https://")} target="_blank" rel="noreferrer" className="relative mt-2 inline-flex items-center gap-1 text-[12px] font-bold text-white/90"><Globe size={12} /> {webHost}</a>}
+        </div>
+
+        {/* 2 — COMPANY card: bio + editable details + socials (mirrors the investor card) */}
+        <div className="mt-3 rounded-2xl border p-4" style={{ borderColor: "#e4efe9", background: "linear-gradient(180deg, #f3faf6 0%, #ffffff 58%)", ...cardFlat }}>
+          <div className="mb-2.5 flex items-center gap-1.5">
+            <Building2 size={12} style={{ color: EM_TEXT }} />
+            <p className="text-[10.5px] font-bold uppercase tracking-widest" style={{ color: EM_TEXT }}>Company</p>
+          </div>
+          {co.bio
+            ? <p className="text-[13px] leading-relaxed text-slate-600">{co.bio}</p>
+            : <button onClick={() => { haptic(); setEditing(true); }} className="text-left text-[13px] italic leading-relaxed text-slate-400">Add a short bio for investors →</button>}
+          {detailRows.length > 0 && (
+            <div className="mt-3.5 space-y-1.5">
+              {detailRows.map((r) => (
+                <div key={r.label} className="flex items-center justify-between gap-3 rounded-xl border border-slate-100 bg-white px-3 py-2.5">
+                  <span className="flex flex-shrink-0 items-center gap-2.5">
+                    <span className="grid h-7 w-7 place-items-center rounded-lg" style={{ background: r.icBg }}><r.Icon size={14} style={{ color: r.ic }} /></span>
+                    <span className="text-[12px] font-bold text-slate-500">{r.label}</span>
+                  </span>
+                  <span className="truncate text-right text-[12.5px] font-bold text-slate-800">{r.value}</span>
+                </div>
+              ))}
+            </div>
+          )}
           {socials.length > 0 && (
-            <div className="relative mt-3 flex items-center gap-2">
-              {socials.map((s, i) => <a key={i} href={s.href} target="_blank" rel="noreferrer" aria-label={s.label} className="grid h-8 w-8 place-items-center rounded-full bg-white/20 text-white transition active:scale-90"><s.Icon size={14} /></a>)}
+            <div className="mt-3.5 flex items-center gap-2">
+              {socials.map((s, i) => <a key={i} href={s.href} target="_blank" rel="noreferrer" aria-label={s.label} className="grid h-8 w-8 place-items-center rounded-full border border-slate-200 bg-white text-slate-500 transition active:scale-90 hover:text-slate-900"><s.Icon size={14} /></a>)}
             </div>
           )}
         </div>
-
-        {contactRows.length > 0 && (<>
-          <p className="px-1 pb-2 pt-5 text-[11px] font-bold uppercase tracking-widest text-slate-400">Contact</p>
-          <div className="rounded-2xl border border-slate-100 bg-white p-2" style={cardBig}>
-            {contactRows.map((r, i) => (
-              <div key={i} className="flex items-center gap-3 px-2.5 py-2.5">
-                <span className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-full bg-slate-100 text-slate-500"><r.Icon size={15} /></span>
-                <span className="min-w-0"><span className="block text-[9.5px] font-bold uppercase tracking-[0.12em] text-slate-400">{r.label}</span><span className="block truncate text-[13.5px] font-semibold text-slate-900">{r.value}</span></span>
-              </div>
-            ))}
-          </div>
-        </>)}
 
         <div className="flex items-baseline justify-between px-1 pb-2 pt-5">
           <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Posts</p>
