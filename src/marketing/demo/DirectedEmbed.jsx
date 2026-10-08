@@ -263,6 +263,29 @@ export function DirectedEmbed({ variant = "full", hardware = false, cutout = fal
           st.textContent = '[data-page="projects"] button.flex-1[style*="background"]{background:#2563eb !important;color:#fff !important;}';
           d0.head.appendChild(st);
         }
+        // ── LOCK THE SIMULATED PHONE'S INTERNAL VIEWPORT ──────────────────────────────
+        // The app inside the device is a controlled presentation surface, not an app you
+        // can scroll. Its real scroll container, div.pp-scroll, carries overflow-y:auto
+        // and touch-action:auto over a 15,450px range, so a finger on the glass scrolls
+        // the demo's content and leaves it at whatever offset the finger stopped at —
+        // measured: div.pp-scroll.absolute retaining scrollTop 191 and staying there.
+        //
+        // overflow:hidden is the right lock here rather than touch-action alone: it stops
+        // the USER scrolling while leaving element.scrollTop fully writable, and the
+        // walkthrough drives every transition by animating exactly that property. So the
+        // choreography is untouched and only the finger is refused.
+        //
+        // Injected into the DEMO IFRAME ONLY. The real app and the surrounding sales page
+        // keep their own scrolling; nothing here reaches either.
+        if (d0 && d0.head && !d0.getElementById("mx-demo-scrolllock")) {
+          const sl = d0.createElement("style"); sl.id = "mx-demo-scrolllock";
+          sl.textContent =
+            "html,body{overflow:hidden !important;overscroll-behavior:none !important;}" +
+            ".pp-scroll,[class*='overflow-y-auto'],[class*='overflow-auto'],[class*='overflow-y-scroll']{" +
+            "overflow:hidden !important;overscroll-behavior:none !important;" +
+            "touch-action:none !important;-webkit-overflow-scrolling:auto !important;}";
+          d0.head.appendChild(sl);
+        }
       } catch (_) {}
       // The phone is now painted on its photographic hero. Fire the one-time automatic
       // opening reveal (hold → real flip → status face). It runs only from state 0, so a

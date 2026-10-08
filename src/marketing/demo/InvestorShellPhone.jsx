@@ -151,6 +151,25 @@ export default function InvestorShellPhone({ active = "today", insetTop = 92, in
                 height={DEVICE_H}
                 scrolling="no"
                 loading="eager"
+                onLoad={() => {
+                  // Same internal viewport lock as DirectedEmbed: the embedded app's own
+                  // scroll containers accept touch and retain whatever offset a finger
+                  // leaves. overflow:hidden refuses the finger while leaving scrollTop
+                  // writable, so any programmatic choreography still works. Demo iframe
+                  // only — the real app and the sales page are untouched.
+                  try {
+                    const d = frameRef.current && frameRef.current.contentDocument;
+                    if (d && d.head && !d.getElementById("mx-demo-scrolllock")) {
+                      const sl = d.createElement("style"); sl.id = "mx-demo-scrolllock";
+                      sl.textContent =
+                        "html,body{overflow:hidden !important;overscroll-behavior:none !important;}" +
+                        ".pp-scroll,[class*='overflow-y-auto'],[class*='overflow-auto'],[class*='overflow-y-scroll']{" +
+                        "overflow:hidden !important;overscroll-behavior:none !important;" +
+                        "touch-action:none !important;-webkit-overflow-scrolling:auto !important;}";
+                      d.head.appendChild(sl);
+                    }
+                  } catch (_) {}
+                }}
                 style={{ border: 0, display: "block", width: DEVICE_W, height: DEVICE_H, transform: `scale(${dims.scale})`, transformOrigin: "top left", pointerEvents: "none" }}
               />
               <div aria-hidden style={{ position: "absolute", inset: 0, background: BOOT_SCREEN, zIndex: 2, pointerEvents: "none",
