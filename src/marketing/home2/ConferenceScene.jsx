@@ -264,16 +264,14 @@ export default function ConferenceScene({ mobile = false, reduce = false, confIn
           bloom under the RIGHT, aligned with the colours already reflecting off the aluminium stand, so the
           gradient reads as the light source the stand is picking up. Behind the device (shows in the margins
           around the base), blurred and subtle. */}
-      {/* The box is sized so the bloom finishes INSIDE it. It used to be bottom:-3% height:40%
-          with the blue bloom centred at 74% of that box and a 78% vertical radius — reaching
-          152% of the box, i.e. cut off by the box's own edge. A 34px blur feathered that cut,
-          which is why it read as soft until the blur came off phones for performance; the
-          hard rectangular edge underneath was always there. The box now extends to -35%/72%
-          and the gradients are re-expressed against it, so the bloom lands in exactly the same
-          place at the same size and simply has room to reach full transparency before the
-          boundary. No filter needed on phones, and the desktop blur is kept for its softness. */}
-      <div aria-hidden style={{ position: "absolute", left: 0, right: 0, bottom: "-35%", height: "72%", zIndex: 0, pointerEvents: "none",
-        background: "radial-gradient(38% 43.3% at 33% 41.1%, rgba(37,99,235,0.55), rgba(37,99,235,0) 72%), radial-gradient(40% 45.6% at 70% 42.2%, rgba(198,240,74,0.52), rgba(198,240,74,0) 72%)",
+      {/* Reflected-light glow behind the base — a soft blue bloom under the LEFT of the stand and a lime
+          bloom under the RIGHT, aligned with the colours already reflecting off the aluminium stand.
+          I enlarged this box once to stop the gradient being clipped by its own edge; that made the
+          bloom enormous and it swamped the whole right side of the section. Reverted to the original
+          geometry — the clip was never visible (measured luminance delta 0.8) and the cure was far
+          worse than it. */}
+      <div aria-hidden style={{ position: "absolute", left: 0, right: 0, bottom: "-3%", height: "40%", zIndex: 0, pointerEvents: "none",
+        background: "radial-gradient(38% 78% at 33% 74%, rgba(37,99,235,0.55), rgba(37,99,235,0) 72%), radial-gradient(40% 82% at 70% 76%, rgba(198,240,74,0.52), rgba(198,240,74,0) 72%)",
         filter: (typeof window !== "undefined" && window.innerWidth < 760) ? "none" : "blur(34px)" }} />
       {/* Opaque screen backing — fills the glass rectangle BEHIND the (transparent-screened) iPad asset so the
           display can never show the page through it as a pale ring at the aperture edge. Sits under the asset;

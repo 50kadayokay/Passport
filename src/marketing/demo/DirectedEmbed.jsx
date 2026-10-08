@@ -293,7 +293,12 @@ export function DirectedEmbed({ variant = "full", hardware = false, cutout = fal
             // scrollTo({left}), so its 6500px track stopped being scrollable at all. What is
             // left is the duration: the slide runs in 180ms, so the overhanging frame is on
             // screen for a fraction as long. Demo iframe only; production app untouched.
-            ".pp-view{transition-duration:180ms !important;animation-duration:180ms !important;}";
+            // Clip the view ITSELF so a slide can never paint past the right edge of the
+            // screen. Only the view — not its descendants. Putting clip on `.pp-view *` is
+            // what broke the project carousel last time, because it removed the scroll
+            // container the walkthrough drives with scrollTo({left}). overflow-x on the view
+            // alone leaves every descendant's own scrolling intact.
+            ".pp-view{overflow-x:hidden !important;transition-duration:180ms !important;animation-duration:180ms !important;}";
           d0.head.appendChild(sl);
         }
       } catch (_) {}

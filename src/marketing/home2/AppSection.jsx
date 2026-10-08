@@ -556,17 +556,12 @@ export default function AppSection() {
         @keyframes fD{0%{transform:translate(-50%,-50%) translate(3%,-2%) scale(1.06)}50%{transform:translate(-50%,-50%) translate(-6%,6%) scale(.92)}100%{transform:translate(-50%,-50%) translate(3%,-2%) scale(1.06)}}
         .mx-fa{animation:fA 24s ease-in-out infinite}.mx-fb{animation:fB 30s ease-in-out infinite}.mx-fc{animation:fC 27s ease-in-out infinite}.mx-fd{animation:fD 33s ease-in-out infinite}
         .mx-appstage[data-busy="1"] .mx-fa, .mx-appstage[data-busy="1"] .mx-fb, .mx-appstage[data-busy="1"] .mx-fc, .mx-appstage[data-busy="1"] .mx-fd { animation-play-state: paused !important; }
-        /* PHONES: drop the blur filter on the ambient blobs. Each is a radial-gradient that
-           is already soft, with filter: blur(24px) on top, animated on a 24-33s transform
-           loop with will-change:transform — four per sheet, three sheets. iOS Safari
-           re-filters the whole layer on every frame of that animation, which is the single
-           largest paint cost on this page and is exactly what this project's own README
-           forbids ("no animated filter"). Without it the blobs composite on the GPU like any
-           other transform. The gradient carries the softness, so the look barely moves.
-           Desktop keeps the filter and is pixel-identical. */
-        @media (max-width: 759px) {
-          .mx-fa, .mx-fb, .mx-fc, .mx-fd { filter: none !important; }
-        }
+        /* The blur on the ambient blobs is BACK on phones. I removed it to cut iOS paint
+           cost — animated filters are genuinely expensive — but these blobs are radial
+           gradients tuned to be seen THROUGH a 24px blur. Without it they render as a hard,
+           saturated column down the side of the section, which is what wrecked the look of
+           the Conference chapter. The performance win was not worth it: the other filter and
+           backdrop-filter removals in that pass stand on their own, and this one does not. */
         .mx-appstage .mx-demo iframe { will-change: transform; backface-visibility: hidden; }
       `}</style>
       <div ref={stickyRef} className="mx-vstage" style={{ position: mobile ? "relative" : "sticky", top: 0, height: "100svh", overflow: "hidden" }}>
