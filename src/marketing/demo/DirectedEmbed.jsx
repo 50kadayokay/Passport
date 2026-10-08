@@ -973,7 +973,13 @@ export function DirectedEmbed({ variant = "full", hardware = false, cutout = fal
                 screen. The backing is the SCREEN: it takes the app's own background colour, so an
                 unpainted frame is indistinguishable from a painted one instead of flashing black. */}
             <div aria-hidden style={{ position: "absolute", left: dims.opL, top: dims.opT, width: dims.opW, height: dims.opH, background: BOOT_SCREEN, pointerEvents: "none" }} />
-            <div style={{ position: "absolute", left: dims.appLeft, top: dims.appTop, width: dims.appW, height: dims.appH, overflow: "hidden" }}>
+            {/* overflow:CLIP, not hidden. `hidden` still makes this a scroll container, and on the
+                device Safari scrolled it: at state 12 the sheet's content grew (pp-scroll range
+                822 -> 953) and Safari scrolled this wrapper 6px to keep content in view, lifting
+                the whole app inside the phone with nothing to reset it — measured dTop/dBottom -6
+                from that frame onward through every later state. `clip` clips identically but
+                creates no scroll container. The onScroll guard covers engines without `clip`. */}
+            <div onScroll={(e) => { if (e.currentTarget.scrollTop || e.currentTarget.scrollLeft) { e.currentTarget.scrollTop = 0; e.currentTarget.scrollLeft = 0; } }} style={{ position: "absolute", left: dims.appLeft, top: dims.appTop, width: dims.appW, height: dims.appH, overflow: "clip" }}>
               {!DEBUG_SCREEN && <iframe
                 ref={frameRef}
                 title="MineEx mobile app"
@@ -1024,7 +1030,7 @@ export function DirectedEmbed({ variant = "full", hardware = false, cutout = fal
               backgroundImage: `url(${PHONE_SRC()})`, backgroundSize: "100% 100%", backgroundRepeat: "no-repeat", backgroundPosition: "0 0" }} />
             {/* MIDDLE (z1) — the live app (or hot-pink calibration fill) OVER the baked screenshot, clipped to
                 the white display shape so it stops at the inner edge of the original black bezel. ONE clip. */}
-            <div style={{ position: "absolute", left: dims.appLeft, top: dims.appTop, width: dims.appW, height: dims.appH, overflow: "hidden", borderRadius: dims.appRadius, zIndex: 1, background: DEBUG_SCREEN ? "#ff1493" : "#ffffff", isolation: "isolate", transform: "translateZ(0)" }}>
+            <div onScroll={(e) => { if (e.currentTarget.scrollTop || e.currentTarget.scrollLeft) { e.currentTarget.scrollTop = 0; e.currentTarget.scrollLeft = 0; } }} style={{ position: "absolute", left: dims.appLeft, top: dims.appTop, width: dims.appW, height: dims.appH, overflow: "clip", borderRadius: dims.appRadius, zIndex: 1, background: DEBUG_SCREEN ? "#ff1493" : "#ffffff", isolation: "isolate", transform: "translateZ(0)" }}>
               {!DEBUG_SCREEN && <iframe
                 ref={frameRef}
                 title="MineEx mobile app"

@@ -142,7 +142,13 @@ export default function InvestorShellPhone({ active = "today", insetTop = 92, in
                 screen. The backing is the SCREEN: it takes the app's own background colour, so an
                 unpainted frame is indistinguishable from a painted one instead of flashing black. */}
             <div aria-hidden style={{ position: "absolute", left: dims.opL, top: dims.opT, width: dims.opW, height: dims.opH, background: BOOT_SCREEN, pointerEvents: "none" }} />
-            <div style={{ position: "absolute", left: dims.appLeft, top: dims.appTop, width: dims.appW, height: dims.appH, overflow: "hidden" }}>
+            {/* overflow:CLIP, not hidden. `hidden` still makes this a scroll container, and on the
+                device Safari scrolled it: at state 12 the sheet's content grew (pp-scroll range
+                822 -> 953) and Safari scrolled this wrapper 6px to keep content in view, lifting
+                the whole app inside the phone with nothing to reset it — measured dTop/dBottom -6
+                from that frame onward through every later state. `clip` clips identically but
+                creates no scroll container. The onScroll guard covers engines without `clip`. */}
+            <div onScroll={(e) => { if (e.currentTarget.scrollTop || e.currentTarget.scrollLeft) { e.currentTarget.scrollTop = 0; e.currentTarget.scrollLeft = 0; } }} style={{ position: "absolute", left: dims.appLeft, top: dims.appTop, width: dims.appW, height: dims.appH, overflow: "clip" }}>
               <iframe
                 ref={frameRef}
                 title="MineEx investor app"
