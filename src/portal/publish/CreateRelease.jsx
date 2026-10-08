@@ -421,8 +421,8 @@ export default function CreateRelease({ company, draftId, onExit, onPublished })
     try {
       const context = { companyName: company?.name || "", companySlug: company?.slug || "" };
       const next = (mode === "extract" || !analysis)
-        ? await structureRelease({ text: body }, context)
-        : await refineRelease(analysis, mode === "improve" ? instruction : "", body, context);
+        ? await structureRelease({ text: body }, context, { companyId })
+        : await refineRelease(analysis, mode === "improve" ? instruction : "", body, context, { companyId });
       if (!next) throw new Error("No summary came back.");
       setAnalysis(next);
       setShot(0);

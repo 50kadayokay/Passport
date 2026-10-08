@@ -807,9 +807,12 @@ export default function AudienceCard() {
     setErr(""); setBusy("generate"); setCard(null);
     try {
       const p = company.profile || {};
+      // Signed-in callers only: this endpoint spends AI credits per request.
+      const h = await authHeaders();
       const res = await fetch("/api/audience-card", {
-        method: "POST", headers: { "content-type": "application/json" },
+        method: "POST", headers: { ...h, "content-type": "application/json" },
         body: JSON.stringify({
+          companyId: company.id,
           company: { name: company.name, ticker: company.primary_ticker || p.company?.ticker || "" },
           timeline: p.timeline || [], brief: p.companyBrief || null, projects: p.projects || [],
         }),
