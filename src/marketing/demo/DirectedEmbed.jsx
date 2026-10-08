@@ -309,8 +309,27 @@ export function DirectedEmbed({ variant = "full", hardware = false, cutout = fal
             // bottom navigation's own top border grew with it, pushing the nav 3px off on pro
             // and home. The app is Tailwind, so box-sizing is border-box and a card's outer
             // size does not change; the chrome is excluded so nothing structural can move.
-            ".pp-view [class*='rounded'][class*='border']:not(.pp-bottomnav):not(.pp-bottomnav *)" +
-            "{border-width:2px !important;}";
+            // Both VISUAL rules below are phone-only, gated in JS on the PARENT's width.
+            // A media query cannot do it: inside the iframe it would be evaluated against the
+            // iframe's own 424px viewport, which matches on desktop too. They compensate for
+            // the mobile downscale, and desktop must stay pixel-identical. The scroll lock and
+            // the slide duration above are behavioural and apply everywhere, as before.
+            (phoneSmall()
+              ? ".pp-view [class*='rounded'][class*='border']:not(.pp-bottomnav):not(.pp-bottomnav *)" +
+                "{border-width:2px !important;}" +
+            // THE MISSING BLUE EDGE. The highlight on a newly published release is not a
+            // border at all — both borders read 2px slate-100. It is a ring:
+            //   box-shadow: rgba(37,99,235,0.52) 0 0 0 2px
+            // drawn OUTSIDE the border box. The card ends at 404 and its scroll container's
+            // content edge is also 404, so the ring's right 2px falls outside and is clipped,
+            // while the left has room — left/top/bottom visible, right missing. The clip is
+            // mine: the scroll lock above sets overflow:hidden on .pp-scroll. That cannot
+            // become overflow:clip, because clip would also stop the programmatic scrollTop
+            // the walkthrough drives every transition with. So the card gives the ring room
+            // instead: 3px of right margin pulls it inside the clip edge. Timeline cards
+            // only, and margin on a flex child moves nothing else.
+                ".pp-view [class*='rounded'][class*='flex-1']{margin-right:3px !important;}"
+              : "");
           d0.head.appendChild(sl);
         }
       } catch (_) {}
