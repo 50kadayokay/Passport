@@ -13,7 +13,7 @@
     "check:imports": "node scripts/check-imports.mjs",
     "check:pr": "node scripts/press-release-test.mjs",
     "check:media": "node scripts/media-support-test.mjs",
-    "test": "npm run check:imports && npm run check:leak && npm run check:integrity && npm run check:transcript && npm run check:failclosed && npm run check:inventory && npm run check:reconcile && npm run check:adversarial && npm run check:canonical && npm run check:auditsync && npm run check:pipeline && npm run check:mineiq && npm run check:phase1 && npm run check:pr && npm run check:media && npm run check:auth && npm run check:demo-assets && npm run check:push && npm run check:reliability && node scripts/onboarding-classify-test.mjs",
+    "test": "npm run check:imports && npm run check:submissions && npm run check:audit-sql && npm run check:leak && npm run check:integrity && npm run check:transcript && npm run check:failclosed && npm run check:inventory && npm run check:reconcile && npm run check:adversarial && npm run check:canonical && npm run check:auditsync && npm run check:pipeline && npm run check:mineiq && npm run check:phase1 && npm run check:pr && npm run check:media && npm run check:auth && npm run check:aiguard && npm run check:demo-assets && npm run check:push && npm run check:reliability && node scripts/onboarding-classify-test.mjs",
     "check:auth": "node scripts/api-auth-test.mjs",
     "check:integrity": "node scripts/source-integrity-test.mjs",
     "check:transcript": "node scripts/transcript-test.mjs",
@@ -29,7 +29,13 @@
     "check:mineiq-live": "node scripts/mineiq-live-test.mjs",
     "check:demo-assets": "node scripts/check-demo-assets.mjs",
     "check:push": "node scripts/push-routing-test.mjs",
-    "check:reliability": "node scripts/push-reliability-test.mjs"
+    "check:reliability": "node scripts/push-reliability-test.mjs",
+    "check:submissions": "node scripts/submissions-test.mjs",
+    "check:isolation": "node scripts/tenant-isolation-test.mjs",
+    "check:deps": "node scripts/migration-deps-check.mjs",
+    "check:audit-sql": "node scripts/audit-sql-readonly-check.mjs",
+    "replay:plan": "node scripts/replay-migrations.mjs",
+    "check:aiguard": "node scripts/ai-guard-test.mjs"
   },
   "dependencies": {
     "@aparajita/capacitor-secure-storage": "^8.0.0",
