@@ -61,6 +61,180 @@ function startTimings() {
   setTimeout(tick, 250);
 }
 
+
+// ── BOOT COVER. The poster that is meant to cover the embedded app's boot, measured in
+// the PARENT document — the gap in the previous capture, which audited only the iframe and
+// so never looked at the one element responsible for the whole boot window.
+//
+// Everything here is read-only and timed against MXT.t0 (module evaluation), the same zero
+// as the marks above; t0's own offset from navigation start is exported so absolute times
+// can be recovered. Resource entries are converted into the same frame.
+//
+// Caveat stated rather than hidden: this polls at 80ms and does two elementFromPoint calls
+// per tick, so it is not free. It stops the moment both the cover-gone and app-complete
+// marks are set, which is the window that matters.
+export const BOOT = {
+  posterCount: null,    // how many poster elements exist (more than one phone on the page?)
+  resource: null,       // 1 & 2 — network: when the bytes were asked for and arrived
+  poster: null,         // 2 — decode: dimensions, cost, and whether decode() resolved
+  posterPendingAt: null,
+  coverSeenAt: null,    // when the cover element first existed in the DOM
+  opacity: [],          // 4 — opacity over the boot, recorded only when it changes
+  visibility: [],       // 3 — on screen, and whether anything is painted OVER the cover
+  readyAt: null,        // 5 — the exact moment `ready` flipped (inline style mutation)
+  goneAt: null,         // when the cover reached opacity 0
+  appCompleteAt: null,  // 6 — first screen VISUALLY complete, judged by what is painted
+  stoppedAt: null,
+};
+
+const bootNow = () => Math.round(performance.now() - MXT.t0);
+
+// The cover is BootCover's wrapper: the poster img's parent. Resolved by the poster's src
+// rather than by class or position, so a styling change cannot silently break the probe.
+function findCover() {
+  const imgs = Array.from(document.querySelectorAll('img[src*="app-opening-poster"]'));
+  if (!imgs.length) return null;
+  const img = imgs[0];
+  if (!img.parentElement) return null;
+  return { img, cover: img.parentElement, count: imgs.length };
+}
+
+const tagOf = (el) => {
+  if (!el) return null;
+  const c = typeof el.className === "string" && el.className.trim()
+    ? "." + el.className.trim().split(/\s+/).slice(0, 2).join(".") : "";
+  return el.tagName.toLowerCase() + c;
+};
+
+let bootStarted = false;
+function startBootWatch() {
+  if (bootStarted || typeof window === "undefined") return;
+  bootStarted = true;
+
+  // 1 & 2 (network). `buffered: true` picks up the fetch even though it began before this ran.
+  const takeResource = (entries) => {
+    for (const e of entries) {
+      if (BOOT.resource || !/app-opening-poster/.test(e.name)) continue;
+      BOOT.resource = {
+        file: e.name.split("/").pop(),
+        startedAt: Math.round(e.startTime - MXT.t0),
+        finishedAt: Math.round(e.responseEnd - MXT.t0),
+        durationMs: Math.round(e.duration),
+        transferBytes: e.transferSize ?? null,
+        encodedBytes: e.encodedBodySize ?? null,
+        // transferSize 0 with a real body means it came from cache, not that it failed.
+        fromCache: e.transferSize === 0 && (e.decodedBodySize ?? 0) > 0,
+      };
+    }
+  };
+  try {
+    takeResource(performance.getEntriesByType("resource"));
+    new PerformanceObserver((l) => takeResource(l.getEntries())).observe({ type: "resource", buffered: true });
+  } catch (_) {}
+
+  let mo = null, decodeAsked = false;
+
+  const tick = () => {
+    const t = bootNow();
+    try {
+      const found = findCover();
+      if (found) {
+        const { img, cover, count } = found;
+        BOOT.posterCount = count;
+        if (BOOT.coverSeenAt == null) BOOT.coverSeenAt = t;
+
+        // 2 — decode. Asked once, as soon as the bytes are in; ok/FAILED is the signal that
+        // separates "iOS refused this" from "decoded but never shown".
+        if (!decodeAsked && img.complete && img.naturalWidth > 0) {
+          decodeAsked = true;
+          BOOT.poster = {
+            src: (img.getAttribute("src") || "").split("/").pop(),
+            nw: img.naturalWidth, nh: img.naturalHeight,
+            decodedMB: Math.round((img.naturalWidth * img.naturalHeight * 4) / 1048576 * 10) / 10,
+            completeAt: t, decode: "pending", decodedAt: null,
+          };
+          img.decode()
+            .then(() => { BOOT.poster.decode = "ok"; BOOT.poster.decodedAt = bootNow(); })
+            .catch(() => { BOOT.poster.decode = "FAILED"; BOOT.poster.decodedAt = bootNow(); });
+        }
+        if (!decodeAsked && BOOT.posterPendingAt == null) BOOT.posterPendingAt = t;
+
+        // 5 — the exact ready flip. `ready` drives an inline opacity, so the attribute
+        // mutation React writes IS the moment, with none of a poll's quantisation.
+        if (!mo) {
+          mo = new MutationObserver(() => {
+            const o = parseFloat(cover.style.opacity);
+            if (!Number.isNaN(o) && o < 1 && BOOT.readyAt == null) BOOT.readyAt = bootNow();
+          });
+          mo.observe(cover, { attributes: true, attributeFilter: ["style"] });
+          cover.addEventListener("transitionend", () => {
+            if (BOOT.goneAt == null && parseFloat(getComputedStyle(cover).opacity) < 0.02) BOOT.goneAt = bootNow();
+          });
+        }
+
+        // 3 & 4 — opacity and REAL visibility. elementFromPoint at the cover's centre says
+        // whether the cover is the thing actually painted there or something is over it.
+        const cs = getComputedStyle(cover);
+        const o = Math.round(parseFloat(cs.opacity) * 100) / 100;
+        const prev = BOOT.opacity[BOOT.opacity.length - 1];
+        if (!prev || Math.abs(prev.o - o) > 0.01) BOOT.opacity.push({ t, o });
+        // Backstop in case the mutation fired before the observer was attached.
+        if (o < 0.995 && BOOT.readyAt == null) BOOT.readyAt = t;
+        if (o < 0.02 && BOOT.goneAt == null) BOOT.goneAt = t;
+
+        const q = cover.getBoundingClientRect();
+        const onScreen = q.width > 4 && q.height > 4 && q.bottom > 0 && q.top < window.innerHeight;
+        const cx = Math.round(q.left + q.width / 2), cy = Math.round(q.top + q.height / 2);
+        const hit = (onScreen && cy > 0 && cy < window.innerHeight) ? document.elementFromPoint(cx, cy) : null;
+        const v = {
+          t, onScreen, opacity: o, visibility: cs.visibility, display: cs.display,
+          topmost: hit ? (hit === img || hit === cover || cover.contains(hit)) : null,
+          hit: tagOf(hit), box: `${Math.round(q.width)}x${Math.round(q.height)}`,
+        };
+        const pv = BOOT.visibility[BOOT.visibility.length - 1];
+        if (!pv || pv.onScreen !== v.onScreen || pv.topmost !== v.topmost
+            || pv.visibility !== v.visibility || Math.abs(pv.opacity - o) > 0.2) BOOT.visibility.push(v);
+      }
+
+      // 6 — the app's first screen VISUALLY complete. Judged by what is painted at the top
+      // and bottom of the simulated screen plus its images, not by a selector existing: the
+      // earlier probe's mistake was trusting presence in the DOM for presence on screen.
+      if (BOOT.appCompleteAt == null) {
+        const f = document.querySelector('iframe[src*="embed=1"], iframe[src*="/appdemo"]');
+        const doc = f && f.contentDocument, win = f && f.contentWindow;
+        if (doc && win) {
+          const W = win.innerWidth, H = win.innerHeight;
+          const top = doc.elementFromPoint(Math.round(W / 2), 6);
+          const bot = doc.elementFromPoint(Math.round(W / 2), H - 12);
+          const chromeAtTop = top && !/^(HTML|BODY)$/.test(top.tagName);
+          const navAtBottom = bot && !!(bot.closest && bot.closest(".pp-bottomnav"));
+          const ov = doc.querySelector('[data-page="overview"]');
+          const imgs = ov ? Array.from(ov.querySelectorAll("img")) : [];
+          const imgsIn = imgs.length > 0 && imgs.every((i) => i.complete && i.naturalWidth > 0);
+          if (chromeAtTop && navAtBottom && imgsIn) BOOT.appCompleteAt = t;
+        }
+      }
+    } catch (_) {}
+
+    const done = BOOT.goneAt != null && BOOT.appCompleteAt != null;
+    if (!done && t < 15000) setTimeout(tick, 80);
+    else { BOOT.stoppedAt = t; if (mo) { try { mo.disconnect(); } catch (_) {} } }
+  };
+  tick();
+}
+
+// 7 — the question outright: did the cover leave before the app was ready to be seen?
+export function bootVerdict() {
+  const { goneAt, appCompleteAt, readyAt } = BOOT;
+  if (goneAt == null && appCompleteAt == null) return "no marks yet — let the first screen settle";
+  if (goneAt == null) return `cover still up at ${BOOT.stoppedAt ?? bootNow()}ms (app complete ${appCompleteAt ?? "-"})`;
+  if (appCompleteAt == null) return `COVER GONE at ${goneAt}ms but the app never reached a complete first screen`;
+  const gap = appCompleteAt - goneAt;
+  if (gap > 120) return `POSTER LEFT ${gap}ms EARLY — ready ${readyAt ?? "?"}, cover gone ${goneAt}, app complete ${appCompleteAt}`;
+  if (gap < -120) return `cover held ${-gap}ms PAST readiness (needless delay)`;
+  return `aligned within ${Math.abs(gap)}ms`;
+}
+
 function readFrame(frameEl) {
   // Everything below is read from the frame's own document, in ITS coordinate space, and
   // reported alongside the parent-space rect of the frame so the two can be related.
@@ -180,8 +354,18 @@ async function auditImages(doc, win) {
     }
     out.firstScreen.push(rec);
   }
+  // Recounted HERE, after the decode() awaits above. The previous capture reported
+  // "0/4 loaded, 0MB" while the per-image rows showed two images loaded at 900x900: the
+  // tally had been taken before those awaits let the images finish, so it described an
+  // earlier instant than the rows beside it. Same pass, same moment, now.
+  let loadedNow = 0, decodedNow = 0;
+  for (const im of Array.from(doc.images)) {
+    if (im.complete && im.naturalWidth) { loadedNow++; decodedNow += cost(im.naturalWidth, im.naturalHeight); }
+  }
   out.totals = {
-    imgsInFrame: all.length, loaded, decodedMB: Math.round(decodedMB * 10) / 10,
+    imgsInFrame: doc.images.length,
+    loaded: loadedNow, decodedMB: Math.round(decodedNow * 10) / 10,
+    loadedAtStart: loaded, decodedMBAtStart: Math.round(decodedMB * 10) / 10,
     jsHeapMB: (win.performance && win.performance.memory)
       ? Math.round(win.performance.memory.usedJSHeapSize / 1048576) : "n/a (WebKit)",
   };
@@ -194,7 +378,16 @@ export default function PhoneDiag({ state, label }) {
   const [copied, setCopied] = useState("");
   const lastRef = useRef(null);
 
-  useEffect(() => { startTimings(); }, []);
+  useEffect(() => { startTimings(); startBootWatch(); }, []);
+
+  // The boot marks are written to a module object, not to state, so the panel needs a
+  // nudge to show them filling in. 500ms for the first 16s, then it stops entirely.
+  const [, bump] = useState(0);
+  useEffect(() => {
+    let n = 0;
+    const id = setInterval(() => { bump((x) => x + 1); if (++n > 32) clearInterval(id); }, 500);
+    return () => clearInterval(id);
+  }, []);
   const [imgAudit, setImgAudit] = useState(null);
   const runAudit = useCallback(async () => {
     const f = document.querySelector('iframe[src*="embed=1"], iframe[src*="/appdemo"]');
@@ -253,7 +446,12 @@ export default function PhoneDiag({ state, label }) {
                 viewport: `${innerWidth}x${innerHeight}`,
                 visualVP: window.visualViewport ? `${Math.round(window.visualViewport.width)}x${Math.round(window.visualViewport.height)}` : "n/a",
                 build: window.__MX_BUILD || null },
-      timings: MXT.marks, images: imgAudit, samples: log,
+      // t0 is module evaluation, NOT navigation start; this is its offset, so every mark
+      // below can be converted to navigation-relative by adding it.
+      t0FromNavigationStart: Math.round(MXT.t0),
+      timings: MXT.marks,
+      bootCover: { ...BOOT, verdict: bootVerdict() },
+      images: imgAudit, samples: log,
     }, null, 1);
     try { await navigator.clipboard.writeText(text); setCopied("copied to clipboard"); }
     catch (_) {
@@ -299,9 +497,24 @@ painted @top       ${L.inner.paintedTop ? `${L.inner.paintedTop.tag} top ${L.inn
 painted @bottom    ${L.inner.paintedBottom ? `${L.inner.paintedBottom.tag} bottom ${L.inner.paintedBottom.bottom} pos ${L.inner.paintedBottom.pos}` : "-"}
 scrolled elements  ${L.inner.scrolled && L.inner.scrolled.length ? L.inner.scrolled.map((s) => `${s.el}=${s.top}/${s.range}`).join("  ") : "none"}
 builds             parent ${L.parentBuild || "?"}   inner ${L.inner.build || "?"}
---- timings from navigation start (ms) ---
+--- timings, ms from first marketing script (+${Math.round(MXT.t0)} = from navigation) ---
 shell ${MXT.marks.shellVisible ?? "-"}   iframe ${MXT.marks.iframeInDom ?? "-"}   frameDoc ${MXT.marks.frameDocReady ?? "-"}
 screen1 mounted ${MXT.marks.firstScreenMounted ?? "-"}   screen1 images ${MXT.marks.firstScreenImagesLoaded ?? "-"}
+--- BOOT COVER (the poster over the app's boot) ---
+verdict            ${bootVerdict()}
+poster fetch       ${BOOT.resource
+  ? `${BOOT.resource.file}  start ${BOOT.resource.startedAt} → done ${BOOT.resource.finishedAt} (${BOOT.resource.durationMs}ms, ${BOOT.resource.transferBytes}B${BOOT.resource.fromCache ? ", cached" : ""})`
+  : "NO RESOURCE ENTRY — the poster was never fetched"}
+poster decode      ${BOOT.poster
+  ? `${BOOT.poster.nw}x${BOOT.poster.nh}  ${BOOT.poster.decodedMB}MB  complete@${BOOT.poster.completeAt}  decode ${BOOT.poster.decode}@${BOOT.poster.decodedAt ?? "-"}`
+  : `not loaded yet${BOOT.posterPendingAt != null ? " (pending since " + BOOT.posterPendingAt + ")" : ""}`}
+cover element      ${BOOT.coverSeenAt != null ? `seen @${BOOT.coverSeenAt}  count ${BOOT.posterCount}` : "NOT IN THE DOM"}
+ready flip         ${BOOT.readyAt ?? "-"}        cover gone ${BOOT.goneAt ?? "-"}
+app complete       ${BOOT.appCompleteAt ?? "not yet"}
+opacity            ${BOOT.opacity.length ? BOOT.opacity.map((p2) => `${p2.t}:${p2.o}`).join(" ") : "-"}
+visibility         ${BOOT.visibility.length
+  ? BOOT.visibility.map((v) => `${v.t}:${v.onScreen ? "on" : "OFF"}/${v.topmost === null ? "?" : v.topmost ? "top" : "COVERED by " + v.hit}`).join("  ")
+  : "-"}
 --- first-screen images ---
 ${imgAudit && imgAudit.firstScreen.length
   ? imgAudit.firstScreen.map((i) =>
