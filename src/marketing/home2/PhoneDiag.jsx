@@ -185,14 +185,27 @@ function startBootWatch() {
         const q = cover.getBoundingClientRect();
         const onScreen = q.width > 4 && q.height > 4 && q.bottom > 0 && q.top < window.innerHeight;
         const cx = Math.round(q.left + q.width / 2), cy = Math.round(q.top + q.height / 2);
-        // Look THROUGH this overlay. The panel is fixed to the bottom at up to 46vh, so a
-        // plain elementFromPoint at the cover's centre hits the panel and reports the cover
-        // as occluded — a defect invented by the instrument. elementsFromPoint gives the
-        // whole stack; the first entry that is not part of the panel is what the visitor
-        // would actually see there.
-        const hit = (onScreen && cy > 0 && cy < window.innerHeight)
-          ? (document.elementsFromPoint(cx, cy) || []).find((el) => !el.closest("[data-mxdiag]")) || null
-          : null;
+        // "Is the poster visible" is a question about PAINT, and elementFromPoint answers a
+        // question about geometry. Two things made the naive form lie: this panel (fixed to
+        // the bottom at up to 46vh, so it owns the cover's centre point) and the phone
+        // composite, which stacks four transparent wrapper layers above the screen by
+        // design. Both were reported as occluders that no visitor can see.
+        //
+        // So: take the whole stack, drop the instrument, and return the first element that
+        // would actually paint something — an image, a background image, or a background
+        // colour that is not fully transparent. If that is the cover or its poster, the
+        // poster is what is on screen; if it is anything else, that thing is named.
+        const stack = (onScreen && cy > 0 && cy < window.innerHeight)
+          ? Array.from(document.elementsFromPoint(cx, cy) || []) : [];
+        const hit = stack.find((el) => {
+          if (el.closest("[data-mxdiag]")) return false;
+          if (/^(IMG|VIDEO|CANVAS|SVG)$/.test(el.tagName)) return true;
+          const c = getComputedStyle(el);
+          if ((c.backgroundImage || "none") !== "none") return true;
+          const m = (c.backgroundColor || "").match(/rgba?\(([^)]+)\)/);
+          if (m) { const a = m[1].split(",").map(Number); return a.length < 4 || a[3] > 0.02; }
+          return false;
+        }) || null;
         const v = {
           t, onScreen, opacity: o, visibility: cs.visibility, display: cs.display,
           topmost: hit ? (hit === img || hit === cover || cover.contains(hit)) : null,
