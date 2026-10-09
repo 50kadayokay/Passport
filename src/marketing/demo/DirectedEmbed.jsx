@@ -82,10 +82,11 @@ const CUTOUT_BLEED = 1.004;
 export const phoneSmall = () => typeof window !== "undefined" && window.innerWidth < 760;
 const sm = (u) => u.replace(/\.webp$/, ".sm.webp");
 export const PHONE_SRC = () => (phoneSmall() ? sm(PHONE.src) : PHONE.src);
-// Vertical panning MUST stay with the page on a phone: these chapters advance by scroll
-// progress, so a stage that eats the swipe freezes the page and strands the walkthrough.
-// Desktop navigates by wheel and keeps "none".
-const stageTouchAction = () => (phoneSmall() ? "pan-y" : "none");
+// The stage refuses touch gestures outright. It briefly allowed vertical panning, back
+// when scroll progress drove these chapters; the arrow controls drive them now and the
+// pages no longer scroll, so nothing is lost by refusing. Combined with the iframe's
+// pointer-events:none, there is no path left for a finger to move the app.
+const stageTouchAction = () => "none";
 export const PHONE_CUTOUT = () => (phoneSmall() ? sm(PHONE.cutout) : PHONE.cutout);
 export const PHONE_MASK = () => (phoneSmall() ? sm(PHONE.screenMask) : PHONE.screenMask);
 
@@ -262,6 +263,75 @@ export function DirectedEmbed({ variant = "full", hardware = false, cutout = fal
           st.textContent = '[data-page="projects"] button.flex-1[style*="background"]{background:#2563eb !important;color:#fff !important;}';
           d0.head.appendChild(st);
         }
+        // ── LOCK THE SIMULATED PHONE'S INTERNAL VIEWPORT ──────────────────────────────
+        // The app inside the device is a controlled presentation surface, not an app you
+        // can scroll. Its real scroll container, div.pp-scroll, carries overflow-y:auto
+        // and touch-action:auto over a 15,450px range, so a finger on the glass scrolls
+        // the demo's content and leaves it at whatever offset the finger stopped at —
+        // measured: div.pp-scroll.absolute retaining scrollTop 191 and staying there.
+        //
+        // overflow:hidden is the right lock here rather than touch-action alone: it stops
+        // the USER scrolling while leaving element.scrollTop fully writable, and the
+        // walkthrough drives every transition by animating exactly that property. So the
+        // choreography is untouched and only the finger is refused.
+        //
+        // Injected into the DEMO IFRAME ONLY. The real app and the surrounding sales page
+        // keep their own scrolling; nothing here reaches either.
+        if (d0 && d0.head && !d0.getElementById("mx-demo-scrolllock")) {
+          const sl = d0.createElement("style"); sl.id = "mx-demo-scrolllock";
+          sl.textContent =
+            "html,body{overflow:hidden !important;overscroll-behavior:none !important;}" +
+            ".pp-scroll,[class*='overflow-y-auto'],[class*='overflow-auto'],[class*='overflow-y-scroll']{" +
+            "overflow:hidden !important;overscroll-behavior:none !important;" +
+            "touch-action:none !important;-webkit-overflow-scrolling:auto !important;}" +
+            // The incoming view slides in from the right, so mid-animation it sits past the
+            // right edge — measured at 490 against a 424 viewport, settling to exactly 0-424.
+            // Horizontal CLIPPING is already handled: html/body above are overflow:hidden, so
+            // nothing paints outside the screen. Adding overflow-x:clip to the view and its
+            // children as well looked right and broke the project carousel — `clip` removes
+            // the scroll container, and the walkthrough drives that carousel with
+            // scrollTo({left}), so its 6500px track stopped being scrollable at all. What is
+            // left is the duration: the slide runs in 180ms, so the overhanging frame is on
+            // screen for a fraction as long. Demo iframe only; production app untouched.
+            // Clip the view ITSELF so a slide can never paint past the right edge of the
+            // screen. Only the view — not its descendants. Putting clip on `.pp-view *` is
+            // what broke the project carousel last time, because it removed the scroll
+            // container the walkthrough drives with scrollTo({left}). overflow-x on the view
+            // alone leaves every descendant's own scrolling intact.
+            ".pp-view{overflow-x:hidden !important;transition-duration:180ms !important;animation-duration:180ms !important;}" +
+            // HAIRLINES. The app is drawn at 0.5466 scale, so a 1px border becomes 0.55px and
+            // sub-pixel rounding paints it on one edge of a box and drops it on the opposite
+            // one — measured on the milestone card, which sits fully inside the viewport
+            // (left 20, right 404 of 424) with border-right:1px set and no right edge drawn.
+            // 2px survives the downscale and lands back at ~1.1px on screen.
+            //
+            // Scoped to CARDS, not everything. The first attempt applied it globally and the
+            // bottom navigation's own top border grew with it, pushing the nav 3px off on pro
+            // and home. The app is Tailwind, so box-sizing is border-box and a card's outer
+            // size does not change; the chrome is excluded so nothing structural can move.
+            // Both VISUAL rules below are phone-only, gated in JS on the PARENT's width.
+            // A media query cannot do it: inside the iframe it would be evaluated against the
+            // iframe's own 424px viewport, which matches on desktop too. They compensate for
+            // the mobile downscale, and desktop must stay pixel-identical. The scroll lock and
+            // the slide duration above are behavioural and apply everywhere, as before.
+            (phoneSmall()
+              ? ".pp-view [class*='rounded'][class*='border']:not(.pp-bottomnav):not(.pp-bottomnav *)" +
+                "{border-width:2px !important;}" +
+            // THE MISSING BLUE EDGE. The highlight on a newly published release is not a
+            // border at all — both borders read 2px slate-100. It is a ring:
+            //   box-shadow: rgba(37,99,235,0.52) 0 0 0 2px
+            // drawn OUTSIDE the border box. The card ends at 404 and its scroll container's
+            // content edge is also 404, so the ring's right 2px falls outside and is clipped,
+            // while the left has room — left/top/bottom visible, right missing. The clip is
+            // mine: the scroll lock above sets overflow:hidden on .pp-scroll. That cannot
+            // become overflow:clip, because clip would also stop the programmatic scrollTop
+            // the walkthrough drives every transition with. So the card gives the ring room
+            // instead: 3px of right margin pulls it inside the clip edge. Timeline cards
+            // only, and margin on a flex child moves nothing else.
+                ".pp-view [class*='rounded'][class*='flex-1']{margin-right:3px !important;}"
+              : "");
+          d0.head.appendChild(sl);
+        }
       } catch (_) {}
       // The phone is now painted on its photographic hero. Fire the one-time automatic
       // opening reveal (hold → real flip → status face). It runs only from state 0, so a
@@ -305,7 +375,15 @@ export function DirectedEmbed({ variant = "full", hardware = false, cutout = fal
         const opL = op.left * boxW, opR = op.right * boxW;
         const opT = op.top * boxH,  opB = op.bottom * boxH;
         const opW = opR - opL, opH = opB - opT;
-        const appScale = Math.max(opW / DEVICE_W, opH / DEVICE_H) * CUTOUT_BLEED;
+        // ONE coordinate system, CONTAIN, no bleed. This was Math.max (cover) times a 1.004
+        // bleed, i.e. the app deliberately rendered 0.4% larger than the opening and centred,
+        // so it was cropped on every edge — and the app draws its status bar at y=0 of its own
+        // viewport, so the top crop lands straight on it. The bleed existed to stop a seam
+        // appearing between the app and the photo's bezel, but it is not needed: the opening
+        // and the device viewport share an aspect ratio to four decimal places (0.46038 vs
+        // 0.460369), so a contain fit fills the opening to within a sub-pixel on both axes,
+        // and the backing behind it is the app's own colour, which cannot read as a seam.
+        const appScale = Math.min(opW / DEVICE_W, opH / DEVICE_H);
         const appVW = DEVICE_W * appScale, appVH = DEVICE_H * appScale;
         setDims({
           scale: appScale, w: boxW, boxH,
@@ -907,13 +985,19 @@ export function DirectedEmbed({ variant = "full", hardware = false, cutout = fal
     // and no backing colour can appear anywhere the app does not reach.
     return (
       <div className="mx-demo" style={{ position: "relative", height: "100svh", overflow: "visible", background: "transparent", display: "flex", alignItems: "center", justifyContent: "center", touchAction: stageTouchAction() }}>
-        <StateDots idx={idx} total={STATES.length} />
+        {!phoneSmall() && <StateDots idx={idx} total={STATES.length} />}
         <div ref={boxRef} style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
           <div style={{ position: "relative", width: dims.w, aspectRatio: "971 / 1620", flexShrink: 0 }}>
             {/* Soft body shadow — the phone silhouette, blackened + blurred (unchanged). */}
             <div aria-hidden style={{ position: "absolute", inset: 0, zIndex: 0, pointerEvents: "none",
               backgroundImage: `url(${PHONE_SRC()})`, backgroundSize: "100% 100%", backgroundRepeat: "no-repeat",
-              filter: "brightness(0) blur(26px)", opacity: 0.24, transform: "translateY(20px) translateZ(0)" }} />
+              // Phones: a 332x554 filtered layer sitting directly behind the device that moves is
+              // re-filtered on every frame by iOS Safari. The same soft shadow is drawn with a
+              // gradient instead, which composites for free. Desktop keeps the filtered photo.
+              ...(phoneSmall()
+                ? { backgroundImage: "radial-gradient(60% 46% at 50% 62%, rgba(0,0,0,0.42) 0%, rgba(0,0,0,0.20) 46%, rgba(0,0,0,0) 72%)", filter: "none", opacity: 0.85 }
+                : { filter: "brightness(0) blur(26px)", opacity: 0.24 }),
+              transform: "translateY(20px) translateZ(0)" }} />
             {/* z0–z1 — the backing and the live app, CLIPPED to the hardware's real screen
                 opening by the mask generated from the same measurement as the cutout. Both are
                 rectangles whose corners would otherwise sit outside the phone's curved body,
@@ -925,8 +1009,23 @@ export function DirectedEmbed({ variant = "full", hardware = false, cutout = fal
               WebkitMaskSize: "100% 100%", maskSize: "100% 100%",
               WebkitMaskRepeat: "no-repeat", maskRepeat: "no-repeat",
             }}>
-            <div aria-hidden style={{ position: "absolute", left: dims.opL, top: dims.opT, width: dims.opW, height: dims.opH, background: "#000", pointerEvents: "none" }} />
-            <div style={{ position: "absolute", left: dims.appLeft, top: dims.appTop, width: dims.appW, height: dims.appH, overflow: "hidden" }}>
+            {/* THE SCREEN BACKING. This was #000. It sits inside the screen opening, behind the live
+                app, and it is only ever visible when the app above it is not painting — during a
+                state transition, while the embedded app repaints, or any frame the device is too
+                busy to composite the iframe. On a fast machine that never happens, which is why
+                geometry checks kept showing the app fully covering this layer and the bar was
+                never reproducible here; on a real iPhone under load it is exposed constantly, and
+                a black fill behind a white app reads as a black bar across the bottom of the
+                screen. The backing is the SCREEN: it takes the app's own background colour, so an
+                unpainted frame is indistinguishable from a painted one instead of flashing black. */}
+            <div aria-hidden style={{ position: "absolute", left: dims.opL, top: dims.opT, width: dims.opW, height: dims.opH, background: BOOT_SCREEN, pointerEvents: "none" }} />
+            {/* overflow:CLIP, not hidden. `hidden` still makes this a scroll container, and on the
+                device Safari scrolled it: at state 12 the sheet's content grew (pp-scroll range
+                822 -> 953) and Safari scrolled this wrapper 6px to keep content in view, lifting
+                the whole app inside the phone with nothing to reset it — measured dTop/dBottom -6
+                from that frame onward through every later state. `clip` clips identically but
+                creates no scroll container. The onScroll guard covers engines without `clip`. */}
+            <div onScroll={(e) => { if (e.currentTarget.scrollTop || e.currentTarget.scrollLeft) { e.currentTarget.scrollTop = 0; e.currentTarget.scrollLeft = 0; } }} style={{ position: "absolute", left: dims.appLeft, top: dims.appTop, width: dims.appW, height: dims.appH, overflow: "clip" }}>
               {!DEBUG_SCREEN && <iframe
                 ref={frameRef}
                 title="MineEx mobile app"
@@ -957,21 +1056,27 @@ export function DirectedEmbed({ variant = "full", hardware = false, cutout = fal
     // which has the OLED opening cut transparent and the rim + Dynamic Island baked in. No CSS bezel.
     return (
       <div className="mx-demo" style={{ position: "relative", height: "100svh", overflow: "visible", background: "transparent", display: "flex", alignItems: "center", justifyContent: "center", touchAction: stageTouchAction() }}>
-        <StateDots idx={idx} total={STATES.length} />
+        {!phoneSmall() && <StateDots idx={idx} total={STATES.length} />}
         <div ref={boxRef} style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
           {/* Box matches the original photo (aspect-ratio 971:1620). */}
           <div style={{ position: "relative", width: dims.w, aspectRatio: "971 / 1620", flexShrink: 0 }}>
             {/* Soft body shadow — the phone silhouette (from the original), blackened + blurred. */}
             <div aria-hidden style={{ position: "absolute", inset: 0, zIndex: 0, pointerEvents: "none",
               backgroundImage: `url(${PHONE_SRC()})`, backgroundSize: "100% 100%", backgroundRepeat: "no-repeat",
-              filter: "brightness(0) blur(26px)", opacity: 0.24, transform: "translateY(20px) translateZ(0)" }} />
+              // Phones: a 332x554 filtered layer sitting directly behind the device that moves is
+              // re-filtered on every frame by iOS Safari. The same soft shadow is drawn with a
+              // gradient instead, which composites for free. Desktop keeps the filtered photo.
+              ...(phoneSmall()
+                ? { backgroundImage: "radial-gradient(60% 46% at 50% 62%, rgba(0,0,0,0.42) 0%, rgba(0,0,0,0.20) 46%, rgba(0,0,0,0) 72%)", filter: "none", opacity: 0.85 }
+                : { filter: "brightness(0) blur(26px)", opacity: 0.24 }),
+              transform: "translateY(20px) translateZ(0)" }} />
             {/* BOTTOM (z0) — the ORIGINAL, UNMODIFIED phone photo: titanium, black bezel, corners, buttons,
                 reflections, shadows, Dynamic Island and the baked-in screenshot all come from here. */}
             <div aria-hidden style={{ position: "absolute", inset: 0, zIndex: 0, pointerEvents: "none", transform: "translateZ(0)",
               backgroundImage: `url(${PHONE_SRC()})`, backgroundSize: "100% 100%", backgroundRepeat: "no-repeat", backgroundPosition: "0 0" }} />
             {/* MIDDLE (z1) — the live app (or hot-pink calibration fill) OVER the baked screenshot, clipped to
                 the white display shape so it stops at the inner edge of the original black bezel. ONE clip. */}
-            <div style={{ position: "absolute", left: dims.appLeft, top: dims.appTop, width: dims.appW, height: dims.appH, overflow: "hidden", borderRadius: dims.appRadius, zIndex: 1, background: DEBUG_SCREEN ? "#ff1493" : "#ffffff", isolation: "isolate", transform: "translateZ(0)" }}>
+            <div onScroll={(e) => { if (e.currentTarget.scrollTop || e.currentTarget.scrollLeft) { e.currentTarget.scrollTop = 0; e.currentTarget.scrollLeft = 0; } }} style={{ position: "absolute", left: dims.appLeft, top: dims.appTop, width: dims.appW, height: dims.appH, overflow: "clip", borderRadius: dims.appRadius, zIndex: 1, background: DEBUG_SCREEN ? "#ff1493" : "#ffffff", isolation: "isolate", transform: "translateZ(0)" }}>
               {!DEBUG_SCREEN && <iframe
                 ref={frameRef}
                 title="MineEx mobile app"
@@ -996,7 +1101,7 @@ export function DirectedEmbed({ variant = "full", hardware = false, cutout = fal
 
   return (
     <div className="mx-demo" style={{ position: "relative", height: "100svh", overflow: "hidden", background: MX.sheet, display: "flex", alignItems: "center", justifyContent: "center", touchAction: stageTouchAction() }}>
-      <StateDots idx={idx} total={STATES.length} />
+      {!phoneSmall() && <StateDots idx={idx} total={STATES.length} />}
       <div ref={boxRef} style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
         <div style={{ width: dims.w, height: dims.h, overflow: "hidden", borderRadius: Math.round(46 * dims.scale), background: "#000", boxShadow: "0 40px 100px -24px rgba(15,23,42,0.5), 0 0 0 " + Math.max(2, Math.round(10 * dims.scale)) + "px #111", position: "relative" }}>
           <iframe

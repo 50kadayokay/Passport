@@ -20,6 +20,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { MX, EASE, useTrack, step, useViewport, useReduce } from "../system.jsx";
 import { DirectedEmbed } from "../demo/DirectedEmbed.jsx";
 import ConferenceScene from "./ConferenceScene.jsx";
+import StageArrows, { StageStart } from "./StageArrows.jsx";
 import HeroHandPhone from "./HeroHandPhone.jsx";
 // The Pricing deck slides up as the chapter after the template gallery (paged panels; see below).
 const PricingDeckLazy = React.lazy(() => import("./PricingDeck.jsx"));
@@ -290,18 +291,21 @@ export default function AppSection() {
     };
   }, [mobile, reduce, slow]);
 
-  // ── MOBILE / reduced-motion: native-scroll paging ──
+  // ── MOBILE: the two arrow controls drive the story; scroll does not ──
   //
-  // Pricing used to be unreachable on a phone. openPricing() was called from exactly one
-  // place — the wheel handler — which returns early for mobile, so scrolling past the last
-  // Conference state (TEMPLATES) simply ended the page and the pricing sheet, which is the
-  // whole close of the sales story, never appeared. The track therefore carries ONE extra
-  // state's worth of scroll beyond NSTATES, and entering it lifts the sheet exactly as a
-  // deliberate downward wheel does on desktop. Scrolling back up closes it again.
+  // Scroll position was the wrong input on a phone. Momentum carried the story on after
+  // the finger left the glass, and nothing tried against that (rate limits, settle
+  // windows, scroll snapping) stopped it without introducing motion of its own. One press
+  // is one state, and the stage sits still otherwise.
+  //
+  // Pricing is the close of the sales story, so pressing next on the LAST state lifts the
+  // pricing sheet exactly as a deliberate downward wheel does on desktop.
+  // Reduced-motion on DESKTOP keeps the native-scroll paging it has always had — this
+  // rework is a phone change and must not alter the desktop page for anyone.
   const mp = useTrack(trackRef);
   useEffect(() => {
-    if (!(mobile || reduce)) return;
-    const want = reduce ? 0 : step(mp, NSTATES + 1);
+    if (mobile || !reduce) return;
+    const want = step(mp, NSTATES + 1);
     const wantPricing = want >= NSTATES;
     if (wantPricing !== pricingUpRef.current) { if (wantPricing) openPricing(); else closePricing(); }
     const idxWant = Math.min(want, NSTATES - 1);
@@ -310,6 +314,15 @@ export default function AppSection() {
       if (idxWant >= APP0 && idxWant <= CONF0 - 1) { desiredRef.current = subOf(idxWant - APP0); try { window.__demoGo && window.__demoGo(subOf(idxWant - APP0)); } catch (_) {} }
     }
   }, [mp, mobile, reduce, openPricing, closePricing]);
+
+  const goM = useCallback((next) => {
+    if (pricingUpRef.current) closePricing();
+    idxRef.current = next; setIdx(next);
+    if (next >= APP0 && next <= CONF0 - 1) {
+      desiredRef.current = subOf(next - APP0);
+      try { window.__demoGo && window.__demoGo(subOf(next - APP0)); } catch (_) {}
+    }
+  }, [closePricing]);
 
   // Pause the ambient blooms during a product slide so all GPU budget goes to the move.
   useEffect(() => {
@@ -442,9 +455,14 @@ export default function AppSection() {
           <p style={{ color: SLATE, fontWeight: 400, fontSize: "clamp(18px,1.7vw,22px)", lineHeight: 1.45, margin: "26px 0 0", maxWidth: "32ch" }}>
             Present your story. Engage investors. Build lasting connections.
           </p>
-          <p style={{ marginTop: 44, color: MX.mute, fontSize: 12.5, letterSpacing: "0.18em", fontWeight: 700, textTransform: "uppercase", opacity: heroIn ? 0.9 : 0, transition: "opacity 300ms" }}>
-            Scroll to explore the product ↓
-          </p>
+          {/* Phones no longer scroll through the story, so this line would be both wrong and
+              sitting underneath the control that replaces it. The StageStart control below
+              carries the same invitation. */}
+          {!mobile && (
+            <p style={{ marginTop: 44, color: MX.mute, fontSize: 12.5, letterSpacing: "0.18em", fontWeight: 700, textTransform: "uppercase", opacity: heroIn ? 0.9 : 0, transition: "opacity 300ms" }}>
+              Scroll to explore the product ↓
+            </p>
+          )}
         </div>
       </div>
     </div>
@@ -483,8 +501,16 @@ export default function AppSection() {
     <div style={{ position: "absolute", inset: 0, zIndex: 4, pointerEvents: confSceneIn ? "auto" : "none",
       opacity: confSceneIn ? 1 : 0, transform: confSceneIn ? "translateY(0)" : "translateY(18px)",
       transition: `opacity ${T(520)} ${EASE}, transform ${T(560)} ${EASE_SHEET}` }}>
+      {/* The Conference tablet mounts at the START of the walkthrough, not one state before
+          its own chapter. One state is one arrow press — nowhere near enough for a whole
+          template app to load over a phone connection, so the visitor arrived at the chapter
+          looking at the unloaded placeholder, which is a near-black gradient. That is the
+          black screen. Mounting from the first app state gives it the entire walkthrough to
+          load and paint. It costs a second product iframe on the page during that stretch,
+          which is the thing I previously tried to avoid for performance; a black device is
+          worse, and the expensive filters that made that overlap hurt are gone now. */}
       <ConferenceScene mobile={mobile} reduce={reduce} confIndex={Math.max(0, Math.min(CONF_STATES - 1, confIndex))}
-        mount={idx >= CONF0 - 1} active={confSceneIn} />
+        mount={idx >= APP0} active={confSceneIn} />
     </div>
   );
 
@@ -510,7 +536,7 @@ export default function AppSection() {
   );
 
   return (
-    <section id="app" ref={trackRef} className="mx-appstage" style={{ position: "relative", height: (mobile || reduce) ? `${(NSTATES + 1) * 90}svh` : "100svh", background: "#fbfcfe", overscrollBehavior: "none" }}>
+    <section id="app" ref={trackRef} className="mx-appstage" style={{ position: "relative", height: (!mobile && reduce) ? `${(NSTATES + 1) * 90}svh` : "100svh", background: "#fbfcfe", overscrollBehavior: "none" }}>
       <span id="app-scroll" style={{ position: "absolute", top: 0 }} />
       {sideNav}
       <style>{`
@@ -533,9 +559,23 @@ export default function AppSection() {
         @keyframes fD{0%{transform:translate(-50%,-50%) translate(3%,-2%) scale(1.06)}50%{transform:translate(-50%,-50%) translate(-6%,6%) scale(.92)}100%{transform:translate(-50%,-50%) translate(3%,-2%) scale(1.06)}}
         .mx-fa{animation:fA 24s ease-in-out infinite}.mx-fb{animation:fB 30s ease-in-out infinite}.mx-fc{animation:fC 27s ease-in-out infinite}.mx-fd{animation:fD 33s ease-in-out infinite}
         .mx-appstage[data-busy="1"] .mx-fa, .mx-appstage[data-busy="1"] .mx-fb, .mx-appstage[data-busy="1"] .mx-fc, .mx-appstage[data-busy="1"] .mx-fd { animation-play-state: paused !important; }
+        /* Phones halve the blob blur rather than dropping it. Removing it entirely made these
+           gradients render as a hard saturated column — they are tuned to be seen through a
+           blur — but 24px of it is the most expensive thing on the page for iOS to re-filter
+           every animation frame. 12px keeps the softness the design depends on at roughly a
+           quarter of the cost. */
+        @media (max-width: 759px) {
+          .mx-fa, .mx-fb, .mx-fc, .mx-fd { filter: blur(12px) !important; }
+        }
+        /* The blur on the ambient blobs is BACK on phones. I removed it to cut iOS paint
+           cost — animated filters are genuinely expensive — but these blobs are radial
+           gradients tuned to be seen THROUGH a 24px blur. Without it they render as a hard,
+           saturated column down the side of the section, which is what wrecked the look of
+           the Conference chapter. The performance win was not worth it: the other filter and
+           backdrop-filter removals in that pass stand on their own, and this one does not. */
         .mx-appstage .mx-demo iframe { will-change: transform; backface-visibility: hidden; }
       `}</style>
-      <div ref={stickyRef} className="mx-vstage" style={{ position: "sticky", top: 0, height: "100svh", overflow: "hidden" }}>
+      <div ref={stickyRef} className="mx-vstage" style={{ position: mobile ? "relative" : "sticky", top: 0, height: "100svh", overflow: "hidden" }}>
         {/* Three stacked, opaque CHAPTER SHEETS (iOS layers). Each carries the identical
             atmosphere so the reveal is seamless; the top sheet TRANSLATES up to expose the
             one already resting underneath. Hero (top) → App (middle) → Conference (bottom).
@@ -571,6 +611,13 @@ export default function AppSection() {
             mouse to continue" bug). This shield never changes, so every gesture reaches the
             wheel controller with no click. Nav (z100) stays clickable above it. */}
         <div aria-hidden style={{ position: "absolute", inset: 0, zIndex: 7, background: "transparent", pointerEvents: pricingUp ? "none" : "auto" }} />
+        {/* The gesture shield above sits at z7 and would swallow a press, so the controls
+            live above it. Hidden while the pricing sheet is up — that sheet is the end of
+            the story and carries its own way back. The sales stage is light, so the
+            controls take their light palette. */}
+        {mobile && !pricingUp && (idx === S_HERO
+          ? <StageStart onGo={() => goM(S_HERO + 1)} />
+          : <StageArrows i={idx} n={NSTATES} onGo={goM} atEnd={openPricing} bottom="30%" />)}
       </div>
     </section>
   );

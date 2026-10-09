@@ -6421,6 +6421,12 @@ export default function Onboarding({ embedded = false, companySlug = null }) {
     if (items.length) {
       try {
         const out = await extractCorpus(items, {
+          // Authorization subject for the AI endpoints: the company being
+          // edited. On ?new=1 there is no row yet, so savedSlug is null and
+          // `onboarding` declares the exception EXPLICITLY — the server will
+          // not substitute a company on its own. See api/_aiGuard.js.
+          slug: savedSlug,
+          onboarding: true,
           token,
           context: companyName ? { company: { name: companyName } } : {},
           onProgress: (done, total) => setExtractMsg(`Analyzing releases ${done} of ${total}…`),
@@ -6451,7 +6457,10 @@ export default function Onboarding({ embedded = false, companySlug = null }) {
         // Layer 2 — synthesize the Overview (status card + brief) from the chronology.
         if (out.timeline && out.timeline.length) {
           setExtractMsg("Writing the company overview…");
-          const ov = await synthesizeProfile({ company: { name: companyName }, timeline: out.timeline });
+          const ov = await synthesizeProfile(
+            { company: { name: companyName }, timeline: out.timeline },
+            { slug: savedSlug, onboarding: true },
+          );
           if (ov) setProfile((p) => ({
             ...p,
             companyStatus: { ...(p.companyStatus || {}), ...(ov.companyStatus || {}) },

@@ -132,6 +132,9 @@ export function Setup({ amount, per = "one-time", qualifier, blurb, dark }) {
 // content overflow, we measure its natural (untransformed) height against the space the
 // panel actually has, and scale the whole column down to fit. Scaling keeps the design
 // exactly as drawn — nothing reflows — and it never scales UP past 1.
+// Fit on desktop, plain pass-through on phones.
+function Maybe({ fit, children }) { return fit ? <Fit>{children}</Fit> : <>{children}</>; }
+
 export function Fit({ children }) {
   const ref = useRef(null);
   const [fit, setFit] = useState({ s: 1, h: 0 });
@@ -178,6 +181,7 @@ export function Mark({ c = COBALT }) {
 // rhythm either way, so the two columns line up: name · description · toggle · price ·
 // explanation · CTA · features · note.
 function Plan({ name, desc, price, per, sub, features, note, cta, dark, control, children }) {
+  const { mobile } = useViewport();
   const ink   = dark ? "#fff" : NAVY;
   const muted = dark ? "rgba(255,255,255,0.62)" : SLATE;
   const faint = dark ? "rgba(255,255,255,0.45)" : MUTE;
@@ -188,12 +192,18 @@ function Plan({ name, desc, price, per, sub, features, note, cta, dark, control,
       padding: "clamp(17px,1.5vw,24px)",
       background: dark ? "#0b1220" : "transparent",
     }}>
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 26, minHeight: 24 }}>
-        <div style={{ minWidth: 0 }}>
-          <h3 style={{ margin: 0, fontSize: "clamp(17px,1.4vw,19px)", fontWeight: 700, letterSpacing: "-0.02em", color: ink }}>{name}</h3>
-          <p style={{ margin: "5px 0 0", fontSize: 13.5, lineHeight: 1.4, color: muted, maxWidth: control ? "20ch" : "30ch", minHeight: 38 }}>{desc}</p>
+      {/* The name and the billing toggle share a row on desktop, where there is width for
+          both. On a phone there is not: "MineEx Pro" was squeezed onto two lines beside the
+          toggle and the description was forced into a 20ch column four lines deep. Phones
+          stack them — name, then the toggle on its own line, then the description at full
+          width — which is also the order you read them in. */}
+      <div style={{ display: "flex", flexDirection: mobile ? "column" : "row", alignItems: mobile ? "stretch" : "flex-start", justifyContent: "space-between", gap: mobile ? 12 : 26, minHeight: mobile ? 0 : 24 }}>
+        <div style={{ minWidth: 0, order: mobile ? 0 : undefined }}>
+          <h3 style={{ margin: 0, fontSize: mobile ? 20 : "clamp(17px,1.4vw,19px)", fontWeight: 700, letterSpacing: "-0.02em", color: ink, whiteSpace: mobile ? "nowrap" : undefined }}>{name}</h3>
+          {!mobile && <p style={{ margin: "5px 0 0", fontSize: 13.5, lineHeight: 1.4, color: muted, maxWidth: control ? "20ch" : "30ch", minHeight: 38 }}>{desc}</p>}
         </div>
-        {control && <div style={{ flexShrink: 0, marginTop: 1 }}>{control}</div>}
+        {control && <div style={{ flexShrink: 0, marginTop: 1, order: mobile ? 1 : undefined, alignSelf: mobile ? "flex-start" : undefined }}>{control}</div>}
+        {mobile && <p style={{ margin: 0, order: 2, fontSize: 15, lineHeight: 1.45, color: muted }}>{desc}</p>}
       </div>
 
       <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginTop: 13 }}>
@@ -243,8 +253,17 @@ export default function SalesPricing({ active, onExitTop, mobile }) {
   }, [active, onExitTop, mobile]);
 
   return (
-    <div className="sp-panel" style={{ position: "absolute", inset: 0, background: BG, overflow: "hidden", display: "flex", flexDirection: "column", padding: `clamp(76px,9vh,96px) clamp(22px,5vw,64px) clamp(24px,3.4vh,48px)` }}>
-      <Fit><div style={{ maxWidth: 1040, width: "100%", margin: "0 auto" }}>
+    <div className="sp-panel" style={{ position: "absolute", inset: 0, background: BG,
+      // PHONES scroll this panel instead of squeezing it. Fit scales the whole block down
+      // until it fits one viewport, which is right for the desktop sheet but wrong here:
+      // the two plans stack on a phone, so the natural height roughly doubles, Fit shrank
+      // everything to match (the "too thin" card) and what would not fit — the Conference
+      // Mode plan — was clipped by the panel's overflow:hidden. Scrolling costs nothing on
+      // a phone and shows both plans at their proper size.
+      overflow: mobile ? "auto" : "hidden", WebkitOverflowScrolling: "touch",
+      display: "flex", flexDirection: "column",
+      padding: mobile ? "74px 20px 32px" : `clamp(76px,9vh,96px) clamp(22px,5vw,64px) clamp(24px,3.4vh,48px)` }}>
+      <Maybe fit={!mobile}><div style={{ maxWidth: 1040, width: "100%", margin: "0 auto" }}>
         <div style={{ display: "flex", alignItems: "baseline", gap: 14 }}>
           <p className="mx-label" style={{ color: COBALT, letterSpacing: "0.22em", margin: 0 }}>Pricing</p>
         </div>
@@ -284,7 +303,7 @@ export default function SalesPricing({ active, onExitTop, mobile }) {
         </div>
         {!mobile && <p style={{ marginTop: 14, textAlign: "center", fontSize: 12.5, color: MUTE, letterSpacing: "0.06em" }}>↑ Swipe up to go back</p>}
         <Footer compact />
-      </div></Fit>
+      </div></Maybe>
       <style>{`
         .sp-cta { transition: transform 160ms ${EASE}, box-shadow 160ms ${EASE}; }
         .sp-cta:hover { transform: translateY(-1px); box-shadow: 0 16px 34px -18px rgba(10,27,46,0.5); }

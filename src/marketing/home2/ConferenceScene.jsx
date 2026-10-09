@@ -264,9 +264,15 @@ export default function ConferenceScene({ mobile = false, reduce = false, confIn
           bloom under the RIGHT, aligned with the colours already reflecting off the aluminium stand, so the
           gradient reads as the light source the stand is picking up. Behind the device (shows in the margins
           around the base), blurred and subtle. */}
+      {/* Reflected-light glow behind the base — a soft blue bloom under the LEFT of the stand and a lime
+          bloom under the RIGHT, aligned with the colours already reflecting off the aluminium stand.
+          I enlarged this box once to stop the gradient being clipped by its own edge; that made the
+          bloom enormous and it swamped the whole right side of the section. Reverted to the original
+          geometry — the clip was never visible (measured luminance delta 0.8) and the cure was far
+          worse than it. */}
       <div aria-hidden style={{ position: "absolute", left: 0, right: 0, bottom: "-3%", height: "40%", zIndex: 0, pointerEvents: "none",
         background: "radial-gradient(38% 78% at 33% 74%, rgba(37,99,235,0.55), rgba(37,99,235,0) 72%), radial-gradient(40% 82% at 70% 76%, rgba(198,240,74,0.52), rgba(198,240,74,0) 72%)",
-        filter: "blur(34px)" }} />
+        filter: (typeof window !== "undefined" && window.innerWidth < 760) ? "none" : "blur(34px)" }} />
       {/* Opaque screen backing — fills the glass rectangle BEHIND the (transparent-screened) iPad asset so the
           display can never show the page through it as a pale ring at the aperture edge. Sits under the asset;
           only the asset's transparent screen area reveals it, and the bezel covers any overhang. */}

@@ -26,8 +26,10 @@
 // These indices MIRROR the frozen demo (25 states: floor = status face = 1, terminal
 // = Following = 24). They are read-only; the demo is untouched.
 // ─────────────────────────────────────────────────────────────────────────────
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState , useCallback} from "react";
 import { useViewport, EASE, useTrack, step } from "../system.jsx";
+import StageArrows from "./StageArrows.jsx";
+import PhoneDiag, { diagOn } from "./PhoneDiag.jsx";
 import { NarrativeStory } from "../demo/NarrativeStory.jsx";
 // The sheet shows the REAL pricing page, not a second pricing component: PricingDeck is
 // what /pricing renders, and it already supports an `embedded` mode (the sales page
@@ -48,18 +50,19 @@ const TERMINAL = 24;   // "following" — the last state (Follow / Stay Connecte
 export default function ProProfileChapter({ onActive, onPricing}) {
   const { mobile } = useViewport();
 
-  // The directed demo's 25 states, driven from scroll on a phone (it only handles wheel).
+  // The directed demo's 25 states. On a phone these are driven by the two arrow controls,
+  // NOT by scroll. Scroll position was the wrong input: momentum kept advancing the demo
+  // after the finger had left the glass, and every governor tried for it (rate limits,
+  // settle windows, scroll snapping) either failed to stop it or added motion of its own.
+  // A press is unambiguous — one press, one state, and nothing moves unasked.
   const PRO_STATES = 25;
   const mTrackRef = useRef(null);
-  const mp = useTrack(mTrackRef);
-  const mStepRef = useRef(-1);
-  useEffect(() => {
-    if (!mobile) return;
-    const want = step(mp, PRO_STATES);
-    if (want === mStepRef.current) return;
-    mStepRef.current = want;
-    try { window.__demoGo && window.__demoGo(want); } catch (_) {}
-  }, [mp, mobile]);
+  const [mIdx, setMIdx] = useState(0);
+  const goM = useCallback((next) => {
+    setMIdx(next);
+    try { window.__demoGo && window.__demoGo(next); } catch (_) {}
+  }, []);
+
   const [mounted, setMounted] = useState(false);
   const [active, setActive] = useState(false);
   // Tell the page when the walkthrough owns the viewport, so the global nav can recede.
@@ -260,9 +263,34 @@ export default function ProProfileChapter({ onActive, onPricing}) {
     // window.__demoGo() called when the step changes. That is exactly how the sales page
     // already drives the same demo on mobile (AppSection), so there is no new mechanism.
     return (
-      <section ref={mTrackRef} aria-label="MineEx Pro Profile" style={{ position: "relative", background: NS_BG, height: `${PRO_STATES * 72}svh` }}>
-        <div className="mx-vstage" style={{ position: "sticky", top: 0, height: "100svh", overflow: "hidden" }}>
+      <section ref={mTrackRef} aria-label="MineEx Pro Profile" style={{ position: "relative", background: NS_BG, height: "100svh", overflow: "hidden" }}>
+        {/* Scroll snapping lived here and has been removed. It did stop one swipe crossing
+            several states, but mandatory snapping makes the page GLIDE to a snap point on
+            its own once the finger lifts — which is the page moving by itself, exactly what
+            must not happen. The state rate-limit below is the only governor now: the page
+            goes where the finger put it and nowhere else. */}
+        <div className="mx-vstage" style={{ position: "relative", height: "100svh", overflow: "hidden" }}>
           <NarrativeStory variant="full" hardware cutout />
+          {/* Pressing next on the LAST state closes the walkthrough into pricing, the same
+              ending the desktop page has. The sheet was only rendered on the desktop branch,
+              so on a phone the story simply stopped at the final beat. */}
+          <StageArrows i={mIdx} n={PRO_STATES} onGo={goM} dark atEnd={openPricing} />
+          {diagOn() && <PhoneDiag state={mIdx} label="pro" />}
+        </div>
+        {/* The real pricing page, as a sheet. Phones scroll it (its panels are a stacked,
+            scrolling section there, not the desktop paged deck). */}
+        <div aria-hidden={!pricingUp} style={{
+          position: "fixed", inset: 0, zIndex: 60, background: "#fbfcfe",
+          overflow: pricingUp ? "auto" : "hidden", WebkitOverflowScrolling: "touch",
+          overscrollBehavior: "contain",
+          transform: pricingUp ? "translateY(0)" : "translateY(100%)",
+          transition: "transform 720ms cubic-bezier(0.32, 0.72, 0, 1)",
+          visibility: pricingUp ? "visible" : "hidden",
+          pointerEvents: pricingUp ? "auto" : "none",
+        }}>
+          <React.Suspense fallback={null}>
+            {pricingUp ? <PricingDeckLazy embedded active={pricingUp} /> : null}
+          </React.Suspense>
         </div>
       </section>
     );

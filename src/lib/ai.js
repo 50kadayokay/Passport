@@ -9,10 +9,18 @@
 // The company confirms category / impact / key and approves proposedChanges before
 // anything is applied.
 
+import { authHeaders } from "./auth.js";
+
 async function callAI(payload) {
+  // The endpoint requires a signed-in, entitled caller: it spends AI credits per
+  // request. NOTE: analyzeRelease/refineAnalysis below have no callers on this
+  // branch — the live path is lib/structureReleases.js. The session is attached
+  // anyway so reviving either does not produce a confusing 401, and whoever
+  // revives them must supply companyId.
+  const h = await authHeaders();
   const res = await fetch("/api/structure-release", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { ...h, "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
   const data = await res.json().catch(() => ({}));

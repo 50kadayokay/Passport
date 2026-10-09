@@ -12,7 +12,7 @@
 // is transparent and so cannot conceal them. Kept as its own component so the sales-page
 // DirectedEmbed stays untouched.
 // ─────────────────────────────────────────────────────────────────────────────
-import { PHONE_CUTOUT, PHONE_MASK, PHONE_SRC } from "./DirectedEmbed.jsx";
+import { PHONE_CUTOUT, PHONE_MASK, PHONE_SRC, phoneSmall } from "./DirectedEmbed.jsx";
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { DEVICE_W, DEVICE_H } from "./MobileAppFrame.jsx";
 
@@ -72,7 +72,12 @@ export default function InvestorShellPhone({ active = "today", insetTop = 92, in
       const opW = opR - opL, opH = opB - opT;
       // Map the app's own 393×852 viewport onto the measured opening: uniform cover scale,
       // centred, plus the bleed. No manufactured radius, no calibration offsets.
-      const appScale = Math.max(opW / DEVICE_W, opH / DEVICE_H) * CUTOUT_BLEED;
+      // CONTAIN, no bleed — same correction as DirectedEmbed. Cover plus a 1.004 bleed
+      // rendered the app 0.4% larger than the opening and centred it, cropping every edge;
+      // the app draws its status bar at y=0, so the top crop landed on it. The opening and
+      // the device viewport share an aspect ratio to four decimals, so contain fills the
+      // opening to within a sub-pixel.
+      const appScale = Math.min(opW / DEVICE_W, opH / DEVICE_H);
       const appVW = DEVICE_W * appScale, appVH = DEVICE_H * appScale;
       setDims({
         scale: appScale, w: boxW, boxH,
@@ -112,7 +117,13 @@ export default function InvestorShellPhone({ active = "today", insetTop = 92, in
           {/* soft body shadow — from the original photo (unchanged) */}
           <div aria-hidden style={{ position: "absolute", inset: 0, zIndex: 0, pointerEvents: "none",
             backgroundImage: `url(${PHONE_SRC()})`, backgroundSize: "100% 100%", backgroundRepeat: "no-repeat",
-            filter: "brightness(0) blur(26px)", opacity: 0.24, transform: "translateY(20px) translateZ(0)" }} />
+            // Phones: a 332x554 filtered layer sitting directly behind the device that moves is
+              // re-filtered on every frame by iOS Safari. The same soft shadow is drawn with a
+              // gradient instead, which composites for free. Desktop keeps the filtered photo.
+              ...(phoneSmall()
+                ? { backgroundImage: "radial-gradient(60% 46% at 50% 62%, rgba(0,0,0,0.42) 0%, rgba(0,0,0,0.20) 46%, rgba(0,0,0,0) 72%)", filter: "none", opacity: 0.85 }
+                : { filter: "brightness(0) blur(26px)", opacity: 0.24 }),
+              transform: "translateY(20px) translateZ(0)" }} />
           {/* z0–z1 — backing + live app, CLIPPED to the hardware's real screen opening by the
               mask generated from the same measurement as the cutout. */}
           <div style={{
@@ -121,8 +132,23 @@ export default function InvestorShellPhone({ active = "today", insetTop = 92, in
             WebkitMaskSize: "100% 100%", maskSize: "100% 100%",
             WebkitMaskRepeat: "no-repeat", maskRepeat: "no-repeat",
           }}>
-            <div aria-hidden style={{ position: "absolute", left: dims.opL, top: dims.opT, width: dims.opW, height: dims.opH, background: "#000", pointerEvents: "none" }} />
-            <div style={{ position: "absolute", left: dims.appLeft, top: dims.appTop, width: dims.appW, height: dims.appH, overflow: "hidden" }}>
+            {/* THE SCREEN BACKING. This was #000. It sits inside the screen opening, behind the live
+                app, and it is only ever visible when the app above it is not painting — during a
+                state transition, while the embedded app repaints, or any frame the device is too
+                busy to composite the iframe. On a fast machine that never happens, which is why
+                geometry checks kept showing the app fully covering this layer and the bar was
+                never reproducible here; on a real iPhone under load it is exposed constantly, and
+                a black fill behind a white app reads as a black bar across the bottom of the
+                screen. The backing is the SCREEN: it takes the app's own background colour, so an
+                unpainted frame is indistinguishable from a painted one instead of flashing black. */}
+            <div aria-hidden style={{ position: "absolute", left: dims.opL, top: dims.opT, width: dims.opW, height: dims.opH, background: BOOT_SCREEN, pointerEvents: "none" }} />
+            {/* overflow:CLIP, not hidden. `hidden` still makes this a scroll container, and on the
+                device Safari scrolled it: at state 12 the sheet's content grew (pp-scroll range
+                822 -> 953) and Safari scrolled this wrapper 6px to keep content in view, lifting
+                the whole app inside the phone with nothing to reset it — measured dTop/dBottom -6
+                from that frame onward through every later state. `clip` clips identically but
+                creates no scroll container. The onScroll guard covers engines without `clip`. */}
+            <div onScroll={(e) => { if (e.currentTarget.scrollTop || e.currentTarget.scrollLeft) { e.currentTarget.scrollTop = 0; e.currentTarget.scrollLeft = 0; } }} style={{ position: "absolute", left: dims.appLeft, top: dims.appTop, width: dims.appW, height: dims.appH, overflow: "clip" }}>
               <iframe
                 ref={frameRef}
                 title="MineEx investor app"
@@ -131,6 +157,26 @@ export default function InvestorShellPhone({ active = "today", insetTop = 92, in
                 height={DEVICE_H}
                 scrolling="no"
                 loading="eager"
+                onLoad={() => {
+                  // Same internal viewport lock as DirectedEmbed: the embedded app's own
+                  // scroll containers accept touch and retain whatever offset a finger
+                  // leaves. overflow:hidden refuses the finger while leaving scrollTop
+                  // writable, so any programmatic choreography still works. Demo iframe
+                  // only — the real app and the sales page are untouched.
+                  try {
+                    const d = frameRef.current && frameRef.current.contentDocument;
+                    if (d && d.head && !d.getElementById("mx-demo-scrolllock")) {
+                      const sl = d.createElement("style"); sl.id = "mx-demo-scrolllock";
+                      sl.textContent =
+                        "html,body{overflow:hidden !important;overscroll-behavior:none !important;}" +
+                        ".pp-scroll,[class*='overflow-y-auto'],[class*='overflow-auto'],[class*='overflow-y-scroll']{" +
+                        "overflow:hidden !important;overscroll-behavior:none !important;" +
+                        "touch-action:none !important;-webkit-overflow-scrolling:auto !important;}" +
+                        ".pp-view{overflow-x:hidden !important;transition-duration:180ms !important;animation-duration:180ms !important;}";
+                      d.head.appendChild(sl);
+                    }
+                  } catch (_) {}
+                }}
                 style={{ border: 0, display: "block", width: DEVICE_W, height: DEVICE_H, transform: `scale(${dims.scale})`, transformOrigin: "top left", pointerEvents: "none" }}
               />
               <div aria-hidden style={{ position: "absolute", inset: 0, background: BOOT_SCREEN, zIndex: 2, pointerEvents: "none",

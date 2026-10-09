@@ -109,6 +109,9 @@ export function NarrativeStory({ variant = "full", hardware = false, cutout = fa
   const [phase, setPhase] = useState("in");
   const shownBeatRef = useRef(0);
   const animatingRef = useRef(false);
+  // The choreography effect binds once, so it reads `mobile` through a ref.
+  const mobileRef = useRef(mobile);
+  useEffect(() => { mobileRef.current = mobile; }, [mobile]);
   useEffect(() => { shownBeatRef.current = shownBeat; }, [shownBeat]);
 
   // Event-driven choreography (+ failsafe poll).
@@ -117,9 +120,21 @@ export function NarrativeStory({ variant = "full", hardware = false, cutout = fa
       animatingRef.current = true;
       const { from, to } = e.detail || {};
       // Only a real beat change moves the copy; within-beat advances leave it stationary.
-      if (beatOf(from) !== beatOf(to)) setPhase("out");        // depart as the phone begins moving
+      if (beatOf(from) === beatOf(to)) return;
+      // PHONES: swap the copy on the spot instead of running the depart/arrive choreography.
+      // That choreography is built for desktop, where one deliberate gesture gives it the
+      // ~750ms it needs (240ms out, then the wait for demo:contentready, then a 480ms fade
+      // in). On a phone the beats arrive far faster than that, so the copy never finished
+      // arriving before it was told to leave again — measured on the shipped build, the
+      // headline was invisible 64% of the time while scrolling, with blanks up to 1511ms.
+      // An empty stage under the phone is most of what reads as "glitchy". Swapping the
+      // text directly keeps the copy on screen at all times, and the short fade below is
+      // enough to stop it looking like a hard cut.
+      if (mobileRef.current) { setShownBeat(beatOf(to)); setPhase("in"); return; }
+      setPhase("out");                                         // depart as the phone begins moving
     };
     const onReady = (e) => {
+      if (mobileRef.current) return;                           // phones already swapped, in onStart
       const { from, to } = e.detail || {};
       if (beatOf(from) !== beatOf(to)) {
         setShownBeat(beatOf(to));                              // arrive with the destination content
@@ -162,11 +177,16 @@ export function NarrativeStory({ variant = "full", hardware = false, cutout = fa
   }, [phase]);
 
   const beat = BEATS[shownBeat] || BEATS[0];
-  const copyMotion = {
+  const copyMotion = (mobile ? {
+    // Short enough to keep up with scroll-driven beats, and it never rests at 0.
+    out:  { opacity: 1, transform: "none", transition: `opacity 120ms ${EASE}` },
+    prep: { opacity: 1, transform: "none", transition: "none" },
+    in:   { opacity: 1, transform: "none", transition: `opacity 160ms ${EASE}` },
+  } : {
     out:  { opacity: 0, transform: "translateY(-16px)", transition: `opacity 240ms ${EASE}, transform 240ms ${EASE}` },
     prep: { opacity: 0, transform: "translateY(18px)", transition: "none" },
     in:   { opacity: 1, transform: "translateY(0)",    transition: `opacity 480ms ${EASE}, transform 560ms ${EASE}` },
-  }[phase];
+  })[phase];
 
   const phone = isProjects ? <ProjectsAct /> : <DirectedEmbed hardware={hardware} cutout={cutout} />;
 
@@ -181,6 +201,12 @@ export function NarrativeStory({ variant = "full", hardware = false, cutout = fa
     <div aria-hidden style={{
       position: "absolute", inset: 0, zIndex: 0, pointerEvents: "none",
       background: [
+        // A bottom fade to #07080b lived here, to hide a hard edge where the stage ended.
+        // It became the problem: fading the lower 38% of the stage to near-black IS a black
+        // band, which is what shows from the value-drivers beat onward. Removed. The edge it
+        // was hiding came from the stage being a different height than the viewport during a
+        // scroll, and these walkthroughs no longer scroll at all — the stage is a static
+        // 100svh — so there is nothing left for it to hide.
         "radial-gradient(62% 52% at 70% 46%, rgba(37,99,235,0.34) 0%, rgba(37,99,235,0.15) 40%, rgba(37,99,235,0) 74%)",
         "radial-gradient(46% 40% at 79% 70%, rgba(45,212,191,0.22) 0%, rgba(45,212,191,0) 72%)",
         "radial-gradient(42% 36% at 61% 22%, rgba(56,189,248,0.17) 0%, rgba(56,189,248,0) 70%)",
