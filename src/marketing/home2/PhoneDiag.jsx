@@ -195,35 +195,37 @@ function startBootWatch() {
         // would actually paint something — an image, a background image, or a background
         // colour that is not fully transparent. If that is the cover or its poster, the
         // poster is what is on screen; if it is anything else, that thing is named.
-        // One more trap, found the same way: elementsFromPoint returns the hit-test CHAIN,
-        // which includes the cover's own ancestors. The chapter background is a painted
-        // full-viewport div and an ancestor of the cover, so taking "the first painting
-        // element" named it as the occluder — something that paints BEHIND the cover,
-        // reported as covering it. An ancestor is skipped explicitly.
-        const paints = (el) => {
-          if (/^(IMG|VIDEO|CANVAS|SVG)$/.test(el.tagName)) return true;
-          const c = getComputedStyle(el);
-          if ((c.backgroundImage || "none") !== "none") return true;
-          const m = (c.backgroundColor || "").match(/rgba?\(([^)]+)\)/);
-          if (m) { const a = m[1].split(",").map(Number); return a.length < 4 || a[3] > 0.02; }
-          return false;
-        };
-        const stack = (onScreen && cy > 0 && cy < window.innerHeight)
-          ? Array.from(document.elementsFromPoint(cx, cy) || []) : [];
-        let hit = null, topmost = null;
-        for (const el of stack) {
-          if (el.closest("[data-mxdiag]")) continue;            // the instrument
-          if (el === cover || cover.contains(el)) { hit = el; topmost = true; break; }
-          if (el.contains && el.contains(cover)) continue;      // ancestor: paints behind
-          if (paints(el)) { hit = el; topmost = false; break; } // a real occluder
+        // Hit-testing CANNOT answer this, and three versions of this check failed before
+        // that was clear. BootCover sets pointer-events:none, and elementsFromPoint skips
+        // such elements entirely — so the cover never appears in the stack at all. Each
+        // attempt therefore walked past it and named whatever came next (this panel, then
+        // the composite's transparent wrappers, then the chapter background at z3, which
+        // sits BEHIND the cover's z4 layer) as the thing covering it. All three were
+        // inventions of the instrument.
+        //
+        // What is actually asked is whether these pixels reach the screen, and that is
+        // answerable directly: the cover's own box and style, and every ancestor's, with
+        // the opacities multiplied. An ancestor at opacity 0, visibility hidden, display
+        // none, or clipped to nothing hides the poster just as surely as something painted
+        // over it, and unlike occlusion it is exactly measurable.
+        let eff = 1, hiddenBy = null;
+        for (let a = cover; a && a !== document.documentElement; a = a.parentElement) {
+          const c = getComputedStyle(a);
+          const ao = parseFloat(c.opacity);
+          if (!Number.isNaN(ao)) eff *= ao;
+          if (c.visibility === "hidden" || c.display === "none" || ao === 0) { hiddenBy = tagOf(a); break; }
+          const ar = a.getBoundingClientRect();
+          if (ar.width < 1 || ar.height < 1) { hiddenBy = tagOf(a) + " (zero box)"; break; }
         }
+        const effOpacity = Math.round(eff * 100) / 100;
         const v = {
           t, onScreen, opacity: o, visibility: cs.visibility, display: cs.display,
-          topmost, hit: tagOf(hit), box: `${Math.round(q.width)}x${Math.round(q.height)}`,
+          effOpacity, hiddenBy, box: `${Math.round(q.width)}x${Math.round(q.height)}`,
+          at: `${Math.round(q.top)}`,
         };
         const pv = BOOT.visibility[BOOT.visibility.length - 1];
-        if (!pv || pv.onScreen !== v.onScreen || pv.topmost !== v.topmost
-            || pv.visibility !== v.visibility || Math.abs(pv.opacity - o) > 0.2) BOOT.visibility.push(v);
+        if (!pv || pv.onScreen !== v.onScreen || pv.hiddenBy !== v.hiddenBy
+            || pv.visibility !== v.visibility || Math.abs(pv.effOpacity - effOpacity) > 0.2) BOOT.visibility.push(v);
       }
 
       // 6 — the app's first screen VISUALLY complete. Judged by what is painted at the top
@@ -543,7 +545,7 @@ ready flip         ${BOOT.readyAt ?? "-"}        cover gone ${BOOT.goneAt ?? "-"
 app complete       ${BOOT.appCompleteAt ?? "not yet"}
 opacity            ${BOOT.opacity.length ? BOOT.opacity.map((p2) => `${p2.t}:${p2.o}`).join(" ") : "-"}
 visibility         ${BOOT.visibility.length
-  ? BOOT.visibility.map((v) => `${v.t}:${v.onScreen ? "on" : "OFF"}/${v.topmost === null ? "?" : v.topmost ? "top" : "COVERED by " + v.hit}`).join("  ")
+  ? BOOT.visibility.map((v) => `${v.t}:${v.onScreen ? "on" : "OFF"} eff${v.effOpacity}${v.hiddenBy ? " HIDDEN by " + v.hiddenBy : ""} ${v.box}@${v.at}`).join("   ")
   : "-"}
 --- first-screen images ---
 ${imgAudit && imgAudit.firstScreen.length
