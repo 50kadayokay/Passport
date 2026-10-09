@@ -266,12 +266,34 @@ export default function ConferenceScene({ mobile = false, reduce = false, confIn
           around the base), blurred and subtle. */}
       {/* Reflected-light glow behind the base — a soft blue bloom under the LEFT of the stand and a lime
           bloom under the RIGHT, aligned with the colours already reflecting off the aluminium stand.
-          I enlarged this box once to stop the gradient being clipped by its own edge; that made the
-          bloom enormous and it swamped the whole right side of the section. Reverted to the original
-          geometry — the clip was never visible (measured luminance delta 0.8) and the cure was far
-          worse than it. */}
-      <div aria-hidden style={{ position: "absolute", left: 0, right: 0, bottom: "-3%", height: "40%", zIndex: 0, pointerEvents: "none",
-        background: "radial-gradient(38% 78% at 33% 74%, rgba(37,99,235,0.55), rgba(37,99,235,0) 72%), radial-gradient(40% 82% at 70% 76%, rgba(198,240,74,0.52), rgba(198,240,74,0) 72%)",
+
+          THE CLIP IS REAL, and the note that previously stood here was wrong. It recorded a
+          "measured luminance delta 0.8" and concluded the clip was invisible; that was an AVERAGE
+          over a region, which is precisely the measurement that hides a localised edge. Measured
+          per-row on the device instead, the green tint falls from +11 to +3 across about one CSS
+          pixel, right across the full width — a hard line under the stand.
+
+          Both gradients overrun this box. The blue ellipse is centred at 74% of the height with a
+          vertical radius of 78%, so it wants to reach 152% — half again past the bottom edge — and
+          the lime one reaches 158%. The background stops at the box while still carrying colour.
+          Desktop never showed it because blur(34px) smears the cut away; mobile sets the filter to
+          none for performance, which removed the only thing hiding it. Hence mobile-only.
+
+          The previous fix enlarged the box and made the bloom enormous, because every gradient
+          number here is a PERCENTAGE of that box: growing the box grows the bloom with it. So grow
+          the box and divide the gradient's own percentages by the same factor. At k = 1.7 the
+          centre and radius resolve to the identical absolute pixels — the bloom does not move,
+          change size, or change intensity — but the ellipse now completes inside the box and fades
+          to transparent on its own instead of being cut off. 74/1.7 = 43.53, 78/1.7 = 45.88,
+          76/1.7 = 44.71, 82/1.7 = 48.24; height 40 x 1.7 = 68, and the bottom drops by the extra
+          28 so the box grows DOWNWARD and its top edge stays exactly where it was. Verified against
+          the live geometry: the box runs 537.3 -> 640.3 today with the ellipse wanting 693.8; after,
+          it runs 537.3 -> 712.5 with the ellipse finishing at 694.0. Same bloom, no edge. */}
+      <div aria-hidden style={{ position: "absolute", left: 0, right: 0,
+        bottom: mobile ? "-31%" : "-3%", height: mobile ? "68%" : "40%", zIndex: 0, pointerEvents: "none",
+        background: mobile
+          ? "radial-gradient(38% 45.88% at 33% 43.53%, rgba(37,99,235,0.55), rgba(37,99,235,0) 72%), radial-gradient(40% 48.24% at 70% 44.71%, rgba(198,240,74,0.52), rgba(198,240,74,0) 72%)"
+          : "radial-gradient(38% 78% at 33% 74%, rgba(37,99,235,0.55), rgba(37,99,235,0) 72%), radial-gradient(40% 82% at 70% 76%, rgba(198,240,74,0.52), rgba(198,240,74,0) 72%)",
         filter: (typeof window !== "undefined" && window.innerWidth < 760) ? "none" : "blur(34px)" }} />
       {/* Opaque screen backing — fills the glass rectangle BEHIND the (transparent-screened) iPad asset so the
           display can never show the page through it as a pale ring at the aperture edge. Sits under the asset;
