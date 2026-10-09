@@ -8863,9 +8863,51 @@ function CompanySettings({ onClose }) {
   );
 }
 
+// Polished company-profile share sheet — reuses the existing company-profile QR
+// (QRCode -> /app?c=<slug>) and the single share entry point (src/lib/share.js). No second
+// QR system, no ad-hoc share. Shown from the owner profile's Share action.
+function ShareProfileSheet({ onClose }) {
+  const slug = (typeof window !== "undefined" && (window.__CO_SLUG__ || currentSlug())) || "";
+  const url = companyShareUrl(slug);
+  const host = url.replace(/^https?:\/\/(www\.)?/, "");
+  const [qr, setQr] = useState("");
+  const [copied, setCopied] = useState(false);
+  const copiedT = useRef(null);
+  useEffect(() => { let live = true; QRCode.toString(url, { type: "svg", errorCorrectionLevel: "H", margin: 0 }).then((s) => { if (live) setQr(s); }).catch(() => {}); return () => { live = false; }; }, [url]);
+  const flashCopied = () => { setCopied(true); clearTimeout(copiedT.current); copiedT.current = setTimeout(() => setCopied(false), 1500); };
+  const doShare = async () => { haptic(); const r = await shareContent({ title: COMPANY.name || "MineEx", url }); if (!shouldFallback(r)) return; try { await navigator.clipboard.writeText(url); flashCopied(); } catch (_) {} };
+  const doCopy = async () => { haptic(); try { await navigator.clipboard.writeText(url); flashCopied(); } catch (_) {} };
+  return (
+    <BottomSheet onClose={onClose} fit>
+      {() => (
+        <div className="flex flex-col items-center pb-1">
+          <div className="grid h-14 w-14 flex-shrink-0 place-items-center overflow-hidden rounded-full border border-slate-200 bg-white">
+            {AVATAR ? <img src={AVATAR} alt="" className="h-full w-full object-cover" /> : <Building2 size={22} className="text-slate-400" />}
+          </div>
+          <p className="mt-2.5 text-[16px] font-extrabold tracking-tight text-slate-900">{COMPANY.name || "Your Company"}</p>
+          <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4" style={{ boxShadow: "0 1px 2px rgba(15,23,42,0.04)" }}>
+            <div style={{ height: 196, width: 196 }} dangerouslySetInnerHTML={{ __html: qr || "" }} />
+          </div>
+          <p className="mt-3 text-[12px] font-semibold text-slate-400">Scan to open this profile</p>
+          <div className="mt-5 grid w-full grid-cols-2 gap-2">
+            <button onClick={doShare} className="flex h-11 items-center justify-center gap-1.5 rounded-full text-[13px] font-bold text-white transition active:scale-[0.97]" style={{ background: EM }}>
+              <Share2 size={15} strokeWidth={2.3} /> Share
+            </button>
+            <button onClick={doCopy} className="flex h-11 items-center justify-center gap-1.5 rounded-full border border-slate-200 bg-white text-[13px] font-bold text-slate-700 transition active:scale-[0.97]">
+              {copied ? <><Check size={15} strokeWidth={2.8} style={{ color: "#059669" }} /> Copied</> : <>Copy link</>}
+            </button>
+          </div>
+          <p className="mt-3 text-[11.5px] font-semibold text-slate-400">{host}</p>
+        </div>
+      )}
+    </BottomSheet>
+  );
+}
+
 function CompanyProfileScreen({ onScan, onCreate }) {
   const [editing, setEditing] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [sharing, setSharing] = useState(false);
   const [co, setCo] = useState(() => ({
     name: COMPANY.name || "Your Company", avatar: AVATAR || "",
     bio: COMPANY.slogan || "", website: COMPANY.website || "",
@@ -8876,7 +8918,7 @@ function CompanyProfileScreen({ onScan, onCreate }) {
   const [toast, setToast] = useState("");
   const toastT = useRef(null);
   const flash = (m) => { setToast(m); clearTimeout(toastT.current); toastT.current = setTimeout(() => setToast(""), 1800); };
-  useBackHandler(editing || settingsOpen, () => { setSettingsOpen(false); setEditing(false); });
+  useBackHandler(editing || settingsOpen || sharing, () => { setSharing(false); setSettingsOpen(false); setEditing(false); });
   // Persist profile edits to THIS company's row (when signed in as the owner). Falls back to a
   // local-only update in the demo (no real company id). Media (a new logo) uploads to Storage.
   const saveCompany = async (f) => {
@@ -8907,15 +8949,7 @@ function CompanyProfileScreen({ onScan, onCreate }) {
       <CompanyProfile owner onCreate={onCreate} onScan={onScan}
         onEdit={() => { haptic(); setEditing(true); }}
         onSettings={() => { haptic(); setSettingsOpen(true); }}
-        onShare={async () => {
-          // Reuse the app's single share entry point (Android native sheet / iOS+web
-          // navigator.share), with the canonical public link — same as every other share surface.
-          const slug = (typeof window !== "undefined" && (window.__CO_SLUG__ || currentSlug())) || "";
-          const url = companyShareUrl(slug);
-          const r = await shareContent({ title: COMPANY.name || "MineEx", url });
-          if (!shouldFallback(r)) return;
-          try { await navigator.clipboard.writeText(url); flash("Link copied"); } catch (_) { flash("Couldn’t share"); }
-        }}
+        onShare={() => { haptic(); setSharing(true); }}
       />
 
       {toast && createPortal(
@@ -8925,6 +8959,7 @@ function CompanyProfileScreen({ onScan, onCreate }) {
 
       {editing && <EditCompanyProfile initial={co} onSave={(f) => { saveCompany(f); setEditing(false); }} onClose={() => setEditing(false)} />}
       {settingsOpen && <CompanySettings onClose={() => setSettingsOpen(false)} />}
+      {sharing && <ShareProfileSheet onClose={() => setSharing(false)} />}
     </div>
   );
 }
