@@ -154,3 +154,19 @@ Full list: `/tmp/mineex-audit-backup-20261008-133514/commits_missing_from_main.t
 All four are **intentional** (clear commit rationale), **not accidental** — but each alters the investor experience vs the currently published app, so each needs your explicit confirmation before release.
 
 **Unresolved risks:** native-build↔commit traceability still UNVERIFIED; C-1…C-4 + the owner-feature corrections (U-3/U-4/U-5) await your decisions; none deployed.
+
+---
+
+## H. Phase-5 corrections + C-1 — IMPLEMENTED (2026-10-09, on `sync/…`, separate commits)
+
+| ID | Commit | What changed | Reused (no duplication) | Verification | Approval |
+|---|---|---|---|---|---|
+| **A3** | `10894ce` | Owner share → `src/lib/share.js` (`companyShareUrl`+`shareContent`+`shouldFallback`) instead of ad-hoc `navigator.share` | existing share system | build ✅; pane 🟡 | Awaiting |
+| **A4** | `0d911e0` | Polished owner **share sheet**: company logo + name + existing profile **QR** (`QRCode→mineex.ca/app?c=<slug>`) + Share + Copy link | existing QR generator; no 2nd system | build ✅; pane ✅ (QR renders, sheet opens) | Awaiting |
+| **A2** | `ea17123` | **Complete contact editing**: IR contact name/role/photo added to `EditCompanyProfile` → `profile.contact.{name,role,photo}` via the single save path; card look unchanged; owner-gated | existing editor + `mapProfileToPP.CONTACT` + `uploadCompanyMedia` | build ✅; pane ✅ (fields present) | Awaiting |
+| **A1** | `e6e4b79` | **Shared Settings**: extracted the investor Settings into one `AccountSettings`; both investor + owner render it; **deleted duplicate `CompanySettings`** | the real investor Settings | build ✅; pane ✅ (investor full panel + Account & Security sub-panel intact; company now identical); typecheck ✅; AI-guard 145/0 | Awaiting |
+| **C-1** | `a442034` | **Skippable** one-time interest onboarding for new investors (overlay, not a gate); `onSkip` + "Skip for now"; one-time via local flag + single cloud check; fails open | existing `InvestorOnboarding` | build ✅; pane ✅ (direct access preserved, fail-open) | Awaiting |
+
+**C-4/C-5/C-6 per your direction:** C-4 placeholder CEO page **kept removed**; C-5 fake Connect **kept removed** (company messaging preserved via Contact); C-6 Funding Runway bar **left removed** (pending your confirmation it was request #4).
+
+**Still UNVERIFIED (need real account / native build):** the onboarding overlay's *appearance* for a brand-new investor + Skip dismissal (existing accounts have `onboarding_completed=true`, so correctly don't see it); all native iOS/Android behaviour; Android back-stack for the shared Settings sub-panels; share native sheet on device.

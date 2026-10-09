@@ -39,9 +39,11 @@ Each row maps to a Change ID in `MINEEX_CHANGE_INVENTORY.md`. Fill *Preserved?* 
 | C-13 | Profile edit persist + owner-aware draft load | built; DB persist ✅ | n/a | ✅ | ⬜ | ⬜ |
 | U-1 | Owner Profile = live Pro profile | built | n/a | 🟡 | ⬜ | ⬜ |
 | U-2 | Owner header (Share/Contacts, Settings, +) | built | n/a | 🟡 | ⬜ | ⬜ |
-| U-3 | Owner Settings (`CompanySettings`) | **duplicate — to replace with shared investor Settings** | n/a | 🟡 | ⬜ | ✎ |
-| U-4 | Contact-card owner edit pencil | built; **missing IR-person fields** | n/a | 🟡 | ⬜ | ✎ |
-| U-5 | Owner Share | **bypasses `share.js` — to rewire** | n/a | 🟡 | ⬜ | ✎ |
+| U-3→A1 | Owner Settings | ✅ **FIXED** — now the shared `AccountSettings` (investor Settings reused); duplicate deleted | n/a | ✅ | ⬜ | ⬜ |
+| U-4→A2 | Contact-card owner edit | ✅ **FIXED** — IR name/role/photo added; single save path | n/a | ✅ | ⬜ | ⬜ |
+| U-5→A3 | Owner Share | ✅ **FIXED** — uses `share.js` | n/a | 🟡 | ⬜ | ⬜ |
+| A4 | Owner share sheet + QR | ✅ built — reuses existing QR | n/a | ✅ | ⬜ | ⬜ |
+| C-1 | Skippable onboarding (new investors) | ✅ built — overlay, not a gate | n/a | 🟡 | ⬜ | ⬜ |
 | U-6 | Global "+" on tabs (not Messages) | built | n/a | 🟡 | ⬜ | ⬜ |
 
 \* "Preserved?" = n/a for net-new features; the risk for owner features is that they modify **shared** components (see U-2) — verify the investor side under section 1.
