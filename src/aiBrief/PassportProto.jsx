@@ -28,7 +28,7 @@ function demoFocusStyle(on, restShadow) {
   };
 }
 import { fetchCompany, SUPABASE_URL, SUPABASE_ANON } from "../lib/supabase.js";
-import { updateCompanyProfile } from "../lib/portal.js";        // company-account: persist profile edits
+import { updateCompanyProfile, myPortalCompanies } from "../lib/portal.js";  // company-account: persist edits + resolve managed companies
 import { uploadCompanyMedia } from "../lib/storage.js";          // company-account: upload a new logo/media
 import { mapProfileToPP } from "../lib/profileToPP.js";          // company-account: rebuild pp after an edit
 import { API_BASE, isNativeApp } from "../lib/platform.js";
@@ -9027,6 +9027,13 @@ function AccountSettings({ onClose, audience = "investor", user, email, displayN
                 <ArrowUpRight size={16} className="flex-shrink-0 text-slate-300" />
               </a>
             </div>
+            {audience === "company" && (
+              <button onClick={() => { haptic(); try { window.location.assign("/app"); } catch (_) {} }} className="mt-3 flex w-full items-center gap-3 rounded-2xl border border-slate-100 bg-white px-4 py-3.5 text-left transition active:bg-slate-50" style={cardFlat}>
+                <User size={18} className="flex-shrink-0 text-slate-500" />
+                <span className="min-w-0 flex-1 text-[13.5px] font-bold tracking-tight text-slate-800">Switch to investor</span>
+                <ChevronRight size={16} className="flex-shrink-0 text-slate-300" />
+              </button>
+            )}
             <button onClick={doSignOut} disabled={signingOut} className="mt-3 flex w-full items-center gap-3 rounded-2xl border border-slate-100 bg-white px-4 py-3.5 text-left transition active:bg-slate-50 disabled:opacity-60" style={cardFlat}>
               <LogOut size={18} className={`flex-shrink-0 ${user ? "text-rose-500" : "text-blue-500"}`} />
               <div className="min-w-0 flex-1">
@@ -9095,8 +9102,19 @@ function ProfileScreen({ onScan }) {
   const [editing, setEditing] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [savedOpen, setSavedOpen] = useState(false);
-  // Android back: Settings owns its own back-stack (AccountSettings). Saved is separate.
-  useBackHandler(!!savedOpen, () => setSavedOpen(false));
+  // Account switcher: the companies this signed-in user is authorized to manage (RLS-backed
+  // membership via myPortalCompanies — never a URL/slug). Empty for investors → NO UI change.
+  const [managed, setManaged] = useState([]);
+  const [switchOpen, setSwitchOpen] = useState(false);
+  useEffect(() => {
+    if (!user) { setManaged([]); return; }
+    let live = true;
+    myPortalCompanies().then((list) => { if (live) setManaged(Array.isArray(list) ? list.filter((c) => c && c.slug) : []); }).catch(() => { if (live) setManaged([]); });
+    return () => { live = false; };
+  }, [user && user.id]);
+  const goManage = (slug) => { haptic(); try { window.location.assign(`/app?manage=${encodeURIComponent(slug)}`); } catch (_) {} };
+  // Android back: Settings owns its own back-stack (AccountSettings). Saved + switch picker here.
+  useBackHandler(!!(savedOpen || switchOpen), () => { if (switchOpen) return setSwitchOpen(false); setSavedOpen(false); });
   const savedCount = savedStore.list().length;
   const pushToast = (msg) => { setToast(msg); clearTimeout(toastT.current); toastT.current = setTimeout(() => setToast(""), 1900); };
   // Re-read the cached profile when a background cloud hydrate/sign-out updates it.
@@ -9171,6 +9189,20 @@ function ProfileScreen({ onScan }) {
           )}
         </div>
 
+        {/* ACCOUNT SWITCHER — only when this user manages a company (membership-resolved).
+            Investors (empty) see nothing here, so their experience is unchanged. Single company
+            switches directly; multiple opens a picker. */}
+        {managed.length > 0 && (
+          <button onClick={() => { haptic(); if (managed.length === 1) goManage(managed[0].slug); else setSwitchOpen(true); }} className="mt-3 flex w-full items-center gap-3 rounded-2xl border p-4 text-left transition active:scale-[0.99]" style={{ borderColor: "#dbe4fb", background: "linear-gradient(180deg,#f5f8ff 0%,#ffffff 60%)", ...cardFlat }}>
+            <span className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-xl" style={{ background: "rgba(37,99,235,0.12)" }}><Building2 size={17} style={{ color: EM_TEXT }} /></span>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-[13.5px] font-bold tracking-tight text-slate-800">{managed.length === 1 ? `Manage ${managed[0].name}` : "Switch to company"}</span>
+              <span className="block text-[11.5px] font-medium text-slate-400">{managed.length === 1 ? "Open your company profile" : `${managed.length} companies you manage`}</span>
+            </span>
+            <ChevronRight size={17} className="flex-shrink-0 text-slate-300" />
+          </button>
+        )}
+
         {/* SAVED — bookmarked stories, opens the full list */}
         <button onClick={() => { haptic(); setSavedOpen(true); }} className="mt-3 flex w-full items-center gap-3 rounded-2xl border border-slate-100 bg-white p-4 text-left transition active:scale-[0.99]" style={cardFlat}>
           <span className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-xl" style={{ background: "rgba(37,99,235,0.12)" }}><Bookmark size={17} style={{ color: EM_TEXT }} /></span>
@@ -9193,6 +9225,31 @@ function ProfileScreen({ onScan }) {
       {editing && <EditInvestorProfile initial={pf} defaultName={defaultName} onSave={(data) => { setPf(data); saveInvestorProfile(email, data); }} onClose={() => setEditing(false)} />}
 
       {savedOpen && <SavedPanel onBack={() => setSavedOpen(false)} />}
+
+      {/* Company picker — only for a multi-company manager. Tapping one enters manage mode. */}
+      {switchOpen && (
+        <BottomSheet onClose={() => setSwitchOpen(false)} topBanner={
+          <div style={{ padding: "26px 20px 16px", background: `linear-gradient(120deg, ${EM}, ${EM_TEXT})` }}>
+            <p className="text-[9.5px] font-extrabold uppercase tracking-[0.2em] text-white/75">Account</p>
+            <h3 className="text-[20px] font-extrabold tracking-tight text-white">Switch to company</h3>
+          </div>
+        }>
+          {() => (
+            <div className="space-y-2 pb-2">
+              {managed.map((c) => (
+                <button key={c.slug} onClick={() => goManage(c.slug)} className="flex w-full items-center gap-3 rounded-2xl border border-slate-100 bg-white px-4 py-3.5 text-left transition active:bg-slate-50" style={cardFlat}>
+                  <span className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-full bg-slate-100 text-[13px] font-extrabold text-slate-500">{(c.name || "?").trim().slice(0, 1).toUpperCase()}</span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[13.5px] font-bold tracking-tight text-slate-800">{c.name}</span>
+                    <span className="block text-[10.5px] font-bold uppercase tracking-wide text-slate-400">{c.role || "owner"}{c.status && c.status !== "published" ? ` · ${c.status}` : ""}</span>
+                  </span>
+                  <ChevronRight size={16} className="flex-shrink-0 text-slate-300" />
+                </button>
+              ))}
+            </div>
+          )}
+        </BottomSheet>
+      )}
 
       {/* Settings — shared AccountSettings component (identical for investors and owners). */}
       {settingsOpen && <AccountSettings onClose={() => setSettingsOpen(false)} user={user} email={email} displayName={name} initials={initials} />}
