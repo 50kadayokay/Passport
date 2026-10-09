@@ -73,6 +73,22 @@ Each row maps to a Change ID in `MINEEX_CHANGE_INVENTORY.md`. Fill *Preserved?* 
 
 > **Sync run 2026-10-09:** merged `main` into `sync/main-into-appupdate-2026-10` (`c710b10`). Security fix `5e4540a` integrated & verified (145/0). 4 marketing conflicts resolved to main's version. `PassportProto.jsx` byte-identical to pre-merge — no investor behaviour changed by the merge. See `MINEEX_CHANGE_INVENTORY.md` §G.
 
+## Native simulator run (iPhone 17 Pro, iOS 26.3 — 2026-10-09)
+Built from sync HEAD via `cap sync ios` + headless `xcodebuild` (Debug, simulator). **Simulator only — cannot publish.**
+
+| Native screen | Result | Evidence |
+|---|---|---|
+| App launches / renders real UI | **PASS (sim)** | app booted, Welcome screen rendered |
+| Opening splash (C-3) | **PASS (sim)** | black splash → start (play-once observed implicitly) |
+| Welcome / "One account for the whole market" | **PASS (sim)** | screenshot |
+| Login screen (Email/Password/Apple/Google) | **PASS (sim)** | screenshot; safe areas correct |
+| Investor profile / Settings (A1) / onboarding (C-1) | **BLOCKED** | require sign-in; password not entered by Claude |
+| **Company-owner profile + A2/A3/A4 (Contact edit, Share, QR)** | **NOT REACHABLE (native)** | login says *"Are you a company? Set up your profile on **desktop**"* — no native entry to owner mode (activated only by the desktop `?c=<slug>` URL). Owner features verified in **desktop preview only.** |
+| Real-device behaviour | **UNVERIFIED** | simulator ≠ device |
+| Production parity vs published app | **UNVERIFIED** | no access to installed App Store/Play build or its commit |
+
+**Build-reproducibility risk (flagged):** `cap sync` rewrote `ios/App/CapApp-SPM/Package.swift` plugin paths to `../../../../Passport V1/node_modules/...` (worktree shares the toolchain). Machine-specific — **must not ship**; left uncommitted. Fix before release: give this worktree its own `node_modules`, or regenerate on the build machine and never commit the local variant.
+
 ## 5. Release gate
 - [ ] All Section 1 rows: Preserved? = yes, Approved
 - [ ] All Section 2 "needs correction" (✎) resolved + approved
