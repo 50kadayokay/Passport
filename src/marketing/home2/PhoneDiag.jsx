@@ -195,21 +195,31 @@ function startBootWatch() {
         // would actually paint something — an image, a background image, or a background
         // colour that is not fully transparent. If that is the cover or its poster, the
         // poster is what is on screen; if it is anything else, that thing is named.
-        const stack = (onScreen && cy > 0 && cy < window.innerHeight)
-          ? Array.from(document.elementsFromPoint(cx, cy) || []) : [];
-        const hit = stack.find((el) => {
-          if (el.closest("[data-mxdiag]")) return false;
+        // One more trap, found the same way: elementsFromPoint returns the hit-test CHAIN,
+        // which includes the cover's own ancestors. The chapter background is a painted
+        // full-viewport div and an ancestor of the cover, so taking "the first painting
+        // element" named it as the occluder — something that paints BEHIND the cover,
+        // reported as covering it. An ancestor is skipped explicitly.
+        const paints = (el) => {
           if (/^(IMG|VIDEO|CANVAS|SVG)$/.test(el.tagName)) return true;
           const c = getComputedStyle(el);
           if ((c.backgroundImage || "none") !== "none") return true;
           const m = (c.backgroundColor || "").match(/rgba?\(([^)]+)\)/);
           if (m) { const a = m[1].split(",").map(Number); return a.length < 4 || a[3] > 0.02; }
           return false;
-        }) || null;
+        };
+        const stack = (onScreen && cy > 0 && cy < window.innerHeight)
+          ? Array.from(document.elementsFromPoint(cx, cy) || []) : [];
+        let hit = null, topmost = null;
+        for (const el of stack) {
+          if (el.closest("[data-mxdiag]")) continue;            // the instrument
+          if (el === cover || cover.contains(el)) { hit = el; topmost = true; break; }
+          if (el.contains && el.contains(cover)) continue;      // ancestor: paints behind
+          if (paints(el)) { hit = el; topmost = false; break; } // a real occluder
+        }
         const v = {
           t, onScreen, opacity: o, visibility: cs.visibility, display: cs.display,
-          topmost: hit ? (hit === img || hit === cover || cover.contains(hit)) : null,
-          hit: tagOf(hit), box: `${Math.round(q.width)}x${Math.round(q.height)}`,
+          topmost, hit: tagOf(hit), box: `${Math.round(q.width)}x${Math.round(q.height)}`,
         };
         const pv = BOOT.visibility[BOOT.visibility.length - 1];
         if (!pv || pv.onScreen !== v.onScreen || pv.topmost !== v.topmost
