@@ -28,6 +28,39 @@ export const diagFlag = (name) => {
 
 const r6 = (n) => (typeof n === "number" ? Math.round(n * 10) / 10 : n);
 
+
+// ── TIMINGS. One-shot marks from navigation start, written by a single cheap poll
+// (250ms) that stops as soon as every mark is set. No rAF loop, no per-frame work, so
+// the overlay cannot materially change what it is measuring. ─────────────────────────
+export const MXT = { t0: (typeof performance !== "undefined" ? performance.now() : 0), marks: {} };
+const markOnce = (k) => { if (MXT.marks[k] == null) MXT.marks[k] = Math.round(performance.now() - MXT.t0); };
+let timerStarted = false;
+function startTimings() {
+  if (timerStarted || typeof window === "undefined") return;
+  timerStarted = true;
+  const tick = () => {
+    try {
+      const f = document.querySelector('iframe[src*="embed=1"], iframe[src*="/appdemo"]');
+      if (f) markOnce("iframeInDom");
+      for (const el of document.querySelectorAll("div")) {
+        const bi = getComputedStyle(el).backgroundImage || "";
+        if (bi.includes("pro-phone-79") && el.getBoundingClientRect().height > 200) { markOnce("shellVisible"); break; }
+      }
+      const doc = f && f.contentDocument;
+      if (doc && doc.body) markOnce("frameDocReady");
+      const ov = doc && doc.querySelector('[data-page="overview"]');
+      if (ov) {
+        markOnce("firstScreenMounted");
+        const imgs = Array.from(ov.querySelectorAll("img"));
+        if (imgs.length && imgs.every((i) => i.complete && i.naturalWidth > 0)) markOnce("firstScreenImagesLoaded");
+      }
+    } catch (_) {}
+    const need = ["shellVisible", "iframeInDom", "frameDocReady", "firstScreenMounted", "firstScreenImagesLoaded"];
+    if (!need.every((k) => MXT.marks[k] != null) && performance.now() - MXT.t0 < 60000) setTimeout(tick, 250);
+  };
+  setTimeout(tick, 250);
+}
+
 function readFrame(frameEl) {
   // Everything below is read from the frame's own document, in ITS coordinate space, and
   // reported alongside the parent-space rect of the frame so the two can be related.
@@ -80,11 +113,94 @@ function readFrame(frameEl) {
   return out;
 }
 
+
+// ─────────────────────────────────────────────────────────────────────────────
+// IMAGE AUDIT (read-only). Answers, on the real device:
+//   • did each first-screen image LOAD (complete + naturalWidth)
+//   • did it DECODE (img.decode() resolves or rejects — a rejection is the
+//     signature of iOS Safari refusing to decode under memory pressure)
+//   • what does it COST decoded (w × h × 4 — the figure that matters on iOS,
+//     not the file size; a 241KB JPEG at 900×1200 costs ~4.3MB decoded)
+//   • if it loaded and decoded, is it actually PAINTABLE — drawn into a 1×1
+//     canvas to prove real pixel data exists, plus geometry/visibility so a
+//     decode-fine-but-invisible case (clipped, zero-size, hidden ancestor,
+//     opacity 0) is distinguishable from a decode failure.
+//
+// decode() is only called on the FIRST-SCREEN images (a handful), never on the
+// whole document, so the audit cannot itself create the pressure it measures.
+// ─────────────────────────────────────────────────────────────────────────────
+async function auditImages(doc, win) {
+  const out = { firstScreen: [], preloadedElsewhere: [], totals: {} };
+  if (!doc || !win) return out;
+  const cost = (w, h) => Math.round((w * h * 4) / 1048576 * 10) / 10;   // MB decoded
+  const all = Array.from(doc.images);
+  const overview = doc.querySelector('[data-page="overview"]');
+
+  let decodedMB = 0, loaded = 0;
+  for (const im of all) {
+    if (im.complete && im.naturalWidth) { loaded++; decodedMB += cost(im.naturalWidth, im.naturalHeight); }
+  }
+
+  // Everything NOT on the page the walkthrough opens on is, by definition, loaded
+  // before it is needed. Grouped by page so the waste is attributable.
+  const byPage = {};
+  for (const im of all) {
+    let page = "(none)";
+    for (let a = im; a; a = a.parentElement) if (a.dataset && a.dataset.page) { page = a.dataset.page; break; }
+    if (overview && overview.contains(im)) continue;
+    byPage[page] = byPage[page] || { count: 0, mb: 0 };
+    byPage[page].count++;
+    if (im.complete && im.naturalWidth) byPage[page].mb += cost(im.naturalWidth, im.naturalHeight);
+  }
+  out.preloadedElsewhere = Object.entries(byPage)
+    .map(([page, v]) => ({ page, imgs: v.count, decodedMB: Math.round(v.mb * 10) / 10 }))
+    .sort((a, b) => b.decodedMB - a.decodedMB).slice(0, 5);
+
+  const firsts = overview ? Array.from(overview.querySelectorAll("img")).slice(0, 8) : [];
+  for (const im of firsts) {
+    const r = im.getBoundingClientRect();
+    const cs = win.getComputedStyle(im);
+    const rec = {
+      src: (im.currentSrc || im.src || "").split("/").pop().slice(0, 30),
+      complete: im.complete, nw: im.naturalWidth, nh: im.naturalHeight,
+      decodedMB: im.naturalWidth ? cost(im.naturalWidth, im.naturalHeight) : 0,
+      box: `${Math.round(r.width)}x${Math.round(r.height)}`,
+      visible: r.width > 0 && r.height > 0 && cs.visibility !== "hidden" && cs.display !== "none" && cs.opacity !== "0",
+      decode: "?", pixels: "?",
+    };
+    try { await im.decode(); rec.decode = "ok"; }
+    catch (e) { rec.decode = "FAILED: " + String(e && e.name || e).slice(0, 24); }
+    if (rec.decode === "ok" && im.naturalWidth) {
+      try {
+        const c = doc.createElement("canvas"); c.width = 1; c.height = 1;
+        const g = c.getContext("2d"); g.drawImage(im, 0, 0, 1, 1);
+        const d = g.getImageData(0, 0, 1, 1).data;
+        rec.pixels = `rgba(${d[0]},${d[1]},${d[2]},${d[3]})`;     // real pixel data exists
+      } catch (e) { rec.pixels = "unreadable (" + String(e && e.name || e).slice(0, 18) + ")"; }
+    }
+    out.firstScreen.push(rec);
+  }
+  out.totals = {
+    imgsInFrame: all.length, loaded, decodedMB: Math.round(decodedMB * 10) / 10,
+    jsHeapMB: (win.performance && win.performance.memory)
+      ? Math.round(win.performance.memory.usedJSHeapSize / 1048576) : "n/a (WebKit)",
+  };
+  return out;
+}
+
 export default function PhoneDiag({ state, label }) {
   const [log, setLog] = useState([]);
   const [open, setOpen] = useState(true);
   const [copied, setCopied] = useState("");
   const lastRef = useRef(null);
+
+  useEffect(() => { startTimings(); }, []);
+  const [imgAudit, setImgAudit] = useState(null);
+  const runAudit = useCallback(async () => {
+    const f = document.querySelector('iframe[src*="embed=1"], iframe[src*="/appdemo"]');
+    if (!f) return;
+    try { setImgAudit(await auditImages(f.contentDocument, f.contentWindow)); } catch (_) {}
+  }, []);
 
   const sample = useCallback((why) => {
     const frameEl = document.querySelector('iframe[src*="embed=1"], iframe[src*="/appdemo"]');
@@ -119,7 +235,7 @@ export default function PhoneDiag({ state, label }) {
     sample("state:enter");
     const a = setTimeout(() => sample("state:+250ms"), 250);
     const b = setTimeout(() => sample("state:+900ms"), 900);
-    const c = setTimeout(() => sample("state:settled"), 2000);
+    const c = setTimeout(() => { sample("state:settled"); runAudit(); }, 2000);
     return () => { clearTimeout(a); clearTimeout(b); clearTimeout(c); };
   }, [state, sample]);
 
@@ -131,7 +247,14 @@ export default function PhoneDiag({ state, label }) {
   }, [sample]);
 
   const exportLog = async () => {
-    const text = JSON.stringify(log, null, 1);
+    const text = JSON.stringify({
+      device: { ua: navigator.userAgent, dpr: window.devicePixelRatio,
+                screen: `${window.screen.width}x${window.screen.height}`,
+                viewport: `${innerWidth}x${innerHeight}`,
+                visualVP: window.visualViewport ? `${Math.round(window.visualViewport.width)}x${Math.round(window.visualViewport.height)}` : "n/a",
+                build: window.__MX_BUILD || null },
+      timings: MXT.marks, images: imgAudit, samples: log,
+    }, null, 1);
     try { await navigator.clipboard.writeText(text); setCopied("copied to clipboard"); }
     catch (_) {
       try {
@@ -176,6 +299,20 @@ painted @top       ${L.inner.paintedTop ? `${L.inner.paintedTop.tag} top ${L.inn
 painted @bottom    ${L.inner.paintedBottom ? `${L.inner.paintedBottom.tag} bottom ${L.inner.paintedBottom.bottom} pos ${L.inner.paintedBottom.pos}` : "-"}
 scrolled elements  ${L.inner.scrolled && L.inner.scrolled.length ? L.inner.scrolled.map((s) => `${s.el}=${s.top}/${s.range}`).join("  ") : "none"}
 builds             parent ${L.parentBuild || "?"}   inner ${L.inner.build || "?"}
+--- timings from navigation start (ms) ---
+shell ${MXT.marks.shellVisible ?? "-"}   iframe ${MXT.marks.iframeInDom ?? "-"}   frameDoc ${MXT.marks.frameDocReady ?? "-"}
+screen1 mounted ${MXT.marks.firstScreenMounted ?? "-"}   screen1 images ${MXT.marks.firstScreenImagesLoaded ?? "-"}
+--- first-screen images ---
+${imgAudit && imgAudit.firstScreen.length
+  ? imgAudit.firstScreen.map((i) =>
+      `${i.src}\n   load ${i.complete && i.nw ? "ok " + i.nw + "x" + i.nh : "NOT LOADED"}  decode ${i.decode}  ${i.decodedMB}MB  box ${i.box}  visible ${i.visible}  px ${i.pixels}`
+    ).join("\n")
+  : "(press export after the first screen settles)"}
+--- loaded but NOT on the first screen ---
+${imgAudit && imgAudit.preloadedElsewhere.length
+  ? imgAudit.preloadedElsewhere.map((p2) => `${p2.page}: ${p2.imgs} imgs, ${p2.decodedMB}MB decoded`).join("   ")
+  : "-"}
+totals             ${imgAudit ? `${imgAudit.totals.loaded}/${imgAudit.totals.imgsInFrame} loaded, ${imgAudit.totals.decodedMB}MB decoded, heap ${imgAudit.totals.jsHeapMB}` : "-"}
 samples captured   ${log.length}`}
         </pre>
       )}

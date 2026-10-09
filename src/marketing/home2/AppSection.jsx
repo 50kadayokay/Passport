@@ -21,6 +21,7 @@ import { MX, EASE, useTrack, step, useViewport, useReduce } from "../system.jsx"
 import { DirectedEmbed } from "../demo/DirectedEmbed.jsx";
 import ConferenceScene from "./ConferenceScene.jsx";
 import StageArrows, { StageStart } from "./StageArrows.jsx";
+import PhoneDiag, { diagOn } from "./PhoneDiag.jsx";
 import HeroHandPhone from "./HeroHandPhone.jsx";
 // The Pricing deck slides up as the chapter after the template gallery (paged panels; see below).
 const PricingDeckLazy = React.lazy(() => import("./PricingDeck.jsx"));
@@ -615,6 +616,7 @@ export default function AppSection() {
             live above it. Hidden while the pricing sheet is up — that sheet is the end of
             the story and carries its own way back. The sales stage is light, so the
             controls take their light palette. */}
+        {mobile && diagOn() && <PhoneDiag state={idx} label="home" />}
         {mobile && !pricingUp && (idx === S_HERO
           ? <StageStart onGo={() => goM(S_HERO + 1)} />
           : <StageArrows i={idx} n={NSTATES} onGo={goM} atEnd={openPricing} bottom="30%" />)}
