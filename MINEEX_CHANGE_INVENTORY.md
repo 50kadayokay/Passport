@@ -170,3 +170,30 @@ All four are **intentional** (clear commit rationale), **not accidental** — bu
 **C-4/C-5/C-6 per your direction:** C-4 placeholder CEO page **kept removed**; C-5 fake Connect **kept removed** (company messaging preserved via Contact); C-6 Funding Runway bar **left removed** (pending your confirmation it was request #4).
 
 **Still UNVERIFIED (need real account / native build):** the onboarding overlay's *appearance* for a brand-new investor + Skip dismissal (existing accounts have `onboarding_completed=true`, so correctly don't see it); all native iOS/Android behaviour; Android back-stack for the shared Settings sub-panels; share native sheet on device.
+
+## I. Native account switcher (investor ↔ company) — IMPLEMENTED (2026-10-09, on `sync/…`, separate commits)
+
+Lets a company owner/member reach their company profile + management **inside the native app** (no `?c=` URL). Investors with no membership see nothing new. Built per the 8 approved requirements; **no new schema, no new auth scope.**
+
+| ID | Commit | What changed | Authorization source | Reused (no duplication) |
+|---|---|---|---|---|
+| **SW1** | `d00579b` | Owner detection reconciled from `owner_id === me.id`-only → **owner_id OR active `company_memberships` row** (RLS-backed query); sets `COMPANY_ACCOUNT`/`__CO_ID__`/`__CO_SLUG__`/`__CO_ROLE__` | server RLS (user token); role captured for later role-gating | existing loader block in `main.jsx` |
+| **SW2** | `3b0b821` | `?manage=<slug>` native entry: only honoured when the signed-in user has a role for that company (`__CO_MANAGE__`); otherwise `window.location.replace("/app")`. Post-load safety net re-checks and bounces if `__CO_MANAGE__` is unset | membership role resolved server-side; slug alone is **never** proof | existing owner-aware load path |
+| **SW3** | `b49bb16` | Switcher UI in the **investor** Profile tab + a "Switch to investor" row in the shared `AccountSettings`. Resolver = `myPortalCompanies()` (RLS). 0 companies → nothing; 1 → direct "Manage [name]"; 2+ → picker BottomSheet. Navigation via `/app?manage=<slug>` (re-runs SW1/SW2 server checks) | `myPortalCompanies()` (RLS); default is investor mode, switch is explicit | existing `AccountSettings`, `BottomSheet`, `portal.js` resolver; **no duplicate company components** |
+
+**Verification (2026-10-09):**
+
+| Scenario / requirement | Result | Evidence |
+|---|---|---|
+| Build / `cap sync ios` / native build | **PASS** | `vite build` clean; `cap sync` clean; `xcodebuild` Debug succeeded (5s); app **launches to Welcome** with no regression (screenshot) |
+| typecheck (studio) · AI-guard `npm test` · `check:demo-assets` | **PASS** | typecheck OK; **145/0**; demo-assets clean |
+| Req 1 — investor with **no** membership sees no change | **PASS (pane)** | real `myPortalCompanies()` returns none → **no switcher card**; investor Profile + Saved intact |
+| Req 2 — **multi-company** picker (2+) | **PASS (pane, stubbed memberships)** | card "Switch to company · 3 companies you manage"; picker lists all 3; screenshot |
+| Req 3 — default investor on launch; switch is explicit | **PASS** | `nav` inits to `today` unless `__CO_MANAGE__`; "Switch to investor" row returns to `/app` |
+| Req 5/6 — membership (not owner_id) accepted; slug never trusted | **PASS (code + pane)** | SW1 accepts active membership; SW2/SW3 resolve identity from RLS results only |
+| Req 7 — unauthorized `?manage=<slug>` | **PASS (pane)** | fake token → membership query 401 → `finalUrl=/app`, no company-management surface shown |
+| Single-company direct "Manage [name]" (Req 2) | **UNVERIFIED** | needs a real signed-in **single-company** owner session |
+| Full switch flow + "Switch to investor" round-trip on device | **UNVERIFIED (native)** | native owner mode needs a real signed-in owner; same auth limit as all native authed testing (Claude does not enter the password) |
+| Expired session / revoked membership mid-session (Req 7) | **PARTIAL** | unauthorized path proven; live revocation-during-session not exercised (needs real session) |
+
+**Role-gating note (Req 5):** SW1 captures `__CO_ROLE__`; launch currently mints only `owner`, so role-specific *action* gating (editor/publisher/viewer restrictions) is **not yet differentiated** in the UI — flagged, not implemented (would be a behavior/permissions change requiring your approval). No change broadens existing permissions.

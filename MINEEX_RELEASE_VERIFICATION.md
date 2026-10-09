@@ -45,6 +45,9 @@ Each row maps to a Change ID in `MINEEX_CHANGE_INVENTORY.md`. Fill *Preserved?* 
 | A4 | Owner share sheet + QR | ✅ built — reuses existing QR | n/a | ✅ | ⬜ | ⬜ |
 | C-1 | Skippable onboarding (new investors) | ✅ built — overlay, not a gate | n/a | 🟡 | ⬜ | ⬜ |
 | U-6 | Global "+" on tabs (not Messages) | built | n/a | 🟡 | ⬜ | ⬜ |
+| SW1 | Owner detection → membership model (owner_id OR active membership) | built; RLS-backed | preserved (investor unaffected) | ✅ | 🟡 (launch OK) | ⬜ |
+| SW2 | `?manage=<slug>` native entry (membership-gated; unauth → `/app`) | built | preserved | ✅ (unauth redirect) | 🟡 (launch OK) | ⬜ |
+| SW3 | Account switcher in Profile/Settings (0→none, 1→direct, 2+→picker) | built; reuses `AccountSettings`/`BottomSheet`/`myPortalCompanies()` | preserved (no switcher for non-members) | ✅ (investor-none + multi picker) | ⬜ (needs signed-in owner) | ⬜ |
 
 \* "Preserved?" = n/a for net-new features; the risk for owner features is that they modify **shared** components (see U-2) — verify the investor side under section 1.
 
@@ -86,6 +89,14 @@ Built from sync HEAD via `cap sync ios` + headless `xcodebuild` (Debug, simulato
 | **Company-owner profile + A2/A3/A4 (Contact edit, Share, QR)** | **NOT REACHABLE (native)** | login says *"Are you a company? Set up your profile on **desktop**"* — no native entry to owner mode (activated only by the desktop `?c=<slug>` URL). Owner features verified in **desktop preview only.** |
 | Real-device behaviour | **UNVERIFIED** | simulator ≠ device |
 | Production parity vs published app | **UNVERIFIED** | no access to installed App Store/Play build or its commit |
+
+### Switcher re-run (SW1–3 HEAD `b49bb16` — 2026-10-09)
+Rebuilt from switcher HEAD: `vite build` ✅ → `cap sync ios` ✅ → `xcodebuild` Debug ✅ (5s) → launched on iPhone 17 Pro.
+
+| Native screen | Result | Evidence |
+|---|---|---|
+| App launches / renders real UI (no SW1–3 regression) | **PASS (sim)** | Welcome "Every junior miner, in one feed." rendered; cobalt CTA; safe areas correct; screenshot |
+| Switcher card / company mode (native) | **NOT REACHABLE (native)** | requires a real signed-in owner session (Claude does not enter the password); verified in desktop pane: investor-none, multi-company picker, unauthorized redirect |
 
 **Build-reproducibility risk (flagged):** `cap sync` rewrote `ios/App/CapApp-SPM/Package.swift` plugin paths to `../../../../Passport V1/node_modules/...` (worktree shares the toolchain). Machine-specific — **must not ship**; left uncommitted. Fix before release: give this worktree its own `node_modules`, or regenerate on the build machine and never commit the local variant.
 
