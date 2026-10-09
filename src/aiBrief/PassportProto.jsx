@@ -8908,12 +8908,13 @@ function CompanyProfileScreen({ onScan, onCreate }) {
         onEdit={() => { haptic(); setEditing(true); }}
         onSettings={() => { haptic(); setSettingsOpen(true); }}
         onShare={async () => {
+          // Reuse the app's single share entry point (Android native sheet / iOS+web
+          // navigator.share), with the canonical public link — same as every other share surface.
           const slug = (typeof window !== "undefined" && (window.__CO_SLUG__ || currentSlug())) || "";
-          const url = `${location.origin}/app?c=${slug}`;
-          try {
-            if (navigator.share) { await navigator.share({ title: COMPANY.name || "MineEx", url }); }
-            else { await navigator.clipboard.writeText(url); flash("Profile link copied"); }
-          } catch (_) { /* user cancelled share — no-op */ }
+          const url = companyShareUrl(slug);
+          const r = await shareContent({ title: COMPANY.name || "MineEx", url });
+          if (!shouldFallback(r)) return;
+          try { await navigator.clipboard.writeText(url); flash("Link copied"); } catch (_) { flash("Couldn’t share"); }
         }}
       />
 
