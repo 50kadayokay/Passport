@@ -58,13 +58,18 @@ Each row maps to a Change ID in `MINEEX_CHANGE_INVENTORY.md`. Fill *Preserved?* 
 
 | Check | Preview | iOS native | Android native |
 |---|---|---|---|
-| Build succeeds | ✅ | ⬜ | ⬜ |
+| Build succeeds (post-merge) | ✅ | ⬜ | ⬜ |
+| `typecheck` (studio) | ✅ | n/a | n/a |
+| `check:demo-assets` | ✅ | n/a | n/a |
+| **AI-guard security regression (`npm test`)** | ✅ **145/0** | n/a | n/a |
 | Safe areas / notch / scrolling | ⬜ | ⬜ | ⬜ |
 | Modals & bottom sheets | 🟡 | ⬜ | ⬜ |
 | Native share sheet + deep links | ⬜ | ⬜ | ⬜ |
 | Auth / RLS / data persistence | partial ✅ | ⬜ | ⬜ |
 | No existing feature missing | ⬜ | ⬜ | ⬜ |
 | Commit→build traceability recorded | ⬜ | ⬜ | ⬜ |
+
+> **Sync run 2026-10-09:** merged `main` into `sync/main-into-appupdate-2026-10` (`c710b10`). Security fix `5e4540a` integrated & verified (145/0). 4 marketing conflicts resolved to main's version. `PassportProto.jsx` byte-identical to pre-merge — no investor behaviour changed by the merge. See `MINEEX_CHANGE_INVENTORY.md` §G.
 
 ## 5. Release gate
 - [ ] All Section 1 rows: Preserved? = yes, Approved

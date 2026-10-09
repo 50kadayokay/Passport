@@ -116,3 +116,41 @@ Full list: `/tmp/mineex-audit-backup-20261008-133514/commits_missing_from_main.t
 ---
 
 *Companion doc:* `MINEEX_RELEASE_VERIFICATION.md` (per-change approval + test tracking).
+
+---
+
+## G. Synchronization run — RESULTS (2026-10-09)
+
+**Branch:** `sync/main-into-appupdate-2026-10` · **Merge commit:** `c710b10`
+**Backup (recoverable):** tags `backup/appupdate-head-20261008-133514`, `backup/appupdate-wip-20261008-133514` (`9db02a4`); bundle+patch in `/tmp/mineex-audit-backup-20261008-133514/`. Production and `main` untouched.
+
+**What was integrated:** `main`'s commits (the critical **unauthenticated-AI-endpoint security fix `5e4540a`** + Conference/mobile marketing-walkthrough fixes, incl. main's latest tip `4947176`).
+
+**Conflict resolutions (4, all marketing-site, resolved to main's version):**
+| File | Ours | Main (taken) | Why |
+|---|---|---|---|
+| `src/marketing/system.jsx` | added a `dvh` height rule + `.mx-vstage` targeting | removed the `dvh` rule (caused jitter), added `touch-action:pan-y pinch-zoom` | competing fixes for the same phone black-strip bug; main's is the newer, informed iteration — keeping ours reintroduces the jitter |
+| `InvestorPage.jsx` / `AppSection.jsx` | `position:sticky` | `position: mobile?relative:sticky` (desktop unchanged) | main's is a superset (adds mobile handling, preserves desktop sticky) |
+| `ProProfileChapter.jsx` | sticky + `${PRO_STATES*72}svh` scroll track | relative + `100svh` + arrow controls, snapping removed | main's full mobile-walkthrough rewrite supersedes ours |
+
+**No app code (`PassportProto.jsx`) was in conflict**; it is **byte-identical** to the pre-merge WIP (`81a680d`) — the merge changed no investor/company app behaviour.
+
+**Verification results:**
+| Check | Result |
+|---|---|
+| `vite build` | ✅ OK |
+| `typecheck` (studio) | ✅ OK |
+| `check:demo-assets` | ✅ clean (12 scenes, no real-company imagery) |
+| `npm test` (AI-guard security regression) | ✅ **145 passed / 0 failed — no unauthorised request reached Anthropic** |
+| Security fix present | ✅ `api/_aiGuard.js` + guards on audience-card/structure-release/synthesize-profile |
+| App file integrity | ✅ identical to pre-merge |
+
+**C-1…C-4 — verified from commit diffs (impact on the EXISTING investor experience):**
+- **C-1 (`25d5809`) — login onboarding/interest gate removed.** Signed-in investors now go straight into the app; removed the `onbState` gate, `InvestorOnboarding` render, and the launch `getInvestorProfile()` round-trip. `WelcomeIntro`/`InvestorAuth` (incl. Apple/Google) untouched; existing sessions unaffected. **Impact:** investors no longer see the post-sign-in interest/onboarding step. *Confirm the feed still personalises acceptably without the collected interests.*
+- **C-2 (`e4ab6e1` + ~13-commit refinement cluster) — "Message" → "Contact".** Company-profile header button changed from Message to a **Contact/IR sheet** (contact person, tappable Email/Phone/LinkedIn/Website/Address, plus "Message in MineEx" which still opens the existing company DM). **Impact:** richer contact info; messaging is now one tap deeper. Core investor-facing change.
+- **C-3 (`80cb9b6`) — opening animation.** Splash bg now black; drill-core mark scales in, wordmark accordions open; ~1.9s, play-once (CTA buttons stay blue). **Impact:** cosmetic intro change, no functional effect.
+- **C-4 (`dae17d4`) — standalone CEO profile page removed.** Tapping a leader now opens only the existing inline bio sheet; the full-screen CEO portal + its trigger + dead state removed. Inline bio / Connect-Message / MemberAvatar unchanged. **Impact:** investors can no longer open the full-screen CEO page.
+
+All four are **intentional** (clear commit rationale), **not accidental** — but each alters the investor experience vs the currently published app, so each needs your explicit confirmation before release.
+
+**Unresolved risks:** native-build↔commit traceability still UNVERIFIED; C-1…C-4 + the owner-feature corrections (U-3/U-4/U-5) await your decisions; none deployed.
