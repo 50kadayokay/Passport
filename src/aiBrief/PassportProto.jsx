@@ -8827,59 +8827,6 @@ function CompanyCreateMenu({ onClose, onChoose }) {
   );
 }
 
-// Company-account Settings — the account essentials (sign out, password, legal). Opened from
-// the gear on the owner's Profile tab. (A fuller parity with the investor Settings panel —
-// notifications etc. — can share one component later.)
-function CompanySettings({ onClose }) {
-  const user = (() => { try { return getUser(); } catch { return null; } })();
-  const email = (user && user.email) || "";
-  const [signingOut, setSigningOut] = useState(false);
-  const [pwSending, setPwSending] = useState(false);
-  const [pwMsg, setPwMsg] = useState("");
-  const card = { boxShadow: "0 1px 2px rgba(15,23,42,0.04)" };
-  const doSignOut = async () => { setSigningOut(true); try { await signOut(); } catch (_) {} try { location.href = "/app"; } catch (_) { location.reload(); } };
-  const doChangePassword = async () => { if (!email) return; setPwSending(true); setPwMsg(""); try { await requestPasswordReset(email); setPwMsg("Reset link sent to your email"); } catch (_) { setPwMsg("Couldn't send — try again"); } finally { setPwSending(false); } };
-  return (
-    <BottomSheet onClose={onClose} topBanner={
-      <div style={{ padding: "26px 20px 16px", background: `linear-gradient(120deg, ${EM}, ${EM_TEXT})` }}>
-        <p className="text-[9.5px] font-extrabold uppercase tracking-[0.2em] text-white/75">Company account</p>
-        <h3 className="text-[20px] font-extrabold tracking-tight text-white">Settings</h3>
-      </div>
-    }>
-      {() => (
-        <div className="space-y-3 pb-2">
-          <div>
-            <p className="mb-1.5 text-[10.5px] font-bold uppercase tracking-wider text-slate-400">Signed in as</p>
-            <div className="rounded-2xl border border-slate-100 bg-white px-4 py-3.5" style={card}>
-              <p className="truncate text-[13.5px] font-bold text-slate-800">{COMPANY.name || "Your Company"}</p>
-              {email && <p className="truncate text-[11.5px] font-medium text-slate-400">{email}</p>}
-            </div>
-          </div>
-          <button onClick={doChangePassword} disabled={pwSending} className="flex w-full items-center gap-3 rounded-2xl border border-slate-100 bg-white px-4 py-3.5 text-left transition active:bg-slate-50 disabled:opacity-60" style={card}>
-            <ShieldCheck size={18} className="flex-shrink-0 text-slate-500" />
-            <div className="min-w-0 flex-1">
-              <p className="text-[13.5px] font-bold tracking-tight text-slate-800">{pwSending ? "Sending…" : "Change password"}</p>
-              <p className="mt-0.5 text-[11.5px] font-medium text-slate-400">{pwMsg || "We'll email you a secure reset link."}</p>
-            </div>
-            <ChevronRight size={16} className="flex-shrink-0 text-slate-300" />
-          </button>
-          <button onClick={doSignOut} disabled={signingOut} className="flex w-full items-center gap-3 rounded-2xl border border-slate-100 bg-white px-4 py-3.5 text-left transition active:bg-slate-50 disabled:opacity-60" style={card}>
-            <LogOut size={18} className="flex-shrink-0 text-rose-500" />
-            <p className="text-[13.5px] font-bold tracking-tight text-rose-600">{signingOut ? "Signing out…" : "Sign out"}</p>
-          </button>
-          <div className="pt-2">
-            <div className="flex items-center gap-4">
-              <a href="https://mineex.ca/privacy.html" target="_blank" rel="noreferrer" className="text-[11.5px] font-bold text-slate-500 underline underline-offset-2">Privacy Policy</a>
-              <a href="https://mineex.ca/terms.html" target="_blank" rel="noreferrer" className="text-[11.5px] font-bold text-slate-500 underline underline-offset-2">Terms of Use</a>
-            </div>
-            <p className="mt-3 text-[10px] font-semibold uppercase tracking-widest text-slate-300">MineEx · v1.0</p>
-          </div>
-        </div>
-      )}
-    </BottomSheet>
-  );
-}
-
 // Polished company-profile share sheet — reuses the existing company-profile QR
 // (QRCode -> /app?c=<slug>) and the single share entry point (src/lib/share.js). No second
 // QR system, no ad-hoc share. Shown from the owner profile's Share action.
@@ -8978,16 +8925,166 @@ function CompanyProfileScreen({ onScan, onCreate }) {
         </div>, ppFrameEl || document.body)}
 
       {editing && <EditCompanyProfile initial={co} onSave={(f) => { saveCompany(f); setEditing(false); }} onClose={() => setEditing(false)} />}
-      {settingsOpen && <CompanySettings onClose={() => setSettingsOpen(false)} />}
+      {settingsOpen && (() => {
+        const u = (() => { try { return getUser(); } catch { return null; } })();
+        const inits = (COMPANY.name || "?").trim().split(/\s+/).slice(0, 2).map((w) => w[0] || "").join("").toUpperCase() || "?";
+        return <AccountSettings onClose={() => setSettingsOpen(false)} audience="company" user={u} email={(u && u.email) || ""} displayName={COMPANY.name || "Your Company"} initials={inits} />;
+      })()}
       {sharing && <ShareProfileSheet onClose={() => setSharing(false)} />}
     </div>
   );
 }
 
-function ProfileScreen({ onScan }) {
-  const [toast, setToast] = useState("");
+// Shared account Settings — ONE implementation for investors AND company owners (reused,
+// not duplicated). Self-contained: owns its sub-panel state, handlers, toast and back-stack;
+// identity (who's signed in) is passed in so the same panel serves both audiences. The JSX is
+// the investor Settings verbatim, so the two are identical by construction.
+function AccountSettings({ onClose, audience = "investor", user, email, displayName, initials }) {
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
+  const [broadcasts, setBroadcasts] = useState(true);
   const [signingOut, setSigningOut] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [pwSending, setPwSending] = useState(false);
+  const [toast, setToast] = useState("");
+  const toastT = useRef(null);
+  const pushToast = (msg) => { setToast(msg); clearTimeout(toastT.current); toastT.current = setTimeout(() => setToast(""), 1900); };
+  const cardFlat = { boxShadow: "0 1px 2px rgba(15,23,42,0.04)" };
+  const sectionLabel = "px-1 pb-2 pt-5 text-[11px] font-bold uppercase tracking-widest text-slate-400";
+  // Back: sub-panels first (they sit above), then close Settings — self-contained so both hosts match.
+  useBackHandler(true, () => { if (accountOpen) return setAccountOpen(false); if (notifOpen) return setNotifOpen(false); onClose(); });
+  const doSignOut = async () => {
+    if (signingOut) return;
+    if (!user) { haptic(); window.location.assign("/app?signin=1"); return; }
+    if (!window.confirm("Sign out of MineEx?")) return;
+    haptic(); setSigningOut(true);
+    try { await signOut(); } catch {}
+    window.location.assign("/app");
+  };
+  const doDeleteAccount = async () => {
+    if (deleting || !user) return;
+    if (!window.confirm("Permanently delete your MineEx account?\n\nThis erases your profile and every message you've sent. It cannot be undone.")) return;
+    const typed = window.prompt('This is permanent. Type DELETE to confirm.');
+    if ((typed || "").trim().toUpperCase() !== "DELETE") return;
+    haptic(); setDeleting(true);
+    try {
+      const headers = await authHeaders();
+      const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/delete_own_account`, { method: "POST", headers: { ...headers, "Content-Type": "application/json" }, body: "{}" });
+      if (!r.ok) throw new Error("delete-failed");
+      try { await signOut(); } catch {}
+      window.location.assign("/app");
+    } catch (_) { setDeleting(false); pushToast("Couldn't delete account — try again"); }
+  };
+  const doChangePassword = async () => {
+    if (pwSending || !email) return;
+    haptic(); setPwSending(true);
+    try { await requestPasswordReset(email); pushToast("Password reset link sent"); }
+    catch { pushToast("Couldn't send — try again"); }
+    finally { setPwSending(false); }
+  };
+  return (
+    <>
+      {toast && createPortal(
+        <div className="pointer-events-none absolute inset-x-0 z-[120] flex justify-center pp-fade" style={{ bottom: 96 }}>
+          <span className="rounded-full px-4 py-2 text-[12.5px] font-bold text-white" style={{ background: "rgba(15,23,42,0.92)", boxShadow: "0 8px 22px -8px rgba(15,23,42,0.5)" }}>{toast}</span>
+        </div>, ppFrameEl || document.body)}
+      {createPortal(
+        <div className="absolute inset-0 z-[95] flex flex-col pp-fade" style={{ background: "#f8fafc", paddingTop: "env(safe-area-inset-top, 0px)" }}>
+          <div className="flex flex-shrink-0 items-center gap-3 border-b border-slate-100 bg-white px-3 py-2.5">
+            <button onClick={onClose} aria-label="Back" className="grid h-9 w-9 place-items-center rounded-full text-slate-700 transition active:scale-90"><ChevronLeft size={22} /></button>
+            <p className="text-[15px] font-extrabold tracking-tight text-slate-900">Settings</p>
+          </div>
+          <div className="pp-scroll flex-1 overflow-y-auto px-5 pb-28 pt-1">
+            <p className={sectionLabel}>Communication & Broadcasts</p>
+            <div className="overflow-hidden rounded-2xl border border-slate-100 bg-white" style={cardFlat}>
+              <div className="flex items-start gap-3 px-4 py-3.5">
+                <Radio size={18} className="mt-0.5 flex-shrink-0 text-slate-500" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-[13.5px] font-bold tracking-tight text-slate-800">Broadcast Messages</p>
+                  <p className="mt-0.5 text-[11.5px] font-medium leading-snug text-slate-400">Allow company updates & event follow-ups from companies you follow.</p>
+                </div>
+                <PPSwitch on={broadcasts} onChange={() => { haptic(); setBroadcasts((v) => !v); }} label="Broadcast messages" />
+              </div>
+              <button onClick={() => user ? setNotifOpen(true) : pushToast("Sign in to manage notifications")} className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition active:bg-slate-50" style={{ borderTop: "1px solid #f1f5f9" }}>
+                <Bell size={18} className="flex-shrink-0 text-slate-500" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-[13.5px] font-bold tracking-tight text-slate-800">Notification Preferences</p>
+                  <p className="mt-0.5 text-[11.5px] font-medium text-slate-400">Follows, results, financings, alerts</p>
+                </div>
+                <ChevronRight size={16} className="flex-shrink-0 text-slate-300" />
+              </button>
+            </div>
+            <p className={sectionLabel}>Account</p>
+            <div className="overflow-hidden rounded-2xl border border-slate-100 bg-white" style={cardFlat}>
+              <button onClick={() => user ? setAccountOpen(true) : pushToast("Sign in to manage your account")} className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition active:bg-slate-50">
+                <ShieldCheck size={18} className="flex-shrink-0 text-slate-500" />
+                <span className="min-w-0 flex-1 text-[13.5px] font-bold tracking-tight text-slate-800">Account & Security</span>
+                <ChevronRight size={16} className="flex-shrink-0 text-slate-300" />
+              </button>
+              <a href="https://mineex.ca/privacy.html" target="_blank" rel="noreferrer" className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition active:bg-slate-50" style={{ borderTop: "1px solid #f1f5f9" }}>
+                <Eye size={18} className="flex-shrink-0 text-slate-500" />
+                <span className="min-w-0 flex-1 text-[13.5px] font-bold tracking-tight text-slate-800">Privacy & Data</span>
+                <ArrowUpRight size={16} className="flex-shrink-0 text-slate-300" />
+              </a>
+            </div>
+            <button onClick={doSignOut} disabled={signingOut} className="mt-3 flex w-full items-center gap-3 rounded-2xl border border-slate-100 bg-white px-4 py-3.5 text-left transition active:bg-slate-50 disabled:opacity-60" style={cardFlat}>
+              <LogOut size={18} className={`flex-shrink-0 ${user ? "text-rose-500" : "text-blue-500"}`} />
+              <div className="min-w-0 flex-1">
+                <p className={`text-[13.5px] font-bold tracking-tight ${user ? "text-rose-600" : "text-blue-600"}`}>{signingOut ? "Signing out…" : user ? "Sign out" : "Sign in"}</p>
+                {email && <p className="truncate text-[11px] font-medium text-slate-400">{email}</p>}
+              </div>
+            </button>
+            {user && (
+              <button onClick={doDeleteAccount} disabled={deleting} className="mt-3 w-full py-2 text-center text-[12px] font-semibold text-slate-400 underline underline-offset-2 transition active:opacity-60 disabled:opacity-50">
+                {deleting ? "Deleting account…" : "Delete account"}
+              </button>
+            )}
+            <div className="mt-8 border-t border-slate-100 pt-5">
+              <p className="text-[10.5px] font-medium leading-relaxed text-slate-400">
+                MineEx provides company information for educational and informational purposes only. Nothing here is investment, financial, legal, or tax advice, or an offer or solicitation to buy or sell any security. Company data — including AI-generated summaries — may contain errors. Always do your own research and consult a licensed advisor before investing.
+              </p>
+              <div className="mt-3 flex items-center gap-4">
+                <a href="https://mineex.ca/privacy.html" target="_blank" rel="noreferrer" className="text-[11.5px] font-bold text-slate-500 underline underline-offset-2">Privacy Policy</a>
+                <a href="https://mineex.ca/terms.html" target="_blank" rel="noreferrer" className="text-[11.5px] font-bold text-slate-500 underline underline-offset-2">Terms of Use</a>
+              </div>
+              <p className="mt-3 text-[10px] font-semibold uppercase tracking-widest text-slate-300">MineEx · v1.0</p>
+            </div>
+          </div>
+        </div>, ppFrameEl || document.body)}
+      {notifOpen && <NotificationPrefs onBack={() => setNotifOpen(false)} onToast={pushToast} />}
+      {accountOpen && (
+        <SettingsSubPanel title="Account & Security" onBack={() => setAccountOpen(false)}>
+          <p className={sectionLabel}>Signed in as</p>
+          <div className="rounded-2xl border border-slate-100 bg-white px-4 py-3.5" style={cardFlat}>
+            <div className="flex items-center gap-3">
+              <span className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-full text-[13px] font-extrabold text-white" style={{ background: "linear-gradient(158deg,#0f172a,#334155)" }}>{initials}</span>
+              <div className="min-w-0">
+                <p className="truncate text-[13.5px] font-bold text-slate-800">{displayName}</p>
+                {email && <p className="truncate text-[11.5px] font-medium text-slate-400">{email}</p>}
+              </div>
+            </div>
+          </div>
+          <p className={sectionLabel}>Security</p>
+          <button onClick={doChangePassword} disabled={pwSending} className="flex w-full items-center gap-3 rounded-2xl border border-slate-100 bg-white px-4 py-3.5 text-left transition active:bg-slate-50 disabled:opacity-60" style={cardFlat}>
+            <ShieldCheck size={18} className="flex-shrink-0 text-slate-500" />
+            <div className="min-w-0 flex-1">
+              <p className="text-[13.5px] font-bold tracking-tight text-slate-800">{pwSending ? "Sending…" : "Change password"}</p>
+              <p className="mt-0.5 text-[11.5px] font-medium text-slate-400">We'll email you a secure reset link.</p>
+            </div>
+            <ChevronRight size={16} className="flex-shrink-0 text-slate-300" />
+          </button>
+          <button onClick={doSignOut} disabled={signingOut} className="mt-3 flex w-full items-center gap-3 rounded-2xl border border-slate-100 bg-white px-4 py-3.5 text-left transition active:bg-slate-50 disabled:opacity-60" style={cardFlat}>
+            <LogOut size={18} className="flex-shrink-0 text-rose-500" />
+            <p className="text-[13.5px] font-bold tracking-tight text-rose-600">{signingOut ? "Signing out…" : "Sign out"}</p>
+          </button>
+        </SettingsSubPanel>
+      )}
+    </>
+  );
+}
+
+function ProfileScreen({ onScan }) {
+  const [toast, setToast] = useState("");
   const toastT = useRef(null);
   const soon = (label) => { haptic(); setToast(`${label} — coming soon`); clearTimeout(toastT.current); toastT.current = setTimeout(() => setToast(""), 1700); };
   const user = (() => { try { return getUser(); } catch { return null; } })();
@@ -8997,18 +9094,10 @@ function ProfileScreen({ onScan }) {
   const [pf, setPf] = useState(() => loadInvestorProfile(email));
   const [editing, setEditing] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [notifOpen, setNotifOpen] = useState(false);
-  const [accountOpen, setAccountOpen] = useState(false);
   const [savedOpen, setSavedOpen] = useState(false);
-  // Android back: sub-panels (z-97) sit above Settings (z-95); Saved is separate.
-  useBackHandler(!!(accountOpen || notifOpen || settingsOpen || savedOpen), () => {
-    if (accountOpen) return setAccountOpen(false);
-    if (notifOpen) return setNotifOpen(false);
-    if (settingsOpen) return setSettingsOpen(false);
-    setSavedOpen(false);
-  });
+  // Android back: Settings owns its own back-stack (AccountSettings). Saved is separate.
+  useBackHandler(!!savedOpen, () => setSavedOpen(false));
   const savedCount = savedStore.list().length;
-  const [pwSending, setPwSending] = useState(false);
   const pushToast = (msg) => { setToast(msg); clearTimeout(toastT.current); toastT.current = setTimeout(() => setToast(""), 1900); };
   // Re-read the cached profile when a background cloud hydrate/sign-out updates it.
   useEffect(() => profileBus.sub(() => setPf(loadInvestorProfile(email))), [email]);
@@ -9024,55 +9113,6 @@ function ProfileScreen({ onScan }) {
     { Icon: MapPin, label: "Location", value: location, icBg: "rgba(176,118,46,0.13)", ic: "#b0762e" },
     { Icon: TrendingUp, label: "Investor type", value: investorType, icBg: "rgba(37,99,235,0.12)", ic: "#2563eb" },
   ].filter((r) => r.value);
-
-  // Comms toggle (session-local for V1).
-  const [broadcasts, setBroadcasts] = useState(true);
-
-  const doSignOut = async () => {
-    if (signingOut) return;
-    // Guest (viewing a shared/QR profile without an account) → send to sign-in.
-    if (!user) { haptic(); window.location.assign("/app?signin=1"); return; }
-    if (!window.confirm("Sign out of MineEx?")) return;
-    haptic();
-    setSigningOut(true);
-    try { await signOut(); } catch {}
-    // Return to the app's front door — logged out, this shows the sign-in screen.
-    window.location.assign("/app");
-  };
-
-  // Permanent account deletion (Apple 5.1.1(v)). Double-confirms, calls the
-  // security-definer RPC that wipes the user's data + auth identity, then exits.
-  const doDeleteAccount = async () => {
-    if (deleting || !user) return;
-    if (!window.confirm("Permanently delete your MineEx account?\n\nThis erases your profile and every message you've sent. It cannot be undone.")) return;
-    const typed = window.prompt('This is permanent. Type DELETE to confirm.');
-    if ((typed || "").trim().toUpperCase() !== "DELETE") return;
-    haptic();
-    setDeleting(true);
-    try {
-      const headers = await authHeaders();
-      const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/delete_own_account`, {
-        method: "POST", headers: { ...headers, "Content-Type": "application/json" }, body: "{}",
-      });
-      if (!r.ok) throw new Error("delete-failed");
-      try { await signOut(); } catch {}
-      window.location.assign("/app");
-    } catch (_) {
-      setDeleting(false);
-      setToast("Couldn't delete account — try again");
-      clearTimeout(toastT.current); toastT.current = setTimeout(() => setToast(""), 2200);
-    }
-  };
-
-  // Change password = email the user a secure reset link (reuses the /reset flow).
-  const doChangePassword = async () => {
-    if (pwSending || !email) return;
-    haptic();
-    setPwSending(true);
-    try { await requestPasswordReset(email); pushToast("Password reset link sent"); }
-    catch { pushToast("Couldn't send — try again"); }
-    finally { setPwSending(false); }
-  };
 
   const cardBig = { boxShadow: "0 1px 2px rgba(15,23,42,0.04), 0 12px 26px -20px rgba(15,23,42,0.4)" };
   const cardFlat = { boxShadow: "0 1px 2px rgba(15,23,42,0.04)" };
@@ -9154,111 +9194,8 @@ function ProfileScreen({ onScan }) {
 
       {savedOpen && <SavedPanel onBack={() => setSavedOpen(false)} />}
 
-      {/* SETTINGS — communications, account, sign out, delete, legal (all behind the cog) */}
-      {settingsOpen && createPortal(
-        <div className="absolute inset-0 z-[95] flex flex-col pp-fade" style={{ background: "#f8fafc", paddingTop: "env(safe-area-inset-top, 0px)" }}>
-          <div className="flex flex-shrink-0 items-center gap-3 border-b border-slate-100 bg-white px-3 py-2.5">
-            <button onClick={() => setSettingsOpen(false)} aria-label="Back" className="grid h-9 w-9 place-items-center rounded-full text-slate-700 transition active:scale-90"><ChevronLeft size={22} /></button>
-            <p className="text-[15px] font-extrabold tracking-tight text-slate-900">Settings</p>
-          </div>
-          <div className="pp-scroll flex-1 overflow-y-auto px-5 pb-28 pt-1">
-            {/* Communication & Broadcasts */}
-            <p className={sectionLabel}>Communication & Broadcasts</p>
-            <div className="overflow-hidden rounded-2xl border border-slate-100 bg-white" style={cardFlat}>
-              <div className="flex items-start gap-3 px-4 py-3.5">
-                <Radio size={18} className="mt-0.5 flex-shrink-0 text-slate-500" />
-                <div className="min-w-0 flex-1">
-                  <p className="text-[13.5px] font-bold tracking-tight text-slate-800">Broadcast Messages</p>
-                  <p className="mt-0.5 text-[11.5px] font-medium leading-snug text-slate-400">Allow company updates & event follow-ups from companies you follow.</p>
-                </div>
-                <PPSwitch on={broadcasts} onChange={() => { haptic(); setBroadcasts((v) => !v); }} label="Broadcast messages" />
-              </div>
-              <button onClick={() => user ? setNotifOpen(true) : pushToast("Sign in to manage notifications")} className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition active:bg-slate-50" style={{ borderTop: "1px solid #f1f5f9" }}>
-                <Bell size={18} className="flex-shrink-0 text-slate-500" />
-                <div className="min-w-0 flex-1">
-                  <p className="text-[13.5px] font-bold tracking-tight text-slate-800">Notification Preferences</p>
-                  <p className="mt-0.5 text-[11.5px] font-medium text-slate-400">Follows, results, financings, alerts</p>
-                </div>
-                <ChevronRight size={16} className="flex-shrink-0 text-slate-300" />
-              </button>
-            </div>
-
-            {/* Account settings */}
-            <p className={sectionLabel}>Account</p>
-            <div className="overflow-hidden rounded-2xl border border-slate-100 bg-white" style={cardFlat}>
-              <button onClick={() => user ? setAccountOpen(true) : pushToast("Sign in to manage your account")} className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition active:bg-slate-50">
-                <ShieldCheck size={18} className="flex-shrink-0 text-slate-500" />
-                <span className="min-w-0 flex-1 text-[13.5px] font-bold tracking-tight text-slate-800">Account & Security</span>
-                <ChevronRight size={16} className="flex-shrink-0 text-slate-300" />
-              </button>
-              <a href="https://mineex.ca/privacy.html" target="_blank" rel="noreferrer" className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition active:bg-slate-50" style={{ borderTop: "1px solid #f1f5f9" }}>
-                <Eye size={18} className="flex-shrink-0 text-slate-500" />
-                <span className="min-w-0 flex-1 text-[13.5px] font-bold tracking-tight text-slate-800">Privacy & Data</span>
-                <ArrowUpRight size={16} className="flex-shrink-0 text-slate-300" />
-              </a>
-            </div>
-
-            {/* Sign out */}
-            <button onClick={doSignOut} disabled={signingOut} className="mt-3 flex w-full items-center gap-3 rounded-2xl border border-slate-100 bg-white px-4 py-3.5 text-left transition active:bg-slate-50 disabled:opacity-60" style={cardFlat}>
-              <LogOut size={18} className={`flex-shrink-0 ${user ? "text-rose-500" : "text-blue-500"}`} />
-              <div className="min-w-0 flex-1">
-                <p className={`text-[13.5px] font-bold tracking-tight ${user ? "text-rose-600" : "text-blue-600"}`}>{signingOut ? "Signing out…" : user ? "Sign out" : "Sign in"}</p>
-                {email && <p className="truncate text-[11px] font-medium text-slate-400">{email}</p>}
-              </div>
-            </button>
-
-            {/* Permanent account deletion — required by the App Store when accounts exist. */}
-            {user && (
-              <button onClick={doDeleteAccount} disabled={deleting} className="mt-3 w-full py-2 text-center text-[12px] font-semibold text-slate-400 underline underline-offset-2 transition active:opacity-60 disabled:opacity-50">
-                {deleting ? "Deleting account…" : "Delete account"}
-              </button>
-            )}
-
-            {/* Legal */}
-            <div className="mt-8 border-t border-slate-100 pt-5">
-              <p className="text-[10.5px] font-medium leading-relaxed text-slate-400">
-                MineEx provides company information for educational and informational purposes only. Nothing here is investment, financial, legal, or tax advice, or an offer or solicitation to buy or sell any security. Company data — including AI-generated summaries — may contain errors. Always do your own research and consult a licensed advisor before investing.
-              </p>
-              <div className="mt-3 flex items-center gap-4">
-                <a href="https://mineex.ca/privacy.html" target="_blank" rel="noreferrer" className="text-[11.5px] font-bold text-slate-500 underline underline-offset-2">Privacy Policy</a>
-                <a href="https://mineex.ca/terms.html" target="_blank" rel="noreferrer" className="text-[11.5px] font-bold text-slate-500 underline underline-offset-2">Terms of Use</a>
-              </div>
-              <p className="mt-3 text-[10px] font-semibold uppercase tracking-widest text-slate-300">MineEx · v1.0</p>
-            </div>
-          </div>
-        </div>, ppFrameEl || document.body)}
-
-      {/* Notification preferences — cloud-backed toggles (Stage 6) */}
-      {notifOpen && <NotificationPrefs onBack={() => setNotifOpen(false)} onToast={pushToast} />}
-
-      {/* Account & Security — email, change password, sign out */}
-      {accountOpen && (
-        <SettingsSubPanel title="Account & Security" onBack={() => setAccountOpen(false)}>
-          <p className={sectionLabel}>Signed in as</p>
-          <div className="rounded-2xl border border-slate-100 bg-white px-4 py-3.5" style={cardFlat}>
-            <div className="flex items-center gap-3">
-              <span className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-full text-[13px] font-extrabold text-white" style={{ background: "linear-gradient(158deg,#0f172a,#334155)" }}>{initials}</span>
-              <div className="min-w-0">
-                <p className="truncate text-[13.5px] font-bold text-slate-800">{name}</p>
-                {email && <p className="truncate text-[11.5px] font-medium text-slate-400">{email}</p>}
-              </div>
-            </div>
-          </div>
-          <p className={sectionLabel}>Security</p>
-          <button onClick={doChangePassword} disabled={pwSending} className="flex w-full items-center gap-3 rounded-2xl border border-slate-100 bg-white px-4 py-3.5 text-left transition active:bg-slate-50 disabled:opacity-60" style={cardFlat}>
-            <ShieldCheck size={18} className="flex-shrink-0 text-slate-500" />
-            <div className="min-w-0 flex-1">
-              <p className="text-[13.5px] font-bold tracking-tight text-slate-800">{pwSending ? "Sending…" : "Change password"}</p>
-              <p className="mt-0.5 text-[11.5px] font-medium text-slate-400">We'll email you a secure reset link.</p>
-            </div>
-            <ChevronRight size={16} className="flex-shrink-0 text-slate-300" />
-          </button>
-          <button onClick={doSignOut} disabled={signingOut} className="mt-3 flex w-full items-center gap-3 rounded-2xl border border-slate-100 bg-white px-4 py-3.5 text-left transition active:bg-slate-50 disabled:opacity-60" style={cardFlat}>
-            <LogOut size={18} className="flex-shrink-0 text-rose-500" />
-            <p className="text-[13.5px] font-bold tracking-tight text-rose-600">{signingOut ? "Signing out…" : "Sign out"}</p>
-          </button>
-        </SettingsSubPanel>
-      )}
+      {/* Settings — shared AccountSettings component (identical for investors and owners). */}
+      {settingsOpen && <AccountSettings onClose={() => setSettingsOpen(false)} user={user} email={email} displayName={name} initials={initials} />}
     </div>
   );
 }
