@@ -98,7 +98,16 @@ Rebuilt from switcher HEAD: `vite build` ✅ → `cap sync ios` ✅ → `xcodebu
 | App launches / renders real UI (no SW1–3 regression) | **PASS (sim)** | Welcome "Every junior miner, in one feed." rendered; cobalt CTA; safe areas correct; screenshot |
 | Switcher card / company mode (native) | **NOT REACHABLE (native)** | requires a real signed-in owner session (Claude does not enter the password); verified in desktop pane: investor-none, multi-company picker, unauthorized redirect |
 
-**Build-reproducibility risk (flagged):** `cap sync` rewrote `ios/App/CapApp-SPM/Package.swift` plugin paths to `../../../../Passport V1/node_modules/...` (worktree shares the toolchain). Machine-specific — **must not ship**; left uncommitted. Fix before release: give this worktree its own `node_modules`, or regenerate on the build machine and never commit the local variant.
+**Build-reproducibility risk (flagged):** `cap sync` rewrote `ios/App/CapApp-SPM/Package.swift` plugin paths to `../../../../Passport V1/node_modules/...` (worktree shares the toolchain). Machine-specific — **must not ship**; left uncommitted.
+
+**Root cause (confirmed 2026-10-09):** this worktree's `node_modules` is a **symlink** → `/Users/leifer/Claude Projects/Passport V1/node_modules`. The *committed* `Package.swift` already uses the correct portable form `path: "../../../node_modules/@…"` (relative, stays inside the worktree). `cap sync` **resolves the symlink to its real target** and writes an out-of-worktree path `../../../../Passport V1/node_modules/@…`, which only works on this machine with this exact sibling layout.
+
+**Proposed fix (choose one; recommend B for CI, C as the quick guard):**
+- **A — Own `node_modules` in the worktree:** `rm node_modules` (symlink) → `npm ci` in-worktree, then `npx cap sync ios`. `cap sync` then resolves to `../../../node_modules/@…` (portable, in-tree) and that form is safe to commit. Cost: duplicate `node_modules` (~hundreds MB) per worktree.
+- **B — Generate native on the build/CI host:** never commit the synced `Package.swift` variant; on the release machine run `npm ci && npx cap sync ios` where `node_modules` is real and in-tree, build from that. Keeps the repo clean; CI is the source of truth for native deps.
+- **C — Normalize after sync (cheapest):** add an `npm run cap:sync` wrapper that runs `npx cap sync ios` then rewrites any `../../../../Passport V1/node_modules/` back to `../../../node_modules/` in `Package.swift`, so the committed file always stays portable. One `sed` post-step; no extra disk.
+
+Until one lands: **keep `Package.swift` + `Package.resolved` uncommitted** (current state) so the machine-specific variant never ships.
 
 ## 5. Release gate
 - [ ] All Section 1 rows: Preserved? = yes, Approved
