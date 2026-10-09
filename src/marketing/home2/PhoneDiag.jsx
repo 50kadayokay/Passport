@@ -185,7 +185,14 @@ function startBootWatch() {
         const q = cover.getBoundingClientRect();
         const onScreen = q.width > 4 && q.height > 4 && q.bottom > 0 && q.top < window.innerHeight;
         const cx = Math.round(q.left + q.width / 2), cy = Math.round(q.top + q.height / 2);
-        const hit = (onScreen && cy > 0 && cy < window.innerHeight) ? document.elementFromPoint(cx, cy) : null;
+        // Look THROUGH this overlay. The panel is fixed to the bottom at up to 46vh, so a
+        // plain elementFromPoint at the cover's centre hits the panel and reports the cover
+        // as occluded — a defect invented by the instrument. elementsFromPoint gives the
+        // whole stack; the first entry that is not part of the panel is what the visitor
+        // would actually see there.
+        const hit = (onScreen && cy > 0 && cy < window.innerHeight)
+          ? (document.elementsFromPoint(cx, cy) || []).find((el) => !el.closest("[data-mxdiag]")) || null
+          : null;
         const v = {
           t, onScreen, opacity: o, visibility: cs.visibility, display: cs.display,
           topmost: hit ? (hit === img || hit === cover || cover.contains(hit)) : null,
@@ -469,7 +476,7 @@ export default function PhoneDiag({ state, label }) {
   const drift = L && (Math.abs(L.dTop || 0) > 1 || Math.abs(L.dBottom || 0) > 1);
 
   return (
-    <div style={{
+    <div data-mxdiag="1" style={{
       position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 99999,
       background: "rgba(5,7,10,0.94)", color: "#dfe6f0", font: "11px/1.35 ui-monospace,Menlo,monospace",
       padding: "8px 10px", maxHeight: open ? "46vh" : 30, overflow: "auto",
