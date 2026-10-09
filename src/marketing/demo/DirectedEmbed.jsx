@@ -201,6 +201,61 @@ const waitFor = (cond, timeout = 2000) =>
   });
 const easeInOut = (u) => (u < 0.5 ? 2 * u * u : 1 - Math.pow(-2 * u + 2, 2) / 2);
 
+
+// ─────────────────────────────────────────────────────────────────────────────
+// deferUnseenImages — stop the demo downloading imagery it never shows.
+//
+// The embed boots at /app?c=…&embed=1, which mounts the app's TODAY feed as well as
+// the company profile. Measured on a cold load at 4x CPU / Fast 3G: 29 images in the
+// frame, 26 of them on [data-page="today"] and every one a remote news image, against
+// just 2 on [data-page="overview"] — the page the walkthrough actually opens on. After
+// 14 seconds only 5 of the 29 had decoded, and the first screen's own avatar, status
+// image and status logo were still pending behind the news queue. That is why the
+// first walkthrough screen renders without its imagery and why both devices feel slow:
+// the connection is busy fetching 26 pictures the visitor never sees.
+//
+// The walkthrough paints overview, timeline, capital, team and updates — never today
+// (verified by reading the painted page at the centre of the screen at every state).
+// So Today's images are parked: src moves to data-mx-src and is put back the moment
+// that page is actually painted, which keeps the demo correct if the story ever
+// changes. Nothing else is touched, and no image the visitor sees is affected.
+// ─────────────────────────────────────────────────────────────────────────────
+function deferUnseenImages(doc) {
+  if (!doc || doc.__mxDeferred) return;
+  doc.__mxDeferred = true;
+  const park = () => {
+    try {
+      doc.querySelectorAll('[data-page="today"] img[src]').forEach((im) => {
+        const src = im.getAttribute("src");
+        if (!src || im.dataset.mxSrc) return;
+        im.dataset.mxSrc = src;
+        im.removeAttribute("src");           // cancels the fetch; nothing is displayed
+      });
+    } catch (_) {}
+  };
+  const restore = () => {
+    try {
+      doc.querySelectorAll("img[data-mx-src]").forEach((im) => {
+        im.setAttribute("src", im.dataset.mxSrc);
+        delete im.dataset.mxSrc;
+      });
+    } catch (_) {}
+  };
+  park();
+  const mo = new doc.defaultView.MutationObserver(() => {
+    // If Today is ever the page actually painted, give it its images back at once.
+    let painted = null;
+    try {
+      const el = doc.elementFromPoint(doc.defaultView.innerWidth / 2, doc.defaultView.innerHeight * 0.45);
+      for (let a = el; a; a = a.parentElement) if (a.dataset && a.dataset.page) { painted = a.dataset.page; break; }
+    } catch (_) {}
+    if (painted === "today") { restore(); mo.disconnect(); return; }
+    park();
+  });
+  try { mo.observe(doc.documentElement, { childList: true, subtree: true }); } catch (_) {}
+  try { doc.defaultView.addEventListener("pagehide", () => mo.disconnect(), { once: true }); } catch (_) {}
+}
+
 export function DirectedEmbed({ variant = "full", hardware = false, cutout = false } = {}) {
   const STATES = variant === "home" ? HOME_STATES : FULL_STATES;
   const boxRef = useRef(null);
@@ -1033,7 +1088,7 @@ export function DirectedEmbed({ variant = "full", hardware = false, cutout = fal
                 width={DEVICE_W}
                 height={DEVICE_H}
                 scrolling="no"
-                onLoad={() => { setReady(false); settleApp(); }}
+                onLoad={(e) => { try { deferUnseenImages(e.currentTarget.contentDocument); } catch (_) {} setReady(false); settleApp(); }}
                 style={{ border: 0, display: "block", width: DEVICE_W, height: DEVICE_H, transform: `scale(${dims.scale})`, transformOrigin: "top left", pointerEvents: "none" }}
               />}
               {DEBUG_SCREEN && <div style={{ position: "absolute", inset: 0, background: "#ff1493" }} />}
@@ -1084,7 +1139,7 @@ export function DirectedEmbed({ variant = "full", hardware = false, cutout = fal
                 width={DEVICE_W}
                 height={DEVICE_H}
                 scrolling="no"
-                onLoad={() => { setReady(false); settleApp(); }}
+                onLoad={(e) => { try { deferUnseenImages(e.currentTarget.contentDocument); } catch (_) {} setReady(false); settleApp(); }}
                 style={{ border: 0, display: "block", width: DEVICE_W, height: DEVICE_H, transform: `translate(${dims.appOffX}px, ${dims.appOffY}px) scale(${dims.scale})`, transformOrigin: "top left", pointerEvents: "none" }}
               />}
               {!DEBUG_SCREEN && <BootCover ready={ready} />}
@@ -1111,7 +1166,7 @@ export function DirectedEmbed({ variant = "full", hardware = false, cutout = fal
             width={DEVICE_W}
             height={DEVICE_H}
             scrolling="no"
-            onLoad={() => { setReady(false); settleApp(); }}
+            onLoad={(e) => { try { deferUnseenImages(e.currentTarget.contentDocument); } catch (_) {} setReady(false); settleApp(); }}
             style={{ border: 0, display: "block", width: DEVICE_W, height: DEVICE_H, transform: `scale(${dims.scale})`, transformOrigin: "top left", pointerEvents: "none" }}
           />
           {/* Neutral device-coloured cover while the app (re)boots — no text, no white,
