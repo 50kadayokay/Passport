@@ -690,7 +690,9 @@ function AppRoot() {
     (async () => {
       const params = new URLSearchParams(window.location.search);
       const requestedSlug = params.get("c");            // a SPECIFIC company was asked for
-      const slug = requestedSlug || "kingsmen-resources";
+      const manageSlug = params.get("manage");          // native "switch to company" (owner) entry
+      const isManage = !!manageSlug && !requestedSlug;  // manage a company I'm a member of
+      const slug = requestedSlug || manageSlug || "kingsmen-resources";
       const previewToken = params.get("preview");
       let ok = false;
 
@@ -768,6 +770,14 @@ function AppRoot() {
                 window.__PP__.COMPANY_ACCOUNT = true;
                 window.__CO_ID__ = rows[0].id; window.__CO_SLUG__ = slug; window.__CO_ROLE__ = coRole;
               }
+              // Native "manage" entry (?manage=<slug>): authorization is the active membership
+              // above — NEVER the URL. If the caller is a verified member, boot into owner mode
+              // on the Profile tab; otherwise show nothing of this company and bounce to the
+              // investor app (handles stale links, revoked memberships, unauthorized attempts).
+              if (isManage) {
+                if (coRole) { try { window.__CO_MANAGE__ = true; } catch (_) {} }
+                else { cancelled = true; window.location.replace("/app"); return; }
+              }
             } catch (_) {}
           } else if (rows && rows[0] && slug === "kingsmen-resources") {
             // The published Kingsmen row exists but carries no `pp`. Kingsmen is the app's
@@ -781,6 +791,11 @@ function AppRoot() {
         // Surface the company's real published posts (press releases + media) on the profile.
         if (ok && coId && window.__PP__) { try { await mergeCompanyPosts(coId, base); } catch (_) {} }
       } catch (_) { /* handled below */ }
+
+      // Manage-mode safety net: if ?manage=<slug> did NOT resolve to a verified active
+      // membership (no pp, no row, lost session, or any load error), never fall through to a
+      // half-managed state — bounce to the investor app. Authorization is the membership only.
+      if (isManage && !(typeof window !== "undefined" && window.__CO_MANAGE__)) { cancelled = true; try { window.location.replace("/app"); } catch (_) {} return; }
 
       // The directory feeds Explore + Today. An EMBEDDED single profile (?c=slug&embed=1 —
       // every marketing phone) never shows either, so making it await this query only

@@ -11407,7 +11407,9 @@ export default function App({ guest = false } = {}) {
   // also runs with ?embed=1 but drives itself via __ppNav — it must NOT get `demo`,
   // or its tab locks to overview and swiping stops working.
   const investorDemo = (() => { try { return !!window.__INVESTOR_DEMO__; } catch (_) { return false; } })();
-  const [nav, setNav] = useState("today");   // today · explore · following · profile (· scan via header)
+  // today · explore · following · profile (· scan via header). Boot straight to the Profile tab
+  // in company-manage mode (?manage=<slug> → owner view), investor default otherwise.
+  const [nav, setNav] = useState(() => { try { return (typeof window !== "undefined" && window.__CO_MANAGE__) ? "profile" : "today"; } catch (_) { return "today"; } });
   // Embed-only: the marketing Investor page drives which Pro-Profile view shows
   // ({ tab, sheet }) via window.__appDemoGo — handled through CompanyProfile's `demo` prop.
   const [demoProfile, setDemoProfile] = useState({ tab: "overview", sheet: null });
