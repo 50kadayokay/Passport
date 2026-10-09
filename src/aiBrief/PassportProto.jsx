@@ -8699,10 +8699,12 @@ function SavedPanel({ onBack }) {
    editable profile (company NAME is locked) and a + button to post media.
    ============================================================ */
 function EditCompanyProfile({ initial, onSave, onClose }) {
-  const [f, setF] = useState(() => ({ avatar: "", bio: "", website: "", email: "", phone: "", address: "", linkedin: "", twitter: "", instagram: "", ...initial }));
+  const [f, setF] = useState(() => ({ avatar: "", bio: "", website: "", email: "", phone: "", address: "", linkedin: "", twitter: "", instagram: "", contactName: "", contactRole: "", contactPhoto: "", ...initial }));
   const set = (k) => (e) => setF((s) => ({ ...s, [k]: e.target.value }));
   const fileRef = useRef(null);
+  const contactFileRef = useRef(null);
   const pickAvatar = (e) => { const file = e.target.files && e.target.files[0]; if (file) { try { setF((s) => ({ ...s, avatar: URL.createObjectURL(file), avatarFile: file })); } catch (_) {} } };
+  const pickContactPhoto = (e) => { const file = e.target.files && e.target.files[0]; if (file) { try { setF((s) => ({ ...s, contactPhoto: URL.createObjectURL(file), contactPhotoFile: file })); } catch (_) {} } };
   const field = ({ label, k, ph, Icon, textarea, maxLength }) => (
     <label className="block">
       <span className="mb-1.5 flex items-center gap-1.5 text-[10.5px] font-bold uppercase tracking-wider text-slate-400">{Icon && <Icon size={12} />}{label}</span>
@@ -8739,6 +8741,21 @@ function EditCompanyProfile({ initial, onSave, onClose }) {
           {field({ label: "LinkedIn", k: "linkedin", ph: "company/your-co", Icon: Linkedin, maxLength: 100 })}
           {field({ label: "X (Twitter)", k: "twitter", ph: "handle", Icon: Twitter, maxLength: 60 })}
           {field({ label: "Instagram", k: "instagram", ph: "handle", Icon: Instagram, maxLength: 60 })}
+
+          {/* Investor Relations contact — the person shown on the Contact card. */}
+          <div className="border-t border-slate-100 pt-3">
+            <p className="mb-2 text-[10.5px] font-bold uppercase tracking-wider text-slate-400">Investor Relations contact</p>
+            <div className="flex items-center gap-3">
+              <div className="grid h-14 w-14 flex-shrink-0 place-items-center overflow-hidden rounded-full border border-slate-200 bg-white">
+                {f.contactPhoto ? <img src={f.contactPhoto} alt="" className="h-full w-full object-cover" /> : <User size={20} className="text-slate-400" />}
+              </div>
+              <button type="button" onClick={() => contactFileRef.current && contactFileRef.current.click()} className="flex items-center gap-1.5 rounded-full border border-slate-200 px-3 py-2 text-[12px] font-bold text-slate-700 active:scale-95"><Camera size={14} /> {f.contactPhoto ? "Change photo" : "Add photo"}</button>
+              <input ref={contactFileRef} type="file" accept="image/*" onChange={pickContactPhoto} className="hidden" />
+            </div>
+          </div>
+          {field({ label: "Contact name", k: "contactName", ph: "e.g. Scott Emerson", Icon: User, maxLength: 80 })}
+          {field({ label: "Contact title", k: "contactRole", ph: "e.g. President & CEO", Icon: Briefcase, maxLength: 80 })}
+
           <button type="button" onClick={() => { haptic(); onSave(f); close(); }} className="mt-2 flex h-12 w-full items-center justify-center rounded-xl text-[13px] font-bold uppercase tracking-wide text-white transition active:scale-95" style={{ background: EM }}>Save profile</button>
         </div>
       )}
@@ -8914,6 +8931,7 @@ function CompanyProfileScreen({ onScan, onCreate }) {
     email: (CONTACT && CONTACT.email) || "", phone: (CONTACT && CONTACT.phone) || "",
     address: COMPANY.headquarters || "",
     linkedin: COMPANY.linkedin || "", twitter: COMPANY.twitter || "", instagram: COMPANY.instagram || "",
+    contactName: (CONTACT && CONTACT.name) || "", contactRole: (CONTACT && CONTACT.role) || "", contactPhoto: (CONTACT && CONTACT.photo) || "",
   }));
   const [toast, setToast] = useState("");
   const toastT = useRef(null);
@@ -8929,11 +8947,13 @@ function CompanyProfileScreen({ onScan, onCreate }) {
     try {
       let avatar = f.avatar;
       if (f.avatarFile) { try { const url = await uploadCompanyMedia(f.avatarFile); if (url) avatar = url; } catch (_) {} }
+      let contactPhoto = f.contactPhoto;
+      if (f.contactPhotoFile) { try { const url = await uploadCompanyMedia(f.contactPhotoFile); if (url) contactPhoto = url; } catch (_) {} }
       const h = await authHeaders();
       const cur = await fetch(`${SUPABASE_URL}/rest/v1/companies?id=eq.${coId}&select=profile`, { headers: h }).then((r) => r.json()).catch(() => []);
       const profile = (cur && cur[0] && cur[0].profile) || {};
       profile.company = { ...(profile.company || {}), slogan: f.bio, website: f.website, headquarters: f.address, linkedin: f.linkedin, twitter: f.twitter, instagram: f.instagram };
-      profile.contact = { ...(profile.contact || {}), email: f.email, phone: f.phone };
+      profile.contact = { ...(profile.contact || {}), email: f.email, phone: f.phone, name: f.contactName, role: f.contactRole, photo: contactPhoto };
       profile.brand = { ...(profile.brand || {}), avatar };
       try { profile.pp = mapProfileToPP(profile); } catch (_) {}
       const saved = await updateCompanyProfile(coId, profile);
