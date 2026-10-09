@@ -745,12 +745,28 @@ function AppRoot() {
           if (rows && rows[0]) { try { window.__CANON_PROJECTS__ = Array.isArray(rows[0].projects) ? rows[0].projects : null; } catch (_) {} }
           if (rows && rows[0] && rows[0].pp) {
             window.__PP__ = rows[0].pp; try { window.__PP__.ACCOUNT_TIER = rows[0].tier; } catch (_) {} coId = rows[0].id || null; ok = true;
-            // Company account: this signed-in user OWNS this company → the Profile tab becomes
-            // their editable company profile (+ publish). Captured for the save path.
+            // Company account: a signed-in user who MANAGES this company → the Profile tab
+            // becomes their editable company profile (+ publish). Reconciled to the canonical
+            // authorization model (migration 0006): management is granted by owner_id OR an
+            // ACTIVE company_memberships row — matching the server's owns_company()/RLS, which
+            // already accepts either. The membership query is RLS-backed (it can only return the
+            // caller's own rows), so this is real authorization, never the slug/URL.
+            // NOTE: launch only mints the 'owner' role; when editor/viewer/analyst roles ship,
+            // the owner UI must gate write/publish actions by __CO_ROLE__ (captured below).
             try {
+              let coRole = null;
               if (me && rows[0].owner_id && rows[0].owner_id === me.id) {
+                coRole = "owner";
+              } else if (me && rows[0].id) {
+                try {
+                  const mres = await fetch(`${SUPABASE_URL}/rest/v1/company_memberships?company_id=eq.${rows[0].id}&user_id=eq.${me.id}&status=eq.active&select=role&limit=1`, { headers: h });
+                  const mrows = await mres.json().catch(() => []);
+                  if (Array.isArray(mrows) && mrows[0] && mrows[0].role) coRole = mrows[0].role;
+                } catch (_) {}
+              }
+              if (coRole) {
                 window.__PP__.COMPANY_ACCOUNT = true;
-                window.__CO_ID__ = rows[0].id; window.__CO_SLUG__ = slug;
+                window.__CO_ID__ = rows[0].id; window.__CO_SLUG__ = slug; window.__CO_ROLE__ = coRole;
               }
             } catch (_) {}
           } else if (rows && rows[0] && slug === "kingsmen-resources") {
