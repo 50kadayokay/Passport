@@ -631,14 +631,27 @@ function ChapterBg({ reduce, paused }) {
   // Only the active chapter's sheet animates its blooms; the two hidden sheets freeze theirs
   // (keeps the 3× atmosphere at the original single-atmosphere GPU cost).
   const ap = paused ? "paused" : "running";
+  const { mobile } = useViewport();
+  // The vertical mask fades the blooms IN from the top so they do not run under the nav. It
+  // had no fade at the BOTTOM, so they stayed at full strength to the stage's bottom edge.
+  // On a desktop-height viewport nothing meets that edge. On a phone the browser's own UI
+  // cuts the page short, so the still-tinted final rows sit directly against near-white
+  // browser chrome and the difference reads as a straight horizontal line under the stand.
+  // Measured from the device screenshot: last page row 241,244,239 against browser UI
+  // 253,252,253 — a full-width step of about ten levels, 433 of 454 columns wide.
+  // A bottom fade returns those rows to the page's own #fbfcfe so there is nothing to step
+  // against. Phones only; desktop keeps the original mask exactly.
+  const vMask = mobile
+    ? "linear-gradient(to bottom, transparent 0%, transparent 8%, #000 28%, #000 72%, transparent 97%)"
+    : "linear-gradient(to bottom, transparent 0%, transparent 8%, #000 28%)";
   const blob = (pos, color) => ({ ...fblob(pos, color), animationPlayState: ap });
   return (
     <div aria-hidden style={{ position: "absolute", inset: 0, zIndex: 0, pointerEvents: "none" }}>
       <div style={{ position: "absolute", inset: 0, background: "#fbfcfe" }} />
       <div style={{ position: "absolute", right: 0, top: 0, bottom: 0, width: "64%", overflow: "hidden",
-        WebkitMaskImage: "linear-gradient(to right, transparent, #000 40%), linear-gradient(to bottom, transparent 0%, transparent 8%, #000 28%)",
+        WebkitMaskImage: `linear-gradient(to right, transparent, #000 40%), ${vMask}`,
         WebkitMaskComposite: "source-in",
-        maskImage: "linear-gradient(to right, transparent, #000 40%), linear-gradient(to bottom, transparent 0%, transparent 8%, #000 28%)",
+        maskImage: `linear-gradient(to right, transparent, #000 40%), ${vMask}`,
         maskComposite: "intersect" }}>
         <span className={reduce ? "" : "mx-fa"} style={blob("60% 46%", "rgba(37,99,235,.50)")} />
         <span className={reduce ? "" : "mx-fb"} style={blob("52% 66%", "rgba(59,130,246,.40)")} />
