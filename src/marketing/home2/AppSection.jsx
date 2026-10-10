@@ -109,6 +109,18 @@ export default function AppSection() {
   const slow = (() => { try { const v = parseFloat(new URLSearchParams(window.location.search).get("tslow")); return v > 0 ? Math.min(12, v) : 1; } catch (_) { return 1; } })();
 
   const [idx, setIdx] = useState(0);
+  // The card's opening entrance may only begin once the device has ARRIVED. On a phone the
+  // chapter slides in over SHEET_MS, and an entrance started on the press plays underneath a
+  // moving phone — in the reported recording the device simply appeared at 0.99s already
+  // carrying its photograph and logo at full opacity, with nothing left to watch. This waits
+  // out the slide, then hands DirectedEmbed a single true.
+  const [appOpenReady, setAppOpenReady] = useState(false);
+  useEffect(() => {
+    if (!mobile || appOpenReady) return;
+    if (idx < APP0 || idx > CONF0 - 1) return;
+    const t = setTimeout(() => setAppOpenReady(true), SHEET_MS + 120);
+    return () => clearTimeout(t);
+  }, [mobile, idx, appOpenReady]);
   const idxRef = useRef(0);
   useEffect(() => { idxRef.current = idx; }, [idx]);
 
@@ -492,7 +504,7 @@ export default function AppSection() {
               screen at boot. Without this the card played its whole opening — hero in,
               logo in, flip — while the visitor was still reading the hero, and arrived
               already finished. null keeps the desktop behaviour exactly as it was. */}
-          <DirectedEmbed variant="home" hardware cutout openWhen={mobile ? idx >= APP0 : null} />
+          <DirectedEmbed variant="home" hardware cutout openWhen={mobile ? appOpenReady : null} />
         </div>
       </div>
     </div>

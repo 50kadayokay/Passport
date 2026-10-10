@@ -1033,6 +1033,16 @@ export function DirectedEmbed({ variant = "full", hardware = false, cutout = fal
     // cover takes 420ms; an entrance begun on the reveal frame plays most of itself behind
     // it (measured on an earlier build: the logo reached 0.94 while the cover was at 0.54).
     const OPEN_LEAD = 300;
+    // Wait for the machine to go idle instead of giving up on it. The opening is fired once
+    // and the caller has already marked it spent, so a bare `if (S.animating) return` throws
+    // the entrance away whenever the chapter is still in flight — which, when the opening is
+    // gated on the chapter arriving, is EXACTLY when it is called. That is why the device
+    // showed the card fully formed with no entrance: it was consumed, not played.
+    const waitIdle = async () => {
+      const t0 = performance.now();
+      while (S.animating && performance.now() - t0 < 4000) await delay(60);
+      return !S.animating;
+    };
     const playOpening = async () => {
       const w = win();
       if (!w || !w.__ppPlayOpening) return;
@@ -1045,9 +1055,9 @@ export function DirectedEmbed({ variant = "full", hardware = false, cutout = fal
         // holds, then the REAL Company Status flip runs and rests on the status/info
         // face — the same resting Overview the walkthrough shows. The state index stays
         // at 0 (Overview); only the app's own face flips, exactly as in the full engine.
-        if (S.cur !== 0 || S.animating) return;
+        if (!(await waitIdle()) || S.cur !== 0) return;
         await delay(OPEN_LEAD);
-        if (S.cur !== 0 || S.animating) return;
+        if (S.cur !== 0) return;
         await playOpening();                       // hero in, logo in — the app's own sequence
         if (S.cur !== 0 || S.animating) return;    // an arrow during the entrance wins
         await delay(OPEN_HOLD);
@@ -1056,9 +1066,9 @@ export function DirectedEmbed({ variant = "full", hardware = false, cutout = fal
         leadTab("overview");                       // consistent tab indicator from the first frame
         return;
       }
-      if (S.cur !== 0 || S.animating) return;
+      if (!(await waitIdle()) || S.cur !== 0) return;
       await delay(OPEN_LEAD);
-      if (S.cur !== 0 || S.animating) return;
+      if (S.cur !== 0) return;
       await playOpening();                      // hero in, logo in — the app's own sequence
       if (S.cur !== 0 || S.animating) return;
       await delay(OPEN_HOLD);
