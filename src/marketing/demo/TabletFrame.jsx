@@ -137,52 +137,13 @@ export default function TabletFrame({
     return () => { cancelAnimationFrame(r1); cancelAnimationFrame(r2); if (raf) cancelAnimationFrame(raf); clearTimeout(t); };
   }, [ready, navSid, navStep, navSmooth]);
 
-  // PHONE EMBED ONLY — hold the deck's photography to the pages actually on screen.
-  //
-  // Measured on the device: the embedded deck had 45 image elements and every one of them
-  // was loaded, for a presentation that shows ONE page at a time. Even after the small
-  // renditions that is ~40MB of decoded bitmaps resident, and iOS answers that by evicting
-  // decodes and refusing new ones — which is why the deck's photographs come up black while
-  // its text still draws perfectly. The text is the proof the layer composites fine and the
-  // problem is image memory, not rendering.
-  //
-  // So the current section and its immediate neighbours keep their `src`; everything else is
-  // parked on `data-mx-held` and restored the moment navigation comes near. Restoring runs
-  // in the same commit as the scroll, which then eases over 620ms, and the bytes are already
-  // in the HTTP cache, so a page has its photography before it arrives.
-  //
-  // Gated on `img=sm`, which only the marketing home page sets, and only on a phone. The
-  // booth, the gallery and direct visits never enter this path, and nothing about the deck's
-  // markup, layout or animation is changed — only which images are currently holding memory.
-  useEffect(() => {
-    if (!ready || !/[?&]img=sm(?:&|$)/.test(srcProp || "")) return;
-    const doc = iframeRef.current && iframeRef.current.contentDocument;
-    if (!doc) return;
-    const KEEP = 1;
-    const apply = () => {
-      try {
-        const secs = Array.from(doc.querySelectorAll("[data-sid]"));
-        if (!secs.length) return;
-        let idx = secs.findIndex((s) => s.getAttribute("data-sid") === navSid);
-        if (idx < 0) idx = 0;
-        secs.forEach((sec, i) => {
-          const near = Math.abs(i - idx) <= KEEP;
-          for (const im of sec.querySelectorAll("img")) {
-            const held = im.getAttribute("data-mx-held");
-            if (near) {
-              if (held) { im.setAttribute("src", held); im.removeAttribute("data-mx-held"); }
-            } else if (!held && im.getAttribute("src")) {
-              im.setAttribute("data-mx-held", im.getAttribute("src"));
-              im.removeAttribute("src");
-            }
-          }
-        });
-      } catch (_) {}
-    };
-    apply();
-    const t = setTimeout(apply, 420);   // again once the deck has finished laying out
-    return () => clearTimeout(t);
-  }, [ready, navSid, srcProp]);
+  // NOTE — there was a lazy-load here that parked the deck's photography outside the current
+  // section and restored it on approach. It cut resident memory hard, but it was the wrong
+  // trade: parking and restoring images across a presentation is how you get pop-in, and this
+  // deck is supposed to move the way it does on desktop. It was removed once the renditions
+  // were cut to each image's own measured display size, which brings the WHOLE deck to about
+  // 21MB decoded — affordable with every page resident, so nothing has to be unloaded and
+  // nothing has to arrive late. Don't reintroduce it without first checking that number.
 
   const scale = screenW > 0 ? screenW / renderW : 0;
   const screenH = renderH * scale;
