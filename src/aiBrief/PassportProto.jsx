@@ -1245,8 +1245,13 @@ function Overview({ tab, goto, openBrief, following, setFollowing, bookmarked, s
     // director that failed to load, an embed used by something else — bring the card up
     // anyway rather than leaving it empty. Long enough that it never pre-empts a real
     // entrance, and invisible when one arrives.
+    // ...but only when there is no director to wait for. A plain timer fired in the ordinary
+    // case — the visitor reads the hero for more than six seconds before opening the
+    // walkthrough, the card came up finished, and the entrance then reset it, which is the
+    // flash this was supposed to avoid. The director announces itself on __ppDirector as
+    // soon as it reveals the device, so an embed that HAS one waits as long as it takes.
     const failsafe = setTimeout(() => {
-      if (!opened) { setImgIn(true); setLogoIn(true); setShowLogo(true); }
+      if (!opened && !window.__ppDirector) { setImgIn(true); setLogoIn(true); setShowLogo(true); }
     }, 6000);
     return () => {
       clearTimeout(failsafe);

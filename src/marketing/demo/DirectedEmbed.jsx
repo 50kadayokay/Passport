@@ -315,6 +315,13 @@ export function DirectedEmbed({ variant = "full", hardware = false, cutout = fal
       // The card's opening entrance is started by the opening beat below (autoOpenRef), not
       // here, so that the beat can AWAIT it and the walkthrough cannot advance part-way
       // through. See OPEN_LEAD for why it does not begin on this frame.
+      //
+      // Tell the app a director is present. The card opens BLANK in an embed and waits to be
+      // brought up; without this it has a timer that raises it on its own after a few
+      // seconds, which fires in the ordinary case where the visitor reads the hero first —
+      // the card arrives finished and the entrance then resets it in full view.
+      try { const w = frameRef.current && frameRef.current.contentWindow;
+            if (w) w.__ppDirector = true; } catch (_) {}
       // Marketing-only presentation override, injected into the DEMO IFRAME only (production
       // is untouched): normalize the active project pill's per-project accent (e.g. Almoloya's
       // teal #0D9488) to the MineEx primary accent, so the project selector reads consistent
