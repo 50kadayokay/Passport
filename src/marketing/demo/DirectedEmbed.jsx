@@ -310,8 +310,14 @@ export function DirectedEmbed({ variant = "full", hardware = false, cutout = fal
       // app's own intro sequence is skipped (the director owns the flip), and anything the
       // app ran on its own clock would play underneath the boot cover and never be seen.
       // This fires on the frame the cover lifts, so the fade is the first thing that moves.
-      try { const w = frameRef.current && frameRef.current.contentWindow;
-            if (w && w.__ppLogoReveal) w.__ppLogoReveal(); } catch (_) {}
+      // Held until the cover is essentially gone. Measured without the delay, the logo was
+      // already at 0.94 while the cover still sat at 0.54 — the entrance was spent behind it
+      // and only the last few percent reached the visitor. The cover fades over 420ms, so
+      // starting at 300ms puts the whole 0.7s of the logo's fade in front of open glass.
+      setTimeout(() => {
+        try { const w = frameRef.current && frameRef.current.contentWindow;
+              if (w && w.__ppLogoReveal) w.__ppLogoReveal(); } catch (_) {}
+      }, 300);
       // Marketing-only presentation override, injected into the DEMO IFRAME only (production
       // is untouched): normalize the active project pill's per-project accent (e.g. Almoloya's
       // teal #0D9488) to the MineEx primary accent, so the project selector reads consistent
