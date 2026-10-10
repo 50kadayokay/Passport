@@ -1045,7 +1045,13 @@ export function DirectedEmbed({ variant = "full", hardware = false, cutout = fal
     // OPEN_LEAD exists because the boot cover is still fading when this beat starts. The
     // cover takes 420ms; an entrance begun on the reveal frame plays most of itself behind
     // it (measured on an earlier build: the logo reached 0.94 while the cover was at 0.54).
-    const OPEN_LEAD = 300;
+    // 300ms only on the BOOT path, where this beat runs as the cover is still fading and an
+    // entrance begun on the reveal frame would play behind it. When the opening is gated on
+    // its chapter arriving (openWhen), the cover went long before — the visitor was reading
+    // the hero — and the gate has already waited out the chapter slide, so the lead is pure
+    // dead time on a blank card. Measured at 300: the card sat blank for about 770ms after
+    // the device landed, against the app's own 60.
+    const OPEN_LEAD = openWhenRef.current === null ? 300 : 0;
     // The app flips the card 2100ms after its entrance begins, and the entrance itself takes
     // 1380 (the logo starts at 680 and fades for 700). So the hold between the two is 720 —
     // not the director's OPEN_HOLD, which was tuned for a card that arrived already finished

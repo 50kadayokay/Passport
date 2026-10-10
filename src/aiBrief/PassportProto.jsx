@@ -4073,6 +4073,25 @@ const AM_SITE_GALLERY = [
   { kicker: "Sierra de Almoloya", label: "Desert Terrain", src: "https://rvptronniomlqumjhyrr.supabase.co/storage/v1/object/public/company-media/kingsmen/site-31-desert-terrain.webp" },
 ];
 
+// EMBED ONLY — the site galleries are hardcoded module constants, not profile data, which is
+// why rewriting _PP and applyPP changed nothing: measured, peak decoded memory stayed at
+// 95.4MB and not one rendition was served. These three arrays ARE the PROJECTS beat, the
+// step that peaked at 78.9MB on its own and took the tab down with it. Rewritten in place,
+// after all three are declared, so every consumer sees renditions without touching a single
+// call site. Inert outside the embed, so the production app is byte-for-byte unaffected.
+if (EMBED_MEDIA) {
+  for (const arr of [LC_SITE_GALLERY, AM_SITE_GALLERY, TEAM_MEMBERS]) {
+    if (!Array.isArray(arr)) continue;
+    for (const it of arr) {
+      if (!it || typeof it !== "object") continue;
+      for (const k of ["src", "photo", "img", "image", "url"]) {
+        if (typeof it[k] === "string") it[k] = toRendition(it[k]);
+      }
+    }
+  }
+}
+
+
 const AM_BRIEF = {
   what: "Almoloya is an 866-hectare past-producing silver-gold district in Chihuahua, consolidating six concessions including the historic Cigarrero and Las Juliettas mines.",
   exploring: "Pre-drill: Kingsmen is compiling historic mine records and running modern mapping and geophysics to define a maiden drill program across the consolidated district.",
@@ -9249,6 +9268,11 @@ function ProfileScreen({ onScan }) {
 // component (change its key) after calling this to pick up the new data.
 export function applyPP(pp) {
   if (!pp || typeof pp !== "object") return;
+  // The embed's live data arrives HERE, not through the module-scope _PP: main.jsx fetches
+  // the company row, seeds window.__PP__ and then calls this on the already-loaded module.
+  // Rewriting only _PP therefore changed nothing — measured, peak decoded memory was
+  // identical at 95.4MB before and after. The renditions have to be applied on this path.
+  if (EMBED_MEDIA) pp = withRenditions(pp);
   if (pp.LOGO !== undefined) LOGO = pp.LOGO;
   if (pp.AVATAR !== undefined) AVATAR = pp.AVATAR;
   if (pp.SITE_PHOTO !== undefined) SITE_PHOTO = pp.SITE_PHOTO;
