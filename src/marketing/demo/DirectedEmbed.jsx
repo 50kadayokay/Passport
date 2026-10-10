@@ -310,14 +310,9 @@ export function DirectedEmbed({ variant = "full", hardware = false, cutout = fal
       // app's own intro sequence is skipped (the director owns the flip), and anything the
       // app ran on its own clock would play underneath the boot cover and never be seen.
       // This fires on the frame the cover lifts, so the fade is the first thing that moves.
-      // Held until the cover is essentially gone. Measured without the delay, the logo was
-      // already at 0.94 while the cover still sat at 0.54 — the entrance was spent behind it
-      // and only the last few percent reached the visitor. The cover fades over 420ms, so
-      // starting at 300ms puts the whole 0.7s of the logo's fade in front of open glass.
-      setTimeout(() => {
-        try { const w = frameRef.current && frameRef.current.contentWindow;
-              if (w && w.__ppLogoReveal) w.__ppLogoReveal(); } catch (_) {}
-      }, 300);
+      // The card's opening entrance is started by the opening beat below (autoOpenRef), not
+      // here, so that the beat can AWAIT it and the walkthrough cannot advance part-way
+      // through. See OPEN_LEAD for why it does not begin on this frame.
       // Marketing-only presentation override, injected into the DEMO IFRAME only (production
       // is untouched): normalize the active project pill's per-project accent (e.g. Almoloya's
       // teal #0D9488) to the MineEx primary accent, so the project selector reads consistent
@@ -1010,6 +1005,21 @@ export function DirectedEmbed({ variant = "full", hardware = false, cutout = fal
     // first paints on its photographic hero: hold so the viewer registers the photo, then
     // perform the REAL Company Status flip (go(0→1)) so the STATUS face is the resting
     // start — not a gesture the visitor spends. Runs only from state 0.
+    // The app's OWN opening entrance — hero photograph in, then the logo 620ms behind it,
+    // on the app's constants and behind the app's decode gate. Without this the embed began
+    // on the finished front face: `?embed=1` initialises imgIn and logoIn to true and the
+    // app's intro effect returns early, so the entrance had simply never run here.
+    //
+    // OPEN_LEAD exists because the boot cover is still fading when this beat starts. The
+    // cover takes 420ms; an entrance begun on the reveal frame plays most of itself behind
+    // it (measured on an earlier build: the logo reached 0.94 while the cover was at 0.54).
+    const OPEN_LEAD = 300;
+    const playOpening = async () => {
+      const w = win();
+      if (!w || !w.__ppPlayOpening) return;
+      try { await w.__ppPlayOpening(); } catch (_) {}
+    };
+
     autoOpenRef.current = async () => {
       if (variant === "home") {
         // Home inherits the walkthrough's EXACT Overview opening: the photographic hero
@@ -1017,12 +1027,20 @@ export function DirectedEmbed({ variant = "full", hardware = false, cutout = fal
         // face — the same resting Overview the walkthrough shows. The state index stays
         // at 0 (Overview); only the app's own face flips, exactly as in the full engine.
         if (S.cur !== 0 || S.animating) return;
+        await delay(OPEN_LEAD);
+        if (S.cur !== 0 || S.animating) return;
+        await playOpening();                       // hero in, logo in — the app's own sequence
+        if (S.cur !== 0 || S.animating) return;    // an arrow during the entrance wins
         await delay(OPEN_HOLD);
         if (S.cur !== 0 || S.animating) return;
         setFace("status");
         leadTab("overview");                       // consistent tab indicator from the first frame
         return;
       }
+      if (S.cur !== 0 || S.animating) return;
+      await delay(OPEN_LEAD);
+      if (S.cur !== 0 || S.animating) return;
+      await playOpening();                      // hero in, logo in — the app's own sequence
       if (S.cur !== 0 || S.animating) return;
       await delay(OPEN_HOLD);
       if (S.cur !== 0 || S.animating) return;   // a fast gesture during the hold may have advanced it already

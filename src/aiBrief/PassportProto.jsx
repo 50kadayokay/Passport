@@ -1132,6 +1132,7 @@ function Overview({ tab, goto, openBrief, following, setFollowing, bookmarked, s
   const [imgIn, setImgIn] = useState(embedCard || introDone || ppPreviewLive);
   const [logoIn, setLogoIn] = useState(embedCard);
   const logoWrapRef = useRef(null);   // the logo's wrapper — the embed entrance animates this node directly
+  const heroRef = useRef(null);       // the hero photograph — same, for the embed's opening
   const [showLogo, setShowLogo] = useState(embedCard ? true : (ppPreviewLive ? false : !introDone));   // logo only during the intro
   // Don't start the intro until the hero image is actually decoded — otherwise the
   // timed fade runs against an unloaded network image (Storage URL), the CEO sees a
@@ -1177,25 +1178,50 @@ function Overview({ tab, goto, openBrief, following, setFollowing, bookmarked, s
     // span, and of whatever opacity it currently holds. It either runs or it doesn't; there
     // is no ordering left to get wrong. The style fallback restarts the CSS transition the
     // explicit way — kill it, set 0, force a reflow, put it back — for anything without WAAPI.
-    const playLogoIn = () => {
-      setShowLogo(true); setLogoIn(true);
-      const run = () => {
-        const el = logoWrapRef.current;
-        if (!el) return;
-        if (typeof el.animate === "function") {
-          try {
-            el.animate([{ opacity: 0 }, { opacity: 1 }],
-                       { duration: 700, easing: "cubic-bezier(.2,.8,.2,1)", fill: "backwards" });
-            return;
-          } catch (_) {}
-        }
-        el.style.transition = "none"; el.style.opacity = "0";
-        void el.offsetHeight;                                   // force the reflow
-        el.style.transition = "opacity .7s ease"; el.style.opacity = "1";
-        setTimeout(() => { el.style.transition = ""; el.style.opacity = ""; }, 820);
-      };
-      requestAnimationFrame(() => requestAnimationFrame(run));
+    // ── The REAL opening, replayed for the embed ────────────────────────────────────────
+    // The constants below are the app's own, lifted from the intro effect above so the two
+    // cannot drift: the hero starts at +60ms, the logo at +680ms, each a 700ms `ease` fade,
+    // and nothing starts until the hero has DECODED (same 2200ms cap). The director then
+    // runs the flip as its own beat, which is why the flip is not repeated here.
+    //
+    // Driven on the nodes rather than through imgIn/logoIn, because state cannot express
+    // this: both carry a .7s CSS transition, so setting one false and true 60ms later only
+    // lets it travel part of the way down before it is sent back — measured on an earlier
+    // attempt, the logo dipped to 0.95 and returned. `fill: "backwards"` holds the element
+    // at opacity 0 through its delay, so the stagger is real and nothing is painted early.
+    const OPEN = { hero: 60, logo: 680, fade: 700, cap: 2200 };
+    const fadeNode = (el, delay) => {
+      if (!el) return;
+      if (typeof el.animate === "function") {
+        try { el.animate([{ opacity: 0 }, { opacity: 1 }],
+                         { duration: OPEN.fade, delay, easing: "ease", fill: "backwards" }); return; } catch (_) {}
+      }
+      el.style.transition = "none"; el.style.opacity = "0";
+      void el.offsetHeight;
+      setTimeout(() => {
+        el.style.transition = `opacity ${OPEN.fade}ms ease`; el.style.opacity = "1";
+        setTimeout(() => { el.style.transition = ""; el.style.opacity = ""; }, OPEN.fade + 120);
+      }, delay);
     };
+    const playOpening = () => new Promise((resolve) => {
+      setFlipped(false); setShowLogo(true); setImgIn(true); setLogoIn(true);   // rest state = fully visible
+      let fired = false;
+      const start = () => {
+        if (fired) return; fired = true;
+        requestAnimationFrame(() => {
+          fadeNode(heroRef.current, OPEN.hero);
+          fadeNode(logoWrapRef.current, OPEN.logo);
+          setTimeout(resolve, OPEN.logo + OPEN.fade);   // the later of the two has landed
+        });
+      };
+      if (!STATUS_IMG) { start(); return; }
+      const probe = new Image();
+      probe.src = STATUS_IMG;
+      if (probe.decode) probe.decode().then(start).catch(start);
+      else { probe.onload = start; probe.onerror = start; }
+      setTimeout(start, OPEN.cap);                     // never wait longer than the app does
+    });
+    const playLogoIn = () => { fadeNode(logoWrapRef.current, 0); };
     window.__ppSetFace = (face) => {
       if (face === "status") { setShowLogo(false); setFlipped(true); }
       else { setFlipped(false); playLogoIn(); }   // the logo arrives, rather than switching on
@@ -1207,8 +1233,10 @@ function Overview({ tab, goto, openBrief, following, setFollowing, bookmarked, s
     // app cannot time this itself: until the marketing boot cover lifts, nothing it animates
     // is visible, and only the director knows when that happens.
     window.__ppLogoReveal = () => { playLogoIn(); };
+    // The director awaits this, so the walkthrough cannot advance mid-entrance.
+    window.__ppPlayOpening = () => playOpening();
     return () => {
-      for (const k of ["__ppSetFace", "__ppLogoReveal"]) {
+      for (const k of ["__ppSetFace", "__ppLogoReveal", "__ppPlayOpening"]) {
         if (window[k]) { try { delete window[k]; } catch (_) { window[k] = undefined; } }
       }
     };
@@ -1430,7 +1458,7 @@ function Overview({ tab, goto, openBrief, following, setFollowing, bookmarked, s
               <button onClick={() => { haptic(); setFlipped(true); }} aria-label="Show company status"
                 style={{ position: "absolute", inset: 0, padding: 0, cursor: "pointer", borderRadius: 24, overflow: "hidden", border: "1px solid #e2e8f0", backfaceVisibility: "hidden", WebkitBackfaceVisibility: "hidden", pointerEvents: flipped ? "none" : "auto", opacity: flipped ? 0 : 1, transition: "opacity .45s ease" }}>
                 <div style={{ position: "absolute", inset: 0, background: "linear-gradient(160deg,#e8edf3,#dfe6ee)" }} />
-                {STATUS_IMG && <img src={STATUS_IMG} alt={COMPANY.name || ""} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: imgIn ? 1 : 0, transition: "opacity .7s ease" }} />}
+                {STATUS_IMG && <img ref={heroRef} src={STATUS_IMG} alt={COMPANY.name || ""} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: imgIn ? 1 : 0, transition: "opacity .7s ease" }} />}
                 <span style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(0,0,0,0.10) 0%, rgba(0,0,0,0) 38%, rgba(0,0,0,0.30) 100%)" }} />
                 {showLogo && STATUS_LOGO && (
                   <span ref={logoWrapRef} style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", opacity: logoIn ? 1 : 0, transition: "opacity .7s ease" }}>
