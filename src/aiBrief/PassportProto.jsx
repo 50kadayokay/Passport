@@ -1208,16 +1208,21 @@ function Overview({ tab, goto, openBrief, following, setFollowing, bookmarked, s
         setTimeout(() => { el.style.transition = ""; el.style.opacity = ""; }, OPEN.fade + 120);
       }, delay);
     };
+    // Now that the card OPENS blank, this is just the app's intro, on the app's clock. The
+    // elements sit at opacity 0 with their .7s transitions idle, so flipping each one true at
+    // its own offset produces the real staged fade — the thing state could not do before was
+    // only ever a problem because the card started finished and a transition was already in
+    // flight. Animating the nodes here as well would fight these transitions: setting imgIn
+    // and logoIn true starts both CSS fades at once, and that is exactly what produced a 0ms
+    // stagger when it was measured. One mechanism, the app's own.
     const playOpening = () => new Promise((resolve) => {
-      setFlipped(false); setShowLogo(true); setImgIn(true); setLogoIn(true);   // rest state = fully visible
+      setFlipped(false); setShowLogo(true); setImgIn(false); setLogoIn(false);
       let fired = false;
       const start = () => {
         if (fired) return; fired = true;
-        requestAnimationFrame(() => {
-          fadeNode(heroRef.current, OPEN.hero);
-          fadeNode(logoWrapRef.current, OPEN.logo);
-          setTimeout(resolve, OPEN.logo + OPEN.fade);   // the later of the two has landed
-        });
+        setTimeout(() => setImgIn(true), OPEN.hero);    // 60ms  — the app's own offsets
+        setTimeout(() => setLogoIn(true), OPEN.logo);   // 680ms
+        setTimeout(resolve, OPEN.logo + OPEN.fade);     // the later of the two has landed
       };
       if (!STATUS_IMG) { start(); return; }
       const probe = new Image();
