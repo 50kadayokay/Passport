@@ -47,6 +47,38 @@ if (import.meta.env.DEV) {
 // (localhost harness only, gated to that slug) we seed curated royalty-free mining/exploration images
 // to demonstrate what a fully-photographed company looks like. NEVER runs in the production booth and
 // never touches any real company's profile.
+// ?img=sm — serve the SMALL renditions of the demo photography. Opt-in, set only by the
+// marketing home page when it embeds this deck in the tablet on a phone; the booth itself,
+// the gallery and every direct visit are untouched and keep the full-size originals.
+//
+// Why it exists: measured on the device, the embedded deck alone held 147MB of DECODED
+// bitmaps — nineteen 1800px photographs, each ~9MB decoded, inside a tablet that is 291 CSS
+// px wide. Decoded cost is set by the source's pixels, not by the box it is drawn in or the
+// file size, so a 203KB JPEG still costs 9MB of RAM. iOS evicts decoded bitmaps under that
+// kind of pressure and then refuses new decodes, which is why photographs were coming up
+// blank and why everything stuttered.
+//
+// The renditions cap the long side at 900px. The largest the deck is ever drawn at here is
+// 291 CSS px x 3 device pixels = 873, so 900 is above what the screen can resolve and there
+// is no visible softening — it is the same picture with the invisible pixels removed.
+// 214.5MB -> 53.6MB decoded across the set, and 7.0MB -> 2.2MB on the wire.
+const LIGHT_RE = /^\/demo\/northvale\/(n\d+)\.jpg$/;
+function withLightImages(profile, params) {
+  if (!profile || !params || params.get("img") !== "sm") return profile;
+  const swap = (v) => (typeof v === "string" ? v.replace(LIGHT_RE, "/demo/northvale/sm/$1.webp") : v);
+  const walk = (node) => {
+    if (typeof node === "string") return swap(node);
+    if (Array.isArray(node)) return node.map(walk);
+    if (node && typeof node === "object") {
+      const out = {};
+      for (const k of Object.keys(node)) out[k] = walk(node[k]);
+      return out;
+    }
+    return node;
+  };
+  return walk(profile);
+}
+
 const DI = "/demo/monolith/";
 function withDemoImages(profile, slug) {
   if (slug !== "granitepeak-demo") return profile;
@@ -128,7 +160,7 @@ function PreviewDemo({ params, showCoverage }) {
   // Selection comes from the URL (Studio preview drives it live) or the saved profile.conference.studio.
   const studio = (row.profile && row.profile.conference && row.profile.conference.studio) || {};
   const { tpl, theme, accent, showBar } = readTemplateOpts(params, studio);
-  const profile = withDemoImages(row.profile, slug);
+  const profile = withLightImages(withDemoImages(row.profile, slug), params);
   // a company's own verified canonical profile URL wins; otherwise the harness's historical demo target
   const follow = (profile.conference && profile.conference.followUrl) || "https://passport-xi-five.vercel.app/app?c=" + (LOCAL_MOCKS[slug] ? slug : "granitepeak-demo") + "&utm_campaign=booth";
   return (

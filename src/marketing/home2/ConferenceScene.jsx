@@ -71,7 +71,13 @@ const DEBUG_PINK = false;
 
 // The Northvale folio presentation. confIndex 0 = the HERO page (it animates in and HOLDS
 // until the next swipe); confIndex 1..6 walk these pages, one per swipe.
-const FOLIO_SRC = "/confv3demo?c=northvale-demo&t=folio";
+// `img=sm` on phones only. Drawn here the deck is 291 CSS px wide, but it was loading the
+// full-size photography — nineteen 1800px images, ~147MB of DECODED bitmaps, which iOS
+// cannot hold, so it evicted them and the pictures came up blank. The small renditions cap
+// the long side at 900px, still above the 873 device pixels this box can resolve, so the
+// deck looks identical and the booth itself is completely unaffected.
+const FOLIO_SRC = "/confv3demo?c=northvale-demo&t=folio"
+  + ((typeof window !== "undefined" && window.innerWidth < 760) ? "&img=sm" : "");
 
 // The Conference sales story — FIVE iPad states, each driving the REAL folio to ONE real state (no
 // intermediate pages, no montage). Left copy (verbatim) + the folio data-sid the iPad jumps to.
