@@ -118,7 +118,10 @@ export default function AppSection() {
   useEffect(() => {
     if (!mobile || appOpenReady) return;
     if (idx < APP0 || idx > CONF0 - 1) return;
-    const t = setTimeout(() => setAppOpenReady(true), SHEET_MS + 120);
+    // Exactly the slide's own duration — no margin. The 120ms cushion that used to sit here
+    // was dead time on a blank card: the device is in place when the sheet finishes, and the
+    // app's own opening puts the photograph 60ms after that, not 180.
+    const t = setTimeout(() => setAppOpenReady(true), SHEET_MS);
     return () => clearTimeout(t);
   }, [mobile, idx, appOpenReady]);
   const idxRef = useRef(0);

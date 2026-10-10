@@ -1066,7 +1066,10 @@ export function DirectedEmbed({ variant = "full", hardware = false, cutout = fal
     // showed the card fully formed with no entrance: it was consumed, not played.
     const waitIdle = async () => {
       const t0 = performance.now();
-      while (S.animating && performance.now() - t0 < 4000) await delay(60);
+      // 16ms, not 60: this sits directly in front of the entrance, so its polling interval is
+      // added to the blank card the visitor is looking at. A frame's granularity is enough to
+      // notice the machine going idle and costs nothing.
+      while (S.animating && performance.now() - t0 < 4000) await delay(16);
       return !S.animating;
     };
     const playOpening = async () => {
