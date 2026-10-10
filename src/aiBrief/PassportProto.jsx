@@ -1161,11 +1161,21 @@ function Overview({ tab, goto, openBrief, following, setFollowing, bookmarked, s
   // between the photo hero and the status grid. Inert outside embed.
   useEffect(() => {
     if (!embedCard) return;
+    // Replay the logo's entrance from nothing. Flipping logoIn false and back cannot do it:
+    // the span carries a .7s opacity transition, so a short gap only lets it travel a little
+    // way toward 0 before being sent back — measured, it dipped to 0.95 and returned, which
+    // is not an entrance. Unmounting it first means it mounts AT opacity 0 with no transition
+    // to interrupt, and the flip to 1 then runs the full .7s from zero.
+    const playLogoIn = () => {
+      setShowLogo(false); setLogoIn(false);
+      requestAnimationFrame(() => {
+        setShowLogo(true);
+        requestAnimationFrame(() => requestAnimationFrame(() => setLogoIn(true)));
+      });
+    };
     window.__ppSetFace = (face) => {
       if (face === "status") { setShowLogo(false); setFlipped(true); }
-      // Returning to the photo face re-runs the logo's entrance rather than switching it on,
-      // the same way the manual "show the logo again" control below does it.
-      else { setShowLogo(true); setLogoIn(false); setFlipped(false); setTimeout(() => setLogoIn(true), 60); }
+      else { setFlipped(false); playLogoIn(); }   // the logo arrives, rather than switching on
     };
     // Embed-only: let the director ask for the logo's entrance at the moment the device is
     // actually revealed. The app's own intro (image in, logo in at +680ms, flip at +2.1s) is
@@ -1173,7 +1183,7 @@ function Overview({ tab, goto, openBrief, following, setFollowing, bookmarked, s
     // took the logo's fade with it, so the logo was simply painted on at full opacity. The
     // app cannot time this itself: until the marketing boot cover lifts, nothing it animates
     // is visible, and only the director knows when that happens.
-    window.__ppLogoReveal = () => { setShowLogo(true); setLogoIn(false); setTimeout(() => setLogoIn(true), 80); };
+    window.__ppLogoReveal = () => { playLogoIn(); };
     return () => {
       for (const k of ["__ppSetFace", "__ppLogoReveal"]) {
         if (window[k]) { try { delete window[k]; } catch (_) { window[k] = undefined; } }
