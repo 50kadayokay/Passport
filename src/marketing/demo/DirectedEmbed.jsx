@@ -427,8 +427,14 @@ export function DirectedEmbed({ variant = "full", hardware = false, cutout = fal
         // Reveal only once the profile is mounted AND its hero image has decoded (or a
         // safety cap), then wait two frames so the paint has actually flushed — so the
         // phone is revealed already fully drawn, never mid-paint.
-        const hero = page && page.querySelector("img");
-        const heroReady = !hero || (hero.complete && hero.naturalWidth > 0);
+        // PREPARE before REVEAL. This used to check only the FIRST image on the page, so the
+        // cover came off while the card's own photograph and logo were still arriving — and
+        // because the card now opens blank, what the visitor got was a grey card sitting
+        // there for seconds before anything faded in. Every image on the opening screen must
+        // be loaded AND decodable before the device is shown, so the entrance starts into a
+        // card that is ready and the only blank is the app's own deliberate first frame.
+        const imgs = page ? Array.from(page.querySelectorAll("img")) : [];
+        const heroReady = imgs.length === 0 || imgs.every((i) => i.complete && i.naturalWidth > 0);
         if (page && (heroReady || performance.now() - t0 > 2500)) {
           requestAnimationFrame(() => requestAnimationFrame(reveal));
           return;

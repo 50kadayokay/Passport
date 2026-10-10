@@ -167,7 +167,44 @@ function TypeIn({ text, speed = 16 }) {
 }
 
 // Live company data injected from Supabase before mount; falls back to the built-in reference data.
-const _PP = (typeof window !== "undefined" && window.__PP__) || {};
+// ── EMBED ONLY — serve the marketing walkthrough resized renditions of the company media.
+//
+// Measured on the device, the walkthrough peaked at 98.4MB of DECODED bitmaps and 78.9MB of
+// that arrived in ONE step, the PROJECTS beat, where this gallery loads 1500px photographs
+// into ~140px thumbnails inside a phone that is itself scaled to 0.42. iOS answered by
+// killing the tab: the reported recording carries Safari's own "This webpage was reloaded
+// because a problem occurred" banner. This is that fix.
+//
+// Supabase renders the renditions on demand, so NOTHING stored is touched or altered, and
+// the production app never takes this path — it is gated on the embed parameter, which the
+// real app does not set. `resize=contain` inside a 560 box keeps each image's own aspect
+// ratio and crops nothing (verified: a 1500x1125 source returns 560x420, 1.333 either way);
+// width alone does NOT, it returns 560x1125 and distorts. 560 is above the ~487 device
+// pixels the largest full-bleed slot can resolve here, so quality is unchanged on screen.
+// Per image: 6.44MB decoded becomes 0.90MB, and 139KB on the wire becomes 34KB.
+const EMBED_MEDIA = (() => {
+  try { return new URLSearchParams(window.location.search).has("embed"); } catch (_) { return false; }
+})();
+const RENDITION_BOX = 560;
+const toRendition = (u) => (
+  typeof u === "string" && u.includes("/storage/v1/object/public/") && !u.includes("/render/image/")
+    ? u.replace("/storage/v1/object/public/", "/storage/v1/render/image/public/")
+       + (u.includes("?") ? "&" : "?") + `width=${RENDITION_BOX}&height=${RENDITION_BOX}&resize=contain&quality=80`
+    : u
+);
+const withRenditions = (node, depth = 0) => {
+  if (depth > 12) return node;
+  if (typeof node === "string") return toRendition(node);
+  if (Array.isArray(node)) return node.map((v) => withRenditions(v, depth + 1));
+  if (node && typeof node === "object") {
+    const out = {};
+    for (const k of Object.keys(node)) out[k] = withRenditions(node[k], depth + 1);
+    return out;
+  }
+  return node;
+};
+const _PP_RAW = (typeof window !== "undefined" && window.__PP__) || {};
+const _PP = EMBED_MEDIA ? withRenditions(_PP_RAW) : _PP_RAW;
 // Account plan tier (free/basic/pro) — gates how much of the profile investors see. Free
 // renders the compact BasicListing (pp.TIER==="listing"); BASIC = Overview + Timeline only;
 // PRO (or unknown, so existing companies are unaffected) = the full tabbed profile.
