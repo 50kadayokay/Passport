@@ -1069,8 +1069,17 @@ export function DirectedEmbed({ variant = "full", hardware = false, cutout = fal
       // 16ms, not 60: this sits directly in front of the entrance, so its polling interval is
       // added to the blank card the visitor is looking at. A frame's granularity is enough to
       // notice the machine going idle and costs nothing.
-      while (S.animating && performance.now() - t0 < 4000) await delay(16);
-      return !S.animating;
+      // The cap is short on the gated path and long on the boot path. This guard exists so a
+      // machine still in flight cannot make the beat RETURN and throw the opening away — it
+      // was never meant to hold the entrance back. On the gated path the chapter gate has
+      // already waited out the slide, so anything still running is the demo's own internal
+      // settling and the card can start without it; measured, waiting on it cost ~500ms of
+      // blank card on a cold load against ~170 warm. On the boot path there is a cover over
+      // everything, so waiting there is free.
+      const cap = openWhenRef.current === null ? 4000 : 250;
+      while (S.animating && performance.now() - t0 < cap) await delay(16);
+      // On the gated path, a timeout is not a reason to abandon the opening — proceed.
+      return openWhenRef.current !== null ? true : !S.animating;
     };
     const playOpening = async () => {
       const w = win();
