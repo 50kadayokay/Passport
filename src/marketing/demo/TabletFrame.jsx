@@ -137,6 +137,53 @@ export default function TabletFrame({
     return () => { cancelAnimationFrame(r1); cancelAnimationFrame(r2); if (raf) cancelAnimationFrame(raf); clearTimeout(t); };
   }, [ready, navSid, navStep, navSmooth]);
 
+  // PHONE EMBED ONLY — hold the deck's photography to the pages actually on screen.
+  //
+  // Measured on the device: the embedded deck had 45 image elements and every one of them
+  // was loaded, for a presentation that shows ONE page at a time. Even after the small
+  // renditions that is ~40MB of decoded bitmaps resident, and iOS answers that by evicting
+  // decodes and refusing new ones — which is why the deck's photographs come up black while
+  // its text still draws perfectly. The text is the proof the layer composites fine and the
+  // problem is image memory, not rendering.
+  //
+  // So the current section and its immediate neighbours keep their `src`; everything else is
+  // parked on `data-mx-held` and restored the moment navigation comes near. Restoring runs
+  // in the same commit as the scroll, which then eases over 620ms, and the bytes are already
+  // in the HTTP cache, so a page has its photography before it arrives.
+  //
+  // Gated on `img=sm`, which only the marketing home page sets, and only on a phone. The
+  // booth, the gallery and direct visits never enter this path, and nothing about the deck's
+  // markup, layout or animation is changed — only which images are currently holding memory.
+  useEffect(() => {
+    if (!ready || !/[?&]img=sm(?:&|$)/.test(srcProp || "")) return;
+    const doc = iframeRef.current && iframeRef.current.contentDocument;
+    if (!doc) return;
+    const KEEP = 1;
+    const apply = () => {
+      try {
+        const secs = Array.from(doc.querySelectorAll("[data-sid]"));
+        if (!secs.length) return;
+        let idx = secs.findIndex((s) => s.getAttribute("data-sid") === navSid);
+        if (idx < 0) idx = 0;
+        secs.forEach((sec, i) => {
+          const near = Math.abs(i - idx) <= KEEP;
+          for (const im of sec.querySelectorAll("img")) {
+            const held = im.getAttribute("data-mx-held");
+            if (near) {
+              if (held) { im.setAttribute("src", held); im.removeAttribute("data-mx-held"); }
+            } else if (!held && im.getAttribute("src")) {
+              im.setAttribute("data-mx-held", im.getAttribute("src"));
+              im.removeAttribute("src");
+            }
+          }
+        });
+      } catch (_) {}
+    };
+    apply();
+    const t = setTimeout(apply, 420);   // again once the deck has finished laying out
+    return () => clearTimeout(t);
+  }, [ready, navSid, srcProp]);
+
   const scale = screenW > 0 ? screenW / renderW : 0;
   const screenH = renderH * scale;
   const src = srcProp || `/conference?c=${encodeURIComponent(slug)}&t=${encodeURIComponent(template)}&theme=${encodeURIComponent(theme)}&qr=0`;
