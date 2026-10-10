@@ -1163,9 +1163,22 @@ function Overview({ tab, goto, openBrief, following, setFollowing, bookmarked, s
     if (!embedCard) return;
     window.__ppSetFace = (face) => {
       if (face === "status") { setShowLogo(false); setFlipped(true); }
-      else { setShowLogo(true); setLogoIn(true); setFlipped(false); }
+      // Returning to the photo face re-runs the logo's entrance rather than switching it on,
+      // the same way the manual "show the logo again" control below does it.
+      else { setShowLogo(true); setLogoIn(false); setFlipped(false); setTimeout(() => setLogoIn(true), 60); }
     };
-    return () => { if (window.__ppSetFace) { try { delete window.__ppSetFace; } catch (_) { window.__ppSetFace = undefined; } } };
+    // Embed-only: let the director ask for the logo's entrance at the moment the device is
+    // actually revealed. The app's own intro (image in, logo in at +680ms, flip at +2.1s) is
+    // deliberately skipped in embed mode because the director owns the flip — but that also
+    // took the logo's fade with it, so the logo was simply painted on at full opacity. The
+    // app cannot time this itself: until the marketing boot cover lifts, nothing it animates
+    // is visible, and only the director knows when that happens.
+    window.__ppLogoReveal = () => { setShowLogo(true); setLogoIn(false); setTimeout(() => setLogoIn(true), 80); };
+    return () => {
+      for (const k of ["__ppSetFace", "__ppLogoReveal"]) {
+        if (window[k]) { try { delete window[k]; } catch (_) { window[k] = undefined; } }
+      }
+    };
   }, [embedCard]);
   // Persist the flip state up to CompanyProfile so returning to this tab keeps it as-is; mark the
   // intro "done" once the card has shown its status face (auto-flip or a manual flip).

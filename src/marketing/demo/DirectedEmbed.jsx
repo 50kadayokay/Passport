@@ -305,6 +305,13 @@ export function DirectedEmbed({ variant = "full", hardware = false, cutout = fal
     const t0 = performance.now();
     const reveal = () => {
       readyRef.current = true; setReady(true);
+      // The company card's logo eases up over the photograph, the way it does in the app.
+      // It has to be asked for HERE and not on a timer inside the app: in embed mode the
+      // app's own intro sequence is skipped (the director owns the flip), and anything the
+      // app ran on its own clock would play underneath the boot cover and never be seen.
+      // This fires on the frame the cover lifts, so the fade is the first thing that moves.
+      try { const w = frameRef.current && frameRef.current.contentWindow;
+            if (w && w.__ppLogoReveal) w.__ppLogoReveal(); } catch (_) {}
       // Marketing-only presentation override, injected into the DEMO IFRAME only (production
       // is untouched): normalize the active project pill's per-project accent (e.g. Almoloya's
       // teal #0D9488) to the MineEx primary accent, so the project selector reads consistent
