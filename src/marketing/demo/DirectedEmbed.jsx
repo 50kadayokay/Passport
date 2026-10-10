@@ -1040,6 +1040,13 @@ export function DirectedEmbed({ variant = "full", hardware = false, cutout = fal
     // cover takes 420ms; an entrance begun on the reveal frame plays most of itself behind
     // it (measured on an earlier build: the logo reached 0.94 while the cover was at 0.54).
     const OPEN_LEAD = 300;
+    // The app flips the card 2100ms after its entrance begins, and the entrance itself takes
+    // 1380 (the logo starts at 680 and fades for 700). So the hold between the two is 720 —
+    // not the director's OPEN_HOLD, which was tuned for a card that arrived already finished
+    // and had nothing to wait for. The Pro walkthrough keeps OPEN_HOLD, since its beat
+    // advances the walkthrough rather than flipping the card.
+    const OPEN_ENTRANCE = 1380, OPEN_FLIP_AT = 2100;
+    const OPEN_HOLD_AFTER_ENTRANCE = Math.max(0, OPEN_FLIP_AT - OPEN_ENTRANCE);
     // Wait for the machine to go idle instead of giving up on it. The opening is fired once
     // and the caller has already marked it spent, so a bare `if (S.animating) return` throws
     // the entrance away whenever the chapter is still in flight — which, when the opening is
@@ -1067,7 +1074,7 @@ export function DirectedEmbed({ variant = "full", hardware = false, cutout = fal
         if (S.cur !== 0) return;
         await playOpening();                       // hero in, logo in — the app's own sequence
         if (S.cur !== 0 || S.animating) return;    // an arrow during the entrance wins
-        await delay(OPEN_HOLD);
+        await delay(OPEN_HOLD_AFTER_ENTRANCE);     // flip lands where the app puts it
         if (S.cur !== 0 || S.animating) return;
         setFace("status");
         leadTab("overview");                       // consistent tab indicator from the first frame
