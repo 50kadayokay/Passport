@@ -256,7 +256,7 @@ function deferUnseenImages(doc) {
   try { doc.defaultView.addEventListener("pagehide", () => mo.disconnect(), { once: true }); } catch (_) {}
 }
 
-export function DirectedEmbed({ variant = "full", hardware = false, cutout = false } = {}) {
+export function DirectedEmbed({ variant = "full", hardware = false, cutout = false, openWhen = null } = {}) {
   const STATES = variant === "home" ? HOME_STATES : FULL_STATES;
   const boxRef = useRef(null);
   const frameRef = useRef(null);
@@ -268,6 +268,8 @@ export function DirectedEmbed({ variant = "full", hardware = false, cutout = fal
   const [ready, setReady] = useState(false);
   const readyRef = useRef(false);   // gates wheel input: no interaction until the app has painted
   const openedRef = useRef(false);  // the automatic opening reveal has played this boot (reset on every reboot)
+  const pendingOpenRef = useRef(false);  // the opening is ready but its chapter is not on screen yet
+  const openWhenRef = useRef(openWhen); openWhenRef.current = openWhen;
   const autoOpenRef = useRef(null); // set by the gesture-machine effect; invoked once when the app first paints
   const resetRef = useRef(null);    // set by the gesture-machine effect; rewinds the machine to state 0 when the iframe reboots
 
@@ -399,7 +401,17 @@ export function DirectedEmbed({ variant = "full", hardware = false, cutout = fal
       // The phone is now painted on its photographic hero. Fire the one-time automatic
       // opening reveal (hold → real flip → status face). It runs only from state 0, so a
       // dev HMR reload mid-demo never wrongly replays it.
-      if (!openedRef.current && autoOpenRef.current) { openedRef.current = true; autoOpenRef.current(); }
+      // Hold the opening until its chapter is actually on screen. `openWhen` is null on
+      // desktop and in every other caller, which keeps the original behaviour exactly:
+      // fire as soon as the app has painted. On a phone the walkthrough opens on the
+      // HERO, so the device is off screen at boot — and the card was playing its whole
+      // opening (hero in, logo in, flip) to nobody, arriving already finished. Measured:
+      // after pressing "Explore the product" the hero sat at opacity 1 and the card was
+      // already at rotateY(180deg).
+      if (!openedRef.current && autoOpenRef.current) {
+        if (openWhenRef.current === null || openWhenRef.current === true) { openedRef.current = true; autoOpenRef.current(); }
+        else pendingOpenRef.current = true;
+      }
     };
     const tick = () => {
       try {
@@ -420,6 +432,13 @@ export function DirectedEmbed({ variant = "full", hardware = false, cutout = fal
     tick();
   }, []);
   useEffect(() => { settleApp(); }, [settleApp]);   // cover the initial boot
+  // …and run it the moment the chapter does arrive.
+  useEffect(() => {
+    if (openWhen !== true || !pendingOpenRef.current || openedRef.current) return;
+    if (!autoOpenRef.current) return;
+    pendingOpenRef.current = false; openedRef.current = true;
+    autoOpenRef.current();
+  }, [openWhen]);
 
   // Fit the 393×852 device box into the available area (never scale the app itself —
   // only the iframe element is transform-scaled; its internal viewport stays 393×852).

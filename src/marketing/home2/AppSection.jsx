@@ -488,7 +488,11 @@ export default function AppSection() {
             </a>) : null} />
         <div style={{ position: "relative", height: "100%" }}>
           {PRNOTIFY && !mobile && <PushPreview show={pubStep === 1} />}
-          <DirectedEmbed variant="home" hardware cutout />
+          {/* openWhen: on a phone the walkthrough opens on the HERO, so the device is off
+              screen at boot. Without this the card played its whole opening — hero in,
+              logo in, flip — while the visitor was still reading the hero, and arrived
+              already finished. null keeps the desktop behaviour exactly as it was. */}
+          <DirectedEmbed variant="home" hardware cutout openWhen={mobile ? idx >= APP0 : null} />
         </div>
       </div>
     </div>
