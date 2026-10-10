@@ -1129,8 +1129,13 @@ function Overview({ tab, goto, openBrief, following, setFollowing, bookmarked, s
   // ("photo" | "status"), so the flip is a deliberate story beat, not a timer.
   const embedCard = (() => { try { return new URLSearchParams(window.location.search).has("embed"); } catch (_) { return false; } })();
   const [flipped, setFlipped] = useState(embedCard ? false : (ppPreviewLive ? true : (introDone ? initialFlipped : false))); // false = image face, true = status face
-  const [imgIn, setImgIn] = useState(embedCard || introDone || ppPreviewLive);
-  const [logoIn, setLogoIn] = useState(embedCard);
+  // In the embed the card OPENS BLANK, exactly as it does in the app, and the director's
+  // entrance brings it up. These used to initialise to true so that a missing director could
+  // not leave the card empty — but that made the finished card visible for a beat before the
+  // entrance reset it, which reads as a flash and a swap. The safety now lives in a timer
+  // below instead, where it cannot be seen unless it is actually needed.
+  const [imgIn, setImgIn] = useState(embedCard ? false : (introDone || ppPreviewLive));
+  const [logoIn, setLogoIn] = useState(false);
   const logoWrapRef = useRef(null);   // the logo's wrapper — the embed entrance animates this node directly
   const heroRef = useRef(null);       // the hero photograph — same, for the embed's opening
   const [showLogo, setShowLogo] = useState(embedCard ? true : (ppPreviewLive ? false : !introDone));   // logo only during the intro
@@ -1234,8 +1239,17 @@ function Overview({ tab, goto, openBrief, following, setFollowing, bookmarked, s
     // is visible, and only the director knows when that happens.
     window.__ppLogoReveal = () => { playLogoIn(); };
     // The director awaits this, so the walkthrough cannot advance mid-entrance.
-    window.__ppPlayOpening = () => playOpening();
+    let opened = false;
+    window.__ppPlayOpening = () => { opened = true; return playOpening(); };
+    // Safety net for the blank opening state above: if no entrance is ever asked for — a
+    // director that failed to load, an embed used by something else — bring the card up
+    // anyway rather than leaving it empty. Long enough that it never pre-empts a real
+    // entrance, and invisible when one arrives.
+    const failsafe = setTimeout(() => {
+      if (!opened) { setImgIn(true); setLogoIn(true); setShowLogo(true); }
+    }, 6000);
     return () => {
+      clearTimeout(failsafe);
       for (const k of ["__ppSetFace", "__ppLogoReveal", "__ppPlayOpening"]) {
         if (window[k]) { try { delete window[k]; } catch (_) { window[k] = undefined; } }
       }
