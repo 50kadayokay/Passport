@@ -677,4 +677,24 @@ function ChapterEyebrow({ tick, children }) {
   );
 }
 
-const fblob = (pos, color) => { const [x, y] = pos.split(" "); return { position: "absolute", left: x, top: y, width: "74%", height: "74%", transform: "translate(-50%,-50%)", background: `radial-gradient(closest-side, ${color}, transparent 70%)`, filter: "blur(24px)", borderRadius: "50%" }; };
+// A two-stop radial ramps alpha LINEARLY from the centre to the edge, which the eye does not
+// read as a bloom — it reads as a disc with a soft edge, and on a large blob the constant
+// gradient of the ramp is visible as a faint banded cone. Desktop gets away with it because
+// blur(24px) smears the ramp; phones run blur(12px), half as much, over a blob that is barely
+// smaller, so the shape shows. These stops approximate a Gaussian (exp(-3.2t²), normalised to
+// reach zero at the same 70% the two-stop version ended at), so the falloff is steep in the
+// middle and flat at the rim, which is what light actually does.
+//
+// The radius, the centre and the peak alpha are all unchanged — only the curve between them
+// differs — so the bloom occupies the same footprint at the same intensity. Costs nothing at
+// runtime: it is the same single gradient, just with more stops.
+const SOFT_STOPS = [[0, 1], [11, 0.93], [21, 0.74], [31.5, 0.5], [42, 0.29], [52.5, 0.13], [61.5, 0.045], [70, 0]];
+const softRadial = (color) => {
+  const m = /rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)\s*(?:,\s*([\d.]+))?\s*\)/.exec(color);
+  if (!m) return `radial-gradient(closest-side, ${color}, transparent 70%)`;
+  const a = m[4] === undefined ? 1 : parseFloat(m[4]);
+  return "radial-gradient(closest-side, " + SOFT_STOPS
+    .map(([p, k]) => `rgba(${m[1]},${m[2]},${m[3]},${+(a * k).toFixed(3)}) ${p}%`).join(", ") + ")";
+};
+const PHONE_ATMOS = () => (typeof window !== "undefined" && window.innerWidth < 760);
+const fblob = (pos, color) => { const [x, y] = pos.split(" "); return { position: "absolute", left: x, top: y, width: "74%", height: "74%", transform: "translate(-50%,-50%)", background: PHONE_ATMOS() ? softRadial(color) : `radial-gradient(closest-side, ${color}, transparent 70%)`, filter: "blur(24px)", borderRadius: "50%" }; };

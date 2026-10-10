@@ -291,8 +291,15 @@ export default function ConferenceScene({ mobile = false, reduce = false, confIn
           it runs 537.3 -> 712.5 with the ellipse finishing at 694.0. Same bloom, no edge. */}
       <div aria-hidden style={{ position: "absolute", left: 0, right: 0,
         bottom: mobile ? "-31%" : "-3%", height: mobile ? "68%" : "40%", zIndex: 0, pointerEvents: "none",
+        // Falloff, mobile only. Desktop's blur(34px) dissolves these two gradients into one
+        // another; with the filter off, their LINEAR two-stop ramps keep their shape and the
+        // reflected light reads as two coloured puddles side by side — a blue pool left of the
+        // base, a lime pool right — instead of one bloom the stand is sitting in. Same centres,
+        // same radii, same peak alphas; the stops just follow a Gaussian (exp(-3.2t²) scaled
+        // into the same 72% the ramp ended at) so each one is dense at its core and thin at its
+        // rim, which lets the two overlap into a single wash rather than meeting as two discs.
         background: mobile
-          ? "radial-gradient(38% 45.88% at 33% 43.53%, rgba(37,99,235,0.55), rgba(37,99,235,0) 72%), radial-gradient(40% 48.24% at 70% 44.71%, rgba(198,240,74,0.52), rgba(198,240,74,0) 72%)"
+          ? "radial-gradient(38% 45.88% at 33% 43.53%, rgba(37,99,235,0.55) 0%, rgba(37,99,235,0.512) 11.3%, rgba(37,99,235,0.407) 21.6%, rgba(37,99,235,0.275) 32.4%, rgba(37,99,235,0.16) 43.2%, rgba(37,99,235,0.072) 54%, rgba(37,99,235,0.025) 63.4%, rgba(37,99,235,0) 72%), radial-gradient(40% 48.24% at 70% 44.71%, rgba(198,240,74,0.52) 0%, rgba(198,240,74,0.484) 11.3%, rgba(198,240,74,0.385) 21.6%, rgba(198,240,74,0.26) 32.4%, rgba(198,240,74,0.151) 43.2%, rgba(198,240,74,0.068) 54%, rgba(198,240,74,0.023) 63.4%, rgba(198,240,74,0) 72%)"
           : "radial-gradient(38% 78% at 33% 74%, rgba(37,99,235,0.55), rgba(37,99,235,0) 72%), radial-gradient(40% 82% at 70% 76%, rgba(198,240,74,0.52), rgba(198,240,74,0) 72%)",
         filter: (typeof window !== "undefined" && window.innerWidth < 760) ? "none" : "blur(34px)" }} />
       {/* Opaque screen backing — fills the glass rectangle BEHIND the (transparent-screened) iPad asset so the
