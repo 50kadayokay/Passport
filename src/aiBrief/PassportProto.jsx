@@ -1131,6 +1131,7 @@ function Overview({ tab, goto, openBrief, following, setFollowing, bookmarked, s
   const [flipped, setFlipped] = useState(embedCard ? false : (ppPreviewLive ? true : (introDone ? initialFlipped : false))); // false = image face, true = status face
   const [imgIn, setImgIn] = useState(embedCard || introDone || ppPreviewLive);
   const [logoIn, setLogoIn] = useState(embedCard);
+  const logoWrapRef = useRef(null);   // the logo's wrapper — the embed entrance animates this node directly
   const [showLogo, setShowLogo] = useState(embedCard ? true : (ppPreviewLive ? false : !introDone));   // logo only during the intro
   // Don't start the intro until the hero image is actually decoded — otherwise the
   // timed fade runs against an unloaded network image (Storage URL), the CEO sees a
@@ -1161,17 +1162,39 @@ function Overview({ tab, goto, openBrief, following, setFollowing, bookmarked, s
   // between the photo hero and the status grid. Inert outside embed.
   useEffect(() => {
     if (!embedCard) return;
-    // Replay the logo's entrance from nothing. Flipping logoIn false and back cannot do it:
-    // the span carries a .7s opacity transition, so a short gap only lets it travel a little
-    // way toward 0 before being sent back — measured, it dipped to 0.95 and returned, which
-    // is not an entrance. Unmounting it first means it mounts AT opacity 0 with no transition
-    // to interrupt, and the flip to 1 then runs the full .7s from zero.
+    // Replay the logo's entrance from nothing.
+    //
+    // Two state-based attempts failed. Flipping logoIn false and back cannot work at all —
+    // the span carries a .7s opacity transition, so a short gap only lets it travel part of
+    // the way toward 0 before being sent back; measured, it dipped to 0.95 and returned.
+    // Unmounting and remounting it across animation frames DID measure as a clean 0 -> 1 in
+    // Chrome, and still did nothing on the device: it depends on React committing those
+    // states as separate paints, and with automatic batching and iOS's own frame scheduling
+    // they can land in one, so the span is only ever painted at 1 and there is no entrance.
+    //
+    // So drive the element instead of the state. The Web Animations API runs the entrance on
+    // the node itself, independently of React's commits, of the CSS transition already on the
+    // span, and of whatever opacity it currently holds. It either runs or it doesn't; there
+    // is no ordering left to get wrong. The style fallback restarts the CSS transition the
+    // explicit way — kill it, set 0, force a reflow, put it back — for anything without WAAPI.
     const playLogoIn = () => {
-      setShowLogo(false); setLogoIn(false);
-      requestAnimationFrame(() => {
-        setShowLogo(true);
-        requestAnimationFrame(() => requestAnimationFrame(() => setLogoIn(true)));
-      });
+      setShowLogo(true); setLogoIn(true);
+      const run = () => {
+        const el = logoWrapRef.current;
+        if (!el) return;
+        if (typeof el.animate === "function") {
+          try {
+            el.animate([{ opacity: 0 }, { opacity: 1 }],
+                       { duration: 700, easing: "cubic-bezier(.2,.8,.2,1)", fill: "backwards" });
+            return;
+          } catch (_) {}
+        }
+        el.style.transition = "none"; el.style.opacity = "0";
+        void el.offsetHeight;                                   // force the reflow
+        el.style.transition = "opacity .7s ease"; el.style.opacity = "1";
+        setTimeout(() => { el.style.transition = ""; el.style.opacity = ""; }, 820);
+      };
+      requestAnimationFrame(() => requestAnimationFrame(run));
     };
     window.__ppSetFace = (face) => {
       if (face === "status") { setShowLogo(false); setFlipped(true); }
@@ -1410,7 +1433,7 @@ function Overview({ tab, goto, openBrief, following, setFollowing, bookmarked, s
                 {STATUS_IMG && <img src={STATUS_IMG} alt={COMPANY.name || ""} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: imgIn ? 1 : 0, transition: "opacity .7s ease" }} />}
                 <span style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(0,0,0,0.10) 0%, rgba(0,0,0,0) 38%, rgba(0,0,0,0.30) 100%)" }} />
                 {showLogo && STATUS_LOGO && (
-                  <span style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", opacity: logoIn ? 1 : 0, transition: "opacity .7s ease" }}>
+                  <span ref={logoWrapRef} style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", opacity: logoIn ? 1 : 0, transition: "opacity .7s ease" }}>
                     <img src={STATUS_LOGO} alt={COMPANY.name || ""} style={{ width: "85%", filter: "drop-shadow(0 3px 12px rgba(0,0,0,0.8))" }} />
                   </span>
                 )}
