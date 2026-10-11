@@ -1091,7 +1091,13 @@ export function DirectedEmbed({ variant = "full", hardware = false, cutout = fal
       // settling and the card can start without it; measured, waiting on it cost ~500ms of
       // blank card on a cold load against ~170 warm. On the boot path there is a cover over
       // everything, so waiting there is free.
-      const cap = openWhenRef.current === null ? 4000 : 250;
+      // Zero on the gated path: the loop is skipped entirely. A timeout there already
+      // proceeds rather than abandoning the opening, so waiting achieved nothing except a
+      // blank card — measured, the cap was being hit in full and 720 + 250 + 60 is exactly
+      // the ~310ms that was left. The chapter gate has waited out the slide, the device is
+      // in place and the state is the opening one; the machine's own settling does not
+      // conflict with setting the card's opacity.
+      const cap = openWhenRef.current === null ? 4000 : 0;
       while (S.animating && performance.now() - t0 < cap) await delay(16);
       // On the gated path, a timeout is not a reason to abandon the opening — proceed.
       return openWhenRef.current !== null ? true : !S.animating;
