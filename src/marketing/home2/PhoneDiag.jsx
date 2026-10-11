@@ -298,7 +298,14 @@ export function readDevices() {
     hookErrors(win, DEVERR[key]);
     const r = f.getBoundingClientRect();
     const imgs = doc ? Array.from(doc.images) : [];
-    const broken = imgs.filter((i) => i.complete && i.naturalWidth === 0).length;
+    // "complete with no pixels" is the signature of a failed image — but it is ALSO what a
+    // deliberately parked one looks like, and the demo parks the feed it never shows. Counting
+    // those as breakage reported 13 failures on a perfectly healthy screen. Only images that
+    // still carry a src, and are not parked, can be called broken.
+    const parked = (i) => i.getAttribute("data-mx-src") || i.getAttribute("data-mx-held");
+    const broken = imgs.filter((i) => i.complete && i.naturalWidth === 0
+                                   && (i.getAttribute("src") || "").length > 0 && !parked(i)).length;
+    const held = imgs.filter(parked).length;
     const loaded = imgs.filter((i) => i.complete && i.naturalWidth > 0).length;
     const root = doc && (doc.querySelector(".cv3") || doc.querySelector(".fo")
                       || doc.querySelector('[data-page="overview"]') || doc.body);
@@ -311,7 +318,7 @@ export function readDevices() {
       readyState: doc ? doc.readyState : null,
       rootBox: rr ? `${Math.round(rr.width)}x${Math.round(rr.height)}` : null,
       rootText: root ? (root.textContent || "").trim().length : 0,
-      imgs: imgs.length, loaded, broken,
+      imgs: imgs.length, loaded, broken, held,
       errors: DEVERR[key].slice(0, 6),
     };
   };
@@ -635,7 +642,7 @@ ${imgAudit && imgAudit.preloadedElsewhere.length
 totals             ${imgAudit ? `${imgAudit.totals.loaded}/${imgAudit.totals.imgsInFrame} loaded, ${imgAudit.totals.decodedMB}MB decoded, heap ${imgAudit.totals.jsHeapMB}` : "-"}
 --- DEVICES ---
 ${(() => { const d = readDevices(); const f = (x, n) => !x || !x.present ? `${n}: ABSENT`
-  : `${n}: ${x.reach} ${x.box} ${x.onScreen ? "on" : "OFF"} doc:${x.readyState} root:${x.rootBox}/${x.rootText}ch imgs:${x.loaded}ok/${x.broken}broken${x.errors.length ? "\n     ERR " + x.errors.join(" | ") : ""}`;
+  : `${n}: ${x.reach} ${x.box} ${x.onScreen ? "on" : "OFF"} doc:${x.readyState} root:${x.rootBox}/${x.rootText}ch imgs:${x.loaded}ok/${x.broken}broken/${x.held}parked${x.errors.length ? "\n     ERR " + x.errors.join(" | ") : ""}`;
   return [f(d.phone, "phone"), f(d.tablet, "tablet"),
     `tablet state: ${d.tabletState}  poster: ${d.tabletPoster}`,
     `card: hero ${d.card && d.card.heroOpacity} logo ${d.card && d.card.logoOpacity} heroLoaded ${d.card && d.card.heroLoaded} director ${d.card && d.card.director} chapterVisible ${d.card && d.card.chapterVisible} hook ${d.card && d.card.playHook}`].join("\n"); })()}
