@@ -465,7 +465,27 @@ export function DirectedEmbed({ variant = "full", hardware = false, cutout = fal
     if (openWhen !== true || !pendingOpenRef.current || openedRef.current) return;
     if (!autoOpenRef.current) return;
     pendingOpenRef.current = false; openedRef.current = true;
+    // Tell the app its chapter is now ON SCREEN. Until this, the app must stay on its blank
+    // opening frame however long the visitor spends reading the hero; after it, a card still
+    // blank means something failed and the app may bring itself up. Without this signal the
+    // app had no safe moment to recover and a missed opening left the card grey for good.
+    try { const w = frameRef.current && frameRef.current.contentWindow;
+          if (w) w.__ppChapterVisible = true; } catch (_) {}
     autoOpenRef.current();
+    // Watchdog: if the card is STILL blank a few seconds after its chapter arrived, play the
+    // opening directly. Cheap, cannot double-play (it checks first), and it closes the gap
+    // where any one readiness signal failing leaves a permanently empty device.
+    const wd = setTimeout(() => {
+      try {
+        const w = frameRef.current && frameRef.current.contentWindow;
+        const d = frameRef.current && frameRef.current.contentDocument;
+        if (!w || !d || !w.__ppPlayOpening) return;
+        const hero = Array.from(d.images).filter((i) => /04-status-img/.test(i.src || ""))[1];
+        const blank = hero && parseFloat(getComputedStyle(hero).opacity) < 0.05;
+        if (blank) w.__ppPlayOpening();
+      } catch (_) {}
+    }, 3500);
+    return () => clearTimeout(wd);
   }, [openWhen]);
 
   // Fit the 393×852 device box into the available area (never scale the app itself —

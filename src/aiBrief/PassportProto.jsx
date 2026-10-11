@@ -1300,11 +1300,26 @@ function Overview({ tab, goto, openBrief, following, setFollowing, bookmarked, s
     // walkthrough, the card came up finished, and the entrance then reset it, which is the
     // flash this was supposed to avoid. The director announces itself on __ppDirector as
     // soon as it reveals the device, so an embed that HAS one waits as long as it takes.
-    const failsafe = setTimeout(() => {
+    // Two recoveries, neither able to fire while the visitor is still reading the hero.
+    //   • No director at all → bring the card up after 6s rather than leave it empty.
+    //   • A director that said the chapter is ON SCREEN but never played the opening → bring
+    //     the card up 5s after that. This is the case that had no recovery: with a director
+    //     present the old timer was disabled outright, so one missed signal left the card
+    //     grey permanently, which is what was reported from the device.
+    let failsafe = setTimeout(() => {
       if (!opened && !window.__ppDirector) { setImgIn(true); setLogoIn(true); setShowLogo(true); }
     }, 6000);
+    let visibleAt = 0;
+    const watch = setInterval(() => {
+      if (opened) { clearInterval(watch); return; }
+      if (!window.__ppChapterVisible) return;
+      if (!visibleAt) { visibleAt = Date.now(); return; }
+      if (Date.now() - visibleAt < 5000) return;
+      clearInterval(watch);
+      setImgIn(true); setLogoIn(true); setShowLogo(true);
+    }, 500);
     return () => {
-      clearTimeout(failsafe);
+      clearTimeout(failsafe); clearInterval(watch);
       for (const k of ["__ppSetFace", "__ppLogoReveal", "__ppPlayOpening"]) {
         if (window[k]) { try { delete window[k]; } catch (_) { window[k] = undefined; } }
       }

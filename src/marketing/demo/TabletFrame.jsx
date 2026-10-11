@@ -42,6 +42,7 @@ export default function TabletFrame({
   renderH = CONF_H,
   showBootCover = true,       // false = no dark mask while booting (a caller-supplied placeholder shows through instead)
   screenBg,                   // override the screen-area background (e.g. "transparent" to reveal a placeholder behind)
+  poster,                     // still frame of the presentation's opening — the screen is NEVER bare black
   style,
   className = "",
 }) {
@@ -51,6 +52,7 @@ export default function TabletFrame({
   const readyRef = useRef(false);
   const [screenW, setScreenW] = useState(0);   // on-screen width of the screen area
   const [ready, setReady] = useState(false);   // real opening has painted → drop the mask
+  const [degraded, setDegraded] = useState(false);  // the deck never painted — show the poster instead of a black screen
 
   // Fluid: the device fills its parent's width; the screen area is that minus the bezel.
   useLayoutEffect(() => {
@@ -145,6 +147,29 @@ export default function TabletFrame({
   // 21MB decoded — affordable with every page resident, so nothing has to be unloaded and
   // nothing has to arrive late. Don't reintroduce it without first checking that number.
 
+  // HEALTH CHECK — an explicit, observable failure state instead of a silent black screen.
+  // Readiness so far has only ever asked whether the deck's markup EXISTS; a populated DOM is
+  // not proof that anything reached the glass, which is the assumption that let this ship
+  // broken. A short while after the mask drops, confirm the deck has real geometry and real
+  // imagery. If it does not, bring the poster forward so the device shows the presentation's
+  // own opening rather than a dead rectangle, and record it on data-mx-tablet so the
+  // on-device diagnostic can report WHICH of the two failures is happening.
+  useEffect(() => {
+    if (!ready || degraded) return;
+    const t = setTimeout(() => {
+      try {
+        const doc = iframeRef.current && iframeRef.current.contentDocument;
+        const root = doc && (doc.querySelector(".cv3") || doc.querySelector(".fo") || doc.querySelector("[data-cv3]"));
+        const r = root && root.getBoundingClientRect();
+        const painted = !!(r && r.width > 40 && r.height > 40);
+        const imgs = doc ? Array.from(doc.images) : [];
+        const anyImg = imgs.length === 0 || imgs.some((i) => i.complete && i.naturalWidth > 0);
+        if (!painted || !anyImg) setDegraded(true);
+      } catch (_) { setDegraded(true); }
+    }, 1500);
+    return () => clearTimeout(t);
+  }, [ready, degraded]);
+
   const scale = screenW > 0 ? screenW / renderW : 0;
   const screenH = renderH * scale;
   const src = srcProp || `/conference?c=${encodeURIComponent(slug)}&t=${encodeURIComponent(template)}&theme=${encodeURIComponent(theme)}&qr=0`;
@@ -175,7 +200,24 @@ export default function TabletFrame({
           background: screenBg != null ? screenBg : (bare ? "#000" : "#05070b"),
           isolation: "isolate",
         }}
+        data-mx-tablet={degraded ? "degraded" : ready ? "live" : "booting"}
       >
+        {/* The opening frame of the real presentation, UNDER the iframe. The screen area was
+            painted flat #000, so anything that stopped the deck compositing left a black
+            rectangle inside the device — shell, stand and gradient intact, screen dead, which
+            is exactly how this was reported from the device. Black is the worst possible
+            failure state for a sales page and it was also indistinguishable from the boot
+            mask, so the two could not be told apart. A still of the deck's own first page
+            costs 38KB, shows through only where the deck has not drawn, and is replaced the
+            instant it does. If the deck never paints at all, the health check below brings
+            this to the front rather than leaving the device broken. */}
+        {poster && (
+          <img src={poster} alt="" aria-hidden decoding="async"
+            style={{ position: "absolute", inset: 0, width: "100%", height: "100%",
+                     objectFit: "cover", objectPosition: "top center",
+                     zIndex: degraded ? 3 : 0, pointerEvents: "none",
+                     transition: "opacity 320ms ease" }} />
+        )}
         {scale > 0 && (
           <iframe
             ref={iframeRef}

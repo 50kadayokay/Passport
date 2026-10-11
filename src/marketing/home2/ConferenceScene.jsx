@@ -336,7 +336,7 @@ export default function ConferenceScene({ mobile = false, reduce = false, confIn
             {DEBUG_PINK ? (
               <div style={{ position: "absolute", inset: 0, background: "#ff1493" }} />
             ) : mount ? (
-              <TabletFrame bare src={FOLIO_SRC} interactive={false} renderW={SW} renderH={SH} navSid={foSid} navSmooth={foSmooth} title="MineEx Conference Mode — Northvale" />
+              <TabletFrame bare src={FOLIO_SRC} interactive={false} renderW={SW} renderH={SH} navSid={foSid} navSmooth={foSmooth} poster="/marketing/conference-folio-poster.webp" title="MineEx Conference Mode — Northvale" />
             ) : (
               <div style={{ position: "absolute", inset: 0, background: "radial-gradient(130% 130% at 50% 42%, #0c1016 0%, #05070b 72%)" }} />
             )}

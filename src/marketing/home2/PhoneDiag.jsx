@@ -267,6 +267,80 @@ export function bootVerdict() {
   return `aligned within ${Math.abs(gap)}ms`;
 }
 
+// ── BOTH DEVICES, on the device ───────────────────────────────────────────────────────────
+// Everything that has been assumed and never checked: whether each iframe's document is
+// reachable at all, whether its app THREW, whether its images loaded but failed to decode,
+// whether the deck has real geometry, and which of the two black-screen failures is in play.
+// A populated DOM and a 200 response have both proved worthless as evidence of something
+// reaching the glass, so nothing here infers visibility from existence.
+export const DEVERR = { phone: [], tablet: [] };
+const hookErrors = (win, bucket) => {
+  if (!win || win.__mxHooked) return;
+  try {
+    win.__mxHooked = true;
+    win.addEventListener("error", (e) => {
+      const m = e && (e.message || (e.target && (e.target.src || e.target.href)) || "");
+      if (bucket.length < 12) bucket.push(String(m).slice(0, 120));
+    }, true);
+    win.addEventListener("unhandledrejection", (e) => {
+      if (bucket.length < 12) bucket.push("promise: " + String((e && e.reason) || "").slice(0, 110));
+    });
+  } catch (_) {}
+};
+export function readDevices() {
+  const out = { phone: null, tablet: null };
+  const look = (sel, key) => {
+    const f = document.querySelector(sel);
+    if (!f) return { present: false };
+    let doc = null, win = null, reach = "ok";
+    try { doc = f.contentDocument; win = f.contentWindow; } catch (e) { reach = "BLOCKED: " + (e && e.name); }
+    if (!doc && reach === "ok") reach = "null document";
+    hookErrors(win, DEVERR[key]);
+    const r = f.getBoundingClientRect();
+    const imgs = doc ? Array.from(doc.images) : [];
+    const broken = imgs.filter((i) => i.complete && i.naturalWidth === 0).length;
+    const loaded = imgs.filter((i) => i.complete && i.naturalWidth > 0).length;
+    const root = doc && (doc.querySelector(".cv3") || doc.querySelector(".fo")
+                      || doc.querySelector('[data-page="overview"]') || doc.body);
+    const rr = root && root.getBoundingClientRect();
+    return {
+      present: true, reach,
+      src: (f.getAttribute("src") || "").slice(0, 60),
+      box: `${Math.round(r.width)}x${Math.round(r.height)}`,
+      onScreen: r.bottom > 0 && r.top < window.innerHeight && r.width > 2,
+      readyState: doc ? doc.readyState : null,
+      rootBox: rr ? `${Math.round(rr.width)}x${Math.round(rr.height)}` : null,
+      rootText: root ? (root.textContent || "").trim().length : 0,
+      imgs: imgs.length, loaded, broken,
+      errors: DEVERR[key].slice(0, 6),
+    };
+  };
+  out.phone = look('iframe[src*="embed=1"], iframe[src*="/appdemo"]', "phone");
+  out.tablet = look('iframe[src*="confv3demo"]', "tablet");
+  // the tablet's own declared state, and whether its poster is there
+  try {
+    const host = document.querySelector("[data-mx-tablet]");
+    out.tabletState = host ? host.getAttribute("data-mx-tablet") : "no host";
+    const ps = document.querySelector('img[src*="conference-folio-poster"]');
+    out.tabletPoster = ps ? (ps.complete && ps.naturalWidth > 0 ? "loaded" : "NOT LOADED") : "absent";
+  } catch (_) {}
+  // the phone card's actual opening state, and the director's signals
+  try {
+    const f = document.querySelector('iframe[src*="embed=1"]');
+    const d = f && f.contentDocument, w = f && f.contentWindow;
+    const o = (e) => (e ? +parseFloat(getComputedStyle(e).opacity).toFixed(2) : null);
+    const hero = d ? Array.from(d.images).filter((i) => /04-status-img/.test(i.src || ""))[1] : null;
+    const logo = d ? Array.from(d.images).find((i) => /05-status-logo/.test(i.src || "")) : null;
+    out.card = {
+      heroOpacity: o(hero), logoOpacity: logo ? o(logo.parentElement) : null,
+      heroLoaded: hero ? (hero.complete && hero.naturalWidth > 0) : null,
+      director: !!(w && w.__ppDirector), chapterVisible: !!(w && w.__ppChapterVisible),
+      playHook: w ? typeof w.__ppPlayOpening : "n/a",
+    };
+  } catch (_) {}
+  return out;
+}
+
 function readFrame(frameEl) {
   // Everything below is read from the frame's own document, in ITS coordinate space, and
   // reported alongside the parent-space rect of the frame so the two can be related.
@@ -483,6 +557,7 @@ export default function PhoneDiag({ state, label }) {
       t0FromNavigationStart: Math.round(MXT.t0),
       timings: MXT.marks,
       bootCover: { ...BOOT, verdict: bootVerdict() },
+      devices: readDevices(),
       images: imgAudit, samples: log,
     }, null, 1);
     try { await navigator.clipboard.writeText(text); setCopied("copied to clipboard"); }
@@ -558,6 +633,12 @@ ${imgAudit && imgAudit.preloadedElsewhere.length
   ? imgAudit.preloadedElsewhere.map((p2) => `${p2.page}: ${p2.imgs} imgs, ${p2.decodedMB}MB decoded`).join("   ")
   : "-"}
 totals             ${imgAudit ? `${imgAudit.totals.loaded}/${imgAudit.totals.imgsInFrame} loaded, ${imgAudit.totals.decodedMB}MB decoded, heap ${imgAudit.totals.jsHeapMB}` : "-"}
+--- DEVICES ---
+${(() => { const d = readDevices(); const f = (x, n) => !x || !x.present ? `${n}: ABSENT`
+  : `${n}: ${x.reach} ${x.box} ${x.onScreen ? "on" : "OFF"} doc:${x.readyState} root:${x.rootBox}/${x.rootText}ch imgs:${x.loaded}ok/${x.broken}broken${x.errors.length ? "\n     ERR " + x.errors.join(" | ") : ""}`;
+  return [f(d.phone, "phone"), f(d.tablet, "tablet"),
+    `tablet state: ${d.tabletState}  poster: ${d.tabletPoster}`,
+    `card: hero ${d.card && d.card.heroOpacity} logo ${d.card && d.card.logoOpacity} heroLoaded ${d.card && d.card.heroLoaded} director ${d.card && d.card.director} chapterVisible ${d.card && d.card.chapterVisible} hook ${d.card && d.card.playHook}`].join("\n"); })()}
 samples captured   ${log.length}`}
         </pre>
       )}
