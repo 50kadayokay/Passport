@@ -1262,6 +1262,14 @@ function Overview({ tab, goto, openBrief, following, setFollowing, bookmarked, s
         setTimeout(resolve, OPEN.logo + OPEN.fade);     // the later of the two has landed
       };
       if (!STATUS_IMG) { start(); return; }
+      // Gate on the element that is ALREADY on screen, not on a fresh Image. The director
+      // decodes this exact node under the boot cover, so asking it again resolves at once;
+      // a new Image re-ran the decode from scratch with the visitor watching a blank card.
+      const live = heroRef.current;
+      if (live && live.complete && live.naturalWidth > 0) {
+        if (live.decode) live.decode().then(start).catch(start); else start();
+        return;
+      }
       const probe = new Image();
       probe.src = STATUS_IMG;
       if (probe.decode) probe.decode().then(start).catch(start);
