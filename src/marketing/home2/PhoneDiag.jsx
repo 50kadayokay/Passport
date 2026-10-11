@@ -497,8 +497,12 @@ export default function PhoneDiag({ state, label }) {
   // nudge to show them filling in. 500ms for the first 16s, then it stops entirely.
   const [, bump] = useState(0);
   useEffect(() => {
-    let n = 0;
-    const id = setInterval(() => { bump((x) => x + 1); if (++n > 32) clearInterval(id); }, 500);
+    // Keep refreshing for as long as the panel is open. This used to stop after 16s, which
+    // was fine when it only showed boot marks — but the device section is LIVE state, and a
+    // frozen panel reported "tablet ABSENT, chapterVisible false" while standing on the
+    // tablet chapter. On a phone, where the panel IS the only readout, stale is worse than
+    // nothing. 700ms, and only while ?mxdiag=1 has it mounted.
+    const id = setInterval(() => bump((x) => x + 1), 700);
     return () => clearInterval(id);
   }, []);
   const [imgAudit, setImgAudit] = useState(null);
