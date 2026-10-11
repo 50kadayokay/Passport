@@ -1889,8 +1889,89 @@ function TimelineView() {
    the text fades in once, in a single swipe. */
 function SummaryContent({ item, cat, impact, hasFull, onReadFull }) {
   const stage = STAGE_IMPACT_BY_CAT[cat] || ["—", "—"];
+  // DEV-ONLY benchmark: render the Version-2 Brief for Kingsmen releases that carry `item.v2`,
+  // with a compare toggle. Gated by window.__BRIEF_BENCH__; the normal reader is unchanged.
+  const bench = typeof window !== "undefined" && !!(window.__BRIEF_BENCH__ && item && item.v2);
+  const [showV2, setShowV2] = useState(true);
+  const BLBL = "text-[10px] font-extrabold uppercase tracking-[0.16em]";
+  const benchToggle = bench ? (
+    <div className="mb-4 inline-flex rounded-full bg-slate-100 p-0.5 text-[11px] font-extrabold">
+      <button onClick={() => setShowV2(true)} className="rounded-full px-3 py-1.5 transition" style={showV2 ? { background: EM, color: "#fff" } : { color: "#64748b" }}>Brief v2</button>
+      <button onClick={() => setShowV2(false)} className="rounded-full px-3 py-1.5 transition" style={!showV2 ? { background: "#475569", color: "#fff" } : { color: "#64748b" }}>Current</button>
+    </div>
+  ) : null;
+  if (bench && showV2) {
+    const v2 = item.v2;
+    const kr = Array.isArray(v2.kr) ? v2.kr : [];
+    // Uniform metric-row model: every result is an identical two-column row
+    // (fixed-width cobalt value + unit on the left; descriptor + secondary on the right,
+    // with an optional relationship label such as INCLUDING). Primary vs included intervals
+    // are distinguished by the label, NOT by size or colour. Supports 0–4 rows.
+    const rows = kr;
+    const hasRows = rows.length > 0;
+    return (
+      <div className="mt-4">
+        {benchToggle}
+        <div className="pp-view">
+          {/* Balanced section hierarchy restored: What Happened and Why It Matters carry equal
+              weight (strong dark labels; Why It Matters differentiated only by a cobalt label),
+              Key Results is the centerpiece, Broader Context is quiet, The Takeaway concludes. */}
+          <div>
+            <span className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-slate-900">What Happened</span>
+            <p className="mt-1.5 text-[13.5px] font-medium leading-relaxed text-slate-600">{v2.wh}</p>
+          </div>
+          <div className="mt-5">
+            <span className="text-[10px] font-extrabold uppercase tracking-[0.16em]" style={{ color: EM_TEXT }}>Why It Matters</span>
+            <p className="mt-1.5 text-[13.5px] font-medium leading-relaxed text-slate-600">{v2.wy}</p>
+          </div>
+
+          {/* KEY RESULTS — one disciplined, repeatable metric-row system. Every result occupies an
+              IDENTICAL two-column row: left = fixed-width cobalt value + unit beneath; right =
+              descriptor + secondary, with an optional relationship label (e.g. INCLUDING). Same grid,
+              alignment, typography, padding and separators on every row; primary vs included intervals
+              are distinguished by the label, not by size or colour. Supports 0–4 rows. */}
+          {hasRows && (
+            <div className="mt-6">
+              <span className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-slate-900">Key Results</span>
+              <div className="mt-2">
+                {rows.map((r, i) => (
+                  <div key={i} className={`flex items-start gap-4 py-3 ${i > 0 ? "border-t border-slate-100" : ""}`}>
+                    <div className="w-[118px] flex-shrink-0">
+                      <div className="text-[22px] font-extrabold leading-none tracking-tight tabular-nums" style={{ color: EM_TEXT }}>{r.v}</div>
+                      {r.u && <div className="mt-1 text-[10px] font-bold uppercase tracking-[0.08em] text-slate-400">{r.u}</div>}
+                    </div>
+                    <div className="min-w-0 flex-1 pt-px">
+                      <div className="text-[13.5px] font-semibold leading-snug text-slate-800">
+                        {r.rel && <span className="mr-1.5 text-[9.5px] font-extrabold uppercase tracking-[0.1em]" style={{ color: EM }}>{r.rel}</span>}
+                        {r.rel && <span className="mr-1.5 text-slate-300">·</span>}
+                        {r.desc}
+                      </div>
+                      {r.sec && <div className="mt-0.5 text-[12px] font-medium leading-snug text-slate-500">{r.sec}</div>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {v2.tk && (
+            <div className="mt-6 rounded-2xl px-4 py-3.5" style={{ background: "rgba(37,99,235,0.06)", border: "1px solid rgba(37,99,235,0.16)" }}>
+              <span className="flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-[0.14em]" style={{ color: EM_TEXT }}><Sparkles size={12} strokeWidth={2.4} /> The Takeaway</span>
+              <p className="mt-1.5 text-[13.5px] font-semibold leading-relaxed text-slate-700">{v2.tk}</p>
+            </div>
+          )}
+        </div>
+        {hasFull && (
+          <button onClick={onReadFull} className="mt-6 flex h-11 w-full items-center justify-center gap-2 rounded-xl text-xs font-bold uppercase tracking-wider text-white transition active:scale-95" style={DARK_CTA}>
+            Read Full Press Release <ChevronRight size={14} />
+          </button>
+        )}
+      </div>
+    );
+  }
   return (
     <div className="mt-4">
+      {benchToggle}
       <div key={item.id} className="pp-view space-y-4">
         <div>
           <span className="text-[10px] font-extrabold uppercase tracking-[0.16em]" style={{ color: "#0f172a" }}>What Happened</span>

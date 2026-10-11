@@ -87,6 +87,19 @@ if (typeof window !== "undefined") {
   });
 }
 
+// DEV-ONLY MineEx Brief benchmark build: boot straight into Kingsmen's timeline with the eight
+// Version-2 Briefs loaded from a local fixture (public/brief-bench.json). MUST ship false — when
+// true, a localhost dev build auto-redirects into the benchmark. The benchmark itself is reached
+// via the ?brief=1 loader below, which is localhost-gated and cannot activate on a production host.
+// The rewrite runs before any routing/flags read the URL, so the normal shared-profile path (?c=)
+// renders the REAL app as a guest with no login, no DB writes.
+const BRIEF_BENCH = false;
+if (BRIEF_BENCH && typeof window !== "undefined") {
+  try {
+    const _p = new URLSearchParams(window.location.search);
+    if (!_p.has("c")) window.history.replaceState(null, "", "/app?c=kingsmen-resources&tab=timeline&brief=1");
+  } catch (_) {}
+}
 const path = typeof window !== "undefined" ? window.location.pathname : "/";
 const isOnboarding = path.startsWith("/onboarding");
 const isAdmin = path.startsWith("/admin");
@@ -900,6 +913,36 @@ function AppRoot() {
           if (r && Array.isArray(r.years) && r.full) {
             // Full ingest: the real press-release history (text + figure blocks) drives the timeline.
             mod.applyPP({ PR_YEARS: r.years, FULL: r.full, ACCOUNT_TIER: "pro" });
+          }
+        }
+      } catch (_) {}
+      // DEV-ONLY MineEx Brief benchmark (?brief=1): load the eight Kingsmen Version-2 Briefs into
+      // the timeline from public/brief-bench.json. Each item carries BOTH the current-app fields
+      // (why/takeaways, for the in-reader "Current" toggle) and a `v2` object. The full original
+      // release (text + figures) rides in FULL. No DB write; overrides only this session's PR data.
+      try {
+        if (params.get("brief") === "1" && /^(localhost|127\.0\.0\.1|\[::1\])$/i.test(location.hostname) && mod.applyPP) {
+          const bb = await fetch("/brief-bench.json").then((x) => x.json()).catch(() => null);
+          if (bb && Array.isArray(bb.dates) && bb.dates.length) {
+            const byYear = {};
+            for (const d of bb.dates) {
+              const v2 = bb.v2[d] || {}, oldf = bb.old[d] || {};
+              const dt = new Date(d.slice(0, 10) + "T00:00:00");
+              const year = String(dt.getFullYear());
+              const dd = dt.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+              (byYear[year] = byYear[year] || []).push({
+                id: d, d: dd,
+                headline: v2.head || oldf.headline || "", originalTitle: v2.head || oldf.headline || "",
+                label: v2.head || "", key: true,
+                why: oldf.why || "", takeaways: Array.isArray(oldf.takeaways) ? oldf.takeaways : [], whatHappened: "",
+                v2: { cat: v2.cat, wh: v2.wh, wy: v2.wy, kr: Array.isArray(v2.kr) ? v2.kr : [], bc: v2.bc, tk: v2.tk },
+              });
+            }
+            const PR_YEARS = Object.keys(byYear).sort((a, b) => Number(b) - Number(a))
+              .map((year) => ({ year, items: byYear[year].sort((a, b) => (a.id < b.id ? 1 : -1)) }));
+            const FULL = {}; for (const d of bb.dates) FULL[d] = bb.full[d] || {};
+            try { window.__BRIEF_BENCH__ = true; } catch (_) {}
+            mod.applyPP({ PR_YEARS, FULL, ACCOUNT_TIER: "pro" });
           }
         }
       } catch (_) {}
