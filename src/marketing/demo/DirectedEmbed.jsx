@@ -256,7 +256,7 @@ function deferUnseenImages(doc) {
   try { doc.defaultView.addEventListener("pagehide", () => mo.disconnect(), { once: true }); } catch (_) {}
 }
 
-export function DirectedEmbed({ variant = "full", hardware = false, cutout = false, openWhen = null } = {}) {
+export function DirectedEmbed({ variant = "full", hardware = false, cutout = false, openWhen = null, prepareWhen = null } = {}) {
   const STATES = variant === "home" ? HOME_STATES : FULL_STATES;
   const boxRef = useRef(null);
   const frameRef = useRef(null);
@@ -461,6 +461,35 @@ export function DirectedEmbed({ variant = "full", hardware = false, cutout = fal
   }, []);
   useEffect(() => { settleApp(); }, [settleApp]);   // cover the initial boot
   // …and run it the moment the chapter does arrive.
+  // PREPARE — re-decode the opening screen while the chapter is still sliding in.
+  //
+  // The decode done under the boot cover does not survive. iOS discards decoded bitmaps for
+  // images that are not on screen, and the card's photograph spends the whole hero chapter
+  // at opacity 0 inside an off-screen device — so by the time the chapter opens, the work
+  // has to be done again, and it is done with the visitor watching a blank card. Measured on
+  // the reported recording: the phone lands at 1.80s and the photograph does not begin until
+  // 2.50s, about 650ms of blank, against 167ms here and 60ms in the app itself. Chrome keeps
+  // the decode, which is precisely why this never showed up in testing.
+  //
+  // This fires on the PRESS, not on arrival, so the decode overlaps the 720ms slide instead
+  // of following it. No delay is added anywhere; the same work simply happens in the window
+  // that was already passing.
+  useEffect(() => {
+    if (prepareWhen !== true) return;
+    let cancelled = false;
+    const t = setTimeout(() => {
+      try {
+        const d = frameRef.current && frameRef.current.contentDocument;
+        const page = d && (d.querySelector('[data-page="overview"]') || d.querySelector("[data-page]"));
+        if (!page || cancelled) return;
+        for (const im of page.querySelectorAll("img")) {
+          if (im.decode && im.complete && im.naturalWidth > 0) im.decode().catch(() => {});
+        }
+      } catch (_) {}
+    }, 0);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [prepareWhen]);
+
   useEffect(() => {
     if (openWhen !== true || !pendingOpenRef.current || openedRef.current) return;
     if (!autoOpenRef.current) return;

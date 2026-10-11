@@ -507,7 +507,7 @@ export default function AppSection() {
               screen at boot. Without this the card played its whole opening — hero in,
               logo in, flip — while the visitor was still reading the hero, and arrived
               already finished. null keeps the desktop behaviour exactly as it was. */}
-          <DirectedEmbed variant="home" hardware cutout openWhen={mobile ? appOpenReady : null} />
+          <DirectedEmbed variant="home" hardware cutout prepareWhen={mobile ? idx >= APP0 : null} openWhen={mobile ? appOpenReady : null} />
         </div>
       </div>
     </div>
