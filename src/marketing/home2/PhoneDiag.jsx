@@ -487,7 +487,12 @@ async function auditImages(doc, win) {
 
 export default function PhoneDiag({ state, label }) {
   const [log, setLog] = useState([]);
-  const [open, setOpen] = useState(true);
+  // COLLAPSED by default. Expanded, this panel is fixed to the bottom at up to 46vh — which
+  // covers the opening control at 16% and makes the walkthrough undriveable. Measured: with
+  // it open, nine Next presses advanced nothing and the panel then reported "chapterVisible
+  // false, tablet ABSENT" — all true, and all caused by the instrument itself. Collapsed it
+  // is a 30px bar; tap "show" to read it, "export" to send it.
+  const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState("");
   const lastRef = useRef(null);
 
