@@ -782,6 +782,10 @@ function AppRoot() {
               if (coRole) {
                 window.__PP__.COMPANY_ACCOUNT = true;
                 window.__CO_ID__ = rows[0].id; window.__CO_SLUG__ = slug; window.__CO_ROLE__ = coRole;
+                // Snapshot the owner's OWN company context. Browsing other companies in-app
+                // swaps their data into window.__PP__; the app restores from this when the owner
+                // returns to their Profile, so manage mode persists while they navigate.
+                window.__CO_PP__ = window.__PP__;
               }
               // Native "manage" entry (?manage=<slug>): authorization is the active membership
               // above — NEVER the URL. If the caller is a verified member, boot into owner mode
@@ -921,8 +925,9 @@ function AppRoot() {
       // (why/takeaways, for the in-reader "Current" toggle) and a `v2` object. The full original
       // release (text + figures) rides in FULL. No DB write; overrides only this session's PR data.
       try {
-        if (params.get("brief") === "1" && /^(localhost|127\.0\.0\.1|\[::1\])$/i.test(location.hostname) && mod.applyPP) {
-          const bb = await fetch("/brief-bench.json").then((x) => x.json()).catch(() => null);
+        const _briefGen = params.get("briefgen") === "1";   // dev: load the GENERATED briefs (Phase 1A) instead of the approved benchmark
+        if ((params.get("brief") === "1" || _briefGen) && /^(localhost|127\.0\.0\.1|\[::1\])$/i.test(location.hostname) && mod.applyPP) {
+          const bb = await fetch(_briefGen ? "/brief-generated.json" : "/brief-bench.json").then((x) => x.json()).catch(() => null);
           if (bb && Array.isArray(bb.dates) && bb.dates.length) {
             const byYear = {};
             for (const d of bb.dates) {

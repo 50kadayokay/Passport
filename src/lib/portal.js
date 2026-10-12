@@ -36,6 +36,44 @@ export async function myPortalCompanies() {
   }
 }
 
+// Follower COUNT for a company (public RPC company_follower_count, SECURITY DEFINER —
+// migration 0009). Any authenticated caller gets the number; the raw follow rows stay
+// private via RLS. Shown to the OWNER only (we never render this on the public profile).
+export async function companyFollowerCount(companyId) {
+  if (!companyId) return 0;
+  try {
+    const h = await authHeaders();
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/company_follower_count`, {
+      method: "POST",
+      headers: { ...h, "Content-Type": "application/json" },
+      body: JSON.stringify({ cid: companyId }),
+    });
+    if (!res.ok) return 0;
+    const n = await res.json().catch(() => 0);
+    return typeof n === "number" ? n : 0;
+  } catch { return 0; }
+}
+
+// The PROFILES that follow a company — OWNER-ONLY list. Needs a SECURITY DEFINER RPC
+// (company_followers_list) that verifies owns_company() before returning follower
+// identities, because company_follows RLS hides other users' rows from an owner.
+// NOT YET ADDED (pending approval for the owner-scoped function) → resolves to [] so
+// the UI shows a clean empty state rather than erroring.
+export async function companyFollowers(companyId) {
+  if (!companyId) return [];
+  try {
+    const h = await authHeaders();
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/company_followers_list`, {
+      method: "POST",
+      headers: { ...h, "Content-Type": "application/json" },
+      body: JSON.stringify({ cid: companyId }),
+    });
+    if (!res.ok) return [];
+    const rows = await res.json().catch(() => []);
+    return Array.isArray(rows) ? rows : [];
+  } catch { return []; }
+}
+
 // A single company's full record for the portal (includes the profile JSON).
 export async function loadPortalCompany(companyId) {
   if (!companyId) return null;

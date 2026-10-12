@@ -28,7 +28,7 @@ function demoFocusStyle(on, restShadow) {
   };
 }
 import { fetchCompany, SUPABASE_URL, SUPABASE_ANON } from "../lib/supabase.js";
-import { updateCompanyProfile, myPortalCompanies } from "../lib/portal.js";  // company-account: persist edits + resolve managed companies
+import { updateCompanyProfile, myPortalCompanies, companyFollowerCount, companyFollowers } from "../lib/portal.js";  // company-account: persist edits + resolve managed companies + follower count/list
 import { uploadCompanyMedia } from "../lib/storage.js";          // company-account: upload a new logo/media
 import { mapProfileToPP } from "../lib/profileToPP.js";          // company-account: rebuild pp after an edit
 import { API_BASE, isNativeApp } from "../lib/platform.js";
@@ -933,7 +933,14 @@ function PageBar({ tab, setTab, following, setFollowing, onBack }) {
 /* ============================================================
    PROFILE HEADER  —  static Kingsmen banner shown on every page
    ============================================================ */
-function ProfileHeader({ tab, setTab, following, setFollowing, onBack, onContact, followEmphasis, followPress, owner, onEdit, onCreate, onAnalytics, onShare, onSettings }) {
+// Compact follower counts: 1234 → "1.2K", 2_000_000 → "2M".
+function fmtCompact(n) {
+  const x = Number(n) || 0;
+  if (x >= 1e6) return (x / 1e6).toFixed(x % 1e6 === 0 ? 0 : 1).replace(/\.0$/, "") + "M";
+  if (x >= 1e3) return (x / 1e3).toFixed(x % 1e3 === 0 ? 0 : 1).replace(/\.0$/, "") + "K";
+  return String(x);
+}
+function ProfileHeader({ tab, setTab, following, setFollowing, onBack, onContact, followEmphasis, followPress, owner, onEdit, onCreate, onAnalytics, onSettings, followerCount, onFollowers }) {
   const pages = profilePagesForTier();
   // Contact is a paid feature — Basic + Pro only (legacy/unknown tiers are pro-equivalent).
   // Free-plan accounts don't get it; free INDEXED listings never reach here (BasicListing).
@@ -982,14 +989,15 @@ function ProfileHeader({ tab, setTab, following, setFollowing, onBack, onContact
       {/* actions — owner edits their profile; investors follow + contact */}
       {owner ? (
         /* Owner actions — same premium pill language as the investor Follow/Message row.
-           Share profile · Contacts. Editing lives INSIDE the Contacts card (owner-only pencil,
-           top-right), so there is no separate Edit button here. */
+           Followers (PRIVATE count, owner-only — tap to see who follows) · Contacts.
+           Share profile lives in Settings; editing lives inside the Contacts card. */
         <div className="mt-2 grid grid-cols-2 gap-2">
           <button
-            onClick={() => { haptic(); onShare && onShare(); }}
+            onClick={() => { haptic(); onFollowers && onFollowers(); }}
             className="flex h-9 items-center justify-center gap-1.5 rounded-full border border-slate-200 bg-white text-[12px] font-bold tracking-tight text-slate-700 transition active:scale-[0.97]"
           >
-            <Share2 size={13} strokeWidth={2.4} /> Share profile
+            <Users size={13} strokeWidth={2.4} />
+            <span className="tabular-nums">{followerCount == null ? "—" : fmtCompact(followerCount)}</span> Followers
           </button>
           <button
             onClick={() => { haptic(); onContact && onContact(); }}
@@ -2196,7 +2204,7 @@ function StageTimeline() {
   );
 }
 
-function BottomSheet({ children, onClose, mediaKey, topBanner, fit }) {
+function BottomSheet({ children, onClose, mediaKey, topBanner, fit, z = 50 }) {
   const [shown, setShown] = useState(false);
   const [drag, setDrag] = useState(0);
   const [dragging, setDragging] = useState(false);
@@ -2235,7 +2243,7 @@ function BottomSheet({ children, onClose, mediaKey, topBanner, fit }) {
   };
 
   return createPortal(
-    <div className="absolute inset-0 z-50 flex flex-col justify-end" style={scrub ? { pointerEvents: "none" } : undefined}>
+    <div className="absolute inset-0 flex flex-col justify-end" style={{ zIndex: z, ...(scrub ? { pointerEvents: "none" } : {}) }}>
       <div
         className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
         style={scrub ? { opacity: "var(--pp-sheet, 0)" } : { opacity: shown ? 1 : 0, transition: "opacity .28s ease" }}
@@ -6449,23 +6457,21 @@ function StoryReader({ it, onOpen, onClose }) {
     </div>, ppFrameEl || document.body);
 }
 
-// Lead / hero story — strong imagery, big headline over the image.
+// Lead / hero story — strong imagery up top, then a bold headline BELOW the clean
+// image (same read as the smaller thumbnails), so the photo is never obscured by text.
 function LeadStory({ it, onRead, reason }) {
   return (
     <button onClick={() => { haptic(); onRead(it); }} className="w-full overflow-hidden rounded-3xl border border-slate-100 bg-white text-left transition active:scale-[0.99]" style={{ boxShadow: "0 1px 2px rgba(15,23,42,0.04), 0 18px 34px -22px rgba(15,23,42,0.5)" }}>
-      <div className="relative h-52 w-full overflow-hidden" style={coverFor(it)}>
+      <div className="relative h-36 w-full overflow-hidden" style={coverFor(it)}>
         <CoverImg it={it} />
-        <div className="absolute inset-0" style={{ background: "linear-gradient(180deg, rgba(15,23,42,0) 35%, rgba(15,23,42,0.82))" }} />
-        <div className="absolute left-4 top-4 flex items-center gap-2">{it.contentType === "NEWS" ? <NewsTag it={it} onDark /> : <TypeBadge type={it.badge || it.contentType} />}{it.followed && <FollowingChip dark />}</div>
         {isMedia(it.contentType) && <span className="absolute inset-0 grid place-items-center"><span className="grid h-12 w-12 place-items-center rounded-full bg-white/85"><Play size={18} className="ml-0.5 text-slate-900" /></span></span>}
-        <div className="absolute inset-x-4 bottom-3.5">
-          <p className="text-[19px] font-extrabold leading-tight tracking-tight text-white" style={{ textShadow: "0 1px 14px rgba(0,0,0,0.45)" }}>{it.headline}</p>
-        </div>
       </div>
-      <div className="p-4">
-        {reason && <div className="mb-1.5"><ContextLabel text={reason} /></div>}
-        {it.dek && <p className="text-[13px] font-medium leading-snug text-slate-500">{it.dek}</p>}
-        <div className="mt-2 flex items-center gap-1.5 text-[11px] font-bold tracking-tight text-slate-400">
+      <div className="p-3.5">
+        <div className="mb-1 flex items-center gap-1.5">{it.contentType === "NEWS" ? <NewsTag it={it} /> : <TypeBadge type={it.badge || it.contentType} />}{it.followed && <FollowingChip />}</div>
+        <p className="line-clamp-2 text-[15.5px] font-extrabold leading-tight tracking-tight text-slate-900">{it.headline}</p>
+        {reason && <div className="mt-1"><ContextLabel text={reason} /></div>}
+        {it.dek && <p className="mt-1 line-clamp-2 text-[12.5px] font-medium leading-snug text-slate-500">{it.dek}</p>}
+        <div className="mt-1.5 flex items-center gap-1.5 text-[11px] font-bold tracking-tight text-slate-400">
           <span className="truncate">{it.companyName}</span><span className="text-slate-300">·</span><span className="flex-shrink-0">{it.when}</span>
         </div>
       </div>
@@ -6973,7 +6979,7 @@ export function TodayScreen({ onOpenCompany, onScan, onCreate }) {
   return (
     <div className="flex h-full flex-col">
       <div onPointerDown={startHold} onPointerUp={cancelHold} onPointerLeave={cancelHold} onPointerCancel={cancelHold} style={{ touchAction: "manipulation", userSelect: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none" }}>
-        <ScreenHead eyebrow="Junior Mining" title="Today" onScan={onScan} onCreate={onCreate} />
+        <ScreenHead eyebrow="Mining" title="Today" onScan={onScan} onCreate={onCreate} />
       </div>
       <div className="px-5">
         <FeedTabs active={tab} onChange={setTab} />
@@ -8606,6 +8612,18 @@ function XLogo({ size = 15 }) {
 }
 
 // Edit sheet for the investor's own profile.
+// Premium gradient themes for the investor identity card. Index 0 (emerald) is the
+// original default, so existing profiles with no saved theme look exactly as before.
+const INVESTOR_CARD_THEMES = [
+  "linear-gradient(135deg,#0e7a53 0%,#0b3d2e 100%)",             // emerald (default)
+  "linear-gradient(135deg,#2563eb 0%,#1e3a8a 100%)",             // cobalt
+  "linear-gradient(135deg,#8b5cf6 0%,#6366f1 45%,#3730a3 100%)", // indigo-violet
+  "linear-gradient(135deg,#f59e0b 0%,#b45309 55%,#7c2d12 100%)", // amber
+  "linear-gradient(135deg,#f43f5e 0%,#9f1239 100%)",             // rose
+  "linear-gradient(135deg,#ec4899 0%,#a21caf 50%,#581c87 100%)", // magenta
+  "linear-gradient(135deg,#334155 0%,#0f172a 100%)",             // graphite
+];
+const investorCardTheme = (i) => INVESTOR_CARD_THEMES[Math.max(0, Math.min(INVESTOR_CARD_THEMES.length - 1, Number(i) || 0))];
 function EditInvestorProfile({ initial, defaultName, onSave, onClose }) {
   const [f, setF] = useState(() => ({ name: "", website: "", bio: "", company: "", industry: "", role: "", location: "", investorType: "Retail Investor", linkedin: "", twitter: "", instagram: "", ...initial }));
   const set = (k) => (e) => setF((s) => ({ ...s, [k]: e.target.value }));
@@ -8641,6 +8659,19 @@ function EditInvestorProfile({ initial, defaultName, onSave, onClose }) {
                 return <button key={t} type="button" onClick={() => setF((s) => ({ ...s, investorType: t }))}
                   className="rounded-full px-3 py-1.5 text-[12px] font-bold transition active:scale-95"
                   style={on ? { background: EM, color: "#fff" } : { background: "#f1f5f9", color: "#475569" }}>{t}</button>;
+              })}
+            </div>
+          </div>
+          <div>
+            <span className="mb-1.5 flex items-center gap-1.5 text-[10.5px] font-bold uppercase tracking-wider text-slate-400"><Sparkles size={12} />Card colour</span>
+            <div className="flex flex-wrap gap-2.5">
+              {INVESTOR_CARD_THEMES.map((g, i) => {
+                const on = (Number(f.cardTheme) || 0) === i;
+                return <button key={i} type="button" aria-label={`Card colour ${i + 1}`} onClick={() => { haptic(); setF((s) => ({ ...s, cardTheme: i })); }}
+                  className="relative grid h-9 w-9 place-items-center rounded-full transition active:scale-90"
+                  style={{ background: g, boxShadow: on ? "0 0 0 2px #fff, 0 0 0 4px #0f172a" : "0 1px 3px rgba(15,23,42,0.18)" }}>
+                  {on && <Check size={15} strokeWidth={3} className="text-white" style={{ filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.4))" }} />}
+                </button>;
               })}
             </div>
           </div>
@@ -8911,7 +8942,7 @@ function CompanyCreateMenu({ onClose, onChoose }) {
 // Polished company-profile share sheet — reuses the existing company-profile QR
 // (QRCode -> /app?c=<slug>) and the single share entry point (src/lib/share.js). No second
 // QR system, no ad-hoc share. Shown from the owner profile's Share action.
-function ShareProfileSheet({ onClose }) {
+function ShareProfileSheet({ onClose, z }) {
   const slug = (typeof window !== "undefined" && (window.__CO_SLUG__ || currentSlug())) || "";
   const url = companyShareUrl(slug);
   const host = url.replace(/^https?:\/\/(www\.)?/, "");
@@ -8923,7 +8954,7 @@ function ShareProfileSheet({ onClose }) {
   const doShare = async () => { haptic(); const r = await shareContent({ title: COMPANY.name || "MineEx", url }); if (!shouldFallback(r)) return; try { await navigator.clipboard.writeText(url); flashCopied(); } catch (_) {} };
   const doCopy = async () => { haptic(); try { await navigator.clipboard.writeText(url); flashCopied(); } catch (_) {} };
   return (
-    <BottomSheet onClose={onClose} fit>
+    <BottomSheet onClose={onClose} fit z={z}>
       {() => (
         <div className="flex flex-col items-center pb-1">
           <div className="grid h-14 w-14 flex-shrink-0 place-items-center overflow-hidden rounded-full border border-slate-200 bg-white">
@@ -8952,7 +8983,6 @@ function ShareProfileSheet({ onClose }) {
 function CompanyProfileScreen({ onScan, onCreate }) {
   const [editing, setEditing] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [sharing, setSharing] = useState(false);
   const [co, setCo] = useState(() => ({
     name: COMPANY.name || "Your Company", avatar: AVATAR || "",
     bio: COMPANY.slogan || "", website: COMPANY.website || "",
@@ -8964,7 +8994,7 @@ function CompanyProfileScreen({ onScan, onCreate }) {
   const [toast, setToast] = useState("");
   const toastT = useRef(null);
   const flash = (m) => { setToast(m); clearTimeout(toastT.current); toastT.current = setTimeout(() => setToast(""), 1800); };
-  useBackHandler(editing || settingsOpen || sharing, () => { setSharing(false); setSettingsOpen(false); setEditing(false); });
+  useBackHandler(editing || settingsOpen, () => { setSettingsOpen(false); setEditing(false); });
   // Persist profile edits to THIS company's row (when signed in as the owner). Falls back to a
   // local-only update in the demo (no real company id). Media (a new logo) uploads to Storage.
   const saveCompany = async (f) => {
@@ -8993,11 +9023,11 @@ function CompanyProfileScreen({ onScan, onCreate }) {
     <div className="relative flex h-full flex-col">
       {/* The owner's Profile tab IS their live Pro profile (the same one investors see),
           rendered in `owner` mode: no back/Follow. Header = Settings + create (+); actions =
-          Share profile + Contacts. Editing is the pencil inside the Contacts card. */}
+          Followers (private count) + Contacts. Share profile lives in Settings; editing is the
+          cog inside the Contacts card. */}
       <CompanyProfile owner onCreate={onCreate} onScan={onScan}
         onEdit={() => { haptic(); setEditing(true); }}
         onSettings={() => { haptic(); setSettingsOpen(true); }}
-        onShare={() => { haptic(); setSharing(true); }}
       />
 
       {toast && createPortal(
@@ -9011,7 +9041,6 @@ function CompanyProfileScreen({ onScan, onCreate }) {
         const inits = (COMPANY.name || "?").trim().split(/\s+/).slice(0, 2).map((w) => w[0] || "").join("").toUpperCase() || "?";
         return <AccountSettings onClose={() => setSettingsOpen(false)} audience="company" user={u} email={(u && u.email) || ""} displayName={COMPANY.name || "Your Company"} initials={inits} />;
       })()}
-      {sharing && <ShareProfileSheet onClose={() => setSharing(false)} />}
     </div>
   );
 }
@@ -9032,8 +9061,32 @@ function AccountSettings({ onClose, audience = "investor", user, email, displayN
   const pushToast = (msg) => { setToast(msg); clearTimeout(toastT.current); toastT.current = setTimeout(() => setToast(""), 1900); };
   const cardFlat = { boxShadow: "0 1px 2px rgba(15,23,42,0.04)" };
   const sectionLabel = "px-1 pb-2 pt-5 text-[11px] font-bold uppercase tracking-widest text-slate-400";
-  // Back: sub-panels first (they sit above), then close Settings — self-contained so both hosts match.
-  useBackHandler(true, () => { if (accountOpen) return setAccountOpen(false); if (notifOpen) return setNotifOpen(false); onClose(); });
+  // Account switcher (now lives in Settings): the companies this signed-in user is authorized
+  // to manage, resolved from RLS-backed memberships (never a URL/slug). Empty for a plain
+  // investor → no switch UI appears, so Settings is unchanged for them.
+  const [managed, setManaged] = useState([]);
+  const [switchOpen, setSwitchOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
+  useEffect(() => {
+    if (!user) { setManaged([]); return; }
+    let live = true;
+    myPortalCompanies().then((list) => { if (live) setManaged(Array.isArray(list) ? list.filter((c) => c && c.slug) : []); }).catch(() => { if (live) setManaged([]); });
+    return () => { live = false; };
+  }, [user && user.id]);
+  const goManage = (slug) => { haptic(); try { window.location.assign(`/app?manage=${encodeURIComponent(slug)}`); } catch (_) {} };
+  const goInvestor = () => { haptic(); try { window.location.assign("/app"); } catch (_) {} };
+  // Every profile this user can switch between: their personal Investor account + each company
+  // they manage. The CURRENT one (investor, or the company whose slug is loaded) is marked and
+  // not navigable. "others" decides whether we switch directly (one target) or show a picker.
+  const curSlug = (typeof window !== "undefined" && window.__CO_SLUG__) || "";
+  const profiles = [
+    { kind: "investor", name: "Investor", go: goInvestor },
+    ...managed.map((c) => ({ kind: "company", slug: c.slug, name: c.name, role: c.role, status: c.status, go: () => goManage(c.slug) })),
+  ];
+  const isCurrentProfile = (p) => (audience === "company" ? (p.kind === "company" && p.slug === curSlug) : p.kind === "investor");
+  const otherProfiles = profiles.filter((p) => !isCurrentProfile(p));
+  // Back: overlays first (picker/share, then sub-panels), then close Settings — self-contained so both hosts match.
+  useBackHandler(true, () => { if (shareOpen) return setShareOpen(false); if (switchOpen) return setSwitchOpen(false); if (accountOpen) return setAccountOpen(false); if (notifOpen) return setNotifOpen(false); onClose(); });
   const doSignOut = async () => {
     if (signingOut) return;
     if (!user) { haptic(); window.location.assign("/app?signin=1"); return; }
@@ -9108,12 +9161,37 @@ function AccountSettings({ onClose, audience = "investor", user, email, displayN
                 <ArrowUpRight size={16} className="flex-shrink-0 text-slate-300" />
               </a>
             </div>
+            {/* SHARE PROFILE — company-only, moved here from the profile header. */}
             {audience === "company" && (
-              <button onClick={() => { haptic(); try { window.location.assign("/app"); } catch (_) {} }} className="mt-3 flex w-full items-center gap-3 rounded-2xl border border-slate-100 bg-white px-4 py-3.5 text-left transition active:bg-slate-50" style={cardFlat}>
-                <User size={18} className="flex-shrink-0 text-slate-500" />
-                <span className="min-w-0 flex-1 text-[13.5px] font-bold tracking-tight text-slate-800">Switch to investor</span>
+              <button onClick={() => { haptic(); setShareOpen(true); }} className="mt-3 flex w-full items-center gap-3 rounded-2xl border border-slate-100 bg-white px-4 py-3.5 text-left transition active:bg-slate-50" style={cardFlat}>
+                <Share2 size={18} className="flex-shrink-0 text-slate-500" />
+                <span className="min-w-0 flex-1 text-[13.5px] font-bold tracking-tight text-slate-800">Share profile</span>
                 <ChevronRight size={16} className="flex-shrink-0 text-slate-300" />
               </button>
+            )}
+            {/* PROFILE SWITCHER — same control in both modes: Investor + every company you
+                manage. One other profile → switch directly; several → open the picker. Hidden
+                for a plain investor with no companies, so their Settings is unchanged. */}
+            {otherProfiles.length > 0 && (
+              otherProfiles.length === 1 ? (
+                <button onClick={() => { haptic(); otherProfiles[0].go(); }} className="mt-3 flex w-full items-center gap-3 rounded-2xl border border-slate-100 bg-white px-4 py-3.5 text-left transition active:bg-slate-50" style={cardFlat}>
+                  {otherProfiles[0].kind === "investor" ? <User size={18} className="flex-shrink-0 text-slate-500" /> : <Building2 size={18} className="flex-shrink-0 text-slate-500" />}
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-[13.5px] font-bold tracking-tight text-slate-800">Switch profiles</span>
+                    <span className="block text-[11px] font-medium text-slate-400">Go to {otherProfiles[0].name}</span>
+                  </span>
+                  <ChevronRight size={16} className="flex-shrink-0 text-slate-300" />
+                </button>
+              ) : (
+                <button onClick={() => { haptic(); setSwitchOpen(true); }} className="mt-3 flex w-full items-center gap-3 rounded-2xl border border-slate-100 bg-white px-4 py-3.5 text-left transition active:bg-slate-50" style={cardFlat}>
+                  <Building2 size={18} className="flex-shrink-0 text-slate-500" />
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-[13.5px] font-bold tracking-tight text-slate-800">Switch profiles</span>
+                    <span className="block text-[11px] font-medium text-slate-400">{otherProfiles.length} other profiles</span>
+                  </span>
+                  <ChevronRight size={16} className="flex-shrink-0 text-slate-300" />
+                </button>
+              )
             )}
             <button onClick={doSignOut} disabled={signingOut} className="mt-3 flex w-full items-center gap-3 rounded-2xl border border-slate-100 bg-white px-4 py-3.5 text-left transition active:bg-slate-50 disabled:opacity-60" style={cardFlat}>
               <LogOut size={18} className={`flex-shrink-0 ${user ? "text-rose-500" : "text-blue-500"}`} />
@@ -9139,6 +9217,39 @@ function AccountSettings({ onClose, audience = "investor", user, email, displayN
             </div>
           </div>
         </div>, ppFrameEl || document.body)}
+      {/* Company picker — multi-company managers pick which company to switch into. */}
+      {switchOpen && (
+        <BottomSheet z={110} onClose={() => setSwitchOpen(false)} topBanner={
+          <div style={{ padding: "26px 20px 16px", background: `linear-gradient(120deg, ${EM}, ${EM_TEXT})` }}>
+            <p className="text-[9.5px] font-extrabold uppercase tracking-[0.2em] text-white/75">Account</p>
+            <h3 className="text-[20px] font-extrabold tracking-tight text-white">Switch profiles</h3>
+          </div>
+        }>
+          {() => (
+            <div className="space-y-2 pb-2">
+              {profiles.map((p) => {
+                const cur = isCurrentProfile(p);
+                return (
+                  <button key={p.kind === "investor" ? "investor" : p.slug} disabled={cur} onClick={() => { if (!cur) p.go(); }}
+                    className={`flex w-full items-center gap-3 rounded-2xl border border-slate-100 bg-white px-4 py-3.5 text-left transition ${cur ? "opacity-70" : "active:bg-slate-50"}`} style={cardFlat}>
+                    {p.kind === "investor"
+                      ? <span className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-full bg-slate-100 text-slate-500"><User size={17} /></span>
+                      : <span className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-full bg-slate-100 text-[13px] font-extrabold text-slate-500">{(p.name || "?").trim().slice(0, 1).toUpperCase()}</span>}
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[13.5px] font-bold tracking-tight text-slate-800">{p.name}</span>
+                      <span className="block truncate text-[10.5px] font-bold uppercase tracking-wide text-slate-400">{p.kind === "investor" ? "Personal account" : `${p.role || "owner"}${p.status && p.status !== "published" ? ` · ${p.status}` : ""}`}</span>
+                    </span>
+                    {cur
+                      ? <span className="flex-shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-500">Current</span>
+                      : <ChevronRight size={16} className="flex-shrink-0 text-slate-300" />}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </BottomSheet>
+      )}
+      {shareOpen && <ShareProfileSheet z={110} onClose={() => setShareOpen(false)} />}
       {notifOpen && <NotificationPrefs onBack={() => setNotifOpen(false)} onToast={pushToast} />}
       {accountOpen && (
         <SettingsSubPanel title="Account & Security" onBack={() => setAccountOpen(false)}>
@@ -9183,19 +9294,9 @@ function ProfileScreen({ onScan }) {
   const [editing, setEditing] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [savedOpen, setSavedOpen] = useState(false);
-  // Account switcher: the companies this signed-in user is authorized to manage (RLS-backed
-  // membership via myPortalCompanies — never a URL/slug). Empty for investors → NO UI change.
-  const [managed, setManaged] = useState([]);
-  const [switchOpen, setSwitchOpen] = useState(false);
-  useEffect(() => {
-    if (!user) { setManaged([]); return; }
-    let live = true;
-    myPortalCompanies().then((list) => { if (live) setManaged(Array.isArray(list) ? list.filter((c) => c && c.slug) : []); }).catch(() => { if (live) setManaged([]); });
-    return () => { live = false; };
-  }, [user && user.id]);
-  const goManage = (slug) => { haptic(); try { window.location.assign(`/app?manage=${encodeURIComponent(slug)}`); } catch (_) {} };
-  // Android back: Settings owns its own back-stack (AccountSettings). Saved + switch picker here.
-  useBackHandler(!!(savedOpen || switchOpen), () => { if (switchOpen) return setSwitchOpen(false); setSavedOpen(false); });
+  // Android back: Settings owns its own back-stack (AccountSettings, which also hosts the
+  // account switcher now); the Saved panel is the only overlay ProfileScreen owns here.
+  useBackHandler(!!savedOpen, () => setSavedOpen(false));
   const savedCount = savedStore.list().length;
   const pushToast = (msg) => { setToast(msg); clearTimeout(toastT.current); toastT.current = setTimeout(() => setToast(""), 1900); };
   // Re-read the cached profile when a background cloud hydrate/sign-out updates it.
@@ -9226,8 +9327,9 @@ function ProfileScreen({ onScan }) {
       } />
       <div className="pp-scroll flex-1 overflow-y-auto px-5 pb-28 pt-1">
 
-        {/* 1 — IDENTITY: full-gradient hero, avatar sits fully on the gradient */}
-        <div className="relative overflow-hidden rounded-2xl p-5" style={{ background: "linear-gradient(135deg,#0e7a53 0%,#0b3d2e 100%)", ...cardBig }}>
+        {/* 1 — IDENTITY: full-gradient hero, avatar sits fully on the gradient. Colour is
+            one of 8 premium gradient themes the investor picks in Edit profile (default emerald). */}
+        <div className="relative overflow-hidden rounded-2xl p-5" style={{ background: investorCardTheme(pf.cardTheme), ...cardBig }}>
           <div className="pointer-events-none absolute inset-0" style={{ background: "radial-gradient(120% 130% at 86% -12%, rgba(255,255,255,0.20) 0%, rgba(255,255,255,0) 46%)" }} />
           <button onClick={() => { haptic(); setEditing(true); }} className="absolute right-3 top-3 z-10 flex items-center gap-1.5 rounded-full bg-white/20 px-3 py-1.5 text-[11.5px] font-bold text-white backdrop-blur transition active:scale-95">
             <PenSquare size={12} /> Edit
@@ -9270,20 +9372,6 @@ function ProfileScreen({ onScan }) {
           )}
         </div>
 
-        {/* ACCOUNT SWITCHER — only when this user manages a company (membership-resolved).
-            Investors (empty) see nothing here, so their experience is unchanged. Single company
-            switches directly; multiple opens a picker. */}
-        {managed.length > 0 && (
-          <button onClick={() => { haptic(); if (managed.length === 1) goManage(managed[0].slug); else setSwitchOpen(true); }} className="mt-3 flex w-full items-center gap-3 rounded-2xl border p-4 text-left transition active:scale-[0.99]" style={{ borderColor: "#dbe4fb", background: "linear-gradient(180deg,#f5f8ff 0%,#ffffff 60%)", ...cardFlat }}>
-            <span className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-xl" style={{ background: "rgba(37,99,235,0.12)" }}><Building2 size={17} style={{ color: EM_TEXT }} /></span>
-            <span className="min-w-0 flex-1">
-              <span className="block truncate text-[13.5px] font-bold tracking-tight text-slate-800">{managed.length === 1 ? `Manage ${managed[0].name}` : "Switch to company"}</span>
-              <span className="block text-[11.5px] font-medium text-slate-400">{managed.length === 1 ? "Open your company profile" : `${managed.length} companies you manage`}</span>
-            </span>
-            <ChevronRight size={17} className="flex-shrink-0 text-slate-300" />
-          </button>
-        )}
-
         {/* SAVED — bookmarked stories, opens the full list */}
         <button onClick={() => { haptic(); setSavedOpen(true); }} className="mt-3 flex w-full items-center gap-3 rounded-2xl border border-slate-100 bg-white p-4 text-left transition active:scale-[0.99]" style={cardFlat}>
           <span className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-xl" style={{ background: "rgba(37,99,235,0.12)" }}><Bookmark size={17} style={{ color: EM_TEXT }} /></span>
@@ -9307,32 +9395,8 @@ function ProfileScreen({ onScan }) {
 
       {savedOpen && <SavedPanel onBack={() => setSavedOpen(false)} />}
 
-      {/* Company picker — only for a multi-company manager. Tapping one enters manage mode. */}
-      {switchOpen && (
-        <BottomSheet onClose={() => setSwitchOpen(false)} topBanner={
-          <div style={{ padding: "26px 20px 16px", background: `linear-gradient(120deg, ${EM}, ${EM_TEXT})` }}>
-            <p className="text-[9.5px] font-extrabold uppercase tracking-[0.2em] text-white/75">Account</p>
-            <h3 className="text-[20px] font-extrabold tracking-tight text-white">Switch to company</h3>
-          </div>
-        }>
-          {() => (
-            <div className="space-y-2 pb-2">
-              {managed.map((c) => (
-                <button key={c.slug} onClick={() => goManage(c.slug)} className="flex w-full items-center gap-3 rounded-2xl border border-slate-100 bg-white px-4 py-3.5 text-left transition active:bg-slate-50" style={cardFlat}>
-                  <span className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-full bg-slate-100 text-[13px] font-extrabold text-slate-500">{(c.name || "?").trim().slice(0, 1).toUpperCase()}</span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[13.5px] font-bold tracking-tight text-slate-800">{c.name}</span>
-                    <span className="block text-[10.5px] font-bold uppercase tracking-wide text-slate-400">{c.role || "owner"}{c.status && c.status !== "published" ? ` · ${c.status}` : ""}</span>
-                  </span>
-                  <ChevronRight size={16} className="flex-shrink-0 text-slate-300" />
-                </button>
-              ))}
-            </div>
-          )}
-        </BottomSheet>
-      )}
-
-      {/* Settings — shared AccountSettings component (identical for investors and owners). */}
+      {/* Settings — shared AccountSettings component (identical for investors and owners).
+          The account switcher (investor → company) now lives INSIDE Settings. */}
       {settingsOpen && <AccountSettings onClose={() => setSettingsOpen(false)} user={user} email={email} displayName={name} initials={initials} />}
     </div>
   );
@@ -10039,6 +10103,26 @@ export function CompanyProfile({ onBack, onScan, tab: controlledTab, onTabChange
   const [overlay, setOverlay] = useState(null);
   const [dm, setDm] = useState(false);
   const [contactOpen, setContactOpen] = useState(false);
+  // OWNER-ONLY: this company's follower count (PRIVATE — never rendered on the public
+  // profile) + the followers-list sheet. Count comes from the public RPC; the list needs
+  // an owner-scoped RPC (portal.companyFollowers) and stays empty until that's enabled.
+  const [followerCount, setFollowerCount] = useState(null);
+  const [followersOpen, setFollowersOpen] = useState(false);
+  const [followerList, setFollowerList] = useState(null);
+  useEffect(() => {
+    if (!owner) return;
+    const cid = (typeof window !== "undefined" && window.__CO_ID__) || null;
+    if (!cid) return;
+    let live = true;
+    companyFollowerCount(cid).then((n) => { if (live) setFollowerCount(n); }).catch(() => {});
+    return () => { live = false; };
+  }, [owner]);
+  const openFollowers = () => {
+    haptic(); setFollowersOpen(true); setFollowerList(null);
+    const cid = (typeof window !== "undefined" && window.__CO_ID__) || null;
+    if (!cid) { setFollowerList([]); return; }
+    companyFollowers(cid).then((list) => setFollowerList(Array.isArray(list) ? list : [])).catch(() => setFollowerList([]));
+  };
   // Tap a phone/email/address row to copy it to the clipboard (shows a brief "Copied" toast).
   const [copiedLabel, setCopiedLabel] = useState("");
   const copiedT = useRef(null);
@@ -10103,7 +10187,7 @@ export function CompanyProfile({ onBack, onScan, tab: controlledTab, onTabChange
     <DemoCtx.Provider value={demo || null}>
     <div className="flex h-full flex-col pp-fade" style={{ background: "#ffffff" }}>
       <div className="flex-shrink-0" style={{ background: "linear-gradient(180deg, #F1F6FD 0%, #F8FBFE 55%, #FFFFFF 100%)" }}>
-        <ProfileHeader onBack={onBack} onContact={() => setContactOpen(true)} tab={displayTab} setTab={setTab} following={following} setFollowing={setFollowing} followEmphasis={followEmphasis} followPress={followPress} owner={owner} onEdit={onEdit} onCreate={onCreate} onAnalytics={onAnalytics} onShare={onShare} onSettings={onSettings} />
+        <ProfileHeader onBack={onBack} onContact={() => setContactOpen(true)} tab={displayTab} setTab={setTab} following={following} setFollowing={setFollowing} followEmphasis={followEmphasis} followPress={followPress} owner={owner} onEdit={onEdit} onCreate={onCreate} onAnalytics={onAnalytics} onSettings={onSettings} followerCount={followerCount} onFollowers={openFollowers} />
       </div>
       <div className="flex-1" style={{ minHeight: 0 }}>
         <SwipePager
@@ -10150,8 +10234,8 @@ export function CompanyProfile({ onBack, onScan, tab: controlledTab, onTabChange
                 {COMPANY.name && <h3 className="min-w-0 flex-1 truncate text-[18px] font-extrabold tracking-tight text-slate-900">{COMPANY.name}</h3>}
                 {/* Owner-only: edit this contact/profile. Investors viewing a company never see it. */}
                 {owner && onEdit && (
-                  <button onClick={() => { haptic(); setContactOpen(false); onEdit(); }} aria-label="Edit profile" className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-full border border-slate-200 bg-white text-slate-600 transition active:scale-90">
-                    <PenSquare size={14} />
+                  <button onClick={() => { haptic(); setContactOpen(false); onEdit(); }} aria-label="Edit contact details" className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-full border border-slate-200 bg-white text-slate-600 transition active:scale-90">
+                    <Settings size={15} strokeWidth={2.1} />
                   </button>
                 )}
               </div>
@@ -10223,6 +10307,46 @@ export function CompanyProfile({ onBack, onScan, tab: controlledTab, onTabChange
           </BottomSheet>
         );
       })()}
+      {/* OWNER-ONLY followers sheet — private audience view (who follows this company). */}
+      {followersOpen && (
+        <BottomSheet z={110} onClose={() => setFollowersOpen(false)} topBanner={
+          <div style={{ padding: "26px 20px 16px", background: `linear-gradient(120deg, ${EM}, ${EM_TEXT})` }}>
+            <p className="text-[9.5px] font-extrabold uppercase tracking-[0.2em] text-white/75">Audience · only you can see this</p>
+            <h3 className="text-[20px] font-extrabold tracking-tight text-white">{followerCount == null ? "Followers" : `${fmtCompact(followerCount)} ${followerCount === 1 ? "follower" : "followers"}`}</h3>
+          </div>
+        }>
+          {() => (
+            <div className="pb-2">
+              {followerList == null ? (
+                <div className="py-10 text-center text-[13px] font-semibold text-slate-400">Loading…</div>
+              ) : followerList.length === 0 ? (
+                <div className="py-8 text-center">
+                  <div className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-slate-100"><Users size={20} className="text-slate-400" /></div>
+                  <p className="mt-3 text-[13.5px] font-bold text-slate-600">{followerCount ? `${fmtCompact(followerCount)} ${followerCount === 1 ? "investor follows" : "investors follow"} you` : "No followers yet"}</p>
+                  <p className="mt-1 text-[12px] font-medium leading-relaxed text-slate-400">Only you can see this. The investors who follow you will appear here.</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {followerList.map((f, i) => {
+                    const nm = f.name || f.display_name || "Investor";
+                    const inits = nm.trim().split(/\s+/).slice(0, 2).map((w) => w[0] || "").join("").toUpperCase() || "?";
+                    const sub = [f.type || f.investor_type, f.location].filter(Boolean).join(" · ");
+                    return (
+                      <div key={f.id || i} className="flex items-center gap-3 rounded-2xl border border-slate-100 bg-white px-4 py-3" style={{ boxShadow: "0 1px 2px rgba(15,23,42,0.04)" }}>
+                        <MemberAvatar photo={f.avatar || f.photo} name={nm} initials={inits} size={36} />
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-[13.5px] font-bold tracking-tight text-slate-800">{nm}</p>
+                          {sub && <p className="truncate text-[11.5px] font-medium text-slate-400">{sub}</p>}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+        </BottomSheet>
+      )}
       {brief && <BriefOverlay onClose={() => setBrief(false)} />}
       {overlay === "watchlist" && <WatchlistSheet saved={saved} setSaved={setSaved} onClose={() => setOverlay(null)} />}
       {overlay === "compare" && <CompareSheet onClose={() => setOverlay(null)} />}
@@ -11659,11 +11783,25 @@ export default function App({ guest = false } = {}) {
     setLoadingCo(false);
   };
 
+  // In owner/manage mode, browsing another company swapped ITS data into window.__PP__.
+  // Restore the owner's own company context (captured at manage-load) so the Profile tab
+  // keeps showing THEIR company — and COMPANY_ACCOUNT stays true — as they navigate.
+  const restoreOwnerContext = () => {
+    try {
+      if (window.__CO_MANAGE__ && window.__CO_PP__ && window.__PP__ !== window.__CO_PP__) {
+        window.__PP__ = window.__CO_PP__;
+        applyPP(window.__CO_PP__);
+        loadedSlugRef.current = "";
+        setCompanyKey((k) => k + 1);
+      }
+    } catch (_) {}
+  };
   // Leaving a company view → drop the ?c= param so the URL matches the feed/explore state.
   const leaveCompany = () => {
     setInCompany(false);
     setFocused(false);   // stepping out of a scanned profile → reveal the full app + bottom nav
     if (curSlug()) { try { window.history.pushState({}, "", "/app"); } catch (_) {} }
+    restoreOwnerContext();
   };
   const goNav = (n) => { leaveCompany(); setNav(n); };
 
@@ -11759,7 +11897,7 @@ export default function App({ guest = false } = {}) {
   useEffect(() => {
     const onPop = () => {
       const slug = curSlug();
-      if (!slug) { setInCompany(false); return; }
+      if (!slug) { setInCompany(false); restoreOwnerContext(); return; }
       if (slug === loadedSlugRef.current) { setInCompany(true); return; }
       setLoadingCo(true);
       loadSlug(slug, { push: false }).finally(() => setLoadingCo(false));
