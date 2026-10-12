@@ -110,6 +110,50 @@ export default function InvestorShellPhone({ active = "today", insetTop = 92, in
     return () => { stop = true; };
   }, [active]);
 
+  // "It moves to the top of your feed." — make it actually move.
+  //
+  // The beat's whole claim is that a followed company's new release ARRIVES at the top of
+  // the feed, and the release was simply already sitting there when the screen appeared, so
+  // the one thing the copy promises was the one thing not shown. This plays it in: the row
+  // opens from nothing and the rest of the feed is pushed down by it, which is what the
+  // sentence describes.
+  //
+  // Marketing-layer only and same-origin: it animates a row the app already rendered and
+  // touches no app code, no fixture and no other screen. Height is animated in explicit
+  // pixels because `auto` is not interpolable, measured from the row itself so nothing is
+  // assumed about its size, and the inline styles are removed on completion so the row is
+  // left exactly as the app drew it.
+  const arrivedRef = useRef(null);
+  useEffect(() => {
+    if (active !== "today:updates") { arrivedRef.current = null; return; }
+    if (arrivedRef.current === active) return;
+    let stop = false, tries = 0;
+    const play = () => {
+      if (stop) return;
+      let d = null;
+      try { d = frameRef.current && frameRef.current.contentDocument; } catch (_) { d = null; }
+      const row = d && Array.from(d.querySelectorAll("*"))
+        .filter((e) => /Phase II drilling to begin in November/i.test(e.textContent || ""))
+        .map((e) => e.closest("li,article,a,[class*='rounded']") || e)
+        .find((e) => e && e.getBoundingClientRect().height > 40);
+      if (!row) { if (tries++ < 60) setTimeout(play, 80); return; }
+      arrivedRef.current = active;
+      const h = Math.round(row.getBoundingClientRect().height);
+      if (!h || typeof row.animate !== "function") return;
+      const prevOverflow = row.style.overflow;
+      row.style.overflow = "hidden";
+      const a = row.animate(
+        [{ height: "0px", opacity: 0, transform: "translateY(-10px)" },
+         { height: h + "px", opacity: 1, transform: "translateY(0)" }],
+        { duration: 560, easing: "cubic-bezier(.2,.8,.2,1)", fill: "backwards" }
+      );
+      a.finished.then(() => { row.style.overflow = prevOverflow; }).catch(() => { row.style.overflow = prevOverflow; });
+    };
+    // let the screen swap settle first, so the row animates into a feed that is already there
+    const t = setTimeout(play, 260);
+    return () => { stop = true; clearTimeout(t); };
+  }, [active]);
+
   return (
     <div style={{ position: "relative", height: fill ? "100%" : "100svh", display: "flex", alignItems: "center", justifyContent: "center", touchAction: "none", overflow: "visible" }}>
       <div ref={boxRef} style={{ position: "absolute", top: insetTop, bottom: insetBottom, left: 0, right: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
