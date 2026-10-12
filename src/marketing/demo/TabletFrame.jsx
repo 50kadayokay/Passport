@@ -215,8 +215,11 @@ export default function TabletFrame({
           <img src={poster} alt="" aria-hidden decoding="async"
             style={{ position: "absolute", inset: 0, width: "100%", height: "100%",
                      objectFit: "cover", objectPosition: "top center",
-                     zIndex: degraded ? 3 : 0, pointerEvents: "none",
-                     transition: "opacity 320ms ease" }} />
+                     // Above the iframe until the deck is actually live, then out of the way.
+                     // Underneath it the black screen backing showed through every frame the
+                     // deck had not painted — which is the entire boot.
+                     zIndex: (degraded || !ready) ? 3 : 0, pointerEvents: "none",
+                     opacity: 1, transition: "opacity 420ms ease" }} />
         )}
         {scale > 0 && (
           <iframe
@@ -240,7 +243,13 @@ export default function TabletFrame({
           />
         )}
 
-        {showBootCover && <BootCover show={!ready} />}
+        {/* The obsidian mask is the LOADING state, and it is pure black — so a deck that takes
+            four to eight seconds to mount shows a black rectangle inside a perfect device for
+            all of it. That is the reported defect, on desktop, and the poster could never have
+            helped while this sat on top of it at z-index 4. When a poster is supplied it IS
+            the loading state: the presentation's own first frame, which is a far better thing
+            to look at than an empty screen and matches what resolves in behind it. */}
+        {showBootCover && !poster && <BootCover show={!ready} />}
 
         {/* Screen glare — a single raking highlight, purely the glass of the device. Omitted
             in `bare` mode: the physical device image already carries its own glass. */}
