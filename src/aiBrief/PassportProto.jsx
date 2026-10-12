@@ -1232,7 +1232,12 @@ function Overview({ tab, goto, openBrief, following, setFollowing, bookmarked, s
     // lets it travel part of the way down before it is sent back — measured on an earlier
     // attempt, the logo dipped to 0.95 and returned. `fill: "backwards"` holds the element
     // at opacity 0 through its delay, so the stagger is real and nothing is painted early.
-    const OPEN = { hero: 60, logo: 680, fade: 700, cap: 2200 };
+    // Shorter and sooner than the app's. With the photograph already up, the logo IS the
+    // entrance, and at the app's 60ms delay + 700ms fade it was the only thing happening for
+    // three quarters of a second — which read as waiting rather than as arriving. It now
+    // starts on the first frame of the entrance and lands in 460ms. Embed only; the app's own
+    // intro keeps 60/680/700 untouched.
+    const OPEN = { hero: 0, logo: 680, fade: 460, cap: 2200 };
     const fadeNode = (el, delay) => {
       if (!el) return;
       if (typeof el.animate === "function") {
@@ -1546,7 +1551,7 @@ function Overview({ tab, goto, openBrief, following, setFollowing, bookmarked, s
                 {STATUS_IMG && <img ref={heroRef} src={STATUS_IMG} alt={COMPANY.name || ""} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: imgIn ? 1 : 0, transition: "opacity .7s ease" }} />}
                 <span style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(0,0,0,0.10) 0%, rgba(0,0,0,0) 38%, rgba(0,0,0,0.30) 100%)" }} />
                 {showLogo && STATUS_LOGO && (
-                  <span ref={logoWrapRef} style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", opacity: logoIn ? 1 : 0, transition: "opacity .7s ease" }}>
+                  <span ref={logoWrapRef} style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", opacity: logoIn ? 1 : 0, transition: embedCard ? "opacity .46s ease" : "opacity .7s ease" }}>
                     <img src={STATUS_LOGO} alt={COMPANY.name || ""} style={{ width: "85%", filter: "drop-shadow(0 3px 12px rgba(0,0,0,0.8))" }} />
                   </span>
                 )}

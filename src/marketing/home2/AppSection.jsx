@@ -121,7 +121,11 @@ export default function AppSection() {
     // Exactly the slide's own duration — no margin. The 120ms cushion that used to sit here
     // was dead time on a blank card: the device is in place when the sheet finishes, and the
     // app's own opening puts the photograph 60ms after that, not 180.
-    const t = setTimeout(() => setAppOpenReady(true), SHEET_MS);
+    // A shade before the slide finishes. The card arrives carrying its photograph now, so
+    // the only thing the entrance has left to do is bring the logo up — and holding that
+    // until the device has completely stopped made it feel like a separate, later event
+    // rather than part of the arrival. 140ms early overlaps the tail of the slide only.
+    const t = setTimeout(() => setAppOpenReady(true), Math.max(0, SHEET_MS - 140));
     return () => clearTimeout(t);
   }, [mobile, idx, appOpenReady]);
   const idxRef = useRef(0);

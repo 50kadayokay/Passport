@@ -1124,7 +1124,7 @@ export function DirectedEmbed({ variant = "full", hardware = false, cutout = fal
     // The entrance is now the LOGO alone — 60ms in, 700ms fade — because the card arrives
     // with its photograph. The flip still lands where the app puts it, so the hold absorbs
     // the difference rather than the flip moving.
-    const OPEN_ENTRANCE = 760, OPEN_FLIP_AT = 2100;
+    const OPEN_ENTRANCE = 460, OPEN_FLIP_AT = 2100;
     const OPEN_HOLD_AFTER_ENTRANCE = Math.max(0, OPEN_FLIP_AT - OPEN_ENTRANCE);
     // Wait for the machine to go idle instead of giving up on it. The opening is fired once
     // and the caller has already marked it spent, so a bare `if (S.animating) return` throws
