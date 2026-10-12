@@ -191,9 +191,18 @@ export default function ConferenceScene({ mobile = false, reduce = false, confIn
   const [liveN, setLiveN] = useState(0);
   useEffect(() => {
     if (!galleryNear || mobile) { setLiveN(0); return; }
+    // The still thumbnails first, THEN the live previews. Sixteen of these mount a full
+    // /confv3demo each — seventeen conference instances on the page with the main tablet —
+    // and starting them immediately put all of that in front of the thumbnails, which is why
+    // the gallery took so long to show anything. The stills now land on their own, and the
+    // previews come alive one at a time behind them. Every tile still ends up live, so the
+    // gallery is unchanged once settled; only the order it arrives in is different.
     let n = 0; setLiveN(0);
-    const id = setInterval(() => { n += 2; setLiveN(n); if (n >= TEMPLATE_GALLERY.length) clearInterval(id); }, 240);
-    return () => clearInterval(id);
+    let id = null;
+    const lead = setTimeout(() => {
+      id = setInterval(() => { n += 1; setLiveN(n); if (n >= TEMPLATE_GALLERY.length) clearInterval(id); }, 380);
+    }, 900);
+    return () => { clearTimeout(lead); if (id) clearInterval(id); };
   }, [galleryNear, mobile]);
 
   // ── Measure the rendered iPad box so the homography maps to on-screen pixels. ──
@@ -378,7 +387,12 @@ export default function ConferenceScene({ mobile = false, reduce = false, confIn
                       // A phone renders these tiles ~80px wide but was decoding the 1920x1200 source:
                       // 8.8MB of bitmap each, 141MB across the sixteen. That is invisible to
                       // performance.memory (which stayed at 18MB) and is what killed the tab.
-                      backgroundImage: galleryNear ? `url(/thumbs/${k}${mobile ? ".sm.webp" : ".jpg"})` : "none",
+                      // The small rendition at BOTH breakpoints. A tile is 157x71 on screen — 314x142 at DPR 2 —
+                      // and desktop was loading the 1920x1200 source for it: 435KB and 8.8MB decoded
+                      // each, 3.88MB across the sixteen, for pictures a sixth of that size on either
+                      // axis. 560x350 is still above what the tile can resolve, so nothing is softer,
+                      // and the set drops to 280KB.
+                      backgroundImage: galleryNear ? `url(/thumbs/${k}.sm.webp)` : "none",
                       backgroundSize: "cover", backgroundPosition: "top center" }}>
                       {galleryNear && idx < liveN && (
                         <div style={{ position: "absolute", top: 0, left: 0, right: 0 }}>
