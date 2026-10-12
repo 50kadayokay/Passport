@@ -132,10 +132,19 @@ export default function InvestorShellPhone({ active = "today", insetTop = 92, in
       if (stop) return;
       let d = null;
       try { d = frameRef.current && frameRef.current.contentDocument; } catch (_) { d = null; }
-      const row = d && Array.from(d.querySelectorAll("*"))
-        .filter((e) => /Phase II drilling to begin in November/i.test(e.textContent || ""))
-        .map((e) => e.closest("li,article,a,[class*='rounded']") || e)
-        .find((e) => e && e.getBoundingClientRect().height > 40);
+      // The ROW, not a wrapper. Walking up to the nearest rounded/list ancestor climbed past
+      // it to the whole feed — measured 921px tall — and opening that would have animated the
+      // entire list rather than the release. The feed is a stack of sibling rows, so the row
+      // is the child of that stack which contains the headline: walk up from the text until
+      // the PARENT is the stack, and stop there.
+      const leaf = d && Array.from(d.querySelectorAll("*"))
+        .find((e) => /Phase II drilling to begin in November/i.test(e.textContent || "") && e.children.length === 0);
+      let row = null;
+      for (let e = leaf; e && e !== d.body; e = e.parentElement) {
+        const pc = e.parentElement && typeof e.parentElement.className === "string" ? e.parentElement.className : "";
+        if (/space-y-/.test(pc)) { row = e; break; }
+      }
+      if (row && row.getBoundingClientRect().height > 300) row = null;   // never the whole list
       if (!row) { if (tries++ < 60) setTimeout(play, 80); return; }
       arrivedRef.current = active;
       const h = Math.round(row.getBoundingClientRect().height);
