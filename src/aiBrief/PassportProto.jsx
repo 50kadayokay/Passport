@@ -1166,12 +1166,13 @@ function Overview({ tab, goto, openBrief, following, setFollowing, bookmarked, s
   // ("photo" | "status"), so the flip is a deliberate story beat, not a timer.
   const embedCard = (() => { try { return new URLSearchParams(window.location.search).has("embed"); } catch (_) { return false; } })();
   const [flipped, setFlipped] = useState(embedCard ? false : (ppPreviewLive ? true : (introDone ? initialFlipped : false))); // false = image face, true = status face
-  // In the embed the card OPENS BLANK, exactly as it does in the app, and the director's
-  // entrance brings it up. These used to initialise to true so that a missing director could
-  // not leave the card empty — but that made the finished card visible for a beat before the
-  // entrance reset it, which reads as a flash and a swap. The safety now lives in a timer
-  // below instead, where it cannot be seen unless it is actually needed.
-  const [imgIn, setImgIn] = useState(embedCard ? false : (introDone || ppPreviewLive));
+  // In the embed the card ARRIVES WITH ITS PHOTOGRAPH. The app itself opens on a grey card
+  // and fades the photograph in, and the embed matched that until it was reviewed on the
+  // device: the grey frame reads as something still loading rather than as an intended
+  // opening, so it is not wanted here. The photograph is therefore present from the first
+  // frame and the LOGO is what animates — the entrance the card is actually judged on.
+  // Deliberate divergence from the app's own choreography, decided on the look of it.
+  const [imgIn, setImgIn] = useState(embedCard ? true : (introDone || ppPreviewLive));
   const [logoIn, setLogoIn] = useState(false);
   const logoWrapRef = useRef(null);   // the logo's wrapper — the embed entrance animates this node directly
   const heroRef = useRef(null);       // the hero photograph — same, for the embed's opening
@@ -1253,13 +1254,13 @@ function Overview({ tab, goto, openBrief, following, setFollowing, bookmarked, s
     // and logoIn true starts both CSS fades at once, and that is exactly what produced a 0ms
     // stagger when it was measured. One mechanism, the app's own.
     const playOpening = () => new Promise((resolve) => {
-      setFlipped(false); setShowLogo(true); setImgIn(false); setLogoIn(false);
+      // Photograph up, logo down: the opening state the card is revealed in.
+      setFlipped(false); setShowLogo(true); setImgIn(true); setLogoIn(false);
       let fired = false;
       const start = () => {
         if (fired) return; fired = true;
-        setTimeout(() => setImgIn(true), OPEN.hero);    // 60ms  — the app's own offsets
-        setTimeout(() => setLogoIn(true), OPEN.logo);   // 680ms
-        setTimeout(resolve, OPEN.logo + OPEN.fade);     // the later of the two has landed
+        setTimeout(() => setLogoIn(true), OPEN.hero);   // the logo takes the 60ms slot
+        setTimeout(resolve, OPEN.hero + OPEN.fade);     // it has landed
       };
       if (!STATUS_IMG) { start(); return; }
       // Gate on the element that is ALREADY on screen, not on a fresh Image. The director

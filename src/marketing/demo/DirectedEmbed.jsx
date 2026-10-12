@@ -1121,7 +1121,10 @@ export function DirectedEmbed({ variant = "full", hardware = false, cutout = fal
     // not the director's OPEN_HOLD, which was tuned for a card that arrived already finished
     // and had nothing to wait for. The Pro walkthrough keeps OPEN_HOLD, since its beat
     // advances the walkthrough rather than flipping the card.
-    const OPEN_ENTRANCE = 1380, OPEN_FLIP_AT = 2100;
+    // The entrance is now the LOGO alone — 60ms in, 700ms fade — because the card arrives
+    // with its photograph. The flip still lands where the app puts it, so the hold absorbs
+    // the difference rather than the flip moving.
+    const OPEN_ENTRANCE = 760, OPEN_FLIP_AT = 2100;
     const OPEN_HOLD_AFTER_ENTRANCE = Math.max(0, OPEN_FLIP_AT - OPEN_ENTRANCE);
     // Wait for the machine to go idle instead of giving up on it. The opening is fired once
     // and the caller has already marked it spent, so a bare `if (S.animating) return` throws
