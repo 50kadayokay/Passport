@@ -1202,7 +1202,10 @@ export function DirectedEmbed({ variant = "full", hardware = false, cutout = fal
     return () => { if (variant !== "home") window.removeEventListener("wheel", onWheel); };
   }, []);
 
-  const src = `/app?c=kingsmen-resources&embed=1`;
+  // `intro=1` says a DIRECTOR will play the card's opening, so the app should hold the logo
+  // back and wait to be asked. Without it an embed shows the logo immediately — which is
+  // what the investor page needs, since its shell drives screens but never plays an opening.
+  const src = `/app?c=kingsmen-resources&embed=1&intro=1`;
 
   if (hardware && cutout) {
     // ONE display boundary. The photograph — with its opening cut to alpha 0 — sits ON TOP of

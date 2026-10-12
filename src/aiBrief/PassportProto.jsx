@@ -1173,7 +1173,16 @@ function Overview({ tab, goto, openBrief, following, setFollowing, bookmarked, s
   // frame and the LOGO is what animates — the entrance the card is actually judged on.
   // Deliberate divergence from the app's own choreography, decided on the look of it.
   const [imgIn, setImgIn] = useState(embedCard ? true : (introDone || ppPreviewLive));
-  const [logoIn, setLogoIn] = useState(false);
+  // Hidden only when a director is going to bring it in. The home walkthrough passes
+  // `intro=1` and plays the entrance; the INVESTOR page embeds the same shell at
+  // /appdemo?embed=1 and only drives which screen is shown — it never plays an opening. When
+  // the logo was made to start hidden for every embed, it therefore vanished from the
+  // investor page's profile entirely, which is how it was reported. An embed that has not
+  // asked for a directed opening simply shows the logo.
+  const directedOpen = embedCard && (() => {
+    try { return new URLSearchParams(window.location.search).has("intro"); } catch (_) { return false; }
+  })();
+  const [logoIn, setLogoIn] = useState(embedCard ? !directedOpen : false);
   const logoWrapRef = useRef(null);   // the logo's wrapper — the embed entrance animates this node directly
   const heroRef = useRef(null);       // the hero photograph — same, for the embed's opening
   const [showLogo, setShowLogo] = useState(embedCard ? true : (ppPreviewLive ? false : !introDone));   // logo only during the intro
