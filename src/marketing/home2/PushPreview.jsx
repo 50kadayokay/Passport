@@ -31,7 +31,31 @@ export const PR_INVESTOR = {
 
 // `note` defaults to PR_DEMO so the sales page and Pro walkthrough, which pass only
 // `show`, render exactly as before. `offset` likewise only overrides when supplied.
-export function PushPreview({ show, note = PR_DEMO, offset }) {
+export function PushPreview({ show, note = PR_DEMO, offset, mobile = false }) {
+  // MOBILE — centred on the device instead of set beside it.
+  //
+  // The desktop anchor is `right: calc(50% + 22.56svh - 3px)`, which places the card's RIGHT
+  // edge well to the LEFT of centre so it sits in the empty column next to the phone. On a
+  // phone there is no such column: measured at 402px that resolves to a right edge 7px from
+  // the viewport's left, with a 352px minimum width, so the card hangs off the screen and
+  // only its right edge is visible. That is the reported defect.
+  //
+  // There is no room to place it cleanly ABOVE the device either — measured, the body copy
+  // ends at 210 and the phone begins at 272, a 62px gap for a 112px card. So it is centred
+  // on the device and straddles the phone's top edge, part above and part over the upper
+  // screen, which is how a notification actually arrives on a phone. It clears the copy and
+  // stops well short of the arrows.
+  //
+  // The entrance transform has to CARRY the centring, not replace it: `translate(-14px,-6px)`
+  // on its own would cancel a `translateX(-50%)` and put the card back off-centre.
+  const pos = mobile
+    ? { left: "50%", right: "auto", top: "clamp(-64px, -5svh, -34px)",
+        width: "min(calc(100vw - 36px), 372px)",
+        transform: show ? "translate(-50%, 0)" : "translate(calc(-50% - 14px), -6px)" }
+    : { right: (offset && offset.right) || "calc(50% + 22.56svh - 3px)",
+        top: (offset && offset.top) || "clamp(56px, calc(11.5svh - 12px), 136px)",
+        width: "clamp(352px, 24vw, 412px)",
+        transform: show ? "translate(0, 0)" : "translate(-14px, -6px)" };
   return (
     <div aria-hidden={!show} style={{
       // Anchored to the PHONE cell and set off the device's real edge, not a guessed
@@ -43,11 +67,9 @@ export function PushPreview({ show, note = PR_DEMO, offset }) {
       // the column centre, and boxW = 0.59938·(100svh − 120px). Expressed from the centre
       // (50%) this is correct for any column width — the sales page's 320px cell and the
       // walkthrough's wider one both land with the same gutter.
-      position: "absolute", right: (offset && offset.right) || "calc(50% + 22.56svh - 3px)",
-      top: (offset && offset.top) || "clamp(56px, calc(11.5svh - 12px), 136px)",
-      width: "clamp(352px, 24vw, 412px)", zIndex: 5,
+      position: "absolute", zIndex: 5,
+      ...pos,
       opacity: show ? 1 : 0,
-      transform: show ? "translate(0, 0)" : "translate(-14px, -6px)",
       transition: `opacity 520ms ${EASE}, transform 620ms ${EASE}`,
       pointerEvents: "none",
     }}>

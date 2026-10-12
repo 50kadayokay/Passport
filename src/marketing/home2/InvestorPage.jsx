@@ -591,7 +591,7 @@ export default function InvestorPage() {
                       on the same beat that switches the phone to the followed-company updates,
                       so the two land together. Desktop only — on mobile the copy card owns
                       the space to the phone's side. */}
-                  <PushPreview show={shown === PUSH_BEAT} note={PR_INVESTOR} />
+                  <PushPreview show={shown === PUSH_BEAT} note={PR_INVESTOR} mobile={mobile} />
                 </div>
               </div>
             </div>
