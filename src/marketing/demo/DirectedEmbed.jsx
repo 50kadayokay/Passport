@@ -391,7 +391,8 @@ export function DirectedEmbed({ variant = "full", hardware = false, cutout = fal
             // the slide duration above are behavioural and apply everywhere, as before.
             (phoneSmall()
               ? ".pp-view [class*='rounded'][class*='border']:not(.pp-bottomnav):not(.pp-bottomnav *)" +
-                "{border-width:2px !important;}" +
+                "{border-width:2px !important;}"
+              : "") +
             // THE MISSING BLUE EDGE. The highlight on a newly published release is not a
             // border at all — both borders read 2px slate-100. It is a ring:
             //   box-shadow: rgba(37,99,235,0.52) 0 0 0 2px
@@ -403,8 +404,13 @@ export function DirectedEmbed({ variant = "full", hardware = false, cutout = fal
             // the walkthrough drives every transition with. So the card gives the ring room
             // instead: 3px of right margin pulls it inside the clip edge. Timeline cards
             // only, and margin on a flex child moves nothing else.
-                ".pp-view [class*='rounded'][class*='flex-1']{margin-right:3px !important;}"
-              : "");
+            // EVERY breakpoint, not just phones. The clip is identical on desktop — the card's
+            // right edge and the scroll container's content edge are both at 404 there too, so
+            // the ring loses its right 2px exactly the same way, and it was reported on desktop
+            // after being fixed on phones. The border-width rule above stays phone-only: that
+            // one compensates for the mobile downscale and would thicken every card on desktop.
+            // This one only gives the ring the room it already needed.
+            ".pp-view [class*='rounded'][class*='flex-1']{margin-right:3px !important;}";
           d0.head.appendChild(sl);
         }
       } catch (_) {}
