@@ -212,7 +212,7 @@ export default function TabletFrame({
             instant it does. If the deck never paints at all, the health check below brings
             this to the front rather than leaving the device broken. */}
         {poster && (
-          <img src={poster} alt="" aria-hidden decoding="async"
+          <img src={poster} alt="" aria-hidden decoding="async" loading="eager" fetchpriority="high"
             style={{ position: "absolute", inset: 0, width: "100%", height: "100%",
                      objectFit: "cover", objectPosition: "top center",
                      // Above the iframe until the deck is actually live, then out of the way.

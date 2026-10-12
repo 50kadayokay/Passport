@@ -18,6 +18,11 @@
     <link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=switzer@400,500,600,700&display=swap" />
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap" />
     <title>MineEx</title>
+    <!-- The Conference tablet's boot poster. The deck inside that iPad takes seconds to mount
+         and this still is what the glass shows meanwhile; requested from the component it was
+         queueing behind everything else and measured NOT LOADED at +3000ms, so the screen was
+         black anyway. 38KB, asked for with the document so it is there before it is needed. -->
+    <link rel="preload" as="image" href="/marketing/conference-folio-poster.webp" fetchpriority="high" />
   </head>
   <body>
     <div id="root"></div>
