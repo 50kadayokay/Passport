@@ -181,6 +181,17 @@ export default function ConferenceScene({ mobile = false, reduce = false, confIn
   // template hero then boots in over it — a few cards at a time so the browser never loads all 16
   // Conference bundles at once (which janked the swipe and left cards black). Re-arms on each entry so
   // the heroes replay their intro. Mounting begins as the state is approached (QR onward).
+  // Fetch the tablet's boot poster as soon as the chapter is mounted, which is many states
+  // before the visitor reaches it. It is the thing shown while the deck boots, and the deck
+  // takes seconds — but the poster was only being requested on arrival, so it was still
+  // loading for the first few seconds and the glass was black anyway. Measured on desktop:
+  // z-index 3 and NOT LOADED at +2500ms. 38KB, fetched once, long before it is needed.
+  useEffect(() => {
+    if (!mount || typeof window === "undefined") return;
+    const im = new Image();
+    im.src = "/marketing/conference-folio-poster.webp";
+  }, [mount]);
+
   const galleryNear = mount && i >= 4 && !deviceOnly;   // deviceOnly reuse (ecosystem finale) never shows the 16-up gallery
   // The gallery boots the 16 templates LIVE, two at a time. On a desktop that is the
   // point of the scene. On a phone it is the Conference-gallery failure again: measured

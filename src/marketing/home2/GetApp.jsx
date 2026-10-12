@@ -23,9 +23,11 @@ const GRAIN = "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg
 // listing. NOTE: "/gb/" pins this to the UK storefront; dropping the country segment
 // (apps.apple.com/app/id6804108589) lets Apple route each visitor to their own store.
 const APP_STORE_URL = "https://apps.apple.com/gb/app/mineex-mining-news/id6804108589";
-// The Android build is not on the Play Store yet, so the badge leads to an honest
-// interstitial rather than a listing that 404s. Swap ANDROID_SOON for PLAY_STORE_URL in
-// the badge below on the day it publishes.
+// The Android build is LIVE on Google Play, so the badge goes to the listing. It used to
+// point at an honest "coming soon" interstitial (ANDROID_SOON, kept below) because a link to
+// an unpublished listing would have 404'd; that is no longer the case. `sameTab` is dropped
+// with it so the store opens in a new tab like the App Store badge beside it, and the
+// visitor does not lose the page.
 const PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=com.liquidjungle.mineex";
 const ANDROID_SOON = "/android";
 
@@ -87,7 +89,7 @@ export default function GetApp() {
 
             <div style={{ marginTop: "clamp(28px,4vh,44px)", display: "flex", flexWrap: "wrap", justifyContent: "center", gap: 16 }}>
               <StoreBadge href={APP_STORE_URL} logo={<AppleLogo />} top="Download on the" bottom="App Store" />
-              <StoreBadge href={ANDROID_SOON} logo={<PlayLogo />} top="GET IT ON" bottom="Google Play" sameTab />
+              <StoreBadge href={PLAY_STORE_URL} logo={<PlayLogo />} top="GET IT ON" bottom="Google Play" />
             </div>
 
             <p style={{ marginTop: 20, fontSize: 15.5, lineHeight: 1.5, color: MUTE }}>Free for investors · on iPhone today, Android soon</p>
