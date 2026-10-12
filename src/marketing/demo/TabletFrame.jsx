@@ -95,15 +95,26 @@ export default function TabletFrame({
         painted = true;   // cross-origin (shouldn't happen same-origin) → don't block
       }
       if (painted) {
-        requestAnimationFrame(() => setTimeout(markReady, 240));   // let it rasterise
+        // Hand over on the SAME tick when a poster is covering the boot. The deck's reveals
+        // are IntersectionObserver-driven and fire the instant it mounts — measured, nine of
+        // them had already run at the frame the root appeared — so every millisecond spent
+        // settling is a millisecond of the entrance played behind the poster. At 240ms the
+        // whole 600ms reveal was over before the hand-off and the deck arrived finished,
+        // which is exactly what was reported. There is nothing to settle for: the deck's own
+        // entrance starts from opacity 0, so an unrasterised frame is not visible anyway.
+        // Without a poster the settle stays, because there the mask IS the only cover.
+        if (poster) markReady();
+        else requestAnimationFrame(() => setTimeout(markReady, 240));
       } else if (performance.now() - t0 < 4500) {
-        setTimeout(tick, 90);
+        // 32ms, not 90: this poll is what detects the mount, and the entrance is already
+        // running by then, so the interval is subtracted straight from what the visitor sees.
+        setTimeout(tick, 32);
       } else {
         markReady();       // safety: never leave the mask up indefinitely
       }
     };
     tick();
-  }, [markReady]);
+  }, [markReady, poster]);
 
   // Marketing orchestration — drive the REAL presentation to a named section/step WITHOUT
   // modifying Conference Mode. Same-origin: read the presentation's own scroll container and
