@@ -1167,9 +1167,17 @@ export function DirectedEmbed({ variant = "full", hardware = false, cutout = fal
         // face — the same resting Overview the walkthrough shows. The state index stays
         // at 0 (Overview); only the app's own face flips, exactly as in the full engine.
         if (!(await waitIdle()) || S.cur !== 0) return;
+        if (!phoneSmall()) {
+          // DESKTOP — untouched: hold the photographic hero, then run the real flip. No
+          // entrance is played and no lead is taken, exactly as before any of the phone work.
+          await delay(OPEN_HOLD);
+          if (S.cur !== 0 || S.animating) return;
+          setFace("status"); leadTab("overview");
+          return;
+        }
         await delay(OPEN_LEAD);
         if (S.cur !== 0) return;
-        await playOpening();                       // hero in, logo in — the app's own sequence
+        await playOpening();                       // the logo's entrance (phones)
         if (S.cur !== 0 || S.animating) return;    // an arrow during the entrance wins
         await delay(OPEN_HOLD_AFTER_ENTRANCE);     // flip lands where the app puts it
         if (S.cur !== 0 || S.animating) return;
@@ -1178,9 +1186,9 @@ export function DirectedEmbed({ variant = "full", hardware = false, cutout = fal
         return;
       }
       if (!(await waitIdle()) || S.cur !== 0) return;
-      await delay(OPEN_LEAD);
+      await delay(phoneSmall() ? OPEN_LEAD : 0);
       if (S.cur !== 0) return;
-      await playOpening();                      // hero in, logo in — the app's own sequence
+      if (phoneSmall()) await playOpening();    // the logo's entrance (phones only)
       if (S.cur !== 0 || S.animating) return;
       await delay(OPEN_HOLD);
       if (S.cur !== 0 || S.animating) return;   // a fast gesture during the hold may have advanced it already
@@ -1205,7 +1213,10 @@ export function DirectedEmbed({ variant = "full", hardware = false, cutout = fal
   // `intro=1` says a DIRECTOR will play the card's opening, so the app should hold the logo
   // back and wait to be asked. Without it an embed shows the logo immediately — which is
   // what the investor page needs, since its shell drives screens but never plays an opening.
-  const src = `/app?c=kingsmen-resources&embed=1&intro=1`;
+  // `intro=1` ONLY on phones. It tells the app to hold the card's logo back for a directed
+  // entrance — which is the phone treatment that was asked for. Desktop never requested any
+  // of this and must open exactly as it always did, with the card already made.
+  const src = `/app?c=kingsmen-resources&embed=1${phoneSmall() ? "&intro=1" : ""}`;
 
   if (hardware && cutout) {
     // ONE display boundary. The photograph — with its opening cut to alpha 0 — sits ON TOP of
