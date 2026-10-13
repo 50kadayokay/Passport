@@ -29,8 +29,15 @@ function demoFocusStyle(on, restShadow) {
 }
 import { fetchCompany, SUPABASE_URL, SUPABASE_ANON } from "../lib/supabase.js";
 import { API_BASE, isNativeApp } from "../lib/platform.js";
-import QRCode from "qrcode";
-import jsQR from "jsqr"; // pure-JS QR decode — works on iOS WebKit (BarcodeDetector doesn't)
+// QRCode generates the share/booth SVG inside effects that are already asynchronous, so
+// importing it on demand changes nothing except when its bytes are parsed.
+let _QRCode = null;
+const loadQRCode = async () => (_QRCode ||= (await import("qrcode")).default);
+// jsQR (pure-JS QR decode — works on iOS WebKit, where BarcodeDetector does not) is loaded
+// ON FIRST SCAN. It is reachable only from the camera scanner, so it has no business in
+// the chunk that has to parse before the app can paint. The call site already awaits.
+let _jsQR = null;
+const loadJsQR = async () => (_jsQR ||= (await import("jsqr")).default);
 import { buildCompanyIdentity } from "./proHighlights.js";
 
 // The app's outermost frame element. Full-screen overlays (e.g. the CEO profile)
@@ -8040,6 +8047,7 @@ function ScanScreen({ onDetected, onClose }) {
       const ctx = c.getContext("2d", { willReadFrequently: true });
       ctx.drawImage(v, 0, 0, c.width, c.height);
       const img = ctx.getImageData(0, 0, c.width, c.height);
+      const jsQR = await loadJsQR();
       const code = jsQR(img.data, img.width, img.height, { inversionAttempts: "dontInvert" });
       if (code && code.data) return code.data;
     } catch { /* ignore */ }
@@ -10530,7 +10538,7 @@ function ConferenceFixa() {
   try { if (window.location.origin && /^https?:/.test(window.location.origin)) origin = window.location.origin; } catch (_) {}
   const qrUrl = `${origin}/app?c=${encodeURIComponent(slug)}&utm_campaign=${encodeURIComponent(S(conf.boothQrUtm) || "booth")}`;
   const [qr, setQr] = useState("");
-  useEffect(() => { let live = true; QRCode.toString(qrUrl, { type: "svg", errorCorrectionLevel: "H", margin: 0 }).then((s) => { if (live) setQr(s); }).catch(() => {}); return () => { live = false; }; }, [qrUrl]);
+  useEffect(() => { let live = true; loadQRCode().then((Q) => Q.toString(qrUrl, { type: "svg", errorCorrectionLevel: "H", margin: 0 })).then((s) => { if (live) setQr(s); }).catch(() => {}); return () => { live = false; }; }, [qrUrl]);
 
   const scrollRef = useRef(null), heroRef = useRef(null);
   // Word-reveal intro (Fixa's "Now is the time.").
@@ -10919,7 +10927,7 @@ function ConferenceProfile() {
   try { if (window.location.origin && /^https?:/.test(window.location.origin)) origin = window.location.origin; } catch (_) {}
   const url = `${origin}/app?c=${encodeURIComponent(slug)}`;
   const [qr, setQr] = useState("");
-  useEffect(() => { let live = true; QRCode.toString(url, { type: "svg", errorCorrectionLevel: "H", margin: 0 }).then((s) => { if (live) setQr(s); }).catch(() => {}); return () => { live = false; }; }, [url]);
+  useEffect(() => { let live = true; loadQRCode().then((Q) => Q.toString(url, { type: "svg", errorCorrectionLevel: "H", margin: 0 })).then((s) => { if (live) setQr(s); }).catch(() => {}); return () => { live = false; }; }, [url]);
 
   const hasLogo = S(AVATAR).trim() !== "", hasHero = S(STATUS_IMG).trim() !== "";
   const initials = (S(co.name).trim().split(/\s+/).slice(0, 2).map((w) => w[0] || "").join("") || "?").toUpperCase();

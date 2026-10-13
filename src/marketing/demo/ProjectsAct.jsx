@@ -61,7 +61,7 @@ export function ProjectsAct() {
   // Wait for the FIRST few photographs, not all 58. Promise.all over the whole list meant
   // this surface was gated on 12MB arriving (or on a 3.2s timeout firing), with every one
   // of them started simultaneously. The rest keep warming behind it, throttled.
-  const preloadPhotos = () => warmFirst(6, 3).then(() => { warmPpAssets({ concurrency: 2 }); });
+  const preloadPhotos = () => warmFirst(3, 3).then(() => { warmPpAssets({ concurrency: 2 }); });
 
   const settleApp = useCallback(() => {
     readyRef.current = false;

@@ -14,6 +14,10 @@
     <meta name="apple-mobile-web-app-title" content="MineEx" />
     <!-- Fonts for the Fixa-style conference mode (both free/open): Switzer + Instrument Serif -->
     <link rel="preconnect" href="https://api.fontshare.com" crossorigin />
+    <!-- fonts.gstatic.com serves the font FILES; fonts.googleapis.com serves the stylesheet
+         that has to be fetched and parsed before first paint, and it had no preconnect — so
+         it paid full DNS + TLS on the critical path. Lighthouse costed that request at 848ms. -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=switzer@400,500,600,700&display=swap" />
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap" />
@@ -23,6 +27,11 @@
          queueing behind everything else and measured NOT LOADED at +3000ms, so the screen was
          black anyway. 38KB, asked for with the document so it is there before it is needed. -->
     <link rel="preload" as="image" href="/marketing/conference-folio-poster.webp" fetchpriority="high" />
+    <!-- NOT preloading the phone cutout, though it is the LCP element on a phone and its
+         load DELAY is 56-73% of LCP. Tried it: LCP did not move (4.1s -> 4.2s on home,
+         4.1s -> 4.1s on pro). The element is a div whose background React applies after it
+         mounts, so having the bytes early changes nothing — the paint is waiting on React,
+         not on the image. Left out rather than carried as a change that does nothing. -->
   </head>
   <body>
     <div id="root"></div>

@@ -75,8 +75,8 @@ const run = async () => {
     await cdp.send("Network.enable");
     await cdp.send("Network.emulateNetworkConditions", {
       offline: false,
-      latency: 40,                       // ms RTT
-      downloadThroughput: (10 * 1024 * 1024) / 8,   // 10 Mbps
+      latency: Number(process.env.RTT || 40),
+      downloadThroughput: (Number(process.env.MBPS || 10) * 1024 * 1024) / 8,
       uploadThroughput: (3 * 1024 * 1024) / 8,
     });
     await cdp.send("Emulation.setCPUThrottlingRate", { rate: 4 });

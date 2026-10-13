@@ -20,10 +20,33 @@
 //   • fetchPriority "low" — the browser then schedules these behind anything it considers
 //     more important, including a chunk fetched by a navigation.
 //
-// Returns a stop function. Images already in flight are left to finish; nothing new starts.
-import { PP_ASSETS } from "./ppAssets.js";
+// ── AND IT WAS WARMING THE WRONG URLS ENTIRELY ──────────────────────────────────────
+// ppAssets.js lists 58 files under /pp/ — 11MB of them. The app stopped using those URLs;
+// its images are the /kingsmen-fixture/ set that PassportProto falls back to. Measured on
+// production, on /home, /pro, ?slice and ?directedDemo, after scrolling each surface to the
+// bottom so every chapter mounted:
+//
+//   /pp/ requested by the parent (the warm) : 58
+//   /pp/ requested by the app in the iframe :  0
+//
+// So the whole 11MB was downloaded, on every visit, for a cache no one ever read from. That
+// is the bulk of the home page's 12.13MB — and the queue a tab click had to wait behind.
+//
+// The warm now covers what the embed ACTUALLY requests. Those five files total 528KB and,
+// measured against their largest drawn size at DPR 3, are already correctly sized — the
+// status photograph is 900px serving a 1146px slot, so shrinking it would cost quality
+// rather than preserve it. Nothing here is resized; the waste was never the dimensions.
+const WARM_LIST = [
+  "/kingsmen-fixture/04-status-img.jpeg",
+  "/kingsmen-fixture/02-site-photo.jpeg",
+  "/kingsmen-fixture/05-status-logo.png",
+  "/kingsmen-fixture/00-logo.png",
+  "/kingsmen-fixture/01-avatar.jpeg",
+];
 
-export function warmPpAssets({ concurrency = 3, list = PP_ASSETS, onDone } = {}) {
+export const PP_WARM = WARM_LIST;
+
+export function warmPpAssets({ concurrency = 3, list = WARM_LIST, onDone } = {}) {
   let i = 0, inFlight = 0, stop = false, finished = false;
 
   const settle = () => {
@@ -52,11 +75,10 @@ export function warmPpAssets({ concurrency = 3, list = PP_ASSETS, onDone } = {})
   return () => { stop = true; };
 }
 
-// The handful the Projects act shows FIRST. Awaiting these instead of all 58 is what lets
-// that surface reveal promptly while the rest keep warming behind it.
-export function warmFirst(n = 6, concurrency = 3) {
+// The ones the Projects act shows FIRST. It used to await all 58 before revealing.
+export function warmFirst(n = 3, concurrency = 3) {
   return new Promise((resolve) => {
-    const stop = warmPpAssets({ concurrency, list: PP_ASSETS.slice(0, n), onDone: resolve });
+    const stop = warmPpAssets({ concurrency, list: WARM_LIST.slice(0, n), onDone: resolve });
     setTimeout(() => { stop(); resolve(); }, 3200);   // never hold a surface back on a bad network
   });
 }
