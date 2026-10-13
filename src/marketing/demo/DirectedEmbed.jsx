@@ -24,7 +24,7 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { MX } from "../system.jsx";
 import { DEVICE_W, DEVICE_H } from "./MobileAppFrame.jsx";
-import { PP_ASSETS } from "./ppAssets.js";
+import { warmPpAssets } from "./warmPpAssets.js";
 
 // The screen for the ~240ms before the real app paints. It is the APP'S OWN background,
 // so the hand-off is invisible rather than a contrasting slab flashing to light UI.
@@ -284,16 +284,12 @@ export function DirectedEmbed({ variant = "full", hardware = false, cutout = fal
   // difference. Nothing it warms is on screen in those first seconds: it exists so a
   // LATER tab's hero is instant. Starting it once the phone has painted keeps that
   // benefit and gives the boot the full connection.
+  // THROTTLED. Waiting for the app to paint was not enough on its own: the pump this
+  // replaces started every one of the 58 at once, so the home page sat on 12.13MB of
+  // in-flight images and a nav click's chunk queued behind all of it. See warmPpAssets.
   useEffect(() => {
     if (!ready) return;
-    let stop = false, i = 0;
-    const ric = window.requestIdleCallback || ((fn) => setTimeout(() => fn({ timeRemaining: () => 8 }), 150));
-    const pump = (dl) => {
-      while (!stop && i < PP_ASSETS.length && (dl.timeRemaining() > 3 || dl.didTimeout)) { const im = new Image(); im.decoding = "async"; im.src = PP_ASSETS[i++]; }
-      if (!stop && i < PP_ASSETS.length) ric(pump);
-    };
-    ric(pump);
-    return () => { stop = true; };
+    return warmPpAssets({ concurrency: 3 });
   }, [ready]);
 
   // A neutral device-coloured cover sits over the iframe whenever the app is

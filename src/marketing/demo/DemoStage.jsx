@@ -20,7 +20,7 @@
 import React, { Suspense, lazy, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { MX, EASE, Wrap, Phone, useViewport, useReduce, subscribe, phoneWidth } from "../system.jsx";
-import { PP_ASSETS } from "./ppAssets.js";
+import { warmPpAssets } from "./warmPpAssets.js";
 
 // The screen for the ~240ms before the real app paints. It is the APP'S OWN background,
 // so the hand-off is invisible rather than a contrasting slab flashing to light UI.
@@ -121,16 +121,12 @@ if (typeof window !== "undefined" && /(?:\?|&)slice/.test(window.location.search
 }
 
 function usePreload(active) {
+  // Throttled: at most 3 of the 58 in flight, at low priority. The loop this replaces
+  // started all of them in one idle tick, which is what put a nav click's chunk behind
+  // 12MB of photographs. See warmPpAssets.
   useEffect(() => {
     if (!active) return;
-    let idx = 0, stop = false;
-    const ric = window.requestIdleCallback || ((fn) => setTimeout(() => fn({ timeRemaining: () => 8 }), 200));
-    const step = (deadline) => {
-      while (!stop && idx < PP_ASSETS.length && (deadline.timeRemaining() > 3 || deadline.didTimeout)) { const img = new Image(); img.decoding = "async"; img.src = PP_ASSETS[idx++]; }
-      if (!stop && idx < PP_ASSETS.length) ric(step);
-    };
-    ric(step);
-    return () => { stop = true; };
+    return warmPpAssets({ concurrency: 3 });
   }, [active]);
 }
 
