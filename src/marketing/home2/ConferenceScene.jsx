@@ -417,7 +417,7 @@ export default function ConferenceScene({ mobile = false, reduce = false, confIn
                         <div style={{ position: "absolute", top: 0, left: 0, right: 0,
                           opacity: liveReady[k] ? 1 : 0,
                           transition: `opacity 420ms ${EASE_PAGE}`, pointerEvents: "none" }}>
-                          <TabletFrame bare src={`/confv3demo?c=${slug}&t=${k}&bar=0`} interactive={false} showBootCover={false} screenBg="transparent" renderW={1194} renderH={834}
+                          <TabletFrame bare src={`/confv3demo?c=${slug}&t=${k}&bar=0`} interactive={false} showBootCover={false} screenBg="transparent" renderW={1194} renderH={834} strictReady
                             onReady={() => setLiveReady((m) => (m[k] ? m : { ...m, [k]: true }))}
                             title={`${name} — ${slug}`} />
                         </div>

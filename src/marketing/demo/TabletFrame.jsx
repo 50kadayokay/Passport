@@ -43,6 +43,7 @@ export default function TabletFrame({
   showBootCover = true,       // false = no dark mask while booting (a caller-supplied placeholder shows through instead)
   screenBg,                   // override the screen-area background (e.g. "transparent" to reveal a placeholder behind)
   poster,                     // still frame of the presentation's opening — the screen is NEVER bare black
+  strictReady = false,        // wait for the deck's PICTURES, not just its markup, before reporting ready
   style,
   className = "",
 }) {
@@ -91,6 +92,18 @@ export default function TabletFrame({
         const doc = iframeRef.current && iframeRef.current.contentDocument;
         const hero = doc && (doc.querySelector(".cv3") || doc.querySelector(".fo") || doc.querySelector("[data-cv3]"));
         painted = !!(doc && doc.readyState === "complete" && hero && (hero.textContent || "").trim().length > 8);
+        // Markup is not pixels. A deck whose root exists and has text is still a dark, empty
+        // shell until its photography arrives, and reporting ready there is what made the
+        // gallery tiles fade in over their thumbnails and THEN fill in — measured, ten tiles
+        // at once sitting visible with no pictures in them. Where something good is already
+        // on screen behind the preview, wait for the pictures too. The main tablet does not
+        // ask for this: there the poster is the cover and handing over late costs the deck's
+        // entrance, which is the opposite problem.
+        if (painted && strictReady) {
+          const imgs = Array.from(doc.images || []);
+          const loaded = imgs.filter((i) => i.complete && i.naturalWidth > 0).length;
+          painted = imgs.length > 0 && loaded >= Math.ceil(imgs.length * 0.75);
+        }
       } catch (_) {
         painted = true;   // cross-origin (shouldn't happen same-origin) → don't block
       }
@@ -105,16 +118,22 @@ export default function TabletFrame({
         // Without a poster the settle stays, because there the mask IS the only cover.
         if (poster) markReady();
         else requestAnimationFrame(() => setTimeout(markReady, 240));
-      } else if (performance.now() - t0 < 4500) {
+      } else if (performance.now() - t0 < (strictReady ? 45000 : 4500)) {
         // 32ms, not 90: this poll is what detects the mount, and the entrance is already
         // running by then, so the interval is subtracted straight from what the visitor sees.
         setTimeout(tick, 32);
-      } else {
+      } else if (!strictReady) {
         markReady();       // safety: never leave the mask up indefinitely
       }
+      // With strictReady there is deliberately NO such safety. The timeout existed so a mask
+      // could not trap the view — but here nothing is trapped: a thumbnail of this exact
+      // template is already on screen, and it is a better thing to look at than a deck that
+      // has not drawn. Revealing on a timer is precisely what produced the flash, since at
+      // 4500ms most of these decks still had no pictures in them. A preview that never draws
+      // simply never replaces its still.
     };
     tick();
-  }, [markReady, poster]);
+  }, [markReady, poster, strictReady]);
 
   // Marketing orchestration — drive the REAL presentation to a named section/step WITHOUT
   // modifying Conference Mode. Same-origin: read the presentation's own scroll container and

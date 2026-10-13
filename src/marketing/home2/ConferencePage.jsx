@@ -167,7 +167,7 @@ function LiveCard({ tpl, name, isNew, slug, idx, mobile }) {
           // the thumbnail underneath for the seconds the deck takes to mount. Sixteen of
           // those is the load-then-black-then-reload flicker on this page.
           opacity: painted ? 1 : 0, transition: "opacity 420ms ease", pointerEvents: "none" }}>
-          <TabletFrame bare src={previewSrc} interactive={false} showBootCover={false} screenBg="transparent" renderW={1194} renderH={820}
+          <TabletFrame bare src={previewSrc} interactive={false} showBootCover={false} screenBg="transparent" renderW={1194} renderH={820} strictReady
             onReady={() => setPainted(true)} title={`${name} — ${slug}`} />
         </div>}
       </div>
