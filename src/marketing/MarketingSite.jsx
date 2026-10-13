@@ -133,6 +133,131 @@ function useDocumentMeta() {
   }, []);
 }
 
+/* ── route prefetch ──────────────────────────────────────────────────────────── */
+//
+// Every surface below is a React.lazy chunk, which means the code for a tab is only
+// fetched WHEN THE TAB IS CLICKED. Until it arrives React shows `fallback` — a
+// full-screen blank sheet. On a warm cache that is invisible; on a first visit it is
+// the whole wait. Measured on production, clicking the nav from a cold home page:
+//
+//   investorFixture.js   156KB   6031ms
+//   InvestorPage.js       26KB   4921ms
+//
+// Six seconds for 156KB is not bandwidth, it is QUEUEING — the request starts only on
+// the click, behind everything the home page already has in flight. So start it
+// earlier. Nothing here changes what a route renders; it only moves the download.
+//
+// The specifiers are written out verbatim rather than shared with the React.lazy calls
+// above, because the module registry dedupes by RESOLVED URL: calling import() with the
+// same specifier returns the same promise and fetches exactly once, so a prefetched
+// chunk is already resolved by the time Suspense asks for it, and a click that beats
+// the prefetch simply joins the in-flight request instead of starting a second one.
+const NAV_CHUNKS = {
+  "/pro":             () => import("./home2/ProPage.jsx"),
+  "/conference-mode": () => import("./home2/ConferencePage.jsx"),
+  "/investor":        () => import("./home2/InvestorPage.jsx"),
+  "/pricing":         () => import("./home2/PricingDeck.jsx"),
+  "/get-the-app":     () => import("./home2/GetApp.jsx"),
+};
+
+const prefetched = new Set();
+function prefetchRoute(pathname) {
+  const key = String(pathname || "").replace(/\/+$/, "");
+  const load = NAV_CHUNKS[key];
+  if (!load || prefetched.has(key)) return;
+  prefetched.add(key);
+  try { load().catch(() => prefetched.delete(key)); } catch (_) { prefetched.delete(key); }
+}
+
+// Warm the nav destinations, without competing with the page the visitor is actually on.
+//
+// Two triggers, deliberately: INTENT and IDLE. Pointer-over/focus/touch-start on a link
+// is the strongest signal there is and buys the chunk a head start of however long the
+// hand takes to travel and press — typically a few hundred ms, which on a warm-ish
+// connection is the entire gap. Idle is the backstop for the visitor who goes straight
+// to the tab without hovering (every touch device, and anyone using the keyboard).
+//
+// The idle pass waits for `load`, then for an idle callback, then another beat, and
+// fetches ONE chunk at a time: the home page's own demos are heavy, and a prefetch that
+// steals bandwidth from them would trade this wait for a worse one. It is skipped
+// entirely when the browser says the connection is poor or the visitor has asked for
+// reduced data — on those, speculative downloading is the wrong call.
+function useRoutePrefetch() {
+  useEffect(() => {
+    let cancelled = false;
+    const timers = [];
+    const later = (fn, ms) => { timers.push(setTimeout(fn, ms)); };
+
+    // INTENT — the pointer is on a marketing link, or it has focus.
+    const onIntent = (e) => {
+      const a = e.target && e.target.closest && e.target.closest("a[href]");
+      if (!a) return;
+      let url; try { url = new URL(a.href, window.location.origin); } catch (_) { return; }
+      if (url.origin === window.location.origin) prefetchRoute(url.pathname);
+    };
+    document.addEventListener("pointerover", onIntent, { passive: true });
+    document.addEventListener("focusin", onIntent, { passive: true });
+    document.addEventListener("touchstart", onIntent, { passive: true });
+
+    // IDLE — the rest, one at a time, once this page has had its turn.
+    const thin = (() => {
+      try {
+        const c = navigator.connection;
+        return !!c && (c.saveData === true || /(^|-)2g$/.test(c.effectiveType || ""));
+      } catch (_) { return false; }
+    })();
+
+    const sweep = () => {
+      if (cancelled || thin) return;
+      const here = window.location.pathname.replace(/\/+$/, "");
+      const queue = Object.keys(NAV_CHUNKS).filter((p) => p !== here && !prefetched.has(p));
+      const next = () => {
+        if (cancelled || !queue.length) return;
+        const p = queue.shift();
+        prefetchRoute(p);
+        later(next, 400);                       // one at a time, never a burst
+      };
+      next();
+    };
+
+    // …but only once THIS page has stopped fetching. `load` fires long before the home
+    // page is done — its demos, posters and iframes keep arriving well past it (measured:
+    // load at 17ms, last byte at 2762ms). Starting a speculative sweep into the middle of
+    // that would take bandwidth from the thing on screen, which is the wait we are trying
+    // to remove, not add to. So wait for a 600ms gap with no new requests, and give up
+    // waiting after 8s so a page that never falls quiet still gets its prefetch.
+    const whenQuiet = (run) => {
+      const started = performance.now();
+      let count = performance.getEntriesByType("resource").length;
+      let lastChange = performance.now();
+      const poll = () => {
+        if (cancelled) return;
+        const n = performance.getEntriesByType("resource").length;
+        if (n !== count) { count = n; lastChange = performance.now(); }
+        if (performance.now() - lastChange > 600 || performance.now() - started > 8000) run();
+        else later(poll, 150);
+      };
+      poll();
+    };
+
+    const kick = () => {
+      const idle = window.requestIdleCallback || ((fn) => setTimeout(fn, 1));
+      later(() => idle(() => whenQuiet(sweep), { timeout: 4000 }), 800);
+    };
+    if (document.readyState === "complete") kick();
+    else window.addEventListener("load", kick, { once: true });
+
+    return () => {
+      cancelled = true;
+      timers.forEach(clearTimeout);
+      document.removeEventListener("pointerover", onIntent);
+      document.removeEventListener("focusin", onIntent);
+      document.removeEventListener("touchstart", onIntent);
+      window.removeEventListener("load", kick);
+    };
+  }, []);
+}
+
 /* ── suspense helpers ────────────────────────────────────────────────────────── */
 
 const fallback = <div style={{ position: "fixed", inset: 0, background: MX.sheet }} />;
@@ -151,6 +276,7 @@ function Shell({ children }) {
 
 export default function MarketingSite() {
   useDocumentMeta();
+  useRoutePrefetch();
   const reduce = useReduce();
 
   useEffect(() => {
@@ -189,6 +315,7 @@ export default function MarketingSite() {
       if (!isMarketingPath(url.pathname)) return;             // /app, /privacy.html, … unchanged
       if (url.pathname === window.location.pathname && url.search === window.location.search) { e.preventDefault(); return; }
       e.preventDefault();
+      prefetchRoute(url.pathname);            // if nothing warmed it, start it on the click itself
       window.history.pushState({}, "", url.pathname + url.search + url.hash);
       window.dispatchEvent(new Event("mx:navchange"));        // Nav already listens for this
       window.scrollTo(0, 0);
