@@ -60,8 +60,10 @@ const run = async () => {
   const browser = await puppeteer.launch({
     executablePath: CHROME,
     headless: "new",
-    args: ["--no-sandbox", "--window-size=1440,900"],
-    defaultViewport: { width: 1440, height: 900 },
+    args: ["--no-sandbox"],
+    defaultViewport: process.env.MOBILE
+      ? { width: 390, height: 844, deviceScaleFactor: 3, isMobile: true, hasTouch: true }
+      : { width: 1440, height: 900 },
   });
   const page = await browser.newPage();
   await page.evaluateOnNewDocument(PROBE);

@@ -122,7 +122,11 @@
       "Bash(sed 's#supabase/migrations/##')",
       "Bash(git ls-tree *)",
       "Bash(grep -n *)",
-      "Bash(curl -s -o /dev/null -w \"server /app: %{http_code}\\\\n\" http://localhost:4200/app)"
+      "Bash(curl -s -o /dev/null -w \"server /app: %{http_code}\\\\n\" http://localhost:4200/app)",
+      "Read(//Users/leifer/Claude Projects/Passport-ConfApp/apps/conference/**)",
+      "Bash(VITE_CONF_DEV_SOURCE=http://localhost:4198 npm run build)",
+      "Bash(rm -rf ../../../Passport-ConfApp-appdist)",
+      "Bash(cp -R dist \"/private/tmp/claude-501/-Users-leifer-Claude-Projects-Passport-Portal/4c906611-8eea-45a5-b562-470e59ad687e/scratchpad/app-dist\")"
     ]
   }
 }

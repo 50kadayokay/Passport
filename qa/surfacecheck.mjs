@@ -1,7 +1,7 @@
 // Does each surface still RENDER what it is supposed to render?
 import puppeteer from "puppeteer-core";
 const BASE = process.argv[2] || "http://localhost:5188";
-const b = await puppeteer.launch({executablePath:"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",headless:"new",args:["--no-sandbox"],defaultViewport:{width:1440,height:900}});
+const b = await puppeteer.launch({executablePath:"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",headless:"new",args:["--no-sandbox"],defaultViewport: process.env.MOBILE ? {width:390,height:844,deviceScaleFactor:3,isMobile:true,hasTouch:true} : {width:1440,height:900}});
 const page = await b.newPage();
 const errs = [];
 page.on('pageerror', e => errs.push(String(e).slice(0,120)));
@@ -19,7 +19,9 @@ const check = async (path, wants) => {
     return { loadedImgs: imgs.length, iframes: frames.length, framePainted,
              hero: hero ? hero.textContent.trim().slice(0,42) : null,
              thumbTiles: [...document.querySelectorAll('*')].filter(e=>/thumbs\//.test(getComputedStyle(e).backgroundImage||'')).length,
-             heroPhone: [...document.querySelectorAll('img')].some(i=>/hero-hand-phone/.test(i.src)&&i.complete&&i.naturalWidth>0) };
+             // the phone render is hero-hand-phone on desktop and the .sm cutout on a phone
+             heroPhone: [...document.querySelectorAll('img')].some(i=>/hero-hand-phone|phone-79/.test(i.src)&&i.complete&&i.naturalWidth>0)
+                        || [...document.querySelectorAll('*')].some(e=>/phone-79-cutout/.test(getComputedStyle(e).backgroundImage||'')) };
   });
   const ok = Object.entries(wants).every(([k,v]) => typeof v==='function' ? v(r[k]) : r[k]===v);
   console.log(`${ok?'PASS':'FAIL'}  ${path.padEnd(18)} imgs=${String(r.loadedImgs).padStart(3)} thumbs=${String(r.thumbTiles).padStart(2)} iframes=${r.iframes} painted=${r.framePainted} hero="${r.hero}"`);
@@ -30,7 +32,9 @@ let allOk = true;
 allOk &= await check("/home",            { heroPhone: true, hero: h=>!!h, framePainted: n=>n>=1 });
 allOk &= await check("/pro",             { hero: h=>!!h, iframes: n=>n>=1 });
 allOk &= await check("/investor",        { hero: h=>!!h, framePainted: n=>n>=1 });
-allOk &= await check("/conference-mode", { hero: h=>!!h, thumbTiles: n=>n>=10, framePainted: n=>n>=10 });
+allOk &= await check("/conference-mode", process.env.MOBILE
+  ? { hero: h=>!!h, thumbTiles: n=>n>=10 }                       // phones: thumbnails only, by design
+  : { hero: h=>!!h, thumbTiles: n=>n>=10, framePainted: n=>n>=10 });
 allOk &= await check("/pricing",         { hero: h=>!!h });
 allOk &= await check("/get-the-app",     { hero: h=>!!h });
 console.log(errs.length ? `\nconsole/page errors:\n  ${errs.slice(0,6).join('\n  ')}` : "\nno console or page errors");

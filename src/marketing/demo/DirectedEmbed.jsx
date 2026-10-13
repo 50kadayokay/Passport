@@ -50,7 +50,16 @@ function BootCover({ ready }) {
       opacity: ready ? 0 : 1, pointerEvents: "none",
       transition: "opacity 420ms cubic-bezier(0.22,1,0.36,1)",
     }}>
-      <img src={POSTER_FOR()} alt="" decoding="async" fetchpriority="high"
+      {/* SIZED BY THE BROWSER, not by a width check. The poster mounts WITH the phone shell, and
+                       its bytes arrive early (1690ms, measured) -- but it was not `complete` until 3120ms,
+                       because a 1179x2556 source is 3.0M pixels (~12MB of bitmap) to DECODE for a slot that is
+                       325x707 CSS. That decode was the whole gap: the device frame was on screen with nothing
+                       in it for 1273ms on /investor and 996ms on /home. srcset lets the browser take the
+                       smallest rendition that still covers the slot at its own DPR -- 1.28M pixels instead of
+                       3.0M at DPR 2 -- and keeps the full-size file for DPR 3, so nothing is softened. */}
+              <img src={POSTER_FOR()} alt="" decoding="async" fetchpriority="high"
+        srcSet={"/marketing/app-opening-poster.sm.webp 590w, /marketing/app-opening-poster.md.webp 768w, /marketing/app-opening-poster.webp 1024w"}
+        sizes="(max-width: 759px) 210px, 340px"
         style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "top center", display: "block" }} />
     </div>
   );
