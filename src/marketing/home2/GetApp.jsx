@@ -84,7 +84,13 @@ export default function GetApp() {
                 display: "block", margin: "0 auto clamp(20px,3vh,30px)",
                 boxShadow: "0 22px 48px -22px rgba(10,27,46,0.55), 0 2px 6px -2px rgba(10,27,46,0.18)" }} />
             <p className="mx-label" style={{ color: COBALT, letterSpacing: "0.22em", margin: 0 }}>The MineEx app</p>
-            <h1 className="mx-h1" style={{ margin: "clamp(14px,2.2vh,22px) 0 0", color: NAVY, maxWidth: "16ch", letterSpacing: "-0.03em" }}>Get MineEx on your phone.</h1>
+            {/* `auto`, not 0, on the horizontal margin. The 16ch measure is NARROWER than the
+                column on a phone (295px inside 331px), and a block that is narrower than its
+                parent with a zero margin sits flush LEFT — all 36px of slack went to the right,
+                and the centred text inside then rendered 18px off the middle of the screen. The
+                lead paragraph below already does this; the heading was the one that did not. No
+                effect above ~1100px, where 16ch fills the column exactly and the slack is 0. */}
+            <h1 className="mx-h1" style={{ margin: "clamp(14px,2.2vh,22px) auto 0", color: NAVY, maxWidth: "16ch", letterSpacing: "-0.03em" }}>Get MineEx on your phone.</h1>
             <p className="mx-lead" style={{ margin: "clamp(12px,1.8vh,20px) auto 0", color: SLATE, maxWidth: "46ch" }}>Discover the market, research companies and follow the ones that matter — free, in your pocket.</p>
 
             <div style={{ marginTop: "clamp(28px,4vh,44px)", display: "flex", flexWrap: "wrap", justifyContent: "center", gap: 16 }}>
