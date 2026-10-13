@@ -200,8 +200,9 @@ export default function ConferenceScene({ mobile = false, reduce = false, confIn
   // the same frame, so phones get the thumbs and no live boot, exactly as the standalone
   // gallery page already does.
   const [liveN, setLiveN] = useState(0);
+  const [liveReady, setLiveReady] = useState({});   // template key → its live preview has painted
   useEffect(() => {
-    if (!galleryNear || mobile) { setLiveN(0); return; }
+    if (!galleryNear || mobile) { setLiveN(0); setLiveReady({}); return; }
     // The still thumbnails first, THEN the live previews. Sixteen of these mount a full
     // /confv3demo each — seventeen conference instances on the page with the main tablet —
     // and starting them immediately put all of that in front of the thumbnails, which is why
@@ -406,8 +407,19 @@ export default function ConferenceScene({ mobile = false, reduce = false, confIn
                       backgroundImage: galleryNear ? `url(/thumbs/${k}.sm.webp)` : "none",
                       backgroundSize: "cover", backgroundPosition: "top center" }}>
                       {galleryNear && idx < liveN && (
-                        <div style={{ position: "absolute", top: 0, left: 0, right: 0 }}>
-                          <TabletFrame bare src={`/confv3demo?c=${slug}&t=${k}&bar=0`} interactive={false} showBootCover={false} screenBg="transparent" renderW={1194} renderH={834} title={`${name} — ${slug}`} />
+                        // Invisible until its deck has actually painted, then faded in over the
+                        // still. `screenBg: transparent` was meant to stop it flashing, but it only
+                        // covers the frame's own backing -- the iframe's DOCUMENT paints the deck's
+                        // dark ground the moment it loads, which blacked out the thumbnail
+                        // underneath and held it there for the seconds the deck takes to mount.
+                        // Sixteen of those, staggered, is the flicker that was reported. TabletFrame
+                        // already reports when the real experience has painted; this just waits for it.
+                        <div style={{ position: "absolute", top: 0, left: 0, right: 0,
+                          opacity: liveReady[k] ? 1 : 0,
+                          transition: `opacity 420ms ${EASE_PAGE}`, pointerEvents: "none" }}>
+                          <TabletFrame bare src={`/confv3demo?c=${slug}&t=${k}&bar=0`} interactive={false} showBootCover={false} screenBg="transparent" renderW={1194} renderH={834}
+                            onReady={() => setLiveReady((m) => (m[k] ? m : { ...m, [k]: true }))}
+                            title={`${name} — ${slug}`} />
                         </div>
                       )}
                     </div>

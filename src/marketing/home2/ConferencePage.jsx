@@ -115,6 +115,7 @@ function IntroCarousel({ lead, steps, mobile }) {
 function LiveCard({ tpl, name, isNew, slug, idx, mobile }) {
   const ref = useRef(null);
   const [live, setLive] = useState(false);
+  const [painted, setPainted] = useState(false);   // the live preview has actually drawn
   useEffect(() => {
     // A phone cannot afford sixteen live tablet renders; the captured thumbnail is the same frame.
     if (mobile) return;
@@ -133,8 +134,15 @@ function LiveCard({ tpl, name, isNew, slug, idx, mobile }) {
           thumbnail's aspect and nothing is cropped off the sides. */}
       <div ref={ref} style={{ position: "relative", width: "100%", aspectRatio: mobile ? "1920 / 1200" : "1194 / 820", overflow: "hidden",
         backgroundColor: "#0c0f15", backgroundImage: `url(/thumbs/${tpl}${mobile ? ".sm.webp" : ".jpg"})`, backgroundSize: mobile ? "contain" : "cover", backgroundPosition: mobile ? "center" : "top center", backgroundRepeat: "no-repeat" }}>
-        {live && <div style={{ position: "absolute", inset: 0 }}>
-          <TabletFrame bare src={previewSrc} interactive={false} showBootCover={false} screenBg="transparent" renderW={1194} renderH={820} title={`${name} — ${slug}`} />
+        {live && <div style={{ position: "absolute", inset: 0,
+          // Held invisible until the deck has painted, then faded in over the still.
+          // `screenBg: transparent` only clears the frame's own backing — the iframe's
+          // DOCUMENT paints the deck's dark ground as soon as it loads, which blacked out
+          // the thumbnail underneath for the seconds the deck takes to mount. Sixteen of
+          // those is the load-then-black-then-reload flicker on this page.
+          opacity: painted ? 1 : 0, transition: "opacity 420ms ease", pointerEvents: "none" }}>
+          <TabletFrame bare src={previewSrc} interactive={false} showBootCover={false} screenBg="transparent" renderW={1194} renderH={820}
+            onReady={() => setPainted(true)} title={`${name} — ${slug}`} />
         </div>}
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 9, minHeight: mobile ? 52 : 0, padding: mobile ? "0 16px" : "13px 15px", borderTop: `1px solid ${HAIR}` }}>
