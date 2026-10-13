@@ -97,7 +97,9 @@ const BRIEF_BENCH = false;
 if (BRIEF_BENCH && typeof window !== "undefined") {
   try {
     const _p = new URLSearchParams(window.location.search);
-    if (!_p.has("c")) window.history.replaceState(null, "", "/app?c=kingsmen-resources&tab=timeline&brief=1");
+    // Don't hijack an explicit sign-in deep link — otherwise tapping "Sign in" from the
+    // demo guest view would get rewritten back to the shared company and appear to bounce.
+    if (!_p.has("c") && !_p.has("signin")) window.history.replaceState(null, "", "/app?c=kingsmen-resources&tab=timeline&brief=1");
   } catch (_) {}
 }
 const path = typeof window !== "undefined" ? window.location.pathname : "/";
@@ -995,7 +997,10 @@ function AppRoot() {
   // publicly viewable with no wall, so a scanned booth QR or a shared link just works.
   const search = (() => { try { return new URLSearchParams(window.location.search); } catch (_) { return new URLSearchParams(); } })();
   const hasSharedProfile = search.has("c") || search.has("preview");
-  if (!signedIn && (!hasSharedProfile || search.has("signin"))) {
+  // A guest viewing a shared/QR profile (?c=) can still choose to sign in: an explicit
+  // sign-in intent (?signin deep link OR authMode set in-app) overrides the shared-profile
+  // bypass, so "Sign in" always reaches the form instead of falling back to the company view.
+  if (!signedIn && (!hasSharedProfile || search.has("signin") || authMode)) {
     // A direct ?signin deep-link jumps straight to the sign-in form (no welcome intro).
     const forced = search.has("signin");
     if (forced || authMode) {
