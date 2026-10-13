@@ -111,6 +111,11 @@ function IntroCarousel({ lead, steps, mobile }) {
 }
 
 
+// Which rendition a desktop tile reads, decided once from the display's own pixel ratio.
+const THUMB_RENDITION = (() => {
+  try { return (window.devicePixelRatio || 1) > 2 ? ".md.webp" : ".sm.webp"; } catch (_) { return ".md.webp"; }
+})();
+
 // One template card — thumb placeholder, live hero booted only when it scrolls near.
 function LiveCard({ tpl, name, isNew, slug, idx, mobile }) {
   const ref = useRef(null);
@@ -120,7 +125,22 @@ function LiveCard({ tpl, name, isNew, slug, idx, mobile }) {
     // A phone cannot afford sixteen live tablet renders; the captured thumbnail is the same frame.
     if (mobile) return;
     const el = ref.current; if (!el) return;
-    const io = new IntersectionObserver((es) => { if (es.some((e) => e.isIntersecting)) { setLive(true); io.disconnect(); } }, { rootMargin: "300px 0px" });
+    // The THUMBNAIL first, then the preview. Each tile boots a full conference deck, and
+    // sixteen of those starting as they come within range were competing with the very
+    // thumbnails they are meant to sit behind — measured, the gallery took 14s to fill in.
+    // The preview now waits for its own still to be decoded, so the page is complete to look
+    // at before any of that work begins. The still is already in cache by then, so this costs
+    // the preview nothing it was not going to spend anyway.
+    const io = new IntersectionObserver((es) => {
+      if (!es.some((e) => e.isIntersecting)) return;
+      io.disconnect();
+      const src = `/thumbs/${tpl}${mobile ? ".sm.webp" : THUMB_RENDITION}`;
+      const im = new Image();
+      const go = () => setLive(true);
+      im.src = src;
+      if (im.decode) im.decode().then(go).catch(go); else { im.onload = go; im.onerror = go; }
+      setTimeout(go, 2500);            // never let a slow still hold the preview back for good
+    }, { rootMargin: "300px 0px" });
     io.observe(el);
     return () => io.disconnect();
   }, [mobile]);
@@ -133,7 +153,13 @@ function LiveCard({ tpl, name, isNew, slug, idx, mobile }) {
           aspect; on a phone the thumbnail IS the thing being shown, so the box takes the
           thumbnail's aspect and nothing is cropped off the sides. */}
       <div ref={ref} style={{ position: "relative", width: "100%", aspectRatio: mobile ? "1920 / 1200" : "1194 / 820", overflow: "hidden",
-        backgroundColor: "#0c0f15", backgroundImage: `url(/thumbs/${tpl}${mobile ? ".sm.webp" : ".jpg"})`, backgroundSize: mobile ? "contain" : "cover", backgroundPosition: mobile ? "center" : "top center", backgroundRepeat: "no-repeat" }}>
+        backgroundColor: "#0c0f15",
+        // Sized to the tile, not to the capture. These are 271x186 on screen — 542x372 at DPR 2,
+        // 813x558 at DPR 3 — and desktop was loading the 1920x1200 original for every one of
+        // them: 3.88MB across the sixteen, which is why the gallery took so long to fill in.
+        // 840px covers DPR 3 with room and 560 covers DPR 2 exactly, so nothing is softer than
+        // the screen can show, and the set drops to 971KB / 418KB respectively.
+        backgroundImage: `url(/thumbs/${tpl}${mobile ? ".sm.webp" : THUMB_RENDITION})`, backgroundSize: mobile ? "contain" : "cover", backgroundPosition: mobile ? "center" : "top center", backgroundRepeat: "no-repeat" }}>
         {live && <div style={{ position: "absolute", inset: 0,
           // Held invisible until the deck has painted, then faded in over the still.
           // `screenBg: transparent` only clears the frame's own backing — the iframe's
