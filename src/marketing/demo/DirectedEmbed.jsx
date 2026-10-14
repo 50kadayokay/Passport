@@ -44,6 +44,22 @@ const POSTER_FOR = () => (typeof window !== "undefined" && window.innerWidth < 7
 // The boot cover: the real opening frame over the device-coloured fill, faded out once
 // the app has painted. `settled` keeps it mounted through the fade so there is no flash.
 function BootCover({ ready }) {
+  // RETIRE THE POSTER ONCE IT HAS FADED — on phones. It used to stay in the tree forever at
+  // opacity 0, which still costs: it is a full-bleed image layer sitting directly over the
+  // phone's screen, so the compositor carries ~2.3 megapixels of it on a DPR 3 device for
+  // every frame the app animates underneath. Measured from a device recording of the hero
+  // flip, the capital bar and the press release arriving, 27-41% of consecutive frames were
+  // pixel-identical — the screen was updating every second or third frame.
+  //
+  // DESKTOP IS UNTOUCHED: there the poster stays exactly as it was. The element is only
+  // dropped below the same 760px breakpoint everything else here switches on, and only
+  // after the 420ms fade has finished, so nothing about the hand-off changes.
+  const [retired, setRetired] = useState(false);
+  useEffect(() => {
+    if (!ready || !phoneSmall()) return;
+    const t = setTimeout(() => setRetired(true), 520);   // 420ms fade + a frame to spare
+    return () => clearTimeout(t);
+  }, [ready]);
   return (
     <div aria-hidden style={{
       position: "absolute", inset: 0, background: BOOT_SCREEN, zIndex: 2,
@@ -57,6 +73,7 @@ function BootCover({ ready }) {
                        in it for 1273ms on /investor and 996ms on /home. srcset lets the browser take the
                        smallest rendition that still covers the slot at its own DPR -- 1.28M pixels instead of
                        3.0M at DPR 2 -- and keeps the full-size file for DPR 3, so nothing is softened. */}
+      {retired ? null : (
               <img src={POSTER_FOR()} alt="" decoding="async" fetchpriority="high"
         // DESKTOP ONLY. srcset let the browser choose by DPR, which on an iPhone at DPR 3
         // picked the 768px rendition — BIGGER than the 590px one phones were served
@@ -69,6 +86,7 @@ function BootCover({ ready }) {
           sizes: "340px",
         })}
         style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "top center", display: "block" }} />
+      )}
     </div>
   );
 }

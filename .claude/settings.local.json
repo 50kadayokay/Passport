@@ -128,7 +128,12 @@
       "Bash(rm -rf ../../../Passport-ConfApp-appdist)",
       "Bash(cp -R dist \"/private/tmp/claude-501/-Users-leifer-Claude-Projects-Passport-Portal/4c906611-8eea-45a5-b562-470e59ad687e/scratchpad/app-dist\")",
       "Bash(cat)",
-      "Bash(printf '\\\\n# MineEx Brief generator — paste your OpenAI key after the = \\(gitignored, isolated\\).\\\\nMINEEX_BRIEF_API_KEY=\\\\n')"
+      "Bash(printf '\\\\n# MineEx Brief generator — paste your OpenAI key after the = \\(gitignored, isolated\\).\\\\nMINEEX_BRIEF_API_KEY=\\\\n')",
+      "Bash(node --check api/_briefGen.js)",
+      "Bash(node --check api/_briefValidate.js)",
+      "Bash(node --check scripts/gen-briefs.mjs)",
+      "Bash(node --check scripts/compare-briefs.mjs)",
+      "Bash(node scripts/gen-briefs.mjs --model gpt-4o-mini --report __TRACKED_VAR__/brief-gen-report.v2.json)"
     ]
   }
 }

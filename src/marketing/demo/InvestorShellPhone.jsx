@@ -51,6 +51,14 @@ export default function InvestorShellPhone({ active = "today", insetTop = 92, in
   const frameRef = useRef(null);
   const [dims, setDims] = useState({ scale: 1, w: DEVICE_W, h: DEVICE_H, boxH: 0, appLeft: 0, appTop: 0, appW: 0, appH: 0, opL: 0, opT: 0, opW: 0, opH: 0 });
   const [ready, setReady] = useState(false);
+  // The boot poster is dropped from the tree once it has faded, on phones only — see the
+  // comment at the element. Desktop never retires it, so its render path is unchanged.
+  const [posterRetired, setPosterRetired] = useState(false);
+  useEffect(() => {
+    if (!ready || !phoneSmall()) return;
+    const t = setTimeout(() => setPosterRetired(true), 520);   // 420ms fade + a frame
+    return () => clearTimeout(t);
+  }, [ready]);
 
   // Fit the photo box to the available height (matches DirectedEmbed hardware math).
   useLayoutEffect(() => {
@@ -241,6 +249,10 @@ export default function InvestorShellPhone({ active = "today", insetTop = 92, in
                        in it for 1273ms on /investor and 996ms on /home. srcset lets the browser take the
                        smallest rendition that still covers the slot at its own DPR -- 1.28M pixels instead of
                        3.0M at DPR 2 -- and keeps the full-size file for DPR 3, so nothing is softened. */}
+              {/* …and RETIRED once it has faded, on phones. Left in the tree it is a full-bleed
+                  image layer directly over the screen, so the compositor carries it on every
+                  frame the app animates underneath. Desktop keeps it exactly as it was. */}
+              {posterRetired ? null : (
               <img src={POSTER_FOR()} alt="" decoding="async" fetchpriority="high"
         // DESKTOP ONLY. srcset let the browser choose by DPR, which on an iPhone at DPR 3
         // picked the 768px rendition — BIGGER than the 590px one phones were served
@@ -253,6 +265,7 @@ export default function InvestorShellPhone({ active = "today", insetTop = 92, in
           sizes: "340px",
         })}
                   style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "top center", display: "block" }} />
+              )}
               </div>
             </div>
           </div>
