@@ -242,8 +242,16 @@ export default function InvestorShellPhone({ active = "today", insetTop = 92, in
                        smallest rendition that still covers the slot at its own DPR -- 1.28M pixels instead of
                        3.0M at DPR 2 -- and keeps the full-size file for DPR 3, so nothing is softened. */}
               <img src={POSTER_FOR()} alt="" decoding="async" fetchpriority="high"
-        srcSet={"/marketing/appdemo-opening-poster.sm.webp 590w, /marketing/appdemo-opening-poster.md.webp 768w, /marketing/appdemo-opening-poster.webp 1179w"}
-        sizes="(max-width: 759px) 210px, 340px"
+        // DESKTOP ONLY. srcset let the browser choose by DPR, which on an iPhone at DPR 3
+        // picked the 768px rendition — BIGGER than the 590px one phones were served
+        // before it, on the device least able to decode it. That extra decode lands in
+        // the middle of the opening animation and the card flip, which is where the
+        // stutter came from. Phones take the small capture, exactly as they did before;
+        // POSTER_FOR() already picks it, so there is nothing for srcset to improve there.
+        {...(phoneSmall() ? {} : {
+          srcSet: "/marketing/appdemo-opening-poster.sm.webp 590w, /marketing/appdemo-opening-poster.md.webp 768w, /marketing/appdemo-opening-poster.webp 1179w",
+          sizes: "340px",
+        })}
                   style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "top center", display: "block" }} />
               </div>
             </div>
