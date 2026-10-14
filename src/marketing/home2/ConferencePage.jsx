@@ -131,7 +131,11 @@ const THUMB_RENDITION = (() => {
 // actually clicked. A slot is released when a deck paints, or after a ceiling, so one slow
 // deck can never strand the queue.
 const DECK_SLOTS = 3;
-const DECK_RELEASE_MS = 6000;
+// A SAFETY NET, not a regular path. At 6s this fired before a deck on a real connection
+// had painted, so slots were handed back on a timer and the cap dissolved precisely when
+// the network was slow enough to need it — measured on staging, 9-10 decks live at 7s
+// against a cap of 3. It now only rescues a deck that is genuinely never going to paint.
+const DECK_RELEASE_MS = 20000;
 let deckBusy = 0;
 const deckQueue = [];
 function pumpDecks() {
