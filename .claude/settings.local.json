@@ -126,7 +126,9 @@
       "Read(//Users/leifer/Claude Projects/Passport-ConfApp/apps/conference/**)",
       "Bash(VITE_CONF_DEV_SOURCE=http://localhost:4198 npm run build)",
       "Bash(rm -rf ../../../Passport-ConfApp-appdist)",
-      "Bash(cp -R dist \"/private/tmp/claude-501/-Users-leifer-Claude-Projects-Passport-Portal/4c906611-8eea-45a5-b562-470e59ad687e/scratchpad/app-dist\")"
+      "Bash(cp -R dist \"/private/tmp/claude-501/-Users-leifer-Claude-Projects-Passport-Portal/4c906611-8eea-45a5-b562-470e59ad687e/scratchpad/app-dist\")",
+      "Bash(cat)",
+      "Bash(printf '\\\\n# MineEx Brief generator — paste your OpenAI key after the = \\(gitignored, isolated\\).\\\\nMINEEX_BRIEF_API_KEY=\\\\n')"
     ]
   }
 }
