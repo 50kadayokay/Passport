@@ -116,11 +116,41 @@ const THUMB_RENDITION = (() => {
   try { return (window.devicePixelRatio || 1) > 2 ? ".md.webp" : ".sm.webp"; } catch (_) { return ".md.webp"; }
 })();
 
+// ── How many decks may boot AT ONCE ──────────────────────────────────────────────
+//
+// Every tile boots a whole conference deck in an iframe. Each card decided on its own,
+// as soon as its still had decoded — and the still comes from cache in a millisecond, so
+// "when my thumbnail is ready" meant "immediately, all of us". Measured cold on the
+// deployed gallery: twelve iframes up by 2s and 11.13MB over 441 requests still arriving
+// at 10s. Clicking a tile in that window puts the template's own document at the back of
+// that queue, which is why opening a presentation could take 16-24s on a real connection
+// while opening the SAME url directly took 1272ms.
+//
+// Nothing here changes what a tile shows. Every preview still becomes the same live deck;
+// they simply take turns, so there is always capacity left for the thing the visitor
+// actually clicked. A slot is released when a deck paints, or after a ceiling, so one slow
+// deck can never strand the queue.
+const DECK_SLOTS = 3;
+const DECK_RELEASE_MS = 6000;
+let deckBusy = 0;
+const deckQueue = [];
+function pumpDecks() {
+  while (deckBusy < DECK_SLOTS && deckQueue.length) { deckBusy += 1; deckQueue.shift()(); }
+}
+function takeDeckSlot(run) {
+  let released = false;
+  const release = () => { if (released) return; released = true; deckBusy = Math.max(0, deckBusy - 1); pumpDecks(); };
+  deckQueue.push(() => { run(); setTimeout(release, DECK_RELEASE_MS); });
+  pumpDecks();
+  return release;
+}
+
 // One template card — thumb placeholder, live hero booted only when it scrolls near.
 function LiveCard({ tpl, name, isNew, slug, idx, mobile }) {
   const ref = useRef(null);
   const [live, setLive] = useState(false);
   const [painted, setPainted] = useState(false);   // the live preview has actually drawn
+  const releaseRef = useRef(null);                 // hands this tile's boot slot back
   useEffect(() => {
     // A phone cannot afford sixteen live tablet renders; the captured thumbnail is the same frame.
     if (mobile) return;
@@ -136,13 +166,15 @@ function LiveCard({ tpl, name, isNew, slug, idx, mobile }) {
       io.disconnect();
       const src = `/thumbs/${tpl}${mobile ? ".sm.webp" : THUMB_RENDITION}`;
       const im = new Image();
-      const go = () => setLive(true);
+      // …and then WAIT FOR A TURN. See DECK_SLOTS: the still decodes from cache instantly,
+      // so without this every in-range tile booted its deck in the same frame.
+      const go = () => { releaseRef.current = takeDeckSlot(() => setLive(true)); };
       im.src = src;
       if (im.decode) im.decode().then(go).catch(go); else { im.onload = go; im.onerror = go; }
       setTimeout(go, 2500);            // never let a slow still hold the preview back for good
     }, { rootMargin: "300px 0px" });
     io.observe(el);
-    return () => io.disconnect();
+    return () => { io.disconnect(); if (releaseRef.current) releaseRef.current(); };
   }, [mobile]);
   const previewSrc = `/confv3demo?c=${slug}&t=${tpl}&bar=0`;
   const openHref = `/site?conftemplate=1&t=${tpl}&c=${slug}`;
@@ -168,7 +200,7 @@ function LiveCard({ tpl, name, isNew, slug, idx, mobile }) {
           // those is the load-then-black-then-reload flicker on this page.
           opacity: painted ? 1 : 0, transition: "opacity 420ms ease", pointerEvents: "none" }}>
           <TabletFrame bare src={previewSrc} interactive={false} showBootCover={false} screenBg="transparent" renderW={1194} renderH={820} strictReady
-            onReady={() => setPainted(true)} title={`${name} — ${slug}`} />
+            onReady={() => { setPainted(true); if (releaseRef.current) releaseRef.current(); }} title={`${name} — ${slug}`} />
         </div>}
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 9, minHeight: mobile ? 52 : 0, padding: mobile ? "0 16px" : "13px 15px", borderTop: `1px solid ${HAIR}` }}>
