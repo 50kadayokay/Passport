@@ -105,7 +105,7 @@ function entryToAnalysis(e) {
     },
     classification: { suggestedImpact: e.impact, suggestedKey: !!e.key, confidence: "medium" },
     proposedChanges: [],
-    ...(e.v2 ? { v2: e.v2 } : {}),   // carry a refined BriefV1 through the batched path too
+    ...((e.v2 && !e.v2._needsReview) ? { v2: e.v2 } : {}),   // carry an APPROVED/PASS BriefV1 only (never a _needsReview brief)
   };
 }
 
@@ -278,7 +278,7 @@ export function toTimelineEntries(assembled) {
     summary: e.whyItMatters || e.whatHappened,
     url: e.sourceUrl,
     key: e.key,
-    ...(e.v2 ? { v2: e.v2 } : {}),   // refined BriefV1 → carried onto the timeline entry
+    ...((e.v2 && !e.v2._needsReview) ? { v2: e.v2 } : {}),   // APPROVED/PASS BriefV1 only onto the entry (held REVIEW/FAIL never persisted)
     ai: {
       whatHappened: e.whatHappened,
       whatHappensNext: e.whatHappensNext,
