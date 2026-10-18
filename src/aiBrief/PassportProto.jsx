@@ -1953,27 +1953,29 @@ function SummaryContent({ item, cat, impact, hasFull, onReadFull }) {
               descriptor + secondary, with an optional relationship label (e.g. INCLUDING). Same grid,
               alignment, typography, padding and separators on every row; primary vs included intervals
               are distinguished by the label, not by size or colour. Supports 0–4 rows. */}
-          {hasRows && (
+          {hasRows && (() => {
+            // Two-column grid: a content-hugging value column (so every blue value starts at the
+            // same x and every description starts at the same x, with a consistent gap — not a
+            // fixed box that leaves short values floating) + a flexible, wrapping description
+            // column. ONE value font-size for the whole section, chosen from the LONGEST value, so
+            // all rows share identical typography and baseline (short values keep the approved
+            // 22px; longer values step down uniformly so nothing overflows a narrow iPhone).
+            const maxLen = rows.reduce((m, r) => Math.max(m, String(r.v || "").length), 0);
+            const vSize = maxLen <= 9 ? 22 : maxLen <= 12 ? 18 : 15;
+            return (
             <div className="mt-6">
               <span className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-slate-900">Key Results</span>
-              <div className="mt-2">
-                {rows.map((r, i) => {
-                  // APPROVED design = text-[22px]; only genuinely-long values (10+ chars, e.g.
-                  // "US$325,000", "1.6 km by 1.8 km") scale down so they don't crowd the descriptor.
-                  // Everything that fits keeps the exact locked 22px / leading-none treatment.
-                  const vlen = String(r.v || "").length;
-                  const longVal = vlen > 9;
-                  return (
-                  <div key={i} className={`flex items-start gap-4 py-3 ${i > 0 ? "border-t border-slate-100" : ""}`}>
-                    <div className="w-[118px] flex-shrink-0">
-                      {longVal ? (
-                        <div className="font-extrabold leading-tight tracking-tight tabular-nums break-words" style={{ color: EM_TEXT, fontSize: vlen > 13 ? 14 : 17 }}>{r.v}</div>
-                      ) : (
-                        <div className="text-[22px] font-extrabold leading-none tracking-tight tabular-nums" style={{ color: EM_TEXT }}>{r.v}</div>
-                      )}
+              <div className="mt-2 grid items-start gap-x-5" style={{ gridTemplateColumns: "max-content minmax(0, 1fr)" }}>
+                {rows.map((r, i) => (
+                  <div key={i} style={{ display: "contents" }}>
+                    {/* value + unit (grouped, left-aligned, never wraps) */}
+                    <div className={`py-3 ${i > 0 ? "border-t border-slate-100" : ""}`}>
+                      <div className="font-extrabold leading-none tracking-tight tabular-nums whitespace-nowrap" style={{ color: EM_TEXT, fontSize: vSize }}>{r.v}</div>
                       {r.u && <div className="mt-1 text-[10px] font-bold uppercase tracking-[0.08em] text-slate-400">{r.u}</div>}
                     </div>
-                    <div className="min-w-0 flex-1 pt-px">
+                    {/* description + optional relationship label + secondary (wraps naturally),
+                        top-aligned with the numeric value */}
+                    <div className={`min-w-0 py-3 pt-[13px] ${i > 0 ? "border-t border-slate-100" : ""}`}>
                       <div className="text-[13.5px] font-semibold leading-snug text-slate-800">
                         {r.rel && <span className="mr-1.5 text-[9.5px] font-extrabold uppercase tracking-[0.1em]" style={{ color: EM }}>{r.rel}</span>}
                         {r.rel && <span className="mr-1.5 text-slate-300">·</span>}
@@ -1982,11 +1984,11 @@ function SummaryContent({ item, cat, impact, hasFull, onReadFull }) {
                       {r.sec && <div className="mt-0.5 text-[12px] font-medium leading-snug text-slate-500">{r.sec}</div>}
                     </div>
                   </div>
-                  );
-                })}
+                ))}
               </div>
             </div>
-          )}
+            );
+          })()}
 
           {/* HIGHLIGHTS — for mapped historical briefs (no structured Key Results), surface the
               release's existing key-number bullets VERBATIM so the data is never lost. */}
