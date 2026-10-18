@@ -953,6 +953,59 @@ function AppRoot() {
           }
         }
       } catch (_) {}
+      // Attach the APPROVED Kingsmen v2 Briefs (the settled design — structured Key Results) to the
+      // REAL timeline releases by id, and merge their full release text + images, so the normal app
+      // shows the v2 Brief we settled on (not the sparse historical fallback) with the full release
+      // intact. Keeps every existing release; only adds `v2` to the ones that have an approved brief.
+      try {
+        if (!params.get("brief") && !params.get("briefgen")
+            && params.get("c") === "kingsmen-resources"
+            && /^(localhost|127\.0\.0\.1|\[::1\])$/i.test(location.hostname) && mod.applyPP) {
+          const bb = await fetch("/kingsmen-briefs.json").then((x) => x.json()).catch(() => null);
+          if (bb && bb.v2) {
+            const curYears = Array.isArray(mod.PR_YEARS) ? mod.PR_YEARS : [];
+            const mergedYears = curYears.map((yr) => ({
+              ...yr,
+              items: (yr.items || []).map((it) => {
+                const v = bb.v2[it.id];
+                return v ? { ...it, v2: { cat: v.cat, wh: v.wh, wy: v.wy, kr: Array.isArray(v.kr) ? v.kr : [], tk: v.tk } } : it;
+              }),
+            }));
+            const mergedFull = { ...(mod.FULL || {}), ...(bb.full || {}) };
+            mod.applyPP({ PR_YEARS: mergedYears, FULL: mergedFull });
+          }
+        }
+      } catch (_) {}
+      // DEV-ONLY (?newgen=1): inject ONE freshly GENERATED non-Kingsmen V2 Brief (produced by the
+      // real generator+validator via scripts/_e2e-brief-test.mjs → public/newgen-test.json) into the
+      // timeline so it can be opened in the exact V2 reader. Localhost-only, no DB, nothing published.
+      try {
+        if (params.get("newgen") === "1" && /^(localhost|127\.0\.0\.1|\[::1\])$/i.test(location.hostname) && mod.applyPP) {
+          const ng = await fetch("/newgen-test.json").then((x) => x.json()).catch(() => null);
+          if (ng && ng.item && ng.item.v2) {
+            const yr = String(ng.date || ng.item.id).slice(0, 4);
+            const curYears = Array.isArray(mod.PR_YEARS) ? mod.PR_YEARS : [];
+            const dayLabel = (() => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(ng.date || ng.item.id)); return m ? new Date(+m[1], +m[2] - 1, +m[3]).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : (ng.date || ng.item.id); })();
+            const injected = { d: dayLabel, headline: ng.item.headline, originalTitle: ng.item.originalTitle, id: ng.item.id, key: true, label: ng.item.headline, v2: ng.item.v2 };
+            let placed = false;
+            const mergedYears = curYears.map((y) => {
+              if (String(y.year) === yr) { placed = true; return { ...y, items: [injected, ...(y.items || [])] }; }
+              return y;
+            });
+            if (!placed) mergedYears.unshift({ year: Number(yr), items: [injected] });
+            const mergedFull = { ...(mod.FULL || {}), [ng.item.id]: ng.full };
+            mod.applyPP({ PR_YEARS: mergedYears, FULL: mergedFull });
+          }
+        }
+      } catch (_) {}
+      // DEV-ONLY (?briefv1=1): preview the HISTORICAL BriefV1 presentation (Path A) on the REAL
+      // timeline data — no fixture, no AI. The reader maps each existing summary's fields into the
+      // BriefV1 shell. Default OFF and localhost-gated, so production behaviour is unchanged.
+      try {
+        if (params.get("briefv1") === "1" && /^(localhost|127\.0\.0\.1|\[::1\])$/i.test(location.hostname)) {
+          window.__BRIEF_V1_HISTORICAL__ = true;
+        }
+      } catch (_) {}
       // LOCAL-ONLY company-account demo (never production). ?companyaccount=1 flips the Profile
       // tab to the company's own editable profile + post button, as if signed in as the company.
       try {

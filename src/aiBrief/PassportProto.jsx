@@ -32,6 +32,7 @@ import { updateCompanyProfile, myPortalCompanies, companyFollowerCount, companyF
 import { uploadCompanyMedia } from "../lib/storage.js";          // company-account: upload a new logo/media
 import { mapProfileToPP } from "../lib/profileToPP.js";          // company-account: rebuild pp after an edit
 import { API_BASE, isNativeApp } from "../lib/platform.js";
+import { historicalToV2 } from "./historicalBrief.js";   // Path A: map existing summaries → BriefV1 (no AI)
 import QRCode from "qrcode";
 import jsQR from "jsqr"; // pure-JS QR decode — works on iOS WebKit (BarcodeDetector doesn't)
 import { buildCompanyIdentity } from "./proHighlights.js";
@@ -1648,10 +1649,10 @@ function TimelineView() {
             aria-pressed={highOnly}
             className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-full transition active:scale-90"
             style={highOnly
-              ? { background: "#059669", boxShadow: "0 4px 12px -5px rgba(5,150,105,0.75)" }
+              ? { background: "#2563eb", boxShadow: "0 4px 12px -5px rgba(37,99,235,0.75)" }
               : { background: "#fff", border: "1px solid #e2e8f0" }}
           >
-            <Gem size={14} style={{ color: highOnly ? "#fff" : "#059669" }} strokeWidth={2.4} />
+            <Gem size={14} style={{ color: highOnly ? "#fff" : "#2563eb" }} strokeWidth={2.4} />
           </button>
           <span className="mr-0.5 h-5 w-px flex-shrink-0 bg-slate-200" />
           {PR_YEARS.map((yr) => {
@@ -1676,9 +1677,9 @@ function TimelineView() {
       {highOnly && (
         <section className="relative mt-3">
           <div className="sticky top-0 z-30 -mx-5 flex items-center gap-2 px-5 py-2.5" style={{ background: "#ffffff", borderBottom: "1px solid #f1f5f9" }}>
-            <Gem size={15} style={{ color: "#059669" }} strokeWidth={2.4} />
+            <Gem size={15} style={{ color: "#2563eb" }} strokeWidth={2.4} />
             <span className="text-[15px] font-extrabold tracking-tight text-slate-900">Key Milestones</span>
-            <span className="text-[11px] font-medium" style={{ color: "#047857" }}>All-time · {PR_YEARS.reduce((n, y) => n + y.items.filter((it) => it.key).length, 0)} highlights</span>
+            <span className="text-[11px] font-medium" style={{ color: "#1d4ed8" }}>All-time · {PR_YEARS.reduce((n, y) => n + y.items.filter((it) => it.key).length, 0)} highlights</span>
           </div>
           <div className="space-y-4 pb-0 pt-3">
             {PR_YEARS.map((yrX, yIdx) => {
@@ -1690,31 +1691,35 @@ function TimelineView() {
                   <div className="relative">
                     <div className="absolute bg-slate-200" style={{ left: 11, top: 14, bottom: 14, width: 2 }} />
                     {keyItems.map(({ it, ii }) => {
-                      const { cat, impact } = classify(it);
+                      const { cat: _hc, impact } = classify(it);
+                      // Prefer an explicit Brief category (item.v2) over the headline heuristic so the
+                      // milestone card and the Brief sheet agree. Inert in production (no item.v2).
+                      const cat = (it.v2 && it.v2.cat && CAT_STYLE[it.v2.cat]) ? it.v2.cat : _hc;
                       const is = IMPACT_STYLE[impact];
                       return (
-                        <button
+                        <div
                           key={it.id}
+                          role="button" tabIndex={0}
                           data-fc={"timeline." + it.id}
                           onClick={() => { setShowFull(false); setDetail({ yi: yIdx, ii }); }}
-                          className="relative flex w-full items-stretch gap-3 py-1.5 text-left transition active:scale-[0.99]"
+                          onKeyDown={(e) => { if (e.key === "Enter") { setShowFull(false); setDetail({ yi: yIdx, ii }); } }}
+                          className="relative flex w-full cursor-pointer items-stretch gap-3 py-1.5 text-left transition active:scale-[0.99]"
                         >
                           <span className="relative z-10 flex flex-shrink-0 justify-center pt-4" style={{ width: 25 }}>
-                            <span className="grid place-items-center rounded-full" style={{ height: 20, width: 20, background: "#059669", boxShadow: "0 0 0 4px rgba(5,150,105,0.15)" }}>
+                            <span className="grid place-items-center rounded-full" style={{ height: 20, width: 20, background: "#2563eb", boxShadow: "0 0 0 4px rgba(37,99,235,0.15)" }}>
                               <Gem size={11} style={{ color: "#ffffff" }} />
                             </span>
                           </span>
-                          <span className="min-w-0 flex-1 rounded-2xl border border-slate-100 bg-white p-3" style={{ boxShadow: "0 1px 2px rgba(15,23,42,0.04), 0 10px 24px -18px rgba(15,23,42,0.35)" }}>
+                          <span className="relative min-w-0 flex-1 rounded-2xl border border-slate-100 bg-white p-3" style={{ boxShadow: "0 1px 2px rgba(15,23,42,0.04), 0 10px 24px -18px rgba(15,23,42,0.35)" }}>
                             <span className="flex items-center gap-1.5">
                               <span className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[8px] font-extrabold uppercase tracking-wider" style={{ background: is.bg, color: is.c }}>
                                 <span className="h-1.5 w-1.5 rounded-full" style={{ background: is.dot }} /> {impact}
                               </span>
                               <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400">{cat}</span>
-                              <ChevronRight size={15} className="ml-auto flex-shrink-0 text-slate-300" />
                             </span>
                             <span className="mt-1.5 block text-[13px] font-bold leading-snug tracking-tight text-slate-900">{it.headline || it.label}</span>
                           </span>
-                        </button>
+                        </div>
                       );
                     })}
                   </div>
@@ -1808,15 +1813,20 @@ function TimelineView() {
                       )}
 
                       {items.map(({ it, ii }) => {
-                        const { cat, impact } = classify(it);
+                        const { cat: _hc, impact } = classify(it);
+                        // Prefer an explicit Brief category (item.v2) over the headline heuristic so the
+                        // timeline card and the Brief sheet agree. Inert in production (no item.v2).
+                        const cat = (it.v2 && it.v2.cat && CAT_STYLE[it.v2.cat]) ? it.v2.cat : _hc;
                         const cs = CAT_STYLE[cat], is = IMPACT_STYLE[impact];
                         return (
-                          <button
+                          <div
                             key={it.id}
+                            role="button" tabIndex={0}
                             data-fc={"timeline." + it.id}
                             data-demo={yi === 0 && ii === 0 ? "tl-milestone" : undefined}
                             onClick={() => { setShowFull(false); setDetail({ yi, ii }); }}
-                            className="relative flex w-full items-stretch gap-3 py-1.5 text-left"
+                            onKeyDown={(e) => { if (e.key === "Enter") { setShowFull(false); setDetail({ yi, ii }); } }}
+                            className="relative flex w-full cursor-pointer items-stretch gap-3 py-1.5 text-left"
                             style={demoFocusStyle(_demo && _demo.focus === "milestone" && yi === 0 && ii === 0, "none")}
                           >
                             {/* dot on the line */}
@@ -1834,18 +1844,17 @@ function TimelineView() {
                               </span>
                             </span>
                             {/* content card */}
-                            <span className="min-w-0 flex-1 rounded-2xl border border-slate-100 bg-white p-3" style={{ boxShadow: "0 1px 2px rgba(15,23,42,0.04), 0 10px 24px -18px rgba(15,23,42,0.35)" }}>
+                            <span className="relative min-w-0 flex-1 rounded-2xl border border-slate-100 bg-white p-3" style={{ boxShadow: "0 1px 2px rgba(15,23,42,0.04), 0 10px 24px -18px rgba(15,23,42,0.35)" }}>
                               <span className="flex items-center gap-1.5">
                                 <span className="rounded-md px-1.5 py-0.5 text-[8px] font-extrabold uppercase tracking-wider" style={{ background: cs.bg, color: cs.c }}>{cat}</span>
                                 <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400">{grp.quarter} {yr.year}</span>
-                                <ChevronRight size={15} className="ml-auto flex-shrink-0 text-slate-300" />
                               </span>
                               <span className="mt-1.5 block text-[13px] font-bold leading-snug tracking-tight text-slate-900">{it.headline || it.label}</span>
                               <span className="mt-1.5 inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider" style={{ background: is.bg, color: is.c }}>
                                 <span className="h-1.5 w-1.5 rounded-full" style={{ background: is.dot }} /> {impact} impact
                               </span>
                             </span>
-                          </button>
+                          </div>
                         );
                       })}
                     </div>
@@ -1859,11 +1868,15 @@ function TimelineView() {
 
       {/* ====== DETAIL (analyst note) MODAL ====== */}
       {item && !showFull && (() => {
-        const { cat, impact } = classify(item);
+        const { cat: _hcat, impact } = classify(item);
+        // When a Brief carries an explicit MineEx category (dev benchmark / generated Briefs via
+        // item.v2), display THAT category instead of the fragile headline heuristic — same pill,
+        // same styling. Inert in production (no item.v2) and only when it maps to a known style.
+        const cat = (item.v2 && item.v2.cat && CAT_STYLE[item.v2.cat]) ? item.v2.cat : _hcat;
         const cs = CAT_STYLE[cat], is = IMPACT_STYLE[impact];
         return (
-        <BottomSheet onClose={() => setDetail(null)}>
-          <div className="border-b border-slate-200 pb-3 pr-9">
+        <BottomSheet onClose={() => setDetail(null)} headerActions={<ReaderActions it={{ ...item, contentType: "UPDATE", isPressRelease: true }} snapshot={prItemToSnapshot(item)} />}>
+          <div className="border-b border-slate-200 pb-3 pt-1">
             <div className="flex flex-wrap items-center gap-1.5">
               <span className="rounded-md px-1.5 py-0.5 text-[8px] font-extrabold uppercase tracking-wider" style={{ background: cs.bg, color: cs.c }}>{cat}</span>
               <span className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[8px] font-extrabold uppercase tracking-wider" style={{ background: is.bg, color: is.c }}>
@@ -1899,17 +1912,19 @@ function SummaryContent({ item, cat, impact, hasFull, onReadFull }) {
   const stage = STAGE_IMPACT_BY_CAT[cat] || ["—", "—"];
   // DEV-ONLY benchmark: render the Version-2 Brief for Kingsmen releases that carry `item.v2`,
   // with a compare toggle. Gated by window.__BRIEF_BENCH__; the normal reader is unchanged.
-  const bench = typeof window !== "undefined" && !!(window.__BRIEF_BENCH__ && item && item.v2);
-  const [showV2, setShowV2] = useState(true);
+  // Every press release reads in the approved BriefV1 (v2) design. Generated/approved releases
+  // carry a real `v2`; existing historical releases are mapped into the SAME v2 shell (historicalToV2,
+  // presentation-only, no AI) with their key numbers preserved as Highlights so no data is lost.
+  const hasV2 = !!(item && item.v2 && (item.v2.head || item.v2.wh || item.v2.wy
+    || (Array.isArray(item.v2.kr) && item.v2.kr.length) || item.v2.tk));
+  const histV1 = (!hasV2 && item) ? historicalToV2(item) : null;
+  const v1 = hasV2 || !!histV1;
+  const v2 = hasV2 ? item.v2 : histV1;
   const BLBL = "text-[10px] font-extrabold uppercase tracking-[0.16em]";
-  const benchToggle = bench ? (
-    <div className="mb-4 inline-flex rounded-full bg-slate-100 p-0.5 text-[11px] font-extrabold">
-      <button onClick={() => setShowV2(true)} className="rounded-full px-3 py-1.5 transition" style={showV2 ? { background: EM, color: "#fff" } : { color: "#64748b" }}>Brief v2</button>
-      <button onClick={() => setShowV2(false)} className="rounded-full px-3 py-1.5 transition" style={!showV2 ? { background: "#475569", color: "#fff" } : { color: "#64748b" }}>Current</button>
-    </div>
-  ) : null;
-  if (bench && showV2) {
-    const v2 = item.v2;
+  // The v2 Brief is the only view — no Brief v2 / Current toggle. The full v2 design (What Happened,
+  // Why It Matters, Key Results, Takeaway, Read Full) renders directly below the header.
+  const benchToggle = null;
+  if (v1 && v2) {
     const kr = Array.isArray(v2.kr) ? v2.kr : [];
     // Uniform metric-row model: every result is an identical two-column row
     // (fixed-width cobalt value + unit on the left; descriptor + secondary on the right,
@@ -1942,10 +1957,20 @@ function SummaryContent({ item, cat, impact, hasFull, onReadFull }) {
             <div className="mt-6">
               <span className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-slate-900">Key Results</span>
               <div className="mt-2">
-                {rows.map((r, i) => (
+                {rows.map((r, i) => {
+                  // APPROVED design = text-[22px]; only genuinely-long values (10+ chars, e.g.
+                  // "US$325,000", "1.6 km by 1.8 km") scale down so they don't crowd the descriptor.
+                  // Everything that fits keeps the exact locked 22px / leading-none treatment.
+                  const vlen = String(r.v || "").length;
+                  const longVal = vlen > 9;
+                  return (
                   <div key={i} className={`flex items-start gap-4 py-3 ${i > 0 ? "border-t border-slate-100" : ""}`}>
                     <div className="w-[118px] flex-shrink-0">
-                      <div className="text-[22px] font-extrabold leading-none tracking-tight tabular-nums" style={{ color: EM_TEXT }}>{r.v}</div>
+                      {longVal ? (
+                        <div className="font-extrabold leading-tight tracking-tight tabular-nums break-words" style={{ color: EM_TEXT, fontSize: vlen > 13 ? 14 : 17 }}>{r.v}</div>
+                      ) : (
+                        <div className="text-[22px] font-extrabold leading-none tracking-tight tabular-nums" style={{ color: EM_TEXT }}>{r.v}</div>
+                      )}
                       {r.u && <div className="mt-1 text-[10px] font-bold uppercase tracking-[0.08em] text-slate-400">{r.u}</div>}
                     </div>
                     <div className="min-w-0 flex-1 pt-px">
@@ -1957,8 +1982,25 @@ function SummaryContent({ item, cat, impact, hasFull, onReadFull }) {
                       {r.sec && <div className="mt-0.5 text-[12px] font-medium leading-snug text-slate-500">{r.sec}</div>}
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
+            </div>
+          )}
+
+          {/* HIGHLIGHTS — for mapped historical briefs (no structured Key Results), surface the
+              release's existing key-number bullets VERBATIM so the data is never lost. */}
+          {!hasRows && Array.isArray(v2.highlights) && v2.highlights.length > 0 && (
+            <div className="mt-6">
+              <span className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-slate-900">Highlights</span>
+              <ul className="mt-2.5 space-y-2.5">
+                {v2.highlights.map((h, i) => (
+                  <li key={i} className="flex gap-2.5 text-[13.5px] font-medium leading-snug text-slate-700">
+                    <span className="mt-[7px] h-1.5 w-1.5 flex-shrink-0 rounded-full" style={{ background: EM }} />
+                    <span>{h}</span>
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
 
@@ -1969,8 +2011,9 @@ function SummaryContent({ item, cat, impact, hasFull, onReadFull }) {
             </div>
           )}
         </div>
+        <BriefDisclaimer />
         {hasFull && (
-          <button onClick={onReadFull} className="mt-6 flex h-11 w-full items-center justify-center gap-2 rounded-xl text-xs font-bold uppercase tracking-wider text-white transition active:scale-95" style={DARK_CTA}>
+          <button onClick={onReadFull} className="mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-xl text-xs font-bold uppercase tracking-wider text-white transition active:scale-95" style={DARK_CTA}>
             Read Full Press Release <ChevronRight size={14} />
           </button>
         )}
@@ -2027,19 +2070,30 @@ function SummaryContent({ item, cat, impact, hasFull, onReadFull }) {
         </div>
       </div>
 
+      <BriefDisclaimer />
       {/* Only offer the full release when we actually have its text. Until the
           drag-drop PDF linking ships, fullText is null, so this stays hidden
           rather than opening an empty modal. */}
       {hasFull && (
         <button
           onClick={onReadFull}
-          className="mt-6 flex h-11 w-full items-center justify-center gap-2 rounded-xl text-xs font-bold uppercase tracking-wider text-white transition active:scale-95"
+          className="mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-xl text-xs font-bold uppercase tracking-wider text-white transition active:scale-95"
           style={DARK_CTA}
         >
           Read Full Press Release <ChevronRight size={14} />
         </button>
       )}
     </div>
+  );
+}
+// Standard MineEx factual-summary disclaimer — shown on EVERY press-release Brief (historical and
+// generated), below Key Results / Takeaway and above Read Full. Restrained light-grey treatment,
+// matching the original reader. Does not touch the issuer's own disclosures in the full release.
+function BriefDisclaimer() {
+  return (
+    <p className="mt-6 rounded-xl bg-slate-50 px-3 py-2.5 text-[11px] font-medium leading-snug text-slate-400">
+      MineEx provides factual summaries and educational context, not investment advice. Refer to the original disclosure for complete information.
+    </p>
   );
 }
 
@@ -2063,11 +2117,11 @@ function FullText({ full }) {
     const t = line.trim();
     if (!t) return <div key={kp + "-" + i} style={{ height: 8 }} />;
     // Explicit markup from the formatter wins; fall back to the old heading heuristic.
-    if (t.startsWith("# ")) return <p key={kp + "-" + i} className="font-extrabold tracking-tight text-slate-900" style={{ fontSize: 15, lineHeight: 1.25, marginTop: i ? 14 : 0, marginBottom: 4 }}>{t.slice(2)}</p>;
-    if (t.startsWith("## ")) return <p key={kp + "-" + i} className="font-bold tracking-tight text-slate-900" style={{ fontSize: 12.5, marginTop: 12, marginBottom: 2 }}>{t.slice(3)}</p>;
+    if (t.startsWith("# ")) return <p key={kp + "-" + i} className="font-extrabold tracking-tight text-slate-900" style={{ fontSize: 15.5, lineHeight: 1.28, marginTop: i ? 18 : 0, marginBottom: 7 }}>{t.slice(2)}</p>;
+    if (t.startsWith("## ")) return <p key={kp + "-" + i} className="font-bold uppercase tracking-[0.06em] text-slate-900" style={{ fontSize: 11.5, marginTop: 16, marginBottom: 5 }}>{t.slice(3)}</p>;
     return isPrHeading(t)
-      ? <p key={kp + "-" + i} className="font-bold tracking-tight text-slate-900" style={{ fontSize: 12.5, marginTop: 12, marginBottom: 2 }}>{t}</p>
-      : <p key={kp + "-" + i} className="text-slate-600" style={{ fontSize: 12, lineHeight: 1.6 }}>{line}</p>;
+      ? <p key={kp + "-" + i} className="font-bold uppercase tracking-[0.06em] text-slate-900" style={{ fontSize: 11.5, marginTop: 16, marginBottom: 5 }}>{t}</p>
+      : <p key={kp + "-" + i} className="text-slate-600" style={{ fontSize: 13, lineHeight: 1.62, marginBottom: 11 }}>{line}</p>;
   });
   // A figure — image with an optional caption, rendered inline where it sits in the release.
   const figure = (src, caption, k) => (
@@ -2204,7 +2258,7 @@ function StageTimeline() {
   );
 }
 
-function BottomSheet({ children, onClose, mediaKey, topBanner, fit, z = 50 }) {
+function BottomSheet({ children, onClose, mediaKey, topBanner, fit, z = 50, headerActions }) {
   const [shown, setShown] = useState(false);
   const [drag, setDrag] = useState(0);
   const [dragging, setDragging] = useState(false);
@@ -2262,26 +2316,43 @@ function BottomSheet({ children, onClose, mediaKey, topBanner, fit, z = 50 }) {
       >
         {/* full-bleed top banner (optional) — fills to the rounded top corners */}
         {topBanner ? <div className="flex-shrink-0">{topBanner}</div> : null}
-        {/* grab handle — drag down to dismiss. Floats over the banner when one is present. */}
-        <div
-          className={(topBanner ? "absolute left-0 right-0 top-0 z-30 " : "") + "flex-shrink-0 touch-none pb-1 pt-3"}
-          style={{ cursor: dragging ? "grabbing" : "grab" }}
-          onPointerDown={onDown}
-          onPointerMove={onMove}
-          onPointerUp={onUp}
-          onPointerCancel={onUp}
-        >
-          <div className="mx-auto h-1.5 w-10 rounded-full" style={{ background: topBanner ? "rgba(255,255,255,0.6)" : "#cbd5e1" }} />
-        </div>
-        {/* close */}
-        <button
-          onClick={close}
-          aria-label="Close"
-          className="absolute z-20 grid h-8 w-8 place-items-center rounded-full bg-slate-100 text-slate-500 transition active:scale-90"
-          style={{ top: 14, right: 14 }}
-        >
-          <X size={16} />
-        </button>
+        {headerActions && !topBanner ? (
+          /* OPAQUE FIXED HEADER BAR — centered drag handle, then Like/Share/Save + Close in one
+             right-aligned, uniform row. flex-shrink-0 so it never scrolls, bg-white so article
+             content can never bleed behind the icons. The whole bar is the drag-to-dismiss target. */
+          <div
+            className="relative z-20 flex-shrink-0 touch-none bg-white px-5 pt-3 pb-2"
+            style={{ cursor: dragging ? "grabbing" : "grab" }}
+            onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}
+          >
+            <div className="mx-auto mb-2 h-1.5 w-10 rounded-full bg-slate-300" />
+            <div className="flex items-center justify-end gap-2" onPointerDown={(e) => e.stopPropagation()}>
+              {headerActions}
+              <button onClick={close} aria-label="Close" className="grid h-8 w-8 place-items-center rounded-full bg-slate-100 text-slate-500 transition active:scale-90"><X size={16} /></button>
+            </div>
+          </div>
+        ) : (<>
+          {/* grab handle — drag down to dismiss. Floats over the banner when one is present. */}
+          <div
+            className={(topBanner ? "absolute left-0 right-0 top-0 z-30 " : "") + "flex-shrink-0 touch-none pb-1 pt-3"}
+            style={{ cursor: dragging ? "grabbing" : "grab" }}
+            onPointerDown={onDown}
+            onPointerMove={onMove}
+            onPointerUp={onUp}
+            onPointerCancel={onUp}
+          >
+            <div className="mx-auto h-1.5 w-10 rounded-full" style={{ background: topBanner ? "rgba(255,255,255,0.6)" : "#cbd5e1" }} />
+          </div>
+          {/* close */}
+          <button
+            onClick={close}
+            aria-label="Close"
+            className="absolute z-20 grid h-8 w-8 place-items-center rounded-full bg-slate-100 text-slate-500 transition active:scale-90"
+            style={{ top: 14, right: 14 }}
+          >
+            <X size={16} />
+          </button>
+        </>)}
         {/* scrollable content — card stays still while this scrolls */}
         {mediaKey ? <div style={{ flexShrink: 0, padding: "0 20px" }}><CardHeader mediaKey={mediaKey} /></div> : null}
         <RubberScroll className="pp-scroll overflow-y-auto" style={{ flex: fit ? "0 1 auto" : 1, minHeight: 0, padding: "6px 20px 0 20px", paddingBottom: "calc(28px + env(safe-area-inset-bottom, 0px))" }}>
@@ -4259,13 +4330,45 @@ const AM_UNIQUE = {
 
 // ============ Editorial expanded-card primitives (Apple-style reading experience) ============
 function ExecLead({ children }) {
-  return <p className="text-[14.5px] font-medium leading-relaxed text-slate-700">{children}</p>;
+  // The opening read of a card — set slightly larger and darker than body copy so it lands as a
+  // lead, giving the card an immediate top-of-hierarchy anchor.
+  return <p className="text-[15px] font-medium leading-[1.58] text-slate-800">{children}</p>;
 }
-function CardSection({ heading, children }) {
+// Editorial section heading for the Pro profile cards: a short accent tick + a strong label.
+// `tone` gives different information TYPES distinct, restrained treatments (BriefV1-inspired)
+// instead of the old uniform pale-grey uppercase label on every section.
+function ProHeading({ label, tone = "default" }) {
+  const T = {
+    default: { c: "#0f172a", tick: "#2563EB" },   // primary / structural
+    accent:  { c: "#1d4ed8", tick: "#2563EB" },   // thesis / why it matters
+    risk:    { c: "#334155", tick: "#d97706" },   // risks — distinguishable, NOT alarming
+    muted:   { c: "#64748b", tick: "#cbd5e1" },   // supporting detail
+  }[tone] || { c: "#0f172a", tick: "#2563EB" };
+  return (
+    <div className="flex items-center gap-2">
+      <span className="h-[12px] w-[3px] flex-shrink-0 rounded-full" style={{ background: T.tick }} />
+      <p className="text-[10.5px] font-extrabold uppercase tracking-[0.13em]" style={{ color: T.c }}>{label}</p>
+    </div>
+  );
+}
+function CardSection({ heading, tone, children }) {
   return (
     <div>
-      <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400">{heading}</p>
-      <div className="mt-2">{children}</div>
+      <ProHeading label={heading} tone={tone} />
+      <div className="mt-2.5">{children}</div>
+    </div>
+  );
+}
+// Stacks the sections of a Pro profile sheet with the shared thin-grey divider rhythm: the first
+// block sits under the sheet header, every subsequent block is separated by a hairline line.
+// Falsy children (conditionally-omitted sections) are dropped so dividers never double up.
+function SheetBody({ children }) {
+  const items = React.Children.toArray(children).filter(Boolean);
+  return (
+    <div className="mt-4">
+      {items.map((child, i) => (
+        <div key={i} className={i === 0 ? "" : "mt-6 border-t border-slate-100 pt-5"}>{child}</div>
+      ))}
     </div>
   );
 }
@@ -4274,11 +4377,11 @@ function InfoTable({ rows }) {
   const clean = (rows || []).filter((r) => r && r[1] != null && String(r[1]).trim() !== "");
   if (!clean.length) return null;
   return (
-    <div className="overflow-hidden rounded-2xl border border-slate-100 bg-white">
+    <div className="overflow-hidden rounded-2xl bg-slate-50/70 ring-1 ring-slate-100">
       {clean.map(([k, v], i) => (
-        <div key={i} className={`flex gap-4 px-4 py-3 ${i > 0 ? "border-t border-slate-50" : ""}`}>
-          <span className="w-[38%] flex-shrink-0 text-[11px] font-semibold leading-snug text-slate-400">{k}</span>
-          <span className="flex-1 text-[12.5px] font-semibold leading-snug text-slate-800">{v}</span>
+        <div key={i} className={`flex gap-4 px-4 py-3.5 ${i > 0 ? "border-t border-slate-200/50" : ""}`}>
+          <span className="w-[40%] flex-shrink-0 pt-px text-[10px] font-bold uppercase tracking-[0.05em] leading-snug text-slate-400">{k}</span>
+          <span className="flex-1 text-[13.5px] font-bold leading-snug tracking-tight text-slate-900">{v}</span>
         </div>
       ))}
     </div>
@@ -5194,7 +5297,7 @@ function ProjectsView() {
       {showUnique && CARDS.unique && (
         <BottomSheet onClose={() => setShowUnique(false)} mediaKey={`${activeKey}:brief`}>
           <SheetHeader kicker="Final Synthesis" title="What Sets This Project Apart" accent={p.tone} icon={Sparkles} iconBg={p.toneSoft} />
-          <div className="mt-4 space-y-5">
+          <SheetBody>
             <ExecLead>{CARDS.unique.summary}</ExecLead>
             <CardSection heading="Key differentiators">
               <div className="space-y-2.5">
@@ -5209,7 +5312,7 @@ function ProjectsView() {
             </CardSection>
             <CardSection heading="Supporting evidence"><BulletList items={CARDS.unique.evidence} accent={p.tone} /></CardSection>
             <ClosingNote soft={p.toneSoft} accent={p.toneText} label="Why it matters">{CARDS.unique.takeaway}</ClosingNote>
-          </div>
+          </SheetBody>
         </BottomSheet>
       )}
 
@@ -5227,12 +5330,12 @@ function ProjectsView() {
         return (
           <BottomSheet onClose={() => setSnapSheet(null)} mediaKey={snapMediaId(t.label) ? `${activeKey}:${snapMediaId(t.label)}` : undefined}>
             <SheetHeader kicker="Project Fundamental" title={t.label} accent={p.tone} icon={t.Icon} iconBg={p.toneSoft} />
-            <div className="mt-4 space-y-5">
+            <SheetBody>
               {has(t.value) && <ExecLead>{t.value}{has(t.value2) ? ` — ${t.value2}` : ""}</ExecLead>}
               {detail.length > 0 && <InfoTable rows={detail} />}
               {has(t.note) && <ClosingNote soft={p.toneSoft} accent={p.toneText} label="Context">{t.note}</ClosingNote>}
               {!hasAny && <p className="text-[13px] font-medium leading-relaxed text-slate-500">No further detail disclosed for this yet.</p>}
-            </div>
+            </SheetBody>
           </BottomSheet>
         );
       })()}
@@ -5240,7 +5343,7 @@ function ProjectsView() {
       {showStage && CARDS.stage && (
         <BottomSheet onClose={() => setShowStage(false)} mediaKey={`${activeKey}:stage`}>
           <SheetHeader kicker="Project Stage" title={`${CARDS.stage.current} Stage`} accent={p.tone} icon={Mountain} iconBg={p.toneSoft} />
-          <div className="mt-4 space-y-5">
+          <SheetBody>
             <ExecLead>{CARDS.stage.summary}</ExecLead>
             <CardSection heading="Development lifecycle">
               <StageTrack idx={p.stageIdx} tone={p.tone} toneSoft={p.toneSoft} />
@@ -5254,16 +5357,16 @@ function ProjectsView() {
               </div>
             </CardSection>
             <InfoTable rows={[["Development Stage", CARDS.stage.current], ["Current Program", CARDS.stage.program], ["Current Activity", CARDS.stage.activity], ["Next Technical Milestone", CARDS.stage.next], ["Expected Timeline", CARDS.stage.timing]]} />
-            <CardSection heading="Recently completed"><BulletList items={CARDS.stage.completed} accent={p.tone} /></CardSection>
+            <CardSection heading="Recently completed" tone="muted"><BulletList items={CARDS.stage.completed} accent={p.tone} /></CardSection>
             <ClosingNote soft={p.toneSoft} accent={p.tone} label="What must happen next">{CARDS.stage.closing}</ClosingNote>
-          </div>
+          </SheetBody>
         </BottomSheet>
       )}
 
       {showTargets && CARDS.targets && (
         <BottomSheet onClose={() => setShowTargets(false)}>
           <SheetHeader kicker="Exploration Focus" title={`${(CARDS.targets.priority || []).length} Priority Targets`} accent={p.tone} icon={Crosshair} iconBg={p.toneSoft} />
-          <div className="mt-4 space-y-5">
+          <SheetBody>
             <ExecLead>{CARDS.targets.summary}</ExecLead>
             <CardSection heading="Priority targets">
               <div className="space-y-2.5">
@@ -5281,23 +5384,23 @@ function ProjectsView() {
                 ))}
               </div>
             </CardSection>
-            <CardSection heading="Supporting evidence"><BulletList items={CARDS.targets.evidence} accent={p.tone} /></CardSection>
+            <CardSection heading="Supporting evidence" tone="muted"><BulletList items={CARDS.targets.evidence} accent={p.tone} /></CardSection>
             <ClosingNote soft={p.toneSoft} accent={p.tone} label="Why these targets matter">{CARDS.targets.closing}</ClosingNote>
-          </div>
+          </SheetBody>
         </BottomSheet>
       )}
 
       {showBrief && CARDS.brief && (
         <BottomSheet onClose={() => setShowBrief(false)}>
           <SheetHeader kicker="60-Second Project Brief" title={p.name} accent="#1d4ed8" icon={Zap} iconBg="rgba(37,99,235,0.12)" />
-          <div className="mt-4 space-y-6">
+          <SheetBody>
             <ExecLead>{CARDS.brief.overview}</ExecLead>
-            <CardSection heading="Discovery Thesis"><p className="text-[13.5px] font-medium leading-relaxed text-slate-700">{CARDS.brief.thesis}</p></CardSection>
+            <CardSection heading="Discovery Thesis" tone="accent"><p className="text-[14px] font-medium leading-relaxed text-slate-700">{CARDS.brief.thesis}</p></CardSection>
             <CardSection heading="Current Technical Focus"><p className="text-[13.5px] font-medium leading-relaxed text-slate-700">{CARDS.brief.focus}</p></CardSection>
             <CardSection heading="What Makes This Project Different"><p className="text-[13.5px] font-medium leading-relaxed text-slate-700">{CARDS.brief.different}</p></CardSection>
-            <CardSection heading="Key Technical Risks"><p className="text-[13.5px] font-medium leading-relaxed text-slate-700">{CARDS.brief.risks}</p></CardSection>
+            <CardSection heading="Key Technical Risks" tone="risk"><p className="text-[13.5px] font-medium leading-relaxed text-slate-700">{CARDS.brief.risks}</p></CardSection>
             <ClosingNote soft="rgba(37,99,235,0.07)" accent="#1d4ed8" label="What this means">{CARDS.brief.means}</ClosingNote>
-          </div>
+          </SheetBody>
         </BottomSheet>
       )}
 
@@ -5319,7 +5422,7 @@ function ProjectsView() {
         return (
           <BottomSheet onClose={() => setCardSheet(null)} mediaKey={cardMediaId(cardSheet.label) ? `${activeKey}:${cardMediaId(cardSheet.label)}` : undefined}>
             <SheetHeader kicker={p.name} title={cardSheet.label} accent={p.toneText} icon={cardSheet.Icon} iconBg={p.toneSoft} />
-            <div className="mt-4 space-y-5">
+            <SheetBody>
               {has(c.body) && <ExecLead>{c.body}</ExecLead>}
 
               {points.length > 0 && (
@@ -5328,17 +5431,26 @@ function ProjectsView() {
 
               {timeline.length > 0 && (
                 <CardSection heading="History & programs">
-                  <div className="space-y-2.5">
-                    {timeline.map((t, i) => <EvidenceRow key={i} name={t.era || `Phase ${i + 1}`} desc={t.v} soft={p.toneSoft} accent={p.toneText} />)}
+                  {/* Clean editorial timeline: a hairline spine with an accent node per phase, era label
+                      and description — no heavy box per row. */}
+                  <div className="relative mt-1 pl-5">
+                    <span className="absolute left-[3px] top-1 bottom-1 w-px bg-slate-200" />
+                    {timeline.map((t, i) => (
+                      <div key={i} className={i > 0 ? "mt-4" : ""}>
+                        <span className="absolute left-0 mt-[5px] h-[7px] w-[7px] -translate-x-[0px] rounded-full" style={{ background: p.toneText }} />
+                        <p className="text-[12.5px] font-extrabold tracking-tight text-slate-900">{t.era || `Phase ${i + 1}`}</p>
+                        <p className="mt-0.5 text-[12.5px] font-medium leading-snug text-slate-600">{t.v}</p>
+                      </div>
+                    ))}
                   </div>
                 </CardSection>
               )}
 
               {rows.length > 0 && (
                 <CardSection heading="Drill intercepts">
-                  <div className="space-y-2.5">
+                  <div className="space-y-3">
                     {rows.map((r, i) => (
-                      <div key={i} className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                      <div key={i} className="rounded-2xl border border-slate-200/70 bg-white p-4" style={{ boxShadow: "0 1px 2px rgba(15,23,42,0.03), 0 8px 20px -16px rgba(15,23,42,0.25)" }}>
                         {/* Parent intercept stays primary; disclosed sub-intervals render below as
                             "incl.", subordinate and in the company's own order — never flattened. */}
                         <div className="flex items-baseline justify-between gap-3">
@@ -5366,7 +5478,7 @@ function ProjectsView() {
               )}
 
               {!anything && <p className="text-[13px] font-medium leading-relaxed text-slate-500">No further detail disclosed for this yet.</p>}
-            </div>
+            </SheetBody>
           </BottomSheet>
         );
       })()}
@@ -5677,23 +5789,29 @@ function BriefOverlay({ onClose }) {
               </p>
             )}
             <div className="mt-5">
-              {shown.map((s, i) => (
-                <div key={i} className={i > 0 ? "mt-6 border-t border-slate-100 pt-6" : ""}>
-                  <p className="text-[10px] font-bold uppercase tracking-[0.18em]" style={{ color: "#1d4ed8" }}>{s.k}</p>
+              {shown.map((s, i) => {
+                const isLead = i === 0;
+                const tone = /why it matters/i.test(s.k) ? "accent" : "default";
+                return (
+                <div key={i} className={i > 0 ? "mt-6 border-t border-slate-100 pt-5" : ""}>
+                  <ProHeading label={s.k} tone={tone} />
                   {s.bullets ? (
-                    <ul className="mt-3 space-y-2.5">
+                    <ul className="mt-3 space-y-2">
                       {s.bullets.map((b, j) => (
-                        <li key={j} className="flex gap-2.5 text-[13px] font-medium leading-snug text-slate-700">
-                          <span className="mt-[7px] h-1 w-1 flex-shrink-0 rounded-full" style={{ background: "#1d4ed8" }} />
+                        <li key={j} className="flex gap-2.5 rounded-xl bg-slate-50 px-3 py-2.5 text-[13px] font-medium leading-snug text-slate-700">
+                          <span className="mt-[6px] h-1.5 w-1.5 flex-shrink-0 rounded-full" style={{ background: "#2563EB" }} />
                           <span>{b}</span>
                         </li>
                       ))}
                     </ul>
+                  ) : isLead ? (
+                    <p className="mt-2.5 text-[15px] font-medium leading-[1.58] text-slate-800">{s.v}</p>
                   ) : (
-                    <p className={`mt-2 font-medium leading-relaxed text-slate-700 ${i === 0 ? "text-[14.5px]" : "text-[13.5px]"}`}>{s.v}</p>
+                    <p className="mt-2.5 text-[13.5px] font-medium leading-relaxed text-slate-700">{s.v}</p>
                   )}
                 </div>
-              ))}
+                );
+              })}
             </div>
             <p className="mt-6 border-t border-slate-100 pt-4 text-[10.5px] font-medium leading-relaxed text-slate-400">
               AI-generated from public disclosures for information only. It may contain errors and is <b className="font-bold text-slate-500">not investment advice</b>. Always verify against the company's official filings before making any investment decision.
@@ -6335,6 +6453,7 @@ function FollowingChip({ dark }) {
 function StoryReader({ it, onOpen, onClose }) {
   const [playing, setPlaying] = useState(false);
   const [saved, setSaved] = useState(() => savedStore.has(it && it.id));
+  const [liked, setLiked] = useState(() => likedStore.has(it && it.id));
   // Swipe-down-to-dismiss (in addition to the X). Drag the header/handle down; release
   // past ~90px to close, otherwise it snaps back.
   const [dragY, setDragY] = useState(0);
@@ -6345,6 +6464,7 @@ function StoryReader({ it, onOpen, onClose }) {
   const onDragMove = (e) => { if (startY.current == null) return; setDragY(Math.max(0, e.touches[0].clientY - startY.current)); };
   const onDragEnd = () => { setDragging(false); startY.current = null; if (dragY > 90) { haptic(); onClose(); } else setDragY(0); };
   const toggleSave = () => { if (it) savedStore.toggle(it); if (it && it.postId && !saved) recordPostEvent(it.postId, "save"); setSaved((s) => !s); };
+  const toggleLike = () => { if (!it) return; likedStore.toggle(it.id); if (it.postId && !liked) recordPostEvent(it.postId, "like"); setLiked((s) => !s); };
   const shareStory = async () => {
     haptic();
     // Share a MineEx URL for news (branded card via /n/<id> OG tags); fall back to the
@@ -6362,10 +6482,16 @@ function StoryReader({ it, onOpen, onClose }) {
   const media = isMedia(it.contentType);
   const isBrief = it.contentType === "MINEEX BRIEF";
   // A press-release-type source links to the full release; editorial coverage links to the article.
-  const isRelease = /press|wire|release|company|ir\b|regulat/i.test(it.publisherType || "") || it.contentType === "PRESS RELEASE";
+  const isRelease = /press|wire|release|company|ir\b|regulat/i.test(it.publisherType || "") || it.contentType === "PRESS RELEASE" || it.contentType === "UPDATE" || !!it.isPressRelease;
   const origLabel = media ? "Watch on MineEx" : it.contentType === "NEWS" ? (isRelease ? "Read Full Press Release" : "Read Original Article") : "Read Full Press Release";
   const dateStr = (() => { const d = it.publishedAt ? new Date(it.publishedAt) : null; return d && !isNaN(d) ? d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }) : (it.when || ""); })();
   const isReader = !!it.summaryLong && (it.contentType === "NEWS" || it.contentType === "PRESS RELEASE");
+  // Press releases (company updates + news flagged as a release) read in the shared approved
+  // BriefV1 presentation (SummaryContent) — the SAME component the company timeline uses — so
+  // every entry point shows one consistent Brief. Non-press-release editorial news keeps the
+  // existing summary layout below. Media is never a Brief.
+  const isPR = !media && (it.contentType === "UPDATE" || it.contentType === "PRESS RELEASE" || (it.contentType === "NEWS" && it.isPressRelease));
+  const prImpact = (it.key || (it.materiality || 0) >= 75) ? "High" : ((it.materiality || 0) >= 55 ? "Medium" : "Low");
   return createPortal(
     <div className="absolute inset-0 z-[110] flex flex-col justify-end pp-fade" onClick={onClose}>
       <style>{"@keyframes mxUp{from{transform:translateY(100%)}to{transform:translateY(0)}}"}</style>
@@ -6376,6 +6502,7 @@ function StoryReader({ it, onOpen, onClose }) {
           <div className="flex items-center justify-between">
             <TypeBadge type={it.badge || it.contentType} />
             <div className="flex items-center gap-2">
+              <button onClick={toggleLike} aria-label={liked ? "Liked" : "Like"} className="grid h-8 w-8 place-items-center rounded-full active:scale-90" style={liked ? { background: "#fee2e2", color: "#ed4956" } : { background: "#f1f5f9", color: "#475569" }}><Heart size={15} fill={liked ? "currentColor" : "none"} /></button>
               <button onClick={shareStory} aria-label="Share" className="grid h-8 w-8 place-items-center rounded-full bg-slate-100 text-slate-600 active:scale-90"><Share2 size={15} /></button>
               <button onClick={toggleSave} aria-label={saved ? "Saved" : "Save"} className="grid h-8 w-8 place-items-center rounded-full active:scale-90" style={saved ? { background: EM, color: "#fff" } : { background: "#f1f5f9", color: "#475569" }}><Bookmark size={15} fill={saved ? "currentColor" : "none"} /></button>
               <button onClick={onClose} aria-label="Close" className="grid h-8 w-8 place-items-center rounded-full bg-slate-100 text-slate-500 active:scale-90"><X size={16} /></button>
@@ -6402,57 +6529,72 @@ function StoryReader({ it, onOpen, onClose }) {
           </div>
           <h2 className="text-[20px] font-extrabold leading-tight tracking-tight text-slate-900">{it.originalHeadline || it.headline}</h2>
 
-          {/* MineEx Summary — what was announced */}
-          {it.summaryLong && (<>
-            <p className="mt-4 text-[10.5px] font-bold uppercase tracking-widest text-slate-400">MineEx Summary</p>
-            <p className="mt-1.5 text-[14px] font-medium leading-relaxed text-slate-600">{it.summaryLong}</p>
+          {isPR ? (
+            /* Shared approved BriefV1 presentation (What Happened / Why It Matters / Key Results /
+               optional Takeaway + the standard disclaimer). hasFull=false: the footer below owns
+               the "Read Full Press Release" action for the feed (external source link). */
+            <SummaryContent item={it} cat={(it.v2 && it.v2.cat) || it.category || ""} impact={prImpact} hasFull={false} onReadFull={() => {}} />
+          ) : (<>
+            {/* MineEx Summary — what was announced */}
+            {it.summaryLong && (<>
+              <p className="mt-4 text-[10.5px] font-bold uppercase tracking-widest text-slate-400">MineEx Summary</p>
+              <p className="mt-1.5 text-[14px] font-medium leading-relaxed text-slate-600">{it.summaryLong}</p>
+            </>)}
+
+            {/* What does this mean? — explains only the technical terms in this item */}
+            {it.plainEnglish && (<>
+              <p className="mt-4 text-[10.5px] font-bold uppercase tracking-widest text-slate-400">What does this mean?</p>
+              <p className="mt-1.5 text-[13.5px] font-medium leading-relaxed text-slate-600">{it.plainEnglish}</p>
+            </>)}
+
+            {/* Context — source-only; where it fits / what's next */}
+            {it.context && (<>
+              <p className="mt-4 text-[10.5px] font-bold uppercase tracking-widest text-slate-400">Context</p>
+              <p className="mt-1.5 text-[13.5px] font-medium leading-relaxed text-slate-600">{it.context}</p>
+            </>)}
+
+            {/* Key Numbers — compact single-figure rows, exact from source */}
+            {Array.isArray(it.keyNumbers) && it.keyNumbers.length > 0 && (<>
+              <p className="mt-4 text-[10.5px] font-bold uppercase tracking-widest text-slate-400">Key Numbers</p>
+              <div className="mt-2 space-y-1.5">
+                {it.keyNumbers.map((k, j) => (
+                  <div key={j} className="flex items-baseline justify-between gap-3 rounded-xl border border-slate-100 bg-slate-50/70 px-3.5 py-2.5">
+                    <span className="text-[14px] font-extrabold leading-snug tracking-tight text-slate-900">{k.value}</span>
+                    {k.label && <span className="flex-shrink-0 text-right text-[11px] font-semibold text-slate-400">{k.label}</span>}
+                  </div>
+                ))}
+              </div>
+            </>)}
+
+            {it.watch && (<>
+              <p className="mt-4 text-[10.5px] font-bold uppercase tracking-widest text-slate-400">What to watch next</p>
+              <p className="mt-1.5 text-[13.5px] font-medium leading-relaxed text-slate-600">{it.watch}</p>
+            </>)}
+
+            {/* Source attribution */}
+            {isReader && (it.source || dateStr) && (
+              <p className="mt-5 text-[11.5px] font-semibold text-slate-400">Source: {it.source || "Industry"}{dateStr ? ` · ${dateStr}` : ""}</p>
+            )}
+
+            {/* Standard disclosure (non-press-release news keeps this here; press releases get it
+                from the shared BriefV1 body above). */}
+            {isReader && <p className="mt-3 rounded-xl bg-slate-50 px-3 py-2.5 text-[11px] font-medium leading-snug text-slate-400">MineEx provides factual summaries and educational context, not investment advice. Refer to the original disclosure for complete information.</p>}
           </>)}
-
-          {/* What does this mean? — explains only the technical terms in this item */}
-          {it.plainEnglish && (<>
-            <p className="mt-4 text-[10.5px] font-bold uppercase tracking-widest text-slate-400">What does this mean?</p>
-            <p className="mt-1.5 text-[13.5px] font-medium leading-relaxed text-slate-600">{it.plainEnglish}</p>
-          </>)}
-
-          {/* Context — source-only; where it fits / what's next */}
-          {it.context && (<>
-            <p className="mt-4 text-[10.5px] font-bold uppercase tracking-widest text-slate-400">Context</p>
-            <p className="mt-1.5 text-[13.5px] font-medium leading-relaxed text-slate-600">{it.context}</p>
-          </>)}
-
-          {/* Key Numbers — compact single-figure rows, exact from source */}
-          {Array.isArray(it.keyNumbers) && it.keyNumbers.length > 0 && (<>
-            <p className="mt-4 text-[10.5px] font-bold uppercase tracking-widest text-slate-400">Key Numbers</p>
-            <div className="mt-2 space-y-1.5">
-              {it.keyNumbers.map((k, j) => (
-                <div key={j} className="flex items-baseline justify-between gap-3 rounded-xl border border-slate-100 bg-slate-50/70 px-3.5 py-2.5">
-                  <span className="text-[14px] font-extrabold leading-snug tracking-tight text-slate-900">{k.value}</span>
-                  {k.label && <span className="flex-shrink-0 text-right text-[11px] font-semibold text-slate-400">{k.label}</span>}
-                </div>
-              ))}
-            </div>
-          </>)}
-
-          {it.watch && (<>
-            <p className="mt-4 text-[10.5px] font-bold uppercase tracking-widest text-slate-400">What to watch next</p>
-            <p className="mt-1.5 text-[13.5px] font-medium leading-relaxed text-slate-600">{it.watch}</p>
-          </>)}
-
-          {/* Source attribution */}
-          {isReader && (it.source || dateStr) && (
-            <p className="mt-5 text-[11.5px] font-semibold text-slate-400">Source: {it.source || "Industry"}{dateStr ? ` · ${dateStr}` : ""}</p>
-          )}
-
-          {/* Standard disclosure */}
-          {isReader && <p className="mt-3 rounded-xl bg-slate-50 px-3 py-2.5 text-[11px] font-medium leading-snug text-slate-400">MineEx provides factual summaries and educational context, not investment advice. Refer to the original disclosure for complete information.</p>}
           {isBrief && <p className="mt-5 rounded-xl bg-slate-50 px-3 py-2.5 text-[11.5px] font-medium leading-snug text-slate-400">A MineEx Brief is a factual, contextual summary based on source material — not investment advice or independent analysis.</p>}
         </div>
-        <div className="flex-shrink-0 border-t border-slate-100 px-5 py-3" style={{ paddingBottom: `calc(env(safe-area-inset-bottom,0px) + ${12 + DEMO_SAFE_B}px)` }}>
-          <div className="flex items-center gap-2.5">
-            {it.live && onOpen && <button onClick={() => { haptic(); onClose(); onOpen(it); }} className={`h-12 rounded-2xl border border-slate-200 px-4 text-[13px] font-bold text-slate-700 active:scale-95 ${isBrief ? "flex-1" : "flex-shrink-0"}`}>Open Company</button>}
-            {!isBrief && <button onClick={() => { haptic(); try { window.open(it.fullUrl, "_blank", "noopener"); } catch {} }} className="flex h-12 flex-1 items-center justify-center gap-1.5 rounded-2xl text-[14px] font-bold text-white active:scale-[0.98]" style={{ background: "#0f172a" }}>{origLabel} <ArrowUpRight size={15} /></button>}
-          </div>
-        </div>
+        {(() => {
+          const showOpen = it.live && onOpen;
+          const showFullLink = !isBrief && !!it.fullUrl;   // only when there's an actual source link
+          if (!showOpen && !showFullLink) return null;      // e.g. a company post with no external release
+          return (
+            <div className="flex-shrink-0 border-t border-slate-100 px-5 py-3" style={{ paddingBottom: `calc(env(safe-area-inset-bottom,0px) + ${12 + DEMO_SAFE_B}px)` }}>
+              <div className="flex items-center gap-2.5">
+                {showOpen && <button onClick={() => { haptic(); onClose(); onOpen(it); }} className={`h-12 rounded-2xl border border-slate-200 px-4 text-[13px] font-bold text-slate-700 active:scale-95 ${(isBrief || !showFullLink) ? "flex-1" : "flex-shrink-0"}`}>Open Company</button>}
+                {showFullLink && <button onClick={() => { haptic(); try { window.open(it.fullUrl, "_blank", "noopener"); } catch {} }} className="flex h-12 flex-1 items-center justify-center gap-1.5 rounded-2xl text-[14px] font-bold text-white active:scale-[0.98]" style={{ background: "#0f172a" }}>{origLabel} <ArrowUpRight size={15} /></button>}
+              </div>
+            </div>
+          );
+        })()}
       </div>
     </div>, ppFrameEl || document.body);
 }
@@ -6461,7 +6603,7 @@ function StoryReader({ it, onOpen, onClose }) {
 // image (same read as the smaller thumbnails), so the photo is never obscured by text.
 function LeadStory({ it, onRead, reason }) {
   return (
-    <button onClick={() => { haptic(); onRead(it); }} className="w-full overflow-hidden rounded-3xl border border-slate-100 bg-white text-left transition active:scale-[0.99]" style={{ boxShadow: "0 1px 2px rgba(15,23,42,0.04), 0 18px 34px -22px rgba(15,23,42,0.5)" }}>
+    <div role="button" tabIndex={0} onClick={() => { haptic(); onRead(it); }} onKeyDown={(e) => { if (e.key === "Enter") { haptic(); onRead(it); } }} className="w-full cursor-pointer overflow-hidden rounded-3xl border border-slate-100 bg-white text-left transition active:scale-[0.99]" style={{ boxShadow: "0 1px 2px rgba(15,23,42,0.04), 0 18px 34px -22px rgba(15,23,42,0.5)" }}>
       <div className="relative h-36 w-full overflow-hidden" style={coverFor(it)}>
         <CoverImg it={it} />
         {isMedia(it.contentType) && <span className="absolute inset-0 grid place-items-center"><span className="grid h-12 w-12 place-items-center rounded-full bg-white/85"><Play size={18} className="ml-0.5 text-slate-900" /></span></span>}
@@ -6475,14 +6617,14 @@ function LeadStory({ it, onRead, reason }) {
           <span className="truncate">{it.companyName}</span><span className="text-slate-300">·</span><span className="flex-shrink-0">{it.when}</span>
         </div>
       </div>
-    </button>
+    </div>
   );
 }
 
 // Medium editorial row — square cover thumbnail + headline (for "Top Stories").
 function TopStory({ it, onRead }) {
   return (
-    <button onClick={() => { haptic(); onRead(it); }} className="flex w-full items-stretch gap-3 rounded-2xl border border-slate-100 bg-white p-2.5 text-left transition active:scale-[0.99]" style={{ boxShadow: "0 1px 2px rgba(15,23,42,0.04), 0 12px 26px -20px rgba(15,23,42,0.4)" }}>
+    <div role="button" tabIndex={0} onClick={() => { haptic(); onRead(it); }} onKeyDown={(e) => { if (e.key === "Enter") { haptic(); onRead(it); } }} className="flex w-full cursor-pointer items-stretch gap-3 rounded-2xl border border-slate-100 bg-white p-2.5 text-left transition active:scale-[0.99]" style={{ boxShadow: "0 1px 2px rgba(15,23,42,0.04), 0 12px 26px -20px rgba(15,23,42,0.4)" }}>
       <div className="relative h-[74px] w-[74px] flex-shrink-0 overflow-hidden rounded-xl" style={coverFor(it)}><CoverImg it={it} />
         {isMedia(it.contentType) && <span className="absolute inset-0 grid place-items-center"><span className="grid h-7 w-7 place-items-center rounded-full bg-white/85"><Play size={12} className="ml-0.5 text-slate-900" /></span></span>}
       </div>
@@ -6491,14 +6633,14 @@ function TopStory({ it, onRead }) {
         <p className="line-clamp-2 text-[13.5px] font-bold leading-snug tracking-tight text-slate-900">{it.headline}</p>
         <p className="mt-1 truncate text-[10.5px] font-semibold text-slate-400">{it.companyName} · {it.when}</p>
       </div>
-    </button>
+    </div>
   );
 }
 
 // Press-release card (collapsed) — company, ticker, date, headline, type, followed.
-function PRCard({ it, onRead }) {
+function PRCard({ it, onRead, showSave = false }) {
   return (
-    <button onClick={() => { haptic(); onRead(it); }} className="flex w-full items-start gap-3 rounded-2xl border border-slate-100 bg-white p-3.5 text-left transition active:scale-[0.995]" style={{ boxShadow: "0 1px 2px rgba(15,23,42,0.04), 0 12px 26px -20px rgba(15,23,42,0.4)" }}>
+    <div role="button" tabIndex={0} onClick={() => { haptic(); onRead(it); }} onKeyDown={(e) => { if (e.key === "Enter") { haptic(); onRead(it); } }} className="flex w-full cursor-pointer items-start gap-3 rounded-2xl border border-slate-100 bg-white p-3.5 text-left transition active:scale-[0.995]" style={{ boxShadow: "0 1px 2px rgba(15,23,42,0.04), 0 12px 26px -20px rgba(15,23,42,0.4)" }}>
       <CoLogo co={{ logo: it.logo, slug: it.slug || it.companyId, name: it.companyName, mono: (it.companyName || "").split(/\s+/).slice(0, 2).map((w) => w[0] || "").join("").toUpperCase() }} size={38} />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
@@ -6510,8 +6652,8 @@ function PRCard({ it, onRead }) {
         <p className="mt-1 text-[13.5px] font-bold leading-snug tracking-tight text-slate-900">{it.headline}</p>
         <div className="mt-1.5 flex items-center gap-1.5"><TypeBadge type={it.badge || it.contentType} /><span className="text-[10.5px] font-semibold text-slate-400">Tap to read summary</span></div>
       </div>
-      <ChevronRight size={16} className="mt-0.5 flex-shrink-0 text-slate-300" />
-    </button>
+      {showSave ? <SaveBtn it={it} box={30} size={14} /> : <ChevronRight size={16} className="mt-0.5 flex-shrink-0 text-slate-300" />}
+    </div>
   );
 }
 
@@ -6520,20 +6662,46 @@ function PRCard({ it, onRead }) {
 function NewDot() {
   return <span className="ml-1.5 inline-flex items-center rounded-full px-1.5 py-[1px] text-[8.5px] font-extrabold uppercase tracking-wide" style={{ background: "#eff6ff", color: "#1d4ed8" }}>New</span>;
 }
-function NewsCard({ it, onRead, size = "med" }) {
+// Reusable save (bookmark) button — device-backed via savedStore. Stops click propagation so it
+// works when sitting inside a tappable card. `dark` = over imagery. `snapshot` lets a caller
+// store a normalized object instead of the item itself, while keeping the saved-state check and
+// the id on the item.
+function SaveBtn({ it, snapshot, dark = false, size = 15, box = 32 }) {
+  const [, bump] = useState(0);
+  useEffect(() => savedStore.sub(() => bump((x) => x + 1)), []);
+  const on = savedStore.has(it && it.id);
+  return (
+    <button onClick={(e) => { e.stopPropagation(); const target = snapshot || it; if (target) savedStore.toggle(target); }}
+      aria-label={on ? "Saved" : "Save"}
+      className="grid flex-shrink-0 place-items-center rounded-full transition active:scale-90"
+      style={{ height: box, width: box, ...(dark ? { background: "rgba(15,23,42,0.42)", color: "#fff", backdropFilter: "blur(4px)" } : { background: "#f1f5f9", color: on ? EM_TEXT : "#475569" }) }}>
+      <Bookmark size={size} fill={on ? "currentColor" : "none"} strokeWidth={2} />
+    </button>
+  );
+}
+// Bottom action row INSIDE a card body (below a thin divider) — keeps the save action off the
+// cover image. Like (heart) stays in the reader only, so the row carries the save button.
+function CardActions({ it }) {
+  return (
+    <div className="mt-2.5 flex items-center gap-1 border-t border-slate-100 pt-2">
+      <SaveBtn it={it} box={30} size={15} />
+    </div>
+  );
+}
+function NewsCard({ it, onRead, size = "med", showSave = false }) {
   if (size === "lead") return <LeadStory it={it} onRead={onRead} />;
   const cls = classifyNews(it);
   if (size === "sm") return (
-    <button onClick={() => { haptic(); onRead(it); }} className="flex w-full items-center gap-3 overflow-hidden rounded-2xl border border-slate-100 bg-white p-3 text-left transition active:scale-[0.995]" style={{ boxShadow: "0 1px 2px rgba(15,23,42,0.04), 0 12px 26px -20px rgba(15,23,42,0.4)", borderLeft: `3px solid ${cls.color}` }}>
+    <div role="button" tabIndex={0} onClick={() => { haptic(); onRead(it); }} onKeyDown={(e) => { if (e.key === "Enter") { haptic(); onRead(it); } }} className="flex w-full cursor-pointer items-center gap-3 overflow-hidden rounded-2xl border border-slate-100 bg-white p-3 text-left transition active:scale-[0.995]" style={{ boxShadow: "0 1px 2px rgba(15,23,42,0.04), 0 12px 26px -20px rgba(15,23,42,0.4)", borderLeft: `3px solid ${cls.color}` }}>
       <div className="min-w-0 flex-1">
         <div className="mb-1 flex items-center gap-1.5"><NewsTag it={it} /><span className="truncate text-[10px] font-bold uppercase tracking-wider text-slate-400">{it.source} · {it.when}</span>{it.isNew && <NewDot />}</div>
         <p className="line-clamp-2 text-[13.5px] font-bold leading-snug tracking-tight text-slate-900">{it.headline}</p>
       </div>
       <div className="relative h-14 w-14 flex-shrink-0 overflow-hidden rounded-xl" style={coverFor(it)}><CoverImg it={it} /></div>
-    </button>
+    </div>
   );
   return (
-    <button onClick={() => { haptic(); onRead(it); }} className="w-full overflow-hidden rounded-2xl border border-slate-100 bg-white text-left transition active:scale-[0.99]" style={{ boxShadow: "0 1px 2px rgba(15,23,42,0.04), 0 14px 28px -22px rgba(15,23,42,0.45)" }}>
+    <div role="button" tabIndex={0} onClick={() => { haptic(); onRead(it); }} onKeyDown={(e) => { if (e.key === "Enter") { haptic(); onRead(it); } }} className="w-full cursor-pointer overflow-hidden rounded-2xl border border-slate-100 bg-white text-left transition active:scale-[0.99]" style={{ boxShadow: "0 1px 2px rgba(15,23,42,0.04), 0 14px 28px -22px rgba(15,23,42,0.45)" }}>
       <div className="relative h-32 w-full overflow-hidden" style={coverFor(it)}>
         <CoverImg it={it} />
         <div className="absolute left-3 top-3" style={{ zIndex: 1 }}><NewsTag it={it} onDark /></div>
@@ -6542,9 +6710,68 @@ function NewsCard({ it, onRead, size = "med" }) {
         <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">{it.source} · {it.when}{it.commodity ? ` · ${it.commodity}` : ""}{it.isNew && <NewDot />}</p>
         <p className="text-[14.5px] font-extrabold leading-snug tracking-tight text-slate-900">{it.headline}</p>
         {it.dek && <p className="mt-1 line-clamp-2 text-[12.5px] font-medium leading-snug text-slate-500">{it.dek}</p>}
+        {showSave && <CardActions it={it} />}
       </div>
-    </button>
+    </div>
   );
+}
+// Absolute date for a release id ("YYYY-MM-DD") — built from parts to avoid a UTC off-by-one.
+function prettyDate(id) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(id || ""));
+  if (!m) return "";
+  const d = new Date(+m[1], +m[2] - 1, +m[3]);
+  return isNaN(d) ? "" : d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+}
+// Map a company-timeline release item into the feed-shaped SNAPSHOT the Saved collection renders
+// (PRCard list + BriefV1 reader on tap). Timeline items carry only headline/why/takeaways (+ a
+// v2 Brief when generated), none of the company/date/contentType fields Saved needs — so a raw
+// save renders blank. This fills exactly those existing fields; it invents nothing and does not
+// change any design. Keeps `v2` so the Saved reader shows the same Brief.
+function prItemToSnapshot(it) {
+  if (!it) return it;
+  const slug = _PP.SLUG || (COMPANY.name || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+  return {
+    id: it.id,                                   // same id → saved state matches the reader
+    contentType: "UPDATE",                       // routes to PRCard in the Saved list + BriefV1 reader
+    isPressRelease: true,
+    companyName: COMPANY.name || "",
+    ticker: COMPANY.ticker || "",
+    source: COMPANY.name || "",
+    logo: LOGO,
+    slug,
+    headline: it.headline || it.label || "",
+    originalHeadline: it.originalTitle || it.headline || it.label || "",
+    when: prettyDate(it.id),
+    publishedAt: /^\d{4}-\d{2}-\d{2}$/.test(String(it.id || "")) ? it.id + "T12:00:00" : it.id,
+    ...(it.v2 ? { v2: it.v2 } : {}),             // carry the real Brief if present
+    whatHappened: it.whatHappened || "",
+    why: it.why || "",
+    takeaways: Array.isArray(it.takeaways) ? it.takeaways : [],
+  };
+}
+// Reader header actions — Like (heart) / Share / Save (bookmark). Reuses the existing device-local
+// likedStore + savedStore and the native share sheet; `snapshot` lets a caller (e.g. the company
+// timeline) store a normalized object while the like/save state keys off the item id.
+function ReaderActions({ it, snapshot }) {
+  const [, bump] = useState(0);
+  useEffect(() => { const u1 = savedStore.sub(() => bump((x) => x + 1)); const u2 = likedStore.sub(() => bump((x) => x + 1)); return () => { u1(); u2(); }; }, []);
+  const id = it && it.id;
+  const liked = likedStore.has(id);
+  const saved = savedStore.has(id);
+  const toggleLike = (e) => { e.stopPropagation(); if (!it) return; likedStore.toggle(id); if (it.postId && !liked) recordPostEvent(it.postId, "like"); };
+  const toggleSave = (e) => { e.stopPropagation(); const target = snapshot || it; if (!target) return; savedStore.toggle(target); if (it.postId && !saved) recordPostEvent(it.postId, "save"); };
+  const share = async (e) => {
+    e.stopPropagation(); haptic();
+    const nid = it && it.contentType === "NEWS" ? String(id || "").replace(/^news-/, "") : "";
+    const url = nid ? `https://mineex.ca/n/${nid}` : ((it && it.fullUrl) || "");
+    const title = (it && (it.headline || it.t)) || "MineEx";
+    try { const r = await shareContent({ title, url }); if (!shouldFallback(r)) return; if (navigator.clipboard && url) await navigator.clipboard.writeText(url); } catch {}
+  };
+  return (<>
+    <button onClick={toggleLike} aria-label={liked ? "Liked" : "Like"} className="grid h-8 w-8 place-items-center rounded-full active:scale-90" style={liked ? { background: "#fee2e2", color: "#ed4956" } : { background: "#f1f5f9", color: "#475569" }}><Heart size={15} fill={liked ? "currentColor" : "none"} /></button>
+    <button onClick={share} aria-label="Share" className="grid h-8 w-8 place-items-center rounded-full bg-slate-100 text-slate-600 active:scale-90"><Share2 size={15} /></button>
+    <button onClick={toggleSave} aria-label={saved ? "Saved" : "Save"} className="grid h-8 w-8 place-items-center rounded-full active:scale-90" style={saved ? { background: EM, color: "#fff" } : { background: "#f1f5f9", color: "#475569" }}><Bookmark size={15} fill={saved ? "currentColor" : "none"} /></button>
+  </>);
 }
 // Recency bucket for time-grouped feed sections.
 function timeBucket(iso) {
@@ -7924,6 +8151,22 @@ const savedStore = {
     this.emit();
   },
 };
+// likedStore — article "likes". DEVICE-LOCAL, ids only (no Liked collection screen), mirrors
+// savedStore. Separate from Save so a reader can both like and bookmark independently.
+const LIKED_KEY = "mineex.liked.v1";
+const likedStore = {
+  data: (() => { try { const r = JSON.parse(localStorage.getItem(LIKED_KEY) || "[]"); return Array.isArray(r) ? r : []; } catch (_) { return []; } })(),
+  listeners: new Set(),
+  sub(fn) { this.listeners.add(fn); return () => this.listeners.delete(fn); },
+  emit() { try { localStorage.setItem(LIKED_KEY, JSON.stringify(this.data)); } catch (_) {} this.listeners.forEach((fn) => { try { fn(); } catch (_) {} }); },
+  has(id) { return !!id && this.data.includes(id); },
+  toggle(id) {
+    if (!id) return;
+    this.data = this.has(id) ? this.data.filter((x) => x !== id) : [id, ...this.data];
+    haptic();
+    this.emit();
+  },
+};
 // Marketing investor demo (/appdemo) uses ISOLATED in-memory lists seeded from
 // window.__DEMO_LISTS__, so it never reads or writes the real user's saved follows on
 // this origin. Everywhere else the lists persist to localStorage as normal.
@@ -8794,8 +9037,8 @@ function SavedPanel({ onBack }) {
           {items.map((it) => isMedia(it.contentType)
             ? <MediaTeaser key={it.id} it={it} onRead={setReader} />
             : it.contentType === "NEWS"
-              ? <NewsCard key={it.id} it={it} onRead={setReader} size="med" />
-              : <PRCard key={it.id} it={it} onRead={setReader} />)}
+              ? <NewsCard key={it.id} it={it} onRead={setReader} size="med" showSave />
+              : <PRCard key={it.id} it={it} onRead={setReader} showSave />)}
         </div>
       ) : (
         <div className="mt-10"><FeedEmpty Icon={Bookmark} title="Nothing saved yet" sub="Tap the bookmark on any story to save it here for later." /></div>
@@ -11624,6 +11867,19 @@ function ConferenceProfile() {
 // The live App Store listing. Previously empty, which made the guest banner's
 // button fall back to a sign-in link instead of the store.
 const APP_STORE_URL = APPLE_STORE_URL;
+// Android listing is not live yet (see src/marketing/home2/AndroidSoon.jsx). Set this to
+// the Play Store URL when it launches and Android visitors will be routed there automatically.
+const PLAY_STORE_URL = "";
+// "Get the app" CTA colour — brand orange, deliberately distinct from the cobalt UI accent.
+const GET_APP_ORANGE = "#F97316";
+// Where "Get the app" sends a WEB visitor, by their device. The NATIVE app never shows these
+// affordances (guarded by !isNativeApp), so this only runs in a mobile/desktop browser.
+// iPhone/iPad -> App Store; Android -> Play Store (falls back to the site until it's live).
+function getStoreHref() {
+  const ua = (typeof navigator !== "undefined" && navigator.userAgent) || "";
+  if (/android/i.test(ua)) return PLAY_STORE_URL || "https://mineex.ca";
+  return APP_STORE_URL || "https://mineex.ca";
+}
 export default function App({ guest = false } = {}) {
   // Register for push on a device: once now (covers an already-signed-in relaunch)
   // and again whenever auth flips to signed-in (covers signing in after first launch —
@@ -11963,15 +12219,13 @@ export default function App({ guest = false } = {}) {
           {guest && !bannerOff && !isNativeApp && (
             <div className="flex flex-shrink-0 items-center gap-2.5 border-b border-slate-100 bg-white px-4 py-2">
               <button onClick={() => setBannerOff(true)} aria-label="Dismiss" className="flex-shrink-0 text-slate-300 transition active:scale-90"><X size={17} /></button>
-              <div className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-[9px]" style={{ background: EM }}>
-                <span className="text-[14px] font-black leading-none text-white">M</span>
-              </div>
+              <img src="/icon-192.png" alt="MineEx" className="h-8 w-8 flex-shrink-0 rounded-[9px] object-cover" />
               <div className="min-w-0 flex-1 leading-tight">
                 <p className="text-[12.5px] font-extrabold tracking-tight text-slate-900">MineEx</p>
                 <p className="truncate text-[10.5px] font-medium text-slate-400">Follow companies & get updates in one feed</p>
               </div>
-              <a href={APP_STORE_URL || "/app?signin=1"} className="flex-shrink-0 rounded-full px-4 py-1.5 text-[12px] font-bold text-white transition active:scale-95" style={{ background: EM }}>
-                {APP_STORE_URL ? "Open in app" : "Get the app"}
+              <a href={getStoreHref()} target="_blank" rel="noopener noreferrer" className="flex-shrink-0 rounded-full px-4 py-1.5 text-[12px] font-bold text-white transition active:scale-95" style={{ background: GET_APP_ORANGE }}>
+                Get the app
               </a>
             </div>
           )}
@@ -11987,9 +12241,7 @@ export default function App({ guest = false } = {}) {
                 style={{ paddingBottom: "calc(2rem + env(safe-area-inset-bottom, 0px))" }}>
                 <div className="mx-auto mb-5 h-1 w-10 rounded-full bg-slate-200" />
                 <div className="flex items-center gap-3">
-                  <div className="grid h-11 w-11 flex-shrink-0 place-items-center rounded-[12px]" style={{ background: EM }}>
-                    <span className="text-[19px] font-black leading-none text-white">M</span>
-                  </div>
+                  <img src="/icon-192.png" alt="MineEx" className="h-11 w-11 flex-shrink-0 rounded-[12px] object-cover" />
                   <div className="min-w-0">
                     <p className="text-[17px] font-extrabold tracking-tight text-slate-900">Follow in the app</p>
                     <p className="text-[13px] font-medium text-slate-500">Keep the companies you follow on every device</p>
@@ -11999,9 +12251,9 @@ export default function App({ guest = false } = {}) {
                   Get the MineEx app to follow companies, build your own feed and hear about new
                   releases the moment they publish.
                 </p>
-                <a href={APP_STORE_URL} target="_blank" rel="noreferrer"
+                <a href={getStoreHref()} target="_blank" rel="noopener noreferrer"
                   className="mt-5 flex w-full items-center justify-center rounded-full py-3.5 text-[15px] font-bold text-white transition active:scale-[0.98]"
-                  style={{ background: EM }}>
+                  style={{ background: GET_APP_ORANGE }}>
                   Get the app
                 </a>
                 <button onClick={() => setAppPrompt(null)}

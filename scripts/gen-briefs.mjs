@@ -7,22 +7,24 @@
 //   public/brief-generated.json   — generated v2 (+ reused old/full) for the sim
 //   <scratch>/brief-gen-report.json — per-release usage/cost/retries + totals
 //
-// Usage:
-//   OPENAI_API_KEY=sk-... node scripts/gen-briefs.mjs            # default model (AI_MODEL or gpt-4o-mini)
-//   OPENAI_API_KEY=sk-... node scripts/gen-briefs.mjs --model gpt-4o-mini
-//   OPENAI_API_KEY=sk-... node scripts/gen-briefs.mjs --model gpt-4o --out public/brief-generated.gpt4o.json
-// NOTHING here touches Supabase, publishing, notifications, or the live app.
+// Usage (DEDICATED key — never the shared OPENAI_API_KEY; model via MINEEX_BRIEF_MODEL):
+//   MINEEX_BRIEF_API_KEY=sk-... node scripts/gen-briefs.mjs                       # default gpt-4o-mini
+//   MINEEX_BRIEF_API_KEY=sk-... node scripts/gen-briefs.mjs --model gpt-4o-mini
+//   MINEEX_BRIEF_API_KEY=sk-... node scripts/gen-briefs.mjs --model gpt-4o --out public/brief-generated.gpt4o.json
+// NOTHING here touches Supabase, production endpoints, scheduled jobs, publishing, or the live app.
 
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { generateBrief, briefToV2, BRIEF_MODEL } from "../api/_briefGen.js";
+import { validateBrief } from "../api/_briefValidate.js";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const BENCH = path.join(ROOT, "public", "brief-bench.json");
 
-// Minimal .env.local loader (no dependency): lets you keep OPENAI_API_KEY in a
-// gitignored .env.local instead of exporting it. Never prints values.
+// Minimal .env.local loader (no dependency): lets you keep MINEEX_BRIEF_API_KEY in a
+// gitignored .env.local instead of exporting it. Never prints values. It only SETS vars
+// that aren't already in the environment, so it can't overwrite an existing secret.
 for (const f of [".env.local", ".env"]) {
   try {
     const p = path.join(ROOT, f);
@@ -40,8 +42,9 @@ const OUT = path.resolve(ROOT, arg("--out", "public/brief-generated.json"));
 const REPORT = path.resolve(ROOT, arg("--report", path.join(process.env.SCRATCH || "/tmp", "brief-gen-report.json")));
 const MAX_RETRIES = 3;
 
-if (!process.env.OPENAI_API_KEY) {
-  console.error("\n✗ OPENAI_API_KEY is not set.\n  Add it to .env.local (never commit it) or export it, then re-run:\n    OPENAI_API_KEY=sk-... node scripts/gen-briefs.mjs --model " + MODEL + "\n");
+// DEDICATED key — isolated from the shared OPENAI_API_KEY used by news/comms/extraction.
+if (!process.env.MINEEX_BRIEF_API_KEY) {
+  console.error("\n✗ MINEEX_BRIEF_API_KEY is not set.\n  Add it to .env.local (gitignored, never committed), then re-run:\n    MINEEX_BRIEF_API_KEY=sk-... node scripts/gen-briefs.mjs --model " + MODEL + "\n  (This is a DEDICATED key for the Brief generator; it does NOT touch OPENAI_API_KEY.)\n");
   process.exit(2);
 }
 
@@ -91,6 +94,8 @@ async function run() {
 
     outV2[d] = briefToV2(result.brief, result.brief.category);
     const krCount = (result.brief.keyResults || []).length;
+    // Deterministic grounding validation (does NOT trust the model's own evidence claims).
+    const validation = validateBrief(result.brief, sourceText);
     report.perRelease.push({
       date: d, ok: true, model: MODEL,
       retries: attempt - 1,
@@ -100,10 +105,12 @@ async function run() {
       takeaway: result.brief.takeaway ? "present" : "omitted",
       omittedTakeawayReason: result.brief.omittedTakeawayReason || "",
       warnings: result.brief.warnings || [],
+      validation,
       // keep the full generated brief (incl. evidence, basis/timeframe) for the accuracy report
       brief: result.brief,
     });
-    console.log(`  ✓ ${d}  [${result.brief.category}]  kr=${krCount}  tk=${result.brief.takeaway ? "y" : "-"}  retries=${attempt - 1}  $${callCost.toFixed(5)}`);
+    const vmark = validation.status === "PASS" ? "✓" : validation.status === "REVIEW" ? "⚠" : "✗";
+    console.log(`  ${vmark} ${d}  [${result.brief.category}]  kr=${krCount}  tk=${result.brief.takeaway ? "y" : "-"}  ${validation.status}${validation.status !== "PASS" ? " (fact:" + validation.factualErrors.length + " ev:" + validation.evidenceIssues.length + ")" : ""}  retries=${attempt - 1}  $${callCost.toFixed(5)}`);
   }
 
   const ok = report.perRelease.filter((r) => r.ok);

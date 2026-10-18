@@ -105,6 +105,7 @@ function entryToAnalysis(e) {
     },
     classification: { suggestedImpact: e.impact, suggestedKey: !!e.key, confidence: "medium" },
     proposedChanges: [],
+    ...(e.v2 ? { v2: e.v2 } : {}),   // carry a refined BriefV1 through the batched path too
   };
 }
 
@@ -205,6 +206,9 @@ export function assembleTimeline(results) {
         confidence: String(cls.confidence || ""),
         fullText: String(r.item.text || ""),
         proposedChanges: Array.isArray(r.analysis.proposedChanges) ? r.analysis.proposedChanges : [],
+        // Refined BriefV1 (validated server-side). Rides through to the reader when present;
+        // absent → the reader maps the card fields into BriefV1 instead.
+        v2: (r.analysis && r.analysis.v2) || null,
       };
     })
     .sort((a, b) => (b.date || "").localeCompare(a.date || ""));
@@ -274,6 +278,7 @@ export function toTimelineEntries(assembled) {
     summary: e.whyItMatters || e.whatHappened,
     url: e.sourceUrl,
     key: e.key,
+    ...(e.v2 ? { v2: e.v2 } : {}),   // refined BriefV1 → carried onto the timeline entry
     ai: {
       whatHappened: e.whatHappened,
       whatHappensNext: e.whatHappensNext,

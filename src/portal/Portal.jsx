@@ -20,6 +20,7 @@ import OnboardingPanel from "./OnboardingPanel.jsx";
 // Heavy, already-built surfaces are reused wholesale (never duplicated) and lazily
 // loaded so the portal shell stays lean:
 const CommsCenter = React.lazy(() => import("../console/CommsCenter.jsx"));  // Broadcast engine
+const BriefReview = React.lazy(() => import("./BriefReview.jsx"));           // BriefV1 generate + review + save
 const Documents   = React.lazy(() => import("./Documents.jsx"));             // Organized Media Library
 const Onboarding  = React.lazy(() => import("../Onboarding.jsx"));           // Profile builder (create/onboard)
 const ProfileEditor = React.lazy(() => import("./ProfileEditor.jsx"));       // pp-direct editor (edit existing, 1:1 with app)
@@ -39,6 +40,7 @@ const NAV_GROUPS = [
     { id: "home",      label: "Home",            Icon: HomeIcon },
     { id: "profile",   label: "Company Profile", Icon: Building2 },
     { id: "press",     label: "Press Releases",  Icon: Megaphone },
+    { id: "briefs",    label: "Investor Briefs", Icon: Sparkles },
     { id: "media",     label: "Media",           Icon: ImageIcon },
     { id: "share",     label: "QR & Share",      Icon: QrCode },
   ] },
@@ -95,6 +97,7 @@ export default function Portal({ company: initial, switchCompany, adminMode = fa
           <div className="min-h-0 flex-1 overflow-y-auto">
             <Suspense fallback={<SectionLoader />}>
               {(section === "press" || section === "broadcast") && <CommsCenter company={company} />}
+              {section === "briefs"    && <Suspense fallback={<SectionLoader />}><BriefReview company={company} /></Suspense>}
               {section === "profile"   && <Suspense fallback={<SectionLoader />}><ProfileEditor company={company} navTab={profTab} navStep={profStep} onNav={(t, s) => { setProfTab(t); setProfStep(s); }} /></Suspense>}
             </Suspense>
           </div>

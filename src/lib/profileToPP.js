@@ -147,6 +147,9 @@ function mapTimeline(timeline) {
       key: !!e.key,
       id: str(e.date),
       label: shortLabel({ ...e, keyNumbers: nums }),
+      // Refined BriefV1 (validated), when the generator produced one — this is the single field
+      // the reader consumes to show the generated Brief instead of the card-mapped fallback.
+      ...((e.v2 || (ai && ai.v2)) ? { v2: e.v2 || ai.v2 } : {}),
     });
     // Full release: formatted text and/or attached images (screenshots). Stored as an
     // object so the reader can render both. Absent → the "Read Full Press Release" button
