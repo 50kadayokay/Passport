@@ -21,6 +21,25 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=switzer@400,500,600,700&display=swap" />
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap" />
+    <!-- SHARE CARD. These must be in the HTML AS SERVED: iMessage, Slack and Twitter do
+         not run JavaScript, and MarketingSite only sets them after React mounts — which is
+         why a share of mineex.ca showed a drill-site photograph instead of the page. The
+         runtime tags still run and still override these per route; these are what a crawler
+         actually reads. og-image.jpg is the hero as it already exists (the previous file is
+         kept in public/_previous/). -->
+    <meta property="og:site_name" content="MineEx" />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://mineex.ca/" />
+    <meta property="og:title" content="MineEx — The investor platform built for junior mining" />
+    <meta property="og:description" content="Present your story. Engage investors. Build lasting connections." />
+    <meta property="og:image" content="https://mineex.ca/og-image.jpg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="MineEx — the investor platform built for junior mining" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="MineEx — The investor platform built for junior mining" />
+    <meta name="twitter:description" content="Present your story. Engage investors. Build lasting connections." />
+    <meta name="twitter:image" content="https://mineex.ca/og-image.jpg" />
     <title>MineEx</title>
     <!-- The Conference tablet's boot poster. The deck inside that iPad takes seconds to mount
          and this still is what the glass shows meanwhile; requested from the component it was
