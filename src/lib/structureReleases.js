@@ -74,14 +74,14 @@ export async function structureRelease(input, context = {}, { attempts = 4, comp
 // `batchSize` docs. Only works on TEXT (the batch endpoint reads text, not PDFs),
 // so callers pass extracted text. Returns the SAME [{item, analysis}] shape as
 // structureReleases so assembleTimeline is unchanged.
-async function callBatch(batch, token, context, attempts = 3) {
+async function callBatch(batch, token, context, attempts = 3, existingV2 = null) {
   let lastErr;
   for (let i = 0; i < attempts; i++) {
     try {
       const res = await fetch("/api/structure-batch", {
         method: "POST",
         headers: { "content-type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-        body: JSON.stringify({ releases: batch.map((b) => ({ id: b.id, text: b.text })), context }),
+        body: JSON.stringify({ releases: batch.map((b) => ({ id: b.id, text: b.text })), context, existingV2: existingV2 || undefined }),
       });
       if (res.ok) return (await res.json()).entries || [];
       const data = await res.json().catch(() => ({}));
@@ -109,7 +109,7 @@ function entryToAnalysis(e) {
   };
 }
 
-export async function structureReleasesBatched(items, { token, context = {}, batchSize = 8, concurrency = 3, onProgress } = {}) {
+export async function structureReleasesBatched(items, { token, context = {}, batchSize = 8, concurrency = 3, onProgress, existingV2 = null } = {}) {
   const list = (Array.isArray(items) ? items : []).filter((it) => it && String(it.text || "").trim());
   if (!list.length) return [];
   // split into batches
@@ -122,7 +122,7 @@ export async function structureReleasesBatched(items, { token, context = {}, bat
     while (cursor < batches.length) {
       const b = batches[cursor++];
       try {
-        const entries = await callBatch(b, token, context);
+        const entries = await callBatch(b, token, context, 3, existingV2);
         // match each entry back to its item by id; fall back to positional.
         entries.forEach((e, idx) => {
           const item = byId.get(String(e.id)) || b[idx];
@@ -447,7 +447,7 @@ async function extractDocText(pdfBase64, token) {
 
 // `deps` injects the memory helpers (documentsForExtraction, downloadDocumentBase64,
 // saveDocumentText) so this module stays free of a circular import on memory.js.
-export async function reanalyzeFromMemory(companyId, { token, onProgress, deps } = {}) {
+export async function reanalyzeFromMemory(companyId, { token, onProgress, deps, existingV2 = null } = {}) {
   const { documentsForExtraction, downloadDocumentBase64, saveDocumentText } = deps || {};
   if (!documentsForExtraction) throw new Error("memory deps required");
   const docs = await documentsForExtraction(companyId);
@@ -493,7 +493,7 @@ export async function reanalyzeFromMemory(companyId, { token, onProgress, deps }
   if (prItems.length) {
     if (onProgress) onProgress("Rebuilding the timeline…");
     try {
-      const results = await structureReleasesBatched(prItems, { token, onProgress: (dn, tot) => onProgress && onProgress(`Analyzing release ${dn} of ${tot}…`) });
+      const results = await structureReleasesBatched(prItems, { token, existingV2, onProgress: (dn, tot) => onProgress && onProgress(`Analyzing release ${dn} of ${tot}…`) });
       const timeline = assembleTimeline(results);
       out = { timeline, timelineEntries: toTimelineEntries(timeline), results };
     } catch (_) { if (onProgress) onProgress("Timeline step hit a snag — continuing with the rest…"); }
@@ -559,7 +559,7 @@ async function ensureDocsText(docs, token, deps, onProgress) {
 // capital/projects/leadership; the caller merges CONSERVATIVELY (mergeIncremental),
 // so a routine press release never clobbers hand-edited profile fields.
 // Returns { timelineEntries, company, projects, routing, reflectedIds }.
-export async function analyzeNewDocuments(companyId, { token, onProgress, deps } = {}) {
+export async function analyzeNewDocuments(companyId, { token, onProgress, deps, existingV2 = null } = {}) {
   const { unreflectedDocuments } = deps || {};
   if (!unreflectedDocuments) throw new Error("memory deps required");
   const docs = await unreflectedDocuments(companyId);
@@ -575,7 +575,7 @@ export async function analyzeNewDocuments(companyId, { token, onProgress, deps }
   let timelineEntries = [];
   if (items.length) {
     if (onProgress) onProgress("Sorting new documents…");
-    const results = await structureReleasesBatched(items, { token });
+    const results = await structureReleasesBatched(items, { token, existingV2 });
     // Only DATED entries (real press releases) go on the timeline; undated
     // reference docs (decks, website pages) fall through to the profile.
     timelineEntries = toTimelineEntries(assembleTimeline(results)).filter((e) => /^\d{4}-\d{2}-\d{2}/.test(str(e.date)));

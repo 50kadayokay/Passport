@@ -51,12 +51,28 @@ export default function CompanyMemory({ company }) {
   // Intelligent incremental add: route ONLY the new documents — dated press releases
   // into the timeline, decks/website pages into the profile — merging conservatively
   // so nothing already set (including hand edits) is overwritten.
+  // Map of publication-date -> approved V2 Brief currently on the live profile. Passed into the
+  // pipeline so an eligible release that ALREADY has a Brief is never regenerated, and an approved
+  // Brief stays permanently attached even once it ages past the 72h generation window.
+  const existingV2FromProfile = (profile) => {
+    const m = {};
+    for (const y of (profile?.pp?.PR_YEARS || [])) for (const it of (y.items || [])) if (it && it.id && it.v2) m[String(it.id)] = it.v2;
+    return m;
+  };
+  const fetchProfile = async () => {
+    const h = await authHeaders();
+    const cur = await fetch(`${SUPABASE_URL}/rest/v1/companies?slug=eq.${encodeURIComponent(company.slug)}&select=profile&limit=1`, { headers: h });
+    const rows = cur.ok ? await cur.json().catch(() => []) : [];
+    return (rows[0] && rows[0].profile) || {};
+  };
+
   const analyzeNew = async () => {
     setErr(""); setReDone(""); setBusy("analyzeNew"); setReMsg("Reading the new documents…");
     try {
       const token = await getAccessToken();
+      const existingV2 = existingV2FromProfile(await fetchProfile());
       const r = await analyzeNewDocuments(companyId, {
-        token, onProgress: setReMsg,
+        token, onProgress: setReMsg, existingV2,
         deps: { unreflectedDocuments, downloadDocumentBase64, saveDocumentText },
       });
       if (!r.routing || !r.routing.newDocs) { setReDone("No new documents to analyze."); setBusy(""); return; }
@@ -111,8 +127,9 @@ export default function CompanyMemory({ company }) {
     setErr(""); setReDone(""); setBusy("reanalyze"); setReMsg("Reading your document memory…");
     try {
       const token = await getAccessToken();
+      const existingV2 = existingV2FromProfile(await fetchProfile());
       const results = await reanalyzeFromMemory(companyId, {
-        token, onProgress: setReMsg,
+        token, onProgress: setReMsg, existingV2,
         deps: { documentsForExtraction, downloadDocumentBase64, saveDocumentText },
       });
       if (!results) throw new Error("No documents to analyze.");
