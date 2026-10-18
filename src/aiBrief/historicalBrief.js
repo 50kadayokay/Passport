@@ -1,32 +1,60 @@
 // src/aiBrief/historicalBrief.js — HISTORICAL / EXISTING-SUMMARY → BriefV1 mapping (Path A).
 //
 // Presentation-only, deterministic, NO AI and NO API calls. Maps the fields an existing
-// press-release summary ALREADY has into the approved BriefV1 shape, VERBATIM — nothing is
-// invented. Handles the two existing summary shapes:
-//   • Company-timeline items:  whatHappened / why / takeaways[]            (PR_YEARS)
+// press-release summary ALREADY has into the approved BriefV1 (Kingsmen V2) shape, VERBATIM —
+// nothing is invented. Handles the two stored summary shapes:
+//   • Company-timeline items:  whatHappened / why / takeaways[] / whatHappensNext   (PR_YEARS)
 //   • Feed press-release objects: summaryLong (mineex_summary) / context / keyNumbers / watch
-// Structured keyNumbers ({value,label}) become Key Results rows; free-text keyNumbers/takeaways
-// become Highlights so the data is never lost. A Takeaway is mapped only when the source item
-// already carries one (`watch`); it is never fabricated. Returns null when nothing is mappable
-// (so the caller falls back to the existing reader). Category is left blank so badge logic is
-// unchanged.
+//
+// KEY RESULTS: the existing "key numbers" — whether stored as {value,label} objects or as curated
+// strings like "446 g/t Ag over 28.0 m" or "C$0.80 per share" — are PARSED (deterministically) into
+// the same structured metric rows Kingsmen uses: a large value, an optional unit, and a descriptor.
+// Only strings that cleanly begin with a real numeric value become rows; anything else is preserved
+// VERBATIM as a Highlight so no information is lost and nothing is fabricated. TAKEAWAY is carried
+// from the release's own disclosed next step (whatHappensNext / watch) — never invented.
 //
 // Pure and import-safe (no React/DOM), so it is unit-testable on its own.
 
-// Normalize one existing "key number" into either a structured Key Results row {v,desc} or a
-// free-text highlight string. Existing summaries store these two ways:
-//   • {value,label}  (feed/mock + ChatGPT prompt output)  → a Key Results row
-//   • a plain string "446 g/t Ag over 28m"                → a highlight bullet
+// Parse one curated "key number" STRING into a structured Key Results row {v, u, desc}, using ONLY
+// the text given. Returns null when the string does not begin with a real numeric value (so the
+// caller keeps it as a Highlight instead). Examples:
+//   "446 g/t Ag over 28.0 m" -> { v:"446",  u:"g/t Ag", desc:"over 28.0 m" }
+//   "120 m step-out"         -> { v:"120",  u:"m",      desc:"step-out" }
+//   "C$0.80 per share"       -> { v:"C$0.80", u:"",     desc:"per share" }
+//   "C$23,000,000"           -> { v:"C$23,000,000", u:"", desc:"" }
+//   "20+ priority targets"   -> { v:"20+",  u:"",       desc:"priority targets" }
+//   "Vein remains open"      -> null (no leading number)
+const VALUE_RE = /^([~<>≈]?\s*(?:C\$|US\$|A\$|CA\$|\$|€|£)?\s*\d[\d,]*(?:\.\d+)?(?:[MBK])?(?:\s*%|\s*\+)?)(?:\s+(million|billion|bn|thousand))?/i;
+const UNIT_RE = /^(g\/t(?:\s+[A-Za-z][A-Za-z]*(?:Eq)?)?|oz\/t|oz|ppm|%|metres?|meters?|m|km|Mt|Moz|koz|kt|kg|t|ha|tpd|Mlbs?|lbs?)\b/;
+function parseKeyNumber(s) {
+  const str = String(s == null ? "" : s).trim();
+  if (!str) return null;
+  const m = VALUE_RE.exec(str);
+  if (!m) return null;
+  let v = (m[1] + (m[2] ? " " + m[2] : "")).replace(/\s+/g, " ").trim();
+  if (!/\d/.test(v)) return null;                 // must contain an actual digit
+  let rest = str.slice(m[0].length).trim();
+  let u = "";
+  const um = UNIT_RE.exec(rest);
+  if (um) { u = um[1].trim(); rest = rest.slice(um[0].length).trim(); }
+  const desc = rest.replace(/^[-–—:·,\s]+/, "").trim();
+  return { v, u, desc };
+}
+
+// Normalize any stored "key number" list into structured Key Results rows + leftover highlights.
+// Accepts {value,label} / {v,desc} objects AND plain strings.
 function splitKeyNumbers(keyNumbers) {
   const rows = [], highlights = [];
   for (const k of Array.isArray(keyNumbers) ? keyNumbers : []) {
     if (k && typeof k === "object") {
       const v = (k.v != null ? k.v : k.value);
       const desc = (k.desc != null ? k.desc : k.label) || "";
-      if (v != null && String(v).trim()) rows.push({ v: String(v), desc: String(desc), u: k.u || "", rel: k.rel || "", sec: k.sec || "" });
+      if (v != null && String(v).trim()) rows.push({ v: String(v), u: k.u || "", desc: String(desc), rel: k.rel || "", sec: k.sec || "" });
       else if (String(desc).trim()) highlights.push(String(desc));
     } else if (k != null && String(k).trim()) {
-      highlights.push(String(k));
+      const row = parseKeyNumber(k);                 // "446 g/t Ag over 28.0 m" -> structured row
+      if (row) rows.push(row);
+      else highlights.push(String(k).trim());         // non-numeric -> preserved verbatim
     }
   }
   return { rows, highlights };
@@ -41,22 +69,28 @@ export function historicalToV2(item) {
   const wy = (item.why && String(item.why).trim()) ? item.why
     : (item.context && String(item.context).trim()) ? item.context
     : "";
-  const { rows: kr, highlights: knHighlights } = splitKeyNumbers(item.keyNumbers);
-  const takeaways = Array.isArray(item.takeaways) ? item.takeaways.filter(Boolean).map(String) : [];
-  // Highlights = free-text key numbers first, then any legacy takeaway bullets (deduped).
-  const highlights = [...knHighlights, ...takeaways.filter((t) => !knHighlights.includes(t))];
-  // A Takeaway is only ever carried over from an existing "what to watch next" field — never
-  // fabricated from the headline (keeps the editorial rule: no forced Takeaways).
-  const tk = (item.watch && String(item.watch).trim()) ? String(item.watch) : "";
+  // Key Results come from whichever of the stored lists this item carries: the timeline's
+  // `takeaways` (curated key-number strings) and/or the feed's `keyNumbers`.
+  const a = splitKeyNumbers(item.keyNumbers);
+  const b = splitKeyNumbers(item.takeaways);
+  const seen = new Set();
+  const kr = [...a.rows, ...b.rows].filter((r) => { const key = `${r.v}|${r.u}|${r.desc}`; if (seen.has(key)) return false; seen.add(key); return true; });
+  const hs = new Set();
+  const highlights = [...a.highlights, ...b.highlights].filter((h) => { if (hs.has(h)) return false; hs.add(h); return true; });
+  // Takeaway: ONLY the release's own disclosed next step — never fabricated. Prefer the timeline's
+  // whatHappensNext, then the feed's "watch". Omitted when neither exists.
+  const tk = (item.whatHappensNext && String(item.whatHappensNext).trim()) ? String(item.whatHappensNext).trim()
+    : (item.watch && String(item.watch).trim()) ? String(item.watch).trim()
+    : "";
   if (!String(wh).trim() && !String(wy).trim() && !kr.length && !highlights.length) return null;
   return {
     cat: "",                 // keep existing badge behaviour for historical items
     head: item.headline || item.originalTitle || item.originalHeadline || item.label || "",
     wh,                      // existing What Happened (whatHappened / summaryLong), verbatim
     wy,                      // existing Why It Matters (why / context), verbatim
-    kr,                      // structured {value,label} key numbers → Key Results rows
-    highlights,              // free-text key numbers / takeaways, VERBATIM — preserves the data
-    ...(tk ? { tk } : {}),   // Takeaway only if the source already has a "watch next"
+    kr,                      // structured Key Results rows parsed from the existing key numbers
+    highlights,              // non-numeric key numbers, VERBATIM — preserves the data
+    ...(tk ? { tk } : {}),   // Takeaway only when the source discloses a next step
     _historical: true,       // marks a mapped (non-AI) Brief
   };
 }
