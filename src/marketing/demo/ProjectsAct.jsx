@@ -29,6 +29,7 @@
 //
 // DirectedEmbed is untouched.
 // ─────────────────────────────────────────────────────────────────────────────
+import { gestureReady } from "../home2/motion.js";
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { MX } from "../system.jsx";
 import { DEVICE_W, DEVICE_H } from "./MobileAppFrame.jsx";
@@ -242,7 +243,7 @@ export function ProjectsAct() {
       const d = e.deltaY;
       if (Math.sign(d) !== accumDir) { accum = 0; accumDir = Math.sign(d); }
       accum += d;
-      if (Math.abs(accum) < WHEEL_TRIGGER || streamPeak < FIRM_DELTA) return;
+      if (!gestureReady(accum, streamPeak, WHEEL_TRIGGER, FIRM_DELTA)) return;
       const dir = accum > 0 ? 1 : -1; streamUsed = true; accum = 0;
       const target = Math.max(0, Math.min(STATES.length - 1, S.cur + dir));
       if (target !== S.cur) run(target);

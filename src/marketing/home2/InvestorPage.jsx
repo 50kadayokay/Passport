@@ -26,9 +26,9 @@
 //
 // AppSection (the approved sales page) is untouched.
 // ─────────────────────────────────────────────────────────────────────────────
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { COUNTS } from "../demo/investorFixture.js";
-import { EASE, MarketingStyles, useReduce, useViewport } from "../system.jsx";
+import { EASE, MX, MarketingStyles, useReduce, useViewport } from "../system.jsx";
 import { SHEET_MS, EASE_SHEET, WHEEL_TRIGGER, NEW_GESTURE_GAP, FIRM_DELTA, FRESH_FLICK } from "./motion.js";
 import Nav from "./Nav.jsx";
 import StageArrows from "./StageArrows.jsx";
@@ -284,6 +284,18 @@ function usePagedWheel(sectionRef, n, enabled) {
   }, [sectionRef, n, enabled]);
 }
 
+// ── Section rail ────────────────────────────────────────────────────────────
+// The same left-hand jump rail the sales page and the Pro walkthrough carry. This page
+// never had one — it is the only walkthrough without a position indicator, so a visitor
+// had no sense of how far through the story they were. Derived from STATES so the dots
+// cannot drift from the copy: one dot per chapter, pointing at that chapter's first beat.
+// Beat i renders at stage index i + 1 (index 0 is the intro).
+const CHAPTERS = (() => {
+  const out = [];
+  STATES.forEach((s, i) => { if (!out.some((c) => c.n === s.n)) out.push({ n: s.n, label: s.label, index: i + 1 }); });
+  return out;
+})();
+
 /* ── native-scroll index: one index per snapped viewport, no preventDefault ──────── */
 // `enabled` is false on phones: they drive the index with the two arrow controls instead
 // (one press, one state), because scroll position kept advancing the story on momentum
@@ -524,6 +536,14 @@ export default function InvestorPage() {
   const { mobile } = useViewport();
   const reduce = useReduce();
   const sectionRef = useRef(null);
+  // Native-scroll stage: one viewport per index, so jumping to a chapter is simply
+  // scrolling to that viewport. Smooth unless the visitor prefers reduced motion.
+  const jumpToIndex = useCallback((i) => {
+    const el = sectionRef.current; if (!el) return;
+    const vh = window.innerHeight || document.documentElement.clientHeight || 1;
+    const top = el.getBoundingClientRect().top + window.scrollY;
+    window.scrollTo({ top: Math.round(top + i * vh), behavior: reduce ? "auto" : "smooth" });
+  }, [reduce]);
   const [idx, setIdx] = useScrollIndex(sectionRef, N, !mobile);
   const { shown, phase } = useCopyPhase(idx, reduce);
 
@@ -561,6 +581,22 @@ export default function InvestorPage() {
       <Nav />
       <main style={{ fontFamily: "'Switzer', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}>
         <section ref={sectionRef} style={{ position: "relative", height: mobile ? "100svh" : `${N * 100}svh`, overflow: mobile ? "hidden" : undefined }}>
+          {!mobile && (
+            <nav aria-label="Jump to section" style={{ position: "fixed", left: "clamp(18px, 2.4vw, 46px)", top: "50%", transform: "translateY(-50%)", zIndex: 80,
+              display: "flex", flexDirection: "column", gap: 16, opacity: idx >= 1 ? 1 : 0, pointerEvents: idx >= 1 ? "auto" : "none", transition: `opacity 420ms ${EASE}` }}>
+              {CHAPTERS.map((c) => {
+                const active = chapterOf(idx) === chapterOf(c.index);
+                return (
+                  <button key={c.n} type="button" onClick={() => jumpToIndex(c.index)} className="mx-jump" aria-label={c.label} aria-current={active ? "true" : undefined}
+                    style={{ display: "grid", placeItems: "center", width: 24, height: 24, background: "none", border: "none", padding: 0, cursor: "pointer" }}>
+                    <span aria-hidden className="mx-jump-dot" style={{ width: active ? 13 : 11, height: active ? 13 : 11, borderRadius: "50%",
+                      background: active ? MX.ink : "transparent", boxShadow: active ? "none" : "inset 0 0 0 2px rgba(18,22,29,0.30)",
+                      transition: `all 240ms ${EASE}` }} />
+                  </button>
+                );
+              })}
+            </nav>
+          )}
           {!mobile && Array.from({ length: N }).map((_, i) => <div key={i} aria-hidden className="inv-cell" style={{ position: "absolute", top: `${i * 100}svh`, left: 0, right: 0, height: "100svh", pointerEvents: "none" }} />)}
 
           <div className="mx-vstage" style={{ position: mobile ? "relative" : "sticky", top: 0, height: "100svh", overflow: "hidden" }}>
@@ -609,6 +645,10 @@ export default function InvestorPage() {
 function InvStyles() {
   return (
     <style>{`
+        /* Jump rail — identical rules to the sales page and the Pro walkthrough, so the
+           three rails hover and scale the same way. */
+        .mx-jump:hover .mx-jump-dot { box-shadow: inset 0 0 0 2px ${MX.ink}; transform: scale(1.12); }
+        .mx-jump[aria-current="true"]:hover .mx-jump-dot { box-shadow: none; }
       html.inv-snap { scroll-snap-type: y mandatory; }
       /* The paged controller animates scroll position itself — the browser must not
          re-animate it on top. !important is required: the smooth value is set inline. */

@@ -28,7 +28,7 @@ const PricingDeckLazy = React.lazy(() => import("./PricingDeck.jsx"));
 const SalesPricingLazy = React.lazy(() => import("./SalesPricing.jsx"));
 import { WalkthroughNarrative, stageGridStyle } from "./WalkthroughNarrative.jsx";
 import { logNav } from "./navDebug.jsx";
-import { SHEET_MS, EASE_SHEET, WHEEL_TRIGGER, NEW_GESTURE_GAP, FIRM_DELTA, FRESH_FLICK } from "./motion.js";
+import { SHEET_MS, EASE_SHEET, WHEEL_TRIGGER, NEW_GESTURE_GAP, FIRM_DELTA, FRESH_FLICK , gestureReady} from "./motion.js";
 import PushPreview from "./PushPreview.jsx";   // dev-only (?navdebug=1) controller logging; no-op otherwise
 
 const NAVY = "#0a1b2e", SLATE = "#54617a";
@@ -252,7 +252,7 @@ export default function AppSection() {
       if (lockedRef.current || streamUsed) { logNav({ src: "SALES", dy: DY, gap: Math.round(gap), idx: cur, locked: lockedRef.current ? 1 : 0, used: streamUsed ? 1 : 0, note: "rejected" }); return; }
       if (Math.sign(e.deltaY) !== accumDir) { accum = 0; accumDir = Math.sign(e.deltaY); }
       accum += e.deltaY;
-      if (Math.abs(accum) < WHEEL_TRIGGER || streamPeak < FIRM_DELTA) { logNav({ src: "SALES", dy: DY, gap: Math.round(gap), accum: Math.round(accum), note: "below-trigger" }); return; }
+      if (!gestureReady(accum, streamPeak, WHEEL_TRIGGER, FIRM_DELTA)) { logNav({ src: "SALES", dy: DY, gap: Math.round(gap), accum: Math.round(accum), note: "below-trigger" }); return; }
       streamUsed = true; accum = 0;
       // Past the last state (TEMPLATES), a deliberate downward swipe slides the Pricing page up as a page.
       if (dir > 0 && idxRef.current >= NSTATES - 1) { logNav({ src: "SALES", dy: DY, gap: Math.round(gap), note: "openPricing" }); openPricing(); return; }

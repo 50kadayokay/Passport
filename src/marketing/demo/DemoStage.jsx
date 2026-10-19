@@ -17,6 +17,7 @@
 // DIAGNOSTIC SLICE ONLY: Projects → Drill Results → Project Intelligence →
 // Timeline. Add ?slowDemo=1 to stretch the timeline for inspection.
 // ─────────────────────────────────────────────────────────────────────────────
+import { gestureReady } from "../home2/motion.js";
 import React, { Suspense, lazy, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { MX, EASE, Wrap, Phone, useViewport, useReduce, subscribe, phoneWidth } from "../system.jsx";
@@ -609,7 +610,7 @@ function DirectedDemo() {
         if (Math.sign(d) !== accumDir) { accum = 0; accumDir = Math.sign(d); }
         accum += d;
         if (Math.abs(accum) < WHEEL_TRIGGER) blocked = "accum";
-        else if (streamPeak < FIRM_DELTA) blocked = "peak";        // weak inertia tail, not a firm swipe
+        else if (!gestureReady(accum, streamPeak, WHEEL_TRIGGER, FIRM_DELTA)) blocked = "peak";   // weak inertia tail, not a firm swipe (a sustained gentle glide DOES qualify)
         else {
           const dir = accum > 0 ? 1 : -1;                          // forward swipe (fingers up / wheel down) advances
           streamUsed = true; accum = 0;

@@ -21,6 +21,7 @@
 // PROOF SLICE (this file): A Overview → B Projects → C Project Intelligence →
 // D Exploration Results, and the exact reverse. See /site?directedEmbed=1.
 // ─────────────────────────────────────────────────────────────────────────────
+import { gestureReady } from "../home2/motion.js";
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { MX } from "../system.jsx";
 import { DEVICE_W, DEVICE_H } from "./MobileAppFrame.jsx";
@@ -1124,7 +1125,7 @@ export function DirectedEmbed({ variant = "full", hardware = false, cutout = fal
       const d = e.deltaY;
       if (Math.sign(d) !== accumDir) { accum = 0; accumDir = Math.sign(d); }
       accum += d;
-      if (Math.abs(accum) < WHEEL_TRIGGER || streamPeak < FIRM_DELTA) return;
+      if (!gestureReady(accum, streamPeak, WHEEL_TRIGGER, FIRM_DELTA)) return;
       const dir = accum > 0 ? 1 : -1;                       // swipe up (wheel down) advances
       streamUsed = true; accum = 0;
       // Floor at the status face: the photographic hero is a one-time automatic opening,
