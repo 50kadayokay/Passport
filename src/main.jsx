@@ -822,6 +822,29 @@ function AppRoot() {
       // without its preview token) → show an honest "unavailable" instead of the demo
       // company. Never applies once an editor has seeded live data via postMessage.
       if (!seededRef.current) setLoadState(requestedSlug && !ok ? "notfound" : "ok");
+      // DEV/REVIEW ONLY — attach the APPROVED Kingsmen v2 Briefs (the settled BriefV1 design with
+      // structured Key Results) to the REAL timeline releases by id, and merge their full release
+      // text + images, so the normal app shows the v2 Brief we settled on (not the sparse historical
+      // fallback) with the full release intact. Keeps every existing release; only adds `v2` to the
+      // ones that have an approved brief. localhost-gated — no DB, nothing published in production.
+      try {
+        if (params.get("c") === "kingsmen-resources"
+            && /^(localhost|127\.0\.0\.1|\[::1\])$/i.test(location.hostname) && mod.applyPP) {
+          const bb = await fetch("/kingsmen-briefs.json").then((x) => x.json()).catch(() => null);
+          if (bb && bb.v2) {
+            const curYears = Array.isArray(mod.PR_YEARS) ? mod.PR_YEARS : [];
+            const mergedYears = curYears.map((yr) => ({
+              ...yr,
+              items: (yr.items || []).map((it) => {
+                const v = bb.v2[it.id];
+                return v ? { ...it, v2: { cat: v.cat, wh: v.wh, wy: v.wy, kr: Array.isArray(v.kr) ? v.kr : [], tk: v.tk } } : it;
+              }),
+            }));
+            const mergedFull = { ...(mod.FULL || {}), ...(bb.full || {}) };
+            mod.applyPP({ PR_YEARS: mergedYears, FULL: mergedFull });
+          }
+        }
+      } catch (_) {}
       // Tell a parent editor we're ready to receive live draft data.
       try { if (window.parent && window.parent !== window) window.parent.postMessage({ type: "pp-ready" }, "*"); } catch (_) {}
     })();
