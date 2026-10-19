@@ -2029,7 +2029,7 @@ function TimelineView() {
             <h3 className="mt-2 text-[16px] font-extrabold leading-snug tracking-tight text-slate-900">{item.originalTitle || item.headline}</h3>
           </div>
 
-          <SummaryContent item={item} cat={cat} impact={impact} hasFull={!!(FULL && FULL[item.id])} onReadFull={() => setShowFull(true)} />
+          <SummaryContent item={item} cat={cat} impact={impact} hasFull={!!(FULL && FULL[item.id])} onReadFull={() => setShowFull(true)} isPressRelease={true} />
         </BottomSheet>
         );
       })()}
@@ -2133,15 +2133,16 @@ function KeyResults({ rows }) {
               <div key={pi} className="w-full flex-shrink-0" style={{ scrollSnapAlign: "start" }}>{grid(pg, pi * perPage)}</div>
             ))}
           </div>
-          {/* pagination dots — the active page widens into a cobalt pill */}
+          {/* pagination dots — identical circular dots: active = cobalt, inactive = light grey */}
           <div className="mt-3 flex items-center justify-center gap-1.5">
             {pages.map((_, pi) => (
               <button
                 key={pi}
                 aria-label={`Key Results page ${pi + 1} of ${pages.length}`}
+                aria-current={pi === page ? "true" : undefined}
                 onClick={() => { const el = scRef.current; if (el) el.scrollTo({ left: pi * (el.clientWidth || 1), behavior: "smooth" }); }}
-                className="h-1.5 rounded-full transition-all"
-                style={{ width: pi === page ? 16 : 6, background: pi === page ? EM : "#cbd5e1" }}
+                className="rounded-full transition-colors"
+                style={{ width: 7, height: 7, background: pi === page ? EM : "#cbd5e1" }}
               />
             ))}
           </div>
@@ -2153,7 +2154,7 @@ function KeyResults({ rows }) {
 
 /* Why This Matters + Key Takeaways. Window and button are present immediately;
    the text fades in once, in a single swipe. */
-function SummaryContent({ item, cat, impact, hasFull, onReadFull, sourceNote }) {
+function SummaryContent({ item, cat, impact, hasFull, onReadFull, sourceNote, isPressRelease }) {
   const stage = STAGE_IMPACT_BY_CAT[cat] || ["—", "—"];
   // DEV-ONLY benchmark: render the Version-2 Brief for Kingsmen releases that carry `item.v2`,
   // with a compare toggle. Gated by window.__BRIEF_BENCH__; the normal reader is unchanged.
@@ -2193,10 +2194,13 @@ function SummaryContent({ item, cat, impact, hasFull, onReadFull, sourceNote }) 
             <p className="mt-1.5 text-[13.5px] font-medium leading-relaxed text-slate-600">{v2.wy}</p>
           </div>
 
-          {/* "What does this mean?" — the editorial jargon explainer, shown ONLY when the item
-              carries one (news items). Optional, source-derived (never fabricated); keeps the
-              approved V2 section rhythm so it doesn't disrupt the layout. */}
-          {item && item.plainEnglish && String(item.plainEnglish).trim() && (
+          {/* "What does this mean?" — a jargon explainer that belongs ONLY to editorial NEWS, never
+              a press release. A press release follows the definitive Kingsmen V2 structure exactly
+              (What Happened → Why It Matters → Key Results → The Takeaway), so this section is
+              suppressed for every press release (incl. aggregated company announcements that show
+              "Read Full Press Release"), regardless of which surface it opens from. Pure third-party
+              editorial news keeps it (source-derived, never fabricated). */}
+          {!isPressRelease && item && item.plainEnglish && String(item.plainEnglish).trim() && (
             <div className="mt-5">
               <span className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-slate-900">What Does This Mean?</span>
               <p className="mt-1.5 text-[13.5px] font-medium leading-relaxed text-slate-600">{item.plainEnglish}</p>
@@ -6933,7 +6937,7 @@ function StoryReader({ it, onOpen, onClose }) {
              by the footer action label (origLabel) and the source line below (editorial news only).
              Media keeps its player above and shows no summary body. */}
           {!media && (
-            <SummaryContent item={it} cat={(it.v2 && it.v2.cat) || it.category || ""} impact={prImpact} hasFull={false} onReadFull={() => {}} sourceNote={isEditorialNews ? `Source: ${it.source || "Industry"}${dateStr ? ` · ${dateStr}` : ""}` : ""} />
+            <SummaryContent item={it} cat={(it.v2 && it.v2.cat) || it.category || ""} impact={prImpact} hasFull={false} onReadFull={() => {}} sourceNote={isEditorialNews ? `Source: ${it.source || "Industry"}${dateStr ? ` · ${dateStr}` : ""}` : ""} isPressRelease={isRelease} />
           )}
         </div>
         {(() => {
