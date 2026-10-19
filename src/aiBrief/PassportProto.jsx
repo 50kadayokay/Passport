@@ -1948,6 +1948,16 @@ function SummaryContent({ item, cat, impact, hasFull, onReadFull, sourceNote }) 
             <p className="mt-1.5 text-[13.5px] font-medium leading-relaxed text-slate-600">{v2.wy}</p>
           </div>
 
+          {/* "What does this mean?" — the editorial jargon explainer, shown ONLY when the item
+              carries one (news items). Optional, source-derived (never fabricated); keeps the
+              approved V2 section rhythm so it doesn't disrupt the layout. */}
+          {item && item.plainEnglish && String(item.plainEnglish).trim() && (
+            <div className="mt-5">
+              <span className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-slate-900">What Does This Mean?</span>
+              <p className="mt-1.5 text-[13.5px] font-medium leading-relaxed text-slate-600">{item.plainEnglish}</p>
+            </div>
+          )}
+
           {/* KEY RESULTS — one disciplined, repeatable metric-row system. Every result occupies an
               IDENTICAL two-column row: left = fixed-width cobalt value + unit beneath; right =
               descriptor + secondary, with an optional relationship label (e.g. INCLUDING). Same grid,
