@@ -1908,7 +1908,7 @@ function TimelineView() {
 
 /* Why This Matters + Key Takeaways. Window and button are present immediately;
    the text fades in once, in a single swipe. */
-function SummaryContent({ item, cat, impact, hasFull, onReadFull }) {
+function SummaryContent({ item, cat, impact, hasFull, onReadFull, sourceNote }) {
   const stage = STAGE_IMPACT_BY_CAT[cat] || ["—", "—"];
   // DEV-ONLY benchmark: render the Version-2 Brief for Kingsmen releases that carry `item.v2`,
   // with a compare toggle. Gated by window.__BRIEF_BENCH__; the normal reader is unchanged.
@@ -2013,6 +2013,7 @@ function SummaryContent({ item, cat, impact, hasFull, onReadFull }) {
             </div>
           )}
         </div>
+        {sourceNote && <p className="mt-5 text-[11.5px] font-semibold text-slate-400">{sourceNote}</p>}
         <BriefDisclaimer />
         {hasFull && (
           <button onClick={onReadFull} className="mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-xl text-xs font-bold uppercase tracking-wider text-white transition active:scale-95" style={DARK_CTA}>
@@ -6487,12 +6488,11 @@ function StoryReader({ it, onOpen, onClose }) {
   const isRelease = /press|wire|release|company|ir\b|regulat/i.test(it.publisherType || "") || it.contentType === "PRESS RELEASE" || it.contentType === "UPDATE" || !!it.isPressRelease;
   const origLabel = media ? "Watch on MineEx" : it.contentType === "NEWS" ? (isRelease ? "Read Full Press Release" : "Read Original Article") : "Read Full Press Release";
   const dateStr = (() => { const d = it.publishedAt ? new Date(it.publishedAt) : null; return d && !isNaN(d) ? d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }) : (it.when || ""); })();
-  const isReader = !!it.summaryLong && (it.contentType === "NEWS" || it.contentType === "PRESS RELEASE");
-  // Press releases (company updates + news flagged as a release) read in the shared approved
-  // BriefV1 presentation (SummaryContent) — the SAME component the company timeline uses — so
-  // every entry point shows one consistent Brief. Non-press-release editorial news keeps the
-  // existing summary layout below. Media is never a Brief.
-  const isPR = !media && (it.contentType === "UPDATE" || it.contentType === "PRESS RELEASE" || (it.contentType === "NEWS" && it.isPressRelease));
+  // Every non-media summary — editorial news AND press releases — renders in the ONE shared V2
+  // presentation (SummaryContent). The only news/press-release difference is the footer action
+  // (origLabel) and a source line shown for editorial news. Editorial news = a NEWS item that is
+  // NOT flagged as a press release.
+  const isEditorialNews = it.contentType === "NEWS" && !it.isPressRelease;
   const prImpact = (it.key || (it.materiality || 0) >= 75) ? "High" : ((it.materiality || 0) >= 55 ? "Medium" : "Low");
   return createPortal(
     <div className="absolute inset-0 z-[110] flex flex-col justify-end pp-fade" onClick={onClose}>
@@ -6531,58 +6531,15 @@ function StoryReader({ it, onOpen, onClose }) {
           </div>
           <h2 className="text-[20px] font-extrabold leading-tight tracking-tight text-slate-900">{it.originalHeadline || it.headline}</h2>
 
-          {isPR ? (
-            /* Shared approved BriefV1 presentation (What Happened / Why It Matters / Key Results /
-               optional Takeaway + the standard disclaimer). hasFull=false: the footer below owns
-               the "Read Full Press Release" action for the feed (external source link). */
-            <SummaryContent item={it} cat={(it.v2 && it.v2.cat) || it.category || ""} impact={prImpact} hasFull={false} onReadFull={() => {}} />
-          ) : (<>
-            {/* MineEx Summary — what was announced */}
-            {it.summaryLong && (<>
-              <p className="mt-4 text-[10.5px] font-bold uppercase tracking-widest text-slate-400">MineEx Summary</p>
-              <p className="mt-1.5 text-[14px] font-medium leading-relaxed text-slate-600">{it.summaryLong}</p>
-            </>)}
-
-            {/* What does this mean? — explains only the technical terms in this item */}
-            {it.plainEnglish && (<>
-              <p className="mt-4 text-[10.5px] font-bold uppercase tracking-widest text-slate-400">What does this mean?</p>
-              <p className="mt-1.5 text-[13.5px] font-medium leading-relaxed text-slate-600">{it.plainEnglish}</p>
-            </>)}
-
-            {/* Context — source-only; where it fits / what's next */}
-            {it.context && (<>
-              <p className="mt-4 text-[10.5px] font-bold uppercase tracking-widest text-slate-400">Context</p>
-              <p className="mt-1.5 text-[13.5px] font-medium leading-relaxed text-slate-600">{it.context}</p>
-            </>)}
-
-            {/* Key Numbers — compact single-figure rows, exact from source */}
-            {Array.isArray(it.keyNumbers) && it.keyNumbers.length > 0 && (<>
-              <p className="mt-4 text-[10.5px] font-bold uppercase tracking-widest text-slate-400">Key Numbers</p>
-              <div className="mt-2 space-y-1.5">
-                {it.keyNumbers.map((k, j) => (
-                  <div key={j} className="flex items-baseline justify-between gap-3 rounded-xl border border-slate-100 bg-slate-50/70 px-3.5 py-2.5">
-                    <span className="text-[14px] font-extrabold leading-snug tracking-tight text-slate-900">{k.value}</span>
-                    {k.label && <span className="flex-shrink-0 text-right text-[11px] font-semibold text-slate-400">{k.label}</span>}
-                  </div>
-                ))}
-              </div>
-            </>)}
-
-            {it.watch && (<>
-              <p className="mt-4 text-[10.5px] font-bold uppercase tracking-widest text-slate-400">What to watch next</p>
-              <p className="mt-1.5 text-[13.5px] font-medium leading-relaxed text-slate-600">{it.watch}</p>
-            </>)}
-
-            {/* Source attribution */}
-            {isReader && (it.source || dateStr) && (
-              <p className="mt-5 text-[11.5px] font-semibold text-slate-400">Source: {it.source || "Industry"}{dateStr ? ` · ${dateStr}` : ""}</p>
-            )}
-
-            {/* Standard disclosure (non-press-release news keeps this here; press releases get it
-                from the shared BriefV1 body above). */}
-            {isReader && <p className="mt-3 rounded-xl bg-slate-50 px-3 py-2.5 text-[11px] font-medium leading-snug text-slate-400">MineEx provides factual summaries and educational context, not investment advice. Refer to the original disclosure for complete information.</p>}
-          </>)}
-          {isBrief && <p className="mt-5 rounded-xl bg-slate-50 px-3 py-2.5 text-[11.5px] font-medium leading-snug text-slate-400">A MineEx Brief is a factual, contextual summary based on source material — not investment advice or independent analysis.</p>}
+          {/* ONE shared V2 presentation for EVERY non-media summary — editorial news AND press
+             releases alike (What Happened / Why It Matters / blue Key Results / optional Takeaway
+             + disclaimer). historicalToV2 normalizes each item's existing fields into the V2 shape;
+             no V1 blocks, no rounded Key Numbers boxes. The news/press-release distinction is kept
+             by the footer action label (origLabel) and the source line below (editorial news only).
+             Media keeps its player above and shows no summary body. */}
+          {!media && (
+            <SummaryContent item={it} cat={(it.v2 && it.v2.cat) || it.category || ""} impact={prImpact} hasFull={false} onReadFull={() => {}} sourceNote={isEditorialNews ? `Source: ${it.source || "Industry"}${dateStr ? ` · ${dateStr}` : ""}` : ""} />
+          )}
         </div>
         {(() => {
           const showOpen = it.live && onOpen;

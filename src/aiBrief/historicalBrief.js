@@ -25,7 +25,7 @@
 //   "20+ priority targets"   -> { v:"20+",  u:"",       desc:"priority targets" }
 //   "Vein remains open"      -> null (no leading number)
 const VALUE_RE = /^([~<>≈]?\s*(?:C\$|US\$|A\$|CA\$|\$|€|£)?\s*\d[\d,]*(?:\.\d+)?(?:[MBK])?(?:\s*%|\s*\+)?)(?:\s+(million|billion|bn|thousand))?/i;
-const UNIT_RE = /^(g\/t(?:\s+[A-Za-z][A-Za-z]*(?:Eq)?)?|oz\/t|oz|ppm|%|metres?|meters?|m|km|Mt|Moz|koz|kt|kg|t|ha|tpd|Mlbs?|lbs?)\b/;
+const UNIT_RE = /^(g\/t(?:\s+[A-Za-z][A-Za-z]*(?:Eq)?)?|oz\/t|oz|ppm|%|metres?|meters?|m|km|Mt|Moz|koz|kt|kg|tonnes?\s+per\s+day|tonnes?|tpd|grams?|t|ha|Mlbs?|lbs?)\b/;
 function parseKeyNumber(s) {
   const str = String(s == null ? "" : s).trim();
   if (!str) return null;
@@ -48,9 +48,22 @@ function splitKeyNumbers(keyNumbers) {
   for (const k of Array.isArray(keyNumbers) ? keyNumbers : []) {
     if (k && typeof k === "object") {
       const v = (k.v != null ? k.v : k.value);
-      const desc = (k.desc != null ? k.desc : k.label) || "";
-      if (v != null && String(v).trim()) rows.push({ v: String(v), u: k.u || "", desc: String(desc), rel: k.rel || "", sec: k.sec || "" });
-      else if (String(desc).trim()) highlights.push(String(desc));
+      const label = String((k.desc != null ? k.desc : k.label) || "").trim();
+      if (v != null && String(v).trim()) {
+        // Sources commonly store the WHOLE figure in `value` ("98.56 g/t Au over 8.2 m",
+        // "2,500 tonne per day") with the descriptor in `label`. Split the value into its leading
+        // number + unit so the big blue value is just the number (never a long blob that overflows
+        // and hides the label), and fold any remaining value text together with the label into the
+        // descriptor. A value with no leading number (already a clean label-less row, or a pre-made
+        // {v,u,desc}) is kept verbatim; the unit falls back to an explicit k.u.
+        const parsed = parseKeyNumber(String(v));
+        if (parsed) {
+          const desc = [parsed.desc, label].filter(Boolean).join(" · ");
+          rows.push({ v: parsed.v, u: parsed.u || String(k.u || "").trim(), desc, rel: k.rel || "", sec: k.sec || parsed.sec || "" });
+        } else {
+          rows.push({ v: String(v), u: k.u || "", desc: label, rel: k.rel || "", sec: k.sec || "" });
+        }
+      } else if (label) highlights.push(label);
     } else if (k != null && String(k).trim()) {
       const row = parseKeyNumber(k);                 // "446 g/t Ag over 28.0 m" -> structured row
       if (row) rows.push(row);
