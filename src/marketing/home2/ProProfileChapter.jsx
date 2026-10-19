@@ -253,7 +253,47 @@ export default function ProProfileChapter({ onActive, onPricing}) {
       // otherwise: let it reach DirectedEmbed (it preventDefaults + advances one state)
     };
     window.addEventListener("wheel", onWheel, { passive: false, capture: true });
-    return () => window.removeEventListener("wheel", onWheel, { capture: true });
+
+    // THE GESTURE STOPS UNTIL YOU CLICK THE PAGE.
+    //
+    // The walkthrough renders the real app in an iframe. When that iframe takes focus it
+    // becomes the focused browsing context, and macOS hands IT the two-finger scroll — the
+    // gate above is on `window`, so it never sees the event and the story sits still until
+    // a click returns focus to the document. The sales page (AppSection) and the Investor
+    // page both already defend against this; this chapter never did, which is why the
+    // freeze was reported here and not there.
+    //
+    // Same two defences, verbatim: blur any iframe that takes focus, and route each
+    // same-origin iframe's OWN wheel back to this gate, re-attaching on every (re)boot
+    // because a reload swaps contentWindow and drops the listener. addEventListener
+    // de-dupes an identical (type, listener, capture) triple, so re-scanning is harmless.
+    const onFocusIn = (e) => { const t = e.target; if (t && t.tagName === "IFRAME") { try { t.blur(); } catch (_) {} try { window.focus(); } catch (_) {} } };
+    window.addEventListener("focusin", onFocusIn);
+
+    const wired = new WeakSet();
+    const wire = (f) => {
+      try { f.setAttribute("tabindex", "-1"); } catch (_) {}
+      const attach = () => { try { const cw = f.contentWindow; if (cw) cw.addEventListener("wheel", onWheel, { passive: false, capture: true }); } catch (_) {} };
+      attach();
+      if (!wired.has(f)) { wired.add(f); try { f.addEventListener("load", attach); } catch (_) {} }
+    };
+    const attachFrames = () => { document.querySelectorAll("iframe").forEach(wire); };
+    attachFrames();
+    let moScheduled = false;
+    const flush = () => { moScheduled = false; attachFrames(); };
+    let mo = null;
+    try {
+      mo = new MutationObserver(() => { if (!moScheduled) { moScheduled = true; requestAnimationFrame(flush); } });
+      mo.observe(stickyRef.current || document.body, { childList: true, subtree: true });
+    } catch (_) {}
+    const frameScan = setInterval(attachFrames, 500);   // backstop for a contentWindow swap the observer misses
+
+    return () => {
+      window.removeEventListener("wheel", onWheel, { capture: true });
+      window.removeEventListener("focusin", onFocusIn);
+      if (mo) mo.disconnect();
+      clearInterval(frameScan);
+    };
   }, [mobile]);
 
   if (mobile) {

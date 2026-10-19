@@ -28,7 +28,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { COUNTS } from "../demo/investorFixture.js";
-import { EASE, MX, MarketingStyles, useReduce, useViewport } from "../system.jsx";
+import { EASE, MarketingStyles, useReduce, useViewport } from "../system.jsx";
 import { SHEET_MS, EASE_SHEET, WHEEL_TRIGGER, NEW_GESTURE_GAP, FIRM_DELTA, FRESH_FLICK } from "./motion.js";
 import Nav from "./Nav.jsx";
 import StageArrows from "./StageArrows.jsx";
@@ -581,18 +581,25 @@ export default function InvestorPage() {
       <Nav />
       <main style={{ fontFamily: "'Switzer', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}>
         <section ref={sectionRef} style={{ position: "relative", height: mobile ? "100svh" : `${N * 100}svh`, overflow: mobile ? "hidden" : undefined }}>
+          {/* Section rail — the SAME vertical line the Pro walkthrough uses (NarrativeStory's
+              ChapterRail): one 2px segment per beat, filled up to the active one, the active
+              segment taller. Identical geometry — 2px wide, 16px / 30px tall, 8px gap, the same
+              420ms easing — recoloured for this page's light ground instead of the dark stage.
+              Each segment is a button so the rail still navigates, which the dots did; nothing
+              about how it looks changes because of that. */}
           {!mobile && (
             <nav aria-label="Jump to section" style={{ position: "fixed", left: "clamp(18px, 2.4vw, 46px)", top: "50%", transform: "translateY(-50%)", zIndex: 80,
-              display: "flex", flexDirection: "column", gap: 16, opacity: idx >= 1 ? 1 : 0, pointerEvents: idx >= 1 ? "auto" : "none", transition: `opacity 420ms ${EASE}` }}>
-              {CHAPTERS.map((c) => {
-                const active = chapterOf(idx) === chapterOf(c.index);
+              display: "flex", flexDirection: "column", justifyContent: "center", gap: 8,
+              opacity: idx >= 1 ? 1 : 0, pointerEvents: idx >= 1 ? "auto" : "none", transition: `opacity 420ms ${EASE}` }}>
+              {Array.from({ length: N }).map((_, i) => {
+                const label = (STATES[Math.max(0, Math.min(STATES.length - 1, i - 1))] || {}).label || "Section";
                 return (
-                  <button key={c.n} type="button" onClick={() => jumpToIndex(c.index)} className="mx-jump" aria-label={c.label} aria-current={active ? "true" : undefined}
-                    style={{ display: "grid", placeItems: "center", width: 24, height: 24, background: "none", border: "none", padding: 0, cursor: "pointer" }}>
-                    <span aria-hidden className="mx-jump-dot" style={{ width: active ? 13 : 11, height: active ? 13 : 11, borderRadius: "50%",
-                      background: active ? MX.ink : "transparent", boxShadow: active ? "none" : "inset 0 0 0 2px rgba(18,22,29,0.30)",
-                      transition: `all 240ms ${EASE}` }} />
-                  </button>
+                  <button key={i} type="button" onClick={() => jumpToIndex(i)} className="inv-tick" aria-label={label}
+                    aria-current={i === idx ? "true" : undefined}
+                    style={{ display: "block", width: 2, padding: 0, border: "none", cursor: "pointer",
+                      height: i === idx ? 30 : 16, borderRadius: 2,
+                      background: i === idx ? NAVY : i < idx ? "rgba(10,27,46,0.42)" : "rgba(10,27,46,0.14)",
+                      transition: `height 420ms ${EASE}, background 420ms ${EASE}` }} />
                 );
               })}
             </nav>
@@ -647,8 +654,7 @@ function InvStyles() {
     <style>{`
         /* Jump rail — identical rules to the sales page and the Pro walkthrough, so the
            three rails hover and scale the same way. */
-        .mx-jump:hover .mx-jump-dot { box-shadow: inset 0 0 0 2px ${MX.ink}; transform: scale(1.12); }
-        .mx-jump[aria-current="true"]:hover .mx-jump-dot { box-shadow: none; }
+        .inv-tick:hover { background: ${NAVY} !important; }
       html.inv-snap { scroll-snap-type: y mandatory; }
       /* The paged controller animates scroll position itself — the browser must not
          re-animate it on top. !important is required: the smooth value is set inline. */
