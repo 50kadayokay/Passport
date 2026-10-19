@@ -28,7 +28,7 @@ const PricingDeckLazy = React.lazy(() => import("./PricingDeck.jsx"));
 const SalesPricingLazy = React.lazy(() => import("./SalesPricing.jsx"));
 import { WalkthroughNarrative, stageGridStyle } from "./WalkthroughNarrative.jsx";
 import { logNav } from "./navDebug.jsx";
-import { SHEET_MS, EASE_SHEET, WHEEL_TRIGGER, NEW_GESTURE_GAP, FIRM_DELTA, FRESH_FLICK , gestureReady} from "./motion.js";
+import { SHEET_MS, EASE_SHEET, WHEEL_TRIGGER, NEW_GESTURE_GAP, FIRM_DELTA, FRESH_FLICK , gestureReady, isReversal} from "./motion.js";
 import PushPreview from "./PushPreview.jsx";   // dev-only (?navdebug=1) controller logging; no-op otherwise
 
 const NAVY = "#0a1b2e", SLATE = "#54617a";
@@ -237,7 +237,7 @@ export default function AppSection() {
       if (!pinned) { accum = 0; accumDir = 0; streamUsed = false; logNav({ src: "SALES", dy: DY, idx: idxRef.current, note: `unpinned t${Math.round(r.top)} b${Math.round(r.bottom)}/${vh}` }); return; }
 
       const now = performance.now(), gap = now - lastWheel, mag = Math.abs(e.deltaY);
-      const reversed = accumDir !== 0 && Math.sign(e.deltaY) === -accumDir && mag >= FIRM_DELTA;
+      const reversed = isReversal(e.deltaY, accumDir);
       // A consumed stream re-arms on silence (gap), a reversal, OR a FRESH-FLICK rising edge:
       // a new deliberate swipe spikes deltaY above the monotonically-decaying inertial tail,
       // so the next swipe works as soon as the transition ends — no multi-second silence wait.

@@ -17,7 +17,7 @@
 // DIAGNOSTIC SLICE ONLY: Projects → Drill Results → Project Intelligence →
 // Timeline. Add ?slowDemo=1 to stretch the timeline for inspection.
 // ─────────────────────────────────────────────────────────────────────────────
-import { gestureReady } from "../home2/motion.js";
+import { gestureReady , isReversal} from "../home2/motion.js";
 import React, { Suspense, lazy, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { MX, EASE, Wrap, Phone, useViewport, useReduce, subscribe, phoneWidth } from "../system.jsx";
@@ -596,7 +596,7 @@ function DirectedDemo() {
       // gesture — inertia is monotonic and never reverses sign — so it starts a new
       // gesture even without a pause. This is what lets a reverse swipe interrupt
       // the tail of the forward swipe that just opened the sheet.
-      const reversed = accumDir !== 0 && Math.sign(e.deltaY) === -accumDir && Math.abs(e.deltaY) >= FIRM_DELTA;
+      const reversed = isReversal(e.deltaY, accumDir);
       const newGesture = gap > NEW_GESTURE_GAP || reversed;
       if (newGesture) { accum = 0; accumDir = Math.sign(e.deltaY); streamUsed = false; streamPeak = 0; }
       lastWheel = now;

@@ -130,12 +130,18 @@ const THUMB_RENDITION = (() => {
 // they simply take turns, so there is always capacity left for the thing the visitor
 // actually clicked. A slot is released when a deck paints, or after a ceiling, so one slow
 // deck can never strand the queue.
-const DECK_SLOTS = 3;
+// Desktop can afford more in flight than a phone. Three was tuned for the slowest case
+// and made the gallery take ~40s to fill, which is worse than the queueing it prevents.
+// Mobile keeps a tight cap because a phone is where the memory ceiling actually bites;
+// mobile does not boot live decks at all today, so this only guards a future change.
+const DECK_SLOTS = (() => {
+  try { return window.innerWidth < 760 ? 2 : 6; } catch (_) { return 6; }
+})();
 // A SAFETY NET, not a regular path. At 6s this fired before a deck on a real connection
 // had painted, so slots were handed back on a timer and the cap dissolved precisely when
 // the network was slow enough to need it — measured on staging, 9-10 decks live at 7s
 // against a cap of 3. It now only rescues a deck that is genuinely never going to paint.
-const DECK_RELEASE_MS = 20000;
+const DECK_RELEASE_MS = 12000;
 let deckBusy = 0;
 const deckQueue = [];
 function pumpDecks() {
@@ -172,7 +178,19 @@ function LiveCard({ tpl, name, isNew, slug, idx, mobile }) {
       const im = new Image();
       // …and then WAIT FOR A TURN. See DECK_SLOTS: the still decodes from cache instantly,
       // so without this every in-range tile booted its deck in the same frame.
-      const go = () => { releaseRef.current = takeDeckSlot(() => setLive(true)); };
+      const go = () => {
+        releaseRef.current = takeDeckSlot(() => {
+          setLive(true);
+          // HAND THE SLOT BACK AS SOON AS THIS DECK IS UP, not when it is fully decorated.
+          // Measured: a deck paints in ~0ms once its iframe is in the document, yet the slot
+          // was held until onReady, which under strictReady waits for the deck's images. That
+          // is why the gallery took ~27s to admit sixteen decks when each one costs nothing to
+          // start. The visual fade still waits for onReady, so nothing appears half-drawn —
+          // only the QUEUE moves on sooner. release() is idempotent, so whichever fires first
+          // wins and the other is a no-op.
+          setTimeout(() => { if (releaseRef.current) releaseRef.current(); }, 400);
+        });
+      };
       im.src = src;
       if (im.decode) im.decode().then(go).catch(go); else { im.onload = go; im.onerror = go; }
       setTimeout(go, 2500);            // never let a slow still hold the preview back for good

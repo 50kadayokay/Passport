@@ -29,7 +29,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { COUNTS } from "../demo/investorFixture.js";
 import { EASE, MarketingStyles, useReduce, useViewport } from "../system.jsx";
-import { SHEET_MS, EASE_SHEET, WHEEL_TRIGGER, NEW_GESTURE_GAP, FIRM_DELTA, FRESH_FLICK } from "./motion.js";
+import { SHEET_MS, EASE_SHEET, WHEEL_TRIGGER, NEW_GESTURE_GAP, FIRM_DELTA, FRESH_FLICK , isReversal} from "./motion.js";
 import Nav from "./Nav.jsx";
 import StageArrows from "./StageArrows.jsx";
 import InvestorShellPhone from "../demo/InvestorShellPhone.jsx";
@@ -231,7 +231,7 @@ function usePagedWheel(sectionRef, n, enabled) {
     // Gesture model copied verbatim from AppSection so the trigger point feels the same.
     const onWheel = (e) => {
       const now = performance.now(), gap = now - last, mag = Math.abs(e.deltaY);
-      const reversed = dir0 !== 0 && Math.sign(e.deltaY) === -dir0 && mag >= FIRM_DELTA;
+      const reversed = isReversal(e.deltaY, dir0);
       const freshFlick = used && !locked && mag >= FRESH_FLICK && mag > lastMag * 2;
       if (gap > NEW_GESTURE_GAP || reversed || freshFlick) { accum = 0; dir0 = Math.sign(e.deltaY); used = false; peak = 0; }
       last = now; lastMag = mag; peak = Math.max(peak, mag);

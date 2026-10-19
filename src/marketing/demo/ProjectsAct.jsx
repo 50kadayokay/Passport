@@ -29,7 +29,7 @@
 //
 // DirectedEmbed is untouched.
 // ─────────────────────────────────────────────────────────────────────────────
-import { gestureReady } from "../home2/motion.js";
+import { gestureReady , isReversal} from "../home2/motion.js";
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { MX } from "../system.jsx";
 import { DEVICE_W, DEVICE_H } from "./MobileAppFrame.jsx";
@@ -236,7 +236,7 @@ export function ProjectsAct() {
       e.preventDefault();
       if (!readyRef.current) return;
       const now = performance.now(); const gap = now - lastWheel;
-      const reversed = accumDir !== 0 && Math.sign(e.deltaY) === -accumDir && Math.abs(e.deltaY) >= FIRM_DELTA;
+      const reversed = isReversal(e.deltaY, accumDir);
       if (gap > NEW_GESTURE_GAP || reversed) { accum = 0; accumDir = Math.sign(e.deltaY); streamUsed = false; streamPeak = 0; }
       lastWheel = now; streamPeak = Math.max(streamPeak, Math.abs(e.deltaY));
       if (S.animating || streamUsed) return;

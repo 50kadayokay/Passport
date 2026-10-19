@@ -48,3 +48,18 @@ export const gestureReady = (accum, streamPeak, trigger = WHEEL_TRIGGER, firm = 
   const a = Math.abs(accum);
   return a >= trigger && (streamPeak >= firm || a >= trigger * SUSTAINED_FACTOR);
 };
+
+// A DIRECTION CHANGE IS ALWAYS A NEW GESTURE.
+//
+// The reversal test carried the same FIRM_DELTA requirement as the trigger, so on a
+// trackpad (deltas of roughly 1-10) a reversal was never recognised: the accumulator kept
+// the forward total and the first backward glide had to overcome it before anything moved.
+// Measured on the Pro walkthrough with the cursor over the phone — forward ran 1 to 23
+// with no stalls, backward stalled four times and skipped states.
+//
+// Fingers cannot physically reverse during a momentum tail, and a tail does not change
+// sign, so the peak requirement protected nothing here. Any real movement against the
+// current direction now re-arms the stream.
+export const REVERSE_MIN = 2;
+export const isReversal = (deltaY, accumDir) =>
+  accumDir !== 0 && Math.sign(deltaY) === -accumDir && Math.abs(deltaY) >= REVERSE_MIN;

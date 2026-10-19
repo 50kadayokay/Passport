@@ -11,8 +11,8 @@ for (const path of ["/investor","/pro","/home"]) {
       const n = document.querySelector('nav[aria-label="Jump to section"]');
       if (!n) return { rail:false };
       const r = n.getBoundingClientRect(); const cs = getComputedStyle(n);
-      const dots = [...n.querySelectorAll('.mx-jump')].map(b => b.getAttribute('aria-current')==='true' ? '●' : '○');
-      return { rail:true, dots:dots.join(''), left:Math.round(r.left), opacity:cs.opacity, labels:[...n.querySelectorAll('.mx-jump')].map(b=>b.getAttribute('aria-label')).join(',') };
+      const items=[...n.querySelectorAll('.mx-jump, .inv-tick')]; const dots = items.map(b => b.getAttribute('aria-current')==='true' ? '|' : '.');
+      return { rail:true, dots:dots.join(''), left:Math.round(r.left), opacity:cs.opacity, count: items.length, active: items.findIndex(b=>b.getAttribute('aria-current')==='true') };
     }); };
   const a = await at(0), bb = await at(1400), c = await at(5200), d = await at(12000);
   console.log(`${path.padEnd(10)} rail=${a.rail} left=${a.left??'-'} labels=${a.labels||'-'}`);

@@ -21,7 +21,7 @@
 // PROOF SLICE (this file): A Overview → B Projects → C Project Intelligence →
 // D Exploration Results, and the exact reverse. See /site?directedEmbed=1.
 // ─────────────────────────────────────────────────────────────────────────────
-import { gestureReady } from "../home2/motion.js";
+import { gestureReady , isReversal} from "../home2/motion.js";
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { MX } from "../system.jsx";
 import { DEVICE_W, DEVICE_H } from "./MobileAppFrame.jsx";
@@ -1110,24 +1110,43 @@ export function DirectedEmbed({ variant = "full", hardware = false, cutout = fal
       }
       S.animating = false;
       emit("demo:settled", { cur: S.cur });
+      // Spend a gesture that arrived while this transition was running.
+      if (pendingDir) {
+        const want = pendingDir; pendingDir = 0;
+        const fl = variant === "home" ? 0 : OPEN_FLOOR;
+        const nxt = Math.max(fl, Math.min(STATES.length - 1, S.cur + want));
+        if (nxt !== S.cur) run(nxt);
+      }
     };
 
+    let pendingDir = 0;                                   // a gesture that arrived mid-transition
     const onWheel = (e) => {
       e.preventDefault();
       if (!readyRef.current) return;         // not interactive until the real app has painted
       const now = performance.now();
       const gap = now - lastWheel;
-      const reversed = accumDir !== 0 && Math.sign(e.deltaY) === -accumDir && Math.abs(e.deltaY) >= FIRM_DELTA;
+      const reversed = isReversal(e.deltaY, accumDir);
       if (gap > NEW_GESTURE_GAP || reversed) { accum = 0; accumDir = Math.sign(e.deltaY); streamUsed = false; streamPeak = 0; }
       lastWheel = now;
       streamPeak = Math.max(streamPeak, Math.abs(e.deltaY));
-      if (S.animating || streamUsed) return;               // input locked mid-transition; one change per gesture
+      if (streamUsed) return;                              // one change per gesture
       const d = e.deltaY;
       if (Math.sign(d) !== accumDir) { accum = 0; accumDir = Math.sign(d); }
       accum += d;
       if (!gestureReady(accum, streamPeak, WHEEL_TRIGGER, FIRM_DELTA)) return;
       const dir = accum > 0 ? 1 : -1;                       // swipe up (wheel down) advances
       streamUsed = true; accum = 0;
+      // A GESTURE MADE DURING A TRANSITION IS REMEMBERED, NOT THROWN AWAY.
+      //
+      // Input was simply dropped while S.animating, so a deliberate swipe that landed on a
+      // still-running transition did nothing and read as the deck seizing up. Measured on the
+      // Pro walkthrough going backwards: every stall was a glide during which the state was
+      // animating for its whole duration, and the very next gesture worked.
+      //
+      // At most ONE is held, it is cleared when it is spent, and streamUsed still allows a
+      // single change per gesture — so this cannot run the deck on, it only stops a
+      // deliberate gesture being discarded for arriving a few hundred ms early.
+      if (S.animating) { pendingDir = dir; return; }
       // Floor at the status face: the photographic hero is a one-time automatic opening,
       // never a state the visitor can gesture back into.
       const floor = variant === "home" ? 0 : OPEN_FLOOR;
