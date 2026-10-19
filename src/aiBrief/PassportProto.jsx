@@ -11918,9 +11918,7 @@ export default function App({ guest = false } = {}) {
           {guest && !bannerOff && !isNativeApp && (
             <div className="flex flex-shrink-0 items-center gap-2.5 border-b border-slate-100 bg-white px-4 py-2">
               <button onClick={() => setBannerOff(true)} aria-label="Dismiss" className="flex-shrink-0 text-slate-300 transition active:scale-90"><X size={17} /></button>
-              <div className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-[9px]" style={{ background: EM }}>
-                <span className="text-[14px] font-black leading-none text-white">M</span>
-              </div>
+              <img src="/icon-192.png" alt="MineEx" className="h-8 w-8 flex-shrink-0 rounded-[9px] object-cover" />
               <div className="min-w-0 flex-1 leading-tight">
                 <p className="text-[12.5px] font-extrabold tracking-tight text-slate-900">MineEx</p>
                 <p className="truncate text-[10.5px] font-medium text-slate-400">Follow companies & get updates in one feed</p>
@@ -11942,9 +11940,7 @@ export default function App({ guest = false } = {}) {
                 style={{ paddingBottom: "calc(2rem + env(safe-area-inset-bottom, 0px))" }}>
                 <div className="mx-auto mb-5 h-1 w-10 rounded-full bg-slate-200" />
                 <div className="flex items-center gap-3">
-                  <div className="grid h-11 w-11 flex-shrink-0 place-items-center rounded-[12px]" style={{ background: EM }}>
-                    <span className="text-[19px] font-black leading-none text-white">M</span>
-                  </div>
+                  <img src="/icon-192.png" alt="MineEx" className="h-11 w-11 flex-shrink-0 rounded-[12px] object-cover" />
                   <div className="min-w-0">
                     <p className="text-[17px] font-extrabold tracking-tight text-slate-900">Follow in the app</p>
                     <p className="text-[13px] font-medium text-slate-500">Keep the companies you follow on every device</p>
