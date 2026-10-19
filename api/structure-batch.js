@@ -14,9 +14,36 @@
 // and this runs across a whole corpus, so cost matters.
 
 import { requireFeature, companyIdFromSlug, requireAdmin } from "./_entitlement.js";
+import { generateBrief, briefToV2 } from "./_briefGen.js";   // refined BriefV1 generator (OpenAI)
+import { validateBrief } from "./_briefValidate.js";          // deterministic re-grounding validator
 
 const MODEL = process.env.BATCH_MODEL || "claude-haiku-4-5";
 const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
+
+// V2-Brief generation eligibility: ONLY releases whose own publication date is within the last
+// 72 hours get a freshly generated Brief. Older releases keep their existing summary and render
+// via the historical V2 mapping. A missing/unparseable date is "unreliable" → hold (no guess).
+const BRIEF_WINDOW_MS = 72 * 3600 * 1000;
+function pubAgeMs(sourceDate) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(sourceDate || "").trim());
+  if (!m) return null;
+  const t = Date.UTC(+m[1], +m[2] - 1, +m[3]);
+  return isFinite(t) ? Date.now() - t : null;
+}
+export function briefEligible(sourceDate) {
+  const age = pubAgeMs(sourceDate);
+  return age != null && age >= 0 && age <= BRIEF_WINDOW_MS;   // within last 72h, not future, date reliable
+}
+// Generate + validate + gate a single release's V2 Brief. Returns the gated v2 object (PASS, or
+// REVIEW tagged `_needsReview`), or null when FAIL (no Brief). Throws on generator/transport error
+// (the caller swallows it per-release). Shared by the handler and the eligibility test.
+export async function generateGatedV2({ sourceText, sourceDate = "", category = "", companyName = "" }) {
+  const g = await generateBrief({ sourceText, companyName, sourceDate, category });
+  const v = validateBrief(g.brief, sourceText);
+  if (v.status === "PASS") return { ...briefToV2(g.brief, g.brief.category), _gen: true };
+  if (v.status === "REVIEW") return { ...briefToV2(g.brief, g.brief.category), _gen: true, _needsReview: true };
+  return null;   // FAIL — no Brief
+}
 
 const CATEGORIES = [
   "Discovery", "Drilling", "Exploration", "Resource", "Economic Study",
@@ -88,7 +115,7 @@ export default async function handler(req, res) {
 
   let body = req.body;
   if (typeof body === "string") { try { body = JSON.parse(body); } catch { return bad(res, 400, "Invalid JSON body"); } }
-  const { releases = [], companyId: bodyCompanyId = "", slug = "", context = null } = body || {};
+  const { releases = [], companyId: bodyCompanyId = "", slug = "", context = null, existingV2 = null } = body || {};
   const list = (Array.isArray(releases) ? releases : []).filter((r) => r && r.id && String(r.text || "").trim());
   if (!list.length) return bad(res, 400, "Provide `releases` [{id, text}].");
 
@@ -122,7 +149,38 @@ export default async function handler(req, res) {
     const data = await r.json();
     const block = (data.content || []).find((b) => b.type === "tool_use");
     if (!block || !block.input) return bad(res, 502, "AI returned no entries.");
-    return res.status(200).json({ entries: block.input.entries || [], meta: { model: MODEL, count: list.length, usage: data.usage } });
+    const entries = block.input.entries || [];
+
+    // ---- V2 Brief generation — ELIGIBLE releases only (pub date within 72h) ----
+    // Idempotent + preserving: a release that already has an approved V2 (passed in `existingV2`,
+    // keyed by its publication date) is echoed back and NEVER regenerated. Eligible releases
+    // without one get a genuine generated V2 (OpenAI), validated and gated: PASS -> attached;
+    // REVIEW -> attached with _needsReview (held from public by the mapTimeline gate until a human
+    // approves); FAIL -> no V2. Older-than-72h / unreliable-date releases get no V2 and keep their
+    // existing summary. Runs in parallel with a per-release try/catch so one failure never breaks
+    // the batch. Dormant until MINEEX_BRIEF_API_KEY is configured.
+    if (process.env.MINEEX_BRIEF_API_KEY && entries.length) {
+      const prior = (existingV2 && typeof existingV2 === "object") ? existingV2 : {};
+      const textById = new Map(list.map((rr) => [String(rr.id), String(rr.text || "")]));
+      const coName = (context && (context.company?.name || context.companyName || context.name)) || "";
+      let generated = 0, preserved = 0, held = 0;
+      await Promise.all(entries.map(async (e) => {
+        try {
+          const dateKey = String(e.sourceDate || "").trim();
+          const keep = dateKey && prior[dateKey];
+          if (keep) { e.v2 = keep; preserved++; return; }     // already has an approved Brief — don't regenerate
+          if (!briefEligible(e.sourceDate)) return;           // >72h or unreliable date — retain existing summary / hold
+          const srcText = textById.get(String(e.id)) || "";
+          if (!srcText.trim()) return;
+          const v2 = await generateGatedV2({ sourceText: srcText, sourceDate: dateKey, category: e.category || "", companyName: coName });
+          if (v2) { e.v2 = v2; if (v2._needsReview) held++; else generated++; }
+          else held++;                                        // FAIL — no V2 attached
+        } catch (_) { /* one release's failure must never break the batch */ }
+      }));
+      return res.status(200).json({ entries, meta: { model: MODEL, count: list.length, usage: data.usage, briefs: { generated, preserved, held } } });
+    }
+
+    return res.status(200).json({ entries, meta: { model: MODEL, count: list.length, usage: data.usage } });
   } catch (e) {
     return bad(res, 502, `AI request failed: ${e.message || e}`);
   }

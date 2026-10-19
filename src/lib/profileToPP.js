@@ -147,6 +147,16 @@ function mapTimeline(timeline) {
       key: !!e.key,
       id: str(e.date),
       label: shortLabel({ ...e, keyNumbers: nums }),
+      // Refined BriefV1 (validated), when the generator produced one — this is the single field
+      // the reader consumes to show the generated Brief instead of the card-mapped fallback.
+      // ENFORCEMENT GATE: this is the only chokepoint between a generated Brief and the public
+      // reader (the app reads companies.profile.pp.PR_YEARS[].items[].v2, and on a published
+      // company a profile write is instantly public). A Brief that validated REVIEW (or worse)
+      // carries `_needsReview` and is NEVER auto-mapped into the public payload — it must be
+      // approved by a human first. Human approval happens in the portal BriefReview UI, which
+      // writes the reviewed v2 straight into pp.PR_YEARS items (bypassing this mapping), so an
+      // explicitly-approved Brief is unaffected. FAIL attaches no v2 at all (safe by omission).
+      ...((() => { const vv = e.v2 || (ai && ai.v2); return (vv && !vv._needsReview) ? { v2: vv } : {}; })()),
     });
     // Full release: formatted text and/or attached images (screenshots). Stored as an
     // object so the reader can render both. Absent → the "Read Full Press Release" button
