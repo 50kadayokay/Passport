@@ -2048,6 +2048,109 @@ function TimelineView() {
   );
 }
 
+// A Key Results "unit" is either a physical UNIT OF MEASURE that reads correctly INLINE beside the
+// number (grade g/t Ag, length m/km, area km², mass oz/t, concentration ppm, percentage %) — or a
+// DESCRIPTIVE label (Gross, Per Unit, Warrant, Units, Holes, Samples, Price…) that belongs BENEATH
+// the value, exactly as in the approved Kingsmen financing layout. This decides placement by the
+// unit's metric MEANING, not by string length. Anything unrecognised or ambiguous returns false, so
+// it stays beneath and the approved design is never disturbed on a guess.
+function isMeasureUnit(u) {
+  const s = String(u || "").trim();
+  if (!s) return false;
+  if (/^(g\s*\/\s*t|gpt)\b/i.test(s)) return true;                 // assay grades: g/t Ag, g/t AgEq, g/t Au…
+  if (/^(ppm|ppb|oz\s*\/\s*t|wt%?)\b/i.test(s)) return true;       // concentration / mass-per-tonne
+  if (/^%/.test(s)) return true;                                   // percentage grade: %, % Pb, % Zn…
+  if (/^(mm|cm|m|km|km2|km²|m2|m²|ha|ft|in|t|kg|g|oz|lb)$/i.test(s)) return true;  // symbolic length/area/mass
+  if (/^(millimet(?:er|re)s?|centimet(?:er|re)s?|met(?:er|re)s?|kilomet(?:er|re)s?|hectares?|acres?|feet|foot|inch(?:es)?|tonnes?|tons?|ounces?|grams?|kilograms?|pounds?)$/i.test(s)) return true; // spelled-out units
+  return false;
+}
+
+/* KEY RESULTS — one disciplined, repeatable metric-row system. Every result occupies an IDENTICAL
+   two-column row: left = cobalt value (with a measurement unit inline, baseline-aligned, when the
+   unit is a true unit of measure) or a descriptive label beneath; right = descriptor + secondary.
+   Same grid, alignment, typography, padding and separators on every row. ONE value font-size for the
+   whole section (from the longest value+inline-unit) so all rows share baseline and nothing overflows
+   a 375px phone. More than four results page into a 4-per-page swipe carousel with pagination dots;
+   four or fewer render as a single static grid (the approved Kingsmen financing case). */
+function KeyResults({ rows }) {
+  const [page, setPage] = useState(0);
+  const scRef = useRef(null);
+  const perPage = 4;
+  const pages = [];
+  for (let i = 0; i < rows.length; i += perPage) pages.push(rows.slice(i, i + perPage));
+  const multi = pages.length > 1;
+  // Font sizing considers the inline unit's width too, so "3,227.2 Meters" steps down like a long value.
+  const effLen = (r) => String(r.v || "").length + (isMeasureUnit(r.u) ? String(r.u || "").length + 1 : 0);
+  const maxLen = rows.reduce((m, r) => Math.max(m, effLen(r)), 0);
+  const vSize = maxLen <= 9 ? 22 : maxLen <= 12 ? 18 : 15;
+  const uSize = Math.max(12, Math.round(vSize * 0.58));
+  const row = (r, i) => (
+    <div key={i} style={{ display: "contents" }}>
+      {/* value + unit (grouped, left-aligned, never wraps) */}
+      <div className={`py-3 ${i > 0 ? "border-t border-slate-100" : ""}`}>
+        {isMeasureUnit(r.u) ? (
+          <div className="flex items-baseline gap-1 whitespace-nowrap">
+            <span className="font-extrabold leading-none tracking-tight tabular-nums" style={{ color: EM_TEXT, fontSize: vSize }}>{r.v}</span>
+            <span className="font-semibold leading-none tracking-tight text-slate-400" style={{ fontSize: uSize }}>{r.u}</span>
+          </div>
+        ) : (
+          <>
+            <div className="font-extrabold leading-none tracking-tight tabular-nums whitespace-nowrap" style={{ color: EM_TEXT, fontSize: vSize }}>{r.v}</div>
+            {r.u && <div className="mt-1 text-[10px] font-bold uppercase tracking-[0.08em] text-slate-400">{r.u}</div>}
+          </>
+        )}
+      </div>
+      {/* description + optional relationship label + secondary (wraps naturally), top-aligned */}
+      <div className={`min-w-0 py-3 pt-[13px] ${i > 0 ? "border-t border-slate-100" : ""}`}>
+        <div className="text-[13.5px] font-semibold leading-snug text-slate-800">
+          {r.rel && <span className="mr-1.5 text-[9.5px] font-extrabold uppercase tracking-[0.1em]" style={{ color: EM }}>{r.rel}</span>}
+          {r.rel && <span className="mr-1.5 text-slate-300">·</span>}
+          {r.desc}
+        </div>
+        {r.sec && <div className="mt-0.5 text-[12px] font-medium leading-snug text-slate-500">{r.sec}</div>}
+      </div>
+    </div>
+  );
+  const grid = (pageRows, off) => (
+    <div className="grid items-start gap-x-5" style={{ gridTemplateColumns: "max-content minmax(0, 1fr)" }}>
+      {pageRows.map((r, i) => row(r, off + i))}
+    </div>
+  );
+  return (
+    <div className="mt-6">
+      <span className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-slate-900">Key Results</span>
+      {!multi ? (
+        <div className="mt-2">{grid(rows, 0)}</div>
+      ) : (
+        <>
+          <div
+            ref={scRef}
+            className="pp-noscroll mt-2 flex overflow-x-auto"
+            style={{ scrollSnapType: "x mandatory" }}
+            onScroll={() => { const el = scRef.current; if (el) setPage(Math.round(el.scrollLeft / (el.clientWidth || 1))); }}
+          >
+            {pages.map((pg, pi) => (
+              <div key={pi} className="w-full flex-shrink-0" style={{ scrollSnapAlign: "start" }}>{grid(pg, pi * perPage)}</div>
+            ))}
+          </div>
+          {/* pagination dots — the active page widens into a cobalt pill */}
+          <div className="mt-3 flex items-center justify-center gap-1.5">
+            {pages.map((_, pi) => (
+              <button
+                key={pi}
+                aria-label={`Key Results page ${pi + 1} of ${pages.length}`}
+                onClick={() => { const el = scRef.current; if (el) el.scrollTo({ left: pi * (el.clientWidth || 1), behavior: "smooth" }); }}
+                className="h-1.5 rounded-full transition-all"
+                style={{ width: pi === page ? 16 : 6, background: pi === page ? EM : "#cbd5e1" }}
+              />
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 /* Why This Matters + Key Takeaways. Window and button are present immediately;
    the text fades in once, in a single swipe. */
 function SummaryContent({ item, cat, impact, hasFull, onReadFull, sourceNote }) {
@@ -2100,47 +2203,9 @@ function SummaryContent({ item, cat, impact, hasFull, onReadFull, sourceNote }) 
             </div>
           )}
 
-          {/* KEY RESULTS — one disciplined, repeatable metric-row system. Every result occupies an
-              IDENTICAL two-column row: left = fixed-width cobalt value + unit beneath; right =
-              descriptor + secondary, with an optional relationship label (e.g. INCLUDING). Same grid,
-              alignment, typography, padding and separators on every row; primary vs included intervals
-              are distinguished by the label, not by size or colour. Supports 0–4 rows. */}
-          {hasRows && (() => {
-            // Two-column grid: a content-hugging value column (so every blue value starts at the
-            // same x and every description starts at the same x, with a consistent gap — not a
-            // fixed box that leaves short values floating) + a flexible, wrapping description
-            // column. ONE value font-size for the whole section, chosen from the LONGEST value, so
-            // all rows share identical typography and baseline (short values keep the approved
-            // 22px; longer values step down uniformly so nothing overflows a narrow iPhone).
-            const maxLen = rows.reduce((m, r) => Math.max(m, String(r.v || "").length), 0);
-            const vSize = maxLen <= 9 ? 22 : maxLen <= 12 ? 18 : 15;
-            return (
-            <div className="mt-6">
-              <span className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-slate-900">Key Results</span>
-              <div className="mt-2 grid items-start gap-x-5" style={{ gridTemplateColumns: "max-content minmax(0, 1fr)" }}>
-                {rows.map((r, i) => (
-                  <div key={i} style={{ display: "contents" }}>
-                    {/* value + unit (grouped, left-aligned, never wraps) */}
-                    <div className={`py-3 ${i > 0 ? "border-t border-slate-100" : ""}`}>
-                      <div className="font-extrabold leading-none tracking-tight tabular-nums whitespace-nowrap" style={{ color: EM_TEXT, fontSize: vSize }}>{r.v}</div>
-                      {r.u && <div className="mt-1 text-[10px] font-bold uppercase tracking-[0.08em] text-slate-400">{r.u}</div>}
-                    </div>
-                    {/* description + optional relationship label + secondary (wraps naturally),
-                        top-aligned with the numeric value */}
-                    <div className={`min-w-0 py-3 pt-[13px] ${i > 0 ? "border-t border-slate-100" : ""}`}>
-                      <div className="text-[13.5px] font-semibold leading-snug text-slate-800">
-                        {r.rel && <span className="mr-1.5 text-[9.5px] font-extrabold uppercase tracking-[0.1em]" style={{ color: EM }}>{r.rel}</span>}
-                        {r.rel && <span className="mr-1.5 text-slate-300">·</span>}
-                        {r.desc}
-                      </div>
-                      {r.sec && <div className="mt-0.5 text-[12px] font-medium leading-snug text-slate-500">{r.sec}</div>}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-            );
-          })()}
+          {/* KEY RESULTS — semantic metric-row system (units inline, descriptive labels beneath,
+              4-per-page swipe carousel beyond four results). See the KeyResults component above. */}
+          {hasRows && <KeyResults rows={rows} />}
 
           {/* HIGHLIGHTS — for mapped historical briefs (no structured Key Results), surface the
               release's existing key-number bullets VERBATIM so the data is never lost. */}
