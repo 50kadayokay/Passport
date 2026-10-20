@@ -2019,17 +2019,7 @@ function TimelineView() {
         const cs = CAT_STYLE[cat], is = IMPACT_STYLE[impact];
         return (
         <BottomSheet onClose={() => setDetail(null)} headerActions={<ReaderActions it={{ ...item, contentType: "UPDATE", isPressRelease: true }} snapshot={prItemToSnapshot(item)} />}>
-          <div className="border-b border-slate-200 pb-3 pt-1">
-            <div className="flex flex-wrap items-center gap-1.5">
-              <span className="rounded-md px-1.5 py-0.5 text-[8px] font-extrabold uppercase tracking-wider" style={{ background: cs.bg, color: cs.c }}>{cat}</span>
-              <span className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[8px] font-extrabold uppercase tracking-wider" style={{ background: is.bg, color: is.c }}>
-                <span className="h-1.5 w-1.5 rounded-full" style={{ background: is.dot }} /> {impact}
-              </span>
-              <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400 tabular-nums">{item.d}, {PR_YEARS[detail.yi].year}</span>
-            </div>
-            <h3 className="mt-2 text-[16px] font-extrabold leading-snug tracking-tight text-slate-900">{item.originalTitle || item.headline}</h3>
-          </div>
-
+          <BriefHeader cat={cat} impact={impact} dateStr={`${item.d}, ${PR_YEARS[detail.yi].year}`} headline={item.originalTitle || item.headline} />
           <SummaryContent item={item} cat={cat} impact={impact} hasFull={!!(FULL && FULL[item.id])} onReadFull={() => setShowFull(true)} isPressRelease={true} />
         </BottomSheet>
         );
@@ -2149,6 +2139,26 @@ function KeyResults({ rows }) {
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+// The approved Kingsmen press-release reader HEADER — category + impact pills + date, the headline,
+// and the hairline divider. Reused VERBATIM by the company timeline AND the feed reader so every
+// press release shares ONE header (not a competing one), regardless of entry point.
+function BriefHeader({ cat, impact, dateStr, headline }) {
+  const cs = CAT_STYLE[cat] || CAT_STYLE.Exploration;
+  const is = IMPACT_STYLE[impact] || IMPACT_STYLE.Low;
+  return (
+    <div className="border-b border-slate-200 pb-3 pt-1">
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className="rounded-md px-1.5 py-0.5 text-[8px] font-extrabold uppercase tracking-wider" style={{ background: cs.bg, color: cs.c }}>{cat}</span>
+        <span className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[8px] font-extrabold uppercase tracking-wider" style={{ background: is.bg, color: is.c }}>
+          <span className="h-1.5 w-1.5 rounded-full" style={{ background: is.dot }} /> {impact}
+        </span>
+        {dateStr && <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400 tabular-nums">{dateStr}</span>}
+      </div>
+      <h3 className="mt-2 text-[16px] font-extrabold leading-snug tracking-tight text-slate-900">{headline}</h3>
     </div>
   );
 }
@@ -6921,6 +6931,11 @@ function StoryReader({ it, onOpen, onClose }) {
   // NOT flagged as a press release.
   const isEditorialNews = it.contentType === "NEWS" && !isRelease;
   const prImpact = (it.key || (it.materiality || 0) >= 75) ? "High" : ((it.materiality || 0) >= 55 ? "Medium" : "Low");
+  // Category + impact for the shared Kingsmen-style header, computed the SAME way as the company
+  // timeline (an explicit Brief category wins, else the headline heuristic). Press releases use the
+  // BriefHeader (pills + date + divider); editorial news keeps its source byline.
+  const { cat: _hCat, impact: _hImpact } = classify(it);
+  const prCat = (it.v2 && it.v2.cat && CAT_STYLE[it.v2.cat]) ? it.v2.cat : _hCat;
   return createPortal(
     <div className="absolute inset-0 z-[110] flex flex-col justify-end pp-fade" onClick={onClose}>
       <style>{"@keyframes mxUp{from{transform:translateY(100%)}to{transform:translateY(0)}}"}</style>
@@ -6929,7 +6944,9 @@ function StoryReader({ it, onOpen, onClose }) {
         <div className="flex-shrink-0 px-5 pt-3" onTouchStart={onDragStart} onTouchMove={onDragMove} onTouchEnd={onDragEnd} style={{ touchAction: "none" }}>
           <div className="mx-auto mb-2 h-1.5 w-10 rounded-full bg-slate-300" />
           <div className="flex items-center justify-between">
-            <TypeBadge type={it.badge || it.contentType} />
+            {/* Press releases match Kingsmen (no left content-type badge — the category pill lives in
+                the header below); editorial news keeps its NEWS/type badge. */}
+            {isRelease && !media ? <span /> : <TypeBadge type={it.badge || it.contentType} />}
             <div className="flex items-center gap-2">
               <button onClick={toggleLike} aria-label={liked ? "Liked" : "Like"} className="grid h-8 w-8 place-items-center rounded-full active:scale-90" style={liked ? { background: "#fee2e2", color: "#ed4956" } : { background: "#f1f5f9", color: "#475569" }}><Heart size={15} fill={liked ? "currentColor" : "none"} /></button>
               <button onClick={shareStory} aria-label="Share" className="grid h-8 w-8 place-items-center rounded-full bg-slate-100 text-slate-600 active:scale-90"><Share2 size={15} /></button>
@@ -6949,14 +6966,23 @@ function StoryReader({ it, onOpen, onClose }) {
               {playing && <span className="absolute bottom-0 left-0 h-1 bg-white/80" style={{ width: "38%" }} />}
             </button>
           )}
-          <div className="mb-2 flex items-center gap-2">
-            <CoLogo co={{ logo: it.logo, slug: it.slug || it.companyId, name: it.companyName, mono: (it.companyName || "").split(/\s+/).slice(0, 2).map((w) => w[0] || "").join("").toUpperCase() }} size={30} />
-            <div className="min-w-0">
-              <p className="truncate text-[12px] font-bold tracking-tight text-slate-800">{it.companyName}{it.ticker ? ` · ${it.ticker}` : ""}</p>
-              <p className="text-[10.5px] font-semibold text-slate-400">{it.source} · {it.when}</p>
-            </div>
-          </div>
-          <h2 className="text-[20px] font-extrabold leading-tight tracking-tight text-slate-900">{it.originalHeadline || it.headline}</h2>
+          {isRelease && !media ? (
+            /* PRESS RELEASE — the approved Kingsmen header (category + impact pills + date + divider),
+               identical to the company timeline, regardless of which feed/tab it was opened from. */
+            <BriefHeader cat={prCat} impact={_hImpact} dateStr={dateStr} headline={it.originalHeadline || it.headline} />
+          ) : (
+            /* EDITORIAL NEWS (and media) keeps its own news design: source byline + larger headline. */
+            <>
+              <div className="mb-2 flex items-center gap-2">
+                <CoLogo co={{ logo: it.logo, slug: it.slug || it.companyId, name: it.companyName, mono: (it.companyName || "").split(/\s+/).slice(0, 2).map((w) => w[0] || "").join("").toUpperCase() }} size={30} />
+                <div className="min-w-0">
+                  <p className="truncate text-[12px] font-bold tracking-tight text-slate-800">{it.companyName}{it.ticker ? ` · ${it.ticker}` : ""}</p>
+                  <p className="text-[10.5px] font-semibold text-slate-400">{it.source} · {it.when}</p>
+                </div>
+              </div>
+              <h2 className="text-[20px] font-extrabold leading-tight tracking-tight text-slate-900">{it.originalHeadline || it.headline}</h2>
+            </>
+          )}
 
           {/* ONE shared V2 presentation for EVERY non-media summary — editorial news AND press
              releases alike (What Happened / Why It Matters / blue Key Results / optional Takeaway
