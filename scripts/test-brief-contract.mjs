@@ -5,7 +5,7 @@
 // normalized data mapping (historicalToV2), and that the SAME release routes/renders identically
 // across tabs. Real-row fixtures are embedded so the suite is deterministic (no network).
 
-import { classifyNewsItem, briefCompleteness, _resetReviewDedup } from "../src/lib/briefContract.js";
+import { classifyNewsItem, briefCompleteness, briefSections, _resetReviewDedup } from "../src/lib/briefContract.js";
 import { historicalToV2 } from "../src/aiBrief/historicalBrief.js";
 
 let pass = 0, fail = 0; const fails = [];
@@ -102,6 +102,32 @@ console.log("\n=== 5. Editorial retains its behavior ===");
 const edObj = { contentType: "NEWS", isPressRelease: classifyNewsItem(MININGCOM_EDITORIAL).isPressRelease };
 ok(inNewsTab(edObj), "editorial stays in News tab");
 ok(!inPressReleasesTab(edObj), "editorial NOT in Press Releases tab");
+
+console.log("\n=== 6. Evidence-based source classification (inventory of 1,000 rows) ===");
+const mk = (source_key, extra = {}) => ({ title: "Some Co Announces Thing", canonical_url: "https://x/press-releases/a.html", source_key, ...extra });
+eq(classifyNewsItem({ ...mk("junior_mining_network"), is_press_release: null }).isPressRelease, true, "junior_mining_network → PR");
+eq(classifyNewsItem({ source_key: "mining_com", is_press_release: false, canonical_url: "https://mining.com/x", title: "Copper falls" }).classification, "editorial", "mining_com → editorial");
+eq(classifyNewsItem({ source_key: "northern_miner", is_press_release: false, canonical_url: "https://northernminer.com/x", title: "Copper surplus widens" }).classification, "editorial", "northern_miner → editorial");
+let mf = classifyNewsItem({ source_key: "miningfeeds", is_press_release: null, canonical_url: "https://miningfeeds.com/x", title: "Minnova Plans US$53M Investment" });
+ok(mf.needsReview === true, "miningfeeds (insufficient evidence) → flagged for review, not guessed");
+ok(classifyNewsItem({ source_key: "newsfile", is_press_release: null, canonical_url: "https://newsfilecorp.com/x", title: "Co Announces" }).needsReview === true, "unseen wire w/o signals → review (not blindly PR)");
+ok(classifyNewsItem({ source_key: "newsfile", is_press_release: true, canonical_url: "https://newsfilecorp.com/x", title: "Co Announces" }).isPressRelease === true, "unseen wire WITH is_press_release=true → PR");
+
+console.log("\n=== 7. Rendered sections (briefSections) — presence, labels, order, consistency ===");
+const prComplete = { wh: "x", wy: "y", kr: [{ v: "1", u: "m", desc: "d" }], tk: "next" };
+eq(briefSections(prComplete, { isPressRelease: true }).map((s) => s.key), ["wh", "wy", "kr", "tk"], "complete PR → WH, WY, KR, Takeaway");
+eq(briefSections(prComplete, { isPressRelease: true }).map((s) => s.label), ["What Happened", "Why It Matters", "Key Results", "The Takeaway"], "labels correct + in order");
+const prNoWy = { wh: "x", wy: "", kr: [{ v: "1" }], plainEnglish: "glossary" };
+eq(briefSections(prNoWy, { isPressRelease: true, hasPlainEnglish: true }).map((s) => s.key), ["wh", "kr"], "incomplete PR → no empty WY, no WDTM");
+ok(!briefSections(prNoWy, { isPressRelease: true, hasPlainEnglish: true }).some((s) => s.key === "wdtm"), "a press release NEVER shows What Does This Mean?");
+const edItem = { wh: "x", wy: "y", kr: [{ v: "1" }] };
+eq(briefSections(edItem, { isEditorial: true, hasPlainEnglish: true }).map((s) => s.key), ["wh", "wy", "wdtm", "kr"], "editorial → keeps What Does This Mean?");
+// consistency across entry points: same v2 + classification → same sections regardless of surface
+const fromA = briefSections(prComplete, { isPressRelease: true });
+const fromB = briefSections(prComplete, { isPressRelease: true }); // opened from a different tab/Saved
+eq(fromA, fromB, "same release → identical sections across entry points");
+// highlights fallback (no structured KR)
+eq(briefSections({ wh: "x", wy: "y", highlights: ["a", "b"] }, { isPressRelease: true }).map((s) => s.key), ["wh", "wy", "highlights"], "no KR → Highlights fallback");
 
 console.log(`\n================  ${pass} passed, ${fail} failed  ================`);
 if (fail) { console.log("FAILURES:\n - " + fails.join("\n - ")); process.exit(1); }

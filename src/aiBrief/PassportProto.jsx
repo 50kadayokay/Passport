@@ -30,7 +30,7 @@ function demoFocusStyle(on, restShadow) {
 import { fetchCompany, SUPABASE_URL, SUPABASE_ANON } from "../lib/supabase.js";
 import { API_BASE, isNativeApp } from "../lib/platform.js";
 import { historicalToV2 } from "./historicalBrief.js";   // Path A: map existing summaries → BriefV1 (no AI)
-import { classifyNewsItem, briefCompleteness, flagForReview } from "../lib/briefContract.js"; // canonical PR classification + completeness
+import { classifyNewsItem, briefCompleteness, briefSections, flagForReview } from "../lib/briefContract.js"; // canonical PR classification + completeness
 import QRCode from "qrcode";
 import jsQR from "jsqr"; // pure-JS QR decode — works on iOS WebKit (BarcodeDetector doesn't)
 import { buildCompanyIdentity } from "./proHighlights.js";
@@ -2187,6 +2187,11 @@ function SummaryContent({ item, cat, impact, hasFull, onReadFull, sourceNote, is
     if (isPressRelease && !comp.complete && item && item.id) {
       flagForReview(item.id, "incomplete-brief", `missing ${comp.missing.join(", ")}`);
     }
+    // Single source of truth for which sections render (shared with the contract tests). `show(key)`
+    // mirrors briefSections exactly so the UI can never drift from what the tests assert.
+    const hasPlainEnglish = !!(item && item.plainEnglish && String(item.plainEnglish).trim());
+    const sections = briefSections(v2, { isPressRelease, isEditorial, hasPlainEnglish });
+    const show = (k) => sections.some((s) => s.key === k);
     const isLocalhost = typeof location !== "undefined" && /^(localhost|127\.0\.0\.1|\[::1\])$/i.test(location.hostname);
     return (
       <div className="mt-4">
@@ -2202,14 +2207,14 @@ function SummaryContent({ item, cat, impact, hasFull, onReadFull, sourceNote, is
           {/* What Happened and Why It Matters carry equal weight; Key Results is the centerpiece; The
               Takeaway concludes when the source supports one. Each section renders ONLY when its
               content exists — an empty heading is never drawn. */}
-          {comp.hasWH && (
+          {show("wh") && (
             <div>
               <span className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-slate-900">What Happened</span>
               <p className="mt-1.5 text-[13.5px] font-medium leading-relaxed text-slate-600">{v2.wh}</p>
             </div>
           )}
-          {comp.hasWY && (
-            <div className={comp.hasWH ? "mt-5" : ""}>
+          {show("wy") && (
+            <div className={show("wh") ? "mt-5" : ""}>
               <span className="text-[10px] font-extrabold uppercase tracking-[0.16em]" style={{ color: EM_TEXT }}>Why It Matters</span>
               <p className="mt-1.5 text-[13.5px] font-medium leading-relaxed text-slate-600">{v2.wy}</p>
             </div>
@@ -2219,7 +2224,7 @@ function SummaryContent({ item, cat, impact, hasFull, onReadFull, sourceNote, is
               a press release. A press release follows the definitive Kingsmen V2 structure exactly
               (What Happened → Why It Matters → Key Results → The Takeaway), regardless of which
               surface it opens from. Pure third-party editorial news keeps it (source-derived). */}
-          {isEditorial && item && item.plainEnglish && String(item.plainEnglish).trim() && (
+          {show("wdtm") && (
             <div className="mt-5">
               <span className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-slate-900">What Does This Mean?</span>
               <p className="mt-1.5 text-[13.5px] font-medium leading-relaxed text-slate-600">{item.plainEnglish}</p>
@@ -2228,11 +2233,11 @@ function SummaryContent({ item, cat, impact, hasFull, onReadFull, sourceNote, is
 
           {/* KEY RESULTS — semantic metric-row system (units inline, descriptive labels beneath,
               4-per-page swipe carousel beyond four results). See the KeyResults component above. */}
-          {hasRows && <KeyResults rows={rows} />}
+          {show("kr") && <KeyResults rows={rows} />}
 
           {/* HIGHLIGHTS — for mapped historical briefs (no structured Key Results), surface the
               release's existing key-number bullets VERBATIM so the data is never lost. */}
-          {!hasRows && Array.isArray(v2.highlights) && v2.highlights.length > 0 && (
+          {show("highlights") && (
             <div className="mt-6">
               <span className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-slate-900">Highlights</span>
               <ul className="mt-2.5 space-y-2.5">
@@ -2246,7 +2251,7 @@ function SummaryContent({ item, cat, impact, hasFull, onReadFull, sourceNote, is
             </div>
           )}
 
-          {v2.tk && (
+          {show("tk") && (
             <div className="mt-6 rounded-2xl px-4 py-3.5" style={{ background: "rgba(37,99,235,0.06)", border: "1px solid rgba(37,99,235,0.16)" }}>
               <span className="flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-[0.14em]" style={{ color: EM_TEXT }}><Sparkles size={12} strokeWidth={2.4} /> The Takeaway</span>
               <p className="mt-1.5 text-[13.5px] font-semibold leading-relaxed text-slate-700">{v2.tk}</p>

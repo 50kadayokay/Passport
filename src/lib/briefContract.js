@@ -9,15 +9,24 @@
 // the canonical URL), checks for conflicting evidence, and makes uncertain cases visible for review
 // instead of silently guessing. Pure and import-safe (no React/DOM) so it is unit-testable on its own.
 
-// Press-release DISTRIBUTION WIRES: a story carried by one of these is a company-issued release.
+// Press-release DISTRIBUTION WIRES — EVIDENCE-BASED, from an inventory of 1,000 live news_public
+// rows (scripts/inventory-sources, 2026-10). Listed only when the data supports it:
+//   junior_mining_network — 784 rows, 100% have a canonical URL under /press-releases/ → PR wire.
+// Other well-known wires (Newsfile, GlobeNewswire, Business Wire, PR Newswire, ACCESSWIRE, Cision)
+// are NOT listed because none appear in the data yet — adding them unseen would be guessing. When
+// one does appear it is still caught by the /press-releases/ URL signal or an explicit is_press_release=true,
+// and otherwise routes to review (needsReview) rather than being silently classified.
 export const PR_WIRES = new Set([
-  "junior_mining_network", "newsfile", "globe_newswire", "globenewswire",
-  "business_wire", "businesswire", "accesswire", "pr_newswire", "prnewswire", "cision", "newswire",
+  "junior_mining_network",
 ]);
 
-// Third-party EDITORIAL outlets: journalism/analysis, not company announcements.
+// Third-party EDITORIAL outlets — EVIDENCE-BASED from the same inventory:
+//   mining_com     — 109 rows, 0% under /press-releases/, is_press_release predominantly false → editorial.
+//   northern_miner — 104 rows, 0% under /press-releases/, is_press_release predominantly false → editorial.
+// miningfeeds is intentionally NOT listed: only 3 rows, an aggregator, no decisive URL signal — too
+// little evidence, so it routes to review instead of being guessed either way.
 export const EDITORIAL_OUTLETS = new Set([
-  "mining_com", "northern_miner", "the_northern_miner", "miningfeeds", "mining_weekly", "kitco", "reuters", "bloomberg",
+  "mining_com", "northern_miner",
 ]);
 
 // A canonical URL that sits under a /press-release(s)/ path is a company release.
@@ -92,6 +101,28 @@ export function briefCompleteness(v2 = {}, isPressRelease = false) {
     if (!hasWY) missing.push("Why It Matters");
   }
   return { hasWH, hasWY, hasKR, hasTK, complete: missing.length === 0, missing };
+}
+
+/**
+ * The ORDERED list of sections the reader will render for a Brief, with their exact headings. This
+ * is the single source of truth the reader (SummaryContent) consumes to gate each section, so the
+ * tests that assert against briefSections() reflect what is actually rendered — section presence,
+ * labels, and order — across every entry point (press release vs editorial, complete vs incomplete).
+ * A section appears ONLY when its content exists; "What Does This Mean?" belongs to editorial only.
+ * @returns {{key:string,label:string}[]}
+ */
+export function briefSections(v2 = {}, opts = {}) {
+  const { isPressRelease = false, isEditorial = false, hasPlainEnglish = false } = opts;
+  const c = briefCompleteness(v2, isPressRelease);
+  const hasHighlights = !c.hasKR && Array.isArray(v2.highlights) && v2.highlights.length > 0;
+  const out = [];
+  if (c.hasWH) out.push({ key: "wh", label: "What Happened" });
+  if (c.hasWY) out.push({ key: "wy", label: "Why It Matters" });
+  if (isEditorial && hasPlainEnglish) out.push({ key: "wdtm", label: "What Does This Mean?" });
+  if (c.hasKR) out.push({ key: "kr", label: "Key Results" });
+  if (hasHighlights) out.push({ key: "highlights", label: "Highlights" });
+  if (c.hasTK) out.push({ key: "tk", label: "The Takeaway" });
+  return out;
 }
 
 // Review collector — makes uncertain classifications and incomplete required content VISIBLE instead
