@@ -30,6 +30,7 @@ function demoFocusStyle(on, restShadow) {
 import { fetchCompany, SUPABASE_URL, SUPABASE_ANON } from "../lib/supabase.js";
 import { API_BASE, isNativeApp } from "../lib/platform.js";
 import { historicalToV2 } from "./historicalBrief.js";   // Path A: map existing summaries → BriefV1 (no AI)
+import { classifyNewsItem, briefCompleteness, flagForReview } from "../lib/briefContract.js"; // canonical PR classification + completeness
 import QRCode from "qrcode";
 import jsQR from "jsqr"; // pure-JS QR decode — works on iOS WebKit (BarcodeDetector doesn't)
 import { buildCompanyIdentity } from "./proHighlights.js";
@@ -2154,7 +2155,7 @@ function KeyResults({ rows }) {
 
 /* Why This Matters + Key Takeaways. Window and button are present immediately;
    the text fades in once, in a single swipe. */
-function SummaryContent({ item, cat, impact, hasFull, onReadFull, sourceNote, isPressRelease }) {
+function SummaryContent({ item, cat, impact, hasFull, onReadFull, sourceNote, isPressRelease, isEditorial }) {
   const stage = STAGE_IMPACT_BY_CAT[cat] || ["—", "—"];
   // DEV-ONLY benchmark: render the Version-2 Brief for Kingsmen releases that carry `item.v2`,
   // with a compare toggle. Gated by window.__BRIEF_BENCH__; the normal reader is unchanged.
@@ -2178,29 +2179,47 @@ function SummaryContent({ item, cat, impact, hasFull, onReadFull, sourceNote, is
     // are distinguished by the label, NOT by size or colour. Supports 0–4 rows.
     const rows = kr;
     const hasRows = rows.length > 0;
+    // Content completeness against the press-release contract (What Happened + Why It Matters are
+    // REQUIRED). Empty sections are NEVER rendered as empty headings; instead a press release that is
+    // missing required content is flagged for review (globalThis.__BRIEF_REVIEW__ + a localhost-only
+    // notice) so an incomplete summary is never silently presented as complete.
+    const comp = briefCompleteness(v2, isPressRelease);
+    if (isPressRelease && !comp.complete && item && item.id) {
+      flagForReview(item.id, "incomplete-brief", `missing ${comp.missing.join(", ")}`);
+    }
+    const isLocalhost = typeof location !== "undefined" && /^(localhost|127\.0\.0\.1|\[::1\])$/i.test(location.hostname);
     return (
       <div className="mt-4">
         {benchToggle}
         <div className="pp-view">
-          {/* Balanced section hierarchy restored: What Happened and Why It Matters carry equal
-              weight (strong dark labels; Why It Matters differentiated only by a cobalt label),
-              Key Results is the centerpiece, Broader Context is quiet, The Takeaway concludes. */}
-          <div>
-            <span className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-slate-900">What Happened</span>
-            <p className="mt-1.5 text-[13.5px] font-medium leading-relaxed text-slate-600">{v2.wh}</p>
-          </div>
-          <div className="mt-5">
-            <span className="text-[10px] font-extrabold uppercase tracking-[0.16em]" style={{ color: EM_TEXT }}>Why It Matters</span>
-            <p className="mt-1.5 text-[13.5px] font-medium leading-relaxed text-slate-600">{v2.wy}</p>
-          </div>
+          {/* Review-only notice (localhost): a required section is missing from the source summary.
+              Never shown to investors in production — it makes incompleteness visible to the team. */}
+          {isLocalhost && isPressRelease && !comp.complete && (
+            <div className="mb-3 rounded-lg px-3 py-2 text-[11px] font-bold" style={{ background: "rgba(245,158,11,0.12)", color: "#b45309", border: "1px solid rgba(245,158,11,0.3)" }}>
+              ⚠ Flagged for review — missing {comp.missing.join(", ")} (not shown in production)
+            </div>
+          )}
+          {/* What Happened and Why It Matters carry equal weight; Key Results is the centerpiece; The
+              Takeaway concludes when the source supports one. Each section renders ONLY when its
+              content exists — an empty heading is never drawn. */}
+          {comp.hasWH && (
+            <div>
+              <span className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-slate-900">What Happened</span>
+              <p className="mt-1.5 text-[13.5px] font-medium leading-relaxed text-slate-600">{v2.wh}</p>
+            </div>
+          )}
+          {comp.hasWY && (
+            <div className={comp.hasWH ? "mt-5" : ""}>
+              <span className="text-[10px] font-extrabold uppercase tracking-[0.16em]" style={{ color: EM_TEXT }}>Why It Matters</span>
+              <p className="mt-1.5 text-[13.5px] font-medium leading-relaxed text-slate-600">{v2.wy}</p>
+            </div>
+          )}
 
           {/* "What does this mean?" — a jargon explainer that belongs ONLY to editorial NEWS, never
               a press release. A press release follows the definitive Kingsmen V2 structure exactly
-              (What Happened → Why It Matters → Key Results → The Takeaway), so this section is
-              suppressed for every press release (incl. aggregated company announcements that show
-              "Read Full Press Release"), regardless of which surface it opens from. Pure third-party
-              editorial news keeps it (source-derived, never fabricated). */}
-          {!isPressRelease && item && item.plainEnglish && String(item.plainEnglish).trim() && (
+              (What Happened → Why It Matters → Key Results → The Takeaway), regardless of which
+              surface it opens from. Pure third-party editorial news keeps it (source-derived). */}
+          {isEditorial && item && item.plainEnglish && String(item.plainEnglish).trim() && (
             <div className="mt-5">
               <span className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-slate-900">What Does This Mean?</span>
               <p className="mt-1.5 text-[13.5px] font-medium leading-relaxed text-slate-600">{item.plainEnglish}</p>
@@ -6884,14 +6903,18 @@ function StoryReader({ it, onOpen, onClose }) {
   const media = isMedia(it.contentType);
   const isBrief = it.contentType === "MINEEX BRIEF";
   // A press-release-type source links to the full release; editorial coverage links to the article.
-  const isRelease = /press|wire|release|company|ir\b|regulat/i.test(it.publisherType || "") || it.contentType === "PRESS RELEASE" || it.contentType === "UPDATE" || !!it.isPressRelease;
+  // Authoritative press-release vs editorial determination. For news-feed items `it.isPressRelease`
+  // is already the canonical classification (classifyNewsItem, set in normalization); company posts
+  // and timeline items are press releases by type. The old publisher_type regex is dead (every row's
+  // publisher_type is "editorial"), so it is no longer consulted.
+  const isRelease = !!it.isPressRelease || it.contentType === "PRESS RELEASE" || it.contentType === "UPDATE";
   const origLabel = media ? "Watch on MineEx" : it.contentType === "NEWS" ? (isRelease ? "Read Full Press Release" : "Read Original Article") : "Read Full Press Release";
   const dateStr = (() => { const d = it.publishedAt ? new Date(it.publishedAt) : null; return d && !isNaN(d) ? d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }) : (it.when || ""); })();
   // Every non-media summary — editorial news AND press releases — renders in the ONE shared V2
   // presentation (SummaryContent). The only news/press-release difference is the footer action
   // (origLabel) and a source line shown for editorial news. Editorial news = a NEWS item that is
   // NOT flagged as a press release.
-  const isEditorialNews = it.contentType === "NEWS" && !it.isPressRelease;
+  const isEditorialNews = it.contentType === "NEWS" && !isRelease;
   const prImpact = (it.key || (it.materiality || 0) >= 75) ? "High" : ((it.materiality || 0) >= 55 ? "Medium" : "Low");
   return createPortal(
     <div className="absolute inset-0 z-[110] flex flex-col justify-end pp-fade" onClick={onClose}>
@@ -6937,7 +6960,7 @@ function StoryReader({ it, onOpen, onClose }) {
              by the footer action label (origLabel) and the source line below (editorial news only).
              Media keeps its player above and shows no summary body. */}
           {!media && (
-            <SummaryContent item={it} cat={(it.v2 && it.v2.cat) || it.category || ""} impact={prImpact} hasFull={false} onReadFull={() => {}} sourceNote={isEditorialNews ? `Source: ${it.source || "Industry"}${dateStr ? ` · ${dateStr}` : ""}` : ""} isPressRelease={isRelease} />
+            <SummaryContent item={it} cat={(it.v2 && it.v2.cat) || it.category || ""} impact={prImpact} hasFull={false} onReadFull={() => {}} sourceNote={isEditorialNews ? `Source: ${it.source || "Industry"}${dateStr ? ` · ${dateStr}` : ""}` : ""} isPressRelease={isRelease} isEditorial={isEditorialNews} />
           )}
         </div>
         {(() => {
@@ -7408,9 +7431,14 @@ export function TodayScreen({ onOpenCompany, onScan }) {
   useEffect(() => { refreshNews(); }, [refreshNews]);
   const feedReady = mockOn || newsLoaded;
   const NEWS_SCENE = { "Drill Results": "core", Assays: "core", "Resource Update": "geomap", Exploration: "geomap", Acquisition: "geomap", Financing: "processing", Permitting: "landscape", Partnership: "landscape", Production: "landscape", Corporate: "landscape", "Macro/Market": "market" };
-  const liveObjects = useMemo(() => liveNews.map((n) => ({
+  const liveObjects = useMemo(() => liveNews.map((n) => {
+   // CANONICAL classification (authoritative source metadata, not the unreliable is_press_release
+   // flag). Uncertain/conflicting cases are surfaced via flagForReview, never silently guessed.
+   const cls = classifyNewsItem(n);
+   if (cls.needsReview) flagForReview(`news-${n.id}`, "classification-uncertain", cls.reasons.join("; "));
+   return ({
     id: `news-${n.id}`, contentType: "NEWS", badge: "NEWS", eventType: n.event_type || "",
-    isPressRelease: !!n.is_press_release, category: n.category || "",
+    isPressRelease: cls.isPressRelease, prClassification: cls.classification, prNeedsReview: cls.needsReview, category: n.category || "",
     companyId: n.company_slug || "", companyName: n.source_name || "Industry", ticker: "",
     commodity: (n.commodities || []).join(" · "), jurisdiction: (n.jurisdictions || []).slice(0, 2).join(", "),
     publishedAt: n.published_at, source: n.source_name || "Industry", headline: n.title, t: n.title,
@@ -7424,7 +7452,8 @@ export function TodayScreen({ onOpenCompany, onScan }) {
     materiality: n.materiality_score || 50, companyTier: "free", isFeatured: false,
     src: "Industry", Icon: Newspaper, co: n.source_name || "Industry", when: relTime(n.published_at),
     live: !!n.company_slug, slug: n.company_slug || "", logo: "", key: false,
-  })), [liveNews]);
+   });
+  }), [liveNews]);
 
   // Company posts → the SAME normalized feed-object shape as news, so they flow through the
   // exact same ranking/interleave. Press releases become editorial-feed items (UPDATE); media
