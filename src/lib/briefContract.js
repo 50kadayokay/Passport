@@ -117,11 +117,11 @@ export function briefSections(v2 = {}, opts = {}) {
   const hasHighlights = !c.hasKR && Array.isArray(v2.highlights) && v2.highlights.length > 0;
   const out = [];
   if (c.hasWH) out.push({ key: "wh", label: "What Happened" });
-  if (c.hasWY) out.push({ key: "wy", label: "Why It Matters" });
+  if (c.hasWY) out.push({ key: "wy", label: "Context" });
   if (isEditorial && hasPlainEnglish) out.push({ key: "wdtm", label: "What Does This Mean?" });
   if (c.hasKR) out.push({ key: "kr", label: "Key Results" });
   if (hasHighlights) out.push({ key: "highlights", label: "Highlights" });
-  if (c.hasTK) out.push({ key: "tk", label: "The Takeaway" });
+  if (c.hasTK) out.push({ key: "tk", label: "What's Next" });
   return out;
 }
 

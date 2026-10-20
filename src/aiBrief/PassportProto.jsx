@@ -2220,12 +2220,13 @@ function SummaryContent({ item, cat, impact, hasFull, onReadFull, sourceNote, is
           {show("wh") && (
             <div>
               <span className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-slate-900">What Happened</span>
+              <span className="ml-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">· MineEx summary</span>
               <p className="mt-1.5 text-[13.5px] font-medium leading-relaxed text-slate-600">{v2.wh}</p>
             </div>
           )}
           {show("wy") && (
             <div className={show("wh") ? "mt-5" : ""}>
-              <span className="text-[10px] font-extrabold uppercase tracking-[0.16em]" style={{ color: EM_TEXT }}>Why It Matters</span>
+              <span className="text-[10px] font-extrabold uppercase tracking-[0.16em]" style={{ color: EM_TEXT }}>Context</span>
               <p className="mt-1.5 text-[13.5px] font-medium leading-relaxed text-slate-600">{v2.wy}</p>
             </div>
           )}
@@ -2263,7 +2264,7 @@ function SummaryContent({ item, cat, impact, hasFull, onReadFull, sourceNote, is
 
           {show("tk") && (
             <div className="mt-6 rounded-2xl px-4 py-3.5" style={{ background: "rgba(37,99,235,0.06)", border: "1px solid rgba(37,99,235,0.16)" }}>
-              <span className="flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-[0.14em]" style={{ color: EM_TEXT }}><Sparkles size={12} strokeWidth={2.4} /> The Takeaway</span>
+              <span className="flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-[0.14em]" style={{ color: EM_TEXT }}><Sparkles size={12} strokeWidth={2.4} /> What's Next</span>
               <p className="mt-1.5 text-[13.5px] font-semibold leading-relaxed text-slate-700">{v2.tk}</p>
             </div>
           )}

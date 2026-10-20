@@ -116,7 +116,7 @@ ok(classifyNewsItem({ source_key: "newsfile", is_press_release: true, canonical_
 console.log("\n=== 7. Rendered sections (briefSections) — presence, labels, order, consistency ===");
 const prComplete = { wh: "x", wy: "y", kr: [{ v: "1", u: "m", desc: "d" }], tk: "next" };
 eq(briefSections(prComplete, { isPressRelease: true }).map((s) => s.key), ["wh", "wy", "kr", "tk"], "complete PR → WH, WY, KR, Takeaway");
-eq(briefSections(prComplete, { isPressRelease: true }).map((s) => s.label), ["What Happened", "Why It Matters", "Key Results", "The Takeaway"], "labels correct + in order");
+eq(briefSections(prComplete, { isPressRelease: true }).map((s) => s.label), ["What Happened", "Context", "Key Results", "What's Next"], "labels correct + in order");
 const prNoWy = { wh: "x", wy: "", kr: [{ v: "1" }], plainEnglish: "glossary" };
 eq(briefSections(prNoWy, { isPressRelease: true, hasPlainEnglish: true }).map((s) => s.key), ["wh", "kr"], "incomplete PR → no empty WY, no WDTM");
 ok(!briefSections(prNoWy, { isPressRelease: true, hasPlainEnglish: true }).some((s) => s.key === "wdtm"), "a press release NEVER shows What Does This Mean?");
