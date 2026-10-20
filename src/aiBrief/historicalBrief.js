@@ -56,12 +56,16 @@ function splitKeyNumbers(keyNumbers) {
         // and hides the label), and fold any remaining value text together with the label into the
         // descriptor. A value with no leading number (already a clean label-less row, or a pre-made
         // {v,u,desc}) is kept verbatim; the unit falls back to an explicit k.u.
+        // A material qualifier (study stage, resource category, price/discount, true-width caveat,
+        // announced-vs-closed…) emitted by the v6 pipeline is shown as the row's secondary line so it
+        // is never dropped. Older rows carry no `qualifier`, so `sec` is unchanged for them.
+        const qual = String(k.qualifier || "").trim();
         const parsed = parseKeyNumber(String(v));
         if (parsed) {
           const desc = [parsed.desc, label].filter(Boolean).join(" · ");
-          rows.push({ v: parsed.v, u: parsed.u || String(k.u || "").trim(), desc, rel: k.rel || "", sec: k.sec || parsed.sec || "" });
+          rows.push({ v: parsed.v, u: parsed.u || String(k.u || "").trim(), desc, rel: k.rel || "", sec: qual || k.sec || parsed.sec || "" });
         } else {
-          rows.push({ v: String(v), u: k.u || "", desc: label, rel: k.rel || "", sec: k.sec || "" });
+          rows.push({ v: String(v), u: k.u || "", desc: label, rel: k.rel || "", sec: qual || k.sec || "" });
         }
       } else if (label) highlights.push(label);
     } else if (k != null && String(k).trim()) {

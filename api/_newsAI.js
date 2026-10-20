@@ -18,7 +18,13 @@ const AI_MODEL = () => process.env.AI_MODEL || "gpt-4o-mini";
 // v4 = adds strict `category` (app-card taxonomy) + primary `commodity` for rich cards.
 // v5 = adds `is_press_release` (company disclosure vs editorial) so the app can split
 //      the News tab (editorial) from the Companies tab (press releases).
-export const PROCESSING_VERSION = "v5-2026-08-27";
+// v6 = FULL-SOURCE retrieval (fetchFullReleaseText: when the primary wire is Cloudflare-walled,
+//      the SAME release is read from a verified mirror so summaries are built from the FULL body,
+//      not a thin RSS headline) + MATERIAL-QUALIFIER binding (study stage, resource category,
+//      price/discount assumptions, true width vs drilled length, announced vs closed, etc. are kept
+//      WITH their figures) + an unverified item (no full body anywhere) is HELD for review, never
+//      auto-published. Existing rows are NOT auto-reprocessed; a reprocess run is an explicit choice.
+export const PROCESSING_VERSION = "v6-2026-10-20";
 
 // ---- transient full-text fetch (read to summarize/fact-check, then discarded) ----
 export async function fetchArticleText(url) {
@@ -42,6 +48,63 @@ export async function fetchArticleText(url) {
       .replace(/\s+/g, " ").trim();
     return text.slice(0, 6000);
   } catch { return ""; }
+}
+
+// Verified full-text MIRRORS reachable server-side (checked 2026-10-20 — these return 200 to a
+// normal UA; Cloudflare-walled sites like juniorminingnetwork.com, stockhouse, goldseiten do not).
+// When the primary source can't be read, the SAME company release is retrieved from one of these so
+// the summary is built from the FULL announcement, not a thin RSS headline. Order = preference.
+export const RELEASE_MIRRORS = ["prnewswire.com", "newswire.ca", "stocktitan.net", "globenewswire.com", "accesswire.com", "businesswire.com", "sec.gov"];
+
+// Is fetched text a real article body, not a bot-wall ("Just a moment…", JS-required) or an empty stub?
+function usableBody(t) {
+  const s = String(t || "");
+  if (s.length < 600) return false;
+  if (/just a moment|security verification|enable javascript|verify you are (a )?human|attention required|access denied|request unsuccessful/i.test(s.slice(0, 2500))) return false;
+  return true;
+}
+
+// Find the SAME release on an accessible mirror. Uses the OpenAI Responses web_search tool (the same
+// mechanism enrichCompany already uses). Returns a direct article URL on a mirror domain, or "".
+export async function findMirrorUrl(title, company) {
+  if (!process.env.OPENAI_API_KEY || !title) return "";
+  const prompt = `Find the ORIGINAL full press release titled "${title}"${company ? ` issued by ${company}` : ""} on one of these wire/news sites ONLY: ${RELEASE_MIRRORS.join(", ")}. Reply with ONLY a JSON object {"url":"<direct URL to the article on one of those domains, or empty string if you cannot find it there>"}. It must be the article page itself — never a search, tag, or index page.`;
+  try {
+    const res = await fetch("https://api.openai.com/v1/responses", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}`, "content-type": "application/json" },
+      body: JSON.stringify({ model: AI_MODEL(), tools: [{ type: "web_search_preview" }], input: prompt }),
+    });
+    if (!res.ok) return "";
+    const j = await res.json();
+    let txt = "";
+    for (const o of j.output || []) if (o.type === "message") for (const c of o.content || []) if (c.type === "output_text") txt += c.text || "";
+    const m = txt.match(/\{[\s\S]*\}/);
+    if (!m) return "";
+    let url = ""; try { url = String(JSON.parse(m[0]).url || "").trim(); } catch { return ""; }
+    if (!/^https?:\/\//i.test(url)) return "";
+    const host = (() => { try { return new URL(url).host.replace(/^www\./, ""); } catch { return ""; } })();
+    return RELEASE_MIRRORS.some((d) => host === d || host.endsWith("." + d)) ? url : "";
+  } catch { return ""; }
+}
+
+// Retrieve the FULL release text, falling back to a verified mirror when the primary is blocked/thin.
+// Returns { text, sourceUrl, verified, via }. verified=false means NO full body could be obtained
+// anywhere — the caller MUST hold the item for review rather than publish a brief built from a thin
+// headline-only source (which is how material figures/qualifiers get lost).
+export async function fetchFullReleaseText(item = {}, deps = {}) {
+  const _fetchText = deps.fetchArticleText || fetchArticleText;
+  const _findMirror = deps.findMirrorUrl || findMirrorUrl;
+  const primary = item.canonical_url || item.url || "";
+  const ptext = primary ? await _fetchText(primary) : "";
+  if (usableBody(ptext)) return { text: ptext.slice(0, 6000), sourceUrl: primary, verified: true, via: "primary" };
+  const company = (item.primary_company && item.primary_company.name) || item.company || "";
+  const mirror = await _findMirror(item.title, company);
+  if (mirror) {
+    const mtext = await _fetchText(mirror);
+    if (usableBody(mtext)) return { text: mtext.slice(0, 6000), sourceUrl: mirror, verified: true, via: "mirror" };
+  }
+  return { text: ptext || "", sourceUrl: primary, verified: false, via: "none" };
 }
 
 // ---- the analysis tool ----
@@ -69,7 +132,7 @@ const ANALYSIS_TOOL = {
       mineex_summary: { type: "string", description: "2-3 concise sentences stating WHAT WAS ANNOUNCED — the core event and its single most important qualifier. Do NOT try to preserve every figure; detailed numbers belong in key_numbers and program/project detail belongs in context. No speculation, advice, or characterisation." },
       plain_english_explanation: { type: "string", description: "\"What does this mean?\" — concise, educational. Explain ONLY the technical terms/concepts that actually appear in THIS item (e.g. g/t, AgEq, intercept, inferred resource, step-out drilling, CRD, PEA, recovery rate). Ideally 2-4 short bullet lines (one term each) when several terms appear — prefix each with '• ' and separate with newlines; a single sentence is fine if only one term needs explaining. Do NOT imply grades = economic, or that exploration results establish a resource/mine." },
       context: { type: "string", description: "Where this fits in the company's program and what happens next — e.g. 'X of Y holes; remaining results pending', 'funds the next program', 'extends a tested area by X m'. Use ONLY facts stated in the source; if the source gives no such context, return an empty string. Never invent." },
-      key_numbers: { type: "array", items: { type: "object", properties: { label: { type: "string", description: "short tag, e.g. a hole id or 'Program'" }, value: { type: "string", description: "the exact figure as stated, e.g. '1.7 g/t Au over 67 m'" } } }, description: "The most material figures as SEPARATE compact entries (one figure each). Exact — never rounded/converted. Empty array if the item has no meaningful numbers." },
+      key_numbers: { type: "array", items: { type: "object", properties: { label: { type: "string", description: "short tag, e.g. a hole id or 'Program'" }, value: { type: "string", description: "the exact figure as stated, e.g. '1.7 g/t Au over 67 m'" }, qualifier: { type: "string", description: "the material qualification that changes how the figure must be read, when the source gives one — e.g. 'PEA, US$3,000/oz Au, 5% discount' for an NPV; 'Indicated' / 'Inferred' for a resource; 'drilled length, true width unknown' for an intercept; 'announced, not yet closed'; 'option to acquire, not owned'. Empty string if the figure needs no qualification. NEVER invent one." } }, required: ["label", "value"] }, description: "The most material figures as SEPARATE compact entries (one figure each), EXACT — never rounded/converted. Each figure carries its meaning-changing qualifier in `qualifier` when the source states one. Empty array if the item has no meaningful numbers." },
       fact_check: {
         type: "object",
         properties: {
@@ -113,6 +176,16 @@ HARD RULES — the sections must NEVER:
 - invent geological, financial or corporate significance, or omit qualifications that materially change the meaning.
 
 NUMBERS: grades, widths, units, %, resources, financing amounts, dates must be quoted EXACTLY from the source — never rounded or converted, qualifiers kept (inferred, up to, including, over, approximately).
+
+MATERIAL QUALIFICATIONS (keep whenever the source states them — a technically-correct number WITHOUT its qualification can mislead, so preserve it in the relevant section and in key_numbers[].qualifier):
+- study stage — PEA / preliminary vs pre-feasibility (PFS) vs feasibility (FS) — MUST accompany any economic result (NPV, IRR, AISC, capex, payback);
+- commodity-price and discount-rate assumptions MUST accompany any NPV/IRR (e.g. "at US$3,000/oz Au, 5% discount");
+- mineral RESOURCE vs RESERVE, and the resource category (inferred / indicated / measured) MUST accompany any tonnage-grade figure; exploration results do NOT establish a resource;
+- drill intercepts are DRILLED/CORE length unless the source gives true width — say which; never present a downhole interval as a true width;
+- HISTORICAL vs CURRENT/new results must be labelled as the source does;
+- financing ANNOUNCED vs CLOSED/completed must be preserved (don't say "closed" for an announced raise);
+- OWNERSHIP vs an OPTION / earn-in / letter of intent to acquire must be preserved (don't say "acquired" for an option).
+These are examples; keep any qualification that materially changes interpretation. Never add one the source does not support.
 OMIT don't infer: if a fact or whole section is not supported by the source, leave it out (empty) rather than guess.
 PAID STATUS: a company's paid tier must NEVER affect wording, interpretation, materiality, or any section. Distribution/visibility only.
 
