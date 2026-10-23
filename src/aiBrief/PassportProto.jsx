@@ -3599,6 +3599,9 @@ function CapitalView() {
   const [listing, setListing] = useState(null);
   const [metricKey, setMetricKey] = useState(null);
   const [eduKey, setEduKey] = useState(null);
+  const [runwayTarget, setRunwayTarget] = useState(0);
+  const runwayW = useTween(runwayTarget, 1100);
+  useEffect(() => { const t = setTimeout(() => setRunwayTarget(CAPSTATUS.runwayPct), 200); return () => clearTimeout(t); }, []);
 
   const raises = Array.isArray(RAISES) ? RAISES : [];
   const hasRaise = raises.length > 0;
@@ -3696,7 +3699,7 @@ function CapitalView() {
 
       {/* ===== CAPITAL STATUS CARD (the only shadowed element on the page) ===== */}
       <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white" style={{ boxShadow: cardShadow }}>
-        <div className="px-5 pb-9 pt-6">
+        <div className="px-5 pb-5 pt-5">
           <div className="flex items-center justify-between">
             <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1" style={{ border: `1px solid ${capTone.ring}`, background: "transparent" }}>
               <span className="relative flex h-1.5 w-1.5">
@@ -3711,6 +3714,19 @@ function CapitalView() {
           </div>
           <h2 className="font-extrabold tracking-tight text-slate-900" style={{ marginTop: 13, fontSize: 25, lineHeight: 1.06 }}>{CAPSTATUS.headline}</h2>
           <p className="font-medium text-slate-500" style={{ marginTop: 9, fontSize: 12.5, lineHeight: 1.4 }}>{CAPSTATUS.summary}</p>
+          <div style={{ marginTop: 22 }}>
+            <p className="px-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">Funding Runway</p>
+            <div className="relative mt-3 flex h-5 items-center px-1">
+              <div className="relative h-2 w-full rounded-full bg-slate-200">
+                <div className="absolute inset-y-0 left-0 rounded-full" style={{ width: `${runwayW}%`, background: "linear-gradient(90deg, #2563eb, #60a5fa)" }} />
+                <div className="absolute z-10 h-4 w-4 rounded-full" style={{ left: `${runwayW}%`, top: "50%", transform: "translate(-50%, -50%)", background: "#1d4ed8", boxShadow: "0 0 0 2.5px #fff, 0 0 0 4.5px rgba(37,99,235,0.35), 0 2px 6px -1px rgba(0,0,0,0.25)" }} />
+              </div>
+            </div>
+            <div className="mt-1.5 flex justify-between px-1">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{CAPSTATUS.runwayLeft}</span>
+              <span className="text-[10px] font-extrabold uppercase tracking-wider" style={{ color: "#2563eb" }}>{CAPSTATUS.runwayRight}</span>
+            </div>
+          </div>
         </div>
       </div>
 
