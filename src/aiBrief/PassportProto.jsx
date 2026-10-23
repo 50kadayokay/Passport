@@ -6536,11 +6536,11 @@ function FeedSkeleton() {
 }
 
 // Minimal underline tabs (native iOS content-app feel — no bulky pills/segments).
-const FEED_TABS = [["foryou", "For You"], ["following", "Following"], ["news", "News"], ["updates", "Press Releases"], ["media", "Media"]];
+const FEED_TABS = [["foryou", "For You"], ["following", "Following"], ["news", "News"], ["updates", "Releases"], ["media", "Media"]];
 function FeedTabs({ active, onChange }) {
   return (
     <div className="-mx-5 border-b border-slate-100 px-5">
-      <div className="flex gap-6 overflow-x-auto pp-scroll" style={{ scrollbarWidth: "none" }}>
+      <div className="flex gap-[18px] overflow-x-auto pp-scroll" style={{ scrollbarWidth: "none" }}>
         {FEED_TABS.map(([id, label]) => {
           const on = active === id;
           return (
