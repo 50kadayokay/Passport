@@ -158,7 +158,8 @@
           "desc": "exercise price per warrant",
           "sec": ""
         }
-      ]
+      ],
+      "pe": "• A bought deal is a type of financing where an underwriter agrees to purchase a specified number of shares at a set price, ensuring the company raises the intended capital.\n• A private placement is a method of raising capital by selling securities directly to a small number of investors, rather than through a public offering.\n• Upsizing refers to increasing the amount of capital being raised, in this case from a previously announced amount to C$11 million.\n• This financing may dilute existing shareholders' ownership percentage if new shares are issued."
     },
     "2026-01-26": {
       "cat": "Financing",
@@ -191,7 +192,8 @@
           "sec": ""
         }
       ],
-      "tk": "The Offering is anticipated to close on or about February 11, 2026."
+      "tk": "The Offering is anticipated to close on or about February 11, 2026.",
+      "pe": "• A bought deal is a type of financing where an underwriter agrees to purchase a specified number of shares at a set price before the offering is made to the public.\n• A private placement is a method of raising capital by selling securities directly to a small number of investors, rather than through a public offering.\n• Gross proceeds refer to the total amount raised before any expenses or fees are deducted.\n• This financing may dilute existing shareholders' ownership percentage in the company."
     },
     "2026-01-19": {
       "cat": "Drilling",
@@ -224,7 +226,8 @@
           "desc": "over 1.45 meters, hole LC-25-010",
           "sec": "from 190.25-191.70m including 1,742 g/t Ag Eq over 0.70 meters (770 g/t Ag) from 190.85-191.55m"
         }
-      ]
+      ],
+      "pe": "• g/t: Grams per tonne, a measure of the concentration of a metal in a mineral sample.\n• Ag Eq: Silver equivalent, a way to express the value of silver in relation to other metals, allowing for comparison of different mineral resources.\n• intercept: The portion of a drill hole that intersects a mineralized zone, indicating the presence of minerals.\n• true width: The actual width of a mineralized zone, which may differ from the drilled width due to the angle of the drill hole."
     },
     "2026-01-13": {
       "cat": "Drilling",
@@ -257,7 +260,8 @@
           "sec": ""
         }
       ],
-      "tk": "Further drilling is planned in 2026 to fully test the various targets identified in the DBD zone."
+      "tk": "Further drilling is planned in 2026 to fully test the various targets identified in the DBD zone.",
+      "pe": "• g/t: Grams per tonne, a measure of the concentration of a mineral in a rock sample.\n• Ag/Eq: Silver equivalent, a calculation that expresses the value of silver in terms of other metals, allowing for comparison of different mineral grades.\n• intercept: The section of rock that has been drilled and contains mineralization.\n• true width: The actual width of the mineralized zone, which may differ from the drilled length due to the angle of the drill hole."
     },
     "2026-01-08": {
       "cat": "Drilling",
@@ -290,7 +294,8 @@
           "desc": "1.45 m interval, hole LC-25-008",
           "sec": "previously reported, Sep 24 2025"
         }
-      ]
+      ],
+      "pe": "• g/t: Grams per tonne, a measure of the concentration of a metal in a mineralized sample.\n• AgEq: Silver equivalent, a calculation that expresses the value of silver in terms of other metals based on their relative prices and recoveries.\n• intercept: The portion of a drill hole that intersects mineralization, indicating the presence of a mineralized zone.\n• true width: The actual width of a mineralized zone, which may differ from the drilled width due to the angle of the drill hole.\n• step-out drilling: Drilling that extends beyond previously drilled areas to test for additional mineralization."
     },
     "2025-12-15": {
       "cat": "Discovery",
@@ -316,14 +321,16 @@
           "desc": "total samples collected from Juliettas prospect",
           "sec": ""
         }
-      ]
+      ],
+      "pe": "• g/t: Grams per tonne, a measure of the concentration of gold in a sample. \n• high grade: Refers to a higher concentration of gold, which may indicate potential economic viability, but does not guarantee it. \n• samples: Material collected from a site for analysis, which does not establish a resource or reserve on its own."
     },
     "2025-12-12": {
       "cat": "Corporate",
       "head": "Kingsmen Resources Engages Resource Stock Digest for US$125,000 Marketing Program",
       "wh": "Kingsmen Resources Ltd. has entered into a service agreement with Resource Stock Digest for promotional services.",
       "wy": "This engagement aims to enhance the company's visibility and investor relations, potentially attracting more interest in its projects.",
-      "kr": []
+      "kr": [],
+      "pe": "• Marketing Program: A planned strategy to promote a company's projects or shares to potential investors.\n• Resource Stock Digest: A publication or platform that focuses on news and information about resource companies, particularly in the mining sector.\n• US$125,000: The amount of money allocated for the marketing program, which may impact the company's financial resources."
     },
     "2025-12-05": {
       "cat": "Drilling",
@@ -349,7 +356,8 @@
           "desc": "initial drill program",
           "sec": "to test various targets including Saddle"
         }
-      ]
+      ],
+      "pe": "• Drilling: The process of boring into the ground to explore for minerals or to obtain samples from underground.\n• Silver-Gold Project: A mining project focused on extracting silver and gold, two valuable metals often found together in nature.\n• Resource: A concentration of minerals in the ground that has potential economic value, but may not yet be fully evaluated or developed."
     },
     "2025-12-03": {
       "cat": "Drilling",
@@ -369,7 +377,8 @@
           "desc": "over 10.50 meters (97.4 g/t silver) from 154.5-165.0m",
           "sec": ""
         }
-      ]
+      ],
+      "pe": "• g/t: Grams per tonne, a measure of the concentration of a metal in a mineral sample.\n• Silver Equivalent (AgEq): A calculation that expresses the value of silver in terms of other metals, allowing for comparison of different metal grades.\n• True width: The actual width of a mineralized zone, which may differ from the drilled width due to the angle of the drill hole.\n• Intercept: The section of a drill hole that contains mineralization."
     },
     "2025-11-24": {
       "cat": "Financing",
@@ -401,7 +410,8 @@
           "desc": "exercise price of each whole Warrant",
           "sec": "for a period of two years from closing"
         }
-      ]
+      ],
+      "pe": "• A private placement is a way for a company to raise capital by selling shares directly to a small group of investors rather than through a public offering.\n• Non-brokered means that the company did not use a broker to facilitate the sale of these shares, which can reduce costs.\n• Raising capital through a private placement can dilute existing shareholders' ownership percentage in the company."
     },
     "2025-11-13": {
       "cat": "Financing",
@@ -433,7 +443,8 @@
           "desc": "exercise price of warrants",
           "sec": "for a period of two years from closing"
         }
-      ]
+      ],
+      "pe": "• Private placement: A method of raising capital where a company sells securities directly to a small number of investors rather than through a public offering.\n• Dilution: The reduction in existing shareholders' ownership percentage due to the issuance of additional shares.\n• Financing: The process of providing funds for business activities, which can involve various methods such as equity or debt."
     },
     "2025-11-04": {
       "cat": "Financing",
@@ -453,7 +464,8 @@
           "desc": "total units to be issued in the private placement",
           "sec": ""
         }
-      ]
+      ],
+      "pe": "• A private placement is a way for a company to raise capital by selling shares directly to a small group of investors rather than through a public offering.\n• This financing can dilute existing shareholders' ownership if new shares are issued."
     },
     "2025-10-24": {
       "cat": "Corporate",
@@ -486,7 +498,8 @@
           "sec": ""
         }
       ],
-      "tk": "The option remains subject to TSX Venture Exchange approval."
+      "tk": "The option remains subject to TSX Venture Exchange approval.",
+      "pe": "• Option: A contractual agreement that gives a company the right, but not the obligation, to acquire an asset at a predetermined price within a specified timeframe.\n• Mineral claims: Legal rights to explore and extract minerals from a specific area of land.\n• Contiguous land package: A collection of mineral claims that are connected and not separated by other claims.\n• Hydrothermal system: A geological environment where hot water and minerals circulate, often leading to the formation of mineral deposits."
     },
     "2025-09-24": {
       "cat": "Drill Results",
@@ -521,14 +534,16 @@
           "sec": "Per company"
         }
       ],
-      "tk": "Eleven more holes from the same program are still awaiting assays."
+      "tk": "Eleven more holes from the same program are still awaiting assays.",
+      "pe": "• g/t: Grams per tonne, a measure of the concentration of a metal in a mineral sample. \n• Silver equivalent (AgEq): A calculation that expresses the value of different metals (like silver, gold, lead, and zinc) in terms of silver, allowing for comparison of their economic value. \n• Intercept: The section of rock that is drilled and contains mineralization. \n• True width: The actual width of a mineralized zone, which may differ from the drilled interval due to the angle of the drill hole. \n• Pathfinder elements: Elements that indicate the presence of valuable minerals, often used to guide exploration efforts. \n• Assays: Tests performed on rock samples to determine the concentration of metals. \n\nNote that high grades do not automatically imply economic viability or establish a mineral resource."
     },
     "2025-09-10": {
       "cat": "Corporate",
       "head": "Kingsmen Resources Elects New Directors and Approves Equity Incentive Plan",
       "wh": "At the Annual and Special Meeting of Shareholders held on September 10, 2025, Kingsmen Resources elected six directors and approved a new 10% rolling omnibus equity incentive plan, pending TSX Venture Exchange acceptance.",
       "wy": "The approval of the Equity Incentive Plan allows Kingsmen to attract and retain talent through various stock-based compensation options, potentially enhancing shareholder value and aligning management interests with those of shareholders.",
-      "kr": []
+      "kr": [],
+      "pe": "• Equity Incentive Plan: A program that allows a company to grant stock options or shares to employees and directors as a way to motivate and retain them.\n• Directors: Individuals elected to oversee the management and operations of a company, responsible for making key decisions."
     },
     "2025-08-26": {
       "cat": "Drilling",
@@ -548,7 +563,8 @@
           "desc": "total drill holes completed",
           "sec": ""
         }
-      ]
+      ],
+      "pe": "• Drilling refers to the process of creating holes in the ground to explore for minerals or resources.\n• Meters is a unit of measurement used to quantify the depth or length of the drilling conducted.\n• The term 'Las Coloradas' refers to the specific location where the drilling has taken place."
     },
     "2025-07-09": {
       "cat": "Acquisition",
@@ -562,14 +578,16 @@
           "desc": "total cash consideration for the Option over 8 years",
           "sec": "staged payments from the effective date of definitive agreements"
         }
-      ]
+      ],
+      "pe": "• LOI (Letter of Intent): A preliminary agreement outlining the terms of a potential deal before finalizing a contract.\n• Option to Acquire: A right that allows a company to purchase an asset at a later date, usually under specific conditions.\n• Project: In mining, this refers to a specific area or site where exploration or extraction of minerals is planned or ongoing."
     },
     "2025-05-22": {
       "cat": "Drilling",
       "head": "Kingsmen Reports Drilling to Commence at Las Coloradas Project",
       "wh": "Kingsmen Resources Ltd. has signed a diamond drill contract and is mobilizing a drill rig to commence drilling at its 100% owned Las Coloradas silver project in Chihuahua, Mexico.",
       "wy": "This drilling program marks a significant step for Kingsmen as it aims to explore a largely untested area known for high-grade silver, potentially leading to new discoveries and enhancing shareholder value.",
-      "kr": []
+      "kr": [],
+      "pe": "• Drilling: The process of boring into the ground to explore for minerals or to gather geological information.\n• Project: A specific area where exploration or mining activities are planned or conducted.\n• Commence: To begin or start an activity."
     },
     "2025-05-21": {
       "cat": "Financing",
@@ -601,7 +619,8 @@
           "desc": "exercise price of each whole Warrant",
           "sec": "for a period of two years from closing"
         }
-      ]
+      ],
+      "pe": "• A private placement is a way for a company to raise capital by selling securities directly to a small number of investors rather than through a public offering.\n• Non-brokered means that the company is not using a broker to facilitate the sale of these securities, which can reduce costs.\n• This financing may dilute existing shareholders' ownership percentage in the company."
     },
     "2025-05-05": {
       "cat": "Drilling",
@@ -609,14 +628,16 @@
       "wh": "Kingsmen Resources Ltd. has commenced construction of drill pads for its upcoming diamond drilling program at the Las Coloradas silver project in Chihuahua, Mexico.",
       "wy": "This marks a significant advancement for Kingsmen as it prepares to initiate drilling, which could lead to new discoveries and enhance the project's value.",
       "kr": [],
-      "tk": "Drilling is expected to commence and continue through May, June, and July 2025."
+      "tk": "Drilling is expected to commence and continue through May, June, and July 2025.",
+      "pe": "• Drill pad construction refers to the preparation of a site where drilling equipment will be set up to explore for minerals.\n• The Las Coloradas Project is a specific mining exploration site where the company is conducting its activities.\n• This stage of development is crucial for advancing exploration efforts, but does not guarantee any mineral discovery or economic viability."
     },
     "2025-04-15-2": {
       "cat": "Financing",
       "head": "Kingsmen Resources changes warrant exercise price to $1.05 per share",
       "wh": "Kingsmen Resources has received conditional approval from the TSX Venture Exchange for its private placement announced on April 15, 2025, and will increase the exercise price of the warrant to $1.05 per share.",
       "wy": "This adjustment in the warrant exercise price may enhance the attractiveness of the financing to potential investors, potentially increasing the company's capital resources for its projects.",
-      "kr": []
+      "kr": [],
+      "pe": "• A warrant is a financial instrument that gives the holder the right to purchase shares at a specified price before a certain date.\n• Changing the exercise price means that the price at which warrant holders can buy shares has been adjusted to $1.05.\n• This adjustment can affect the potential dilution of existing shareholders if the warrants are exercised."
     },
     "2025-04-15": {
       "cat": "Financing",
@@ -636,7 +657,8 @@
           "desc": "total units to be issued in the financing",
           "sec": ""
         }
-      ]
+      ],
+      "pe": "• A private placement is a way for a company to raise capital by selling securities directly to a small number of investors, rather than through a public offering.\n• This financing can dilute existing shareholders' ownership if new shares are issued.\n• The amount raised, in this case $1.5 million, can be used for various corporate purposes, including exploration and development activities."
     },
     "2025-03-27": {
       "cat": "Exploration",
@@ -662,21 +684,24 @@
           "desc": "1.6 × 1.8 km grid",
           "sec": "Three-dimensional IP"
         }
-      ]
+      ],
+      "pe": "• 3D induced polarization-resistivity (3D IP): A geophysical survey method used to identify subsurface mineralization by measuring the electrical properties of rocks. \n• Chargeability: A measure of how much a material can store electrical charge, which can indicate the presence of certain minerals. \n• Resistivity: A measure of how strongly a material opposes the flow of electric current, often used to differentiate between types of rocks and minerals. \n• Drill targets: Specific locations identified for drilling based on geological surveys and analyses to explore for mineral deposits."
     },
     "2025-03-03": {
       "cat": "Exploration",
       "head": "Kingsmen Reports Expanded Geochemical Data Silvia – La Plata Zones",
       "wh": "Kingsmen Resources Ltd. announced additional results from its exploration program at the Las Coloradas project in Mexico, focusing on the Silvia and La Plata zones.",
       "wy": "The expanded geochemical data enhances the understanding of mineralization patterns, indicating potential drilling targets and increasing the project's exploration value.",
-      "kr": []
+      "kr": [],
+      "pe": "• Geochemical data refers to the chemical analysis of soil, rock, or water samples to identify the presence of minerals and elements.\n• Zones are specific areas within a project where geological features or mineralization are concentrated.\n• Expanded data indicates that the company has increased the amount of information collected, which may provide more insights into the mineral potential of the area."
     },
     "2025-02-18": {
       "cat": "Exploration",
       "head": "Kingsmen Reports New Geochemical Data Supports Selected Drill Targets",
       "wh": "Kingsmen Resources Ltd. announced results from its exploration program at the Las Coloradas project in Mexico, focusing on geochemical data from the Soledad and Soledad II structures.",
       "wy": "The geochemical analysis indicates significant variations in pathfinder elements, which may reveal different mineralization styles and enhance the understanding of drill targets for the upcoming program.",
-      "kr": []
+      "kr": [],
+      "pe": "• Geochemical data refers to the analysis of the chemical composition of soil, rock, or water samples to identify mineralization and potential drill targets.\n• Drill targets are specific locations identified for drilling based on geological and geochemical evidence, aiming to discover mineral resources.\n• Mineral resources are concentrations of minerals in the earth's crust that have potential economic value, categorized as inferred, indicated, or measured based on the level of confidence in their existence."
     },
     "2025-02-04": {
       "cat": "Exploration",
@@ -708,21 +733,24 @@
           "desc": "0.8 m interval, sample 30",
           "sec": ""
         }
-      ]
+      ],
+      "pe": "• Drill targets refer to specific locations selected for drilling to explore for mineral deposits.\n• Step-out drilling is a technique used to extend the exploration area beyond previously drilled locations to find new mineralization.\n• A mineral resource is a concentration of minerals in the ground that has potential economic value, but does not yet qualify as a reserve."
     },
     "2025-01-08": {
       "cat": "Exploration",
       "head": "Kingsmen Commences 2025 Las Coloradas Exploration",
       "wh": "Kingsmen Resources Ltd. has announced the start of its field reconnaissance program on the Saddle Extension zone at the Las Coloradas project in Chihuahua, Mexico.",
       "wy": "This exploration initiative aims to define a newly discovered drill target, potentially enhancing the resource potential of the Las Coloradas project.",
-      "kr": []
+      "kr": [],
+      "pe": "• Exploration refers to the process of searching for mineral deposits, which may involve drilling and sampling.\n• Drilling is a method used to extract core samples from the ground to analyze the presence of minerals.\n• A mineral deposit is a concentration of minerals in the earth that can potentially be mined."
     },
     "2024-12-03": {
       "cat": "Exploration",
       "head": "Kingsmen Identifies Significant New Silver-Gold Drill Target",
       "wh": "Kingsmen Resources has identified a new significant silver-gold drill target named Saddle on its 100% owned Las Coloradas project in Chihuahua, Mexico.",
       "wy": "The identification of the Saddle target enhances the company's exploration strategy and adds to its priority list of drill targets, indicating potential for significant mineralization in the area.",
-      "kr": []
+      "kr": [],
+      "pe": "• Drill target: a specific location where drilling is planned to explore for minerals.\n• Silver-gold: refers to the two metals being targeted in the exploration, with silver (Ag) and gold (Au) often measured in grams per tonne (g/t).\n• Significant: indicates that the target has potential importance, but does not confirm the presence of a resource or economic viability."
     },
     "2024-11-18": {
       "cat": "Financing",
@@ -754,14 +782,16 @@
           "desc": "Units purchased by an insider",
           "sec": "participation in the Private Placement"
         }
-      ]
+      ],
+      "pe": "• A private placement is a way for a company to raise capital by selling shares directly to a small group of investors rather than through a public offering.\n• This financing can dilute existing shareholders' ownership if new shares are issued.\n• The amount raised, in this case, $1 million, can be used for various corporate purposes, including exploration and development activities."
     },
     "2024-11-11": {
       "cat": "Exploration",
       "head": "Kingsmen Selects Diamond Drill Targets at Las Coloradas Project",
       "wh": "Kingsmen Resources Ltd. has identified three principal target areas for its diamond drill program at the Las Coloradas project in Mexico: the Mine, Aguilar, and Leona targets.",
       "wy": "This selection of targets marks a significant step in advancing the exploration efforts at Las Coloradas, which is located in a historically productive mining district, potentially enhancing the company's prospects for discovering valuable mineral deposits.",
-      "kr": []
+      "kr": [],
+      "pe": "• Diamond drill targets refer to specific locations chosen for drilling to extract core samples for analysis.\n• Core samples are cylindrical sections of rock obtained from drilling that provide information about the geology and mineral content of the area.\n• The Las Coloradas Project is a mining exploration project where these drilling activities are taking place."
     },
     "2024-10-24": {
       "cat": "Financing",
@@ -787,7 +817,8 @@
           "desc": "exercise price of each warrant",
           "sec": "for a period of two years from closing"
         }
-      ]
+      ],
+      "pe": "• A private placement is a way for a company to raise capital by selling shares directly to a small group of investors rather than through a public offering.\n• This financing can dilute existing shareholders' ownership if new shares are issued."
     },
     "2024-10-07": {
       "cat": "Discovery",
@@ -819,7 +850,8 @@
           "desc": "samples > 0.54 g/t gold",
           "sec": ""
         }
-      ]
+      ],
+      "pe": "• High-grade refers to mineral samples that contain a higher concentration of valuable metals compared to average grades found in similar deposits.\n• Multi-element analyses involve testing a sample for the presence and concentration of multiple metals or minerals.\n• The term 'analyses' indicates the scientific examination of samples to determine their composition.\n• A high-grade result does not automatically imply economic viability or establish a mineral resource."
     },
     "2024-08-20": {
       "cat": "Corporate",
@@ -827,7 +859,8 @@
       "wh": "Mark J. Pryor, a geologist with a four-decade track record advancing precious-metal projects, was appointed a director of Kingsmen.",
       "wy": "His central-Mexican silver-belt experience — including the Los Gatos mine — maps directly onto Kingsmen's exploration focus.",
       "kr": [],
-      "tk": "His résumé spans majors — Anglo American, Placer Dome, Antofagasta — and two geological fellowships."
+      "tk": "His résumé spans majors — Anglo American, Placer Dome, Antofagasta — and two geological fellowships.",
+      "pe": "• Brownfield projects refer to previously developed mining sites that may have existing infrastructure and resources, making them potentially easier to develop than greenfield projects, which are entirely new sites.\n• NSR stands for Net Smelter Return, which is a royalty paid to a property owner based on the revenue generated from the sale of minerals, after deducting certain costs.\n• The Mexican silver belt is a region known for its rich deposits of silver and other precious metals, making it a significant area for mining exploration and development."
     },
     "2024-07-16": {
       "cat": "Exploration",
@@ -847,14 +880,16 @@
           "desc": "area of the Las Coloradas project",
           "sec": ""
         }
-      ]
+      ],
+      "pe": "• Ground magnetics: A geophysical survey method that measures variations in the Earth's magnetic field to help identify subsurface geological structures.\n• Interpretation: The process of analyzing data collected from surveys to draw conclusions about the geological features present.\n• Geophysical survey: A method used to investigate the physical properties of the Earth, often to locate mineral deposits."
     },
     "2024-05-28": {
       "cat": "Exploration",
       "head": "Kingsmen discovers new Silvia and La Plata zones at Las Coloradas project",
       "wh": "Kingsmen Resources Ltd. announced the discovery of two new zones of mineralization, the Silvia and La Plata zones, at its 100% owned Las Coloradas project in Chihuahua, Mexico.",
       "wy": "The identification of these new zones enhances the exploration potential of the Las Coloradas project, indicating a larger scope for mineralization and the possibility of significant silver, gold, and copper resources.",
-      "kr": []
+      "kr": [],
+      "pe": "• Zone: A specific area within a mining project where mineralization is found. \n• Mineralization: The presence of valuable minerals in a rock formation. \n• Project: A defined area where exploration or mining activities are conducted to find and extract minerals. \n• Discovery: The identification of new mineralized areas that may have potential for further exploration or development."
     },
     "2024-05-08": {
       "cat": "Exploration",
@@ -868,7 +903,8 @@
           "desc": "samples > 300 g/t silver-equivalent (AgEq)",
           "sec": ""
         }
-      ]
+      ],
+      "pe": "• High-grade refers to mineral samples that contain a higher concentration of valuable metals compared to average grades found in similar deposits.\n• Multi-element sample results indicate that the samples contain multiple valuable metals, which can include gold, silver, copper, and others.\n• Sample results do not establish a mineral resource or economic viability; further exploration and analysis are required."
     },
     "2024-05-06": {
       "cat": "Exploration",
@@ -882,7 +918,8 @@
           "desc": "samples > 500 g/t silver-equivalent (AgEq)",
           "sec": ""
         }
-      ]
+      ],
+      "pe": "• High-grade refers to mineral samples that contain a higher concentration of valuable metals compared to average grades found in similar deposits.\n• Multi-element samples indicate that the samples contain more than one type of metal or mineral, which can be important for assessing the overall value of a mining project.\n• The Soledad structure is a geological formation where the samples were collected, which may indicate potential mineralization."
     },
     "2024-04-04": {
       "cat": "Discovery",
@@ -914,7 +951,8 @@
           "desc": "Composite sample LC-220623-003",
           "sec": "Au: 0.25 ppm; Ag: 400 ppm; Cu: 110 ppm; Pb: 78800 ppm; Zn: 1160 ppm"
         }
-      ]
+      ],
+      "pe": "• High-grade: Refers to mineral samples that contain a higher concentration of valuable metals, in this case, silver, compared to average grades found in similar deposits.\n• Silver results: The findings from drilling or sampling that indicate the amount of silver present in the tested area.\n• Soledad Mine area: The specific location where the exploration and sampling activities are taking place, which is being evaluated for its mineral potential."
     },
     "2024-02-28": {
       "cat": "Exploration",
@@ -940,7 +978,8 @@
           "desc": "length of the newly recognized zone of NE-trending structures",
           "sec": "near the area of highly anomalous silver values"
         }
-      ]
+      ],
+      "pe": "• g/t: grams per tonne, a measure of the concentration of a mineral in a rock sample.\n• Silver values: the amount of silver present in the sample, which can indicate potential economic viability.\n• Drill results do not by themselves establish a mineral resource or economic deposit."
     },
     "2024-02-01": {
       "cat": "Exploration",
@@ -972,7 +1011,8 @@
           "desc": "average mining diluted grade from ASARCO workings",
           "sec": "from four different veins"
         }
-      ]
+      ],
+      "pe": "• Old mine workings refer to previously excavated areas in a mining site that may indicate past mining activity and potential mineralization.\n• Extensive suggests that these workings cover a large area, which could imply significant historical mining efforts.\n• The Las Coloradas Project is the specific location being referenced, indicating where these old mine workings have been confirmed."
     },
     "2023-12-20": {
       "cat": "Exploration",
@@ -1005,14 +1045,16 @@
           "sec": "2 > 400 g/t Ag, 2 > 300 g/t Ag, 4 > 200 g/t Ag, 11 > 100 g/t Ag, 9 > 50 g/t Ag"
         }
       ],
-      "tk": "The field program is ongoing to explore the newly recognized 2,500 meter long NE-trending zone of structures."
+      "tk": "The field program is ongoing to explore the newly recognized 2,500 meter long NE-trending zone of structures.",
+      "pe": "• Silver mineralization refers to the presence of silver in a rock or ore that can potentially be extracted. \n• The term 'new' indicates that this mineralization has not been previously documented in the area. \n• Mineralization does not guarantee that a resource can be economically extracted; further evaluation is needed."
     },
     "2023-12-07": {
       "cat": "Acquisition",
       "head": "Kingsmen Resources Acquires Total Ground Magnetic Coverage of Las Coloradas Project",
       "wh": "Kingsmen Resources Ltd. has acquired ground magnetic coverage for its 100% controlled Las Coloradas project in Chihuahua, Mexico, with data collected in 2017 and 2018.",
       "wy": "This acquisition enhances the company's geological understanding of the Las Coloradas project, aiding in the identification of drilling targets and potentially expanding mineralization.",
-      "kr": []
+      "kr": [],
+      "pe": "• Ground magnetic coverage refers to a geophysical survey method that measures variations in the Earth's magnetic field to help identify mineral deposits.\n• This acquisition allows Kingsmen Resources to enhance its exploration efforts at the Las Coloradas Project, potentially leading to the discovery of valuable resources.\n• Geophysical surveys do not guarantee the presence of minerals or economic viability of a project."
     },
     "2023-11-02": {
       "cat": "Exploration",
@@ -1038,7 +1080,8 @@
           "desc": "distance of significant silver mineralization",
           "sec": "along the Soledad structure"
         }
-      ]
+      ],
+      "pe": "• g/t: Grams per tonne, a measure of the concentration of a metal in a mineral sample.\n• Surface sampling: The process of collecting samples from the surface of a mineral deposit to analyze its composition.\n\nNote that high grades of silver do not automatically indicate economic viability or establish a mineral resource."
     },
     "2023-10-26": {
       "cat": "Exploration",
@@ -1058,7 +1101,8 @@
           "desc": "samples analyzed by ICP-MS (51 elements)",
           "sec": ""
         }
-      ]
+      ],
+      "pe": "• Silver values refer to the concentration of silver in a sample, often expressed in grams per tonne (g/t).\n• A sampling program involves collecting and analyzing rock or soil samples to assess the presence of minerals.\n• Elevated values indicate higher than average concentrations of the mineral being tested, which may suggest potential mineralization in the area."
     },
     "2023-08-09": {
       "cat": "Exploration",
@@ -1090,14 +1134,16 @@
           "desc": "exposed length of the Soledad II structure",
           "sec": ""
         }
-      ]
+      ],
+      "pe": "• Surface samples are collected from the ground to analyze the mineral content and provide information about the geology of an area.\n• The results from surface samples can help identify potential areas for further exploration, but do not confirm the presence of a mineral resource or reserve.\n• The term \"project\" refers to a specific area where exploration and development activities are being conducted."
     },
     "2023-07-11": {
       "cat": "Exploration",
       "head": "Kingsmen Resources reports geological mapping at Las Coloradas project",
       "wh": "Kingsmen Resources Ltd. has completed detailed geological mapping of its 100% owned Las Coloradas project in Mexico, focusing on the Soledad and Soledad II structures.",
       "wy": "This mapping enhances the understanding of mineralization and structural controls, revealing new exploration opportunities and potential for epithermal gold-silver mineralization.",
-      "kr": []
+      "kr": [],
+      "pe": "• Geological mapping is the process of analyzing and documenting the distribution, nature, and age of rock formations in a specific area.\n• The Las Coloradas project refers to a specific mining exploration site where Kingsmen Resources is conducting its activities.\n• This mapping can help identify potential mineral deposits, but does not confirm the presence of a resource or its economic viability."
     },
     "2023-06-07": {
       "cat": "Exploration",
@@ -1124,21 +1170,24 @@
           "sec": ""
         }
       ],
-      "tk": "Three priority target areas now frame the maiden drill program."
+      "tk": "Three priority target areas now frame the maiden drill program.",
+      "pe": "• g/t: Grams per tonne, a measure of the concentration of a mineral in a sample, commonly used for precious metals like silver and gold.\n• Mineralized structure: A geological formation that contains economically viable concentrations of minerals.\n• Epithermal: A type of mineral deposit formed from hot, mineral-rich fluids that rise from deeper parts of the Earth, often associated with volcanic activity.\n• QA/QC: Quality Assurance/Quality Control, a system to ensure that the sampling and analysis processes are reliable and accurate."
     },
     "2023-06-05": {
       "cat": "Corporate",
       "head": "Kingsmen Resources Announces Results of Annual and Special Meeting",
       "wh": "Kingsmen Resources held its Annual and Special Meeting on June 2, 2023, where several directors were re-elected and new directors were elected.",
       "wy": "The re-election and appointment of experienced directors may strengthen the company's governance and strategic direction, supporting its focus on exploration and development in Mexico.",
-      "kr": []
+      "kr": [],
+      "pe": "• Annual Meeting: A yearly gathering of a company's shareholders to discuss the company's performance and future plans.\n• Special Meeting: A meeting called to address specific issues that require shareholder approval outside of the regular annual meeting schedule.\n• Shareholders: Individuals or entities that own shares in a company, giving them certain rights, including voting on company matters.\n• Voting: The process by which shareholders express their opinions or make decisions on company issues, often related to board members or corporate policies."
     },
     "2023-05-09": {
       "cat": "Acquisition",
       "head": "Kingsmen signs multiyear land access agreements for Las Coloradas Project",
       "wh": "Kingsmen Resources Ltd. has signed multiyear land access agreements for its Las Coloradas Project, located 30 km from Hildago, Parral, Chihuahua, Mexico. The company plans to commence its exploration program in preparation for a diamond drilling program.",
       "wy": "Securing land access is a crucial step for Kingsmen as it enables the company to advance its exploration efforts in a historically significant mining district, potentially unlocking value from the Las Coloradas Project.",
-      "kr": []
+      "kr": [],
+      "pe": "• Land access agreements allow a company to explore and develop mineral resources on specific properties.\n• The Las Coloradas Project refers to a specific mining project where Kingsmen is focusing its exploration efforts.\n• Multiyear indicates that the agreements are in place for several years, providing stability for ongoing operations."
     },
     "2023-04-18": {
       "cat": "Acquisition",
@@ -1152,7 +1201,8 @@
           "desc": "total area controlled",
           "sec": "including Silvia Mine project area"
         }
-      ]
+      ],
+      "pe": "• Acquires: To obtain ownership or control of an asset or property.\n• Land control: Refers to the area of land that a company has rights to explore or develop for mining purposes.\n• km2: A unit of area measurement, square kilometers, used to quantify the size of land."
     },
     "2023-04-04": {
       "cat": "Acquisition",
@@ -1166,7 +1216,8 @@
           "desc": "new claim area acquired adjacent to Las Coloradas project",
           "sec": ""
         }
-      ]
+      ],
+      "pe": "• A claim is a legal designation that allows a company to explore for minerals in a specific area.\n• Hectare is a unit of area equal to 10,000 square meters, commonly used in land measurement.\n• Adjacent means that the claim is located next to or very near the Las Coloradas project, which may provide strategic advantages for exploration."
     }
   },
   "full": {
