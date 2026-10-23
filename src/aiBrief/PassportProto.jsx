@@ -6536,7 +6536,7 @@ function FeedSkeleton() {
 }
 
 // Minimal underline tabs (native iOS content-app feel — no bulky pills/segments).
-const FEED_TABS = [["foryou", "For You"], ["news", "News"], ["updates", "Press Releases"], ["media", "Media"]];
+const FEED_TABS = [["foryou", "For You"], ["following", "Following"], ["news", "News"], ["updates", "Press Releases"], ["media", "Media"]];
 function FeedTabs({ active, onChange }) {
   return (
     <div className="-mx-5 border-b border-slate-100 px-5">
@@ -7479,6 +7479,11 @@ export function TodayScreen({ onOpenCompany, onScan, onCreate }) {
   }, [objects]);
   // News — external editorial (NEVER pay-ranked): relevance to interests, then recency.
   const news = useMemo(() => objects.filter((o) => o.contentType === "NEWS" && !o.isPressRelease).sort((a, b) => (Number(b.relevant) - Number(a.relevant)) || String(b.publishedAt).localeCompare(String(a.publishedAt))), [objects]);
+  // Following — everything from the companies the investor actually follows (official press
+  // releases AND editorial coverage about them), newest first. This is the whole point of the
+  // tab (user-requested): one place for just my companies, with no discovery/ranking mixed in.
+  // Media lives in its own Reels tab, so it is excluded here to keep this a readable list.
+  const following = useMemo(() => objects.filter((o) => o.followed && !isMedia(o.contentType)).sort((a, b) => String(b.publishedAt).localeCompare(String(a.publishedAt))), [objects]);
   // Media — video-first Pro publishing surface (Reels).
   const media = useMemo(() => objects.filter((o) => isMedia(o.contentType)).sort((a, b) => String(b.publishedAt).localeCompare(String(a.publishedAt))), [objects]);
 
@@ -7568,6 +7573,20 @@ export function TodayScreen({ onOpenCompany, onScan, onCreate }) {
             </div>) : (
               <FeedEmpty Icon={Newspaper} title="Nothing here yet" sub="Follow companies and set your interests to build a personalized feed." />
             )
+          )}
+
+          {tab === "following" && (
+            <div className="pt-3">
+              {following.length ? (
+                <div className="space-y-2.5">{following.map((it) => <div key={it.id}>{renderFeedItem(it, null)}</div>)}</div>
+              ) : followedIds.length ? (
+                // They follow companies, but none have published anything in the feed yet.
+                <FeedEmpty Icon={Star} title="Nothing new from your companies" sub="The companies you follow haven't posted yet. Their press releases and news will show up here, newest first." />
+              ) : (
+                // They don't follow anyone yet — the tab's starting state.
+                <FeedEmpty Icon={Star} title="You're not following anyone yet" sub="Follow companies to see just their press releases and news here — your watchlist, newest first." />
+              )}
+            </div>
           )}
 
           {tab === "news" && (
