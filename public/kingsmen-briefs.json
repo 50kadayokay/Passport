@@ -62,7 +62,8 @@
       "head": "Kingsmen Completes 60 km² Precision Satellite Topographic Surveys",
       "wh": "Kingsmen Resources has completed high-resolution satellite surveys covering 60 km² across its Las Coloradas and Almoloya projects in Chihuahua, Mexico.",
       "wy": "This precision topographic data will enhance drill targeting and support the identification of new silver-gold targets, advancing the company's exploration efforts in a mineralized trend.",
-      "kr": []
+      "kr": [],
+      "pe": "• Topographic survey: a precise map of the ground surface shape; high-resolution satellite data captures fine elevation detail across a wide area.\n• Drill targeting: using geology, structure and surface data to decide where to place drill holes.\n• A survey like this refines WHERE to look — it is a planning step and does not by itself indicate what mineralization is present."
     },
     "2026-04-07": {
       "cat": "Acquisition",
@@ -82,14 +83,16 @@
           "desc": "distance from the Las Coloradas project core to the Saddle target",
           "sec": ""
         }
-      ]
+      ],
+      "pe": "• Mineral claim: a defined area where a company holds the right to explore for minerals.\n• Option to acquire: an agreement to earn ownership of a claim by meeting set terms; exercising it means those terms were met and ownership transfers.\n• Consolidating ground around a project secures exploration rights over nearby targets — it is a land-position step, not an exploration result."
     },
     "2026-02-17": {
       "cat": "Exploration",
       "head": "Kingsmen Resources Announces Exploration Plans for Las Coloradas and Almoloya Projects",
       "wh": "Kingsmen Resources Ltd. has outlined its exploration plans for the Las Coloradas and Almoloya projects in Chihuahua, Mexico, following a fully funded financing round that closed on February 11, 2026.",
       "wy": "The company is now positioned to accelerate exploration efforts, targeting high-grade silver and gold mineralization in largely untested areas, which could lead to significant discoveries and enhance the project's value.",
-      "kr": []
+      "kr": [],
+      "pe": "• Fully funded financing: the company has raised the cash it expects to need for the planned work, so the program is not waiting on further fundraising.\n• Exploration plans: the intended program (mapping, sampling, drilling) for the period ahead — a statement of intent, not results.\n• Plans and funding describe what the company intends to do; they do not establish what will be found."
     },
     "2026-02-11": {
       "cat": "Financing",
@@ -122,7 +125,8 @@
           "sec": ""
         }
       ],
-      "tk": "Closing still hinges on final TSX Venture Exchange approval."
+      "tk": "Closing still hinges on final TSX Venture Exchange approval.",
+      "pe": "• Bought-deal private placement: a financing where an underwriter commits to buy the entire offering up front, so the company is assured of the funds.\n• Unit: a bundle sold to investors — here one share plus a fraction of a warrant.\n• Warrant: the right to buy another share later at a set price (C$3.00) until a set date; it is not a share until exercised.\n• A financing raises cash to fund work — it adds no mineral results, and issuing new shares dilutes existing shareholders."
     },
     "2026-01-26-2": {
       "cat": "Financing",

@@ -968,7 +968,9 @@ function AppRoot() {
               ...yr,
               items: (yr.items || []).map((it) => {
                 const v = bb.v2[it.id];
-                return v ? { ...it, v2: { cat: v.cat, wh: v.wh, wy: v.wy, kr: Array.isArray(v.kr) ? v.kr : [], tk: v.tk } } : it;
+                // `pe` = the plain-English "What Does It Mean" explainer; surfaced at item level so the
+                // reader (SummaryContent reads item.plainEnglish) shows it as the standard 2nd section.
+                return v ? { ...it, plainEnglish: v.pe || it.plainEnglish || "", v2: { cat: v.cat, wh: v.wh, wy: v.wy, kr: Array.isArray(v.kr) ? v.kr : [], tk: v.tk } } : it;
               }),
             }));
             const mergedFull = { ...(mod.FULL || {}), ...(bb.full || {}) };
@@ -1033,7 +1035,9 @@ function AppRoot() {
               ...yr,
               items: (yr.items || []).map((it) => {
                 const v = bb.v2[it.id];
-                return v ? { ...it, v2: { cat: v.cat, wh: v.wh, wy: v.wy, kr: Array.isArray(v.kr) ? v.kr : [], tk: v.tk } } : it;
+                // `pe` = the plain-English "What Does It Mean" explainer; surfaced at item level so the
+                // reader (SummaryContent reads item.plainEnglish) shows it as the standard 2nd section.
+                return v ? { ...it, plainEnglish: v.pe || it.plainEnglish || "", v2: { cat: v.cat, wh: v.wh, wy: v.wy, kr: Array.isArray(v.kr) ? v.kr : [], tk: v.tk } } : it;
               }),
             }));
             const mergedFull = { ...(mod.FULL || {}), ...(bb.full || {}) };
