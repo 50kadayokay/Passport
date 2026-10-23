@@ -115,13 +115,17 @@ ok(classifyNewsItem({ source_key: "newsfile", is_press_release: true, canonical_
 
 console.log("\n=== 7. Rendered sections (briefSections) — presence, labels, order, consistency ===");
 const prComplete = { wh: "x", wy: "y", kr: [{ v: "1", u: "m", desc: "d" }], tk: "next" };
-eq(briefSections(prComplete, { isPressRelease: true }).map((s) => s.key), ["wh", "wy", "kr", "tk"], "complete PR → WH, WY, KR, Takeaway");
+eq(briefSections(prComplete, { isPressRelease: true }).map((s) => s.key), ["wh", "wy", "kr", "tk"], "complete PR (no plain-English) → WH, WY, KR, Takeaway");
 eq(briefSections(prComplete, { isPressRelease: true }).map((s) => s.label), ["What Happened", "Context", "Key Results", "What's Next"], "labels correct + in order");
+// App-wide standard: a press release WITH a plain-English explainer shows "What Does It Mean" as the
+// second section, right after What Happened and before Context.
+const prFull = { wh: "x", wy: "y", kr: [{ v: "1" }], tk: "next", plainEnglish: "glossary" };
+eq(briefSections(prFull, { isPressRelease: true, hasPlainEnglish: true }).map((s) => s.key), ["wh", "wdtm", "wy", "kr", "tk"], "PR standard → WH, What Does It Mean, Context, KR, What's Next");
+eq(briefSections(prFull, { isPressRelease: true, hasPlainEnglish: true }).map((s) => s.label), ["What Happened", "What Does It Mean", "Context", "Key Results", "What's Next"], "PR labels + order (5-section standard)");
 const prNoWy = { wh: "x", wy: "", kr: [{ v: "1" }], plainEnglish: "glossary" };
-eq(briefSections(prNoWy, { isPressRelease: true, hasPlainEnglish: true }).map((s) => s.key), ["wh", "kr"], "incomplete PR → no empty WY, no WDTM");
-ok(!briefSections(prNoWy, { isPressRelease: true, hasPlainEnglish: true }).some((s) => s.key === "wdtm"), "a press release NEVER shows What Does This Mean?");
+eq(briefSections(prNoWy, { isPressRelease: true, hasPlainEnglish: true }).map((s) => s.key), ["wh", "wdtm", "kr"], "incomplete PR → no empty Context, but keeps What Does It Mean");
 const edItem = { wh: "x", wy: "y", kr: [{ v: "1" }] };
-eq(briefSections(edItem, { isEditorial: true, hasPlainEnglish: true }).map((s) => s.key), ["wh", "wy", "wdtm", "kr"], "editorial → keeps What Does This Mean?");
+eq(briefSections(edItem, { isEditorial: true, hasPlainEnglish: true }).map((s) => s.key), ["wh", "wdtm", "wy", "kr"], "editorial → same order (What Does It Mean before Context)");
 // consistency across entry points: same v2 + classification → same sections regardless of surface
 const fromA = briefSections(prComplete, { isPressRelease: true });
 const fromB = briefSections(prComplete, { isPressRelease: true }); // opened from a different tab/Saved

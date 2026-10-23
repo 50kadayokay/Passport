@@ -108,7 +108,10 @@ export function briefCompleteness(v2 = {}, isPressRelease = false) {
  * is the single source of truth the reader (SummaryContent) consumes to gate each section, so the
  * tests that assert against briefSections() reflect what is actually rendered — section presence,
  * labels, and order — across every entry point (press release vs editorial, complete vs incomplete).
- * A section appears ONLY when its content exists; "What Does This Mean?" belongs to editorial only.
+ * A section appears ONLY when its content exists. The app-wide standard order is:
+ *   What Happened → What Does It Mean → Context → Key Results → (Highlights) → What's Next.
+ * "What Does It Mean" is the plain-English educational explainer, shown on EVERY summary that carries
+ * one — press release AND editorial alike (previously editorial-only) — right after the facts.
  * @returns {{key:string,label:string}[]}
  */
 export function briefSections(v2 = {}, opts = {}) {
@@ -117,8 +120,8 @@ export function briefSections(v2 = {}, opts = {}) {
   const hasHighlights = !c.hasKR && Array.isArray(v2.highlights) && v2.highlights.length > 0;
   const out = [];
   if (c.hasWH) out.push({ key: "wh", label: "What Happened" });
+  if (hasPlainEnglish) out.push({ key: "wdtm", label: "What Does It Mean" });
   if (c.hasWY) out.push({ key: "wy", label: "Context" });
-  if (isEditorial && hasPlainEnglish) out.push({ key: "wdtm", label: "What Does This Mean?" });
   if (c.hasKR) out.push({ key: "kr", label: "Key Results" });
   if (hasHighlights) out.push({ key: "highlights", label: "Highlights" });
   if (c.hasTK) out.push({ key: "tk", label: "What's Next" });

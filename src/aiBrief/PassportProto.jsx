@@ -2255,21 +2255,20 @@ function SummaryContent({ item, cat, impact, hasFull, onReadFull, sourceNote, is
               <p className="mt-1.5 text-[13.5px] font-medium leading-relaxed text-slate-600">{v2.wh}</p>
             </div>
           )}
-          {show("wy") && (
+          {/* "What Does It Mean" — the plain-English educational explainer (defines the jargon in the
+              release: g/t, PEA, AgEq, intercept, inferred resource…). App-wide standard on EVERY
+              summary, press release AND editorial, positioned right after the facts and before Context.
+              Educational only — never advice; the generator is guard-railed against implying economics. */}
+          {show("wdtm") && (
             <div className={show("wh") ? "mt-5" : ""}>
-              <span className="text-[10px] font-extrabold uppercase tracking-[0.16em]" style={{ color: EM_TEXT }}>Context</span>
-              <p className="mt-1.5 text-[13.5px] font-medium leading-relaxed text-slate-600">{v2.wy}</p>
+              <span className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-slate-900">What Does It Mean</span>
+              <p className="mt-1.5 text-[13.5px] font-medium leading-relaxed text-slate-600">{item.plainEnglish}</p>
             </div>
           )}
-
-          {/* "What does this mean?" — a jargon explainer that belongs ONLY to editorial NEWS, never
-              a press release. A press release follows the definitive Kingsmen V2 structure exactly
-              (What Happened → Why It Matters → Key Results → The Takeaway), regardless of which
-              surface it opens from. Pure third-party editorial news keeps it (source-derived). */}
-          {show("wdtm") && (
-            <div className="mt-5">
-              <span className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-slate-900">What Does This Mean?</span>
-              <p className="mt-1.5 text-[13.5px] font-medium leading-relaxed text-slate-600">{item.plainEnglish}</p>
+          {show("wy") && (
+            <div className={(show("wh") || show("wdtm")) ? "mt-5" : ""}>
+              <span className="text-[10px] font-extrabold uppercase tracking-[0.16em]" style={{ color: EM_TEXT }}>Context</span>
+              <p className="mt-1.5 text-[13.5px] font-medium leading-relaxed text-slate-600">{v2.wy}</p>
             </div>
           )}
 
