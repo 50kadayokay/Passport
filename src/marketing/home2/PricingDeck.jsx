@@ -23,7 +23,7 @@ import { Fit } from "./SalesPricing.jsx";
 import { Mark } from "./SalesPricing.jsx";
 import { installNavProbe, navDebugOn, NavDebugHUD, logNav } from "./navDebug.jsx";
 
-import { SHEET_MS, EASE_SHEET } from "./motion.js";
+import { SHEET_MS, EASE_SHEET , isReversal} from "./motion.js";
 import Footer from "./Footer.jsx";
 const BG = "#fbfcfe";
 const NAVY = "#0a1b2e";
@@ -324,7 +324,7 @@ export default function PricingDeck({ embedded = false, active = true, onExitTop
       if (!activeRef.current) return;
       const DY = Math.round(e.deltaY);
       const now = performance.now(), gap = now - last, mag = Math.abs(e.deltaY);
-      const reversed = dir0 !== 0 && Math.sign(e.deltaY) === -dir0 && mag >= 10;
+      const reversed = isReversal(e.deltaY, dir0);
       // Re-arm on silence, reversal, OR a fresh-flick rising edge (see AppSection) — so the
       // next swipe works right after the panel transition, not after inertia goes silent.
       const freshFlick = used && !locked && mag >= 40 && mag > lastMag * 2;

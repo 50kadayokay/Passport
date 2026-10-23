@@ -26,10 +26,10 @@
 //
 // AppSection (the approved sales page) is untouched.
 // ─────────────────────────────────────────────────────────────────────────────
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { COUNTS } from "../demo/investorFixture.js";
 import { EASE, MarketingStyles, useReduce, useViewport } from "../system.jsx";
-import { SHEET_MS, EASE_SHEET, WHEEL_TRIGGER, NEW_GESTURE_GAP, FIRM_DELTA, FRESH_FLICK } from "./motion.js";
+import { SHEET_MS, EASE_SHEET, WHEEL_TRIGGER, NEW_GESTURE_GAP, FIRM_DELTA, FRESH_FLICK , isReversal} from "./motion.js";
 import Nav from "./Nav.jsx";
 import StageArrows from "./StageArrows.jsx";
 import InvestorShellPhone from "../demo/InvestorShellPhone.jsx";
@@ -231,7 +231,7 @@ function usePagedWheel(sectionRef, n, enabled) {
     // Gesture model copied verbatim from AppSection so the trigger point feels the same.
     const onWheel = (e) => {
       const now = performance.now(), gap = now - last, mag = Math.abs(e.deltaY);
-      const reversed = dir0 !== 0 && Math.sign(e.deltaY) === -dir0 && mag >= FIRM_DELTA;
+      const reversed = isReversal(e.deltaY, dir0);
       const freshFlick = used && !locked && mag >= FRESH_FLICK && mag > lastMag * 2;
       if (gap > NEW_GESTURE_GAP || reversed || freshFlick) { accum = 0; dir0 = Math.sign(e.deltaY); used = false; peak = 0; }
       last = now; lastMag = mag; peak = Math.max(peak, mag);
@@ -283,6 +283,18 @@ function usePagedWheel(sectionRef, n, enabled) {
     };
   }, [sectionRef, n, enabled]);
 }
+
+// ── Section rail ────────────────────────────────────────────────────────────
+// The same left-hand jump rail the sales page and the Pro walkthrough carry. This page
+// never had one — it is the only walkthrough without a position indicator, so a visitor
+// had no sense of how far through the story they were. Derived from STATES so the dots
+// cannot drift from the copy: one dot per chapter, pointing at that chapter's first beat.
+// Beat i renders at stage index i + 1 (index 0 is the intro).
+const CHAPTERS = (() => {
+  const out = [];
+  STATES.forEach((s, i) => { if (!out.some((c) => c.n === s.n)) out.push({ n: s.n, label: s.label, index: i + 1 }); });
+  return out;
+})();
 
 /* ── native-scroll index: one index per snapped viewport, no preventDefault ──────── */
 // `enabled` is false on phones: they drive the index with the two arrow controls instead
@@ -524,6 +536,14 @@ export default function InvestorPage() {
   const { mobile } = useViewport();
   const reduce = useReduce();
   const sectionRef = useRef(null);
+  // Native-scroll stage: one viewport per index, so jumping to a chapter is simply
+  // scrolling to that viewport. Smooth unless the visitor prefers reduced motion.
+  const jumpToIndex = useCallback((i) => {
+    const el = sectionRef.current; if (!el) return;
+    const vh = window.innerHeight || document.documentElement.clientHeight || 1;
+    const top = el.getBoundingClientRect().top + window.scrollY;
+    window.scrollTo({ top: Math.round(top + i * vh), behavior: reduce ? "auto" : "smooth" });
+  }, [reduce]);
   const [idx, setIdx] = useScrollIndex(sectionRef, N, !mobile);
   const { shown, phase } = useCopyPhase(idx, reduce);
 
@@ -561,6 +581,29 @@ export default function InvestorPage() {
       <Nav />
       <main style={{ fontFamily: "'Switzer', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}>
         <section ref={sectionRef} style={{ position: "relative", height: mobile ? "100svh" : `${N * 100}svh`, overflow: mobile ? "hidden" : undefined }}>
+          {/* Section rail — the SAME vertical line the Pro walkthrough uses (NarrativeStory's
+              ChapterRail): one 2px segment per beat, filled up to the active one, the active
+              segment taller. Identical geometry — 2px wide, 16px / 30px tall, 8px gap, the same
+              420ms easing — recoloured for this page's light ground instead of the dark stage.
+              Each segment is a button so the rail still navigates, which the dots did; nothing
+              about how it looks changes because of that. */}
+          {!mobile && (
+            <nav aria-label="Jump to section" style={{ position: "fixed", left: "clamp(18px, 2.4vw, 46px)", top: "50%", transform: "translateY(-50%)", zIndex: 80,
+              display: "flex", flexDirection: "column", justifyContent: "center", gap: 8,
+              opacity: idx >= 1 ? 1 : 0, pointerEvents: idx >= 1 ? "auto" : "none", transition: `opacity 420ms ${EASE}` }}>
+              {Array.from({ length: N }).map((_, i) => {
+                const label = (STATES[Math.max(0, Math.min(STATES.length - 1, i - 1))] || {}).label || "Section";
+                return (
+                  <button key={i} type="button" onClick={() => jumpToIndex(i)} className="inv-tick" aria-label={label}
+                    aria-current={i === idx ? "true" : undefined}
+                    style={{ display: "block", width: 2, padding: 0, border: "none", cursor: "pointer",
+                      height: i === idx ? 30 : 16, borderRadius: 2,
+                      background: i === idx ? NAVY : i < idx ? "rgba(10,27,46,0.42)" : "rgba(10,27,46,0.14)",
+                      transition: `height 420ms ${EASE}, background 420ms ${EASE}` }} />
+                );
+              })}
+            </nav>
+          )}
           {!mobile && Array.from({ length: N }).map((_, i) => <div key={i} aria-hidden className="inv-cell" style={{ position: "absolute", top: `${i * 100}svh`, left: 0, right: 0, height: "100svh", pointerEvents: "none" }} />)}
 
           <div className="mx-vstage" style={{ position: mobile ? "relative" : "sticky", top: 0, height: "100svh", overflow: "hidden" }}>
@@ -591,7 +634,7 @@ export default function InvestorPage() {
                       on the same beat that switches the phone to the followed-company updates,
                       so the two land together. Desktop only — on mobile the copy card owns
                       the space to the phone's side. */}
-                  <PushPreview show={shown === PUSH_BEAT} note={PR_INVESTOR} />
+                  <PushPreview show={shown === PUSH_BEAT} note={PR_INVESTOR} mobile={mobile} />
                 </div>
               </div>
             </div>
@@ -609,6 +652,9 @@ export default function InvestorPage() {
 function InvStyles() {
   return (
     <style>{`
+        /* Jump rail — identical rules to the sales page and the Pro walkthrough, so the
+           three rails hover and scale the same way. */
+        .inv-tick:hover { background: ${NAVY} !important; }
       html.inv-snap { scroll-snap-type: y mandatory; }
       /* The paged controller animates scroll position itself — the browser must not
          re-animate it on top. !important is required: the smooth value is set inline. */

@@ -1,29 +1,23 @@
-import puppeteer from "puppeteer-core";
-const sleep=(ms)=>new Promise(r=>setTimeout(r,ms));
-const b=await puppeteer.launch({executablePath:"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",headless:"new",args:["--no-sandbox"]});
-const p=await b.newPage();
-await p.setViewport({width:1680,height:1050});
-await p.goto("https://mineex.ca/",{waitUntil:"networkidle2",timeout:60000});
-await sleep(4000);
-for(const [label,sel] of [["Pro",'a[href="/pro"]'],["Conference",'a[href="/conference-mode"]'],["Investor",'a[href="/investor"]'],["Pricing",'a[href="/pricing"]']]){
-  const el=await p.$(sel);
-  if(!el){ console.log(label,"— link not found"); continue; }
-  const t0=Date.now();
-  let navStart=null;
-  const onNav=()=>{ if(navStart===null) navStart=Date.now()-t0; };
-  p.once("framenavigated",onNav);
-  await el.click();
-  // wait until the destination has meaningful content
-  let painted=null;
-  for(let i=0;i<300;i++){
-    try{
-      const ok=await p.evaluate(()=>document.body && document.body.innerText.replace(/\s+/g," ").trim().length>300);
-      if(ok){ painted=Date.now()-t0; break; }
-    }catch(_){}
-    await sleep(60);
-  }
-  console.log(label.padEnd(11),"full page load?",(await p.evaluate(()=>performance.getEntriesByType("navigation")[0]?.type)),
-    "| content at", String(painted).padStart(5),"ms");
-  await p.goto("https://mineex.ca/",{waitUntil:"networkidle2"}); await sleep(3000);
+import { webkit } from "playwright-core";
+const sleep=m=>new Promise(r=>setTimeout(r,m));
+const BASE=process.argv[2];
+const b=await webkit.launch();
+const p=await (await b.newContext({viewport:{width:1440,height:900}})).newPage();
+const errs=[]; p.on('pageerror',e=>errs.push('pageerror: '+String(e).slice(0,130)));
+p.on('console',m=>{ if(m.type()==='error') errs.push('console: '+m.text().slice(0,130)); });
+p.on('requestfailed',r=>errs.push('FAILED '+r.url().slice(0,70)));
+await p.goto(BASE+"/",{waitUntil:'load',timeout:90000});
+await sleep(6000);
+for (const label of ['Pro','Investor','Conference','Pricing']) {
+  const before = p.url();
+  const link = await p.$(`a[href]:has-text("${label}")`);
+  if (!link) { console.log(`  ${label.padEnd(11)} NO LINK FOUND`); continue; }
+  await link.click().catch(e=>errs.push('click: '+String(e).slice(0,80)));
+  await sleep(2500);
+  const after = p.url();
+  const head = await p.evaluate(()=>{ const h=[...document.querySelectorAll('h1,h2')].find(x=>{const q=x.getBoundingClientRect();const c=getComputedStyle(x);return q.width>0&&q.top<innerHeight&&q.bottom>0&&c.opacity!=='0'&&(x.textContent||'').trim().length>6;}); return h?h.textContent.trim().slice(0,38):null; });
+  console.log(`  ${label.padEnd(11)} ${before.replace(BASE,'')||'/'} -> ${after.replace(BASE,'')||'/'}  ${after!==before?'NAVIGATED':'*** NOTHING HAPPENED ***'}  "${head}"`);
+  await p.goto(BASE+"/",{waitUntil:'load',timeout:90000}); await sleep(3500);
 }
+if(errs.length) console.log('\n  ERRORS:', [...new Set(errs)].slice(0,5));
 await b.close();

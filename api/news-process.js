@@ -12,7 +12,7 @@
 //   curl -X POST ".../api/news-process?limit=25" -H "x-news-secret: $NEWS_PULL_SECRET"
 import { serviceConfigured, serviceRest } from "./_service.js";
 import { checkNewsAuth, isCronRequest } from "./_news.js";
-import { fetchArticleText, analyzeItem, buildCompanyIndex, matchCompany, clusterItems, PROCESSING_VERSION, normTicker, normName, enrichCompany, verifyTicker } from "./_newsAI.js";
+import { fetchArticleText, fetchFullReleaseText, analyzeItem, buildCompanyIndex, matchCompany, clusterItems, PROCESSING_VERSION, normTicker, normName, enrichCompany, verifyTicker } from "./_newsAI.js";
 import { recordUsage, daySpendUSD, dailyLimitUSD, estimateBatch } from "./_aiUsage.js";
 
 export const config = { maxDuration: 300 };
@@ -88,9 +88,12 @@ async function createListingStub(a, idx) {
 }
 
 async function processItem(item, idx, reprocess, operation) {
-  let a, usage, cost = 0, sourceTextLen = 0;
+  let a, usage, cost = 0, sourceTextLen = 0, retrieval = { verified: false, via: "none", sourceUrl: item.canonical_url || item.url || "" };
   try {
-    const sourceText = await fetchArticleText(item.url);
+    // FULL-SOURCE retrieval: read the primary; if it is blocked/thin (e.g. a Cloudflare-walled wire),
+    // fall back to the SAME release on a verified mirror so the summary is built from the full body.
+    retrieval = await fetchFullReleaseText({ ...item, canonical_url: item.canonical_url || item.url });
+    const sourceText = retrieval.text;
     sourceTextLen = sourceText ? sourceText.length : 0;
     ({ analysis: a, usage } = await analyzeItem({ ...item, sourceName: item.source ? item.source.name : "" }, sourceText));
     // Record ACTUAL token usage the API returned BEFORE anything else can fail.
@@ -128,6 +131,10 @@ async function processItem(item, idx, reprocess, operation) {
       core_event: a.core_event || null,
       canonical_entity: a.canonical_entity || null,
       source_text_available: sourceTextLen > 120,
+      // Full-source retrieval provenance: was the FULL announcement read, and from where?
+      source_verified: !!retrieval.verified,
+      source_via: retrieval.via,            // "primary" | "mirror" | "none"
+      source_url_used: retrieval.sourceUrl || null,
     },
     fact_check: a.fact_check || {},
     provenance: a.provenance || [],
@@ -147,7 +154,11 @@ async function processItem(item, idx, reprocess, operation) {
   // master env switch + the per-source flag (the operator's per-source trust decision) +
   // the quality checks below. Flip a source's auto_approve off to send it back to review.
   const src = item.source || {};
+  // An item whose FULL announcement could not be verified (no readable body from the primary OR any
+  // mirror) is NEVER auto-published — it is held for review, so we never ship a brief built from a
+  // thin headline-only source that may be missing material figures or qualifications.
   const autoApprove = !reprocess && relevant && autoApproveEnabled() && !!src.auto_approve
+    && retrieval.verified
     && !!a.mineex_summary && Array.isArray(a.provenance) && a.provenance.length > 0
     && (!a.fact_check || a.fact_check.verdict !== "conflict");
   // Reprocess re-runs the AI on already-processed items to refresh the format WITHOUT

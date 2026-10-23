@@ -33,6 +33,7 @@ import { uploadCompanyMedia } from "../lib/storage.js";          // company-acco
 import { mapProfileToPP } from "../lib/profileToPP.js";          // company-account: rebuild pp after an edit
 import { API_BASE, isNativeApp } from "../lib/platform.js";
 import { historicalToV2 } from "./historicalBrief.js";   // Path A: map existing summaries → BriefV1 (no AI)
+import { classifyNewsItem, briefCompleteness, briefSections, flagForReview } from "../lib/briefContract.js"; // canonical PR classification + completeness
 import QRCode from "qrcode";
 import jsQR from "jsqr"; // pure-JS QR decode — works on iOS WebKit (BarcodeDetector doesn't)
 import { buildCompanyIdentity } from "./proHighlights.js";
@@ -171,7 +172,44 @@ function TypeIn({ text, speed = 16 }) {
 }
 
 // Live company data injected from Supabase before mount; falls back to the built-in reference data.
-const _PP = (typeof window !== "undefined" && window.__PP__) || {};
+// ── EMBED ONLY — serve the marketing walkthrough resized renditions of the company media.
+//
+// Measured on the device, the walkthrough peaked at 98.4MB of DECODED bitmaps and 78.9MB of
+// that arrived in ONE step, the PROJECTS beat, where this gallery loads 1500px photographs
+// into ~140px thumbnails inside a phone that is itself scaled to 0.42. iOS answered by
+// killing the tab: the reported recording carries Safari's own "This webpage was reloaded
+// because a problem occurred" banner. This is that fix.
+//
+// Supabase renders the renditions on demand, so NOTHING stored is touched or altered, and
+// the production app never takes this path — it is gated on the embed parameter, which the
+// real app does not set. `resize=contain` inside a 560 box keeps each image's own aspect
+// ratio and crops nothing (verified: a 1500x1125 source returns 560x420, 1.333 either way);
+// width alone does NOT, it returns 560x1125 and distorts. 560 is above the ~487 device
+// pixels the largest full-bleed slot can resolve here, so quality is unchanged on screen.
+// Per image: 6.44MB decoded becomes 0.90MB, and 139KB on the wire becomes 34KB.
+const EMBED_MEDIA = (() => {
+  try { return new URLSearchParams(window.location.search).has("embed"); } catch (_) { return false; }
+})();
+const RENDITION_BOX = 560;
+const toRendition = (u) => (
+  typeof u === "string" && u.includes("/storage/v1/object/public/") && !u.includes("/render/image/")
+    ? u.replace("/storage/v1/object/public/", "/storage/v1/render/image/public/")
+       + (u.includes("?") ? "&" : "?") + `width=${RENDITION_BOX}&height=${RENDITION_BOX}&resize=contain&quality=80`
+    : u
+);
+const withRenditions = (node, depth = 0) => {
+  if (depth > 12) return node;
+  if (typeof node === "string") return toRendition(node);
+  if (Array.isArray(node)) return node.map((v) => withRenditions(v, depth + 1));
+  if (node && typeof node === "object") {
+    const out = {};
+    for (const k of Object.keys(node)) out[k] = withRenditions(node[k], depth + 1);
+    return out;
+  }
+  return node;
+};
+const _PP_RAW = (typeof window !== "undefined" && window.__PP__) || {};
+const _PP = EMBED_MEDIA ? withRenditions(_PP_RAW) : _PP_RAW;
 // Account plan tier (free/basic/pro) — gates how much of the profile investors see. Free
 // renders the compact BasicListing (pp.TIER==="listing"); BASIC = Overview + Timeline only;
 // PRO (or unknown, so existing companies are unaffected) = the full tabbed profile.
@@ -1161,8 +1199,25 @@ function Overview({ tab, goto, openBrief, following, setFollowing, bookmarked, s
   // ("photo" | "status"), so the flip is a deliberate story beat, not a timer.
   const embedCard = (() => { try { return new URLSearchParams(window.location.search).has("embed"); } catch (_) { return false; } })();
   const [flipped, setFlipped] = useState(embedCard ? false : (ppPreviewLive ? true : (introDone ? initialFlipped : false))); // false = image face, true = status face
-  const [imgIn, setImgIn] = useState(embedCard || introDone || ppPreviewLive);
-  const [logoIn, setLogoIn] = useState(embedCard);
+  // In the embed the card ARRIVES WITH ITS PHOTOGRAPH. The app itself opens on a grey card
+  // and fades the photograph in, and the embed matched that until it was reviewed on the
+  // device: the grey frame reads as something still loading rather than as an intended
+  // opening, so it is not wanted here. The photograph is therefore present from the first
+  // frame and the LOGO is what animates — the entrance the card is actually judged on.
+  // Deliberate divergence from the app's own choreography, decided on the look of it.
+  const [imgIn, setImgIn] = useState(embedCard ? true : (introDone || ppPreviewLive));
+  // Hidden only when a director is going to bring it in. The home walkthrough passes
+  // `intro=1` and plays the entrance; the INVESTOR page embeds the same shell at
+  // /appdemo?embed=1 and only drives which screen is shown — it never plays an opening. When
+  // the logo was made to start hidden for every embed, it therefore vanished from the
+  // investor page's profile entirely, which is how it was reported. An embed that has not
+  // asked for a directed opening simply shows the logo.
+  const directedOpen = embedCard && (() => {
+    try { return new URLSearchParams(window.location.search).has("intro"); } catch (_) { return false; }
+  })();
+  const [logoIn, setLogoIn] = useState(embedCard ? !directedOpen : false);
+  const logoWrapRef = useRef(null);   // the logo's wrapper — the embed entrance animates this node directly
+  const heroRef = useRef(null);       // the hero photograph — same, for the embed's opening
   const [showLogo, setShowLogo] = useState(embedCard ? true : (ppPreviewLive ? false : !introDone));   // logo only during the intro
   // Don't start the intro until the hero image is actually decoded — otherwise the
   // timed fade runs against an unloaded network image (Storage URL), the CEO sees a
@@ -1193,11 +1248,130 @@ function Overview({ tab, goto, openBrief, following, setFollowing, bookmarked, s
   // between the photo hero and the status grid. Inert outside embed.
   useEffect(() => {
     if (!embedCard) return;
+    // Replay the logo's entrance from nothing.
+    //
+    // Two state-based attempts failed. Flipping logoIn false and back cannot work at all —
+    // the span carries a .7s opacity transition, so a short gap only lets it travel part of
+    // the way toward 0 before being sent back; measured, it dipped to 0.95 and returned.
+    // Unmounting and remounting it across animation frames DID measure as a clean 0 -> 1 in
+    // Chrome, and still did nothing on the device: it depends on React committing those
+    // states as separate paints, and with automatic batching and iOS's own frame scheduling
+    // they can land in one, so the span is only ever painted at 1 and there is no entrance.
+    //
+    // So drive the element instead of the state. The Web Animations API runs the entrance on
+    // the node itself, independently of React's commits, of the CSS transition already on the
+    // span, and of whatever opacity it currently holds. It either runs or it doesn't; there
+    // is no ordering left to get wrong. The style fallback restarts the CSS transition the
+    // explicit way — kill it, set 0, force a reflow, put it back — for anything without WAAPI.
+    // ── The REAL opening, replayed for the embed ────────────────────────────────────────
+    // The constants below are the app's own, lifted from the intro effect above so the two
+    // cannot drift: the hero starts at +60ms, the logo at +680ms, each a 700ms `ease` fade,
+    // and nothing starts until the hero has DECODED (same 2200ms cap). The director then
+    // runs the flip as its own beat, which is why the flip is not repeated here.
+    //
+    // Driven on the nodes rather than through imgIn/logoIn, because state cannot express
+    // this: both carry a .7s CSS transition, so setting one false and true 60ms later only
+    // lets it travel part of the way down before it is sent back — measured on an earlier
+    // attempt, the logo dipped to 0.95 and returned. `fill: "backwards"` holds the element
+    // at opacity 0 through its delay, so the stagger is real and nothing is painted early.
+    // Shorter and sooner than the app's. With the photograph already up, the logo IS the
+    // entrance, and at the app's 60ms delay + 700ms fade it was the only thing happening for
+    // three quarters of a second — which read as waiting rather than as arriving. It now
+    // starts on the first frame of the entrance and lands in 460ms. Embed only; the app's own
+    // intro keeps 60/680/700 untouched.
+    const OPEN = { hero: 0, logo: 680, fade: 460, cap: 2200 };
+    const fadeNode = (el, delay) => {
+      if (!el) return;
+      if (typeof el.animate === "function") {
+        try { el.animate([{ opacity: 0 }, { opacity: 1 }],
+                         { duration: OPEN.fade, delay, easing: "ease", fill: "backwards" }); return; } catch (_) {}
+      }
+      el.style.transition = "none"; el.style.opacity = "0";
+      void el.offsetHeight;
+      setTimeout(() => {
+        el.style.transition = `opacity ${OPEN.fade}ms ease`; el.style.opacity = "1";
+        setTimeout(() => { el.style.transition = ""; el.style.opacity = ""; }, OPEN.fade + 120);
+      }, delay);
+    };
+    // Now that the card OPENS blank, this is just the app's intro, on the app's clock. The
+    // elements sit at opacity 0 with their .7s transitions idle, so flipping each one true at
+    // its own offset produces the real staged fade — the thing state could not do before was
+    // only ever a problem because the card started finished and a transition was already in
+    // flight. Animating the nodes here as well would fight these transitions: setting imgIn
+    // and logoIn true starts both CSS fades at once, and that is exactly what produced a 0ms
+    // stagger when it was measured. One mechanism, the app's own.
+    const playOpening = () => new Promise((resolve) => {
+      // Photograph up, logo down: the opening state the card is revealed in.
+      setFlipped(false); setShowLogo(true); setImgIn(true); setLogoIn(false);
+      let fired = false;
+      const start = () => {
+        if (fired) return; fired = true;
+        setTimeout(() => setLogoIn(true), OPEN.hero);   // the logo takes the 60ms slot
+        setTimeout(resolve, OPEN.hero + OPEN.fade);     // it has landed
+      };
+      if (!STATUS_IMG) { start(); return; }
+      // Gate on the element that is ALREADY on screen, not on a fresh Image. The director
+      // decodes this exact node under the boot cover, so asking it again resolves at once;
+      // a new Image re-ran the decode from scratch with the visitor watching a blank card.
+      const live = heroRef.current;
+      if (live && live.complete && live.naturalWidth > 0) {
+        if (live.decode) live.decode().then(start).catch(start); else start();
+        return;
+      }
+      const probe = new Image();
+      probe.src = STATUS_IMG;
+      if (probe.decode) probe.decode().then(start).catch(start);
+      else { probe.onload = start; probe.onerror = start; }
+      setTimeout(start, OPEN.cap);                     // never wait longer than the app does
+    });
+    const playLogoIn = () => { fadeNode(logoWrapRef.current, 0); };
     window.__ppSetFace = (face) => {
       if (face === "status") { setShowLogo(false); setFlipped(true); }
-      else { setShowLogo(true); setLogoIn(true); setFlipped(false); }
+      else { setFlipped(false); playLogoIn(); }   // the logo arrives, rather than switching on
     };
-    return () => { if (window.__ppSetFace) { try { delete window.__ppSetFace; } catch (_) { window.__ppSetFace = undefined; } } };
+    // Embed-only: let the director ask for the logo's entrance at the moment the device is
+    // actually revealed. The app's own intro (image in, logo in at +680ms, flip at +2.1s) is
+    // deliberately skipped in embed mode because the director owns the flip — but that also
+    // took the logo's fade with it, so the logo was simply painted on at full opacity. The
+    // app cannot time this itself: until the marketing boot cover lifts, nothing it animates
+    // is visible, and only the director knows when that happens.
+    window.__ppLogoReveal = () => { playLogoIn(); };
+    // The director awaits this, so the walkthrough cannot advance mid-entrance.
+    let opened = false;
+    window.__ppPlayOpening = () => { opened = true; return playOpening(); };
+    // Safety net for the blank opening state above: if no entrance is ever asked for — a
+    // director that failed to load, an embed used by something else — bring the card up
+    // anyway rather than leaving it empty. Long enough that it never pre-empts a real
+    // entrance, and invisible when one arrives.
+    // ...but only when there is no director to wait for. A plain timer fired in the ordinary
+    // case — the visitor reads the hero for more than six seconds before opening the
+    // walkthrough, the card came up finished, and the entrance then reset it, which is the
+    // flash this was supposed to avoid. The director announces itself on __ppDirector as
+    // soon as it reveals the device, so an embed that HAS one waits as long as it takes.
+    // Two recoveries, neither able to fire while the visitor is still reading the hero.
+    //   • No director at all → bring the card up after 6s rather than leave it empty.
+    //   • A director that said the chapter is ON SCREEN but never played the opening → bring
+    //     the card up 5s after that. This is the case that had no recovery: with a director
+    //     present the old timer was disabled outright, so one missed signal left the card
+    //     grey permanently, which is what was reported from the device.
+    let failsafe = setTimeout(() => {
+      if (!opened && !window.__ppDirector) { setImgIn(true); setLogoIn(true); setShowLogo(true); }
+    }, 6000);
+    let visibleAt = 0;
+    const watch = setInterval(() => {
+      if (opened) { clearInterval(watch); return; }
+      if (!window.__ppChapterVisible) return;
+      if (!visibleAt) { visibleAt = Date.now(); return; }
+      if (Date.now() - visibleAt < 5000) return;
+      clearInterval(watch);
+      setImgIn(true); setLogoIn(true); setShowLogo(true);
+    }, 500);
+    return () => {
+      clearTimeout(failsafe); clearInterval(watch);
+      for (const k of ["__ppSetFace", "__ppLogoReveal", "__ppPlayOpening"]) {
+        if (window[k]) { try { delete window[k]; } catch (_) { window[k] = undefined; } }
+      }
+    };
   }, [embedCard]);
   // Persist the flip state up to CompanyProfile so returning to this tab keeps it as-is; mark the
   // intro "done" once the card has shown its status face (auto-flip or a manual flip).
@@ -1416,10 +1590,10 @@ function Overview({ tab, goto, openBrief, following, setFollowing, bookmarked, s
               <button onClick={() => { haptic(); setFlipped(true); }} aria-label="Show company status"
                 style={{ position: "absolute", inset: 0, padding: 0, cursor: "pointer", borderRadius: 24, overflow: "hidden", border: "1px solid #e2e8f0", backfaceVisibility: "hidden", WebkitBackfaceVisibility: "hidden", pointerEvents: flipped ? "none" : "auto", opacity: flipped ? 0 : 1, transition: "opacity .45s ease" }}>
                 <div style={{ position: "absolute", inset: 0, background: "linear-gradient(160deg,#e8edf3,#dfe6ee)" }} />
-                {STATUS_IMG && <img src={STATUS_IMG} alt={COMPANY.name || ""} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: imgIn ? 1 : 0, transition: "opacity .7s ease" }} />}
+                {STATUS_IMG && <img ref={heroRef} src={STATUS_IMG} alt={COMPANY.name || ""} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: imgIn ? 1 : 0, transition: "opacity .7s ease" }} />}
                 <span style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(0,0,0,0.10) 0%, rgba(0,0,0,0) 38%, rgba(0,0,0,0.30) 100%)" }} />
                 {showLogo && STATUS_LOGO && (
-                  <span style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", opacity: logoIn ? 1 : 0, transition: "opacity .7s ease" }}>
+                  <span ref={logoWrapRef} style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", opacity: logoIn ? 1 : 0, transition: embedCard ? "opacity .46s ease" : "opacity .7s ease" }}>
                     <img src={STATUS_LOGO} alt={COMPANY.name || ""} style={{ width: "85%", filter: "drop-shadow(0 3px 12px rgba(0,0,0,0.8))" }} />
                   </span>
                 )}
@@ -1876,18 +2050,8 @@ function TimelineView() {
         const cs = CAT_STYLE[cat], is = IMPACT_STYLE[impact];
         return (
         <BottomSheet onClose={() => setDetail(null)} headerActions={<ReaderActions it={{ ...item, contentType: "UPDATE", isPressRelease: true }} snapshot={prItemToSnapshot(item)} />}>
-          <div className="border-b border-slate-200 pb-3 pt-1">
-            <div className="flex flex-wrap items-center gap-1.5">
-              <span className="rounded-md px-1.5 py-0.5 text-[8px] font-extrabold uppercase tracking-wider" style={{ background: cs.bg, color: cs.c }}>{cat}</span>
-              <span className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[8px] font-extrabold uppercase tracking-wider" style={{ background: is.bg, color: is.c }}>
-                <span className="h-1.5 w-1.5 rounded-full" style={{ background: is.dot }} /> {impact}
-              </span>
-              <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400 tabular-nums">{item.d}, {PR_YEARS[detail.yi].year}</span>
-            </div>
-            <h3 className="mt-2 text-[16px] font-extrabold leading-snug tracking-tight text-slate-900">{item.originalTitle || item.headline}</h3>
-          </div>
-
-          <SummaryContent item={item} cat={cat} impact={impact} hasFull={!!(FULL && FULL[item.id])} onReadFull={() => setShowFull(true)} />
+          <BriefHeader cat={cat} impact={impact} dateStr={`${item.d}, ${PR_YEARS[detail.yi].year}`} headline={item.originalTitle || item.headline} />
+          <SummaryContent item={item} cat={cat} impact={impact} hasFull={!!(FULL && FULL[item.id])} onReadFull={() => setShowFull(true)} isPressRelease={true} />
         </BottomSheet>
         );
       })()}
@@ -1906,9 +2070,133 @@ function TimelineView() {
   );
 }
 
+// A Key Results "unit" is either a physical UNIT OF MEASURE that reads correctly INLINE beside the
+// number (grade g/t Ag, length m/km, area km², mass oz/t, concentration ppm, percentage %) — or a
+// DESCRIPTIVE label (Gross, Per Unit, Warrant, Units, Holes, Samples, Price…) that belongs BENEATH
+// the value, exactly as in the approved Kingsmen financing layout. This decides placement by the
+// unit's metric MEANING, not by string length. Anything unrecognised or ambiguous returns false, so
+// it stays beneath and the approved design is never disturbed on a guess.
+function isMeasureUnit(u) {
+  const s = String(u || "").trim();
+  if (!s) return false;
+  if (/^(g\s*\/\s*t|gpt)\b/i.test(s)) return true;                 // assay grades: g/t Ag, g/t AgEq, g/t Au…
+  if (/^(ppm|ppb|oz\s*\/\s*t|wt%?)\b/i.test(s)) return true;       // concentration / mass-per-tonne
+  if (/^%/.test(s)) return true;                                   // percentage grade: %, % Pb, % Zn…
+  if (/^(mm|cm|m|km|km2|km²|m2|m²|ha|ft|in|t|kg|g|oz|lb)$/i.test(s)) return true;  // symbolic length/area/mass
+  if (/^(millimet(?:er|re)s?|centimet(?:er|re)s?|met(?:er|re)s?|kilomet(?:er|re)s?|hectares?|acres?|feet|foot|inch(?:es)?|tonnes?|tons?|ounces?|grams?|kilograms?|pounds?)$/i.test(s)) return true; // spelled-out units
+  return false;
+}
+
+/* KEY RESULTS — one disciplined, repeatable metric-row system. Every result occupies an IDENTICAL
+   two-column row: left = cobalt value (with a measurement unit inline, baseline-aligned, when the
+   unit is a true unit of measure) or a descriptive label beneath; right = descriptor + secondary.
+   Same grid, alignment, typography, padding and separators on every row. ONE value font-size for the
+   whole section (from the longest value+inline-unit) so all rows share baseline and nothing overflows
+   a 375px phone. More than four results page into a 4-per-page swipe carousel with pagination dots;
+   four or fewer render as a single static grid (the approved Kingsmen financing case). */
+function KeyResults({ rows }) {
+  const [page, setPage] = useState(0);
+  const scRef = useRef(null);
+  const perPage = 4;
+  const pages = [];
+  for (let i = 0; i < rows.length; i += perPage) pages.push(rows.slice(i, i + perPage));
+  const multi = pages.length > 1;
+  // Font sizing considers the inline unit's width too, so "3,227.2 Meters" steps down like a long value.
+  const effLen = (r) => String(r.v || "").length + (isMeasureUnit(r.u) ? String(r.u || "").length + 1 : 0);
+  const maxLen = rows.reduce((m, r) => Math.max(m, effLen(r)), 0);
+  const vSize = maxLen <= 9 ? 22 : maxLen <= 12 ? 18 : 15;
+  const uSize = Math.max(12, Math.round(vSize * 0.58));
+  const row = (r, i) => (
+    <div key={i} style={{ display: "contents" }}>
+      {/* value + unit (grouped, left-aligned, never wraps) */}
+      <div className={`py-3 ${i > 0 ? "border-t border-slate-100" : ""}`}>
+        {isMeasureUnit(r.u) ? (
+          <div className="flex items-baseline gap-1 whitespace-nowrap">
+            <span className="font-extrabold leading-none tracking-tight tabular-nums" style={{ color: EM_TEXT, fontSize: vSize }}>{r.v}</span>
+            <span className="font-semibold leading-none tracking-tight text-slate-400" style={{ fontSize: uSize }}>{r.u}</span>
+          </div>
+        ) : (
+          <>
+            <div className="font-extrabold leading-none tracking-tight tabular-nums whitespace-nowrap" style={{ color: EM_TEXT, fontSize: vSize }}>{r.v}</div>
+            {r.u && <div className="mt-1 text-[10px] font-bold uppercase tracking-[0.08em] text-slate-400">{r.u}</div>}
+          </>
+        )}
+      </div>
+      {/* description + optional relationship label + secondary (wraps naturally), top-aligned */}
+      <div className={`min-w-0 py-3 pt-[13px] ${i > 0 ? "border-t border-slate-100" : ""}`}>
+        <div className="text-[13.5px] font-semibold leading-snug text-slate-800">
+          {r.rel && <span className="mr-1.5 text-[9.5px] font-extrabold uppercase tracking-[0.1em]" style={{ color: EM }}>{r.rel}</span>}
+          {r.rel && <span className="mr-1.5 text-slate-300">·</span>}
+          {r.desc}
+        </div>
+        {r.sec && <div className="mt-0.5 text-[12px] font-medium leading-snug text-slate-500">{r.sec}</div>}
+      </div>
+    </div>
+  );
+  const grid = (pageRows, off) => (
+    <div className="grid items-start gap-x-5" style={{ gridTemplateColumns: "max-content minmax(0, 1fr)" }}>
+      {pageRows.map((r, i) => row(r, off + i))}
+    </div>
+  );
+  return (
+    <div className="mt-6">
+      <span className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-slate-900">Key Results</span>
+      {!multi ? (
+        <div className="mt-2">{grid(rows, 0)}</div>
+      ) : (
+        <>
+          <div
+            ref={scRef}
+            className="pp-noscroll mt-2 flex overflow-x-auto"
+            style={{ scrollSnapType: "x mandatory" }}
+            onScroll={() => { const el = scRef.current; if (el) setPage(Math.round(el.scrollLeft / (el.clientWidth || 1))); }}
+          >
+            {pages.map((pg, pi) => (
+              <div key={pi} className="w-full flex-shrink-0" style={{ scrollSnapAlign: "start" }}>{grid(pg, pi * perPage)}</div>
+            ))}
+          </div>
+          {/* pagination dots — identical circular dots: active = cobalt, inactive = light grey */}
+          <div className="mt-3 flex items-center justify-center gap-1.5">
+            {pages.map((_, pi) => (
+              <button
+                key={pi}
+                aria-label={`Key Results page ${pi + 1} of ${pages.length}`}
+                aria-current={pi === page ? "true" : undefined}
+                onClick={() => { const el = scRef.current; if (el) el.scrollTo({ left: pi * (el.clientWidth || 1), behavior: "smooth" }); }}
+                className="rounded-full transition-colors"
+                style={{ width: 7, height: 7, background: pi === page ? EM : "#cbd5e1" }}
+              />
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// The approved Kingsmen press-release reader HEADER — category + impact pills + date, the headline,
+// and the hairline divider. Reused VERBATIM by the company timeline AND the feed reader so every
+// press release shares ONE header (not a competing one), regardless of entry point.
+function BriefHeader({ cat, impact, dateStr, headline }) {
+  const cs = CAT_STYLE[cat] || CAT_STYLE.Exploration;
+  const is = IMPACT_STYLE[impact] || IMPACT_STYLE.Low;
+  return (
+    <div className="border-b border-slate-200 pb-3 pt-1">
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className="rounded-md px-1.5 py-0.5 text-[8px] font-extrabold uppercase tracking-wider" style={{ background: cs.bg, color: cs.c }}>{cat}</span>
+        <span className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[8px] font-extrabold uppercase tracking-wider" style={{ background: is.bg, color: is.c }}>
+          <span className="h-1.5 w-1.5 rounded-full" style={{ background: is.dot }} /> {impact}
+        </span>
+        {dateStr && <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400 tabular-nums">{dateStr}</span>}
+      </div>
+      <h3 className="mt-2 text-[16px] font-extrabold leading-snug tracking-tight text-slate-900">{headline}</h3>
+    </div>
+  );
+}
+
 /* Why This Matters + Key Takeaways. Window and button are present immediately;
    the text fades in once, in a single swipe. */
-function SummaryContent({ item, cat, impact, hasFull, onReadFull, sourceNote }) {
+function SummaryContent({ item, cat, impact, hasFull, onReadFull, sourceNote, isPressRelease, isEditorial }) {
   const stage = STAGE_IMPACT_BY_CAT[cat] || ["—", "—"];
   // DEV-ONLY benchmark: render the Version-2 Brief for Kingsmen releases that carry `item.v2`,
   // with a compare toggle. Gated by window.__BRIEF_BENCH__; the normal reader is unchanged.
@@ -1932,77 +2220,66 @@ function SummaryContent({ item, cat, impact, hasFull, onReadFull, sourceNote }) 
     // are distinguished by the label, NOT by size or colour. Supports 0–4 rows.
     const rows = kr;
     const hasRows = rows.length > 0;
+    // Content completeness against the press-release contract (What Happened + Why It Matters are
+    // REQUIRED). Empty sections are NEVER rendered as empty headings; instead a press release that is
+    // missing required content is flagged for review (globalThis.__BRIEF_REVIEW__ + a localhost-only
+    // notice) so an incomplete summary is never silently presented as complete.
+    const comp = briefCompleteness(v2, isPressRelease);
+    if (isPressRelease && !comp.complete && item && item.id) {
+      flagForReview(item.id, "incomplete-brief", `missing ${comp.missing.join(", ")}`);
+    }
+    // Single source of truth for which sections render (shared with the contract tests). `show(key)`
+    // mirrors briefSections exactly so the UI can never drift from what the tests assert.
+    const hasPlainEnglish = !!(item && item.plainEnglish && String(item.plainEnglish).trim());
+    const sections = briefSections(v2, { isPressRelease, isEditorial, hasPlainEnglish });
+    const show = (k) => sections.some((s) => s.key === k);
+    const isLocalhost = typeof location !== "undefined" && /^(localhost|127\.0\.0\.1|\[::1\])$/i.test(location.hostname);
     return (
       <div className="mt-4">
         {benchToggle}
         <div className="pp-view">
-          {/* Balanced section hierarchy restored: What Happened and Why It Matters carry equal
-              weight (strong dark labels; Why It Matters differentiated only by a cobalt label),
-              Key Results is the centerpiece, Broader Context is quiet, The Takeaway concludes. */}
-          <div>
-            <span className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-slate-900">What Happened</span>
-            <p className="mt-1.5 text-[13.5px] font-medium leading-relaxed text-slate-600">{v2.wh}</p>
-          </div>
-          <div className="mt-5">
-            <span className="text-[10px] font-extrabold uppercase tracking-[0.16em]" style={{ color: EM_TEXT }}>Why It Matters</span>
-            <p className="mt-1.5 text-[13.5px] font-medium leading-relaxed text-slate-600">{v2.wy}</p>
-          </div>
+          {/* Review-only notice (localhost): a required section is missing from the source summary.
+              Never shown to investors in production — it makes incompleteness visible to the team. */}
+          {isLocalhost && isPressRelease && !comp.complete && (
+            <div className="mb-3 rounded-lg px-3 py-2 text-[11px] font-bold" style={{ background: "rgba(245,158,11,0.12)", color: "#b45309", border: "1px solid rgba(245,158,11,0.3)" }}>
+              ⚠ Flagged for review — missing {comp.missing.join(", ")} (not shown in production)
+            </div>
+          )}
+          {/* What Happened and Why It Matters carry equal weight; Key Results is the centerpiece; The
+              Takeaway concludes when the source supports one. Each section renders ONLY when its
+              content exists — an empty heading is never drawn. */}
+          {show("wh") && (
+            <div>
+              <span className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-slate-900">What Happened</span>
+              <span className="ml-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">· MineEx summary</span>
+              <p className="mt-1.5 text-[13.5px] font-medium leading-relaxed text-slate-600">{v2.wh}</p>
+            </div>
+          )}
+          {show("wy") && (
+            <div className={show("wh") ? "mt-5" : ""}>
+              <span className="text-[10px] font-extrabold uppercase tracking-[0.16em]" style={{ color: EM_TEXT }}>Context</span>
+              <p className="mt-1.5 text-[13.5px] font-medium leading-relaxed text-slate-600">{v2.wy}</p>
+            </div>
+          )}
 
-          {/* "What does this mean?" — the editorial jargon explainer, shown ONLY when the item
-              carries one (news items). Optional, source-derived (never fabricated); keeps the
-              approved V2 section rhythm so it doesn't disrupt the layout. */}
-          {item && item.plainEnglish && String(item.plainEnglish).trim() && (
+          {/* "What does this mean?" — a jargon explainer that belongs ONLY to editorial NEWS, never
+              a press release. A press release follows the definitive Kingsmen V2 structure exactly
+              (What Happened → Why It Matters → Key Results → The Takeaway), regardless of which
+              surface it opens from. Pure third-party editorial news keeps it (source-derived). */}
+          {show("wdtm") && (
             <div className="mt-5">
               <span className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-slate-900">What Does This Mean?</span>
               <p className="mt-1.5 text-[13.5px] font-medium leading-relaxed text-slate-600">{item.plainEnglish}</p>
             </div>
           )}
 
-          {/* KEY RESULTS — one disciplined, repeatable metric-row system. Every result occupies an
-              IDENTICAL two-column row: left = fixed-width cobalt value + unit beneath; right =
-              descriptor + secondary, with an optional relationship label (e.g. INCLUDING). Same grid,
-              alignment, typography, padding and separators on every row; primary vs included intervals
-              are distinguished by the label, not by size or colour. Supports 0–4 rows. */}
-          {hasRows && (() => {
-            // Two-column grid: a content-hugging value column (so every blue value starts at the
-            // same x and every description starts at the same x, with a consistent gap — not a
-            // fixed box that leaves short values floating) + a flexible, wrapping description
-            // column. ONE value font-size for the whole section, chosen from the LONGEST value, so
-            // all rows share identical typography and baseline (short values keep the approved
-            // 22px; longer values step down uniformly so nothing overflows a narrow iPhone).
-            const maxLen = rows.reduce((m, r) => Math.max(m, String(r.v || "").length), 0);
-            const vSize = maxLen <= 9 ? 22 : maxLen <= 12 ? 18 : 15;
-            return (
-            <div className="mt-6">
-              <span className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-slate-900">Key Results</span>
-              <div className="mt-2 grid items-start gap-x-5" style={{ gridTemplateColumns: "max-content minmax(0, 1fr)" }}>
-                {rows.map((r, i) => (
-                  <div key={i} style={{ display: "contents" }}>
-                    {/* value + unit (grouped, left-aligned, never wraps) */}
-                    <div className={`py-3 ${i > 0 ? "border-t border-slate-100" : ""}`}>
-                      <div className="font-extrabold leading-none tracking-tight tabular-nums whitespace-nowrap" style={{ color: EM_TEXT, fontSize: vSize }}>{r.v}</div>
-                      {r.u && <div className="mt-1 text-[10px] font-bold uppercase tracking-[0.08em] text-slate-400">{r.u}</div>}
-                    </div>
-                    {/* description + optional relationship label + secondary (wraps naturally),
-                        top-aligned with the numeric value */}
-                    <div className={`min-w-0 py-3 pt-[13px] ${i > 0 ? "border-t border-slate-100" : ""}`}>
-                      <div className="text-[13.5px] font-semibold leading-snug text-slate-800">
-                        {r.rel && <span className="mr-1.5 text-[9.5px] font-extrabold uppercase tracking-[0.1em]" style={{ color: EM }}>{r.rel}</span>}
-                        {r.rel && <span className="mr-1.5 text-slate-300">·</span>}
-                        {r.desc}
-                      </div>
-                      {r.sec && <div className="mt-0.5 text-[12px] font-medium leading-snug text-slate-500">{r.sec}</div>}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-            );
-          })()}
+          {/* KEY RESULTS — semantic metric-row system (units inline, descriptive labels beneath,
+              4-per-page swipe carousel beyond four results). See the KeyResults component above. */}
+          {show("kr") && <KeyResults rows={rows} />}
 
           {/* HIGHLIGHTS — for mapped historical briefs (no structured Key Results), surface the
               release's existing key-number bullets VERBATIM so the data is never lost. */}
-          {!hasRows && Array.isArray(v2.highlights) && v2.highlights.length > 0 && (
+          {show("highlights") && (
             <div className="mt-6">
               <span className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-slate-900">Highlights</span>
               <ul className="mt-2.5 space-y-2.5">
@@ -2016,9 +2293,9 @@ function SummaryContent({ item, cat, impact, hasFull, onReadFull, sourceNote }) 
             </div>
           )}
 
-          {v2.tk && (
+          {show("tk") && (
             <div className="mt-6 rounded-2xl px-4 py-3.5" style={{ background: "rgba(37,99,235,0.06)", border: "1px solid rgba(37,99,235,0.16)" }}>
-              <span className="flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-[0.14em]" style={{ color: EM_TEXT }}><Sparkles size={12} strokeWidth={2.4} /> The Takeaway</span>
+              <span className="flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-[0.14em]" style={{ color: EM_TEXT }}><Sparkles size={12} strokeWidth={2.4} /> What's Next</span>
               <p className="mt-1.5 text-[13.5px] font-semibold leading-relaxed text-slate-700">{v2.tk}</p>
             </div>
           )}
@@ -2143,7 +2420,9 @@ function FullText({ full }) {
       {caption ? <figcaption className="mt-1.5 text-center text-[10.5px] font-medium leading-snug text-slate-400">{caption}</figcaption> : null}
     </figure>
   );
-  // CONTENT-BLOCK model — text and figures interleaved in the order the company authored them.
+  // CONTENT-BLOCK model — text and figures interleaved in the order the company authored them
+  // (used by the approved press-release Brief fixture). Only triggers when blocks are present;
+  // every other caller keeps the {text, images} fallback below unchanged.
   if (Array.isArray(data.blocks)) {
     return (
       <div>
@@ -4115,6 +4394,25 @@ const AM_SITE_GALLERY = [
   { kicker: "Sierra de Almoloya", label: "Valley Floor", src: "https://rvptronniomlqumjhyrr.supabase.co/storage/v1/object/public/company-media/kingsmen/site-30-valley-floor.webp" },
   { kicker: "Sierra de Almoloya", label: "Desert Terrain", src: "https://rvptronniomlqumjhyrr.supabase.co/storage/v1/object/public/company-media/kingsmen/site-31-desert-terrain.webp" },
 ];
+
+// EMBED ONLY — the site galleries are hardcoded module constants, not profile data, which is
+// why rewriting _PP and applyPP changed nothing: measured, peak decoded memory stayed at
+// 95.4MB and not one rendition was served. These three arrays ARE the PROJECTS beat, the
+// step that peaked at 78.9MB on its own and took the tab down with it. Rewritten in place,
+// after all three are declared, so every consumer sees renditions without touching a single
+// call site. Inert outside the embed, so the production app is byte-for-byte unaffected.
+if (EMBED_MEDIA) {
+  for (const arr of [LC_SITE_GALLERY, AM_SITE_GALLERY, TEAM_MEMBERS]) {
+    if (!Array.isArray(arr)) continue;
+    for (const it of arr) {
+      if (!it || typeof it !== "object") continue;
+      for (const k of ["src", "photo", "img", "image", "url"]) {
+        if (typeof it[k] === "string") it[k] = toRendition(it[k]);
+      }
+    }
+  }
+}
+
 
 const AM_BRIEF = {
   what: "Almoloya is an 866-hectare past-producing silver-gold district in Chihuahua, consolidating six concessions including the historic Cigarrero and Las Juliettas mines.",
@@ -6495,15 +6793,24 @@ function StoryReader({ it, onOpen, onClose }) {
   const media = isMedia(it.contentType);
   const isBrief = it.contentType === "MINEEX BRIEF";
   // A press-release-type source links to the full release; editorial coverage links to the article.
-  const isRelease = /press|wire|release|company|ir\b|regulat/i.test(it.publisherType || "") || it.contentType === "PRESS RELEASE" || it.contentType === "UPDATE" || !!it.isPressRelease;
+  // Authoritative press-release vs editorial determination. For news-feed items `it.isPressRelease`
+  // is already the canonical classification (classifyNewsItem, set in normalization); company posts
+  // and timeline items are press releases by type. The old publisher_type regex is dead (every row's
+  // publisher_type is "editorial"), so it is no longer consulted.
+  const isRelease = !!it.isPressRelease || it.contentType === "PRESS RELEASE" || it.contentType === "UPDATE";
   const origLabel = media ? "Watch on MineEx" : it.contentType === "NEWS" ? (isRelease ? "Read Full Press Release" : "Read Original Article") : "Read Full Press Release";
   const dateStr = (() => { const d = it.publishedAt ? new Date(it.publishedAt) : null; return d && !isNaN(d) ? d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }) : (it.when || ""); })();
   // Every non-media summary — editorial news AND press releases — renders in the ONE shared V2
   // presentation (SummaryContent). The only news/press-release difference is the footer action
   // (origLabel) and a source line shown for editorial news. Editorial news = a NEWS item that is
   // NOT flagged as a press release.
-  const isEditorialNews = it.contentType === "NEWS" && !it.isPressRelease;
+  const isEditorialNews = it.contentType === "NEWS" && !isRelease;
   const prImpact = (it.key || (it.materiality || 0) >= 75) ? "High" : ((it.materiality || 0) >= 55 ? "Medium" : "Low");
+  // Category + impact for the shared Kingsmen-style header, computed the SAME way as the company
+  // timeline (an explicit Brief category wins, else the headline heuristic). Press releases use the
+  // BriefHeader (pills + date + divider); editorial news keeps its source byline.
+  const { cat: _hCat, impact: _hImpact } = classify(it);
+  const prCat = (it.v2 && it.v2.cat && CAT_STYLE[it.v2.cat]) ? it.v2.cat : _hCat;
   return createPortal(
     <div className="absolute inset-0 z-[110] flex flex-col justify-end pp-fade" onClick={onClose}>
       <style>{"@keyframes mxUp{from{transform:translateY(100%)}to{transform:translateY(0)}}"}</style>
@@ -6512,7 +6819,9 @@ function StoryReader({ it, onOpen, onClose }) {
         <div className="flex-shrink-0 px-5 pt-3" onTouchStart={onDragStart} onTouchMove={onDragMove} onTouchEnd={onDragEnd} style={{ touchAction: "none" }}>
           <div className="mx-auto mb-2 h-1.5 w-10 rounded-full bg-slate-300" />
           <div className="flex items-center justify-between">
-            <TypeBadge type={it.badge || it.contentType} />
+            {/* Press releases match Kingsmen (no left content-type badge — the category pill lives in
+                the header below); editorial news keeps its NEWS/type badge. */}
+            {isRelease && !media ? <span /> : <TypeBadge type={it.badge || it.contentType} />}
             <div className="flex items-center gap-2">
               <button onClick={toggleLike} aria-label={liked ? "Liked" : "Like"} className="grid h-8 w-8 place-items-center rounded-full active:scale-90" style={liked ? { background: "#fee2e2", color: "#ed4956" } : { background: "#f1f5f9", color: "#475569" }}><Heart size={15} fill={liked ? "currentColor" : "none"} /></button>
               <button onClick={shareStory} aria-label="Share" className="grid h-8 w-8 place-items-center rounded-full bg-slate-100 text-slate-600 active:scale-90"><Share2 size={15} /></button>
@@ -6532,14 +6841,23 @@ function StoryReader({ it, onOpen, onClose }) {
               {playing && <span className="absolute bottom-0 left-0 h-1 bg-white/80" style={{ width: "38%" }} />}
             </button>
           )}
-          <div className="mb-2 flex items-center gap-2">
-            <CoLogo co={{ logo: it.logo, slug: it.slug || it.companyId, name: it.companyName, mono: (it.companyName || "").split(/\s+/).slice(0, 2).map((w) => w[0] || "").join("").toUpperCase() }} size={30} />
-            <div className="min-w-0">
-              <p className="truncate text-[12px] font-bold tracking-tight text-slate-800">{it.companyName}{it.ticker ? ` · ${it.ticker}` : ""}</p>
-              <p className="text-[10.5px] font-semibold text-slate-400">{it.source} · {it.when}</p>
-            </div>
-          </div>
-          <h2 className="text-[20px] font-extrabold leading-tight tracking-tight text-slate-900">{it.originalHeadline || it.headline}</h2>
+          {isRelease && !media ? (
+            /* PRESS RELEASE — the approved Kingsmen header (category + impact pills + date + divider),
+               identical to the company timeline, regardless of which feed/tab it was opened from. */
+            <BriefHeader cat={prCat} impact={_hImpact} dateStr={dateStr} headline={it.originalHeadline || it.headline} />
+          ) : (
+            /* EDITORIAL NEWS (and media) keeps its own news design: source byline + larger headline. */
+            <>
+              <div className="mb-2 flex items-center gap-2">
+                <CoLogo co={{ logo: it.logo, slug: it.slug || it.companyId, name: it.companyName, mono: (it.companyName || "").split(/\s+/).slice(0, 2).map((w) => w[0] || "").join("").toUpperCase() }} size={30} />
+                <div className="min-w-0">
+                  <p className="truncate text-[12px] font-bold tracking-tight text-slate-800">{it.companyName}{it.ticker ? ` · ${it.ticker}` : ""}</p>
+                  <p className="text-[10.5px] font-semibold text-slate-400">{it.source} · {it.when}</p>
+                </div>
+              </div>
+              <h2 className="text-[20px] font-extrabold leading-tight tracking-tight text-slate-900">{it.originalHeadline || it.headline}</h2>
+            </>
+          )}
 
           {/* ONE shared V2 presentation for EVERY non-media summary — editorial news AND press
              releases alike (What Happened / Why It Matters / blue Key Results / optional Takeaway
@@ -6548,7 +6866,7 @@ function StoryReader({ it, onOpen, onClose }) {
              by the footer action label (origLabel) and the source line below (editorial news only).
              Media keeps its player above and shows no summary body. */}
           {!media && (
-            <SummaryContent item={it} cat={(it.v2 && it.v2.cat) || it.category || ""} impact={prImpact} hasFull={false} onReadFull={() => {}} sourceNote={isEditorialNews ? `Source: ${it.source || "Industry"}${dateStr ? ` · ${dateStr}` : ""}` : ""} />
+            <SummaryContent item={it} cat={(it.v2 && it.v2.cat) || it.category || ""} impact={prImpact} hasFull={false} onReadFull={() => {}} sourceNote={isEditorialNews ? `Source: ${it.source || "Industry"}${dateStr ? ` · ${dateStr}` : ""}` : ""} isPressRelease={isRelease} isEditorial={isEditorialNews} />
           )}
         </div>
         {(() => {
@@ -7017,9 +7335,14 @@ export function TodayScreen({ onOpenCompany, onScan, onCreate }) {
   useEffect(() => { refreshNews(); }, [refreshNews]);
   const feedReady = mockOn || newsLoaded;
   const NEWS_SCENE = { "Drill Results": "core", Assays: "core", "Resource Update": "geomap", Exploration: "geomap", Acquisition: "geomap", Financing: "processing", Permitting: "landscape", Partnership: "landscape", Production: "landscape", Corporate: "landscape", "Macro/Market": "market" };
-  const liveObjects = useMemo(() => liveNews.map((n) => ({
+  const liveObjects = useMemo(() => liveNews.map((n) => {
+   // CANONICAL classification (authoritative source metadata, not the unreliable is_press_release
+   // flag). Uncertain/conflicting cases are surfaced via flagForReview, never silently guessed.
+   const cls = classifyNewsItem(n);
+   if (cls.needsReview) flagForReview(`news-${n.id}`, "classification-uncertain", cls.reasons.join("; "));
+   return ({
     id: `news-${n.id}`, contentType: "NEWS", badge: "NEWS", eventType: n.event_type || "",
-    isPressRelease: !!n.is_press_release, category: n.category || "",
+    isPressRelease: cls.isPressRelease, prClassification: cls.classification, prNeedsReview: cls.needsReview, category: n.category || "",
     companyId: n.company_slug || "", companyName: n.source_name || "Industry", ticker: "",
     commodity: (n.commodities || []).join(" · "), jurisdiction: (n.jurisdictions || []).slice(0, 2).join(", "),
     publishedAt: n.published_at, source: n.source_name || "Industry", headline: n.title, t: n.title,
@@ -7033,7 +7356,8 @@ export function TodayScreen({ onOpenCompany, onScan, onCreate }) {
     materiality: n.materiality_score || 50, companyTier: "free", isFeatured: false,
     src: "Industry", Icon: Newspaper, co: n.source_name || "Industry", when: relTime(n.published_at),
     live: !!n.company_slug, slug: n.company_slug || "", logo: "", key: false,
-  })), [liveNews]);
+   });
+  }), [liveNews]);
 
   // Company posts → the SAME normalized feed-object shape as news, so they flow through the
   // exact same ranking/interleave. Press releases become editorial-feed items (UPDATE); media
@@ -9624,6 +9948,11 @@ function ProfileScreen({ onScan }) {
 // component (change its key) after calling this to pick up the new data.
 export function applyPP(pp) {
   if (!pp || typeof pp !== "object") return;
+  // The embed's live data arrives HERE, not through the module-scope _PP: main.jsx fetches
+  // the company row, seeds window.__PP__ and then calls this on the already-loaded module.
+  // Rewriting only _PP therefore changed nothing — measured, peak decoded memory was
+  // identical at 95.4MB before and after. The renditions have to be applied on this path.
+  if (EMBED_MEDIA) pp = withRenditions(pp);
   if (pp.LOGO !== undefined) LOGO = pp.LOGO;
   if (pp.AVATAR !== undefined) AVATAR = pp.AVATAR;
   if (pp.SITE_PHOTO !== undefined) SITE_PHOTO = pp.SITE_PHOTO;

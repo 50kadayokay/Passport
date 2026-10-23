@@ -152,6 +152,13 @@ function Shell({ children }) {
 export default function MarketingSite() {
   useDocumentMeta();
   const reduce = useReduce();
+  // Route swaps run as a TRANSITION. React then keeps the page that is already on screen
+  // mounted while the next one's chunk arrives, instead of tearing it down and showing the
+  // Suspense fallback — which is a full-screen opaque sheet. Measured on production before
+  // this: Pricing 8219ms of blank, Get the App 3282ms, Pro 3172ms, and 441 of 546 sampled
+  // frames across a nav pass were that sheet. The transition is what removes it; the single
+  // hoisted boundary below is what makes the transition possible at all.
+  const [, startTransition] = React.useTransition();
 
   useEffect(() => {
     if (reduce) return;
@@ -174,7 +181,10 @@ export default function MarketingSite() {
     typeof window === "undefined" ? "" : effectiveSearch(window.location.pathname, window.location.search));
 
   useEffect(() => {
-    const sync = () => setSearch(effectiveSearch(window.location.pathname, window.location.search));
+    const sync = () => {
+      const next = effectiveSearch(window.location.pathname, window.location.search);
+      startTransition(() => setSearch(next));
+    };
 
     // One delegated handler: a left-click on an in-site marketing link becomes a
     // pushState. Anything else — a new tab, a modifier, an external host, the app, the
@@ -191,8 +201,7 @@ export default function MarketingSite() {
       e.preventDefault();
       window.history.pushState({}, "", url.pathname + url.search + url.hash);
       window.dispatchEvent(new Event("mx:navchange"));        // Nav already listens for this
-      window.scrollTo(0, 0);
-      sync();
+      sync();                                                 // scroll happens on the swap, below
     };
 
     window.addEventListener("popstate", sync);
@@ -205,71 +214,89 @@ export default function MarketingSite() {
     };
   }, []);
 
+  // Scroll to the top when the surface actually CHANGES, not when the click happens. The
+  // outgoing page stays on screen through the transition, so scrolling on click would yank
+  // the page the visitor is still looking at.
+  const firstRender = React.useRef(true);
+  useEffect(() => {
+    if (firstRender.current) { firstRender.current = false; return; }
+    window.scrollTo(0, 0);
+  }, [search]);
+
+  // ONE Suspense boundary, mounted once and kept. A boundary that is itself newly mounted
+  // always shows its fallback, so the per-route boundaries this replaced guaranteed the
+  // blank sheet on every single navigation no matter how fast the chunk arrived.
+  return <React.Suspense fallback={fallback}>{routeFor(search)}</React.Suspense>;
+}
+
+/* ── which surface a search string selects ───────────────────────────────────── */
+
+function routeFor(search) {
   // Directed-automation proof: the real iframe app driven by the DemoDirector.
   if (/[?&]directedEmbed/.test(search)) return <Shell><DirectedEmbed /></Shell>;
 
   // Build-time capture surface for the app screenshots (its own chunk, nothing links here).
   if (/[?&]appshot=/.test(search))
-    return <React.Suspense fallback={fallback}><AppShotStage /></React.Suspense>;
+    return <AppShotStage />;
 
   // Phone lab — ISOLATED working version of the device composition. Imports nothing that the
   // sales page, Pro page or Investor page render. Safe to experiment in.
   if (/[?&]phonelab(=|&|$)/.test(search))
-    return <React.Suspense fallback={fallback}><PhoneLab /></React.Suspense>;
+    return <PhoneLab />;
 
   // Company Portal chapter — isolated first-slice preview.
   if (/[?&]portalslice(=|&|$)/.test(search)) return <Shell><PortalSlice /></Shell>;
 
   // Marketing-only Company-Portal render surface (full-screen, own chunk).
   if (/[?&]portaldemo(=|&|$)/.test(search))
-    return <React.Suspense fallback={fallback}><PortalDemoRoute /></React.Suspense>;
+    return <PortalDemoRoute />;
 
 
   // Marketing-only Conference fixture renderer (full-screen, own chunk).
   if (/[?&]conffixture=/.test(search))
-    return <React.Suspense fallback={fallback}><ConferenceFixtureRoute /></React.Suspense>;
+    return <ConferenceFixtureRoute />;
 
   // PRIMARY homepage — lean surface (its own chunk).
   if (/[?&]ecostory(=|&|$)/.test(search))
-    return <React.Suspense fallback={fallback}><EcoStoryRoute /></React.Suspense>;
+    return <EcoStoryRoute />;
 
   if (/[?&]conftemplate(=|&|$)/.test(search))
-    return <React.Suspense fallback={fallback}><ConfTemplateRoute /></React.Suspense>;
+    return <ConfTemplateRoute />;
 
   // Conference Mode inquiry — checked before the Conference page (own chunk).
   if (/[?&]confstart(=|&|$)/.test(search))
-    return <React.Suspense fallback={fallback}><ConferenceInquiry /></React.Suspense>;
+    return <ConferenceInquiry />;
 
   if (/[?&]conference(=|&|$)/.test(search))
-    return <React.Suspense fallback={fallback}><ConferencePage /></React.Suspense>;
+    return <ConferencePage />;
 
   if (/[?&]investor(=|&|$)/.test(search))
-    return <React.Suspense fallback={fallback}><InvestorPage /></React.Suspense>;
+    return <InvestorPage />;
 
   // Contact / plan enquiry — where every pricing CTA leads.
   if (/[?&]contact(=|&|$)/.test(search))
-    return <React.Suspense fallback={fallback}><ContactPage /></React.Suspense>;
+    return <ContactPage />;
 
   // Android interstitial — where the Play badge leads until that listing publishes.
   if (/[?&]android(=|&|$)/.test(search))
-    return <React.Suspense fallback={fallback}><AndroidSoon /></React.Suspense>;
+    return <AndroidSoon />;
 
   if (/[?&]getapp(=|&|$)/.test(search))
-    return <React.Suspense fallback={fallback}><GetApp /></React.Suspense>;
+    return <GetApp />;
 
   if (/[?&]home2(=|&|$)/.test(search))
-    return <React.Suspense fallback={fallback}><Home2 /></React.Suspense>;
+    return <Home2 />;
 
   // Pricing tab — the pricing ONLY (nav + ProPricing), no Pro intro/walkthrough (its own chunk).
   if (/[?&]compare(=|&|$)/.test(search))
-    return <React.Suspense fallback={fallback}><ComparePlans /></React.Suspense>;
+    return <ComparePlans />;
 
   if (/[?&]pricing(=|&|$)/.test(search))
-    return <React.Suspense fallback={fallback}><PricingPage /></React.Suspense>;
+    return <PricingPage />;
 
   // Pro tab — intro → the full walkthrough → pricing (its own chunk).
   if (/[?&]pro(=|&|$)/.test(search))
-    return <React.Suspense fallback={fallback}><ProPage /></React.Suspense>;
+    return <ProPage />;
 
   // Six-chapter desktop sales section (?story, optional &act=projects).
   if (/[?&]story/.test(search))
@@ -287,14 +314,14 @@ export default function MarketingSite() {
       <div className="mx-root" id="top">
         <MarketingStyles />
         <div style={{ height: "42vh", background: MX.sheet }} />
-        <React.Suspense fallback={fallback}><ConferenceAct /></React.Suspense>
+        <ConferenceAct />
         <div style={{ height: "40vh", background: MX.ink }} />
       </div>
     );
 
   // Three-state fidelity proof (full-screen, own chunk).
   if (/[?&]embed(=|&|$)/.test(search))
-    return <React.Suspense fallback={fallback}><EmbedProofRoute /></React.Suspense>;
+    return <EmbedProofRoute />;
 
   // Pro Profile demo stage: ?slice (current model) or ?directedDemo (A/B).
   if (/[?&](slice|directedDemo)/.test(search)) {
@@ -302,12 +329,12 @@ export default function MarketingSite() {
     return (
       <div className="mx-root" id="top">
         <MarketingStyles />
-        <React.Suspense fallback={fallback}><ProProfileDemoStage /></React.Suspense>
+        <ProProfileDemoStage />
         {!directed && <div style={{ height: "70vh", background: MX.sheet }} />}
       </div>
     );
   }
 
   // Default /site — the preserved legacy homepage (also serves the DEV.only preview).
-  return <React.Suspense fallback={fallback}><LegacyHome /></React.Suspense>;
+  return <LegacyHome />;
 }

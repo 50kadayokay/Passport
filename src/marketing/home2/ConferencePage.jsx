@@ -111,17 +111,92 @@ function IntroCarousel({ lead, steps, mobile }) {
 }
 
 
+// Which rendition a desktop tile reads, decided once from the display's own pixel ratio.
+const THUMB_RENDITION = (() => {
+  try { return (window.devicePixelRatio || 1) > 2 ? ".md.webp" : ".sm.webp"; } catch (_) { return ".md.webp"; }
+})();
+
+// ── How many decks may boot AT ONCE ──────────────────────────────────────────────
+//
+// Every tile boots a whole conference deck in an iframe. Each card decided on its own,
+// as soon as its still had decoded — and the still comes from cache in a millisecond, so
+// "when my thumbnail is ready" meant "immediately, all of us". Measured cold on the
+// deployed gallery: twelve iframes up by 2s and 11.13MB over 441 requests still arriving
+// at 10s. Clicking a tile in that window puts the template's own document at the back of
+// that queue, which is why opening a presentation could take 16-24s on a real connection
+// while opening the SAME url directly took 1272ms.
+//
+// Nothing here changes what a tile shows. Every preview still becomes the same live deck;
+// they simply take turns, so there is always capacity left for the thing the visitor
+// actually clicked. A slot is released when a deck paints, or after a ceiling, so one slow
+// deck can never strand the queue.
+// Desktop can afford more in flight than a phone. Three was tuned for the slowest case
+// and made the gallery take ~40s to fill, which is worse than the queueing it prevents.
+// Mobile keeps a tight cap because a phone is where the memory ceiling actually bites;
+// mobile does not boot live decks at all today, so this only guards a future change.
+const DECK_SLOTS = (() => {
+  try { return window.innerWidth < 760 ? 2 : 6; } catch (_) { return 6; }
+})();
+// A SAFETY NET, not a regular path. At 6s this fired before a deck on a real connection
+// had painted, so slots were handed back on a timer and the cap dissolved precisely when
+// the network was slow enough to need it — measured on staging, 9-10 decks live at 7s
+// against a cap of 3. It now only rescues a deck that is genuinely never going to paint.
+const DECK_RELEASE_MS = 12000;
+let deckBusy = 0;
+const deckQueue = [];
+function pumpDecks() {
+  while (deckBusy < DECK_SLOTS && deckQueue.length) { deckBusy += 1; deckQueue.shift()(); }
+}
+function takeDeckSlot(run) {
+  let released = false;
+  const release = () => { if (released) return; released = true; deckBusy = Math.max(0, deckBusy - 1); pumpDecks(); };
+  deckQueue.push(() => { run(); setTimeout(release, DECK_RELEASE_MS); });
+  pumpDecks();
+  return release;
+}
+
 // One template card — thumb placeholder, live hero booted only when it scrolls near.
 function LiveCard({ tpl, name, isNew, slug, idx, mobile }) {
   const ref = useRef(null);
   const [live, setLive] = useState(false);
+  const [painted, setPainted] = useState(false);   // the live preview has actually drawn
+  const releaseRef = useRef(null);                 // hands this tile's boot slot back
   useEffect(() => {
     // A phone cannot afford sixteen live tablet renders; the captured thumbnail is the same frame.
     if (mobile) return;
     const el = ref.current; if (!el) return;
-    const io = new IntersectionObserver((es) => { if (es.some((e) => e.isIntersecting)) { setLive(true); io.disconnect(); } }, { rootMargin: "300px 0px" });
+    // The THUMBNAIL first, then the preview. Each tile boots a full conference deck, and
+    // sixteen of those starting as they come within range were competing with the very
+    // thumbnails they are meant to sit behind — measured, the gallery took 14s to fill in.
+    // The preview now waits for its own still to be decoded, so the page is complete to look
+    // at before any of that work begins. The still is already in cache by then, so this costs
+    // the preview nothing it was not going to spend anyway.
+    const io = new IntersectionObserver((es) => {
+      if (!es.some((e) => e.isIntersecting)) return;
+      io.disconnect();
+      const src = `/thumbs/${tpl}${mobile ? ".sm.webp" : THUMB_RENDITION}`;
+      const im = new Image();
+      // …and then WAIT FOR A TURN. See DECK_SLOTS: the still decodes from cache instantly,
+      // so without this every in-range tile booted its deck in the same frame.
+      const go = () => {
+        releaseRef.current = takeDeckSlot(() => {
+          setLive(true);
+          // HAND THE SLOT BACK AS SOON AS THIS DECK IS UP, not when it is fully decorated.
+          // Measured: a deck paints in ~0ms once its iframe is in the document, yet the slot
+          // was held until onReady, which under strictReady waits for the deck's images. That
+          // is why the gallery took ~27s to admit sixteen decks when each one costs nothing to
+          // start. The visual fade still waits for onReady, so nothing appears half-drawn —
+          // only the QUEUE moves on sooner. release() is idempotent, so whichever fires first
+          // wins and the other is a no-op.
+          setTimeout(() => { if (releaseRef.current) releaseRef.current(); }, 400);
+        });
+      };
+      im.src = src;
+      if (im.decode) im.decode().then(go).catch(go); else { im.onload = go; im.onerror = go; }
+      setTimeout(go, 2500);            // never let a slow still hold the preview back for good
+    }, { rootMargin: "300px 0px" });
     io.observe(el);
-    return () => io.disconnect();
+    return () => { io.disconnect(); if (releaseRef.current) releaseRef.current(); };
   }, [mobile]);
   const previewSrc = `/confv3demo?c=${slug}&t=${tpl}&bar=0`;
   const openHref = `/site?conftemplate=1&t=${tpl}&c=${slug}`;
@@ -132,9 +207,22 @@ function LiveCard({ tpl, name, isNew, slug, idx, mobile }) {
           aspect; on a phone the thumbnail IS the thing being shown, so the box takes the
           thumbnail's aspect and nothing is cropped off the sides. */}
       <div ref={ref} style={{ position: "relative", width: "100%", aspectRatio: mobile ? "1920 / 1200" : "1194 / 820", overflow: "hidden",
-        backgroundColor: "#0c0f15", backgroundImage: `url(/thumbs/${tpl}${mobile ? ".sm.webp" : ".jpg"})`, backgroundSize: mobile ? "contain" : "cover", backgroundPosition: mobile ? "center" : "top center", backgroundRepeat: "no-repeat" }}>
-        {live && <div style={{ position: "absolute", inset: 0 }}>
-          <TabletFrame bare src={previewSrc} interactive={false} showBootCover={false} screenBg="transparent" renderW={1194} renderH={820} title={`${name} — ${slug}`} />
+        backgroundColor: "#0c0f15",
+        // Sized to the tile, not to the capture. These are 271x186 on screen — 542x372 at DPR 2,
+        // 813x558 at DPR 3 — and desktop was loading the 1920x1200 original for every one of
+        // them: 3.88MB across the sixteen, which is why the gallery took so long to fill in.
+        // 840px covers DPR 3 with room and 560 covers DPR 2 exactly, so nothing is softer than
+        // the screen can show, and the set drops to 971KB / 418KB respectively.
+        backgroundImage: `url(/thumbs/${tpl}${mobile ? ".sm.webp" : THUMB_RENDITION})`, backgroundSize: mobile ? "contain" : "cover", backgroundPosition: mobile ? "center" : "top center", backgroundRepeat: "no-repeat" }}>
+        {live && <div style={{ position: "absolute", inset: 0,
+          // Held invisible until the deck has painted, then faded in over the still.
+          // `screenBg: transparent` only clears the frame's own backing — the iframe's
+          // DOCUMENT paints the deck's dark ground as soon as it loads, which blacked out
+          // the thumbnail underneath for the seconds the deck takes to mount. Sixteen of
+          // those is the load-then-black-then-reload flicker on this page.
+          opacity: painted ? 1 : 0, transition: "opacity 420ms ease", pointerEvents: "none" }}>
+          <TabletFrame bare src={previewSrc} interactive={false} showBootCover={false} screenBg="transparent" renderW={1194} renderH={820} strictReady
+            onReady={() => { setPainted(true); if (releaseRef.current) releaseRef.current(); }} title={`${name} — ${slug}`} />
         </div>}
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 9, minHeight: mobile ? 52 : 0, padding: mobile ? "0 16px" : "13px 15px", borderTop: `1px solid ${HAIR}` }}>

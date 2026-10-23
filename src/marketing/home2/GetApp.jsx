@@ -23,9 +23,11 @@ const GRAIN = "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg
 // listing. NOTE: "/gb/" pins this to the UK storefront; dropping the country segment
 // (apps.apple.com/app/id6804108589) lets Apple route each visitor to their own store.
 const APP_STORE_URL = "https://apps.apple.com/gb/app/mineex-mining-news/id6804108589";
-// The Android build is not on the Play Store yet, so the badge leads to an honest
-// interstitial rather than a listing that 404s. Swap ANDROID_SOON for PLAY_STORE_URL in
-// the badge below on the day it publishes.
+// The Android build is LIVE on Google Play, so the badge goes to the listing. It used to
+// point at an honest "coming soon" interstitial (ANDROID_SOON, kept below) because a link to
+// an unpublished listing would have 404'd; that is no longer the case. `sameTab` is dropped
+// with it so the store opens in a new tab like the App Store badge beside it, and the
+// visitor does not lose the page.
 const PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=com.liquidjungle.mineex";
 const ANDROID_SOON = "/android";
 
@@ -82,12 +84,18 @@ export default function GetApp() {
                 display: "block", margin: "0 auto clamp(20px,3vh,30px)",
                 boxShadow: "0 22px 48px -22px rgba(10,27,46,0.55), 0 2px 6px -2px rgba(10,27,46,0.18)" }} />
             <p className="mx-label" style={{ color: COBALT, letterSpacing: "0.22em", margin: 0 }}>The MineEx app</p>
-            <h1 className="mx-h1" style={{ margin: "clamp(14px,2.2vh,22px) 0 0", color: NAVY, maxWidth: "16ch", letterSpacing: "-0.03em" }}>Get MineEx on your phone.</h1>
+            {/* `auto`, not 0, on the horizontal margin. The 16ch measure is NARROWER than the
+                column on a phone (295px inside 331px), and a block that is narrower than its
+                parent with a zero margin sits flush LEFT — all 36px of slack went to the right,
+                and the centred text inside then rendered 18px off the middle of the screen. The
+                lead paragraph below already does this; the heading was the one that did not. No
+                effect above ~1100px, where 16ch fills the column exactly and the slack is 0. */}
+            <h1 className="mx-h1" style={{ margin: "clamp(14px,2.2vh,22px) auto 0", color: NAVY, maxWidth: "16ch", letterSpacing: "-0.03em" }}>Get MineEx on your phone.</h1>
             <p className="mx-lead" style={{ margin: "clamp(12px,1.8vh,20px) auto 0", color: SLATE, maxWidth: "46ch" }}>Discover the market, research companies and follow the ones that matter — free, in your pocket.</p>
 
             <div style={{ marginTop: "clamp(28px,4vh,44px)", display: "flex", flexWrap: "wrap", justifyContent: "center", gap: 16 }}>
               <StoreBadge href={APP_STORE_URL} logo={<AppleLogo />} top="Download on the" bottom="App Store" />
-              <StoreBadge href={ANDROID_SOON} logo={<PlayLogo />} top="GET IT ON" bottom="Google Play" sameTab />
+              <StoreBadge href={PLAY_STORE_URL} logo={<PlayLogo />} top="GET IT ON" bottom="Google Play" />
             </div>
 
             <p style={{ marginTop: 20, fontSize: 15.5, lineHeight: 1.5, color: MUTE }}>Free for investors · on iPhone today, Android soon</p>

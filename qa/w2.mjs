@@ -1,0 +1,12 @@
+import puppeteer from "puppeteer-core";
+const b = await puppeteer.launch({executablePath:"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",headless:"new",args:["--no-sandbox"],defaultViewport:{width:1440,height:900}});
+const p = await b.newPage();
+const reqs=[];
+p.on('request', x => reqs.push({u:x.url(), f: x.frame()?.parentFrame() ? 'IFRAME':'main'}));
+await p.goto("https://mineex.ca/site?directedDemo=1",{waitUntil:"networkidle2",timeout:60000});
+await new Promise(r=>setTimeout(r,5000));
+await p.evaluate(async()=>{for(let y=0;y<document.body.scrollHeight;y+=700){window.scrollTo(0,y);await new Promise(r=>setTimeout(r,110));}});
+await new Promise(r=>setTimeout(r,4000));
+const pp=reqs.filter(x=>/\/pp\//.test(x.u));
+console.log('  parent warms:', pp.filter(x=>x.f==='main').length, '| iframe uses /pp/:', pp.filter(x=>x.f==='IFRAME').length);
+await b.close();

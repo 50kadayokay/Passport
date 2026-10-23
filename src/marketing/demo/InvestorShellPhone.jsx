@@ -51,6 +51,14 @@ export default function InvestorShellPhone({ active = "today", insetTop = 92, in
   const frameRef = useRef(null);
   const [dims, setDims] = useState({ scale: 1, w: DEVICE_W, h: DEVICE_H, boxH: 0, appLeft: 0, appTop: 0, appW: 0, appH: 0, opL: 0, opT: 0, opW: 0, opH: 0 });
   const [ready, setReady] = useState(false);
+  // The boot poster is dropped from the tree once it has faded, on phones only — see the
+  // comment at the element. Desktop never retires it, so its render path is unchanged.
+  const [posterRetired, setPosterRetired] = useState(false);
+  useEffect(() => {
+    if (!ready || !phoneSmall()) return;
+    const t = setTimeout(() => setPosterRetired(true), 520);   // 420ms fade + a frame
+    return () => clearTimeout(t);
+  }, [ready]);
 
   // Fit the photo box to the available height (matches DirectedEmbed hardware math).
   useLayoutEffect(() => {
@@ -108,6 +116,59 @@ export default function InvestorShellPhone({ active = "today", insetTop = 92, in
     };
     tick();
     return () => { stop = true; };
+  }, [active]);
+
+  // "It moves to the top of your feed." — make it actually move.
+  //
+  // The beat's whole claim is that a followed company's new release ARRIVES at the top of
+  // the feed, and the release was simply already sitting there when the screen appeared, so
+  // the one thing the copy promises was the one thing not shown. This plays it in: the row
+  // opens from nothing and the rest of the feed is pushed down by it, which is what the
+  // sentence describes.
+  //
+  // Marketing-layer only and same-origin: it animates a row the app already rendered and
+  // touches no app code, no fixture and no other screen. Height is animated in explicit
+  // pixels because `auto` is not interpolable, measured from the row itself so nothing is
+  // assumed about its size, and the inline styles are removed on completion so the row is
+  // left exactly as the app drew it.
+  const arrivedRef = useRef(null);
+  useEffect(() => {
+    if (active !== "today:updates") { arrivedRef.current = null; return; }
+    if (arrivedRef.current === active) return;
+    let stop = false, tries = 0;
+    const play = () => {
+      if (stop) return;
+      let d = null;
+      try { d = frameRef.current && frameRef.current.contentDocument; } catch (_) { d = null; }
+      // The ROW, not a wrapper. Walking up to the nearest rounded/list ancestor climbed past
+      // it to the whole feed — measured 921px tall — and opening that would have animated the
+      // entire list rather than the release. The feed is a stack of sibling rows, so the row
+      // is the child of that stack which contains the headline: walk up from the text until
+      // the PARENT is the stack, and stop there.
+      const leaf = d && Array.from(d.querySelectorAll("*"))
+        .find((e) => /Phase II drilling to begin in November/i.test(e.textContent || "") && e.children.length === 0);
+      let row = null;
+      for (let e = leaf; e && e !== d.body; e = e.parentElement) {
+        const pc = e.parentElement && typeof e.parentElement.className === "string" ? e.parentElement.className : "";
+        if (/space-y-/.test(pc)) { row = e; break; }
+      }
+      if (row && row.getBoundingClientRect().height > 300) row = null;   // never the whole list
+      if (!row) { if (tries++ < 60) setTimeout(play, 80); return; }
+      arrivedRef.current = active;
+      const h = Math.round(row.getBoundingClientRect().height);
+      if (!h || typeof row.animate !== "function") return;
+      const prevOverflow = row.style.overflow;
+      row.style.overflow = "hidden";
+      const a = row.animate(
+        [{ height: "0px", opacity: 0, transform: "translateY(-10px)" },
+         { height: h + "px", opacity: 1, transform: "translateY(0)" }],
+        { duration: 560, easing: "cubic-bezier(.2,.8,.2,1)", fill: "backwards" }
+      );
+      a.finished.then(() => { row.style.overflow = prevOverflow; }).catch(() => { row.style.overflow = prevOverflow; });
+    };
+    // let the screen swap settle first, so the row animates into a feed that is already there
+    const t = setTimeout(play, 260);
+    return () => { stop = true; clearTimeout(t); };
   }, [active]);
 
   return (
@@ -181,8 +242,30 @@ export default function InvestorShellPhone({ active = "today", insetTop = 92, in
               />
               <div aria-hidden style={{ position: "absolute", inset: 0, background: BOOT_SCREEN, zIndex: 2, pointerEvents: "none",
                 opacity: ready ? 0 : 1, transition: "opacity 420ms cubic-bezier(0.22,1,0.36,1)" }}>
-                <img src={POSTER_FOR()} alt="" decoding="async" fetchpriority="high"
+                {/* SIZED BY THE BROWSER, not by a width check. The poster mounts WITH the phone shell, and
+                       its bytes arrive early (1690ms, measured) -- but it was not `complete` until 3120ms,
+                       because a 1179x2556 source is 3.0M pixels (~12MB of bitmap) to DECODE for a slot that is
+                       325x707 CSS. That decode was the whole gap: the device frame was on screen with nothing
+                       in it for 1273ms on /investor and 996ms on /home. srcset lets the browser take the
+                       smallest rendition that still covers the slot at its own DPR -- 1.28M pixels instead of
+                       3.0M at DPR 2 -- and keeps the full-size file for DPR 3, so nothing is softened. */}
+              {/* …and RETIRED once it has faded, on phones. Left in the tree it is a full-bleed
+                  image layer directly over the screen, so the compositor carries it on every
+                  frame the app animates underneath. Desktop keeps it exactly as it was. */}
+              {posterRetired ? null : (
+              <img src={POSTER_FOR()} alt="" decoding="async" fetchpriority="high"
+        // DESKTOP ONLY. srcset let the browser choose by DPR, which on an iPhone at DPR 3
+        // picked the 768px rendition — BIGGER than the 590px one phones were served
+        // before it, on the device least able to decode it. That extra decode lands in
+        // the middle of the opening animation and the card flip, which is where the
+        // stutter came from. Phones take the small capture, exactly as they did before;
+        // POSTER_FOR() already picks it, so there is nothing for srcset to improve there.
+        {...(phoneSmall() ? {} : {
+          srcSet: "/marketing/appdemo-opening-poster.sm.webp 590w, /marketing/appdemo-opening-poster.md.webp 768w, /marketing/appdemo-opening-poster.webp 1179w",
+          sizes: "340px",
+        })}
                   style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "top center", display: "block" }} />
+              )}
               </div>
             </div>
           </div>
