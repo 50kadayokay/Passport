@@ -3,6 +3,18 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <!-- NATIVE ONLY: paint the webview black while it boots, so the black MineEx splash
+         (WelcomeIntro) has no white flash before React mounts. Detected via the capacitor://
+         scheme so the light web marketing site is untouched. The splash / login / app each
+         paint their own full-screen background over this. -->
+    <script>
+      try {
+        if (location.protocol === "capacitor:" || location.protocol === "ionic:") {
+          document.documentElement.style.backgroundColor = "#000";
+          document.addEventListener("DOMContentLoaded", function () { document.body.style.backgroundColor = "#000"; });
+        }
+      } catch (e) {}
+    </script>
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />

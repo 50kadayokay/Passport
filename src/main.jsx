@@ -251,10 +251,9 @@ function WelcomeIntro({ onChoose }) {
     return () => clearTimeout(t);
   }, []);
   return (
-    <div onClick={() => onChoose("signin")} style={{ position: "fixed", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", padding: 32, overflow: "hidden" }}>
+    <div onClick={() => onChoose("signin")} style={{ position: "fixed", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", padding: 32, overflow: "hidden", background: "#000000" }}>
       <style>{WELCOME_KF}</style>
-      <AuthAtmosphere />
-      <img src="/brand/mineex-lockup-ink.png" alt="MineEx" style={{ position: "relative", zIndex: 1, width: "min(74vw, 320px)", maxWidth: 320, animation: "mxLockup 1.1s cubic-bezier(.2,.8,.2,1) both" }} />
+      <img src="/brand/mineex-lockup-white.png" alt="MineEx" style={{ position: "relative", zIndex: 1, width: "min(72vw, 300px)", maxWidth: 300, animation: "mxLockup 1.1s cubic-bezier(.2,.8,.2,1) both" }} />
     </div>
   );
 }
