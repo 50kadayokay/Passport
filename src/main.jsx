@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useLayoutEffect } from "react";
 import { isMarketingPath } from "./marketing/routes.js";
 import { isPublicDemoSlug } from "./aiBrief/conferenceV3/demoSlugs.js";
 import ReactDOM from "react-dom/client";
@@ -212,8 +212,7 @@ const WELCOME_GREEN = "#2563eb";   // primary CTA colour (retained for the auth 
 // Opening splash: the MineEx desktop lockup, centred on a soft gradient, revealed with a gentle
 // fade + scale. Short + premium; then it hands straight off to the login / sign-up screen.
 const WELCOME_KF = `
-@keyframes mxMark{0%{opacity:0;transform:scale(.7)}60%{opacity:1}100%{opacity:1;transform:scale(1)}}
-@keyframes mxReveal{0%{max-width:0}100%{max-width:240px}}
+@keyframes mxMark{0%{opacity:0;transform:scale(.88)}100%{opacity:1;transform:scale(1)}}
 @keyframes mxFade{from{opacity:0}to{opacity:1}}`;
 // Native iOS system font — shared by the splash and the auth screen.
 const SYS_FONT = "-apple-system, 'SF Pro Text', 'SF Pro Display', system-ui, 'Segoe UI', Roboto, sans-serif";
@@ -264,24 +263,34 @@ function AuthAtmosphere() {
 function WelcomeIntro({ onChoose }) {
   // Just the opening animation now — no "get started" landing. The MineEx desktop lockup reveals
   // on a soft gradient, then we hand straight off to the login / sign-up screen.
+  const textRef = useRef(null);
+  const [offset, setOffset] = useState(0);   // how far right to start so the mark sits dead-centre
+  const [revealed, setRevealed] = useState(false);
+  const GAP = 15;
+  // Measure the wordmark before paint so the mark can begin exactly at screen centre.
+  useLayoutEffect(() => {
+    const w = textRef.current ? textRef.current.offsetWidth : 0;
+    setOffset((GAP + w) / 2);
+  }, []);
   useEffect(() => {
     splashSeen = true;
     persistSplash();
-    const t = setTimeout(() => onChoose("signin"), 2300);
-    return () => clearTimeout(t);
+    // Mark settles first, then the group glides left while the wordmark eases in.
+    const r = setTimeout(() => setRevealed(true), 1050);
+    const t = setTimeout(() => onChoose("signin"), 3600);
+    return () => { clearTimeout(r); clearTimeout(t); };
   }, []);
+  const EASE = "cubic-bezier(0.16, 1, 0.3, 1)";   // soft, premium settle (ease-out-expo-ish)
   return (
     <div onClick={() => onChoose("signin")} style={{ position: "fixed", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", padding: 32, overflow: "hidden", background: "#000000" }}>
       <style>{WELCOME_KF}</style>
-      {/* Mark fades in centred, then pans left as the wordmark unfurls on the right: the
-          group is centre-justified, so growing the text wrapper's width shifts the mark left. */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <div style={{ animation: "mxMark .5s cubic-bezier(.2,.8,.2,1) both" }}>
-          <MineExMark size={37} id="mx-splash" />
+      {/* Mark eases in dead-centre; after a beat the whole group glides left while the
+          wordmark fades + slides into place beside it. No clipping — a clean settle. */}
+      <div style={{ display: "flex", alignItems: "center", gap: GAP, transform: `translateX(${revealed ? 0 : offset}px)`, transition: `transform 1.1s ${EASE}` }}>
+        <div style={{ animation: "mxMark 1s cubic-bezier(0.16,1,0.3,1) both" }}>
+          <MineExMark size={38} id="mx-splash" />
         </div>
-        <div style={{ overflow: "hidden", animation: "mxReveal .8s .45s cubic-bezier(.2,.8,.2,1) both" }}>
-          <span style={{ display: "block", paddingLeft: 14, fontSize: 54, fontWeight: 800, letterSpacing: "-0.03em", color: "#ffffff", fontFamily: SYS_FONT, whiteSpace: "nowrap" }}>MineEx</span>
-        </div>
+        <span ref={textRef} style={{ display: "block", whiteSpace: "nowrap", fontSize: 54, fontWeight: 800, letterSpacing: "-0.03em", color: "#ffffff", fontFamily: SYS_FONT, opacity: revealed ? 1 : 0, transform: `translateX(${revealed ? 0 : -12}px)`, transition: `opacity 1s ${EASE} .12s, transform 1.1s ${EASE}` }}>MineEx</span>
       </div>
     </div>
   );
