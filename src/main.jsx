@@ -211,7 +211,9 @@ function persistSplash() { try { localStorage.setItem("mx.splashSeen", "1"); } c
 const WELCOME_GREEN = "#2563eb";   // primary CTA colour (retained for the auth screen)
 // Opening splash: the MineEx desktop lockup, centred on a soft gradient, revealed with a gentle
 // fade + scale. Short + premium; then it hands straight off to the login / sign-up screen.
-const SPLASH_GRADIENT = "linear-gradient(180deg, #ffffff 0%, #ffffff 40%, #f6fbc2 63%, #e4f96a 82%, #c9fa2e 100%)";
+// White at the top fading into a warm amber/apricot — picks up the gold/orange in the mark so it
+// sits WITH the logo instead of clashing (the chartreuse did). Shared by the splash and the login.
+const SPLASH_GRADIENT = "linear-gradient(180deg, #ffffff 0%, #ffffff 42%, #fdefd9 64%, #ffddb0 83%, #ffc987 100%)";
 const WELCOME_KF = `
 @keyframes mxLockup{0%{opacity:0;transform:scale(.92) translateY(8px)}100%{opacity:1;transform:scale(1) translateY(0)}}
 @keyframes mxFade{from{opacity:0}to{opacity:1}}`;
@@ -308,7 +310,7 @@ function InvestorAuth({ onSuccess, initialMode, onBack }) {
     }
   };
 
-  const wrap = { minHeight: "100dvh", display: "flex", flexDirection: "column", justifyContent: "center", padding: "28px 24px", background: "#ffffff", maxWidth: 460, margin: "0 auto" };
+  const wrap = { minHeight: "100dvh", display: "flex", flexDirection: "column", justifyContent: "center", padding: "28px 24px", background: SPLASH_GRADIENT, maxWidth: 460, margin: "0 auto" };
   const input = { height: 50, borderRadius: 14, border: "1px solid #e2e8f0", padding: "0 16px", fontSize: 15, outline: "none", background: "#f8fafc" };
   const link = { background: "none", border: "none", color: "#2563eb", fontWeight: 700, cursor: "pointer", padding: 0, fontSize: 13.5 };
 
@@ -350,8 +352,8 @@ function InvestorAuth({ onSuccess, initialMode, onBack }) {
   return (
     <div style={wrap}>
       {onBack && <button type="button" onClick={onBack} aria-label="Back" style={{ position: "absolute", top: "calc(env(safe-area-inset-top, 0px) + 14px)", left: 18, background: "none", border: "none", fontSize: 26, lineHeight: 1, color: "#0f172a", cursor: "pointer", padding: "2px 6px" }}>‹</button>}
-      <p style={{ fontSize: 12, fontWeight: 800, letterSpacing: "0.18em", textTransform: "uppercase", color: "#2563eb" }}>MineEx</p>
-      <h1 style={{ fontSize: 27, fontWeight: 800, letterSpacing: "-0.02em", color: "#0f172a", marginTop: 6 }}>{title}</h1>
+      <img src="/brand/mineex-lockup-ink.png" alt="MineEx" style={{ height: 30, width: "auto", display: "block" }} />
+      <h1 style={{ fontSize: 27, fontWeight: 800, letterSpacing: "-0.02em", color: "#0f172a", marginTop: 14 }}>{title}</h1>
       <p style={{ fontSize: 14, color: "#64748b", marginTop: 6 }}>{sub}</p>
 
       <form onSubmit={submit} style={{ marginTop: 22, display: "flex", flexDirection: "column", gap: 12 }}>
@@ -399,10 +401,6 @@ function InvestorAuth({ onSuccess, initialMode, onBack }) {
         {mode === "signup" && <>Already have an account? <button type="button" onClick={() => go("signin")} style={link}>Sign in</button></>}
         {mode === "forgot" && <button type="button" onClick={() => go("signin")} style={link}>Back to sign in</button>}
       </p>
-
-      <p style={{ marginTop: 14, textAlign: "center", fontSize: 11.5, color: "#94a3b8", lineHeight: 1.5 }}>
-        Are you a company? <a href="/onboarding" style={{ color: "#64748b", fontWeight: 600 }}>Set up your profile on desktop →</a>
-      </p>
     </div>
   );
 }
@@ -426,7 +424,7 @@ function ResetPassword() {
     catch (err) { setError((err && err.message) || "Couldn't reset your password."); }
     finally { setBusy(false); }
   };
-  const wrap = { minHeight: "100dvh", display: "flex", flexDirection: "column", justifyContent: "center", padding: "28px 24px", background: "#ffffff", maxWidth: 460, margin: "0 auto" };
+  const wrap = { minHeight: "100dvh", display: "flex", flexDirection: "column", justifyContent: "center", padding: "28px 24px", background: SPLASH_GRADIENT, maxWidth: 460, margin: "0 auto" };
   const input = { height: 50, borderRadius: 14, border: "1px solid #e2e8f0", padding: "0 16px", fontSize: 15, outline: "none", background: "#f8fafc" };
   if (!ready) return <div style={{ ...wrap, alignItems: "center", color: "#94a3b8" }}>Loading…</div>;
   if (ok) return (
