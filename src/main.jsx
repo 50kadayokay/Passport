@@ -1051,25 +1051,9 @@ function AppRoot() {
     return () => { cancelled = true; };
   }, [signedIn]);
 
-  // C-1: a one-time, SKIPPABLE interest onboarding for new investors. NOT a gate — the app
-  // renders directly and this appears only as a dismissible overlay for a signed-in investor
-  // who hasn't completed or skipped it. A local flag makes it one-time-per-device (no launch
-  // network call for returning users); a single cloud check covers other-device onboarders;
-  // any error fails open (never traps the user).
-  const onbEmail = (() => { try { return getUser()?.email || ""; } catch (_) { return ""; } })();
-  const onbKey = `mineex.onbSeen.v1.${onbEmail || "guest"}`;
-  const [onbNeeded, setOnbNeeded] = useState(false);
-  useEffect(() => {
-    if (!signedIn) { setOnbNeeded(false); return; }
-    let seen = false; try { seen = !!localStorage.getItem(onbKey); } catch (_) {}
-    if (seen) { setOnbNeeded(false); return; }
-    let cancelled = false;
-    investorData.getInvestorProfile()
-      .then((p) => { if (cancelled) return; if (p && p.onboardingCompleted) { try { localStorage.setItem(onbKey, "1"); } catch (_) {} setOnbNeeded(false); } else setOnbNeeded(true); })
-      .catch(() => { if (!cancelled) setOnbNeeded(false); });
-    return () => { cancelled = true; };
-  }, [signedIn, onbKey]);
-  const dismissOnb = () => { try { localStorage.setItem(onbKey, "1"); } catch (_) {} setOnbNeeded(false); };
+  // Investor onboarding removed: signing in (Apple / Google / email) takes the user straight into
+  // the app — no name / investor-type / interest setup questions. Profile details are editable
+  // later in the Profile tab. (The InvestorOnboarding component is retained but no longer shown.)
 
   if (!ready) return lazyFallback("app");
   // Login-first front door: opening the app while logged out shows the sign-in screen.
@@ -1093,11 +1077,6 @@ function AppRoot() {
   return (
     <>
       <App key={seed} guest={!signedIn} />
-      {signedIn && onbNeeded && (
-        <div style={{ position: "fixed", inset: 0, zIndex: 2000, background: "#fff" }}>
-          <InvestorOnboarding onDone={dismissOnb} onSkip={dismissOnb} />
-        </div>
-      )}
     </>
   );
 }
