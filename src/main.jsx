@@ -211,12 +211,32 @@ function persistSplash() { try { localStorage.setItem("mx.splashSeen", "1"); } c
 const WELCOME_GREEN = "#2563eb";   // primary CTA colour (retained for the auth screen)
 // Opening splash: the MineEx desktop lockup, centred on a soft gradient, revealed with a gentle
 // fade + scale. Short + premium; then it hands straight off to the login / sign-up screen.
-// White at the top fading into a warm amber/apricot — picks up the gold/orange in the mark so it
-// sits WITH the logo instead of clashing (the chartreuse did). Shared by the splash and the login.
-const SPLASH_GRADIENT = "linear-gradient(180deg, #ffffff 0%, #ffffff 42%, #fdefd9 64%, #ffddb0 83%, #ffc987 100%)";
 const WELCOME_KF = `
 @keyframes mxLockup{0%{opacity:0;transform:scale(.92) translateY(8px)}100%{opacity:1;transform:scale(1) translateY(0)}}
 @keyframes mxFade{from{opacity:0}to{opacity:1}}`;
+// The animated green→blue field from the sales hero (home2/InvestorPage Atmosphere), adapted
+// full-bleed behind the splash + auth screens: cobalt / sky / chartreuse blooms drifting on slow
+// loops over white, so the black logo and the form stay readable on top.
+const ATMO_KF = `
+@keyframes mxfa{0%,100%{transform:translate(0,0)}50%{transform:translate(-4%,3%)}}
+@keyframes mxfb{0%,100%{transform:translate(0,0)}50%{transform:translate(3%,-4%)}}
+@keyframes mxfc{0%,100%{transform:translate(0,0)}50%{transform:translate(-3%,-3%)}}
+@keyframes mxfd{0%,100%{transform:translate(0,0)}50%{transform:translate(4%,4%)}}
+.mxfa{animation:mxfa 15s ease-in-out infinite}.mxfb{animation:mxfb 19s ease-in-out infinite}.mxfc{animation:mxfc 17s ease-in-out infinite}.mxfd{animation:mxfd 21s ease-in-out infinite}
+@media (prefers-reduced-motion:reduce){.mxfa,.mxfb,.mxfc,.mxfd{animation:none}}`;
+const atmoBlob = (pos, color) => ({ position: "absolute", inset: 0, background: `radial-gradient(58% 54% at ${pos}, ${color}, transparent 76%)` });
+function AuthAtmosphere() {
+  return (
+    <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none", overflow: "hidden", background: "#ffffff" }}>
+      <style>{ATMO_KF}</style>
+      <span style={{ position: "absolute", inset: 0, background: "linear-gradient(152deg, rgba(37,99,235,.10) 0%, rgba(96,165,250,.08) 38%, rgba(125,211,192,.10) 64%, rgba(198,240,74,.13) 100%)" }} />
+      <span className="mxfa" style={atmoBlob("28% 24%", "rgba(37,99,235,.22)")} />
+      <span className="mxfb" style={atmoBlob("80% 28%", "rgba(59,130,246,.18)")} />
+      <span className="mxfc" style={atmoBlob("72% 84%", "rgba(198,240,74,.24)")} />
+      <span className="mxfd" style={atmoBlob("22% 80%", "rgba(147,197,253,.22)")} />
+    </div>
+  );
+}
 
 function WelcomeIntro({ onChoose }) {
   // Just the opening animation now — no "get started" landing. The MineEx desktop lockup reveals
@@ -228,9 +248,10 @@ function WelcomeIntro({ onChoose }) {
     return () => clearTimeout(t);
   }, []);
   return (
-    <div onClick={() => onChoose("signin")} style={{ position: "fixed", inset: 0, background: SPLASH_GRADIENT, display: "flex", alignItems: "center", justifyContent: "center", padding: 32 }}>
+    <div onClick={() => onChoose("signin")} style={{ position: "fixed", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", padding: 32, overflow: "hidden" }}>
       <style>{WELCOME_KF}</style>
-      <img src="/brand/mineex-lockup-ink.png" alt="MineEx" style={{ width: "min(74vw, 320px)", maxWidth: 320, animation: "mxLockup 1.1s cubic-bezier(.2,.8,.2,1) both" }} />
+      <AuthAtmosphere />
+      <img src="/brand/mineex-lockup-ink.png" alt="MineEx" style={{ position: "relative", zIndex: 1, width: "min(74vw, 320px)", maxWidth: 320, animation: "mxLockup 1.1s cubic-bezier(.2,.8,.2,1) both" }} />
     </div>
   );
 }
@@ -310,7 +331,7 @@ function InvestorAuth({ onSuccess, initialMode, onBack }) {
     }
   };
 
-  const wrap = { minHeight: "100dvh", display: "flex", flexDirection: "column", justifyContent: "center", padding: "28px 24px", background: SPLASH_GRADIENT, maxWidth: 460, margin: "0 auto" };
+  const wrap = { minHeight: "100dvh", display: "flex", flexDirection: "column", justifyContent: "center", padding: "28px 24px", background: "transparent", position: "relative", zIndex: 1, maxWidth: 460, margin: "0 auto" };
   const input = { height: 50, borderRadius: 14, border: "1px solid #e2e8f0", padding: "0 16px", fontSize: 15, outline: "none", background: "#f8fafc" };
   const link = { background: "none", border: "none", color: "#2563eb", fontWeight: 700, cursor: "pointer", padding: 0, fontSize: 13.5 };
 
@@ -350,9 +371,11 @@ function InvestorAuth({ onSuccess, initialMode, onBack }) {
     : "Sign in to your investor account.";
 
   return (
+    <>
+    <AuthAtmosphere />
     <div style={wrap}>
       {onBack && <button type="button" onClick={onBack} aria-label="Back" style={{ position: "absolute", top: "calc(env(safe-area-inset-top, 0px) + 14px)", left: 18, background: "none", border: "none", fontSize: 26, lineHeight: 1, color: "#0f172a", cursor: "pointer", padding: "2px 6px" }}>‹</button>}
-      <img src="/brand/mineex-lockup-ink.png" alt="MineEx" style={{ height: 30, width: "auto", display: "block" }} />
+      <img src="/brand/mineex-lockup-ink.png" alt="MineEx" style={{ height: 26, width: "auto", alignSelf: "flex-start", display: "block" }} />
       <h1 style={{ fontSize: 27, fontWeight: 800, letterSpacing: "-0.02em", color: "#0f172a", marginTop: 14 }}>{title}</h1>
       <p style={{ fontSize: 14, color: "#64748b", marginTop: 6 }}>{sub}</p>
 
@@ -402,6 +425,7 @@ function InvestorAuth({ onSuccess, initialMode, onBack }) {
         {mode === "forgot" && <button type="button" onClick={() => go("signin")} style={link}>Back to sign in</button>}
       </p>
     </div>
+    </>
   );
 }
 
@@ -424,7 +448,7 @@ function ResetPassword() {
     catch (err) { setError((err && err.message) || "Couldn't reset your password."); }
     finally { setBusy(false); }
   };
-  const wrap = { minHeight: "100dvh", display: "flex", flexDirection: "column", justifyContent: "center", padding: "28px 24px", background: SPLASH_GRADIENT, maxWidth: 460, margin: "0 auto" };
+  const wrap = { minHeight: "100dvh", display: "flex", flexDirection: "column", justifyContent: "center", padding: "28px 24px", background: "#ffffff", maxWidth: 460, margin: "0 auto" };
   const input = { height: 50, borderRadius: 14, border: "1px solid #e2e8f0", padding: "0 16px", fontSize: 15, outline: "none", background: "#f8fafc" };
   if (!ready) return <div style={{ ...wrap, alignItems: "center", color: "#94a3b8" }}>Loading…</div>;
   if (ok) return (
