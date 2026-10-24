@@ -266,6 +266,7 @@ function WelcomeIntro({ onChoose }) {
   const textRef = useRef(null);
   const [offset, setOffset] = useState(0);   // how far right to start so the mark sits dead-centre
   const [revealed, setRevealed] = useState(false);
+  const [leaving, setLeaving] = useState(false);   // fade the splash out before handing off to login
   const GAP = 15;
   // Measure the wordmark before paint so the mark can begin exactly at screen centre.
   useLayoutEffect(() => {
@@ -277,12 +278,13 @@ function WelcomeIntro({ onChoose }) {
     persistSplash();
     // Mark settles first, then the group glides left while the wordmark eases in.
     const r = setTimeout(() => setRevealed(true), 1050);
-    const t = setTimeout(() => onChoose("signin"), 3600);
-    return () => { clearTimeout(r); clearTimeout(t); };
+    const out = setTimeout(() => setLeaving(true), 3150);   // begin the fade-out
+    const t = setTimeout(() => onChoose("signin"), 3650);   // hand off once faded to black
+    return () => { clearTimeout(r); clearTimeout(out); clearTimeout(t); };
   }, []);
   const EASE = "cubic-bezier(0.16, 1, 0.3, 1)";   // soft, premium settle (ease-out-expo-ish)
   return (
-    <div onClick={() => onChoose("signin")} style={{ position: "fixed", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", padding: 32, overflow: "hidden", background: "#000000" }}>
+    <div onClick={() => onChoose("signin")} style={{ position: "fixed", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", padding: 32, overflow: "hidden", background: "#000000", opacity: leaving ? 0 : 1, transition: "opacity .5s ease" }}>
       <style>{WELCOME_KF}</style>
       {/* Mark eases in dead-centre; after a beat the whole group glides left while the
           wordmark fades + slides into place beside it. No clipping — a clean settle. */}
@@ -309,6 +311,8 @@ function InvestorAuth({ onSuccess, initialMode, onBack }) {
   const [error, setError] = useState("");
   const [confirm, setConfirm] = useState(false); // signup: confirmation email sent
   const [sent, setSent] = useState(false);        // forgot: reset link sent
+  const [shown, setShown] = useState(false);      // fade the screen in on mount (crossfade from splash)
+  useEffect(() => { const id = requestAnimationFrame(() => setShown(true)); return () => cancelAnimationFrame(id); }, []);
 
   // "Remember me" credential: on a device we keep email+password in the iOS Keychain
   // (encrypted, sandboxed) via SecureStorage; on web we only ever remember the email.
@@ -375,7 +379,7 @@ function InvestorAuth({ onSuccess, initialMode, onBack }) {
   // Clean, Apple-inspired composition: warm off-white canvas, no gradient. The column is
   // vertically centred and capped for balance on phones of any height; native iOS system
   // font throughout. Branding + welcome are centred; text inside the form stays natural.
-  const wrap = { minHeight: "100dvh", display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", paddingLeft: 24, paddingRight: 24, paddingTop: "calc(env(safe-area-inset-top,0px) + 20px)", paddingBottom: "calc(env(safe-area-inset-bottom,0px) + 20px)", background: "#F8F9FB", position: "relative", zIndex: 1, maxWidth: 440, margin: "0 auto", fontFamily: SYS_FONT };
+  const wrap = { minHeight: "100dvh", display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", paddingLeft: 24, paddingRight: 24, paddingTop: "calc(env(safe-area-inset-top,0px) + 20px)", paddingBottom: "calc(env(safe-area-inset-bottom,0px) + 20px)", background: "#F8F9FB", position: "relative", zIndex: 1, maxWidth: 440, margin: "0 auto", fontFamily: SYS_FONT, opacity: shown ? 1 : 0, transition: "opacity .5s ease" };
   const inputWrap = { position: "relative", width: "100%" };
   const input = { height: 52, width: "100%", boxSizing: "border-box", borderRadius: 14, border: "1px solid #e5e7eb", padding: "0 44px", fontSize: 16, outline: "none", background: "#ffffff", color: "#111827", fontFamily: SYS_FONT };
   const inputIcon = { position: "absolute", left: 15, top: "50%", transform: "translateY(-50%)", color: "#9ca3af", pointerEvents: "none", display: "flex" };
