@@ -208,71 +208,27 @@ const root = ReactDOM.createRoot(document.getElementById("root"));
 let splashSeen = false;
 function splashPersisted() { try { return localStorage.getItem("mx.splashSeen") === "1"; } catch (_) { return false; } }
 function persistSplash() { try { localStorage.setItem("mx.splashSeen", "1"); } catch (_) {} }
-const WELCOME_GREEN = "#2563eb";   // primary CTA colour (NOT the splash background)
-const SPLASH_BG = "#000000";       // opening-animation background — black
-// Opening animation: the drill-core MARK fades/scales in first, then the "MineEx"
-// wordmark accordions open to the right (max-width reveal). Short + premium.
+const WELCOME_GREEN = "#2563eb";   // primary CTA colour (retained for the auth screen)
+// Opening splash: the MineEx desktop lockup, centred on a soft gradient, revealed with a gentle
+// fade + scale. Short + premium; then it hands straight off to the login / sign-up screen.
+const SPLASH_GRADIENT = "linear-gradient(180deg, #ffffff 0%, #ffffff 40%, #f6fbc2 63%, #e4f96a 82%, #c9fa2e 100%)";
 const WELCOME_KF = `
-@keyframes mxMarkIn{0%{opacity:0;transform:scale(.82)}60%{opacity:1}100%{opacity:1;transform:scale(1)}}
-@keyframes mxWord{0%,26%{max-width:0;opacity:0;margin-left:0}46%{opacity:1}100%{max-width:280px;opacity:1;margin-left:14px}}
+@keyframes mxLockup{0%{opacity:0;transform:scale(.92) translateY(8px)}100%{opacity:1;transform:scale(1) translateY(0)}}
 @keyframes mxFade{from{opacity:0}to{opacity:1}}`;
 
 function WelcomeIntro({ onChoose }) {
-  const [phase, setPhase] = useState((splashSeen || splashPersisted()) ? "start" : "splash"); // splash | start | choose
-
+  // Just the opening animation now — no "get started" landing. The MineEx desktop lockup reveals
+  // on a soft gradient, then we hand straight off to the login / sign-up screen.
   useEffect(() => {
-    if (phase !== "splash") return;
     splashSeen = true;
     persistSplash();
-    const t = setTimeout(() => setPhase("start"), 1900);
+    const t = setTimeout(() => onChoose("signin"), 2000);
     return () => clearTimeout(t);
-  }, [phase]);
-
-  const frame = { minHeight: "100dvh", display: "flex", flexDirection: "column", background: "#fff", maxWidth: 480, margin: "0 auto", boxSizing: "border-box", paddingLeft: 22, paddingRight: 22, paddingTop: "calc(env(safe-area-inset-top, 0px) + 22px)", paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 20px)" };
-  const ctaGreen = { height: 56, borderRadius: 9999, border: "none", background: WELCOME_GREEN, color: "#fff", fontSize: 16, fontWeight: 700, width: "100%", cursor: "pointer" };
-  const ctaLight = { height: 56, borderRadius: 9999, border: "none", background: "#f1f5f9", color: "#0f172a", fontSize: 16, fontWeight: 700, width: "100%", cursor: "pointer", marginTop: 10 };
-  const h1 = { fontSize: 29, fontWeight: 800, color: "#0f172a", letterSpacing: "-0.02em", lineHeight: 1.1, margin: "26px 0 0" };
-  const sub = { fontSize: 15, color: "#64748b", marginTop: 12, lineHeight: 1.45, maxWidth: 320 };
-
-  if (phase === "splash") {
-    return (
-      <div onClick={() => setPhase("start")} style={{ position: "fixed", inset: 0, background: SPLASH_BG, display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <style>{WELCOME_KF}</style>
-        <div style={{ display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
-          <img src="/icon-512.png" alt="" style={{ width: 60, height: 60, borderRadius: 15, flexShrink: 0, animation: "mxMarkIn 1.0s cubic-bezier(.2,.8,.2,1) both" }} />
-          <span style={{ overflow: "hidden", whiteSpace: "nowrap", color: "#fff", fontSize: 44, fontWeight: 800, letterSpacing: "-0.02em", animation: "mxWord 1.5s cubic-bezier(.2,.8,.2,1) both" }}>MineEx</span>
-        </div>
-      </div>
-    );
-  }
-
-  if (phase === "start") {
-    return (
-      <div style={frame} key="start">
-        <style>{WELCOME_KF}</style>
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center", animation: "mxFade .45s both" }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 200, height: 200, borderRadius: "50%", background: "radial-gradient(circle at 50% 45%, #dbeafe 0%, #ffffff 70%)" }}>
-            <img src="/icon-512.png" alt="" style={{ width: 148, height: 148, borderRadius: 34, boxShadow: "0 18px 50px rgba(15,23,42,.16)" }} />
-          </div>
-          <h1 style={h1}>Every junior miner,<br />in one feed.</h1>
-          <p style={sub}>Follow explorers and developers and get their news the moment it breaks.</p>
-        </div>
-        <button type="button" onClick={() => setPhase("choose")} style={ctaGreen}>Get started</button>
-      </div>
-    );
-  }
-
+  }, []);
   return (
-    <div style={frame} key="choose">
+    <div onClick={() => onChoose("signin")} style={{ position: "fixed", inset: 0, background: SPLASH_GRADIENT, display: "flex", alignItems: "center", justifyContent: "center", padding: 32 }}>
       <style>{WELCOME_KF}</style>
-      <button type="button" onClick={() => setPhase("start")} aria-label="Back" style={{ alignSelf: "flex-start", background: "none", border: "none", fontSize: 26, lineHeight: 1, color: "#0f172a", cursor: "pointer", padding: "2px 4px", marginLeft: -4 }}>‹</button>
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center", animation: "mxFade .35s both" }}>
-        <img src="/icon-192.png" alt="" style={{ width: 84, height: 84, borderRadius: 21, boxShadow: "0 12px 34px rgba(15,23,42,.14)" }} />
-        <h1 style={h1}>One account for the<br />whole market</h1>
-        <p style={sub}>Free for investors. Create an account or sign in to continue.</p>
-      </div>
-      <button type="button" onClick={() => onChoose("signup")} style={ctaGreen}>Create account</button>
-      <button type="button" onClick={() => onChoose("signin")} style={ctaLight}>Log in</button>
+      <img src="/brand/mineex-lockup-ink.png" alt="MineEx" style={{ width: "min(74vw, 320px)", maxWidth: 320, animation: "mxLockup 1.1s cubic-bezier(.2,.8,.2,1) both" }} />
     </div>
   );
 }
@@ -1064,10 +1020,12 @@ function AppRoot() {
   const hasSharedProfile = search.has("c") || search.has("preview");
   const wantsSignIn = search.has("signin") || !!authMode;
   if (!signedIn && (wantsSignIn || (isNativeApp && !hasSharedProfile))) {
-    // A direct ?signin deep-link jumps straight to the sign-in form (no welcome intro).
     const forced = search.has("signin");
-    if (forced || authMode) {
-      return <InvestorAuth initialMode={forced ? "signin" : authMode} onBack={forced ? null : () => setAuthMode(null)} />;
+    // First launch plays the opening animation (WelcomeIntro), which then hands off to the auth
+    // screen. After that (splash already seen) or on any explicit sign-in intent, go straight to
+    // the login / sign-up form — there is no "get started" landing.
+    if (forced || authMode || splashSeen || splashPersisted()) {
+      return <InvestorAuth initialMode={forced ? "signin" : (authMode || "signin")} onBack={null} />;
     }
     return <WelcomeIntro onChoose={setAuthMode} />;
   }
