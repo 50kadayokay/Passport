@@ -7488,11 +7488,35 @@ export function TodayScreen({ onOpenCompany, onScan, onCreate }) {
 
   // Investor-demo: a pinned story the feed has not loaded yet (see openId below).
   const pendingOpenRef = useRef(null);
+  // Match a feed object from a deep-link id. Notifications carry the RAW release id
+  // (news_item_id or post_id); the feed object id is "news-<id>" / "post-<id>". Accept the
+  // raw id, either prefixed form, or a suffix match so any id scheme resolves to its card.
+  const findFeedObject = (id) => {
+    const s = String(id || ""); if (!s) return null;
+    return objects.find((o) => o.id === s || o.id === "news-" + s || o.id === "post-" + s || (o.id && o.id.endsWith(s))) || null;
+  };
+  // Open a release by deep-link id: open now if its card is loaded, else remember it and the
+  // effect below opens it the moment the feed objects land.
+  const requestOpenRelease = (id) => {
+    if (!id) return;
+    const t = findFeedObject(id);
+    if (t) { pendingOpenRef.current = null; openStory(t); } else { pendingOpenRef.current = String(id); }
+  };
   useEffect(() => {
     const id = pendingOpenRef.current;
     if (!id) return;
-    const t = objects.find((o) => o.id === id);
+    const t = findFeedObject(id);
     if (t) { pendingOpenRef.current = null; openStory(t); }
+  }, [objects]);
+  // Notification deep-link (real app, not the demo bus): tapping a release notification opens
+  // THAT release, not just the feed. The app shell leaves any company view, switches to Today,
+  // stashes the id in window.__OPEN_RELEASE__ (for a feed not yet mounted) and fires
+  // "mineex:feed-open-release" (for one already mounted). Either path lands here and opens it.
+  useEffect(() => {
+    try { const g = window.__OPEN_RELEASE__; if (g) { window.__OPEN_RELEASE__ = null; requestOpenRelease(g); } } catch (_) {}
+    const onOpen = (e) => { try { const id = e && e.detail && e.detail.id; if (id) requestOpenRelease(id); } catch (_) {} };
+    window.addEventListener("mineex:feed-open-release", onOpen);
+    return () => window.removeEventListener("mineex:feed-open-release", onOpen);
   }, [objects]);
 
   // Investor-demo: script the real feed (open a real story, switch tab, scroll) — inert in prod.
@@ -12392,6 +12416,28 @@ export default function App({ guest = false } = {}) {
     restoreOwnerContext();
   };
   const goNav = (n) => { leaveCompany(); setNav(n); };
+
+  // Notification deep-link → open a specific release in the Today feed. Cold start: the app
+  // boots with ?release=<id> (push.js location.assign). Warm (app already open): push.js fires
+  // "mineex:open-release". Either way leave any company view, switch to Today, and hand the id
+  // to the feed via window.__OPEN_RELEASE__ (feed not yet mounted) + a "feed-open-release" event
+  // (feed already mounted). TodayScreen opens the reader once that release's card is loaded.
+  useEffect(() => {
+    const go = (id) => {
+      const s = String(id || "").trim(); if (!s) return;
+      try { window.__OPEN_RELEASE__ = s; } catch (_) {}
+      if (inCompany) leaveCompany();
+      setNav("today");
+      try { window.dispatchEvent(new CustomEvent("mineex:feed-open-release", { detail: { id: s } })); } catch (_) {}
+    };
+    try {
+      const boot = new URLSearchParams(window.location.search).get("release");
+      if (boot) { go(boot); try { window.history.replaceState({}, "", "/app"); } catch (_) {} }
+    } catch (_) {}
+    const onReq = (e) => { try { const id = e && e.detail && e.detail.id; if (id) go(id); } catch (_) {} };
+    window.addEventListener("mineex:open-release", onReq);
+    return () => window.removeEventListener("mineex:open-release", onReq);
+  }, [inCompany]);
 
   // EMBED-ONLY driver: lets the marketing site's phone (the Investor page) switch the
   // real shell's screens on scroll — window.__appDemoGo("today"|"explore"|"following"|
