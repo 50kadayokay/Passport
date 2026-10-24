@@ -428,7 +428,7 @@ function InvestorAuth({ onSuccess, initialMode, onBack }) {
         {mode === "forgot" && <button type="button" onClick={() => go("signin")} style={link}>Back to sign in</button>}
       </p>
       </div>
-      <img src="/brand/mineex-lockup-ink.png" alt="MineEx" style={{ width: "min(66vw, 260px)", height: "auto", marginTop: "auto", marginBottom: "auto", display: "block" }} />
+      <p style={{ fontSize: 40, fontWeight: 800, letterSpacing: "-0.03em", color: "#0f172a", textAlign: "center", margin: "auto 0" }}>MineEx</p>
     </div>
     </>
   );
