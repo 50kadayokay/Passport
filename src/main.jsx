@@ -1056,15 +1056,14 @@ function AppRoot() {
   // later in the Profile tab. (The InvestorOnboarding component is retained but no longer shown.)
 
   if (!ready) return lazyFallback("app");
-  // Login-first front door: opening the app while logged out shows the sign-in screen.
-  // The one exception is a shared/QR profile link (?c=slug or ?preview=…) — those stay
-  // publicly viewable with no wall, so a scanned booth QR or a shared link just works.
+  // Front door. On the WEB the app is freely browsable: a logged-out visitor lands straight in the
+  // app as a guest (they can sign in anytime). Only the NATIVE app is login-first. A shared/QR
+  // profile link (?c=slug or ?preview=…) is always public with no wall, on either platform. An
+  // explicit sign-in intent (?signin deep link OR authMode set in-app) always reaches the form.
   const search = (() => { try { return new URLSearchParams(window.location.search); } catch (_) { return new URLSearchParams(); } })();
   const hasSharedProfile = search.has("c") || search.has("preview");
-  // A guest viewing a shared/QR profile (?c=) can still choose to sign in: an explicit
-  // sign-in intent (?signin deep link OR authMode set in-app) overrides the shared-profile
-  // bypass, so "Sign in" always reaches the form instead of falling back to the company view.
-  if (!signedIn && (!hasSharedProfile || search.has("signin") || authMode)) {
+  const wantsSignIn = search.has("signin") || !!authMode;
+  if (!signedIn && (wantsSignIn || (isNativeApp && !hasSharedProfile))) {
     // A direct ?signin deep-link jumps straight to the sign-in form (no welcome intro).
     const forced = search.has("signin");
     if (forced || authMode) {
