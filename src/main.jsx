@@ -218,13 +218,13 @@ const WELCOME_KF = `
 // full-bleed behind the splash + auth screens: cobalt / sky / chartreuse blooms drifting on slow
 // loops over white, so the black logo and the form stay readable on top.
 const ATMO_KF = `
-@keyframes mxfa{0%,100%{transform:translate(0,0)}50%{transform:translate(-4%,3%)}}
-@keyframes mxfb{0%,100%{transform:translate(0,0)}50%{transform:translate(3%,-4%)}}
-@keyframes mxfc{0%,100%{transform:translate(0,0)}50%{transform:translate(-3%,-3%)}}
-@keyframes mxfd{0%,100%{transform:translate(0,0)}50%{transform:translate(4%,4%)}}
-.mxfa{animation:mxfa 15s ease-in-out infinite}.mxfb{animation:mxfb 19s ease-in-out infinite}.mxfc{animation:mxfc 17s ease-in-out infinite}.mxfd{animation:mxfd 21s ease-in-out infinite}
+@keyframes mxfa{0%,100%{transform:translate(0,0)}50%{transform:translate(-2%,1.5%)}}
+@keyframes mxfb{0%,100%{transform:translate(0,0)}50%{transform:translate(1.5%,-2%)}}
+@keyframes mxfc{0%,100%{transform:translate(0,0)}50%{transform:translate(-1.5%,-1.5%)}}
+@keyframes mxfd{0%,100%{transform:translate(0,0)}50%{transform:translate(2%,2%)}}
+.mxfa{animation:mxfa 22s ease-in-out infinite}.mxfb{animation:mxfb 26s ease-in-out infinite}.mxfc{animation:mxfc 24s ease-in-out infinite}.mxfd{animation:mxfd 28s ease-in-out infinite}
 @media (prefers-reduced-motion:reduce){.mxfa,.mxfb,.mxfc,.mxfd{animation:none}}`;
-const atmoBlob = (pos, color) => ({ position: "absolute", inset: 0, background: `radial-gradient(58% 54% at ${pos}, ${color}, transparent 76%)` });
+const atmoBlob = (pos, color) => ({ position: "absolute", inset: 0, background: `radial-gradient(90% 82% at ${pos}, ${color}, transparent)` });
 // Fine grain over the field — dithers the soft gradient so it doesn't show stepping/banding lines.
 const AUTH_GRAIN = "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E\")";
 function AuthAtmosphere() {
@@ -232,10 +232,10 @@ function AuthAtmosphere() {
     <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none", overflow: "hidden", background: "#ffffff" }}>
       <style>{ATMO_KF}</style>
       <span style={{ position: "absolute", inset: 0, background: "linear-gradient(152deg, rgba(37,99,235,.10) 0%, rgba(96,165,250,.08) 38%, rgba(125,211,192,.10) 64%, rgba(198,240,74,.13) 100%)" }} />
-      <span className="mxfa" style={atmoBlob("28% 24%", "rgba(37,99,235,.22)")} />
-      <span className="mxfb" style={atmoBlob("80% 28%", "rgba(59,130,246,.18)")} />
-      <span className="mxfc" style={atmoBlob("72% 84%", "rgba(198,240,74,.24)")} />
-      <span className="mxfd" style={atmoBlob("22% 80%", "rgba(147,197,253,.22)")} />
+      <span className="mxfa" style={atmoBlob("28% 26%", "rgba(37,99,235,.16)")} />
+      <span className="mxfb" style={atmoBlob("80% 30%", "rgba(59,130,246,.13)")} />
+      <span className="mxfc" style={atmoBlob("72% 82%", "rgba(198,240,74,.18)")} />
+      <span className="mxfd" style={atmoBlob("24% 80%", "rgba(147,197,253,.16)")} />
       <div style={{ position: "absolute", inset: 0, opacity: 0.6, mixBlendMode: "multiply", backgroundImage: AUTH_GRAIN }} />
     </div>
   );
@@ -334,7 +334,7 @@ function InvestorAuth({ onSuccess, initialMode, onBack }) {
     }
   };
 
-  const wrap = { minHeight: "100dvh", display: "flex", flexDirection: "column", justifyContent: "space-between", alignItems: "center", paddingLeft: 24, paddingRight: 24, paddingTop: "calc(env(safe-area-inset-top,0px) + 26px)", paddingBottom: "calc(env(safe-area-inset-bottom,0px) + 22px)", background: "transparent", position: "relative", zIndex: 1, maxWidth: 460, margin: "0 auto" };
+  const wrap = { minHeight: "100dvh", display: "flex", flexDirection: "column", justifyContent: "flex-start", alignItems: "center", paddingLeft: 24, paddingRight: 24, paddingTop: "calc(env(safe-area-inset-top,0px) + 26px)", paddingBottom: "calc(env(safe-area-inset-bottom,0px) + 22px)", background: "transparent", position: "relative", zIndex: 1, maxWidth: 460, margin: "0 auto" };
   const input = { height: 50, borderRadius: 14, border: "1px solid #e2e8f0", padding: "0 16px", fontSize: 15, outline: "none", background: "#f8fafc" };
   const link = { background: "none", border: "none", color: "#2563eb", fontWeight: 700, cursor: "pointer", padding: 0, fontSize: 13.5 };
 
@@ -378,7 +378,6 @@ function InvestorAuth({ onSuccess, initialMode, onBack }) {
     <AuthAtmosphere />
     <div style={wrap}>
       {onBack && <button type="button" onClick={onBack} aria-label="Back" style={{ position: "absolute", top: "calc(env(safe-area-inset-top, 0px) + 14px)", left: 18, background: "none", border: "none", fontSize: 26, lineHeight: 1, color: "#0f172a", cursor: "pointer", padding: "2px 6px" }}>‹</button>}
-      <img src="/icon-512.png" alt="" style={{ width: 62, height: 62, borderRadius: 16, boxShadow: "0 10px 28px rgba(15,23,42,.16)" }} />
       <div style={{ width: "100%" }}>
       <h1 style={{ fontSize: 27, fontWeight: 800, letterSpacing: "-0.02em", color: "#0f172a", marginTop: 4, textAlign: "center" }}>{title}</h1>
       <p style={{ fontSize: 14, color: "#64748b", marginTop: 6, textAlign: "center" }}>{sub}</p>
@@ -429,7 +428,7 @@ function InvestorAuth({ onSuccess, initialMode, onBack }) {
         {mode === "forgot" && <button type="button" onClick={() => go("signin")} style={link}>Back to sign in</button>}
       </p>
       </div>
-      <p style={{ fontSize: 21, fontWeight: 800, letterSpacing: "-0.02em", color: "#0f172a", textAlign: "center", margin: 0 }}>MineEx</p>
+      <img src="/brand/mineex-lockup-ink.png" alt="MineEx" style={{ width: "min(66vw, 260px)", height: "auto", marginTop: "auto", marginBottom: "auto", display: "block" }} />
     </div>
     </>
   );
