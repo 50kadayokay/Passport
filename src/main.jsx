@@ -267,6 +267,7 @@ function InvestorAuth({ onSuccess, initialMode, onBack }) {
   const [email, setEmail] = useState(() => { try { return localStorage.getItem(REMEMBER_KEY) || ""; } catch { return ""; } });
   const [remember, setRemember] = useState(true);
   const [password, setPassword] = useState("");
+  const [showPw, setShowPw] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [confirm, setConfirm] = useState(false); // signup: confirmation email sent
@@ -334,9 +335,15 @@ function InvestorAuth({ onSuccess, initialMode, onBack }) {
     }
   };
 
-  const wrap = { minHeight: "100dvh", display: "flex", flexDirection: "column", justifyContent: "flex-start", alignItems: "center", paddingLeft: 24, paddingRight: 24, paddingTop: "calc(env(safe-area-inset-top,0px) + 26px)", paddingBottom: "calc(env(safe-area-inset-bottom,0px) + 22px)", background: "transparent", position: "relative", zIndex: 1, maxWidth: 460, margin: "0 auto" };
-  const input = { height: 50, borderRadius: 14, border: "1px solid #e2e8f0", padding: "0 16px", fontSize: 15, outline: "none", background: "#f8fafc" };
-  const link = { background: "none", border: "none", color: "#2563eb", fontWeight: 700, cursor: "pointer", padding: 0, fontSize: 13.5 };
+  // Clean, Apple-inspired composition: warm off-white canvas, no gradient. The column is
+  // vertically centred and capped for balance on phones of any height; native iOS system
+  // font throughout. Branding + welcome are centred; text inside the form stays natural.
+  const SYS_FONT = "-apple-system, 'SF Pro Text', 'SF Pro Display', system-ui, 'Segoe UI', Roboto, sans-serif";
+  const wrap = { minHeight: "100dvh", display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", paddingLeft: 24, paddingRight: 24, paddingTop: "calc(env(safe-area-inset-top,0px) + 20px)", paddingBottom: "calc(env(safe-area-inset-bottom,0px) + 20px)", background: "#F8F9FB", position: "relative", zIndex: 1, maxWidth: 440, margin: "0 auto", fontFamily: SYS_FONT };
+  const inputWrap = { position: "relative", width: "100%" };
+  const input = { height: 52, width: "100%", boxSizing: "border-box", borderRadius: 14, border: "1px solid #e5e7eb", padding: "0 44px", fontSize: 16, outline: "none", background: "#ffffff", color: "#111827", fontFamily: SYS_FONT };
+  const inputIcon = { position: "absolute", left: 15, top: "50%", transform: "translateY(-50%)", color: "#9ca3af", pointerEvents: "none", display: "flex" };
+  const link = { background: "none", border: "none", color: "#111827", fontWeight: 600, cursor: "pointer", padding: 0, fontSize: 13.5, fontFamily: SYS_FONT };
 
   if (confirm || sent) {
     const isConfirm = confirm;
@@ -374,63 +381,80 @@ function InvestorAuth({ onSuccess, initialMode, onBack }) {
     : "Sign in to your investor account.";
 
   return (
-    <>
-    <AuthAtmosphere />
     <div style={wrap}>
-      {onBack && <button type="button" onClick={onBack} aria-label="Back" style={{ position: "absolute", top: "calc(env(safe-area-inset-top, 0px) + 14px)", left: 18, background: "none", border: "none", fontSize: 26, lineHeight: 1, color: "#0f172a", cursor: "pointer", padding: "2px 6px" }}>‹</button>}
+      {onBack && <button type="button" onClick={onBack} aria-label="Back" style={{ position: "absolute", top: "calc(env(safe-area-inset-top, 0px) + 14px)", left: 18, background: "none", border: "none", fontSize: 26, lineHeight: 1, color: "#111827", cursor: "pointer", padding: "2px 6px" }}>‹</button>}
       <div style={{ width: "100%" }}>
-      <h1 style={{ fontSize: 27, fontWeight: 800, letterSpacing: "-0.02em", color: "#0f172a", marginTop: 4, textAlign: "center" }}>{title}</h1>
-      <p style={{ fontSize: 14, color: "#64748b", marginTop: 6, textAlign: "center" }}>{sub}</p>
+      {/* Branding + welcome — centred as a block, deliberate spacing, no gradient behind it */}
+      <div style={{ textAlign: "center", marginBottom: 26 }}>
+        <div style={{ fontSize: 27, fontWeight: 800, letterSpacing: "-0.03em", color: "#111827" }}>MineEx</div>
+        <h1 style={{ fontSize: 26, fontWeight: 700, letterSpacing: "-0.02em", color: "#111827", margin: "22px 0 0" }}>{title}</h1>
+        <p style={{ fontSize: 14.5, color: "#6b7280", marginTop: 8 }}>{sub}</p>
+      </div>
 
-      <form onSubmit={submit} style={{ marginTop: 22, display: "flex", flexDirection: "column", gap: 12 }}>
-        <input type="email" inputMode="email" autoComplete="email" required placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} style={input} />
+      <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        <div style={inputWrap}>
+          <span style={inputIcon}>
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="5" width="18" height="14" rx="2.5" /><path d="m3.5 7.5 8.5 6 8.5-6" /></svg>
+          </span>
+          <input type="email" inputMode="email" autoComplete="email" required placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} style={input} />
+        </div>
         {mode !== "forgot" && (
-          <input type="password" autoComplete={mode === "signup" ? "new-password" : "current-password"} required placeholder="Password" minLength={6} value={password} onChange={(e) => setPassword(e.target.value)} style={input} />
+          <div style={inputWrap}>
+            <span style={inputIcon}>
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="4" y="11" width="16" height="10" rx="2.5" /><path d="M8 11V8a4 4 0 0 1 8 0v3" /></svg>
+            </span>
+            <input type={showPw ? "text" : "password"} autoComplete={mode === "signup" ? "new-password" : "current-password"} required placeholder="Password" minLength={6} value={password} onChange={(e) => setPassword(e.target.value)} style={input} />
+            <button type="button" onClick={() => setShowPw((v) => !v)} aria-label={showPw ? "Hide password" : "Show password"} style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", color: "#9ca3af", cursor: "pointer", padding: 8, display: "flex" }}>
+              {showPw
+                ? <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M10.6 5.1A10.9 10.9 0 0 1 12 5c6 0 10 7 10 7a18 18 0 0 1-3 3.6m-4 1.9A10.9 10.9 0 0 1 12 19C6 19 2 12 2 12a18 18 0 0 1 5-5.6" /><path d="m2 2 20 20" /><path d="M9.5 9.5a3 3 0 0 0 4.2 4.2" /></svg>
+                : <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7Z" /><circle cx="12" cy="12" r="3" /></svg>}
+            </button>
+          </div>
         )}
         {mode === "signin" && (
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: -2 }}>
-            <label style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12.5, color: "#475569", fontWeight: 600, cursor: "pointer" }}>
-              <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} style={{ width: 16, height: 16, accentColor: "#0f172a" }} />
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 2 }}>
+            <label style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 13, color: "#4b5563", fontWeight: 500, cursor: "pointer" }}>
+              <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} style={{ width: 16, height: 16, accentColor: "#111827" }} />
               Remember me
             </label>
-            <button type="button" onClick={() => go("forgot")} style={{ ...link, color: "#64748b", fontSize: 12.5 }}>Forgot password?</button>
+            <button type="button" onClick={() => go("forgot")} style={{ ...link, color: "#6b7280", fontWeight: 500, fontSize: 13 }}>Forgot password?</button>
           </div>
         )}
         {error && <p style={{ fontSize: 13, color: "#dc2626", fontWeight: 600 }}>{error}</p>}
-        <button type="submit" disabled={busy} style={{ height: 54, borderRadius: 9999, border: "none", background: "#0f172a", color: "#fff", fontSize: 15, fontWeight: 700, opacity: busy ? 0.6 : 1, marginTop: 4 }}>
+        <button type="submit" disabled={busy} style={{ height: 54, borderRadius: 14, border: "none", background: "#111827", color: "#fff", fontSize: 16, fontWeight: 600, fontFamily: SYS_FONT, cursor: "pointer", opacity: busy ? 0.6 : 1, marginTop: 6 }}>
           {busy ? "Please wait…" : mode === "signup" ? "Create account" : mode === "forgot" ? "Send reset link" : "Sign in"}
         </button>
       </form>
 
       {isNativeApp && mode !== "forgot" && (appleAvailable() || googleConfigured()) && (
-        <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 10 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <div style={{ flex: 1, height: 1, background: "#e2e8f0" }} />
-            <span style={{ fontSize: 12, color: "#94a3b8", fontWeight: 600 }}>or</span>
-            <div style={{ flex: 1, height: 1, background: "#e2e8f0" }} />
+        <div style={{ marginTop: 18, display: "flex", flexDirection: "column", gap: 11 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{ flex: 1, height: 1, background: "#e5e7eb" }} />
+            <span style={{ fontSize: 13, color: "#9ca3af", fontWeight: 500 }}>or</span>
+            <div style={{ flex: 1, height: 1, background: "#e5e7eb" }} />
           </div>
           {appleAvailable() && (
-            <button type="button" onClick={() => social("apple")} disabled={busy} style={{ height: 50, borderRadius: 12, border: "none", background: "#0f172a", color: "#fff", fontSize: 15, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, opacity: busy ? 0.6 : 1 }}>
-             Continue with Apple
-          </button>
+            <button type="button" onClick={() => social("apple")} disabled={busy} style={{ height: 52, borderRadius: 14, border: "1px solid #e5e7eb", background: "#fff", color: "#111827", fontSize: 15.5, fontWeight: 600, fontFamily: SYS_FONT, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 9, opacity: busy ? 0.6 : 1 }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="#111827" aria-hidden><path d="M16.37 12.74c.02 2.4 2.1 3.2 2.13 3.21-.02.06-.33 1.14-1.1 2.26-.66.97-1.35 1.93-2.44 1.95-1.07.02-1.41-.63-2.63-.63-1.22 0-1.6.61-2.61.65-1.05.04-1.85-1.05-2.52-2.01-1.36-1.97-2.4-5.57-1-8 .69-1.2 1.93-1.97 3.28-1.99 1.03-.02 2 .69 2.63.69.63 0 1.81-.86 3.05-.73.52.02 1.98.21 2.92 1.58-.08.05-1.74 1.02-1.72 3.03M14.4 4.9c.56-.68.94-1.62.84-2.56-.81.03-1.79.54-2.37 1.22-.52.6-.98 1.56-.86 2.48.9.07 1.83-.46 2.39-1.14" /></svg>
+              Continue with Apple
+            </button>
           )}
           {googleConfigured() && (
-            <button type="button" onClick={() => social("google")} disabled={busy} style={{ height: 50, borderRadius: 12, border: "1px solid #e2e8f0", background: "#fff", color: "#0f172a", fontSize: 15, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, opacity: busy ? 0.6 : 1 }}>
-              <span style={{ fontSize: 16, fontWeight: 800, color: "#4285F4" }}>G</span> Continue with Google
+            <button type="button" onClick={() => social("google")} disabled={busy} style={{ height: 52, borderRadius: 14, border: "1px solid #e5e7eb", background: "#fff", color: "#111827", fontSize: 15.5, fontWeight: 600, fontFamily: SYS_FONT, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 9, opacity: busy ? 0.6 : 1 }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden><path fill="#4285F4" d="M23.5 12.3c0-.8-.07-1.6-.2-2.3H12v4.5h6.5a5.6 5.6 0 0 1-2.4 3.6v3h3.9c2.3-2.1 3.5-5.2 3.5-8.8" /><path fill="#34A853" d="M12 24c3.2 0 5.9-1.1 7.9-2.9l-3.9-3c-1 .7-2.4 1.1-4 1.1-3 0-5.6-2-6.5-4.8h-4v3C3.5 21.3 7.5 24 12 24" /><path fill="#FBBC05" d="M5.5 14.4a7.2 7.2 0 0 1 0-4.6v-3h-4a12 12 0 0 0 0 10.6z" /><path fill="#EA4335" d="M12 4.8c1.8 0 3.3.6 4.6 1.8l3.4-3.4C17.9 1.2 15.2 0 12 0 7.5 0 3.5 2.7 1.5 6.8l4 3C6.4 6.8 9 4.8 12 4.8" /></svg>
+              Continue with Google
             </button>
           )}
         </div>
       )}
 
-      <p style={{ marginTop: 20, textAlign: "center", fontSize: 13.5, color: "#64748b" }}>
+      <p style={{ marginTop: 22, textAlign: "center", fontSize: 14, color: "#6b7280" }}>
         {mode === "signin" && <>New to MineEx? <button type="button" onClick={() => go("signup")} style={link}>Create an account</button></>}
         {mode === "signup" && <>Already have an account? <button type="button" onClick={() => go("signin")} style={link}>Sign in</button></>}
         {mode === "forgot" && <button type="button" onClick={() => go("signin")} style={link}>Back to sign in</button>}
       </p>
       </div>
-      <p style={{ fontSize: 40, fontWeight: 800, letterSpacing: "-0.03em", color: "#0f172a", textAlign: "center", margin: "auto 0" }}>MineEx</p>
     </div>
-    </>
   );
 }
 
