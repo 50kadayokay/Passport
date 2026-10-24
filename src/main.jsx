@@ -422,7 +422,7 @@ function InvestorAuth({ onSuccess, initialMode, onBack }) {
       <div style={{ width: "100%" }}>
       {/* Branding + welcome — centred as a block, deliberate spacing, no gradient behind it */}
       <div style={{ textAlign: "center", marginBottom: 26 }}>
-        <div style={{ display: "flex", alignItems: "baseline", justifyContent: "center", gap: 8 }}>
+        <div style={{ display: "flex", alignItems: "baseline", justifyContent: "center", gap: 5 }}>
           <MineExMark size={19} id="mx-login" />
           <span style={{ fontSize: 27, lineHeight: 1, fontWeight: 800, letterSpacing: "-0.03em", color: "#111827" }}>MineEx</span>
         </div>
