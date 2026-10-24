@@ -288,7 +288,7 @@ function WelcomeIntro({ onChoose }) {
           wordmark fades + slides into place beside it. No clipping — a clean settle. */}
       <div style={{ display: "flex", alignItems: "baseline", gap: GAP, transform: `translateX(${revealed ? 0 : offset}px)`, transition: `transform 1.1s ${EASE}` }}>
         <div style={{ animation: "mxMark 1s cubic-bezier(0.16,1,0.3,1) both" }}>
-          <MineExMark size={38} id="mx-splash" />
+          <MineExMark size={43} id="mx-splash" />
         </div>
         <span ref={textRef} style={{ display: "block", whiteSpace: "nowrap", fontSize: 54, lineHeight: 1, fontWeight: 800, letterSpacing: "-0.03em", color: "#ffffff", fontFamily: SYS_FONT, opacity: revealed ? 1 : 0, transform: `translateX(${revealed ? 0 : -12}px)`, transition: `opacity 1s ${EASE} .12s, transform 1.1s ${EASE}` }}>MineEx</span>
       </div>
@@ -423,7 +423,7 @@ function InvestorAuth({ onSuccess, initialMode, onBack }) {
       {/* Branding + welcome — centred as a block, deliberate spacing, no gradient behind it */}
       <div style={{ textAlign: "center", marginBottom: 26 }}>
         <div style={{ display: "flex", alignItems: "baseline", justifyContent: "center", gap: 8 }}>
-          <MineExMark size={19} id="mx-login" />
+          <MineExMark size={22} id="mx-login" />
           <span style={{ fontSize: 27, lineHeight: 1, fontWeight: 800, letterSpacing: "-0.03em", color: "#111827" }}>MineEx</span>
         </div>
         <h1 style={{ fontSize: 26, fontWeight: 700, letterSpacing: "-0.02em", color: "#111827", margin: "22px 0 0" }}>{title}</h1>
