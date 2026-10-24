@@ -212,8 +212,28 @@ const WELCOME_GREEN = "#2563eb";   // primary CTA colour (retained for the auth 
 // Opening splash: the MineEx desktop lockup, centred on a soft gradient, revealed with a gentle
 // fade + scale. Short + premium; then it hands straight off to the login / sign-up screen.
 const WELCOME_KF = `
-@keyframes mxLockup{0%{opacity:0;transform:scale(.92) translateY(8px)}100%{opacity:1;transform:scale(1) translateY(0)}}
+@keyframes mxMark{0%{opacity:0;transform:scale(.72)}60%{opacity:1}100%{opacity:1;transform:scale(1)}}
+@keyframes mxTextWipe{0%{transform:translateX(-102%)}100%{transform:translateX(0)}}
 @keyframes mxFade{from{opacity:0}to{opacity:1}}`;
+// Native iOS system font — shared by the splash and the auth screen.
+const SYS_FONT = "-apple-system, 'SF Pro Text', 'SF Pro Display', system-ui, 'Segoe UI', Roboto, sans-serif";
+// The MineEx core-sample mark: a rounded capsule of four stacked bands (brown / rust /
+// silver / gold), drawn as crisp SVG so it scales to any size. `size` = height in px.
+// `id` must be unique per on-screen instance (clipPath reference).
+function MineExMark({ size = 28, id = "mxm" }) {
+  const w = Math.round(size * 0.30);
+  return (
+    <svg width={w} height={size} viewBox="0 0 44 146" aria-hidden style={{ display: "block", flex: "none" }}>
+      <defs><clipPath id={id}><rect x="0" y="0" width="44" height="146" rx="13" /></clipPath></defs>
+      <g clipPath={`url(#${id})`}>
+        <rect x="0" y="0" width="44" height="36.5" fill="#7a4e33" />
+        <rect x="0" y="36.5" width="44" height="36.5" fill="#c4633b" />
+        <rect x="0" y="73" width="44" height="36.5" fill="#b6bcc3" />
+        <rect x="0" y="109.5" width="44" height="36.5" fill="#d9a24c" />
+      </g>
+    </svg>
+  );
+}
 // The animated green→blue field from the sales hero (home2/InvestorPage Atmosphere), adapted
 // full-bleed behind the splash + auth screens: cobalt / sky / chartreuse blooms drifting on slow
 // loops over white, so the black logo and the form stay readable on top.
@@ -247,13 +267,21 @@ function WelcomeIntro({ onChoose }) {
   useEffect(() => {
     splashSeen = true;
     persistSplash();
-    const t = setTimeout(() => onChoose("signin"), 2000);
+    const t = setTimeout(() => onChoose("signin"), 2300);
     return () => clearTimeout(t);
   }, []);
   return (
     <div onClick={() => onChoose("signin")} style={{ position: "fixed", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", padding: 32, overflow: "hidden", background: "#000000" }}>
       <style>{WELCOME_KF}</style>
-      <img src="/brand/mineex-lockup-white.png" alt="MineEx" style={{ position: "relative", zIndex: 1, width: "min(72vw, 300px)", maxWidth: 300, animation: "mxLockup 1.1s cubic-bezier(.2,.8,.2,1) both" }} />
+      {/* Mark fades/scales in first; then the MineEx wordmark wipes right out of it. */}
+      <div style={{ display: "flex", alignItems: "center", gap: 13 }}>
+        <div style={{ animation: "mxMark .55s cubic-bezier(.2,.8,.2,1) both" }}>
+          <MineExMark size={50} id="mx-splash" />
+        </div>
+        <div style={{ overflow: "hidden" }}>
+          <span style={{ display: "block", fontSize: 44, fontWeight: 800, letterSpacing: "-0.03em", color: "#ffffff", fontFamily: SYS_FONT, whiteSpace: "nowrap", animation: "mxTextWipe .6s .4s cubic-bezier(.2,.8,.2,1) both" }}>MineEx</span>
+        </div>
+      </div>
     </div>
   );
 }
@@ -337,7 +365,6 @@ function InvestorAuth({ onSuccess, initialMode, onBack }) {
   // Clean, Apple-inspired composition: warm off-white canvas, no gradient. The column is
   // vertically centred and capped for balance on phones of any height; native iOS system
   // font throughout. Branding + welcome are centred; text inside the form stays natural.
-  const SYS_FONT = "-apple-system, 'SF Pro Text', 'SF Pro Display', system-ui, 'Segoe UI', Roboto, sans-serif";
   const wrap = { minHeight: "100dvh", display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", paddingLeft: 24, paddingRight: 24, paddingTop: "calc(env(safe-area-inset-top,0px) + 20px)", paddingBottom: "calc(env(safe-area-inset-bottom,0px) + 20px)", background: "#F8F9FB", position: "relative", zIndex: 1, maxWidth: 440, margin: "0 auto", fontFamily: SYS_FONT };
   const inputWrap = { position: "relative", width: "100%" };
   const input = { height: 52, width: "100%", boxSizing: "border-box", borderRadius: 14, border: "1px solid #e5e7eb", padding: "0 44px", fontSize: 16, outline: "none", background: "#ffffff", color: "#111827", fontFamily: SYS_FONT };
@@ -385,7 +412,10 @@ function InvestorAuth({ onSuccess, initialMode, onBack }) {
       <div style={{ width: "100%" }}>
       {/* Branding + welcome — centred as a block, deliberate spacing, no gradient behind it */}
       <div style={{ textAlign: "center", marginBottom: 26 }}>
-        <div style={{ fontSize: 27, fontWeight: 800, letterSpacing: "-0.03em", color: "#111827" }}>MineEx</div>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 9 }}>
+          <MineExMark size={25} id="mx-login" />
+          <span style={{ fontSize: 27, fontWeight: 800, letterSpacing: "-0.03em", color: "#111827" }}>MineEx</span>
+        </div>
         <h1 style={{ fontSize: 26, fontWeight: 700, letterSpacing: "-0.02em", color: "#111827", margin: "22px 0 0" }}>{title}</h1>
         <p style={{ fontSize: 14.5, color: "#6b7280", marginTop: 8 }}>{sub}</p>
       </div>
@@ -434,7 +464,7 @@ function InvestorAuth({ onSuccess, initialMode, onBack }) {
           </div>
           {appleAvailable() && (
             <button type="button" onClick={() => social("apple")} disabled={busy} style={{ height: 52, borderRadius: 14, border: "1px solid #e5e7eb", background: "#fff", color: "#111827", fontSize: 15.5, fontWeight: 600, fontFamily: SYS_FONT, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 9, opacity: busy ? 0.6 : 1 }}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="#111827" aria-hidden><path d="M16.37 12.74c.02 2.4 2.1 3.2 2.13 3.21-.02.06-.33 1.14-1.1 2.26-.66.97-1.35 1.93-2.44 1.95-1.07.02-1.41-.63-2.63-.63-1.22 0-1.6.61-2.61.65-1.05.04-1.85-1.05-2.52-2.01-1.36-1.97-2.4-5.57-1-8 .69-1.2 1.93-1.97 3.28-1.99 1.03-.02 2 .69 2.63.69.63 0 1.81-.86 3.05-.73.52.02 1.98.21 2.92 1.58-.08.05-1.74 1.02-1.72 3.03M14.4 4.9c.56-.68.94-1.62.84-2.56-.81.03-1.79.54-2.37 1.22-.52.6-.98 1.56-.86 2.48.9.07 1.83-.46 2.39-1.14" /></svg>
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="#111827" aria-hidden><path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09l.01-.01zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z" /></svg>
               Continue with Apple
             </button>
           )}
