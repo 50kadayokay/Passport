@@ -212,8 +212,8 @@ const WELCOME_GREEN = "#2563eb";   // primary CTA colour (retained for the auth 
 // Opening splash: the MineEx desktop lockup, centred on a soft gradient, revealed with a gentle
 // fade + scale. Short + premium; then it hands straight off to the login / sign-up screen.
 const WELCOME_KF = `
-@keyframes mxMark{0%{opacity:0;transform:scale(.72)}60%{opacity:1}100%{opacity:1;transform:scale(1)}}
-@keyframes mxTextWipe{0%{transform:translateX(-102%)}100%{transform:translateX(0)}}
+@keyframes mxMark{0%{opacity:0;transform:scale(.7)}60%{opacity:1}100%{opacity:1;transform:scale(1)}}
+@keyframes mxReveal{0%{max-width:0}100%{max-width:240px}}
 @keyframes mxFade{from{opacity:0}to{opacity:1}}`;
 // Native iOS system font — shared by the splash and the auth screen.
 const SYS_FONT = "-apple-system, 'SF Pro Text', 'SF Pro Display', system-ui, 'Segoe UI', Roboto, sans-serif";
@@ -273,13 +273,14 @@ function WelcomeIntro({ onChoose }) {
   return (
     <div onClick={() => onChoose("signin")} style={{ position: "fixed", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", padding: 32, overflow: "hidden", background: "#000000" }}>
       <style>{WELCOME_KF}</style>
-      {/* Mark fades/scales in first; then the MineEx wordmark wipes right out of it. */}
-      <div style={{ display: "flex", alignItems: "center", gap: 13 }}>
-        <div style={{ animation: "mxMark .55s cubic-bezier(.2,.8,.2,1) both" }}>
-          <MineExMark size={50} id="mx-splash" />
+      {/* Mark fades in centred, then pans left as the wordmark unfurls on the right: the
+          group is centre-justified, so growing the text wrapper's width shifts the mark left. */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ animation: "mxMark .5s cubic-bezier(.2,.8,.2,1) both" }}>
+          <MineExMark size={37} id="mx-splash" />
         </div>
-        <div style={{ overflow: "hidden" }}>
-          <span style={{ display: "block", fontSize: 44, fontWeight: 800, letterSpacing: "-0.03em", color: "#ffffff", fontFamily: SYS_FONT, whiteSpace: "nowrap", animation: "mxTextWipe .6s .4s cubic-bezier(.2,.8,.2,1) both" }}>MineEx</span>
+        <div style={{ overflow: "hidden", animation: "mxReveal .8s .45s cubic-bezier(.2,.8,.2,1) both" }}>
+          <span style={{ display: "block", paddingLeft: 14, fontSize: 54, fontWeight: 800, letterSpacing: "-0.03em", color: "#ffffff", fontFamily: SYS_FONT, whiteSpace: "nowrap" }}>MineEx</span>
         </div>
       </div>
     </div>
@@ -413,7 +414,7 @@ function InvestorAuth({ onSuccess, initialMode, onBack }) {
       {/* Branding + welcome — centred as a block, deliberate spacing, no gradient behind it */}
       <div style={{ textAlign: "center", marginBottom: 26 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 9 }}>
-          <MineExMark size={25} id="mx-login" />
+          <MineExMark size={20} id="mx-login" />
           <span style={{ fontSize: 27, fontWeight: 800, letterSpacing: "-0.03em", color: "#111827" }}>MineEx</span>
         </div>
         <h1 style={{ fontSize: 26, fontWeight: 700, letterSpacing: "-0.02em", color: "#111827", margin: "22px 0 0" }}>{title}</h1>
