@@ -316,13 +316,35 @@ function InvestorAuth({ onSuccess, initialMode, onBack }) {
   // Keep the form reachable when the keyboard is open: track the visible viewport so the
   // screen shrinks to the area above the keyboard and its content scrolls (no plugin needed).
   const [viewH, setViewH] = useState("100dvh");
+  const [kbOpen, setKbOpen] = useState(false);
+  const [socialPush, setSocialPush] = useState(0);
+  const scrollRef = useRef(null);
+  const socialRef = useRef(null);
+  const baseH = useRef(0);
   useEffect(() => {
     const vv = typeof window !== "undefined" ? window.visualViewport : null;
     if (!vv) return;
-    const on = () => setViewH(Math.round(vv.height) + "px");
+    // resize:native shrinks window.innerHeight with the keyboard, so compare against the
+    // tallest height seen (keyboard-down baseline) to tell the keyboard is open.
+    const on = () => {
+      const h = Math.round(vv.height);
+      setViewH(h + "px");
+      if (h > baseH.current) baseH.current = h;
+      setKbOpen(baseH.current - h > 120);
+    };
     vv.addEventListener("resize", on); on();
     return () => vv.removeEventListener("resize", on);
   }, []);
+  // Never let the keyboard slice a button in half: when it's open, push the whole social
+  // section just below the fold (fully hidden, still reachable by scrolling) so only
+  // complete elements — logo, fields, Sign in — show above the keyboard.
+  useLayoutEffect(() => {
+    const sc = scrollRef.current, so = socialRef.current;
+    if (!sc || !so || !kbOpen) { if (socialPush !== 0) setSocialPush(0); return; }
+    const naturalTop = so.offsetTop - socialPush;
+    const need = Math.max(0, Math.round(sc.clientHeight - naturalTop - 8));
+    if (need !== socialPush) setSocialPush(need);
+  }, [kbOpen, viewH, mode, socialPush]);
   // After the splash→login crossfade (which fades through black) completes, tint the page
   // body to the login's background so the area the keyboard reveals isn't a black gap.
   useEffect(() => {
@@ -444,7 +466,7 @@ function InvestorAuth({ onSuccess, initialMode, onBack }) {
     : "Sign in to your investor account.";
 
   return (
-    <div style={wrap}>
+    <div ref={scrollRef} style={wrap}>
       {onBack && <button type="button" onClick={onBack} aria-label="Back" style={{ position: "absolute", top: "calc(env(safe-area-inset-top, 0px) + 14px)", left: 18, background: "none", border: "none", fontSize: 26, lineHeight: 1, color: "#111827", cursor: "pointer", padding: "2px 6px", zIndex: 2 }}>‹</button>}
       <div style={colCenter}>
       <div style={{ width: "100%", maxWidth: 440 }}>
@@ -494,7 +516,7 @@ function InvestorAuth({ onSuccess, initialMode, onBack }) {
       </form>
 
       {isNativeApp && mode !== "forgot" && (appleAvailable() || googleConfigured()) && (
-        <div style={{ marginTop: 18, display: "flex", flexDirection: "column", gap: 11 }}>
+        <div ref={socialRef} style={{ marginTop: 18 + socialPush, display: "flex", flexDirection: "column", gap: 11 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <div style={{ flex: 1, height: 1, background: "#e5e7eb" }} />
             <span style={{ fontSize: 13, color: "#9ca3af", fontWeight: 500 }}>or</span>
