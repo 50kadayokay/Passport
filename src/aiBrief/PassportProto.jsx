@@ -2261,7 +2261,7 @@ function SummaryContent({ item, cat, impact, hasFull, onReadFull, sourceNote, is
               Educational only — never advice; the generator is guard-railed against implying economics. */}
           {show("wdtm") && (
             <div className={show("wh") ? "mt-5" : ""}>
-              <span className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-slate-900">What Does It Mean</span>
+              <span className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-slate-500">What does this mean?</span>
               <p className="mt-1.5 text-[13.5px] font-medium leading-relaxed text-slate-600">{item.plainEnglish}</p>
             </div>
           )}

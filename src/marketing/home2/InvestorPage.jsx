@@ -157,7 +157,7 @@ const KX = {
   team: "7 directors & officers",
   ceo: "Scott Emerson · President & CEO",
   // the real section headings of a MineEx story summary
-  summarySections: ["MineEx summary", "What does this mean", "Context"],
+  summarySections: ["MineEx summary", "What does this mean?", "Context"],
   sources: "Trade press · newswires · regulatory filings · company releases & media",
 };
 

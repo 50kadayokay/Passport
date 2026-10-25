@@ -107,7 +107,7 @@ export default function NewsReview() {
                 return (
                   <div className="mt-3 space-y-3 rounded-xl border border-slate-100 bg-slate-50/60 p-3">
                     {it.plain_english_explanation && (<div>
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">What does this mean?</p>
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">What does this mean?</p>
                       <p className="mt-0.5 text-[12.5px] leading-relaxed text-slate-600">{it.plain_english_explanation}</p>
                       <Evidence field="plain_english_explanation" />
                     </div>)}
