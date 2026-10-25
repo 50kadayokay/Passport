@@ -20,6 +20,10 @@
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
     <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
     <meta name="theme-color" content="#ffffff" />
+    <!-- Force light UI (keyboard, form controls) — the webview background is black for the
+         splash, which would otherwise make iOS render the dark keyboard. -->
+    <meta name="color-scheme" content="light" />
+    <style>:root { color-scheme: light; }</style>
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />

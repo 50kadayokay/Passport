@@ -11,6 +11,7 @@ import { isNativeApp } from "./lib/platform.js";
 import { wireAndroidBack } from "./lib/androidBack.js"; // Android hardware back (no-op on web/iOS)
 import { useBackHandler } from "./lib/useBackHandler.js";
 import { SecureStorage } from "@aparajita/capacitor-secure-storage"; // iOS Keychain for "Remember me"
+import { Keyboard } from "@capacitor/keyboard"; // native keyboard events (lift content above it)
 
 // Surfaces are code-split so the marketing bundle stays lean:
 const Onboarding = React.lazy(() => import("./console/CompanyConsole.jsx")); // company console (wraps the builder)
@@ -315,36 +316,30 @@ function InvestorAuth({ onSuccess, initialMode, onBack }) {
   useEffect(() => { const id = requestAnimationFrame(() => setShown(true)); return () => cancelAnimationFrame(id); }, []);
   // Keep the form reachable when the keyboard is open: track the visible viewport so the
   // screen shrinks to the area above the keyboard and its content scrolls (no plugin needed).
-  const [viewH, setViewH] = useState("100dvh");
-  const [kbOpen, setKbOpen] = useState(false);
-  const [socialPush, setSocialPush] = useState(0);
-  const scrollRef = useRef(null);
-  const socialRef = useRef(null);
-  const baseH = useRef(0);
+  // Keyboard handling: the webview is NOT resized (resize:"none"). Instead we lift the whole
+  // column in ONE smooth transform so the fields + Sign in sit just above the keyboard; the
+  // social buttons slide under the opaque keyboard (never half-cut), and it returns on hide.
+  const [shiftY, setShiftY] = useState(0);
+  const signInRef = useRef(null);
   useEffect(() => {
-    const vv = typeof window !== "undefined" ? window.visualViewport : null;
-    if (!vv) return;
-    // resize:native shrinks window.innerHeight with the keyboard, so compare against the
-    // tallest height seen (keyboard-down baseline) to tell the keyboard is open.
-    const on = () => {
-      const h = Math.round(vv.height);
-      setViewH(h + "px");
-      if (h > baseH.current) baseH.current = h;
-      setKbOpen(baseH.current - h > 120);
-    };
-    vv.addEventListener("resize", on); on();
-    return () => vv.removeEventListener("resize", on);
+    if (!isNativeApp) return;
+    let subs = [];
+    (async () => {
+      try {
+        const show = await Keyboard.addListener("keyboardWillShow", (info) => {
+          const kbH = (info && info.keyboardHeight) || 0;
+          const el = signInRef.current;
+          if (!el || !kbH) return;
+          const avail = window.innerHeight - kbH;            // visible area above the keyboard
+          const bottom = el.getBoundingClientRect().bottom;  // at rest (keyboard was down → shift 0)
+          setShiftY(Math.max(0, Math.ceil(bottom - avail + 16)));
+        });
+        const hide = await Keyboard.addListener("keyboardWillHide", () => setShiftY(0));
+        subs = [show, hide];
+      } catch (_) {}
+    })();
+    return () => { subs.forEach((s) => s && s.remove && s.remove()); };
   }, []);
-  // Never let the keyboard slice a button in half: when it's open, push the whole social
-  // section just below the fold (fully hidden, still reachable by scrolling) so only
-  // complete elements — logo, fields, Sign in — show above the keyboard.
-  useLayoutEffect(() => {
-    const sc = scrollRef.current, so = socialRef.current;
-    if (!sc || !so || !kbOpen) { if (socialPush !== 0) setSocialPush(0); return; }
-    const naturalTop = so.offsetTop - socialPush;
-    const need = Math.max(0, Math.round(sc.clientHeight - naturalTop - 8));
-    if (need !== socialPush) setSocialPush(need);
-  }, [kbOpen, viewH, mode, socialPush]);
   // After the splash→login crossfade (which fades through black) completes, tint the page
   // body to the login's background so the area the keyboard reveals isn't a black gap.
   useEffect(() => {
@@ -421,10 +416,10 @@ function InvestorAuth({ onSuccess, initialMode, onBack }) {
   // Scroll container sized to the visible viewport; the inner column is min-height:100% and
   // flex-centred, so content centres when it fits and scrolls from the top (no clipping) when
   // the keyboard shrinks the area.
-  const wrap = { height: viewH, minHeight: viewH, overflowY: "auto", WebkitOverflowScrolling: "touch", background: "#F8F9FB", position: "relative", zIndex: 1, fontFamily: SYS_FONT, opacity: shown ? 1 : 0, transition: "opacity .5s ease" };
-  const colCenter = { minHeight: "100%", boxSizing: "border-box", display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", paddingLeft: 24, paddingRight: 24, paddingTop: "calc(env(safe-area-inset-top,0px) + 20px)", paddingBottom: "calc(env(safe-area-inset-bottom,0px) + 20px)" };
+  const wrap = { height: "100dvh", minHeight: "100dvh", overflow: "hidden", background: "#F8F9FB", position: "relative", zIndex: 1, fontFamily: SYS_FONT, opacity: shown ? 1 : 0, transition: "opacity .5s ease" };
+  const colCenter = { minHeight: "100%", boxSizing: "border-box", display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", paddingLeft: 24, paddingRight: 24, paddingTop: "calc(env(safe-area-inset-top,0px) + 20px)", paddingBottom: "calc(env(safe-area-inset-bottom,0px) + 20px)", transform: `translateY(${-shiftY}px)`, transition: "transform 0.3s cubic-bezier(0.17,0.59,0.4,1)", willChange: "transform" };
   const inputWrap = { position: "relative", width: "100%" };
-  const input = { height: 52, width: "100%", boxSizing: "border-box", borderRadius: 14, border: "1px solid #e5e7eb", padding: "0 44px", fontSize: 16, outline: "none", background: "#ffffff", color: "#111827", fontFamily: SYS_FONT };
+  const input = { height: 52, width: "100%", boxSizing: "border-box", borderRadius: 14, border: "1px solid #e5e7eb", padding: "0 44px", fontSize: 16, outline: "none", background: "#ffffff", color: "#111827", fontFamily: SYS_FONT, colorScheme: "light" };
   const inputIcon = { position: "absolute", left: 15, top: "50%", transform: "translateY(-50%)", color: "#9ca3af", pointerEvents: "none", display: "flex" };
   const link = { background: "none", border: "none", color: "#111827", fontWeight: 600, cursor: "pointer", padding: 0, fontSize: 13.5, fontFamily: SYS_FONT };
 
@@ -466,7 +461,7 @@ function InvestorAuth({ onSuccess, initialMode, onBack }) {
     : "Sign in to your investor account.";
 
   return (
-    <div ref={scrollRef} style={wrap}>
+    <div style={wrap}>
       {onBack && <button type="button" onClick={onBack} aria-label="Back" style={{ position: "absolute", top: "calc(env(safe-area-inset-top, 0px) + 14px)", left: 18, background: "none", border: "none", fontSize: 26, lineHeight: 1, color: "#111827", cursor: "pointer", padding: "2px 6px", zIndex: 2 }}>‹</button>}
       <div style={colCenter}>
       <div style={{ width: "100%", maxWidth: 440 }}>
@@ -510,13 +505,13 @@ function InvestorAuth({ onSuccess, initialMode, onBack }) {
           </div>
         )}
         {error && <p style={{ fontSize: 13, color: "#dc2626", fontWeight: 600 }}>{error}</p>}
-        <button type="submit" disabled={busy} style={{ height: 54, borderRadius: 14, border: "none", background: "#111827", color: "#fff", fontSize: 16, fontWeight: 600, fontFamily: SYS_FONT, cursor: "pointer", opacity: busy ? 0.6 : 1, marginTop: 6 }}>
+        <button ref={signInRef} type="submit" disabled={busy} style={{ height: 54, borderRadius: 14, border: "none", background: "#111827", color: "#fff", fontSize: 16, fontWeight: 600, fontFamily: SYS_FONT, cursor: "pointer", opacity: busy ? 0.6 : 1, marginTop: 6 }}>
           {busy ? "Please wait…" : mode === "signup" ? "Create account" : mode === "forgot" ? "Send reset link" : "Sign in"}
         </button>
       </form>
 
       {isNativeApp && mode !== "forgot" && (appleAvailable() || googleConfigured()) && (
-        <div ref={socialRef} style={{ marginTop: 18 + socialPush, display: "flex", flexDirection: "column", gap: 11 }}>
+        <div style={{ marginTop: 18, display: "flex", flexDirection: "column", gap: 11 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <div style={{ flex: 1, height: 1, background: "#e5e7eb" }} />
             <span style={{ fontSize: 13, color: "#9ca3af", fontWeight: 500 }}>or</span>

@@ -9,7 +9,8 @@
   "backgroundColor": "#000000",
   "plugins": {
     "Keyboard": {
-      "resize": "native"
+      "resize": "none",
+      "style": "LIGHT"
     },
     "SocialLogin": {
       "providers": {
