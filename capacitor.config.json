@@ -8,6 +8,9 @@
   },
   "backgroundColor": "#000000",
   "plugins": {
+    "Keyboard": {
+      "resize": "native"
+    },
     "SocialLogin": {
       "providers": {
         "google": true,

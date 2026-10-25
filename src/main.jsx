@@ -396,7 +396,11 @@ function InvestorAuth({ onSuccess, initialMode, onBack }) {
   // Clean, Apple-inspired composition: warm off-white canvas, no gradient. The column is
   // vertically centred and capped for balance on phones of any height; native iOS system
   // font throughout. Branding + welcome are centred; text inside the form stays natural.
-  const wrap = { height: viewH, minHeight: viewH, overflowY: "auto", WebkitOverflowScrolling: "touch", display: "flex", flexDirection: "column", paddingLeft: 24, paddingRight: 24, paddingTop: "calc(env(safe-area-inset-top,0px) + 20px)", paddingBottom: "calc(env(safe-area-inset-bottom,0px) + 20px)", background: "#F8F9FB", position: "relative", zIndex: 1, fontFamily: SYS_FONT, opacity: shown ? 1 : 0, transition: "opacity .5s ease" };
+  // Scroll container sized to the visible viewport; the inner column is min-height:100% and
+  // flex-centred, so content centres when it fits and scrolls from the top (no clipping) when
+  // the keyboard shrinks the area.
+  const wrap = { height: viewH, minHeight: viewH, overflowY: "auto", WebkitOverflowScrolling: "touch", background: "#F8F9FB", position: "relative", zIndex: 1, fontFamily: SYS_FONT, opacity: shown ? 1 : 0, transition: "opacity .5s ease" };
+  const colCenter = { minHeight: "100%", boxSizing: "border-box", display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", paddingLeft: 24, paddingRight: 24, paddingTop: "calc(env(safe-area-inset-top,0px) + 20px)", paddingBottom: "calc(env(safe-area-inset-bottom,0px) + 20px)" };
   const inputWrap = { position: "relative", width: "100%" };
   const input = { height: 52, width: "100%", boxSizing: "border-box", borderRadius: 14, border: "1px solid #e5e7eb", padding: "0 44px", fontSize: 16, outline: "none", background: "#ffffff", color: "#111827", fontFamily: SYS_FONT };
   const inputIcon = { position: "absolute", left: 15, top: "50%", transform: "translateY(-50%)", color: "#9ca3af", pointerEvents: "none", display: "flex" };
@@ -407,7 +411,8 @@ function InvestorAuth({ onSuccess, initialMode, onBack }) {
     const centerCol = { maxWidth: 320, marginLeft: "auto", marginRight: "auto" };
     return (
       <div style={wrap}>
-        <div style={{ textAlign: "center", width: "100%", maxWidth: 440, margin: "auto" }}>
+        <div style={colCenter}>
+        <div style={{ textAlign: "center", width: "100%", maxWidth: 440 }}>
           {/* Branded app mark with a cobalt mail badge — the same icon the Welcome flow uses,
               so the confirmation reads as MineEx, not a generic system screen. */}
           <div style={{ display: "inline-flex", position: "relative", marginBottom: 22 }}>
@@ -428,6 +433,7 @@ function InvestorAuth({ onSuccess, initialMode, onBack }) {
           </div>
           <button onClick={() => { setConfirm(false); setSent(false); go("signin"); }} style={{ marginTop: 22, height: 52, width: "100%", maxWidth: 360, marginLeft: "auto", marginRight: "auto", display: "block", borderRadius: 9999, border: "none", background: "#0f172a", color: "#fff", fontSize: 15, fontWeight: 700, cursor: "pointer" }}>Back to sign in</button>
         </div>
+        </div>
       </div>
     );
   }
@@ -439,8 +445,9 @@ function InvestorAuth({ onSuccess, initialMode, onBack }) {
 
   return (
     <div style={wrap}>
-      {onBack && <button type="button" onClick={onBack} aria-label="Back" style={{ position: "absolute", top: "calc(env(safe-area-inset-top, 0px) + 14px)", left: 18, background: "none", border: "none", fontSize: 26, lineHeight: 1, color: "#111827", cursor: "pointer", padding: "2px 6px" }}>‹</button>}
-      <div style={{ width: "100%", maxWidth: 440, margin: "auto" }}>
+      {onBack && <button type="button" onClick={onBack} aria-label="Back" style={{ position: "absolute", top: "calc(env(safe-area-inset-top, 0px) + 14px)", left: 18, background: "none", border: "none", fontSize: 26, lineHeight: 1, color: "#111827", cursor: "pointer", padding: "2px 6px", zIndex: 2 }}>‹</button>}
+      <div style={colCenter}>
+      <div style={{ width: "100%", maxWidth: 440 }}>
       {/* Branding + welcome — centred as a block, deliberate spacing, no gradient behind it */}
       <div style={{ textAlign: "center", marginBottom: 26 }}>
         <div style={{ display: "flex", alignItems: "baseline", justifyContent: "center", gap: 5 }}>
@@ -513,6 +520,7 @@ function InvestorAuth({ onSuccess, initialMode, onBack }) {
         {mode === "signup" && <>Already have an account? <button type="button" onClick={() => go("signin")} style={link}>Sign in</button></>}
         {mode === "forgot" && <button type="button" onClick={() => go("signin")} style={link}>Back to sign in</button>}
       </p>
+      </div>
       </div>
     </div>
   );
