@@ -31,7 +31,12 @@ import { fetchCompany, SUPABASE_URL, SUPABASE_ANON } from "../lib/supabase.js";
 import { updateCompanyProfile, myPortalCompanies, companyFollowerCount, companyFollowers } from "../lib/portal.js";  // company-account: persist edits + resolve managed companies + follower count/list
 import { uploadCompanyMedia } from "../lib/storage.js";          // company-account: upload a new logo/media
 import { mapProfileToPP } from "../lib/profileToPP.js";          // company-account: rebuild pp after an edit
-import { API_BASE, isNativeApp } from "../lib/platform.js";
+import { API_BASE, isNativeApp, isAndroidApp } from "../lib/platform.js";
+
+// REVIEW-ONLY: ?nav=1 forces the bottom tab bar to show in a web browser so the whole app can be
+// navigated on a phone during review. Opt-in via URL param only — normal web links / the booth QR
+// never carry it, so the production "single-page viewer" behaviour (no bottom nav) is unchanged.
+const WEB_NAV_REVIEW = (() => { try { return new URLSearchParams(location.search).get("nav") === "1"; } catch (_) { return false; } })();
 import { historicalToV2 } from "./historicalBrief.js";   // Path A: map existing summaries → BriefV1 (no AI)
 import { classifyNewsItem, briefCompleteness, briefSections, flagForReview } from "../lib/briefContract.js"; // canonical PR classification + completeness
 import QRCode from "qrcode";
@@ -80,7 +85,7 @@ import PullToRefresh from "./PullToRefresh.jsx"; // swipe-down refresh on the fe
 import { resolveWidgets, resolveProjectWidgets, widgetText } from "../lib/conferenceWidgets.js";
 import { ConferenceScenes } from "./ConferenceScenes.jsx";
 
-import { blockedForGuest, onAppPrompt, APP_STORE_URL as APPLE_STORE_URL } from "../lib/appPrompt.js";
+import { blockedForGuest, onAppPrompt, showAppPrompt, APP_STORE_URL as APPLE_STORE_URL } from "../lib/appPrompt.js";
 /* ============================================================
    PASSPORT — Light FinTech Aesthetic
    Inspired by Apple, Wealthsimple, & Arc Browser
@@ -551,6 +556,7 @@ const CAT_STYLE = {
   "Resource Growth": { c: "#0d9488", bg: "rgba(13,148,136,0.10)" }, // turquoise
   Exploration:       { c: "#475569", bg: "rgba(100,116,139,0.10)" },
   Corporate:         { c: "#64748b", bg: "rgba(100,116,139,0.08)" },
+  Production:        { c: "#0f766e", bg: "rgba(15,118,110,0.10)" }, // teal — operating / production & results
 };
 
 // Derive {cat, impact} from a release's text — no data mutation needed.
@@ -785,13 +791,19 @@ export function BottomNav({ nav, setNav, solid }) {
   };
   return (
     <div
-      className="pp-bottomnav absolute bottom-0 left-0 right-0 z-40 px-5 pb-7 pt-2"
+      className={`pp-bottomnav absolute bottom-0 left-0 right-0 z-40 px-5 pt-2 ${isAndroidApp ? "" : "pb-7"}`}
       // NOT DEMO_SAFE_B. That inset exists for sheet footers that sit against the bottom
       // of the demo phone; applied here it pushed the bottom nav 34px up, so the marketing
       // Investor phone showed a taller gap below the tab bar than the Home and Pro phones,
       // which render the same nav at the class's own pb-7 (28px). The three renders now
       // agree. Live app unaffected either way: DEMO_SAFE_B is 0 outside the demo mount.
-      style={{ ...(solid
+      //
+      // Android (targetSdk 36) forces edge-to-edge: the WebView extends behind the system
+      // navigation bar, so the fixed 28px (pb-7) left the tab icons colliding with it. On
+      // Android ONLY we swap pb-7 for the nav-bar inset + an 8px gap; iOS/web keep pb-7
+      // exactly, so this changes nothing on iOS.
+      style={{ ...(isAndroidApp ? { paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 8px)" } : null),
+        ...(solid
         ? { background: "#ffffff", borderTop: "1px solid rgba(226,232,240,0.7)" }
         : { background: "rgba(255,255,255,0.95)", backdropFilter: "blur(20px) saturate(180%)", borderTop: "1px solid rgba(226,232,240,0.7)" }) }}
     >
@@ -2094,6 +2106,38 @@ function isMeasureUnit(u) {
    whole section (from the longest value+inline-unit) so all rows share baseline and nothing overflows
    a 375px phone. More than four results page into a 4-per-page swipe carousel with pagination dots;
    four or fewer render as a single static grid (the approved Kingsmen financing case). */
+// Guards a parsed metric descriptor against stray-punctuation artifacts. A trailing period on a
+// value (e.g. "17,652 oz.") could survive parsing as a lone "." segment, which then rendered as
+// ". · Third-quarter gold production". Split on the " · " separator, drop any segment with no
+// letters or digits, and rejoin — so only meaningful text is shown.
+function cleanMetricDesc(s) {
+  return String(s || "")
+    .split("·")
+    .map((p) => p.trim())
+    .filter((p) => /[a-z0-9]/i.test(p))
+    .join(" · ")
+    .trim();
+}
+
+// Press-release reader accents are pinned to cobalt for EVERY company (not the company's brand
+// color), so summaries read consistently regardless of a company's palette.
+const PR_EM = "#2563eb";
+const PR_EM_TEXT = "#1d4ed8";
+
+// A "value" is compact enough for the two-column grid only when it is short AND not a multi-word
+// phrase (a trailing measure unit doesn't count as a word). Briefs occasionally put a whole clause
+// in `v` (e.g. "between $2.60 and $2.70 per pound"); with `max-content` that one clause blows the
+// value column out to most of the row and squeezes every description to one word per line. When ANY
+// row in the section is phrase-like we fall back to a stacked layout (value on its own line that may
+// wrap, description beneath) — so Key Results stays readable no matter what a release puts in `v`.
+function isCompactValue(r) {
+  const v = String(r.v || "").trim();
+  const bare = isMeasureUnit(r.u) ? v : v.replace(/\s*(per\b.*)$/i, "").trim();
+  const words = bare.split(/\s+/).filter(Boolean);
+  const effLen = v.length + (isMeasureUnit(r.u) ? String(r.u || "").length + 1 : 0);
+  return effLen <= 14 && words.length <= 2 && v.length <= 16;
+}
+
 function KeyResults({ rows }) {
   const [page, setPage] = useState(0);
   const scRef = useRef(null);
@@ -2101,23 +2145,27 @@ function KeyResults({ rows }) {
   const pages = [];
   for (let i = 0; i < rows.length; i += perPage) pages.push(rows.slice(i, i + perPage));
   const multi = pages.length > 1;
+  // Two-column grid only when every value is compact; otherwise stack so nothing is squished.
+  const columnar = rows.every(isCompactValue);
   // Font sizing considers the inline unit's width too, so "3,227.2 Meters" steps down like a long value.
   const effLen = (r) => String(r.v || "").length + (isMeasureUnit(r.u) ? String(r.u || "").length + 1 : 0);
   const maxLen = rows.reduce((m, r) => Math.max(m, effLen(r)), 0);
   const vSize = maxLen <= 9 ? 22 : maxLen <= 12 ? 18 : 15;
   const uSize = Math.max(12, Math.round(vSize * 0.58));
+  const relLabel = (r) => r.rel && /[a-z0-9]/i.test(r.rel);
+  // Two-column row (compact numeric values).
   const row = (r, i) => (
     <div key={i} style={{ display: "contents" }}>
       {/* value + unit (grouped, left-aligned, never wraps) */}
       <div className={`py-3 ${i > 0 ? "border-t border-slate-100" : ""}`}>
         {isMeasureUnit(r.u) ? (
           <div className="flex items-baseline gap-1 whitespace-nowrap">
-            <span className="font-extrabold leading-none tracking-tight tabular-nums" style={{ color: EM_TEXT, fontSize: vSize }}>{r.v}</span>
+            <span className="font-extrabold leading-none tracking-tight tabular-nums" style={{ color: PR_EM_TEXT, fontSize: vSize }}>{r.v}</span>
             <span className="font-semibold leading-none tracking-tight text-slate-400" style={{ fontSize: uSize }}>{r.u}</span>
           </div>
         ) : (
           <>
-            <div className="font-extrabold leading-none tracking-tight tabular-nums whitespace-nowrap" style={{ color: EM_TEXT, fontSize: vSize }}>{r.v}</div>
+            <div className="font-extrabold leading-none tracking-tight tabular-nums whitespace-nowrap" style={{ color: PR_EM_TEXT, fontSize: vSize }}>{r.v}</div>
             {r.u && <div className="mt-1 text-[10px] font-bold uppercase tracking-[0.08em] text-slate-400">{r.u}</div>}
           </>
         )}
@@ -2125,19 +2173,37 @@ function KeyResults({ rows }) {
       {/* description + optional relationship label + secondary (wraps naturally), top-aligned */}
       <div className={`min-w-0 py-3 pt-[13px] ${i > 0 ? "border-t border-slate-100" : ""}`}>
         <div className="text-[13.5px] font-semibold leading-snug text-slate-800">
-          {r.rel && <span className="mr-1.5 text-[9.5px] font-extrabold uppercase tracking-[0.1em]" style={{ color: EM }}>{r.rel}</span>}
-          {r.rel && <span className="mr-1.5 text-slate-300">·</span>}
-          {r.desc}
+          {relLabel(r) && <span className="mr-1.5 text-[9.5px] font-extrabold uppercase tracking-[0.1em]" style={{ color: PR_EM }}>{r.rel}</span>}
+          {relLabel(r) && <span className="mr-1.5 text-slate-300">·</span>}
+          {cleanMetricDesc(r.desc)}
         </div>
         {r.sec && <div className="mt-0.5 text-[12px] font-medium leading-snug text-slate-500">{r.sec}</div>}
       </div>
     </div>
   );
-  const grid = (pageRows, off) => (
-    <div className="grid items-start gap-x-5" style={{ gridTemplateColumns: "max-content minmax(0, 1fr)" }}>
-      {pageRows.map((r, i) => row(r, off + i))}
+  // Stacked row (phrase-like values): value line (may wrap) + description beneath. Full width, never squished.
+  const stackedRow = (r, i) => (
+    <div key={i} className={`py-3 ${i > 0 ? "border-t border-slate-100" : ""}`}>
+      <div className="font-extrabold leading-tight tracking-tight" style={{ color: PR_EM_TEXT, fontSize: 17 }}>
+        {r.v}
+        {r.u && <span className="ml-1 font-semibold text-slate-400" style={{ fontSize: 12 }}>{r.u}</span>}
+      </div>
+      <div className="mt-1 text-[13px] font-semibold leading-snug text-slate-700">
+        {relLabel(r) && <span className="mr-1.5 text-[9.5px] font-extrabold uppercase tracking-[0.1em]" style={{ color: PR_EM }}>{r.rel}</span>}
+        {relLabel(r) && <span className="mr-1.5 text-slate-300">·</span>}
+        {cleanMetricDesc(r.desc)}
+      </div>
+      {r.sec && <div className="mt-0.5 text-[12px] font-medium leading-snug text-slate-500">{r.sec}</div>}
     </div>
   );
+  const grid = (pageRows, off) =>
+    columnar ? (
+      <div className="grid items-start gap-x-5" style={{ gridTemplateColumns: "fit-content(42%) minmax(0, 1fr)" }}>
+        {pageRows.map((r, i) => row(r, off + i))}
+      </div>
+    ) : (
+      <div>{pageRows.map((r, i) => stackedRow(r, off + i))}</div>
+    );
   return (
     <div className="mt-6">
       <span className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-slate-900">Key Results</span>
@@ -2164,7 +2230,64 @@ function KeyResults({ rows }) {
                 aria-current={pi === page ? "true" : undefined}
                 onClick={() => { const el = scRef.current; if (el) el.scrollTo({ left: pi * (el.clientWidth || 1), behavior: "smooth" }); }}
                 className="rounded-full transition-colors"
-                style={{ width: 7, height: 7, background: pi === page ? EM : "#cbd5e1" }}
+                style={{ width: 7, height: 7, background: pi === page ? PR_EM : "#cbd5e1" }}
+              />
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// "What does this mean?" explainer. The source string carries its own "•"/"·" item markers; we
+// split them into bullet rows and show a MAXIMUM of two per view, with a horizontal swipe carousel
+// (+ dots) when there are more — so the educational copy stays short and never crowds out the Key
+// Results above it. No markers (a single thought) → a plain paragraph.
+function WhatDoesThisMean({ text }) {
+  const [page, setPage] = useState(0);
+  const scRef = useRef(null);
+  const parts = String(text || "").split(/\s*[•·]\s*/).map((s) => s.trim()).filter(Boolean);
+  const perPage = 2;
+  const pages = [];
+  for (let i = 0; i < parts.length; i += perPage) pages.push(parts.slice(i, i + perPage));
+  const multi = pages.length > 1;
+  const bullet = (p, key) => (
+    <li key={key} className="flex gap-2.5 text-[13.5px] font-medium leading-relaxed text-slate-600">
+      <span className="mt-[7px] h-1.5 w-1.5 flex-shrink-0 rounded-full bg-slate-300" />
+      <span>{p}</span>
+    </li>
+  );
+  return (
+    <div>
+      <span className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-slate-900">What does this mean?</span>
+      {parts.length <= 1 ? (
+        <p className="mt-1.5 text-[13.5px] font-medium leading-relaxed text-slate-600">{text}</p>
+      ) : !multi ? (
+        <ul className="mt-2 space-y-2">{parts.map((p, i) => bullet(p, i))}</ul>
+      ) : (
+        <>
+          <div
+            ref={scRef}
+            className="pp-noscroll mt-2 flex overflow-x-auto"
+            style={{ scrollSnapType: "x mandatory" }}
+            onScroll={() => { const el = scRef.current; if (el) setPage(Math.round(el.scrollLeft / (el.clientWidth || 1))); }}
+          >
+            {pages.map((pg, pi) => (
+              <div key={pi} className="w-full flex-shrink-0" style={{ scrollSnapAlign: "start" }}>
+                <ul className="space-y-2 pr-1">{pg.map((p, i) => bullet(p, pi * perPage + i))}</ul>
+              </div>
+            ))}
+          </div>
+          <div className="mt-3 flex items-center justify-center gap-1.5">
+            {pages.map((_, pi) => (
+              <button
+                key={pi}
+                aria-label={`Definitions page ${pi + 1} of ${pages.length}`}
+                aria-current={pi === page ? "true" : undefined}
+                onClick={() => { const el = scRef.current; if (el) el.scrollTo({ left: pi * (el.clientWidth || 1), behavior: "smooth" }); }}
+                className="rounded-full transition-colors"
+                style={{ width: 7, height: 7, background: pi === page ? PR_EM : "#cbd5e1" }}
               />
             ))}
           </div>
@@ -2245,9 +2368,10 @@ function SummaryContent({ item, cat, impact, hasFull, onReadFull, sourceNote, is
               ⚠ Flagged for review — missing {comp.missing.join(", ")} (not shown in production)
             </div>
           )}
-          {/* What Happened and Why It Matters carry equal weight; Key Results is the centerpiece; The
-              Takeaway concludes when the source supports one. Each section renders ONLY when its
-              content exists — an empty heading is never drawn. */}
+          {/* Section order: What Happened → What does this mean → Key Results → Context; the Takeaway
+              concludes when the source supports one. Each section renders ONLY when its content
+              exists — an empty heading is never drawn. */}
+
           {show("wh") && (
             <div>
               <span className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-slate-900">What Happened</span>
@@ -2255,21 +2379,11 @@ function SummaryContent({ item, cat, impact, hasFull, onReadFull, sourceNote, is
               <p className="mt-1.5 text-[13.5px] font-medium leading-relaxed text-slate-600">{v2.wh}</p>
             </div>
           )}
-          {/* "What Does It Mean" — the plain-English educational explainer (defines the jargon in the
-              release: g/t, PEA, AgEq, intercept, inferred resource…). App-wide standard on EVERY
-              summary, press release AND editorial, positioned right after the facts and before Context.
-              Educational only — never advice; the generator is guard-railed against implying economics. */}
+
+          {/* "What Does It Mean" — plain-English educational explainer (defines the jargon). Bullet
+              rows, max two per view with a swipe carousel when there are more. Educational only — never advice. */}
           {show("wdtm") && (
-            <div className={show("wh") ? "mt-5" : ""}>
-              <span className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-slate-500">What does this mean?</span>
-              <p className="mt-1.5 text-[13.5px] font-medium leading-relaxed text-slate-600">{item.plainEnglish}</p>
-            </div>
-          )}
-          {show("wy") && (
-            <div className={(show("wh") || show("wdtm")) ? "mt-5" : ""}>
-              <span className="text-[10px] font-extrabold uppercase tracking-[0.16em]" style={{ color: EM_TEXT }}>Context</span>
-              <p className="mt-1.5 text-[13.5px] font-medium leading-relaxed text-slate-600">{v2.wy}</p>
-            </div>
+            <div className={show("wh") ? "mt-6" : ""}><WhatDoesThisMean text={item.plainEnglish} /></div>
           )}
 
           {/* KEY RESULTS — semantic metric-row system (units inline, descriptive labels beneath,
@@ -2284,7 +2398,7 @@ function SummaryContent({ item, cat, impact, hasFull, onReadFull, sourceNote, is
               <ul className="mt-2.5 space-y-2.5">
                 {v2.highlights.map((h, i) => (
                   <li key={i} className="flex gap-2.5 text-[13.5px] font-medium leading-snug text-slate-700">
-                    <span className="mt-[7px] h-1.5 w-1.5 flex-shrink-0 rounded-full" style={{ background: EM }} />
+                    <span className="mt-[7px] h-1.5 w-1.5 flex-shrink-0 rounded-full" style={{ background: PR_EM }} />
                     <span>{h}</span>
                   </li>
                 ))}
@@ -2292,9 +2406,16 @@ function SummaryContent({ item, cat, impact, hasFull, onReadFull, sourceNote, is
             </div>
           )}
 
+          {show("wy") && (
+            <div className="mt-6">
+              <span className="text-[10px] font-extrabold uppercase tracking-[0.16em]" style={{ color: PR_EM_TEXT }}>Context</span>
+              <p className="mt-1.5 text-[13.5px] font-medium leading-relaxed text-slate-600">{v2.wy}</p>
+            </div>
+          )}
+
           {show("tk") && (
             <div className="mt-6 rounded-2xl px-4 py-3.5" style={{ background: "rgba(37,99,235,0.06)", border: "1px solid rgba(37,99,235,0.16)" }}>
-              <span className="flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-[0.14em]" style={{ color: EM_TEXT }}><Sparkles size={12} strokeWidth={2.4} /> What's Next</span>
+              <span className="flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-[0.14em]" style={{ color: PR_EM_TEXT }}><Sparkles size={12} strokeWidth={2.4} /> What's Next</span>
               <p className="mt-1.5 text-[13.5px] font-semibold leading-relaxed text-slate-700">{v2.tk}</p>
             </div>
           )}
@@ -2499,7 +2620,7 @@ function Sheet({ header, children, onClose }) {
             {header}
           </div>
         )}
-        <RubberScroll className="pp-scroll overflow-y-auto" style={{ flex: 1, minHeight: 0, padding: header ? "12px 20px 0 20px" : "20px 20px 0", paddingBottom: "calc(28px + env(safe-area-inset-bottom, 0px))" }}>
+        <RubberScroll className="pp-scroll overflow-x-hidden overflow-y-auto" style={{ flex: 1, minHeight: 0, padding: header ? "12px 20px 0 20px" : "20px 20px 0", paddingBottom: "calc(28px + env(safe-area-inset-bottom, 0px))" }}>
           {children}
         </RubberScroll>
       </div>
@@ -2646,7 +2767,7 @@ function BottomSheet({ children, onClose, mediaKey, topBanner, fit, z = 50, head
         </>)}
         {/* scrollable content — card stays still while this scrolls */}
         {mediaKey ? <div style={{ flexShrink: 0, padding: "0 20px" }}><CardHeader mediaKey={mediaKey} /></div> : null}
-        <RubberScroll className="pp-scroll overflow-y-auto" style={{ flex: fit ? "0 1 auto" : 1, minHeight: 0, padding: "6px 20px 0 20px", paddingBottom: "calc(28px + env(safe-area-inset-bottom, 0px))" }}>
+        <RubberScroll className="pp-scroll overflow-x-hidden overflow-y-auto" style={{ flex: fit ? "0 1 auto" : 1, minHeight: 0, padding: "6px 20px 0 20px", paddingBottom: "calc(28px + env(safe-area-inset-bottom, 0px))" }}>
           {typeof children === "function" ? children(close) : children}
         </RubberScroll>
       </div>
@@ -3117,6 +3238,30 @@ async function hydrateMediaFromCloud() {
   } catch (_) {}
 }
 
+// A media post opens at Instagram proportions: the frame honors the media's natural aspect but is
+// clamped between 4:5 (portrait, tallest) and 1.91:1 (landscape, widest), and the media fills it
+// with object-cover — so a very tall or very wide source no longer sprawls past the screen.
+function ViewerMedia({ p, img }) {
+  const [ar, setAr] = useState("4 / 5");
+  const onMeta = (w, h) => { if (!w || !h) return; const r = Math.min(Math.max(w / h, 0.8), 1.91); setAr(String(r)); };
+  return (
+    <div className="relative w-full overflow-hidden bg-black" style={{ aspectRatio: ar }}>
+      {p.videoSrc ? (
+        <video src={p.videoSrc} poster={img || undefined} muted loop playsInline onLoadedMetadata={(e) => onMeta(e.currentTarget.videoWidth, e.currentTarget.videoHeight)} className="absolute inset-0 h-full w-full object-cover" />
+      ) : img ? (
+        <img src={img} alt="" onLoad={(e) => onMeta(e.currentTarget.naturalWidth, e.currentTarget.naturalHeight)} className="absolute inset-0 h-full w-full object-cover" />
+      ) : null}
+      {p.video && !p.videoSrc && (
+        <span className="pointer-events-none absolute inset-0 grid place-items-center">
+          <span className="grid h-14 w-14 place-items-center rounded-full" style={{ background: "rgba(255,255,255,0.92)", boxShadow: "0 6px 20px rgba(0,0,0,0.4)" }}>
+            <Play size={22} strokeWidth={2.6} fill="#0f172a" style={{ color: "#0f172a", marginLeft: 2 }} />
+          </span>
+        </span>
+      )}
+    </div>
+  );
+}
+
 // Instagram-style media FEED — white background, each post is: header (avatar +
 // handle) → media → like/share actions → caption. Scroll through every post;
 // videos autoplay when scrolled into view.
@@ -3210,21 +3355,8 @@ function MediaViewer({ posts, start, onClose }) {
                   <BadgeCheck size={13} className="flex-shrink-0" style={{ color: "#0ea5e9" }} fill="rgba(14,165,233,0.15)" />
                 </div>
               </div>
-              {/* media */}
-              <div className="relative w-full bg-black">
-                {p.videoSrc ? (
-                  <video src={p.videoSrc} poster={img || undefined} muted loop playsInline className="w-full" />
-                ) : img ? (
-                  <img src={img} alt="" className="w-full" />
-                ) : null}
-                {p.video && !p.videoSrc && (
-                  <span className="pointer-events-none absolute inset-0 grid place-items-center">
-                    <span className="grid h-14 w-14 place-items-center rounded-full" style={{ background: "rgba(255,255,255,0.92)", boxShadow: "0 6px 20px rgba(0,0,0,0.4)" }}>
-                      <Play size={22} strokeWidth={2.6} fill="#0f172a" style={{ color: "#0f172a", marginLeft: 2 }} />
-                    </span>
-                  </span>
-                )}
-              </div>
+              {/* media — Instagram-proportioned (clamped 4:5 … 1.91:1, object-cover) */}
+              <ViewerMedia p={p} img={img} />
               {/* actions */}
               <div className="flex items-center gap-4 px-3.5 pt-2.5">
                 <button onClick={() => toggleLike(key)} aria-label="Like" className="transition active:scale-90">
@@ -3560,7 +3692,7 @@ function CapitalFooter() {
     <div className="mt-4 border-t border-slate-100 pt-3">
       <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Source</p>
       <p className="mt-1 text-[10px] font-medium leading-relaxed text-slate-400">
-        Passport AI analyzed the company's latest public filings, financial statements, MD&amp;A, news releases and regulatory disclosures.
+        MineEx analyzed the company's latest public filings, financial statements, MD&amp;A, news releases and regulatory disclosures.
       </p>
       <p className="mt-1.5 text-[10px] font-medium leading-relaxed text-slate-400">
         Information is provided for informational purposes only and is not investment advice.
@@ -3831,7 +3963,7 @@ function CapitalView() {
     )}
 
     {/* ===== LISTING → OPEN IN YAHOO PROMPT (centered dialog) ===== */}
-    {listing && (
+    {listing && createPortal((
       <div
         className="absolute inset-0 z-50 flex items-center justify-center px-6"
         style={{ background: "rgba(15,23,42,0.4)", backdropFilter: "blur(6px)" }}
@@ -3870,7 +4002,7 @@ function CapitalView() {
           </button>
         </div>
       </div>
-    )}
+    ), ppFrameEl || document.body)}
 
     {/* ===== SHARE STRUCTURE SHEET ===== */}
     {sheet === "structure" && (
@@ -5193,7 +5325,14 @@ function ProjectsView() {
       cards: [
         { Icon: MapIcon, label: "District Maps", sub: "Claims \u00b7 structures", kind: "map",
           mapTitle: "Las Coloradas \u2014 Claims & Targets",
-          mapDesc: "Concession boundary with the Soledad vein structures and district-scale exploration targets." },
+          mapDesc: "Concession boundary with the Soledad vein structures and district-scale exploration targets.",
+          body: "Las Coloradas sits in the historic Parral district of Chihuahua, in the northeastern Central Mexican Silver Belt. Kingsmen consolidated 15 fragmented concessions into one contiguous 845-hectare package over a brownfield district once mined by ASARCO, covering a ~2.5 km mineralized corridor that hosts the Soledad and Soledad II vein systems alongside documented skarn and porphyry targets.",
+          points: [
+            { k: "Claims", v: "15 mining concessions across 845 ha, consolidated into one contiguous package." },
+            { k: "Structures", v: "Soledad (~2.0 km) and Soledad II (~1.7 km) NW-trending veins within a ~2.5 km \u00d7 1 km corridor." },
+            { k: "Regional context", v: "Parral district, Chihuahua \u2014 Central Mexican Silver Belt, beside Santa Barbara and San Francisco de Oro." },
+            { k: "Location", v: "~38 km from Hidalgo del Parral \u00b7 27.05\u00b0N, 105.45\u00b0W." },
+          ] },
         { Icon: Layers, label: "Geology", sub: "Structures \u00b7 Mineralization", kind: "geology",
           body: "Las Coloradas is a classic epithermal silver-gold system. Mineralization sits in two parallel northwest-trending vein structures that stay open along strike and at depth, with skarn and porphyry targets hinting at a much larger system below.",
           points: [
@@ -5260,13 +5399,13 @@ function ProjectsView() {
       brief: LC_BRIEF,
     },
     alm: {
-      key: "alm", name: "Almoloya", tone: "#0d9488", toneText: "#0f766e", toneSoft: "rgba(13,148,136,0.10)",
+      key: "alm", name: "Almoloya", tone: "#047857", toneText: "#065f46", toneSoft: "rgba(4,120,87,0.12)",
       snap: AM_SNAP, stageInfo: AM_STAGE, unique: AM_UNIQUE, content: AM_CARDS,
       gallery: AM_SITE_GALLERY,
-      status: { label: "Early Exploration", tone: "#0d9488" },
+      status: { label: "Early Exploration", tone: "#047857" },
       locationFull: "Sierra de Almoloya, Chihuahua, Mexico",
       stageName: "Early-Stage Exploration",
-      statusStrip: { tone: "#0d9488", state: "Early Exploration", pills: ["Pre-Drill", "Target Definition", "Next: Maiden Drill"] },
+      statusStrip: { tone: "#047857", state: "Early Exploration", pills: ["Pre-Drill", "Target Definition", "Next: Maiden Drill"] },
       districtMaps: [],
       snapshot: [
         { Icon: MapPin, label: "Location", value: "Sierra de Almoloya" },
@@ -5279,7 +5418,14 @@ function ProjectsView() {
       cards: [
         { Icon: MapIcon, label: "District Maps", sub: "Claims \u00b7 targets", kind: "map",
           mapTitle: "Almoloya \u2014 Historic Mines & Targets",
-          mapDesc: "Consolidated concessions with the Cigarrero and Las Juliettas historic mines and CRD target at depth." },
+          mapDesc: "Consolidated concessions with the Cigarrero and Las Juliettas historic mines and CRD target at depth.",
+          body: "Almoloya lies in the Sierra de Almoloya, Chihuahua, where Kingsmen completed the first district-wide consolidation in decades \u2014 6 concessions across 866 hectares. The package covers the historic Cigarrero and Las Juliettas high-grade silver-gold mines and a structurally complex vein system, with carbonate-replacement (CRD) and skarn potential untested at depth.",
+          points: [
+            { k: "Claims", v: "6 concessions across 866 ha \u2014 the first district-wide consolidation here in decades." },
+            { k: "Structures", v: "Structurally complex, high-grade epithermal silver-gold vein system across the district." },
+            { k: "Targets", v: "Historic Cigarrero and Las Juliettas mines at surface; untested CRD & skarn potential at depth." },
+            { k: "Regional context", v: "Sierra de Almoloya, Chihuahua \u2014 worked historically by majors including Teck, Kennecott and Frisco." },
+          ] },
         { Icon: Layers, label: "Geology", sub: "Structures \u00b7 Mineralization", kind: "geology",
           body: "Almoloya pairs high-grade epithermal silver-gold veins at surface with potential for large carbonate-replacement (CRD) and skarn bodies at depth. The historic Cigarrero system is structurally complex and very high grade \u2014 and modern tools have never tested what lies beneath the old workings.",
           points: [
@@ -5467,10 +5613,22 @@ function ProjectsView() {
               const short = pr.short ? String(pr.short)
                 : nm.length <= 16 ? nm
                 : String(k).split(/[-_]/).map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+              // With 3+ projects the strip scrolls and each tab is sized so EXACTLY TWO show at a
+              // time (a sliver of the next hints there's more); tapping a tab scrolls it into view.
+              const twoUp = keys.length > 2 ? { flex: "0 0 50%" } : {};
               return (
-                <button key={k} onClick={() => setSel(k)}
-                  className={`whitespace-nowrap rounded-lg py-2 text-[12.5px] font-bold tracking-tight transition-all ${keys.length > 2 ? "flex-shrink-0 px-3.5" : "flex-1"}`}
-                  style={on ? { background: pr.tone || EM, color: "#fff" } : { color: "#64748b" }}>
+                <button key={k}
+                  onClick={(e) => {
+                    const tgt = e.currentTarget;
+                    const from = keys.indexOf(activeKey), to = keys.indexOf(k);
+                    setSel(k);
+                    // Direction-aware scroll: moving RIGHT snaps the tapped tab to the LEFT edge (so the
+                    // next project is revealed on its right); moving LEFT snaps it to the RIGHT edge. The
+                    // tab never gets stuck centered. Re-tapping the active one doesn't jump.
+                    try { tgt.scrollIntoView({ behavior: "smooth", inline: to > from ? "start" : to < from ? "end" : "nearest", block: "nearest" }); } catch (_) {}
+                  }}
+                  className={`truncate rounded-lg py-2 text-center text-[12.5px] font-bold tracking-tight transition-all ${keys.length > 2 ? "flex-shrink-0 px-3" : "flex-1"}`}
+                  style={on ? { background: pr.tone || EM, color: "#fff", ...twoUp } : { color: "#64748b", ...twoUp }}>
                   {short}
                 </button>
               );
@@ -6789,8 +6947,8 @@ function StoryReader({ it, onOpen, onClose }) {
   const onDragStart = (e) => { startY.current = e.touches[0].clientY; setDragging(true); everDragged.current = true; };
   const onDragMove = (e) => { if (startY.current == null) return; setDragY(Math.max(0, e.touches[0].clientY - startY.current)); };
   const onDragEnd = () => { setDragging(false); startY.current = null; if (dragY > 90) { haptic(); onClose(); } else setDragY(0); };
-  const toggleSave = () => { if (it) savedStore.toggle(it); if (it && it.postId && !saved) recordPostEvent(it.postId, "save"); setSaved((s) => !s); };
-  const toggleLike = () => { if (!it) return; likedStore.toggle(it.id); if (it.postId && !liked) recordPostEvent(it.postId, "like"); setLiked((s) => !s); };
+  const toggleSave = () => { if (!it) return; const slug = currentSlug(); const on = !saved; savedStore.toggle(it); if (it.postId && on) recordPostEvent(it.postId, "save"); if (investorAuthed() && slug && it.id) { (on ? investorData.savePost(slug, it.id) : investorData.unsavePost(slug, it.id)).catch(() => {}); } setSaved((s) => !s); };
+  const toggleLike = () => { if (!it) return; const slug = currentSlug(); const on = !liked; likedStore.toggle(it.id); if (it.postId && on) recordPostEvent(it.postId, "like"); if (investorAuthed() && slug && it.id) { (on ? investorData.likePost(slug, it.id) : investorData.unlikePost(slug, it.id)).catch(() => {}); } setLiked((s) => !s); };
   const shareStory = async () => {
     haptic();
     // Share a MineEx URL for news (branded card via /n/<id> OG tags); fall back to the
@@ -6845,7 +7003,7 @@ function StoryReader({ it, onOpen, onClose }) {
             </div>
           </div>
         </div>
-        <div className="pp-scroll min-h-0 flex-1 overflow-y-auto px-5 pb-6 pt-3">
+        <div className="pp-scroll min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-5 pb-6 pt-3">
           {media && (
             <button onClick={() => { haptic(); setPlaying((v) => !v); }} className="relative mb-4 block h-52 w-full overflow-hidden rounded-2xl" style={coverFor(it)}>
               <CoverImg it={it} />
@@ -7060,8 +7218,8 @@ function ReaderActions({ it, snapshot }) {
   const id = it && it.id;
   const liked = likedStore.has(id);
   const saved = savedStore.has(id);
-  const toggleLike = (e) => { e.stopPropagation(); if (!it) return; likedStore.toggle(id); if (it.postId && !liked) recordPostEvent(it.postId, "like"); };
-  const toggleSave = (e) => { e.stopPropagation(); const target = snapshot || it; if (!target) return; savedStore.toggle(target); if (it.postId && !saved) recordPostEvent(it.postId, "save"); };
+  const toggleLike = (e) => { e.stopPropagation(); if (!it) return; const slug = currentSlug(); const on = !liked; likedStore.toggle(id); if (it.postId && on) recordPostEvent(it.postId, "like"); if (investorAuthed() && slug && id) { (on ? investorData.likePost(slug, id) : investorData.unlikePost(slug, id)).catch(() => {}); } };
+  const toggleSave = (e) => { e.stopPropagation(); const target = snapshot || it; if (!target) return; const slug = currentSlug(); const on = !saved; savedStore.toggle(target); if (it.postId && on) recordPostEvent(it.postId, "save"); if (investorAuthed() && slug && id) { (on ? investorData.savePost(slug, id) : investorData.unsavePost(slug, id)).catch(() => {}); } };
   const share = async (e) => {
     e.stopPropagation(); haptic();
     const nid = it && it.contentType === "NEWS" ? String(id || "").replace(/^news-/, "") : "";
@@ -10299,8 +10457,10 @@ function BasicListing({ onBack }) {
         </div>
       </div>
 
-      {/* Ticker → Open in Yahoo Finance (identical to the pro capital page) */}
-      {listing && (
+      {/* Ticker → Open in Yahoo Finance (identical to the pro capital page). Portaled to the app
+          frame so the blurred backdrop covers the FIXED viewport — not the scrolled content, which
+          left a visible seam/line at the overlay edge when the page was scrolled. */}
+      {listing && createPortal((
         <div className="absolute inset-0 z-[60] flex items-center justify-center px-6" style={{ background: "rgba(15,23,42,0.4)", backdropFilter: "blur(6px)" }} onClick={() => setListing(null)}>
           <div className="w-full max-w-[300px] rounded-[26px] bg-white px-7 pb-6 pt-8" style={{ boxShadow: "0 24px 70px -16px rgba(15,23,42,0.5)" }} onClick={(e) => e.stopPropagation()}>
             <div className="flex flex-col items-center text-center">
@@ -10320,7 +10480,7 @@ function BasicListing({ onBack }) {
             <button onClick={() => setListing(null)} className="mt-1.5 w-full py-2.5 text-[13px] font-bold text-slate-400 transition active:scale-[0.97]">Cancel</button>
           </div>
         </div>
-      )}
+      ), ppFrameEl || document.body)}
 
       {reportOpen && <ReportListingSheet slug={slug} name={S(co.name)} onClose={() => setReportOpen(false)} />}
     </div>
@@ -10790,7 +10950,7 @@ export function CompanyProfile({ onBack, onScan, tab: controlledTab, onTabChange
       </div>
       <div className="flex-1" style={{ minHeight: 0 }}>
         <SwipePager
-          tabs={PAGE_TABS} tab={tab} setTab={setTab} render={renderTab} pageClassName="pb-24"
+          tabs={PAGE_TABS} tab={tab} setTab={setTab} render={renderTab} pageClassName={isAndroidApp ? "pp-pb-navsafe" : (isNativeApp || WEB_NAV_REVIEW) ? "pb-24" : "pb-6"}
           onLead={setSwipeTarget} onEdgeBack={onBack} demo={demo} exposeNav={ppEmbed}
           onPageClickCapture={INSPECT ? (e, t) => { if (t !== tab) return; const el = e.target.closest("[data-fc]"); e.preventDefault(); e.stopPropagation(); fcPost(el ? el.getAttribute("data-fc") : "", TAB_SECTION[tab] || ""); } : undefined}
         />
@@ -10883,8 +11043,10 @@ export function CompanyProfile({ onBack, onScan, tab: controlledTab, onTabChange
                 );
               })}
             </div>
-            {/* 3 — PRIMARY action: Message in MineEx (dominant cobalt) */}
-            <button onClick={() => { haptic(); setContactOpen(false); setDm(true); }}
+            {/* 3 — PRIMARY action: Message in MineEx (dominant cobalt). On the WEB this opens the
+                "get the app" prompt instead of the DM — messaging only works with an account in
+                the app. showAppPrompt() returns false in the native app, so there it opens the DM. */}
+            <button onClick={() => { haptic(); setContactOpen(false); if (showAppPrompt("message")) return; setDm(true); }}
               className="mt-5 flex w-full items-center justify-center gap-2 rounded-2xl text-[15px] font-bold text-white active:scale-[0.98]"
               style={{ height: 52, background: "linear-gradient(135deg, #3b82f6 0%, #2563eb 45%, #4f46e5 100%)", boxShadow: "0 14px 30px -10px rgba(79,70,229,0.6)" }}>
               <MessageSquare size={17} strokeWidth={2.5} /> Message in MineEx
@@ -12574,7 +12736,7 @@ export default function App({ guest = false } = {}) {
         /* App frame fills the screen. iOS web apps can't lock orientation (only a
            native build can), so we don't fight the rotation — no counter-rotation,
            no swing. It just behaves as a normal responsive full-screen app. */
-        .pp-frame { position: fixed; inset: 0; width: 100%; height: 100%; background: #ffffff; overflow: hidden; }
+        .pp-frame { position: fixed; inset: 0; width: 100%; height: 100%; height: 100dvh; background: #ffffff; overflow: hidden; }
         button { transition: transform .2s ease-out, background-color .2s ease-out, color .2s ease-out, box-shadow .2s ease-out, border-color .2s ease-out; }
         button:focus-visible { outline: 2px solid ${EM}; outline-offset: 2px; border-radius: 12px; }
         @media (prefers-reduced-motion: reduce) { .pp-ping, .pp-slide-up, .pp-pop, .pp-fade, .pp-view, .pp-glow, .pp-breathe, .pp-blueglow, .pp-bob { animation: none !important; } .pp-wordfade { animation: none !important; opacity: 1 !important; filter: none !important; transform: none !important; } * { transition: none !important; } }
@@ -12611,7 +12773,13 @@ export default function App({ guest = false } = {}) {
           {/* Follow needs an account to be worth anything — it is what makes the feed
               personal and what lets a company reach the investor later. Rather than
               storing a follow that lives in one browser, a guest is asked to get the app. */}
-          {appPrompt && (
+          {appPrompt && (() => {
+            const c = appPrompt === "message"
+              ? { title: "Message in the app", sub: "Reach companies directly from MineEx",
+                  body: "Get the MineEx app to message companies directly, follow them and hear about new releases the moment they publish." }
+              : { title: "Follow in the app", sub: "Keep the companies you follow on every device",
+                  body: "Get the MineEx app to follow companies, build your own feed and hear about new releases the moment they publish." };
+            return (
             <div className="fixed inset-0 z-[70] flex items-end justify-center" onClick={() => setAppPrompt(null)}>
               <div className="absolute inset-0 bg-slate-900/40" />
               <div onClick={(e) => e.stopPropagation()}
@@ -12621,13 +12789,12 @@ export default function App({ guest = false } = {}) {
                 <div className="flex items-center gap-3">
                   <img src="/icon-192.png" alt="MineEx" className="h-11 w-11 flex-shrink-0 rounded-[12px] object-cover" />
                   <div className="min-w-0">
-                    <p className="text-[17px] font-extrabold tracking-tight text-slate-900">Follow in the app</p>
-                    <p className="text-[13px] font-medium text-slate-500">Keep the companies you follow on every device</p>
+                    <p className="text-[17px] font-extrabold tracking-tight text-slate-900">{c.title}</p>
+                    <p className="text-[13px] font-medium text-slate-500">{c.sub}</p>
                   </div>
                 </div>
                 <p className="mt-4 text-[14px] leading-relaxed text-slate-600">
-                  Get the MineEx app to follow companies, build your own feed and hear about new
-                  releases the moment they publish.
+                  {c.body}
                 </p>
                 <a href={getStoreHref()} target="_blank" rel="noopener noreferrer"
                   className="mt-5 flex w-full items-center justify-center rounded-full py-3.5 text-[15px] font-bold text-white transition active:scale-[0.98]"
@@ -12640,7 +12807,8 @@ export default function App({ guest = false } = {}) {
                 </button>
               </div>
             </div>
-          )}
+            );
+          })()}
           <div className="relative flex-1 overflow-hidden">
             {/* FEED layer — kept mounted behind the profile so an exit-swipe reveals it instantly */}
             {nav === "scan" ? (
@@ -12665,7 +12833,10 @@ export default function App({ guest = false } = {}) {
               </div>
             )}
           </div>
-          {!(focused && inCompany) && <BottomNav nav={inCompany ? null : (navLead ?? nav)} setNav={goNav} />}
+          {/* Bottom tab bar ONLY in the native app. The web is a QR/link viewer for a single page
+              (a company profile or a shared article), so it never shows app navigation — which
+              otherwise squished the page. isNativeApp true → unchanged app behaviour. */}
+          {(isNativeApp || WEB_NAV_REVIEW) && <BottomNav nav={inCompany ? null : (navLead ?? nav)} setNav={goNav} />}
           {/* Shell-level company create flow — the "+" on every tab opens this. */}
           {creating && <CompanyCreateMenu onClose={() => setCreating(false)} onChoose={(k) => { setComposeKind(k); setCreating(false); setComposing(true); }} />}
           {composing && <PostComposer kind={composeKind} onPost={() => {}} onClose={() => setComposing(false)} />}

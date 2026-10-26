@@ -175,7 +175,9 @@ HARD RULES — the sections must NEVER:
 - infer that exploration results establish a mineral resource, reserve, mine, or economic deposit;
 - invent geological, financial or corporate significance, or omit qualifications that materially change the meaning.
 
-NUMBERS: grades, widths, units, %, resources, financing amounts, dates must be quoted EXACTLY from the source — never rounded or converted, qualifiers kept (inferred, up to, including, over, approximately).
+NUMBERS: grades, widths, units, %, resources, financing amounts, dates must be quoted EXACTLY from the source — never rounded or converted, qualifiers kept (inferred, up to, including, over, approximately). Put a figure in key_numbers ONLY if that exact figure appears in the source; never compute, estimate or project a number the source does not state.
+
+TERMS & SPELLING: spell every technical term EXACTLY as the source writes it (e.g. "offtake", "NI 43-101", "AgEq"). Define a term in plain_english_explanation ONLY if that term actually appears in this source item — never invent, abbreviate, or guess a term, and never introduce a word the source does not use.
 
 MATERIAL QUALIFICATIONS (keep whenever the source states them — a technically-correct number WITHOUT its qualification can mislead, so preserve it in the relevant section and in key_numbers[].qualifier):
 - study stage — PEA / preliminary vs pre-feasibility (PFS) vs feasibility (FS) — MUST accompany any economic result (NPV, IRR, AISC, capex, payback);

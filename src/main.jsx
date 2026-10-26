@@ -825,7 +825,19 @@ function AppRoot() {
       try {
         const base = { apikey: SUPABASE_ANON, Authorization: `Bearer ${SUPABASE_ANON}` };
         let coId = null;
-        if (previewToken) {
+        if (params.get("draft") === "1") {
+          // DRAFT PREVIEW (?c=<slug>&draft=1): render a LOCAL fixture profile
+          // (public/drafts/<slug>.json) for a company not yet in the database, so a Pro profile can
+          // be reviewed on any device before it is published. Seeds window.__PP__ exactly the way a
+          // real DB row does — no Supabase read, no write. Param-gated: the normal code path is
+          // untouched unless ?draft=1 is present, so production is unaffected.
+          const fx = await fetch(`/drafts/${encodeURIComponent(slug)}.json`).then((x) => x.json()).catch(() => null);
+          if (fx) {
+            try { window.__CANON_PROJECTS__ = Array.isArray(fx.projects) ? fx.projects : null; } catch (_) {}
+            try { if (fx.ACCOUNT_TIER === undefined) fx.ACCOUNT_TIER = "pro"; } catch (_) {}
+            window.__PP__ = fx; ok = true;
+          }
+        } else if (previewToken) {
           // Admin preview of an unpublished (ready/archived) company — the token-gated
           // RPC bypasses the "published only" RLS so the profile renders in the iframe.
           const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_preview_company`, {
@@ -1050,9 +1062,13 @@ function AppRoot() {
       // shows the v2 Brief we settled on (not the sparse historical fallback) with the full release
       // intact. Keeps every existing release; only adds `v2` to the ones that have an approved brief.
       try {
+        // Runs on ANY host (localhost, LAN, production) for the Kingsmen shared/guest view so the
+        // web + QR/link profile shows the APPROVED v2 Brief design, not the sparse historical
+        // fallback. Scoped to c=kingsmen-resources only; kingsmen-briefs.json ships in the build;
+        // applyPP is a client-side session override (no DB write).
         if (!params.get("brief") && !params.get("briefgen")
             && params.get("c") === "kingsmen-resources"
-            && /^(localhost|127\.0\.0\.1|\[::1\])$/i.test(location.hostname) && mod.applyPP) {
+            && mod.applyPP) {
           const bb = await fetch("/kingsmen-briefs.json").then((x) => x.json()).catch(() => null);
           if (bb && bb.v2) {
             const curYears = Array.isArray(mod.PR_YEARS) ? mod.PR_YEARS : [];

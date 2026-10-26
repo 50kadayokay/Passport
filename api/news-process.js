@@ -13,6 +13,7 @@
 import { serviceConfigured, serviceRest } from "./_service.js";
 import { checkNewsAuth, isCronRequest } from "./_news.js";
 import { fetchArticleText, fetchFullReleaseText, analyzeItem, buildCompanyIndex, matchCompany, clusterItems, PROCESSING_VERSION, normTicker, normName, enrichCompany, verifyTicker } from "./_newsAI.js";
+import { verifyNewsBrief, sanitizeNewsBrief } from "./_verifyNews.js";
 import { recordUsage, daySpendUSD, dailyLimitUSD, estimateBatch } from "./_aiUsage.js";
 
 export const config = { maxDuration: 300 };
@@ -88,12 +89,13 @@ async function createListingStub(a, idx) {
 }
 
 async function processItem(item, idx, reprocess, operation) {
-  let a, usage, cost = 0, sourceTextLen = 0, retrieval = { verified: false, via: "none", sourceUrl: item.canonical_url || item.url || "" };
+  let a, usage, cost = 0, sourceTextLen = 0, srcText = "", retrieval = { verified: false, via: "none", sourceUrl: item.canonical_url || item.url || "" };
   try {
     // FULL-SOURCE retrieval: read the primary; if it is blocked/thin (e.g. a Cloudflare-walled wire),
     // fall back to the SAME release on a verified mirror so the summary is built from the full body.
     retrieval = await fetchFullReleaseText({ ...item, canonical_url: item.canonical_url || item.url });
     const sourceText = retrieval.text;
+    srcText = sourceText || "";                 // kept for the deterministic verification pass below
     sourceTextLen = sourceText ? sourceText.length : 0;
     ({ analysis: a, usage } = await analyzeItem({ ...item, sourceName: item.source ? item.source.name : "" }, sourceText));
     // Record ACTUAL token usage the API returned BEFORE anything else can fail.
@@ -106,6 +108,24 @@ async function processItem(item, idx, reprocess, operation) {
     throw e;
   }
   const relevant = !!a.is_relevant;
+  // DETERMINISTIC GROUNDING — the feed is hands-off (no human review), so rather than hold a
+  // flawed summary we SANITISE it: correct known-term spellings, and strip the specific
+  // unverifiable pieces (a Key Number not in the source, a garbled/invented definition) so what
+  // publishes is grounded in the article. The rest of the item still goes live. We also record the
+  // pre-sanitise verification + what was changed on fact_check for auditing.
+  const verify = verifyNewsBrief(
+    { keyNumbers: a.key_numbers, plainEnglish: a.plain_english_explanation, summary: a.mineex_summary },
+    srcText,
+  );
+  const clean = sanitizeNewsBrief(
+    { keyNumbers: a.key_numbers, plainEnglish: a.plain_english_explanation, summary: a.mineex_summary, context: a.context },
+    srcText,
+  );
+  a.key_numbers = clean.key_numbers;
+  a.plain_english_explanation = clean.plain_english_explanation;
+  a.mineex_summary = clean.mineex_summary;
+  a.context = clean.context;
+  a.fact_check = { ...(a.fact_check || {}), verification: verify, sanitized: clean.report };
   const patch = {
     relevant,
     reject_reason: relevant ? null : (a.reject_reason || a.relevance_reason || "not relevant"),
@@ -161,6 +181,10 @@ async function processItem(item, idx, reprocess, operation) {
     && retrieval.verified
     && !!a.mineex_summary && Array.isArray(a.provenance) && a.provenance.length > 0
     && (!a.fact_check || a.fact_check.verdict !== "conflict");
+  // NOTE: the deterministic grounding check does NOT gate auto-publish — the feed is hands-off, so
+  // instead of holding flawed items we sanitise them above (ungrounded Key Numbers and garbled
+  // definitions are stripped before save), and they publish grounded. fact_check.sanitized records
+  // what was removed if you ever want to audit or re-enable a review gate.
   // Reprocess re-runs the AI on already-processed items to refresh the format WITHOUT
   // touching approval state, clustering, or company links (human decisions stand).
   if (!reprocess) {

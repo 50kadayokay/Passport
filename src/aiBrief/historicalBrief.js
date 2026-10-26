@@ -37,7 +37,9 @@ function parseKeyNumber(s) {
   let u = "";
   const um = UNIT_RE.exec(rest);
   if (um) { u = um[1].trim(); rest = rest.slice(um[0].length).trim(); }
-  const desc = rest.replace(/^[-–—:·,\s]+/, "").trim();
+  // Strip leading separators INCLUDING a stray period, so a trailing "." on the value
+  // (e.g. "17,652 oz.") doesn't survive as a lone "." descriptor that later renders as ". · label".
+  const desc = rest.replace(/^[.\-–—:·,\s]+/, "").trim();
   return { v, u, desc };
 }
 

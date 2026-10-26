@@ -53,6 +53,11 @@ body {
 .pp-noscroll { scrollbar-width: none; -ms-overflow-style: none; }
 .pp-noscroll::-webkit-scrollbar { display: none; }
 
+/* Android edge-to-edge (targetSdk 36): the tab bar grew to clear the system nav bar,
+   so the main scroll pages need enough bottom clearance that the last item isn't hidden
+   behind it. Applied on Android only (see isAndroidApp); iOS/web keep their own pb-*. */
+.pp-pb-navsafe { padding-bottom: calc(104px + env(safe-area-inset-bottom, 0px)); }
+
 /* ---- prototype-exact motion (ported 1:1) ---- */
 @keyframes pp-ping { 75%, 100% { transform: scale(2.2); opacity: 0; } }
 .pp-ping { animation: pp-ping 2s cubic-bezier(0,0,0.2,1) infinite; }
