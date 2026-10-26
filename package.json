@@ -15,7 +15,8 @@
     "check:aiguard": "node scripts/ai-guard-test.mjs",
     "test": "npm run check:aiguard",
     "predeploy:check": "node scripts/predeploy-ai-guard.mjs",
-    "build:preview": "INCLUDE_DRAFTS=1 vite build"
+    "build:preview": "INCLUDE_DRAFTS=1 vite build",
+    "build:native": "NATIVE_BUILD=1 vite build"
   },
   "dependencies": {
     "@aparajita/capacitor-secure-storage": "^8.0.0",

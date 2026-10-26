@@ -8,12 +8,16 @@ import path from "node:path";
 // This plugin strips dist/drafts from the build output by default. To build WITH drafts for a
 // local preview you can show in a browser, run: INCLUDE_DRAFTS=1 npm run build  (or build:preview).
 function stripDrafts() {
+  const rm = (rel) => { try { fs.rmSync(path.resolve(__dirname, "dist", rel), { recursive: true, force: true }); console.log(`[strip] removed dist/${rel}`); } catch (_) {} };
   return {
-    name: "strip-drafts",
+    name: "strip-build-assets",
     closeBundle() {
-      if (process.env.INCLUDE_DRAFTS === "1") return; // keep drafts for local preview builds only
-      const dir = path.resolve(__dirname, "dist/drafts");
-      try { fs.rmSync(dir, { recursive: true, force: true }); console.log("[strip-drafts] removed dist/drafts from build output"); } catch (_) {}
+      if (process.env.INCLUDE_DRAFTS !== "1") rm("drafts"); // keep drafts only for local preview builds
+      // NATIVE app bundle (iOS/Android): exclude web-only surfaces the /app route never loads —
+      // the conference booth's demo images (~207MB) and the marketing site assets (~8MB). These
+      // ship to Vercel for mineex.ca (/conference, /site) but must NOT bloat the native app.
+      // Use `npm run build:native` before `cap sync`. The web deploy keeps using `npm run build`.
+      if (process.env.NATIVE_BUILD === "1") { rm("demo"); rm("marketing"); }
     },
   };
 }
