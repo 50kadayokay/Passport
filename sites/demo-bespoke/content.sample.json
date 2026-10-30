@@ -1,0 +1,68 @@
+{
+  "_comment": "SAMPLE PAYLOAD — invented data in the exact shape /api/site-content returns. Lets the demo build and render without migration 0068 applied. No production row is copied. Run build.mjs --api for live content.",
+  "contract": "1.0",
+  "mode": "published",
+  "generatedAt": "2026-10-15T09:12:44.001Z",
+  "company": {
+    "id": "00000000-0000-0000-0000-00000000demo",
+    "slug": "northreef-demo",
+    "name": "Northreef Minerals Ltd.",
+    "status": "published",
+    "ticker": "TSXV: NRF"
+  },
+  "version": { "content": "2026-10-14T18:02:11.000Z", "site": "2026-10-13T11:40:00.000Z" },
+  "content": {
+    "profile": {
+      "pp": { "ONE_LINER": "A high-grade gold discovery on the Abitibi's northern margin." },
+      "projects": [
+        { "key": "ravenscourt", "name": "Ravenscourt", "location": "Abitibi, Québec", "commodity": "Gold" },
+        { "key": "blackwater-ridge", "name": "Blackwater Ridge", "location": "Northern Ontario", "commodity": "Gold · Copper" },
+        { "key": "serpentine-flats", "name": "Serpentine Flats", "location": "Abitibi, Québec", "commodity": "Nickel" }
+      ]
+    },
+    "posts": [
+      { "id": "p1", "kind": "press_release", "title": "Northreef Intersects 31.4 m of 4.8 g/t Au at Ravenscourt",
+        "summary": "Hole RC-26-088 returned the widest high-grade interval drilled on the property to date, extending the Keel zone 140 m down-plunge.",
+        "category": "Discovery", "publishedAt": "2026-10-09T11:00:00.000Z", "image": null, "mediaUrl": null, "sourceUrl": null, "materiality": "Transformational" },
+      { "id": "p2", "kind": "press_release", "title": "Phase III Drilling Commences at Blackwater Ridge",
+        "summary": "A 14,000 metre programme has begun, targeting the untested strike extension north of the 2025 discovery.",
+        "category": "Drilling", "publishedAt": "2026-09-22T11:00:00.000Z", "image": null, "mediaUrl": null, "sourceUrl": null, "materiality": "High" },
+      { "id": "p3", "kind": "press_release", "title": "Northreef Closes C$18.2M Bought Deal",
+        "summary": "The financing was upsized twice and closed fully subscribed, funding the 2027 programme through to a maiden resource.",
+        "category": "Financing", "publishedAt": "2026-08-14T11:00:00.000Z", "image": null, "mediaUrl": null, "sourceUrl": null, "materiality": "High" },
+      { "id": "p4", "kind": "press_release", "title": "Appointment of Vice President, Exploration",
+        "summary": "Dr. Alice Fenwick joins from a producing Québec operator, where she led resource definition across three deposits.",
+        "category": "Corporate", "publishedAt": "2026-07-02T11:00:00.000Z", "image": null, "mediaUrl": null, "sourceUrl": null, "materiality": "Moderate" }
+    ],
+    "media": []
+  },
+  "site": {
+    "key": "demo-bespoke",
+    "version": "2026.10.1",
+    "status": "approved",
+    "pages": [{ "key": "home", "title": "Home", "path": "/", "sections": ["hero-1", "strata-1", "projects-1", "news-1"] }],
+    "sections": {
+      "hero-1": { "type": "hero", "values": {
+        "kicker": "Abitibi Greenstone · Québec",
+        "headline": "Ten kilometres of untested strike, and a hole that changed the model.",
+        "standfirst": "Northreef is advancing **Ravenscourt** toward a maiden resource, with three drills turning across a contiguous land package on the Abitibi's northern margin."
+      } },
+      "strata-1": { "type": "strata", "values": {
+        "heading": "Ravenscourt — Keel zone",
+        "bands": [
+          { "label": "Overburden", "depth": 18, "tone": "slate" },
+          { "label": "Mafic volcanics", "depth": 96, "tone": "slate" },
+          { "label": "Sheared contact", "depth": 118, "tone": "rust" },
+          { "label": "Keel zone — 4.8 g/t Au", "depth": 149, "tone": "gold" },
+          { "label": "Footwall sediments", "depth": 214, "tone": "ochre" }
+        ]
+      } },
+      "projects-1": { "type": "projects", "values": {
+        "heading": "Projects",
+        "intro": "Three properties across *140 square kilometres*, held outright and road-accessible year round.",
+        "featured": "ravenscourt"
+      } },
+      "news-1": { "type": "news", "values": { "heading": "Announcements", "limit": 4 } }
+    }
+  }
+}
