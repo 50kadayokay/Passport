@@ -122,6 +122,45 @@ function bodyText(init) {
 }
 const parse = (s) => { try { return JSON.parse(s); } catch { return null; } };
 
+// Company Memory's tools answer with DETERMINISTIC, marked content (D23), so
+// staging can prove that a re-analysis is not only admitted but persisted: the
+// "[staging mock]" text must reach companies.profile. The overview echoes how
+// many chronology entries it was given and the first headline, which shows the
+// pipeline sent the shape synthesize-profile reads. Never real output.
+const MOCK_TAG = "[staging mock]";
+function mockToolInput(tool, body) {
+  const text = (Array.isArray(body.messages) ? body.messages : [])
+    .flatMap((m) => (typeof m.content === "string" ? [m.content] : (m.content || []).map((c) => c.text || ""))).join("\n");
+  switch (tool) {
+    case "emit_timeline_entries": {
+      // One entry per "===== RELEASE id=… =====" block, dated from its own text.
+      const parts = text.split(/\n===== RELEASE id=([^ ]+) =====\n/).slice(1);
+      const entries = [];
+      for (let i = 0; i < parts.length; i += 2) {
+        const date = (/(\d{4}-\d{2}-\d{2})/.exec(parts[i + 1] || "") || [])[1] || "";
+        if (!date) continue;   // like the real tool: undated documents are not timeline entries
+        entries.push({ id: parts[i], headline: `${MOCK_TAG} release ${parts[i]}`, sourceDate: date, category: "Drilling",
+          whatHappened: `${MOCK_TAG} what happened`, whyItMatters: `${MOCK_TAG} why it matters`, whatHappensNext: "",
+          keyNumbers: [], impact: "medium", key: false, investorTakeaway: "", projectsMentioned: [] });
+      }
+      return { entries };
+    }
+    case "emit_company":
+      return { identity: { name: `${MOCK_TAG} company`, ticker: "MOCK" }, capital: { sharesOutstanding: "100,000,000" },
+        team: [{ name: `${MOCK_TAG} chief executive`, role: "CEO", short: "", full: "" }], notFound: [] };
+    case "emit_project_list":
+      return { projects: [{ name: `${MOCK_TAG} project`, tag: "Gold" }], corpusNotes: [] };
+    case "emit_profile_overview": {
+      const n = (text.match(/"date":/g) || []).length;
+      const first = (/"headline": "([^"]*)"/.exec(text) || [])[1] || "(none)";
+      return { companyStatus: { statusHeadline: `${MOCK_TAG} status from ${n} releases`, latestUpdate: `${MOCK_TAG} first headline: ${first}` },
+        companyBrief: { shortSummary: `${MOCK_TAG} brief from ${n} releases`, keyPoints: [`${MOCK_TAG} key point`] } };
+    }
+    default:
+      return {};
+  }
+}
+
 // Shaped like the real responses closely enough for a handler to proceed past
 // the call. They carry no content worth trusting: a mocked route proves its
 // GUARD ran, not that its output is right.
@@ -132,7 +171,7 @@ function mockResponse(provider, url, method, init) {
     case "anthropic": {
       const tool = body.tool_choice?.name || (Array.isArray(body.tools) && body.tools[0]?.name);
       const content = tool
-        ? [{ type: "tool_use", id: "toolu_staging_mock", name: tool, input: {} }]
+        ? [{ type: "tool_use", id: "toolu_staging_mock", name: tool, input: mockToolInput(tool, body) }]
         : [{ type: "text", text: "Staging mock response." }];
       return { res: json({ id: "msg_staging_mock", type: "message", role: "assistant", model: body.model || "mock",
         content, stop_reason: tool ? "tool_use" : "end_turn", usage: { input_tokens: 1, output_tokens: 1 } }), op: path };

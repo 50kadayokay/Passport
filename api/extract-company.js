@@ -144,7 +144,9 @@ export default async function handler(req, res) {
     if (Array.isArray(releases) && releases.length) {
       docs = releases.filter((r) => r && r.date && r.text);
     } else {
-      const r = await fetch(`${SB}/rest/v1/companies?slug=eq.${encodeURIComponent(slug)}&select=name,profile`, { headers: { apikey: ANON, Authorization: `Bearer ${token}` } });
+      // By the AUTHORISED company's id (D23), never by a separately supplied
+      // slug: the guard checked companyId, so that is the only row read.
+      const r = await fetch(`${SB}/rest/v1/companies?id=eq.${encodeURIComponent(companyId)}&select=name,profile`, { headers: { apikey: ANON, Authorization: `Bearer ${token}` } });
       const rows = r.ok ? await r.json().catch(() => []) : [];
       name = name || (rows[0] && rows[0].name) || "";
       const FULL = ((rows[0] || {}).profile || {}).pp?.FULL || {};

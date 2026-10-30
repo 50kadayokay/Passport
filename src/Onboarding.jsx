@@ -6483,7 +6483,9 @@ export default function Onboarding({ embedded = false, companySlug = null }) {
         if (corpus.length) {
           try {
             setExtractMsg("Reading company details, capital and leadership…");
-            const co = await extractCompany(corpus, { token });
+            // Same authorisation subject as the timeline above (D23): the
+            // company being edited, or the onboarding exception for a new one.
+            const co = await extractCompany(corpus, { token, slug: savedSlug, onboarding: true });
             if (co) {
               const id = co.identity || {};
               // Identity → profile.company (drives preview + save) AND the editor
@@ -6513,7 +6515,7 @@ export default function Onboarding({ embedded = false, companySlug = null }) {
           try {
             setExtractMsg("Extracting projects — this takes a few minutes…");
             const pj = await extractProjects(corpus, {
-              token,
+              token, slug: savedSlug, onboarding: true,
               onProgress: (done, total, label) => setExtractMsg(`Building projects: ${label} (${done}/${total})…`),
             });
             if (pj.projects && pj.projects.length) {

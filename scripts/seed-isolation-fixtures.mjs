@@ -44,6 +44,9 @@ const IDENTITIES = [
   // but not pay; a company admin may manage billing.
   { key: "EDITOR",    email: "iso-editor-a@staging.invalid", role: "company" },
   { key: "COADMIN",   email: "iso-coadmin-a@staging.invalid", role: "company" },
+  // Role 'analyst' on company A (D23): with the viewer, the second member role
+  // that may read but not draft under the Batch C policy.
+  { key: "ANALYST",   email: "iso-analyst-a@staging.invalid", role: "company" },
   { key: "INVESTOR",  email: "iso-investor@staging.invalid", role: "investor" },
   // A SECOND investor exists only to own company B's conversation. With one
   // investor on both sides, the suite's "investor SELECT other conversations"
@@ -152,7 +155,8 @@ await member(out.ISOLATION_COMPANY_A_ID, out._uid_STAFF, "viewer");
 await member(out.ISOLATION_COMPANY_A_ID, out._uid_PUBLISHER, "publisher");
 await member(out.ISOLATION_COMPANY_A_ID, out._uid_EDITOR, "editor");
 await member(out.ISOLATION_COMPANY_A_ID, out._uid_COADMIN, "admin");
-console.log("    memberships: owners=owner; company A: staff=viewer, publisher, editor, coadmin=admin");
+await member(out.ISOLATION_COMPANY_A_ID, out._uid_ANALYST, "analyst");
+console.log("    memberships: owners=owner; company A: staff=viewer, publisher, editor, coadmin=admin, analyst");
 
 console.log("\n  SENSITIVE ROWS (one per company, for cross-tenant reads to target)");
 for (const k of ["A", "B"]) {

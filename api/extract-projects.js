@@ -219,14 +219,17 @@ export default async function handler(req, res) {
   let name = company, docs = [];
   if (Array.isArray(releases) && releases.length) {
     docs = releases.filter((r) => r && r.date && r.text);
-  } else if (slug) {
+  } else if (companyId) {
     if (!supabaseConfigured()) return bad(res, 500, "Server not configured: Supabase env is missing.");
-    const r = await fetch(`${SB}/rest/v1/companies?slug=eq.${encodeURIComponent(slug)}&select=name,profile`, {
-      headers: { apikey: ANON, Authorization: `Bearer ${ANON}` },
+    // By the AUTHORISED company's id (D23), read as the caller -- never by a
+    // separately supplied slug, and no longer as anon (which could only ever
+    // see a published company's profile).
+    const r = await fetch(`${SB}/rest/v1/companies?id=eq.${encodeURIComponent(companyId)}&select=name,profile`, {
+      headers: { apikey: ANON, Authorization: `Bearer ${token}` },
     });
     if (!r.ok) return bad(res, 502, `Could not read company (${r.status}).`);
     const rows = await r.json().catch(() => []);
-    if (!rows.length) return bad(res, 404, `No company '${slug}'.`);
+    if (!rows.length) return bad(res, 404, "Company not found.");
     name = name || rows[0].name || slug;
     const FULL = ((rows[0].profile || {}).pp || {}).FULL || {};
     docs = Object.keys(FULL).sort().map((d) => ({ date: d, text: FULL[d] }));

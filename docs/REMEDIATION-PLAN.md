@@ -1619,6 +1619,9 @@ Seeded fixture threads are never deleted.
 
 ## 12 · D23: Company Memory drops `companyId`, INVESTIGATED ONLY (2026-10-30, not implemented)
 
+> **Status (2026-10-30): implemented locally, see §13.** The investigation
+> below stands; implementing it found three more defects (listed in §13).
+
 Measured on staging through the local API server (AI provider mocked;
 staging-only throttle counters were bumped). Each AI route the helpers call
 was tried as each role, once as the helpers send it today (no `companyId`)
@@ -1670,3 +1673,273 @@ and once with `companyId`:
 - **Tests:** an offline stub asserting each helper's body carries
   `companyId`; plus the staging table above re-run through the helpers.
 - **Awaiting your review; not implemented.**
+
+---
+
+## 13 · D23: Company Memory and builder AI, IMPLEMENTED LOCALLY (2026-10-30, uncommitted, not deployed)
+
+D20 committed as `bde0ff7` before this work began.
+
+### What was wrong (all confirmed, offline and on staging)
+
+| # | Defect | Effect |
+|---|---|---|
+| 1 | The helpers dropped `companyId` (§12) | Company users refused (403); platform-admin runs billed to the admin, not the company |
+| 2 | `synthesizeProfile` in re-analysis sent neither `companyId` nor `onboarding` | **400 for everyone**; the status card and AI brief were never regenerated |
+| 3 | Re-analysis sent synthesis the **profile-shaped** timeline (`title`, `summary`, `ai.*`), but synthesis reads `headline`, `whatHappened`, `whyItMatters` | Even when it ran, the model saw only dates and titles |
+| 4 | `analyzeNewDocuments` called `str()`, which is not defined in its module | "Analyze new documents" threw `ReferenceError` for **every** caller, platform admins included |
+| 5 | Refusals swallowed: `extractCompany` returned `null`, `synthesizeProfile` retried 403/400, and `extractPart` re-caught its own refusal and **retried it 3×** | A fully refused run reported "Rebuilt: 0 timeline entries" as a success |
+| 6 | Saves used `Prefer: return=minimal`. Under 0001's `auth_update` (owner or platform admin), a company admin's, editor's or publisher's PATCH matches **0 rows and returns 200** | Silent "success" with nothing saved. Analyze-new then marked documents reflected, dropping them from the queue |
+| 7 | `extract-company` / `extract-projects`, given no inline corpus, read stored releases **by `slug`** while the guard authorised **`companyId`** (extract-projects read as anon) | A member of A could be authorised and billed as A while naming B's slug |
+
+### Changes (no schema, migration, RLS, grant or rate-limit change)
+
+- **`src/lib/structureReleases.js`**
+  - **Company scope on every call.** `aiScope({companyId, slug, onboarding})` is forwarded by every helper: `structureReleasesBatched`/`callBatch`, `extractCompany`, `extractProjects`/`extractPart`, `extractDocText`, `synthesizeProfile`.
+  - **Failures carry their status.** A refusal (400/401/403/404/413) is final and never retried; `extractProjects` stops after the first refused part.
+  - **Re-analyze and analyze-new** pass `companyId` throughout. Their results carry `steps` (one outcome per step).
+  - **Synthesis input.** Synthesis receives the assembled chronology. When this run dated nothing, it falls back to the saved profile timeline (`profileTimelineToChronology`).
+  - **`str` defined.**
+- **`src/lib/memoryAccess.js` (new)**
+  - **`memoryAccess` / `loadMemoryAccess`:** two rules, both asked of the database as the caller.
+    - **Run** = Batch C `DRAFTING_ROLES` (mirrored; a test fails if it drifts).
+    - **Save** = owner or platform admin (0001).
+  - **`saveCompanyProfile`:** saves by id with `return=representation` and **requires one row back**.
+  - **`readCompanyProfile`:** reads by id.
+  - **`summarizeSteps`:** turns step outcomes into what the person is told; `error` means do not save.
+- **`src/console/CompanyMemory.jsx`**
+  - **Preflight.** Both actions check access **before any AI is spent**; the buttons are disabled with the reason.
+  - **No false success.** An all-refused/failed run is reported and **not saved**.
+  - **Verified save.** Documents are marked reflected **only after a verified save**.
+  - **Refresh.** `onSaved` → the console's `refresh()` reloads the company, so the new card shows without a page reload (`CompanyConsole.jsx`).
+- **`src/Onboarding.jsx` (self-serve builder).** `extractCompany` / `extractProjects` now carry the same subject as its timeline call (`slug: savedSlug, onboarding: true`).
+- **`api/_aiGuard.js`.** A request naming both `companyId` and `slug` must name **the same company** (400 `subject_mismatch`); an unresolvable slug counts as a mismatch.
+- **`api/extract-company.js`, `api/extract-projects.js`.** The stored-corpus fallback reads **by the authorised `companyId`**, as the caller.
+- **`api/_stagingEgress.js` (staging-only mock).** The five Company Memory tools now return deterministic, `[staging mock]`-tagged content, so staging can prove persistence. The overview echoes its input count and first headline.
+- **Fixtures.** The seeder adds `ISOLATION_ANALYST` (role `analyst` on company A).
+
+### Who can do what now (measured on staging)
+
+| Caller (company A) | AI admitted | Saves the rebuild | Console behaviour |
+|---|---|---|---|
+| Owner | yes | **yes** | rebuild runs, saved, refreshed |
+| Platform admin | yes | **yes** | same |
+| Company admin, editor, publisher | yes (Batch C) | **no**: RLS, owner only | stopped before spending: "only the company owner or a MineEx admin can save" |
+| Viewer, analyst | **no** (403) | no | stopped before spending: "cannot run AI analysis" |
+| Investor, owner of B | no | no | cannot even read A's documents (RLS); nothing sent |
+
+### Decision needed: who may SAVE an AI rebuild?
+
+> **Decided 2026-10-30: owners, company admins and platform admins. Implemented in §14.**
+
+Batch C says owners, admins, editors and publishers may **draft**. The
+database lets only the **owner** (and platform admins) **write**
+`companies.profile`. D23 does not resolve the conflict; it stops it from
+being silent. Options:
+
+1. **Keep it owner-only** (current). Only the owner, or MineEx, can run
+   Company Memory. That matches the console, which only opens an owner's own
+   company.
+2. **Admit company admins too**, via a server route that checks the role and
+   writes with the service role. This is a code-only policy change; it
+   needs your approval.
+3. **Change 0001's UPDATE policy** to members with drafting roles. This
+   needs a migration and approval.
+
+The same RLS rule silently no-ops **ProfileEditor's** saves for non-owner
+members (`return=minimal`). That is pre-existing, outside D23, and tracked
+as a new finding.
+
+### Tests
+
+| Suite | Result |
+|---|---|
+| **New** `scripts/memory-ai-test.mjs` (offline, in `npm test`) | **76 / 76**. Real client helpers → real API handlers in-process → stub database with 0001's UPDATE rule. Covers: the access table for all 8 roles; every request names A; the owner's statuses; the role matrix through the real guard (owner, company admin, editor, publisher and platform admin admitted; viewer, analyst, investor and B's owner refused with no provider call, reported as an error); one request per step when refused; subject mismatch ×4; reads by id; the saved-timeline fallback; persistence ×6 roles; analyze-new completes; console wiring. **Fails against the previous code** (verified: it crashes on the first rebuild) |
+| **New** `scripts/memory-ai-live-test.mjs` (staging, `npm run test:memory-ai-live`) | **67 / 67, run twice** |
+| API suite (staging) | 339 / 3 / 1, unchanged |
+| Combined database + API | 787 / 3 / 1, 0 unexpected |
+| Live messaging (D20) | 53 / 53 |
+| `npm test` and build | pass |
+
+**The live run.** It goes through the real client helpers and real RLS, and
+reads back from the database:
+- **Owner:** 8 AI requests, all for A and all 200.
+  - `companies.profile.companyStatus` = "[staging mock] status from 2 releases", written from the rebuilt headlines.
+  - Brief, timeline (2 dated entries), leadership, projects and `pp` persisted.
+  - Re-read as the owner (the refresh path) shows the new card.
+- **Platform admin:** persisted.
+- **Company admin, editor, publisher:** AI admitted. The save is reported as "not saved", the profile is byte-identical, and the console's preflight would have stopped first.
+- **Viewer and analyst:** every request 403, no AI spent, reported as refused, profile unchanged.
+- **Investor and B's owner:** cannot read A's documents.
+- **Subject mismatch:** 400; B's owner with A's id 403; AI spent only on the positive control.
+- **Saved-timeline path:** card regenerated from the saved timeline, and reported as such.
+- **Analyze-new:** completes and marks documents reflected after the save. A viewer's run marks nothing.
+- **Boundary:** no stray host; every AI call was the staging mock.
+- **Cleanup:** company A's profile is restored (verified identical) and the test documents are removed.
+
+**How the browser code runs under node.** The client's Supabase URL
+resolves to its built-in default (the production project) without Vite's
+env. The live suite's fetch shim rewrites that host and its publishable key
+to staging's **before** any request is made, and throws on any other host.
+Production was never contacted (shim count: 70 rewrites, 0 stray hosts).
+
+**Staging rate limit.** Staging sets `AI_CALLS_PER_WINDOW=12` so the API
+suite can test throttling. The suite resets staging's counters between the
+owner's phases; it does not change the limit. Production's default is 200.
+A full rebuild uses at most 25 `extract-projects` calls (6 projects × 4
+parts, plus discover).
+
+**Not verified.**
+- The console was not clicked through in a browser; the page is covered by
+  the build and by running its exact sequence.
+- The self-serve builder's change is covered by source checks and the
+  server's slug path, not by a run of `Onboarding.jsx`.
+- Real model output was not exercised (staging mocks it).
+
+### Still open / tracked
+
+- **D23 decisions:**
+  - who may save (above);
+  - whether the extractors should accept `onboarding: true` for a brand-new
+    company. Today they are admin-only when no company row exists, unchanged.
+- **New finding:** non-owner members' ProfileEditor / publish saves are
+  silent no-ops under 0001.
+- **Deployment order (unchanged):** D20 must reach production **before**
+  migration 0063.
+- **Known failures (3):** F8, F9, D21.
+- **Tracked:** F9, D22, F5, F11, F6, the og-news render skip, the S1 inactive
+  cron row, AI limits (§10, unchanged), and `ai_usage_review.sql`
+  (preserved).
+
+---
+
+## 14 · D23 save permission: owners and company admins, IMPLEMENTED (2026-10-30)
+
+### Policy (approved)
+
+| Caller | Run Company Memory AI | Save a rebuild to the live profile |
+|---|---|---|
+| Owner, company admin, platform admin | yes | **yes** |
+| Editor, publisher | yes (generate) | **no** |
+| Viewer, analyst, investor, other companies | no | no |
+
+### `POST /api/memory-save` (new; no RLS change, no migration)
+
+1. **Identity:** `verifyBearer`.
+2. **Role:** `my_company_role(companyId)` asked **as the caller** (active
+   membership role, or `owner` via `owner_id`). It must be `owner` or `admin`,
+   or the caller is a platform admin (`profiles.role`). An unavailable role
+   check is 502 (fails closed).
+3. **Subject:** the company is read **by the authorised id** (service role). A
+   `slug`, if sent, must be that company's (400 `subject_mismatch`).
+4. **Payload:** `fields` may only contain `timeline`, `companyStatus`,
+   `companyBrief`, `company`, `capital`, `team`, `projects`.
+   - Types and sizes are checked; the body is capped at 3 MB (413).
+   - `__proto__`, `constructor` and `prototype` are refused at any depth.
+   - `company` may only carry `name`, `ticker`, `website`, `slogan`,
+     `commodity`, `jurisdiction`, `listings`. `name` and `ticker` are
+     identifiers and **fill only**.
+   - `pp` is **recomputed server-side**, never accepted.
+   - Everything else in the profile is kept from the stored row.
+5. **Write:** only the `profile` column is written. `owner_id`, `tier`,
+   `status`, `slug`, `name`, billing, memberships and ids cannot be reached.
+6. **Concurrency:**
+   - The client sends the `updated_at` it merged against. A different
+     stored value is 409 `stale_base`.
+   - The write is a compare-and-set on the `updated_at` the route read (the
+     existing `companies_touch` trigger bumps it on every update).
+   - Zero rows written is 409 `concurrent_write`, never success. A database
+     failure is 502.
+
+**Console.**
+- Company Memory saves through this route for owners, company admins and
+  platform admins (`saveCompanyProfile(companyId, next, updatedAt)`), and no
+  longer builds `pp` itself.
+- Editors and publishers see the reason and are stopped before any AI is
+  spent.
+
+### Editors and publishers cannot reach the live profile another way
+
+Measured on staging as the editor and the publisher:
+
+| Path | Result |
+|---|---|
+| Direct PATCH of `companies` (ProfileEditor, `publish.js`) | 0 rows (0001 RLS: owner or platform admin) |
+| `/api/memory-save` | 403 |
+| `/api/build-from-website` (the other server-side profile writer) | 403 (platform-admin tool) |
+| `rpc/upsert_timeline_entry` | 403 (revoked from users in 0051; only the publishing pipeline adds a **published release's** timeline entry, by design) |
+| `rpc/admin_set_billing` | "not authorized" (`is_admin()`) |
+
+**Related finding, not changed (new, d29).** `company_go_live` (0035) checks
+`owns_company()`, which admits **any active member**, viewers included. Any
+member can therefore flip the company's `status` to published once the
+agreement is recorded. That is status, not profile, and it was found by
+reading the code; it was not exercised, because calling it would publish the
+staging company. It is tracked with F6.
+
+### Tests
+
+| Suite | Result |
+|---|---|
+| `memory-ai-test.mjs` (offline, in `npm test`) | **118 / 118** |
+| `memory-ai-live-test.mjs` (staging) | **97 / 97** |
+| API suite (staging) | **352 / 3 / 1** (356): 13 new `memory-save` assertions |
+| Combined database + API | **800 / 3 / 1** (804), 0 unexpected |
+| Live messaging (D20) | 53 / 53 |
+| `npm test` and build | pass |
+
+**What the offline suite (118) covers:**
+- client and server agree on the save roles and the field allowlist;
+- persistence for 9 roles (owner, company admin and platform admin saved,
+  with one profile-only write and privileged columns untouched; editor,
+  publisher, viewer, analyst, investor and B's owner 403 with nothing
+  written);
+- 15 payload/isolation refusals, each with nothing written;
+- 413;
+- identifiers fill only;
+- stale base 409;
+- 20 rounds × 5 concurrent saves: exactly one 200, four 409, and the stored
+  card is the winner's;
+- database write failure 502, and the console reports "not saved";
+- zero rows (row changed under the write) 409;
+- role check down 502;
+- editor/publisher bypass via direct PATCH, `memory-save` and
+  `build-from-website`;
+- an editor of an **unpublished** company with a consistent `companyId` +
+  `slug` is admitted, and with B's slug refused.
+
+**Fixed before commit.** The first version of the `companyId`/`slug`
+consistency check resolved the slug through RLS. 0001's `auth_read` hides an
+unpublished company's row from its own admins and editors, so every portal
+request of theirs that carries both fields (`structureRelease`) would have got
+a false 400. The check now resolves the slug with the service role, which
+reveals only whether the slug names that id. A regression test catches the
+RLS version.
+
+**What the live suite (97) adds on staging:**
+- **Company admin:** a full rebuild, saved, with privileged columns
+  unchanged, and the refresh shows it.
+- **Editor and publisher:** AI admitted, `memory-save` 403, profile
+  unchanged.
+- **Refusals:** 7 roles refused; 6 payload attacks refused, with profile and
+  privileged columns verified unchanged.
+- **Concurrency:** 3 rounds of 5 concurrent saves across owner, company
+  admin and platform admin, with the database holding the winner. Stale base
+  409.
+- **Bypass table** above.
+
+### Remaining limitations
+
+- **Self-serve builder:** the `Onboarding.jsx` change is verified by source
+  checks and the server's slug path, not by running the page. A brand-new
+  company with no row stays admin-only, unchanged.
+- **Console:** not clicked through in a browser. The local dev server can
+  fall back to production, so the exact console sequence was run against
+  staging instead.
+- **Model output:** staging mocks the AI, so real model output was not
+  exercised.
+- **Out of scope here, tracked:** profile drafts, approval and versioning
+  (a04, a05: ProfileEditor still writes live) and non-owner ProfileEditor
+  saves being silent no-ops (d28).
+- **Deployment order (unchanged):** D20 must reach production before
+  migration 0063.

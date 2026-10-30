@@ -137,6 +137,19 @@ export const API_ROUTES = [
     passed: (r) => r.egress.provider > 0 && (r.status === 404 || r.status === 200),
     matrix: BILLING },
 
+  // ------------------------------------------------- Company Memory save (D23) --
+  // Approved: owners and COMPANY admins (and platform admins) save a rebuild;
+  // editors, publishers, viewers, investors and other companies may not. The
+  // probe omits baseUpdatedAt, so an ADMITTED caller gets 400
+  // "baseUpdatedAt-required" -- returned only after the role check -- and
+  // nothing is ever written by this suite. The write path is exercised by
+  // memory-ai-live-test.mjs.
+  { name: "memory-save", methods: ["POST"], guard: "verifyBearer + my_company_role in (owner, admin) or platform admin; allowlisted rebuild fields; compare-and-set write",
+    source: /REBUILD_SAVE_ROLES\.includes\(role \|\| ""\)[\s\S]*callerIsPlatformAdmin\(token\)[\s\S]*validateFields\(fields\)[\s\S]*updated_at=eq\./,
+    req: (c, X) => post({ companyId: c.id[X], fields: { companyStatus: { statusHeadline: "iso probe" } } }),
+    passed: (r) => r.status === 400 && r.body && r.body.error === "baseUpdatedAt-required",
+    matrix: BILLING },
+
   // ------------------------------------------------------------- admin only --
   { name: "build-from-website", methods: ["POST"], guard: "requireAiCaller(adminOnly)", source: aiGuardPin("build-from-website", ", adminOnly: true \\}"),
     req: (c, X) => post({ companyId: c.id[X] }),

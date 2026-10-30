@@ -41,7 +41,7 @@
 
 import { requireFeature, requireAdmin, companyIdFromSlug } from "./_entitlement.js";
 import { bearerToken, SB_URL, ANON_KEY } from "./_supabase.js";
-import { serviceRpc, serviceConfigured } from "./_service.js";
+import { serviceRpc, serviceRest, serviceConfigured } from "./_service.js";
 import { callerCompanyRole, callerIsPlatformAdmin } from "./_roles.js";
 import { createHash } from "node:crypto";
 
@@ -246,6 +246,25 @@ export async function requireAiCaller(req, res, {
   const body = (req.body && typeof req.body === "object") ? req.body : {};
   const token = bearerToken(req);
   const companyId = body.companyId || (body.slug ? await companyIdFromSlug(body.slug, token) : null);
+  // ONE SUBJECT (D23). A request that names both must name the same company.
+  // The guard authorises `companyId`; an extractor without an inline corpus
+  // reads by slug. Mismatched, a member of A could be authorised and billed as
+  // A while the work ran on B. Unresolvable counts as a mismatch: fail closed.
+  if (!adminOnly && body.companyId && body.slug) {
+    // Resolved with the SERVICE role: RLS (0001 auth_read) hides an unpublished
+    // company's row from its own admins and editors, which would turn every
+    // legitimate request of theirs into a false mismatch. This reveals only
+    // whether the slug names the id the caller sent; authorisation is below.
+    let fromSlug = null;
+    try {
+      const r = await serviceRest(`companies?slug=eq.${encodeURIComponent(String(body.slug))}&select=id&limit=1`);
+      fromSlug = r.ok ? ((await r.json().catch(() => []))[0] || {}).id || null : null;
+    } catch { fromSlug = null; }
+    if (!fromSlug || String(fromSlug) !== String(body.companyId)) {
+      res.status(400).json({ error: "companyId and slug name different companies.", code: "subject_mismatch" });
+      return null;
+    }
+  }
 
   let caller;
   let subject = adminOnly ? null : companyId;
