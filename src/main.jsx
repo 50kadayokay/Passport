@@ -693,12 +693,45 @@ function AppRoot() {
       // real app is unchanged and still selects everything.
       const embeddedProfile = params.get("embed") === "1" && !!requestedSlug;
       const DIR_COLS = "slug,name,primary_ticker,updated_at,co:profile->pp->COMPANY,brand:profile->brand,cap:profile->capital,tier:profile->pp->TIER,brief:profile->pp->LISTING_BRIEF,ctier:tier";
+      // PAGINATED. This request had no limit, which does not mean "no limit" --
+      // PostgREST caps a page at 1000 rows and silently returns the first page.
+      // With 1421 published companies that left 421 of them, everything after
+      // `portofino-resources-inc` alphabetically, absent from window.__DIRECTORY__
+      // entirely: invisible in Explore, in Today, and in the Messages composer's
+      // company search. It reads as "search is broken" because for ~30% of
+      // companies it genuinely returns nothing.
+      //
+      // PassportProto reads DIRECTORY at MODULE SCOPE, so late-arriving rows are
+      // never picked up -- the list has to be complete before the app mounts, and
+      // a background top-up is not an option.
+      //
+      // Cost, measured rather than assumed: page 1 is 0.71 MB / 451 ms, and the
+      // remainder is one more round trip. Pages after the first are fetched
+      // CONCURRENTLY, so the added latency is one round trip, not one per page.
+      //
+      // An EMBEDDED profile (?c=slug&embed=1 — every marketing phone) never opens
+      // Explore, Today or the composer, so it keeps the single cheap page.
       const dirPromise = (async () => {
         try {
           const h = { apikey: SUPABASE_ANON, Authorization: `Bearer ${SUPABASE_ANON}` };
           const cols = embeddedProfile ? DIR_COLS : `${DIR_COLS.replace(",ctier:tier", "")},pr:profile->pp->PR_YEARS,ctier:tier`;
-          const r = await fetch(`${SUPABASE_URL}/rest/v1/companies?status=eq.published&select=${cols}&order=name`, { headers: h });
-          return await r.json().catch(() => []);
+          const base = `${SUPABASE_URL}/rest/v1/companies?status=eq.published&select=${cols}&order=name`;
+          const PAGE = 1000;
+          const first = await fetch(`${base}&limit=${PAGE}`, { headers: { ...h, Prefer: "count=exact" } });
+          const head = await first.json().catch(() => []);
+          if (!Array.isArray(head) || embeddedProfile) return Array.isArray(head) ? head : [];
+          // "0-999/1421" -> 1421. Absent or unparseable means take what we have.
+          const total = Number((first.headers.get("content-range") || "").split("/")[1]) || head.length;
+          if (total <= head.length) return head;
+          const rest = [];
+          for (let off = head.length; off < total; off += PAGE) {
+            rest.push(
+              fetch(`${base}&limit=${PAGE}&offset=${off}`, { headers: h })
+                .then((r) => (r.ok ? r.json() : []))
+                .catch(() => [])
+            );
+          }
+          return head.concat(...(await Promise.all(rest)));
         } catch (_) { return []; }
       })();
       try {
