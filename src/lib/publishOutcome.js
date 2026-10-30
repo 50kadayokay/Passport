@@ -17,6 +17,7 @@
 
 import { SUPABASE_URL } from "./supabase.js";
 import { authHeaders } from "./auth.js";
+import { isPortalDemo } from "./demoMode.js";
 
 async function count(path) {
   try {
@@ -42,6 +43,24 @@ async function count(path) {
  */
 export async function checkOutcome({ companyId, publicationId }) {
   if (!publicationId) return { live: null, post: null, timeline: null, notified: null, mineiq: null, postId: null };
+
+  // DEMO. The demo publisher writes the profile timeline and nothing else -- no
+  // feed post, no follower notifications, no MineIQ ingestion, because those
+  // reach real investors. Polling for them would report a slow drain, which is
+  // false: they are never coming. "skipped" says so, and the screen reads it as
+  // deliberately not done rather than pending or unconfirmable.
+  // `import.meta.env &&` first, because this module is imported directly by
+  // scripts/failclosed-test.mjs under plain node, where import.meta.env is
+  // undefined. Vite still replaces the literal `import.meta.env.DEV` with
+  // false in a production build, so Rollup prunes the branch either way.
+  if (import.meta.env && import.meta.env && import.meta.env.DEV && isPortalDemo()) {
+    const { listDemoPublished } = await import("./demoPublish.js");
+    const landed = listDemoPublished(companyId).some((e) => `demo-pub-${e.id}` === publicationId);
+    return {
+      live: landed, post: "skipped", timeline: landed,
+      notified: "skipped", mineiq: "skipped", postId: null, demo: true,
+    };
+  }
 
   const [pubRows, postRows] = await Promise.all([
     (async () => {
@@ -112,6 +131,7 @@ export async function waitForOutcome({ companyId, publicationId, onTick, timeout
   onTick && onTick(last);
 
   while (Date.now() - started < timeoutMs) {
+    if (last.demo) break;                                                // nothing downstream runs in a demo
     if (last.live && last.post && last.timeline && last.mineiq) break;   // everything we can see has landed
     await new Promise((r) => setTimeout(r, 2500));
     last = await checkOutcome({ companyId, publicationId });

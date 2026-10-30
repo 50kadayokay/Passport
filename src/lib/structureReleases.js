@@ -12,6 +12,7 @@
 // wired against them now and verified the moment the key lands.
 
 import { authHeaders } from "./auth.js";
+import { isPortalDemo } from "./demoMode.js";
 
 const API = "/api/structure-release";
 
@@ -30,6 +31,14 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // single retry pass turns "silently dropped release" into "arrived a few seconds
 // late". `attempts` total tries (default 4 → up to ~1+2+4s of backoff).
 export async function structureRelease(input, context = {}, { attempts = 4, companyId = null, slug = null, onboarding = false } = {}) {
+  // DEMO. A real call here costs money per press release. The fixture carries a
+  // previously-generated V2 card in the exact response shape, so the review
+  // screen and the Takeaway/Key Results rendering are exercised for real
+  // without a paid request. Matched to the text that was ingested.
+  if (import.meta.env && import.meta.env.DEV && isPortalDemo()) {
+    const { demoStructure } = await import("../portal/__fixtures/releaseDemoAdapter.js");
+    return demoStructure(typeof input === "string" ? input : (input && input.text) || "");
+  }
   const payload = typeof input === "string"
     ? { text: input }
     : { text: input.text || "", pdf: input.pdf || "" };
@@ -120,6 +129,13 @@ function entryToAnalysis(e) {
  */
 export async function refineRelease(current, instruction = "", text = "", context = {}, { attempts = 3, companyId = null, slug = null, onboarding = false } = {}) {
   if (!current) throw new Error("Nothing to revise yet.");
+  // DEMO. Regenerate/Improve also spend AI credits per press. Refused rather
+  // than faked: returning a silently unchanged card would look like the model
+  // had considered the instruction and declined it, which is worse than saying
+  // the feature is off. The company can still edit every field by hand.
+  if (import.meta.env && import.meta.env.DEV && isPortalDemo()) {
+    throw new Error("Rewriting with AI is disabled in the demo. Edit the summary directly — every field is editable.");
+  }
   let lastErr;
   for (let i = 0; i < attempts; i++) {
     let retryable = false;

@@ -169,7 +169,23 @@ export function sanitizeText(s) {
  * Phase 3 replaces the `line` index with real character spans and reconciles
  * against an independent parse. This is deliberately the smaller thing.
  */
-export function normalizeRelease(raw, { sourceKind = null } = {}) {
+/**
+ * `complete: true` returns the WHOLE release.
+ *
+ * The default output is the investor-facing BODY: boilerplate tail cut at the
+ * first marker, and line-level furniture blanked. That is the right input for
+ * the summariser and the wrong thing to call a full press release -- on a real
+ * drill release it drops the forward-looking statements, the exchange
+ * disclaimer, the About section and the IR contacts, and the line filter is
+ * aggressive enough to take the rows of an assay table with it, because a row
+ * of numbers and short codes looks exactly like OCR furniture.
+ *
+ * Nothing was ever lost (every removal is recorded verbatim in `exclusions`
+ * and in the immutable transcript), but the company's publishable release and
+ * the investor's "Read Full Press Release" must start from the complete
+ * document, not from the summariser's input.
+ */
+export function normalizeRelease(raw, { sourceKind = null, complete = false } = {}) {
   const source = String(raw ?? "");
   const exclusions = [];
   const transformations = [];
@@ -233,6 +249,10 @@ export function normalizeRelease(raw, { sourceKind = null } = {}) {
   const narrowTrim = (s) => s.replace(/^[ \t]+|[ \t]+$/g, "");
   const trimmed = text.split("\n").map((l) => (l.trim() ? narrowTrim(l) : ""));
   const rawLines = trimmed.map((l, i) => {
+    // In complete mode nothing is filtered out. A stray page number surviving
+    // into the full release is a blemish; an assay row removed from it is a
+    // disclosure failure, and the filter cannot reliably tell them apart.
+    if (complete) return l;
     const reason = garbageReason(l) || (isJunkFragment(l) ? "junk_fragment" : null);
     if (!reason) return l;
     if (l) exclusions.push({ kind: "line_filter", reason, text: l, line: i, chars: l.length });
@@ -245,8 +265,10 @@ export function normalizeRelease(raw, { sourceKind = null } = {}) {
   // body and recorded here in full, and it remains verbatim in the transcript.
   let end = rawLines.length;
   let cutMarker = null;
-  for (let i = 0; i < rawLines.length; i++) {
-    if (CUT_MARKERS.some((re) => re.test(rawLines[i]))) { end = i; cutMarker = trimmed[i]; break; }
+  if (!complete) {
+    for (let i = 0; i < rawLines.length; i++) {
+      if (CUT_MARKERS.some((re) => re.test(rawLines[i]))) { end = i; cutMarker = trimmed[i]; break; }
+    }
   }
   if (end < rawLines.length) {
     const tail = trimmed.slice(end).join("\n");

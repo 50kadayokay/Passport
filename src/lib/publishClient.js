@@ -6,8 +6,12 @@
 // outbox event. The dispatcher then projects the post and notifications.
 
 import { getAccessToken } from "./auth.js";
+import { guardDemoWrite } from "./demoMode.js";
 
 async function call(path, publicationId) {
+  // The demo never publishes to production. Simulated publishing lives in
+  // lib/demoPublish.js and writes only to this browser.
+  guardDemoWrite("Publishing");
   const token = await getAccessToken();
   if (!token) throw new Error("Sign in required.");
   const res = await fetch(path, {

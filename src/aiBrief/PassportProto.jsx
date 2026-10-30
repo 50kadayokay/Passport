@@ -32,6 +32,7 @@ import { API_BASE, isNativeApp } from "../lib/platform.js";
 import QRCode from "qrcode";
 import jsQR from "jsqr"; // pure-JS QR decode — works on iOS WebKit (BarcodeDetector doesn't)
 import { buildCompanyIdentity } from "./proHighlights.js";
+import { historicalToV2 } from "./historicalBrief.js";   // Path A: map existing summaries → BriefV1 (no AI)
 
 // The app's outermost frame element. Full-screen overlays (e.g. the CEO profile)
 // portal into this so they cover the whole phone — clearing the company header and
@@ -60,7 +61,7 @@ import {
   Star, Scan, User, Newspaper, Globe, QrCode, Focus, TrendingDown,
   Droplets, Plane, Building2, Factory, Hammer, GalleryHorizontal, Play, Mic,
   Heart, Telescope, ArrowDownUp, Quote, Phone, Mail, Twitter, Linkedin, LogOut,
-  Trash2, Briefcase, Instagram, Share2
+  Trash2, Briefcase, Instagram, Share2, ImagePlus, Video
 } from "lucide-react";
 import { signOut, getUser, getAccessToken, authHeaders, onAuthChange, requestPasswordReset } from "../lib/auth.js";
 import { registerPush } from "../lib/push.js"; // native push registration (no-op on web)
@@ -525,8 +526,22 @@ const CAT_STYLE = {
   Corporate:         { c: "#64748b", bg: "rgba(100,116,139,0.08)" },
 };
 
-// Derive {cat, impact} from a release's text — no data mutation needed.
+// {cat, impact} for a release.
+//
+// THE DATA DECIDES. /api/structure-release classifies every release, and the
+// company approves that classification in review before publishing, so the
+// renderer must not overrule it. It used to: this function ignored the entry
+// entirely and re-derived both values from regexes over the headline, so a
+// release the CEO had just approved as Transformational/Discovery rendered as
+// whatever the patterns happened to match.
+//
+// The derivation below is kept ONLY as a fallback for entries that predate the
+// classifier and carry no category or impact of their own.
 function classify(it) {
+  const dataCat = CAT_STYLE[it.category] ? it.category : "";
+  const dataImpact = IMPACT_STYLE[it.impact] ? it.impact : "";
+  if (dataCat && dataImpact) return { cat: dataCat, impact: dataImpact };
+
   const t = ((it.headline || "") + " " + (it.label || "")).toLowerCase();
   let cat;
   if (/private placement|bought deal|financing|raises|raise|upsize|proceeds/.test(t)) cat = "Financing";
@@ -544,7 +559,7 @@ function classify(it) {
   if (it.key) impact = /1,742|bought deal|c\$13|continuity|931/.test(t) ? "Transformational" : "High";
   else if (cat === "Financing" || cat === "Acquisition" || cat === "Discovery" || cat === "Resource Growth") impact = "Moderate";
   else impact = "Low";
-  return { cat, impact };
+  return { cat: dataCat || cat, impact: dataImpact || impact };
 }
 
 // Plain-English investor takeaway derived from impact tier.
@@ -1792,47 +1807,20 @@ function TimelineView() {
                         </div>
                       )}
 
-                      {items.map(({ it, ii }) => {
-                        const { cat, impact } = classify(it);
-                        const cs = CAT_STYLE[cat], is = IMPACT_STYLE[impact];
-                        return (
-                          <button
-                            key={it.id}
-                            data-fc={"timeline." + it.id}
-                            data-demo={yi === 0 && ii === 0 ? "tl-milestone" : undefined}
-                            onClick={() => { setShowFull(false); setDetail({ yi, ii }); }}
-                            className="relative flex w-full items-stretch gap-3 py-1.5 text-left"
-                            style={demoFocusStyle(_demo && _demo.focus === "milestone" && yi === 0 && ii === 0, "none")}
-                          >
-                            {/* dot on the line */}
-                            <span className="relative z-10 flex flex-shrink-0 justify-center pt-4" style={{ width: 25 }}>
-                              <span
-                                className="grid place-items-center rounded-full"
-                                style={{
-                                  height: it.key ? 20 : 14, width: it.key ? 20 : 14,
-                                  ...(it.key
-                                    ? { background: EM, boxShadow: "0 0 0 4px rgba(37,99,235,0.15)" }
-                                    : { background: "#fff", border: `2px solid ${cs.c}` }),
-                                }}
-                              >
-                                {it.key && <Gem size={11} style={{ color: "#0a1f38" }} />}
-                              </span>
-                            </span>
-                            {/* content card */}
-                            <span className="min-w-0 flex-1 rounded-2xl border border-slate-100 bg-white p-3" style={{ boxShadow: "0 1px 2px rgba(15,23,42,0.04), 0 10px 24px -18px rgba(15,23,42,0.35)" }}>
-                              <span className="flex items-center gap-1.5">
-                                <span className="rounded-md px-1.5 py-0.5 text-[8px] font-extrabold uppercase tracking-wider" style={{ background: cs.bg, color: cs.c }}>{cat}</span>
-                                <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400">{grp.quarter} {yr.year}</span>
-                                <ChevronRight size={15} className="ml-auto flex-shrink-0 text-slate-300" />
-                              </span>
-                              <span className="mt-1.5 block text-[13px] font-bold leading-snug tracking-tight text-slate-900">{it.headline || it.label}</span>
-                              <span className="mt-1.5 inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider" style={{ background: is.bg, color: is.c }}>
-                                <span className="h-1.5 w-1.5 rounded-full" style={{ background: is.dot }} /> {impact} impact
-                              </span>
-                            </span>
-                          </button>
-                        );
-                      })}
+                      {items.map(({ it, ii }) => (
+                        <ReleaseCard
+                          key={it.id}
+                          item={it}
+                          year={yr.year}
+                          quarter={grp.quarter}
+                          onOpen={() => { setShowFull(false); setDetail({ yi, ii }); }}
+                          buttonProps={{
+                            "data-fc": "timeline." + it.id,
+                            "data-demo": yi === 0 && ii === 0 ? "tl-milestone" : undefined,
+                            style: demoFocusStyle(_demo && _demo.focus === "milestone" && yi === 0 && ii === 0, "none"),
+                          }}
+                        />
+                      ))}
                     </div>
                   )}
                 </div>
@@ -1843,47 +1831,267 @@ function TimelineView() {
       )}
 
       {/* ====== DETAIL (analyst note) MODAL ====== */}
-      {item && !showFull && (() => {
-        const { cat, impact } = classify(item);
-        const cs = CAT_STYLE[cat], is = IMPACT_STYLE[impact];
-        return (
-        <BottomSheet onClose={() => setDetail(null)}>
-          <div className="border-b border-slate-200 pb-3 pr-9">
-            <div className="flex flex-wrap items-center gap-1.5">
-              <span className="rounded-md px-1.5 py-0.5 text-[8px] font-extrabold uppercase tracking-wider" style={{ background: cs.bg, color: cs.c }}>{cat}</span>
-              <span className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[8px] font-extrabold uppercase tracking-wider" style={{ background: is.bg, color: is.c }}>
-                <span className="h-1.5 w-1.5 rounded-full" style={{ background: is.dot }} /> {impact}
-              </span>
-              <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400 tabular-nums">{item.d}, {PR_YEARS[detail.yi].year}</span>
-            </div>
-            <h3 className="mt-2 text-[16px] font-extrabold leading-snug tracking-tight text-slate-900">{item.originalTitle || item.headline}</h3>
-          </div>
-
-          <SummaryContent item={item} cat={cat} impact={impact} hasFull={!!(FULL && FULL[item.id])} onReadFull={() => setShowFull(true)} />
+      {item && !showFull && (
+        <BottomSheet onClose={() => setDetail(null)} headerBar>
+          <ReleaseReader item={item} year={PR_YEARS[detail.yi].year}
+            hasFull={!!(FULL && FULL[item.id])} onReadFull={() => setShowFull(true)} />
         </BottomSheet>
-        );
-      })()}
+      )}
 
       {/* ====== FULL PRESS-RELEASE MODAL (scrolling text in swipe-up card) ====== */}
       {item && showFull && (
-        <BottomSheet onClose={() => setShowFull(false)}>
-          <div className="border-b border-slate-200 pb-3 pr-9">
-            <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 tabular-nums">{item.d}, {PR_YEARS[detail.yi].year} · Full Release</p>
-            <h3 className="mt-1 text-[15px] font-extrabold leading-snug tracking-tight text-slate-900">{item.originalTitle || item.headline}</h3>
-          </div>
-          <FullText full={FULL[item.id]} />
+        <BottomSheet onClose={() => setShowFull(false)} headerBar>
+          <ReleaseFullReader item={item} year={PR_YEARS[detail.yi].year} full={FULL[item.id]} />
         </BottomSheet>
       )}
     </div>
   );
 }
 
+/* THE FULL RELEASE — the source document, as the app shows it behind
+   "Read Full Press Release". Exported for the same reason as its siblings: the
+   portal preview reaches it from the same button, so that button is live
+   rather than decorative. */
+export function ReleaseFullReader({ item, year, full }) {
+  return (
+    <>
+      <div className="border-b border-slate-200 pb-3 pr-9">
+        <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 tabular-nums">{item.d}{year ? `, ${year}` : ""} · Full Release</p>
+        <h3 className="mt-1 text-[15px] font-extrabold leading-snug tracking-tight text-slate-900">{item.originalTitle || item.headline}</h3>
+      </div>
+      <FullText full={full} />
+    </>
+  );
+}
+
+/* THE TIMELINE CARD — a release as it appears in the list, before it is opened.
+
+   Exported alongside ReleaseReader for the portal's review preview, which
+   shows both surfaces a release has: this card carries the short headline the
+   company writes in review, while the reader's title is the original document
+   headline. Editing the headline changes this and nothing else, which is only
+   obvious if you can see it. */
+export function ReleaseCard({ item: it, year, quarter, onOpen, buttonProps = {} }) {
+  const { cat, impact } = classify(it);
+  const cs = CAT_STYLE[cat], is = IMPACT_STYLE[impact];
+  const q = quarter || QUARTERS[String(it.d || "").split(" ")[0]] || "";
+  return (
+    <button
+      onClick={onOpen}
+      className="relative flex w-full items-stretch gap-3 py-1.5 text-left"
+      {...buttonProps}
+    >
+      {/* dot on the line */}
+      <span className="relative z-10 flex flex-shrink-0 justify-center pt-4" style={{ width: 25 }}>
+        <span
+          className="grid place-items-center rounded-full"
+          style={{
+            height: it.key ? 20 : 14, width: it.key ? 20 : 14,
+            ...(it.key
+              ? { background: EM, boxShadow: "0 0 0 4px rgba(37,99,235,0.15)" }
+              : { background: "#fff", border: `2px solid ${cs.c}` }),
+          }}
+        >
+          {it.key && <Gem size={11} style={{ color: "#0a1f38" }} />}
+        </span>
+      </span>
+      {/* content card */}
+      <span className="min-w-0 flex-1 rounded-2xl border border-slate-100 bg-white p-3" style={{ boxShadow: "0 1px 2px rgba(15,23,42,0.04), 0 10px 24px -18px rgba(15,23,42,0.35)" }}>
+        <span className="flex items-center gap-1.5">
+          <span className="rounded-md px-1.5 py-0.5 text-[8px] font-extrabold uppercase tracking-wider" style={{ background: cs.bg, color: cs.c }}>{cat}</span>
+          <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400">{q} {year}</span>
+          <ChevronRight size={15} className="ml-auto flex-shrink-0 text-slate-300" />
+        </span>
+        <span className="mt-1.5 block text-[13px] font-bold leading-snug tracking-tight text-slate-900">{it.headline || it.label}</span>
+        <span className="mt-1.5 inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider" style={{ background: is.bg, color: is.c }}>
+          <span className="h-1.5 w-1.5 rounded-full" style={{ background: is.dot }} /> {impact} impact
+        </span>
+      </span>
+    </button>
+  );
+}
+
+/* THE PRESS RELEASE READER — the whole of what an investor sees when they open
+   a release, header included.
+
+   Exported because the company portal's review screen renders it inside a
+   phone so the company can see the finished article while editing it. That
+   preview must be the article, not a lookalike: the moment there are two
+   implementations, one of them is lying to whoever is reading it. Everything
+   here is driven by `item`, which both callers get from the same mapper. */
+export function ReleaseReader({ item, year, hasFull = false, onReadFull }) {
+  const { cat, impact } = classify(item);
+  const cs = CAT_STYLE[cat], is = IMPACT_STYLE[impact];
+  // Give the Brief reader a real `v2`, because these releases have one.
+  //
+  // Two adaptations, both about data rather than design:
+  //
+  // 1. historicalToV2 merges Key Results from BOTH `keyNumbers` and
+  //    `takeaways`, since different sources carry different fields. This
+  //    codebase's mapper emits both and `takeaways` is a flattened projection
+  //    of the same list, so handing over both would print every result twice.
+  //
+  // 2. Its takeaway is the release's disclosed NEXT STEP, which is the only
+  //    thing a historical item has. A release published through this portal
+  //    carries the investor takeaway the company itself wrote and approved in
+  //    review, so that is what belongs in The Takeaway card. Without this the
+  //    approved sentence never reaches the reader and the next step takes its
+  //    place -- a different claim, in the company's name.
+  const source = (Array.isArray(item.keyNumbers) && item.keyNumbers.length)
+    ? { ...item, takeaways: [] }
+    : item;
+  const mapped = historicalToV2(source);
+  const brief = mapped
+    ? { ...item, v2: { ...mapped, ...(item.takeaway ? { tk: item.takeaway } : {}) } }
+    : item;
+  return (
+    <>
+      <div className="border-b border-slate-200 pb-3 pr-9">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="rounded-md px-1.5 py-0.5 text-[8px] font-extrabold uppercase tracking-wider" style={{ background: cs.bg, color: cs.c }}>{cat}</span>
+          <span className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[8px] font-extrabold uppercase tracking-wider" style={{ background: is.bg, color: is.c }}>
+            <span className="h-1.5 w-1.5 rounded-full" style={{ background: is.dot }} /> {impact}
+          </span>
+          <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400 tabular-nums">{item.d}{year ? `, ${year}` : ""}</span>
+        </div>
+        <h3 className="mt-2 text-[16px] font-extrabold leading-snug tracking-tight text-slate-900">{item.originalTitle || item.headline}</h3>
+      </div>
+
+      <SummaryContent item={brief} cat={cat} impact={impact} hasFull={hasFull} onReadFull={onReadFull} />
+    </>
+  );
+}
+
 /* Why This Matters + Key Takeaways. Window and button are present immediately;
    the text fades in once, in a single swipe. */
-function SummaryContent({ item, cat, impact, hasFull, onReadFull }) {
+function SummaryContent({ item, cat, impact, hasFull, onReadFull, sourceNote }) {
   const stage = STAGE_IMPACT_BY_CAT[cat] || ["—", "—"];
+  // DEV-ONLY benchmark: render the Version-2 Brief for Kingsmen releases that carry `item.v2`,
+  // with a compare toggle. Gated by window.__BRIEF_BENCH__; the normal reader is unchanged.
+  // Every press release reads in the approved BriefV1 (v2) design. Generated/approved releases
+  // carry a real `v2`; existing historical releases are mapped into the SAME v2 shell (historicalToV2,
+  // presentation-only, no AI) with their key numbers preserved as Highlights so no data is lost.
+  const hasV2 = !!(item && item.v2 && (item.v2.head || item.v2.wh || item.v2.wy
+    || (Array.isArray(item.v2.kr) && item.v2.kr.length) || item.v2.tk));
+  const histV1 = (!hasV2 && item) ? historicalToV2(item) : null;
+  const v1 = hasV2 || !!histV1;
+  const v2 = hasV2 ? item.v2 : histV1;
+  const BLBL = "text-[10px] font-extrabold uppercase tracking-[0.16em]";
+  // The v2 Brief is the only view — no Brief v2 / Current toggle. The full v2 design (What Happened,
+  // Why It Matters, Key Results, Takeaway, Read Full) renders directly below the header.
+  const benchToggle = null;
+  if (v1 && v2) {
+    const kr = Array.isArray(v2.kr) ? v2.kr : [];
+    // Uniform metric-row model: every result is an identical two-column row
+    // (fixed-width cobalt value + unit on the left; descriptor + secondary on the right,
+    // with an optional relationship label such as INCLUDING). Primary vs included intervals
+    // are distinguished by the label, NOT by size or colour. Supports 0–4 rows.
+    const rows = kr;
+    const hasRows = rows.length > 0;
+    return (
+      <div className="mt-4">
+        {benchToggle}
+        <div className="pp-view">
+          {/* Balanced section hierarchy restored: What Happened and Why It Matters carry equal
+              weight (strong dark labels; Why It Matters differentiated only by a cobalt label),
+              Key Results is the centerpiece, Broader Context is quiet, The Takeaway concludes. */}
+          <div>
+            <span className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-slate-900">What Happened</span>
+            <p className="mt-1.5 text-[13.5px] font-medium leading-relaxed text-slate-600">{v2.wh}</p>
+          </div>
+          <div className="mt-5">
+            <span className="text-[10px] font-extrabold uppercase tracking-[0.16em]" style={{ color: EM_TEXT }}>Why It Matters</span>
+            <p className="mt-1.5 text-[13.5px] font-medium leading-relaxed text-slate-600">{v2.wy}</p>
+          </div>
+
+          {/* "What does this mean?" — the editorial jargon explainer, shown ONLY when the item
+              carries one (news items). Optional, source-derived (never fabricated); keeps the
+              approved V2 section rhythm so it doesn't disrupt the layout. */}
+          {item && item.plainEnglish && String(item.plainEnglish).trim() && (
+            <div className="mt-5">
+              <span className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-slate-900">What Does This Mean?</span>
+              <p className="mt-1.5 text-[13.5px] font-medium leading-relaxed text-slate-600">{item.plainEnglish}</p>
+            </div>
+          )}
+
+          {/* KEY RESULTS — one disciplined, repeatable metric-row system. Every result occupies an
+              IDENTICAL two-column row: left = fixed-width cobalt value + unit beneath; right =
+              descriptor + secondary, with an optional relationship label (e.g. INCLUDING). Same grid,
+              alignment, typography, padding and separators on every row; primary vs included intervals
+              are distinguished by the label, not by size or colour. Supports 0–4 rows. */}
+          {hasRows && (() => {
+            // Two-column grid: a content-hugging value column (so every blue value starts at the
+            // same x and every description starts at the same x, with a consistent gap — not a
+            // fixed box that leaves short values floating) + a flexible, wrapping description
+            // column. ONE value font-size for the whole section, chosen from the LONGEST value, so
+            // all rows share identical typography and baseline (short values keep the approved
+            // 22px; longer values step down uniformly so nothing overflows a narrow iPhone).
+            const maxLen = rows.reduce((m, r) => Math.max(m, String(r.v || "").length), 0);
+            const vSize = maxLen <= 9 ? 22 : maxLen <= 12 ? 18 : 15;
+            return (
+            <div className="mt-6">
+              <span className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-slate-900">Key Results</span>
+              <div className="mt-2 grid items-start gap-x-5" style={{ gridTemplateColumns: "max-content minmax(0, 1fr)" }}>
+                {rows.map((r, i) => (
+                  <div key={i} style={{ display: "contents" }}>
+                    {/* value + unit (grouped, left-aligned, never wraps) */}
+                    <div className={`py-3 ${i > 0 ? "border-t border-slate-100" : ""}`}>
+                      <div className="font-extrabold leading-none tracking-tight tabular-nums whitespace-nowrap" style={{ color: EM_TEXT, fontSize: vSize }}>{r.v}</div>
+                      {r.u && <div className="mt-1 text-[10px] font-bold uppercase tracking-[0.08em] text-slate-400">{r.u}</div>}
+                    </div>
+                    {/* description + optional relationship label + secondary (wraps naturally),
+                        top-aligned with the numeric value */}
+                    <div className={`min-w-0 py-3 pt-[13px] ${i > 0 ? "border-t border-slate-100" : ""}`}>
+                      <div className="text-[13.5px] font-semibold leading-snug text-slate-800">
+                        {r.rel && <span className="mr-1.5 text-[9.5px] font-extrabold uppercase tracking-[0.1em]" style={{ color: EM }}>{r.rel}</span>}
+                        {r.rel && <span className="mr-1.5 text-slate-300">·</span>}
+                        {r.desc}
+                      </div>
+                      {r.sec && <div className="mt-0.5 text-[12px] font-medium leading-snug text-slate-500">{r.sec}</div>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            );
+          })()}
+
+          {/* HIGHLIGHTS — for mapped historical briefs (no structured Key Results), surface the
+              release's existing key-number bullets VERBATIM so the data is never lost. */}
+          {!hasRows && Array.isArray(v2.highlights) && v2.highlights.length > 0 && (
+            <div className="mt-6">
+              <span className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-slate-900">Highlights</span>
+              <ul className="mt-2.5 space-y-2.5">
+                {v2.highlights.map((h, i) => (
+                  <li key={i} className="flex gap-2.5 text-[13.5px] font-medium leading-snug text-slate-700">
+                    <span className="mt-[7px] h-1.5 w-1.5 flex-shrink-0 rounded-full" style={{ background: EM }} />
+                    <span>{h}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {v2.tk && (
+            <div className="mt-6 rounded-2xl px-4 py-3.5" style={{ background: "rgba(37,99,235,0.06)", border: "1px solid rgba(37,99,235,0.16)" }}>
+              <span className="flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-[0.14em]" style={{ color: EM_TEXT }}><Sparkles size={12} strokeWidth={2.4} /> The Takeaway</span>
+              <p className="mt-1.5 text-[13.5px] font-semibold leading-relaxed text-slate-700">{v2.tk}</p>
+            </div>
+          )}
+        </div>
+        {sourceNote && <p className="mt-5 text-[11.5px] font-semibold text-slate-400">{sourceNote}</p>}
+        <BriefDisclaimer />
+        {hasFull && (
+          <button onClick={onReadFull} className="mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-xl text-xs font-bold uppercase tracking-wider text-white transition active:scale-95" style={DARK_CTA}>
+            Read Full Press Release <ChevronRight size={14} />
+          </button>
+        )}
+      </div>
+    );
+  }
   return (
     <div className="mt-4">
+      {benchToggle}
       <div key={item.id} className="pp-view space-y-4">
         <div>
           <span className="text-[10px] font-extrabold uppercase tracking-[0.16em]" style={{ color: "#0f172a" }}>What Happened</span>
@@ -1931,19 +2139,30 @@ function SummaryContent({ item, cat, impact, hasFull, onReadFull }) {
         </div>
       </div>
 
+      <BriefDisclaimer />
       {/* Only offer the full release when we actually have its text. Until the
           drag-drop PDF linking ships, fullText is null, so this stays hidden
           rather than opening an empty modal. */}
       {hasFull && (
         <button
           onClick={onReadFull}
-          className="mt-6 flex h-11 w-full items-center justify-center gap-2 rounded-xl text-xs font-bold uppercase tracking-wider text-white transition active:scale-95"
+          className="mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-xl text-xs font-bold uppercase tracking-wider text-white transition active:scale-95"
           style={DARK_CTA}
         >
           Read Full Press Release <ChevronRight size={14} />
         </button>
       )}
     </div>
+  );
+}
+// Standard MineEx factual-summary disclaimer — shown on EVERY press-release Brief (historical and
+// generated), below Key Results / Takeaway and above Read Full. Restrained light-grey treatment,
+// matching the original reader. Does not touch the issuer's own disclosures in the full release.
+function BriefDisclaimer() {
+  return (
+    <p className="mt-6 rounded-xl bg-slate-50 px-3 py-2.5 text-[11px] font-medium leading-snug text-slate-400">
+      MineEx provides factual summaries and educational context, not investment advice. Refer to the original disclosure for complete information.
+    </p>
   );
 }
 
@@ -2115,7 +2334,11 @@ function StageTimeline() {
   );
 }
 
-function BottomSheet({ children, onClose, mediaKey, topBanner }) {
+/* `inline` renders the sheet where it stands instead of portalling it over the
+   app: no scrim, no entrance transition, no dismissal affordances, filling its
+   parent. It is how the portal's review screen shows a release inside a phone
+   without a second copy of this chrome. Default false, so the app is untouched. */
+export function BottomSheet({ children, onClose, mediaKey, topBanner, inline = false, headerActions, headerBar = false }) {
   const [shown, setShown] = useState(false);
   const [drag, setDrag] = useState(0);
   const [dragging, setDragging] = useState(false);
@@ -2153,16 +2376,22 @@ function BottomSheet({ children, onClose, mediaKey, topBanner }) {
     else setDrag(0);
   };
 
-  return createPortal(
-    <div className="absolute inset-0 z-50 flex flex-col justify-end" style={scrub ? { pointerEvents: "none" } : undefined}>
+  const sheet = (
+    <div className={inline ? "absolute inset-0 flex flex-col justify-end" : "absolute inset-0 z-50 flex flex-col justify-end"}
+      style={scrub && !inline ? { pointerEvents: "none" } : undefined}>
+      {/* The scrim is part of the reader's look, not just its behaviour: the
+          sheet reads as a sheet because what is behind it is dimmed and
+          blurred. An inline sheet keeps it and drops only the dismiss-on-tap. */}
       <div
         className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
-        style={scrub ? { opacity: "var(--pp-sheet, 0)" } : { opacity: shown ? 1 : 0, transition: "opacity .28s ease" }}
-        onClick={scrub ? undefined : close}
+        style={inline ? { pointerEvents: "none" }
+          : scrub ? { opacity: "var(--pp-sheet, 0)" }
+          : { opacity: shown ? 1 : 0, transition: "opacity .28s ease" }}
+        onClick={inline || scrub ? undefined : close}
       />
       <div
         className="relative flex w-full flex-col overflow-hidden bg-white shadow-2xl"
-        style={{
+        style={inline ? { height: "82%", borderRadius: "26px 26px 0 0" } : {
           height: "82%",
           borderRadius: "26px 26px 0 0",
           transform: scrub ? "translateY(calc((1 - var(--pp-sheet, 0)) * 100%))" : (shown ? `translateY(${drag}px)` : "translateY(110%)"),
@@ -2173,34 +2402,57 @@ function BottomSheet({ children, onClose, mediaKey, topBanner }) {
         {/* full-bleed top banner (optional) — fills to the rounded top corners */}
         {topBanner ? <div className="flex-shrink-0">{topBanner}</div> : null}
         {/* grab handle — drag down to dismiss. Floats over the banner when one is present. */}
+        {(headerActions || headerBar) && !topBanner ? (
+          /* OPAQUE FIXED HEADER BAR — centered drag handle, then any reader
+             actions plus Close in one right-aligned, uniform row. flex-shrink-0
+             so it never scrolls, bg-white so article content can never bleed
+             behind the icons. The whole bar is the drag-to-dismiss target. */
+          <div
+            className="relative z-20 flex-shrink-0 touch-none bg-white px-5 pt-3 pb-2"
+            style={inline ? undefined : { cursor: dragging ? "grabbing" : "grab" }}
+            onPointerDown={inline ? undefined : onDown}
+            onPointerMove={inline ? undefined : onMove}
+            onPointerUp={inline ? undefined : onUp}
+            onPointerCancel={inline ? undefined : onUp}
+          >
+            <div className="mx-auto mb-2 h-1.5 w-10 rounded-full bg-slate-300" />
+            <div className="flex items-center justify-end gap-2" onPointerDown={(e) => e.stopPropagation()}>
+              {headerActions}
+              {(!inline || onClose) && (
+                <button onClick={close} aria-label="Close" className="grid h-8 w-8 place-items-center rounded-full bg-slate-100 text-slate-500 transition active:scale-90"><X size={16} /></button>
+              )}
+            </div>
+          </div>
+        ) : (<>
         <div
           className={(topBanner ? "absolute left-0 right-0 top-0 z-30 " : "") + "flex-shrink-0 touch-none pb-1 pt-3"}
-          style={{ cursor: dragging ? "grabbing" : "grab" }}
-          onPointerDown={onDown}
-          onPointerMove={onMove}
-          onPointerUp={onUp}
-          onPointerCancel={onUp}
+          style={inline ? undefined : { cursor: dragging ? "grabbing" : "grab" }}
+          onPointerDown={inline ? undefined : onDown}
+          onPointerMove={inline ? undefined : onMove}
+          onPointerUp={inline ? undefined : onUp}
+          onPointerCancel={inline ? undefined : onUp}
         >
           <div className="mx-auto h-1.5 w-10 rounded-full" style={{ background: topBanner ? "rgba(255,255,255,0.6)" : "#cbd5e1" }} />
         </div>
         {/* close */}
-        <button
+        {(!inline || onClose) && <button
           onClick={close}
           aria-label="Close"
           className="absolute z-20 grid h-8 w-8 place-items-center rounded-full bg-slate-100 text-slate-500 transition active:scale-90"
           style={{ top: 14, right: 14 }}
         >
           <X size={16} />
-        </button>
+        </button>}
+        </>)}
         {/* scrollable content — card stays still while this scrolls */}
         {mediaKey ? <div style={{ flexShrink: 0, padding: "0 20px" }}><CardHeader mediaKey={mediaKey} /></div> : null}
         <RubberScroll className="pp-scroll overflow-y-auto" style={{ flex: 1, minHeight: 0, padding: "6px 20px 0 20px", paddingBottom: "calc(28px + env(safe-area-inset-bottom, 0px))" }}>
           {typeof children === "function" ? children(close) : children}
         </RubberScroll>
       </div>
-    </div>,
-    ppFrameEl || document.body
+    </div>
   );
+  return inline ? sheet : createPortal(sheet, ppFrameEl || document.body);
 }
 
 /* ============================================================
@@ -8279,7 +8531,7 @@ const dmStore = {
     } catch (_) {}
   },
 
-  async send(id, text) {
+  async send(id, text, files = []) {
     const c = this.get(id);
     if (!c) return;
     this.sending = true;
@@ -8294,11 +8546,28 @@ const dmStore = {
       const r = await fetch(`${API_BASE}/api/messages`, {
         method: "POST",
         headers: { "content-type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ companySlug: id, body: text }),
+        // `attachments` is advisory: it only lets the company's notification
+        // email say "2 files attached". The files themselves go up after this
+        // call, because an attachment row needs a message id to point at.
+        body: JSON.stringify({ companySlug: id, body: text, attachments: files.length }),
       });
       const data = await r.json().catch(() => ({}));
       if (!r.ok || !data.ok) { c.error = data.error || "send-failed"; this.emit(); return; }
       if (data.conversationId) c.convId = data.conversationId;
+
+      // Upload after the message lands. A file that fails here leaves the
+      // message sent and flags the file -- losing the text as well, to report a
+      // failed photo, would be the worse trade.
+      if (files.length && data.message && data.message.id && data.conversationId) {
+        try {
+          const { uploadAttachment } = await import("../lib/attachments.js");
+          for (const f of files) {
+            await uploadAttachment({ conversationId: data.conversationId, messageId: data.message.id, file: f });
+          }
+        } catch (e) {
+          c.error = "attach-failed";
+        }
+      }
       this.sending = false;
       await this.loadMsgs(id, true);   // reconcile with the stored truth
     } catch (_) {
@@ -8342,12 +8611,32 @@ function MessageThread({ convo, onBack }) {
   const msgs = (stored && stored.msgs) || [];
   const err = stored && stored.error;
   useEffect(() => { if (endRef.current) endRef.current.scrollIntoView({ block: "end" }); }, [msgs.length]);
+  // Photos and video only. The bucket accepts more (a company can reply with a
+  // PDF from the portal), but an investor sending a document is not a thing this
+  // app offers -- so the picker asks for media and the check enforces it here.
+  const pickRef = useRef(null);
+  const [picked, setPicked] = useState([]);
+  const [pickErr, setPickErr] = useState("");
+
+  const choose = async (fileList) => {
+    const { describeRejection, MEDIA_MIME } = await import("../lib/attachments.js");
+    const ok = [], bad = [];
+    for (const f of Array.from(fileList || [])) {
+      const why = describeRejection(f, MEDIA_MIME);
+      if (why) bad.push(why); else ok.push(f);
+    }
+    if (ok.length) setPicked((p) => [...p, ...ok]);
+    setPickErr(bad.join(" "));
+  };
+
   const send = () => {
     const t = text.trim();
-    if (!t) return;
+    if (!t && !picked.length) return;
     haptic();
-    dmStore.send(convo.id, t);
+    dmStore.send(convo.id, t || (picked.length > 1 ? "Sent photos" : "Sent a photo"), picked);
     setText("");
+    setPicked([]);
+    setPickErr("");
   };
   return createPortal(
     <div className="absolute inset-0 z-[95] flex flex-col pp-fade" style={{ background: "#ffffff", paddingTop: "env(safe-area-inset-top, 0px)" }}>
@@ -8382,11 +8671,49 @@ function MessageThread({ convo, onBack }) {
       </div>
       {err && (
         <div className="flex-shrink-0 px-4 pb-1 text-center text-[11.5px] font-semibold text-rose-500">
-          {err === "signin" ? "Sign in to send messages." : err === "no-ceo-email" ? "This company hasn’t set up messaging yet." : "Couldn’t send — check your connection and try again."}
+          {err === "signin" ? "Sign in to send messages."
+         : err === "no-ceo-email" ? "This company hasn’t set up messaging yet."
+         : err === "attach-failed" ? "Message sent, but a photo or video didn’t upload."
+         : "Couldn’t send — check your connection and try again."}
         </div>
       )}
       {/* composer */}
+      {(picked.length > 0 || pickErr) && (
+        <div className="flex-shrink-0 border-t border-slate-100 px-3 pt-2.5">
+          {pickErr && <p className="pb-2 text-[11.5px] font-semibold text-rose-500">{pickErr}</p>}
+          <div className="flex flex-wrap gap-2 pb-1">
+            {picked.map((f, i) => (
+              <div key={`${f.name}-${i}`} className="relative">
+                {f.type.startsWith("image/") ? (
+                  <img src={URL.createObjectURL(f)} alt="" className="h-16 w-16 rounded-xl object-cover" />
+                ) : (
+                  <div className="grid h-16 w-16 place-items-center rounded-xl bg-slate-100">
+                    <Video size={20} className="text-slate-500" />
+                  </div>
+                )}
+                <button onClick={() => setPicked((p) => p.filter((_, k) => k !== i))}
+                  aria-label={`Remove ${f.name}`}
+                  className="absolute -right-1.5 -top-1.5 grid h-5 w-5 place-items-center rounded-full text-white"
+                  style={{ background: "#0f172a" }}>
+                  <X size={11} strokeWidth={3} />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
       <div className="flex flex-shrink-0 items-center gap-2 border-t border-slate-100 px-3 py-2.5" style={{ paddingBottom: "calc(10px + env(safe-area-inset-bottom, 0px))" }}>
+        <input ref={pickRef} type="file" accept="image/*,video/*" multiple className="hidden"
+          onChange={(e) => { choose(e.target.files); e.target.value = ""; }} />
+        <button
+          onClick={() => { haptic(); pickRef.current && pickRef.current.click(); }}
+          disabled={!signedIn}
+          aria-label="Add a photo or video"
+          className="grid h-10 w-10 flex-shrink-0 place-items-center rounded-full text-slate-500 transition active:scale-90 disabled:opacity-40"
+          style={{ background: "#f1f5f9" }}
+        >
+          <ImagePlus size={18} strokeWidth={2.2} />
+        </button>
         <input
           value={text}
           onChange={(e) => setText(e.target.value)}
@@ -8396,7 +8723,7 @@ function MessageThread({ convo, onBack }) {
           className="h-10 flex-1 rounded-full px-4 text-[14px] outline-none disabled:opacity-60"
           style={{ background: "#f1f5f9" }}
         />
-        <button onClick={send} disabled={!text.trim() || !signedIn} aria-label="Send" className="grid h-10 w-10 flex-shrink-0 place-items-center rounded-full text-white transition active:scale-90 disabled:opacity-40" style={{ background: "#0f172a" }}>
+        <button onClick={send} disabled={(!text.trim() && !picked.length) || !signedIn} aria-label="Send" className="grid h-10 w-10 flex-shrink-0 place-items-center rounded-full text-white transition active:scale-90 disabled:opacity-40" style={{ background: "#0f172a" }}>
           <Send size={17} strokeWidth={2.2} />
         </button>
       </div>
