@@ -39,6 +39,11 @@ const IDENTITIES = [
   // A member of company A with role 'publisher': the one non-owner role that
   // actor_can_publish admits. The positive control for publishing permission.
   { key: "PUBLISHER", email: "iso-publisher-a@staging.invalid", role: "company" },
+  // Role 'editor' and role 'admin' (a COMPANY admin, not a platform admin) on
+  // company A: the two roles billing (F2) must tell apart -- an editor may draft
+  // but not pay; a company admin may manage billing.
+  { key: "EDITOR",    email: "iso-editor-a@staging.invalid", role: "company" },
+  { key: "COADMIN",   email: "iso-coadmin-a@staging.invalid", role: "company" },
   { key: "INVESTOR",  email: "iso-investor@staging.invalid", role: "investor" },
   // A SECOND investor exists only to own company B's conversation. With one
   // investor on both sides, the suite's "investor SELECT other conversations"
@@ -145,7 +150,9 @@ async function member(companyId, userId, role) {
 // Both belong to company A only.
 await member(out.ISOLATION_COMPANY_A_ID, out._uid_STAFF, "viewer");
 await member(out.ISOLATION_COMPANY_A_ID, out._uid_PUBLISHER, "publisher");
-console.log("    memberships: owners=owner, staff=viewer, publisher=publisher (company A)");
+await member(out.ISOLATION_COMPANY_A_ID, out._uid_EDITOR, "editor");
+await member(out.ISOLATION_COMPANY_A_ID, out._uid_COADMIN, "admin");
+console.log("    memberships: owners=owner; company A: staff=viewer, publisher, editor, coadmin=admin");
 
 console.log("\n  SENSITIVE ROWS (one per company, for cross-tenant reads to target)");
 for (const k of ["A", "B"]) {
@@ -348,6 +355,22 @@ for (const k of ["A", "B"]) {
     }
   }
 }
+
+// Billing state made by the suite's Stripe webhook test (note = 'stripe') is
+// removed and the tier restored, so every run starts from the same billing
+// state. The MANUAL subscription the admin-billing probe writes is left alone.
+const subs = await c.query(`delete from public.company_subscriptions
+                             where note = 'stripe' and company_id in (select id from public.companies where slug like 'iso-%')`);
+// companies.tier is admin-managed (company_owner_guard, 0031). The guard admits
+// provisioning sessions via app.provisioning -- the mechanism
+// accept_company_invitation uses -- set LOCAL, so it ends with this transaction.
+await c.query("begin");
+try {
+  await c.query("set local app.provisioning = 'on'");
+  await c.query(`update public.companies set tier = 'listing' where slug like 'iso-%' and tier is distinct from 'listing'`);
+  await c.query("commit");
+} catch (e) { await c.query("rollback"); throw e; }
+console.log(`    billing: ${subs.rowCount} Stripe-created subscription row(s) reset; tiers back to 'listing'`);
 
 // Rate-limit counters (forms and the AI guard share submission_throttle) are
 // reset, so every suite run starts from the same state -- otherwise a re-run

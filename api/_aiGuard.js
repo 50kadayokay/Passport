@@ -42,6 +42,7 @@
 import { requireFeature, requireAdmin, companyIdFromSlug } from "./_entitlement.js";
 import { bearerToken, SB_URL, ANON_KEY } from "./_supabase.js";
 import { serviceRpc, serviceConfigured } from "./_service.js";
+import { callerCompanyRole, callerIsPlatformAdmin } from "./_roles.js";
 import { createHash } from "node:crypto";
 
 const WINDOW_MINUTES = 10;
@@ -440,35 +441,6 @@ async function callerOwnCompany(token) {
   } catch { return null; }
 }
 
-/** The caller's role in `cid` via my_company_role(), asked AS the caller.
- *  Returns the role string, null for "no role", or undefined if it could not be asked. */
-async function callerCompanyRole(token, cid) {
-  if (!token) return null;
-  try {
-    const r = await fetch(`${SB_URL}/rest/v1/rpc/my_company_role`, {
-      method: "POST",
-      headers: { apikey: ANON_KEY, Authorization: `Bearer ${token}`, "content-type": "application/json" },
-      body: JSON.stringify({ cid }),
-    });
-    if (!r.ok) return undefined;
-    const v = await r.json().catch(() => undefined);
-    return typeof v === "string" ? v : v === null ? null : undefined;
-  } catch { return undefined; }
-}
-
-/** Is the caller a platform admin? Their own profile row, read as themselves. */
-async function callerIsPlatformAdmin(token) {
-  if (!token) return false;
-  try {
-    const u = await fetch(`${SB_URL}/auth/v1/user`, { headers: { apikey: ANON_KEY, Authorization: `Bearer ${token}` } });
-    if (!u.ok) return false;
-    const user = await u.json().catch(() => null);
-    if (!user || !user.id) return false;
-    const r = await fetch(`${SB_URL}/rest/v1/profiles?id=eq.${encodeURIComponent(user.id)}&select=role&limit=1`,
-      { headers: { apikey: ANON_KEY, Authorization: `Bearer ${token}` } });
-    const rows = r.ok ? await r.json().catch(() => []) : [];
-    return !!(rows[0] && rows[0].role === "admin");
-  } catch { return false; }
-}
+// callerCompanyRole / callerIsPlatformAdmin live in ./_roles.js, shared with billing (F2).
 
 export const AI_RATE_LIMITS = { WINDOW_MINUTES, MAX_PER_WINDOW, COMPANY_DAILY_CAP, USER_DAILY_CAP };

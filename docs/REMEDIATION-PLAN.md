@@ -1299,3 +1299,144 @@ Offline also verifies:
   did for its three original routes. That is safer for spend, but stricter
   than before for `compose`, `comms-generate` and the extractors.
 - **The role check costs one extra database call** per admitted AI request.
+
+---
+
+## 9 · Batch D: F2 billing authorization, IMPLEMENTED LOCALLY (2026-10-30, uncommitted, not deployed)
+
+### Caller review
+
+| Caller | Flow | Change needed |
+|---|---|---|
+| `src/portal/Portal.jsx` `BillingView` → `/api/stripe-checkout` with `{ tier, companyId }` | "Pay by card" | none (already sends `companyId`) |
+| `BillingView` → `/api/stripe-portal` with an **empty body** | "Manage / cancel card" | **now sends `companyId`** |
+| Stripe → `/api/stripe-webhook` | provisioning | none: still reads the same `metadata.company_id` checkout stamps |
+| Admin billing (`admin_set_billing` RPC, manual / invoiced plans) | Mission Control | none (separate path, `is_admin()`) |
+
+### Policy implemented (approved)
+
+Owners and **company admins** of THAT company may start checkout and open the
+billing portal. Platform admins keep access for manual and invoiced billing.
+Editors, publishers, analysts, viewers, investors and other companies are
+refused. Roles are checked server-side, as the caller, with `my_company_role()`.
+
+### Changes
+
+| File | Change |
+|---|---|
+| `api/_roles.js` *(new)* | The shared role check: `callerCompanyRole`, `callerIsPlatformAdmin`, `requireCompanyRole` (401 / 400 bad UUID / 403 / 502 fail-closed), and `BILLING_ROLES = ["owner", "admin"]`. `api/_aiGuard.js` now imports from it; behaviour is unchanged (145 + 193 AI tests pass) |
+| `api/_appOrigin.js` *(new)* | The one return origin: `PORTAL_ORIGIN` (validated https; http only for localhost) or the existing default `https://passport-xi-five.vercel.app`. **Never** the request's `Origin`, `Host` or `Referer`. Deliberately not `PUBLIC_APP_URL`, which `share-news.js` uses for the marketing site (`mineex.ca`), and which does not serve `/portal` |
+| `api/stripe-checkout.js` | The role check **before** any Stripe configuration is read (F10). The session is stamped with the **authorised** `companyId`. Fixed return URLs |
+| `api/stripe-portal.js` | Requires `companyId` and the role check. Finds the Stripe customer **by company**: Stripe Search on `metadata['company_id']`, which checkout stamps on every subscription. If Search is unavailable, falls back to the caller's email but accepts only a customer whose subscription is stamped with this company. Fixed return URL |
+| `src/portal/Portal.jsx` | Sends `companyId` to `stripe-portal`. Billing actions show only for owners and company admins; other members see "Only an owner or admin … can change billing" |
+| `api/_stagingEgress.js` | The staging Stripe mock now models `subscriptions/search` (inert in production) |
+| Fixtures | New `iso-editor-a` (editor) and `iso-coadmin-a` (company admin) on company A. Each seed resets Stripe-created subscriptions and the `iso-` tiers, using the guard's provisioning setting for the admin-managed tier, set locally inside a transaction |
+| Tests | New `scripts/billing-access-test.mjs` (58, in `npm test`, mutation-checked: letting editors pay, trusting `Origin`, or finding the customer by email each give 2 failures). `authz-risk-test` F2 ×2 and Stripe F10 markers removed (now 10 secure / 3 known). Live suite: billing matrices with the editor and company admin, and a **live webhook round trip** |
+
+**No migration. No change to `vercel.json` or environment configuration.**
+
+### Webhook compatibility (no live Stripe transaction)
+
+- **Offline:** events are signed with an **independent** implementation of
+  Stripe's documented scheme (HMAC-SHA256 over `t.payload`), not the
+  handler's own code. A `checkout.session.completed` **built from the exact
+  parameters `stripe-checkout` sent** provisions the authorised company on
+  `passport` with the right tier. `subscription.updated` (past_due),
+  `subscription.deleted` (cancelled) and `invoice.payment_failed` (past_due)
+  map correctly. Unknown types write nothing. Four kinds of bad signature are
+  refused. A header with Stripe's extra `v0` scheme is accepted.
+- **Live on staging:** a signed `checkout.session.completed` for company B,
+  then `customer.subscription.deleted`, read back **as B's owner**: active on
+  `passport` with tier `basic`, then cancelled. The subscription lookup went
+  to the staging Stripe mock, never to Stripe.
+- **New compatibility gap, tracked with F9:** during a webhook-secret
+  **rotation** Stripe sends **two** `v1` signatures. The handler keeps only
+  the last, so a valid first one is rejected. The F9 fix should accept any
+  matching `v1`.
+- **Limitation:** Stripe's official library isn't installed here, and
+  installing it would be a new download needing approval. The independent
+  implementation follows Stripe's published scheme, and Phase B's optional
+  Stripe test mode would confirm it end to end.
+
+### Results
+
+| Suite | Before Batch D | After |
+|---|---|---|
+| `npm test` | exit 0 | **exit 0** (now including `billing-access` 58/58) |
+| Offline risk tests | 7 secure / 6 known | **10 secure / 3 known** (F5 ×2, F11) |
+| API suite (staging) | 314 / 7 / 1 (322) | **333 / 4 / 1** (338), 0 unexpected |
+| Combined database + API | 760 / 7 / 1 (768) | **781 / 4 / 1** (786), 0 unexpected |
+
+**F2: all 3 known probes now pass.** Checkout and the billing portal admit
+the owner, the company admin, the platform admin and B's own owner. They
+refuse the **editor**, publisher, viewer, investor, and cross-company owners
+and admins.
+
+**Remaining 4 known failures:** F8, F9, **D20**, D21. Also tracked: **D23**,
+**D22**, **F5**, F11, F6, and the `og-news` render skip.
+
+**A mistake during this batch, fixed:** my first tier reset in the seeder hit
+`company_owner_guard` and aborted the seed halfway. The rotated site tokens
+were never written to the env file, and the counters were never reset. That
+caused one run's 5 unexpected failures. Corrected, and the next runs were
+clean.
+
+### Before Batch D goes to production (read-only checks for you)
+
+1. **Stripe:** confirm every live subscription carries
+   `metadata.company_id`. Checkout has always stamped it, but a subscription
+   created in the Stripe dashboard would not have it, and its company would
+   then get 404 from "Manage billing".
+2. **Memberships:** confirm no company relies on an editor or publisher to
+   pay.
+3. **`PORTAL_ORIGIN`:** optional. Unset keeps today's origin. Set it if the
+   portal moves to a custom domain.
+
+---
+
+## 10 · AI usage and recommended limits (review; NOT implemented)
+
+### What could and could not be reviewed
+
+**Actual usage is in production, which is out of scope, so I have not seen
+any real numbers.** What exists:
+
+- `supabase/audit/ai_usage_review.sql` *(new, verified read-only by
+  `scripts/audit-sql-readonly-check.mjs` and exercised inside a read-only
+  transaction on staging)*. It reads the AI guard's own counters for real
+  per-user (salted hash) and per-company call counts, publication volume as
+  a proxy for the routes that had **no** counters before Batch C, and the
+  news pipeline's token totals. **Run it in production and send me the
+  results.**
+- From the code:
+  - Anthropic routes default to `claude-sonnet-5` (output up to 8,000
+    tokens) and `claude-haiku-4-5` (batch/text).
+  - OpenAI routes default to `gpt-4o-mini` (compose, ask, comms) and
+    `gpt-4o` (extraction).
+  - Portal AI calls record no tokens or cost; only the news pipeline does
+    (`news_ai_usage`, with `AI_DAILY_USD_LIMIT`). The repo's OpenAI price
+    defaults are flagged unverified (`AI_PRICING_VERIFIED` unset).
+
+### Current limits (after Batch C)
+
+| Limit | Scope | Value |
+|---|---|---|
+| Burst | per user, per endpoint, per 10 minutes | 200 (`AI_CALLS_PER_WINDOW`) |
+| Daily | per user, all endpoints | 1,500 (`AI_USER_DAILY_CAP`) |
+| Daily | per company, all endpoints | 1,000 (`AI_COMPANY_DAILY_CAP`) |
+| Request size | per endpoint | 16 KB – 8 MB |
+
+### Recommendation (to finalise against the query results)
+
+| Limit | Recommended | Reasoning |
+|---|---|---|
+| Interactive burst (compose, ask, comms-generate, structure-release, audience-card) | **30 per 10 min** per user per endpoint | A person drafting and refining makes roughly 10–20 calls in 10 minutes. 200 lets a script burn a day's budget in minutes |
+| Bulk / onboarding burst (structure-batch, extract-*, synthesize-profile, build-from-website) | **120 per 10 min** | The concierge runs batches: about 5 calls per project for `extract-projects`, plus 1 per 8 releases for `structure-batch` |
+| Per-user daily, company users | **300** | About 15× a heavy interactive day |
+| Per-user daily, platform admins | **1,500** (keep) | Onboarding several companies in a day |
+| Per-company daily | **3× the observed p95** from query 2, with a floor of 200; or by plan, e.g. Basic 200 / Pro 500 | Ties the ceiling to real use, and to what the company pays for |
+| **Spend ceiling** | a portal-AI daily USD limit, like the news pipeline's | Call counts don't bound cost when one call can produce 8,000 output tokens. **Needs per-call token recording**, which means a new table or extending `news_ai_usage`: a migration, so **approval first** |
+
+Per-endpoint and per-role caps need a small change to `requireAiCaller`, a
+label-to-limit map. That is no migration, but it is a production behaviour
+change, so it should be its own approved item.

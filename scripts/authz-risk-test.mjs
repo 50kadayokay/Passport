@@ -29,6 +29,9 @@ process.env.ANTHROPIC_API_KEY = "stub-anthropic";
 delete process.env.MINEEX_ENV;
 delete process.env.PUBLIC_BASE_URL;
 
+const COMPANY_A_UUID = "aaaaaaaa-0000-4000-8000-00000000000a";
+const COMPANY_B_UUID = "bbbbbbbb-0000-4000-8000-00000000000b";
+
 // ---- the stub network --------------------------------------------------------
 const CALLS = [];
 const USERS = { "tok-investor": { id: "u-investor", email: "inv@stub.invalid" }, "tok-ownerA": { id: "u-ownerA", email: "a@stub.invalid" } };
@@ -51,7 +54,8 @@ globalThis.fetch = async (input, init = {}) => {
     // The AI guard's own calls (F4): kill switch on, nobody holds a company role
     // here, counters always under the limit, and only the admin token is an admin.
     if (p.startsWith("/rest/v1/rpc/ai_enabled")) return json(true);
-    if (p.startsWith("/rest/v1/rpc/my_company_role")) return json(null);
+    // tok-ownerA owns COMPANY_A_UUID; nobody else holds a company role here.
+    if (p.startsWith("/rest/v1/rpc/my_company_role")) return json(auth === "tok-ownerA" && JSON.parse(init.body || "{}").cid === COMPANY_A_UUID ? "owner" : null);
     if (p.startsWith("/rest/v1/rpc/bump_submission_throttle")) return json(1);
     if (p.startsWith("/rest/v1/profiles")) return json([{ role: auth === "tok-admin" ? "admin" : auth === "tok-investor" ? "investor" : "company" }]);
     if (p.startsWith("/rest/v1/destinations")) return json([{ feature_id: "passport_profile" }]);
@@ -134,16 +138,17 @@ console.log("\n  F5 · the Host header must not choose where internal secrets go
 
 console.log("\n  F2 · Stripe checkout is for a company's owners and platform admins");
 {
-  const { res, calls } = await run("stripe-checkout", mkReq({ headers: { authorization: "Bearer tok-investor" }, body: { tier: "basic", companyId: "company-B" } }));
+  const { res, calls } = await run("stripe-checkout", mkReq({ headers: { authorization: "Bearer tok-investor" }, body: { tier: "basic", companyId: COMPANY_B_UUID } }));
   const stripe = calls.some((c) => c.host === "api.stripe.com");
-  check("an investor cannot open a checkout for a company they do not own",
-        res.statusCode === 403 && !stripe, { known: "F2", detail: `got ${res.statusCode}; Stripe session created: ${stripe}` });
-  const meta = calls.find((c) => c.host === "api.stripe.com");
-  check("the success_url is not taken from the request's Origin header",
-        !(await run("stripe-checkout", mkReq({ headers: { authorization: "Bearer tok-ownerA", origin: "https://evil.invalid" }, body: { tier: "basic", companyId: "company-B" } })))
-          .calls.some((c) => c.host === "api.stripe.com" && decodeURIComponent(c.body).includes("evil.invalid")),
-        { known: "F2", detail: "Origin header flows into success_url / cancel_url" });
-  void meta;
+  check("an investor cannot open a checkout for a company they do not own (F2, fixed)",
+        res.statusCode === 403 && !stripe, { detail: `got ${res.statusCode}; Stripe session created: ${stripe}` });
+  // The OWNER of A (authorised), with a hostile Origin: a session IS created,
+  // so this checks the return URLs rather than passing because nothing was sent.
+  const own = await run("stripe-checkout", mkReq({ headers: { authorization: "Bearer tok-ownerA", origin: "https://evil.invalid" }, body: { tier: "basic", companyId: COMPANY_A_UUID } }));
+  const sess = own.calls.find((c) => c.host === "api.stripe.com" && c.path === "/v1/checkout/sessions");
+  check("the success_url is not taken from the request's Origin header (F2, fixed)",
+        !!sess && !decodeURIComponent(sess.body).includes("evil.invalid"),
+        { detail: sess ? "Origin header flowed into success_url / cancel_url" : `no session created (got ${own.res.statusCode}) -- the control did not run` });
 }
 
 console.log("\n  F4 · AI drafting is for authorized company users, not investors");
@@ -162,9 +167,9 @@ console.log("\n  F10 · configuration is checked AFTER authentication");
         res.statusCode === 401, { detail: `got ${res.statusCode}: the key check runs before auth, so a probe learns config state and auth is untestable without the key` });
   process.env.ANTHROPIC_API_KEY = saved;
   const sk = process.env.STRIPE_SECRET_KEY; delete process.env.STRIPE_SECRET_KEY;
-  const r2 = await run("stripe-checkout", mkReq({ body: { tier: "basic", companyId: "company-B" } }));
-  check("stripe-checkout answers an anonymous caller 401, not a configuration 500",
-        r2.res.statusCode === 401, { known: "F10", detail: `got ${r2.res.statusCode}` });
+  const r2 = await run("stripe-checkout", mkReq({ body: { tier: "basic", companyId: COMPANY_B_UUID } }));
+  check("stripe-checkout answers an anonymous caller 401, not a configuration 500 (F10, fixed in Batch D)",
+        r2.res.statusCode === 401, { detail: `got ${r2.res.statusCode}` });
   process.env.STRIPE_SECRET_KEY = sk;
 }
 

@@ -52,6 +52,11 @@ const MEMBER = {
 };
 // Platform-admin tools: nobody else, whatever company they name.
 const ADMIN_TOOL = { "anon": "deny", "companyA>A": "deny", "publisher>A": "deny", "investor>A": "deny", "admin>A": "allow" };
+// F2: billing.
+const BILLING = {
+  "anon": "deny", "companyA>A": "allow", "coadmin>A": "allow", "admin>B": "allow", "companyB>B": "allow",
+  "editor>A": "deny", "publisher>A": "deny", "staff>A": "deny", "investor>A": "deny", "companyA>B": "deny", "coadmin>B": "deny",
+};
 const aiGuardPin = (label, extra) => new RegExp(`requireAiCaller\\(req, res, \\{ label: "${label}"${extra}`);
 
 export const API_ROUTES = [
@@ -117,17 +122,20 @@ export const API_ROUTES = [
   // ----------------------------------------------------------- Stripe (F2) --
   // Proposed policy: checkout for a company is for its owners and platform
   // admins. The code admits anyone who can READ the company row -- everyone.
-  { name: "stripe-checkout", methods: ["POST"], guard: "verifyUser + company row readable (not ownership)", source: /companies\?id=eq\.\$\{companyId\}&select=id,name,slug/,
+  // F2 (Batch D): billing is for owners and COMPANY admins of that company (and
+  // platform admins). Editors, publishers and viewers of the same company are
+  // refused, as are investors and other companies.
+  { name: "stripe-checkout", methods: ["POST"], guard: "requireCompanyRole(owner, admin) + fixed return origin", source: /requireCompanyRole\(req, res, \{ companyId, roles: BILLING_ROLES \}\)[\s\S]*const origin = appOrigin\(\);/,
     req: (c, X) => post({ tier: "basic", companyId: c.id[X] }),
     passed: (r) => r.status === 200 && /stripe\.invalid/.test(JSON.stringify(r.body || "")),
-    matrix: { "anon": "deny", "companyA>A": "allow", "companyA>B": "deny", "staff>A": "deny", "investor>A": "deny", "admin>B": "allow" },
-    known: { "companyA>B": "F2", "staff>A": "F2", "investor>A": "F2" } },
-  { name: "stripe-portal", methods: ["POST"], guard: "verifyUser; customer found by email", source: /customers\?email=/,
-    req: () => post({}),
-    // The mock has no customer on file, so an admitted caller gets 404 "No card
-    // subscription" -- reachable only after verifyUser and a Stripe lookup.
-    passed: (r) => r.egress.provider > 0,
-    matrix: { "anon": "deny", "companyA>A": "allow" } },
+    matrix: BILLING },
+  { name: "stripe-portal", methods: ["POST"], guard: "requireCompanyRole(owner, admin); customer found by company metadata", source: /subscriptions\/search[\s\S]*requireCompanyRole\(req, res, \{ companyId, roles: BILLING_ROLES \}\)/,
+    req: (c, X) => post({ companyId: c.id[X] }),
+    // The mock has no subscription for the company, so an admitted caller gets
+    // 404 "No card subscription" -- reached only after the role check and a
+    // Stripe lookup BY COMPANY.
+    passed: (r) => r.egress.provider > 0 && (r.status === 404 || r.status === 200),
+    matrix: BILLING },
 
   // ------------------------------------------------------------- admin only --
   { name: "build-from-website", methods: ["POST"], guard: "requireAiCaller(adminOnly)", source: aiGuardPin("build-from-website", ", adminOnly: true \\}"),

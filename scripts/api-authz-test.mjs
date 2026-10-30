@@ -200,7 +200,7 @@ export async function runApiSuite({ api, tok, env, record, headers: extraHeaders
         // target, not the caller. Any other denial (anon, investor, a non-admin
         // on an admin route, a user on a secret route): some positive control on
         // this route must have passed -- an admin's, the secret's, an owner's.
-        const homeOf = { companyA: "A", staff: "A", publisher: "A", companyB: "B" };
+        const homeOf = { companyA: "A", staff: "A", publisher: "A", editor: "A", coadmin: "A", companyB: "B" };
         const crossTenant = homeOf[identity] && homeOf[identity] !== target;
         // The control must be an ADMITTED probe that passed: the caller's own when
         // the matrix admits them at home, otherwise any admitted probe on this
@@ -401,6 +401,34 @@ export async function runApiSuite({ api, tok, env, record, headers: extraHeaders
       const old = await hook(sign(now - 86400));
       put("anon", "stripe-webhook", "/api/stripe-webhook", "refused: a day-old signed event (replay)", old,
           old.status === 400 ? "PASS" : old.status === 200 ? "FAIL" : "SKIP", old.status === 200 ? "KNOWN F9: no timestamp tolerance -- replay accepted" : "");
+
+      // ROUND TRIP against the real staging database, no live Stripe: a signed
+      // checkout.session.completed shaped exactly as stripe-checkout stamps it, then
+      // customer.subscription.deleted. Effects are read back AS COMPANY B'S OWNER.
+      // (The subscription lookup goes to Stripe, answered by the staging egress mock.)
+      if (tok.companyB) {
+        const readB = async () => {
+          const H = { apikey: env.ISOLATION_ANON_KEY, Authorization: `Bearer ${tok.companyB}` };
+          const sub = await fetch(`${env.ISOLATION_SUPABASE_URL}/rest/v1/company_subscriptions?company_id=eq.${c.id.B}&select=status,plan_id,note`, { headers: H }).then((x) => x.json()).catch(() => []);
+          const co = await fetch(`${env.ISOLATION_SUPABASE_URL}/rest/v1/companies?id=eq.${c.id.B}&select=tier`, { headers: H }).then((x) => x.json()).catch(() => []);
+          return { sub: Array.isArray(sub) ? sub[0] : null, tier: Array.isArray(co) && co[0] ? co[0].tier : null };
+        };
+        const send = (event) => { const p = JSON.stringify(event); const t = Math.floor(Date.now() / 1000);
+          return call("stripe-webhook", { method: "POST", raw: p }, null, { "content-type": "application/json", "stripe-signature": sign(t, p) }); };
+        const meta = { company_id: c.id.B, tier: "basic" };
+        const done = await send({ id: `evt_iso_${crypto.randomUUID()}`, type: "checkout.session.completed",
+          data: { object: { id: "cs_iso", object: "checkout.session", mode: "subscription", subscription: "sub_iso_B", client_reference_id: c.id.B, metadata: meta } } });
+        const after1 = await readB();
+        put("stripe", "stripe-webhook live", "/api/stripe-webhook", "checkout.session.completed -> B active on passport, tier basic", done,
+            done.status === 200 && after1.sub && after1.sub.status === "active" && after1.sub.plan_id === "passport" && after1.sub.note === "stripe" && after1.tier === "basic" ? "PASS" : done.status >= 500 ? "SKIP" : "FAIL",
+            `read back as B's owner: ${JSON.stringify(after1)}`);
+        const del = await send({ id: `evt_iso_${crypto.randomUUID()}`, type: "customer.subscription.deleted",
+          data: { object: { id: "sub_iso_B", object: "subscription", status: "canceled", metadata: meta } } });
+        const after2 = await readB();
+        put("stripe", "stripe-webhook live", "/api/stripe-webhook", "customer.subscription.deleted -> B cancelled", del,
+            del.status === 200 && after2.sub && after2.sub.status === "cancelled" ? "PASS" : del.status >= 500 ? "SKIP" : "FAIL",
+            `read back as B's owner: ${JSON.stringify(after2)}`);
+      }
     }
   }
 
@@ -584,7 +612,7 @@ if (isMain) {
     return r.ok ? (await r.json()).access_token : null;
   };
   const tok = {};
-  for (const [k, e] of Object.entries({ companyA: "COMPANY_A", companyB: "COMPANY_B", staff: "STAFF", publisher: "PUBLISHER", investor: "INVESTOR", admin: "ADMIN" }))
+  for (const [k, e] of Object.entries({ companyA: "COMPANY_A", companyB: "COMPANY_B", staff: "STAFF", publisher: "PUBLISHER", editor: "EDITOR", coadmin: "COADMIN", investor: "INVESTOR", admin: "ADMIN" }))
     tok[k] = await signIn(iso[`ISOLATION_${e}_EMAIL`], iso[`ISOLATION_${e}_PASS`]);
 
   const rows = []; let pass = 0, fail = 0, skip = 0;

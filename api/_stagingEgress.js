@@ -157,6 +157,7 @@ function mockResponse(provider, url, method, init) {
       if (path.includes("/checkout/sessions")) return { res: json({ id: "cs_test_staging_mock", url: "https://checkout.stripe.invalid/staging-mock" }), op: path };
       if (path.includes("/billing_portal/sessions")) return { res: json({ id: "bps_test_staging_mock", url: "https://billing.stripe.invalid/staging-mock" }), op: path };
       if (path.includes("/customers")) return { res: json({ object: "list", data: [] }), op: path };
+      if (path.endsWith("/subscriptions/search")) return { res: json({ object: "search_result", data: [], has_more: false }), op: path };
       if (path.includes("/subscriptions/")) return { res: json({ id: "sub_staging_mock", status: "active", current_period_end: 4102444800 }), op: path };
       return { res: json({ error: { message: "staging mock: unmodelled Stripe call" } }, 400), op: path };
     }

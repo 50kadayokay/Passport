@@ -1027,7 +1027,9 @@ function BillingView({ company, hideHeading = false }) {
     setPayErr(""); setBusy("manage");
     try {
       const h = await authHeaders();
-      const res = await fetch("/api/stripe-portal", { method: "POST", headers: { ...h, "Content-Type": "application/json" }, body: "{}" });
+      // The billing portal is for THIS company (F2): the server finds its Stripe
+      // customer by company and checks the caller's role in it.
+      const res = await fetch("/api/stripe-portal", { method: "POST", headers: { ...h, "Content-Type": "application/json" }, body: JSON.stringify({ companyId: company.id }) });
       const j = await res.json().catch(() => null);
       if (res.ok && j && j.url) { window.location.href = j.url; return; }
       setPayErr(res.status === 404 ? "No card subscription on file — you're on a manual/invoiced plan." : ((j && j.error) || "Couldn't open billing."));
@@ -1039,6 +1041,10 @@ function BillingView({ company, hideHeading = false }) {
     { tier: "pro", name: "Pro", perMo: "$799", perYr: "$9,588", planIds: ["passport_managed"], blurb: "Everything: projects, capital, team, media, external channels, analytics." },
   ];
   const currentPlanId = plan?.plan_id;
+  // Billing is for owners and company admins (F2). The server enforces it; this
+  // only spares other members a button that would refuse them. company.role is
+  // the caller's own role (lib/portal.js); "owner" when absent, as elsewhere here.
+  const canManageBilling = ["owner", "admin"].includes(company?.role || "owner");
 
   return (
     <div>
@@ -1094,7 +1100,7 @@ function BillingView({ company, hideHeading = false }) {
               <p className="mt-1 text-[22px] font-extrabold tracking-tight text-slate-900">{p.perMo}<span className="text-[13px] font-semibold text-slate-400">/mo</span></p>
               <p className="text-[12px] text-slate-400">{p.perYr} billed annually</p>
               <p className="mt-2 text-[13px] leading-snug text-slate-600">{p.blurb}</p>
-              <button onClick={() => startCheckout(p.tier)} disabled={!!busy || isCurrent}
+              <button onClick={() => startCheckout(p.tier)} disabled={!!busy || isCurrent || !canManageBilling}
                 className={`mt-4 w-full rounded-xl px-4 py-2.5 text-[14px] font-bold transition ${isCurrent ? "cursor-default bg-slate-100 text-slate-400" : "bg-slate-900 text-white hover:bg-slate-800 active:scale-[.99]"}`}>
                 {isCurrent ? "Active" : busy === p.tier ? "Redirecting…" : "Pay by card"}
               </button>
@@ -1103,7 +1109,10 @@ function BillingView({ company, hideHeading = false }) {
         })}
       </div>
       {payErr && <p className="mt-3 text-[13px] font-semibold text-rose-600">{payErr}</p>}
-      {status === "active" && (
+      {!canManageBilling && (
+        <p className="mt-3 text-[13px] text-slate-500">Only an owner or admin of {company?.name || "this company"} can change billing. Ask one of them to upgrade or manage the subscription.</p>
+      )}
+      {status === "active" && canManageBilling && (
         <button onClick={manageBilling} disabled={!!busy}
           className="mt-4 inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-4 py-2.5 text-[13.5px] font-bold text-slate-600 hover:border-slate-300 hover:text-slate-900">
           <CreditCard size={15} /> {busy === "manage" ? "Opening…" : "Manage / cancel card"}

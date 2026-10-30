@@ -61,6 +61,9 @@ const IDS = {
   staff:    { email: process.env.ISOLATION_STAFF_EMAIL,     pass: process.env.ISOLATION_STAFF_PASS     },
   // Role 'publisher' on company A: the non-owner role actor_can_publish admits.
   publisher: { email: process.env.ISOLATION_PUBLISHER_EMAIL, pass: process.env.ISOLATION_PUBLISHER_PASS },
+  // Role 'editor' and company role 'admin' on company A (billing, F2).
+  editor:   { email: process.env.ISOLATION_EDITOR_EMAIL,    pass: process.env.ISOLATION_EDITOR_PASS    },
+  coadmin:  { email: process.env.ISOLATION_COADMIN_EMAIL,   pass: process.env.ISOLATION_COADMIN_PASS   },
   admin:    { email: process.env.ISOLATION_ADMIN_EMAIL,     pass: process.env.ISOLATION_ADMIN_PASS     },
 };
 const SLUG_A = process.env.ISOLATION_COMPANY_A_SLUG || "";
