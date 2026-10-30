@@ -143,8 +143,11 @@ const FIRM_DELTA = 12;       // a real swipe drives ≥ this; an inertia tail ne
 // Automatic opening reveal (photo hero → real flip → status face). The visitor never
 // spends a gesture on the flip: once the app has painted on its photographic hero we
 // hold briefly, then run the REAL Company Status flip, and STOP on the status face.
-const OPEN_HOLD = 1200;  // ms the photographic hero sits STILL before the flip — long enough that the viewer
-                         // clearly registers the photo as a resting frame, so the flip reads as a deliberate event
+const OPEN_HOLD = 650;   // ms the photographic hero sits STILL before the flip. Still long enough that the
+                         // photo registers as a resting frame rather than a frame the viewer never saw -- below
+                         // roughly 400ms the flip stops reading as a deliberate event and starts reading as a
+                         // glitch in the load. One constant drives BOTH the home variant and the full
+                         // walkthrough, which is deliberate: home inherits the walkthrough's exact opening.
 const OPEN_FLOOR = 1;    // user gestures never return below the status face; the photo hero is a one-time opening
 
 const delay = (ms) => new Promise((r) => setTimeout(r, ms));
