@@ -94,7 +94,25 @@ passing positive control.
 
 ---
 
-## 3 · No production or external contact
+## 3 · No production or external contact *from the API layer*
+
+> **CORRECTION, added 2026-10-30 after this report was written.** Everything
+> below is true **of the API layer only.** The staging *database* had been
+> calling production the whole time:
+>
+> - Migration `0011_outbox_ops.sql` schedules a `pg_cron` job that POSTs to
+>   the production app (`https://passport-xi-five.vercel.app/api/dispatch`)
+>   every minute.
+> - It ran 741 times from 07:17 UTC. Every retained response was
+>   `401 unauthorized`: staging's `app_secrets` is empty, so an empty secret
+>   was sent and refused.
+> - No secret and no data crossed, but the isolation guarantee did not hold.
+>   `pg_cron` and `pg_net` run inside Supabase, where the egress guard cannot
+>   see them.
+>
+> Recorded as **S1** in `docs/REMEDIATION-PLAN.md`, with the one-statement
+> containment and the permanent fix. **It is still running** until that
+> statement is run against staging.
 
 Evidence:
 

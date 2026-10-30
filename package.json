@@ -24,7 +24,7 @@
     "check:imports": "node scripts/check-imports.mjs",
     "check:pr": "node scripts/press-release-test.mjs",
     "check:media": "node scripts/media-support-test.mjs",
-    "test": "npm run check:imports && npm run check:submissions && npm run check:audit-sql && npm run check:leak && npm run check:integrity && npm run check:transcript && npm run check:failclosed && npm run check:inventory && npm run check:reconcile && npm run check:adversarial && npm run check:canonical && npm run check:auditsync && npm run check:pipeline && npm run check:mineiq && npm run check:phase1 && npm run check:pr && npm run check:media && npm run check:fullrelease && npm run check:socialconfig && npm run check:palette && npm run check:auth && npm run check:aiguard && npm run check:demo-assets && npm run check:push && npm run check:reliability && node scripts/onboarding-classify-test.mjs && npm run check:staging-guard && npm run check:authz-risks",
+    "test": "npm run check:imports && npm run check:submissions && npm run check:audit-sql && npm run check:leak && npm run check:integrity && npm run check:transcript && npm run check:failclosed && npm run check:inventory && npm run check:reconcile && npm run check:adversarial && npm run check:canonical && npm run check:auditsync && npm run check:pipeline && npm run check:mineiq && npm run check:phase1 && npm run check:pr && npm run check:media && npm run check:fullrelease && npm run check:socialconfig && npm run check:palette && npm run check:auth && npm run check:aiguard && npm run check:demo-assets && npm run check:push && npm run check:reliability && node scripts/onboarding-classify-test.mjs && npm run check:staging-guard && npm run check:authz-risks && npm run check:staging-db-guard",
     "check:auth": "node scripts/api-auth-test.mjs",
     "check:integrity": "node scripts/source-integrity-test.mjs",
     "check:transcript": "node scripts/transcript-test.mjs",
@@ -50,7 +50,9 @@
     "check:staging-guard": "node scripts/staging-guard-test.mjs",
     "check:authz-risks": "node scripts/authz-risk-test.mjs",
     "check:api-authz": "node scripts/api-authz-test.mjs --local",
-    "staging:api": "node scripts/staging-api-server.mjs"
+    "staging:api": "node scripts/staging-api-server.mjs",
+    "check:staging-db-guard": "node scripts/staging-db-guard-test.mjs",
+    "check:staging-db-egress": "node scripts/staging-db-egress-check.mjs"
   },
   "dependencies": {
     "@aparajita/capacitor-secure-storage": "^8.0.0",

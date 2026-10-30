@@ -27,8 +27,12 @@
 import fs from "node:fs";
 import path from "node:path";
 import pg from "pg";
+import { prepareForStaging, MigrationEgressError, inspectDatabase, newEgress, evaluate } from "./_db-egress.mjs";
 
-const DIR = "supabase/migrations";
+// MIGRATIONS_DIR exists for tests only (scripts/staging-db-guard-test.mjs points
+// the runner at a temporary copy to prove it refuses). Every safety check below
+// applies to whatever directory is used.
+const DIR = process.env.MIGRATIONS_DIR || "supabase/migrations";
 // FAIL CLOSED, NOT OPEN.
 // A denylist of production refs only stops the project someone remembered to
 // name. `supabase.co` satisfies the "looks like staging" test, so ANY other
@@ -97,8 +101,28 @@ const files = fs.readdirSync(DIR).filter((f) => f.endsWith(".sql")).sort()
   .filter((f) => !(f in EXCLUDED))
   .filter((f) => !FROM || f >= FROM);
 
+// DATABASE EGRESS (S1). This runner only ever targets a non-production database
+// (see assertNotProduction), so every replay is held to the staging rule: the
+// database must not be able to reach the network on its own. A migration that
+// schedules an outbound job, calls pg_net, adds a webhook or a foreign server is
+// applied only through a transform pinned to its exact contents, and refused
+// otherwise -- BEFORE anything connects. Migration files are never edited.
+const prepared = new Map();
+const refused = [];
+for (const f of files) {
+  try { prepared.set(f, prepareForStaging(f, fs.readFileSync(path.join(DIR, f), "utf8"))); }
+  catch (e) { if (e instanceof MigrationEgressError) refused.push(e.message); else throw e; }
+}
+
 console.log(`\n  ${files.length} files to apply${FROM ? `, from ${FROM}` : ""}`);
 for (const [f, why] of Object.entries(EXCLUDED)) console.log(`  excluded: ${f} -- ${why}`);
+for (const [f, p] of prepared) if (p.transformed) console.log(`  transformed for staging: ${f} -- ${p.why}`);
+if (refused.length) {
+  console.error("\n  REFUSING TO RUN: database egress without a reviewed staging transform.");
+  for (const r of refused) console.error(`   ${r}`);
+  console.error("");
+  process.exit(2);
+}
 
 if (DRY) { files.forEach((f) => console.log("   " + f)); process.exit(0); }
 
@@ -118,7 +142,7 @@ catch (e) { console.error(`\n  Could not connect: ${e.code || e.message}\n`); pr
 
 let applied = 0;
 for (const f of files) {
-  const sql = fs.readFileSync(path.join(DIR, f), "utf8");
+  const sql = prepared.get(f).sql;
   const bare = needsNoTransaction(sql);
   process.stdout.write(`   ${f.padEnd(46)}`);
   try {
@@ -126,13 +150,23 @@ for (const f of files) {
       // Split on semicolons at end of line, outside dollar-quoting. These files
       // are plain CREATE INDEX statements, so the simple split is sound.
       const stmts = sql.split(/;\s*$/m).map((s) => s.trim()).filter((s) => s && !/^--/.test(s));
+      const before = await inspectDatabase(client);
       for (const s of stmts) await client.query(s);
+      const added = newEgress(before, await inspectDatabase(client));
+      // No transaction to roll back here; these files are bare CREATE INDEX
+      // statements, so this can only fire if one is something else entirely.
+      if (added.length) throw Object.assign(new Error(`added database egress: ${added.join("; ")}`), { egress: true });
       console.log("ok (no transaction)");
     } else {
+      const before = await inspectDatabase(client);
       await client.query("begin");
       await client.query(sql);
+      // Checked INSIDE the transaction, before commit: a job built at runtime
+      // (EXECUTE format(...)) escapes the static scan but not this. Rolled back.
+      const added = newEgress(before, await inspectDatabase(client, { inTransaction: true }));
+      if (added.length) throw Object.assign(new Error(`added database egress, rolled back: ${added.join("; ")}`), { egress: true });
       await client.query("commit");
-      console.log("ok");
+      console.log(prepared.get(f).transformed ? "ok (staging transform)" : "ok");
     }
     applied++;
   } catch (e) {
@@ -151,5 +185,13 @@ for (const f of files) {
   }
 }
 
+// Final state: nothing may be able to reach the network, transform or not.
+const verdict = evaluate(await inspectDatabase(client));
 await client.end();
-console.log(`\n  ALL ${applied} APPLIED.\n`);
+if (verdict.fail.length) {
+  console.error("\n  APPLIED, BUT THE DATABASE CAN REACH THE NETWORK:");
+  for (const v of verdict.fail) console.error(`   ✗ ${v}`);
+  process.exit(1);
+}
+for (const v of verdict.contained) console.log(`  contained (inactive): ${v}`);
+console.log(`\n  ALL ${applied} APPLIED. Database egress: none.\n`);

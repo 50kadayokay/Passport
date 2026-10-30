@@ -18,6 +18,7 @@
 import pg from "pg";
 import fs from "node:fs";
 import crypto from "node:crypto";
+import { inspectDatabase, evaluate } from "./_db-egress.mjs";
 
 const ALLOWED_REFS = ["jmljfovtfxcdhjmtlnva"];
 const PRODUCTION_REFS = ["rvptronniomlqumjhyrr"];
@@ -377,5 +378,16 @@ if (process.argv.includes("--env") || true) {
   const kept = ["ISOLATION_SUPABASE_URL", "ISOLATION_ANON_KEY"].filter((k) => merged[k]).length;
   console.log(`\n  wrote ${ENV} (${Object.keys(merged).length} vars, ${kept}/2 pre-existing keys preserved)`);
 }
+// DATABASE EGRESS (S1): a seeded staging database must not be able to reach the
+// network on its own -- no active outbound pg_cron job, no HTTP-capable
+// function, no webhook trigger, no foreign server, no recent pg_net traffic.
+// Read-only; refuses to call the seed good otherwise.
+const egress = evaluate(await inspectDatabase(c));
 await c.end();
-console.log("\n  SEEDED.\n");
+for (const v of egress.contained) console.log(`  contained (inactive): ${v}`);
+if (egress.fail.length) {
+  console.error("\n  SEEDED, BUT THE DATABASE CAN REACH THE NETWORK:");
+  for (const v of egress.fail) console.error(`   ✗ ${v}`);
+  process.exit(1);
+}
+console.log("\n  SEEDED. Database egress: none.\n");
