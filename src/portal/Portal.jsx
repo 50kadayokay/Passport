@@ -6,7 +6,7 @@ import {
   ChevronDown, ChevronRight, CheckCircle2, AlertCircle, ArrowRight, Sparkles, Loader2,
   Plus, Trash2, Clock, TrendingUp, FileText, Radio as RadioIcon, Check, ArrowLeft,
   Megaphone, QrCode, HelpCircle, Copy, Download, Eye, Upload, Send, Mail, Bell,
-  Presentation, Brain,
+  Presentation, Brain, PenLine,
 } from "lucide-react";
 import { getUser, signOut, authHeaders, updatePassword, updateEmail } from "../lib/auth.js";
 import { profileUrl, companyLogo, companyMonogram, placardLogo } from "../lib/brand.js";
@@ -19,6 +19,8 @@ import { fetchPlan, fetchFeatures } from "../lib/features.js";
 import { uploadCompanyLogo } from "../lib/storage.js";
 import { visibleProfileSections } from "./profileNav.js";
 import OnboardingPanel from "./OnboardingPanel.jsx";
+const Content = React.lazy(() => import("./Content.jsx"));
+const Updates = React.lazy(() => import("./Updates.jsx"));
 import { MineExLockup, CompanyMark } from "./BrandMarks.jsx";
 
 // Heavy, already-built surfaces are reused wholesale (never duplicated) and lazily
@@ -46,25 +48,19 @@ const Services      = React.lazy(() => import("./Services.jsx"));           // M
 // investor app, and Analytics is switched back on later). They're just hidden from the sidebar.
 const NAV_GROUPS = [
   { title: "Workspace", items: [
+    // Publish / Press Releases / Media collapsed into Content; Messages /
+    // Notifications / Analytics into Updates. Nothing was dropped -- every one
+    // is a tab inside its container, and the old ids still route there (see
+    // LEGACY_SECTION in Portal).
     { id: "home",      label: "Home",            Icon: HomeIcon },
-    { id: "profile",   label: "Company Profile", Icon: Building2 },
-    { id: "publish",   label: "Publish",         Icon: Send },
-    { id: "releases",  label: "Press Releases",  Icon: Megaphone },
-    { id: "media",     label: "Media",           Icon: ImageIcon },
-    { id: "messages",  label: "Messages",        Icon: Mail },
-    { id: "notifications", label: "Notifications", Icon: Bell },
-    { id: "analytics", label: "Analytics",       Icon: BarChart3 },
-    { id: "conference", label: "Conference Mode", Icon: Presentation },
+    { id: "profile",   label: "Profile",         Icon: Building2 },
+    { id: "content",   label: "Content",         Icon: Megaphone },
+    { id: "updates",   label: "Updates",         Icon: Bell },
+    { id: "sharing",   label: "Conference",      Icon: Presentation },
     { id: "mineiq",    label: "Mine IQ",         Icon: Brain },
-    { id: "share",     label: "QR & Share",      Icon: QrCode },
-  ] },
-  { title: "Account", items: [
     { id: "services",  label: "Services",        Icon: Sparkles },
-    { id: "billing",   label: "Billing",         Icon: CreditCard },
-    { id: "settings",  label: "Settings",        Icon: SettingsIcon },
   ] },
 ];
-const NAV = NAV_GROUPS.flatMap((g) => g.items);
 
 // Shared surface: white card on the soft canvas, hairline ring + a whisper of depth.
 // Design-system card: white on white, lifted by a hairline + the layered slate shadow.
@@ -79,8 +75,73 @@ const SectionLoader = () => (
 // Without it the editor re-fetches by slug with the anon key, RLS returns nothing for a
 // draft, and the editor renders empty. The real portal never passes it — there the user's
 // own JWT reads their company normally.
+// Which section the portal is on, remembered across a reload.
+//
+// THE BUG THIS FIXES. `section` was plain useState("home"), so every refresh
+// dropped the reader back on Home from wherever they were -- MineIQ included,
+// which is what made its navigation look broken: you clicked it, it opened, you
+// reloaded, and you were somewhere else. Nothing was wrong with the click or
+// the lazy import; there was simply nothing holding the choice.
+//
+// sessionStorage rather than the URL: the portal has never had routable
+// section URLs, and inventing a hash scheme now would change what every
+// existing link means. Per TAB rather than per browser, so two companies open
+// side by side do not fight over one key, and keyed by company id so switching
+// company cannot restore a section belonging to the previous one.
+const SECTION_KEY = (companyId) => `mineex.portal.section.${companyId || "none"}`;
+
+function readSection(companyId) {
+  try { return sessionStorage.getItem(SECTION_KEY(companyId)) || "home"; }
+  catch { return "home"; }       // private mode or blocked storage
+}
+
 export default function Portal({ company: initial, switchCompany, adminMode = false, injectedProfile = null, devFeatures = null }) {
-  const [section, setSection] = useState("home");
+  const [section, setSectionRaw] = useState(() => readSection(initial && initial.id));
+  // Tabs live HERE, not in the containers, so leaving Content for MineIQ and
+  // coming back returns you to the tab you were on.
+  const [contentTab, setContentTab] = useState("releases");
+  const [contentTakeover, setContentTakeover] = useState(null);
+  const [updatesTab, setUpdatesTab] = useState("messages");
+  const [sharingTab, setSharingTab] = useState("conference");
+  const [settingsTab, setSettingsTab] = useState("general");
+
+  // Publish / Press Releases / Media / Messages / Notifications / Analytics are
+  // no longer sidebar destinations, but internal callers still navigate by those
+  // ids -- Publish.jsx go("releases") and go("media"). Mapping them here keeps
+  // every previously reachable place reachable without touching the callers.
+  const setSection = React.useCallback((id) => {
+    const mapped = {
+      publish:       ["content", "releases"],
+      releases:      ["content", "releases"],
+      media:         ["content", "media"],
+      messages:      ["updates", "messages"],
+      notifications: ["updates", "notifications"],
+      analytics:     ["updates", "analytics"],
+      conference:    ["sharing", "conference"],
+      share:         ["sharing", "qr"],
+      billing:       ["settings", "billing"],
+    }[id];
+    if (mapped) {
+      const [dest, tab] = mapped;
+      setContentTakeover(null);
+      // One setter per destination rather than a content/else branch -- with a
+      // third consolidated section, `else` would have quietly sent Conference
+      // and QR tab ids into the Updates tab state.
+      const setTab = { content: setContentTab, updates: setUpdatesTab, sharing: setSharingTab, settings: setSettingsTab }[dest];
+      if (setTab) setTab(tab);
+      setSectionRaw(dest);
+      return;
+    }
+    if (id !== "content") setContentTakeover(null);
+    setSectionRaw(id);
+  }, []);
+
+  // Persist on every change, including the ones setSection makes above via the
+  // mapped branch -- an effect catches both paths, where writing inside
+  // setSection would have missed its own early return.
+  useEffect(() => {
+    try { sessionStorage.setItem(SECTION_KEY(initial && initial.id), section); } catch { /* ignore */ }
+  }, [section, initial]);
   const [company, setCompany] = useState(initial);
   // Company Profile editor navigation, lifted here so the sidebar's expandable "Company Profile"
   // menu and the editor share one state (the editor is rendered controlled).
@@ -93,6 +154,7 @@ export default function Portal({ company: initial, switchCompany, adminMode = fa
   // Silently 0 when 0049 is not applied -- a badge is not the place to explain
   // a missing migration; the page itself says so.
   const [notifCount, setNotifCount] = useState(0);
+  const [msgCount, setMsgCount] = useState(0);
   useEffect(() => {
     let alive = true;
     if (!initial.id) return undefined;
@@ -103,6 +165,15 @@ export default function Portal({ company: initial, switchCompany, adminMode = fa
         m.companyLastSeenAt(initial.id),
       ]);
       if (alive) setNotifCount(m.companyUnreadCount(rows, seen));
+      // Messages unread, from the SAME source the inbox uses
+      // (conversations.company_read_at vs last_message_at). Counted separately
+      // and never merged -- a conversation and a notification about it are two
+      // different things, and adding them would double-count.
+      try {
+        const mm = await import("../lib/messages.js");
+        const convs = await mm.listConversations(initial.slug);
+        if (alive) setMsgCount((convs || []).filter((c) => mm.isUnread(c)).length);
+      } catch (_) { /* messaging not provisioned -- leave at 0 */ }
     };
     tick();
     const t = setInterval(tick, 60000);
@@ -118,14 +189,18 @@ export default function Portal({ company: initial, switchCompany, adminMode = fa
 
   // Press Releases (CommsCenter) and Profile fill their own full-height scroll area; the other
   // pages (Media included) sit inside the padded content column.
-  const bare = section === "press" || section === "broadcast" || section === "profile";
-
-  const active = NAV.find((n) => n.id === section);
+  // `bare` sections lay themselves out: no mx-auto max-w-6xl, no px-8 py-10.
+  // MineIQ is one because its history sidebar has to meet the portal's own
+  // navigation with nothing between them and run the full height of the
+  // content area. Inside the padded wrapper it could only ever be a card
+  // floating in the middle of the page.
+  const bare = section === "press" || section === "broadcast" || section === "profile"
+            || section === "mineiq";
 
   return (
     <div className="flex min-h-[100dvh] bg-white text-slate-900">
       <Sidebar section={section} setSection={setSection} company={company} switchCompany={switchCompany}
-        profileNav={{ tab: profTab, step: profStep, go: goProfile }} notifCount={notifCount} />
+        profileNav={{ tab: profTab, step: profStep, go: goProfile }} notifCount={notifCount} msgCount={msgCount} />
       <main className="flex h-[100dvh] flex-1 flex-col overflow-hidden">
         {adminMode && (
           <div className="flex shrink-0 items-center justify-between gap-3 bg-indigo-600 px-6 py-2 text-white">
@@ -136,30 +211,33 @@ export default function Portal({ company: initial, switchCompany, adminMode = fa
           </div>
         )}
         {bare ? (
-          <div className="min-h-0 flex-1 overflow-y-auto">
+          <div className={`min-h-0 flex-1 ${section === "mineiq" ? "overflow-hidden" : "overflow-y-auto"}`}>
             <Suspense fallback={<SectionLoader />}>
               {(section === "press" || section === "broadcast") && <CommsCenter company={company} devFeatures={devFeatures} />}
               {section === "profile"   && <Suspense fallback={<SectionLoader />}><ProfileEditor company={company} injectedProfile={injectedProfile} navTab={profTab} navStep={profStep} onNav={(t, s) => { setProfTab(t); setProfStep(s); }} /></Suspense>}
+              {section === "mineiq"    && <MineIQ company={company} go={setSection} />}
             </Suspense>
           </div>
         ) : (
           <div className="min-h-0 flex-1 overflow-y-auto">
             <div className="mx-auto max-w-6xl px-8 py-10">
-              {section === "home"      && <HomeView company={company} />}
+              {section === "home"      && <HomeView company={company} go={setSection}
+                  openContent={(tab, takeover) => { setContentTab(tab); setContentTakeover(takeover || null); setSectionRaw("content"); }}
+                  openUpdates={() => setSectionRaw("updates")}
+                  updatesCount={notifCount + msgCount} />}
+              {section === "content"   && <Suspense fallback={<SectionLoader />}><Content company={company} tab={contentTab} setTab={setContentTab} go={setSection} takeover={contentTakeover} setTakeover={setContentTakeover} /></Suspense>}
+              {section === "updates"   && <Suspense fallback={<SectionLoader />}><Updates company={company} tab={updatesTab} setTab={setUpdatesTab} msgCount={msgCount} notifCount={notifCount} onNotificationsSeen={() => setNotifCount(0)} /></Suspense>}
               {section === "publish"   && <Suspense fallback={<SectionLoader />}><Publish company={company} go={setSection} view="publish" /></Suspense>}
               {section === "releases"  && <Suspense fallback={<SectionLoader />}><Publish company={company} go={setSection} view="releases" /></Suspense>}
               {section === "messages"  && <Suspense fallback={<SectionLoader />}><Messages company={company} /></Suspense>}
               {section === "notifications" && <Suspense fallback={<SectionLoader />}><Notifications company={company} onSeen={() => setNotifCount(0)} /></Suspense>}
-              {section === "conference" && <Suspense fallback={<SectionLoader />}><Conference company={company} /></Suspense>}
-              {section === "mineiq"    && <Suspense fallback={<SectionLoader />}><MineIQ company={company} go={setSection} /></Suspense>}
               {section === "services"  && <Suspense fallback={<SectionLoader />}><Services company={company} /></Suspense>}
               {section === "media"     && <Suspense fallback={<SectionLoader />}><MediaPage company={company} /></Suspense>}
-              {section === "share"     && <QRShareView company={company} />}
+              {section === "sharing"   && <ConferenceShareView company={company} tab={sharingTab} setTab={setSharingTab} />}
               {section === "calendar"  && <CalendarView company={company} setCompany={setCompany} />}
               {section === "analytics" && <Suspense fallback={<SectionLoader />}><Analytics company={company} /></Suspense>}
               {section === "activity"  && <ActivityView company={company} />}
-              {section === "billing"   && <BillingView company={company} />}
-              {section === "settings"  && <SettingsView company={company} go={setSection} goProfile={goProfile} onPublished={() => setCompany((c) => ({ ...c, status: "published" }))} />}
+              {section === "settings"  && <SettingsView company={company} tab={settingsTab} setTab={setSettingsTab} go={setSection} goProfile={goProfile} onPublished={() => setCompany((c) => ({ ...c, status: "published" }))} />}
             </div>
           </div>
         )}
@@ -174,9 +252,29 @@ export default function Portal({ company: initial, switchCompany, adminMode = fa
 // accent, hairline borders, rounded-2xl hit areas, heavy lucide strokes. It previously used
 // a green-black gradient panel with vivid blue gradient tiles — off-system on every count.
 // (The unused `collapsed` icon-rail branch was removed with this rebuild; nothing passed it.)
-function Sidebar({ section, setSection, company, switchCompany, profileNav = null, notifCount = 0 }) {
+function Sidebar({ section, setSection, company, switchCompany, profileNav = null, notifCount = 0, msgCount = 0 }) {
   const navRef = React.useRef(null);
   const activeKey = `${section}:${profileNav ? profileNav.tab : ""}:${profileNav ? profileNav.step : ""}`;
+
+  // Whether the Company Profile sub-tree is folded open. This has to be its
+  // OWN state: it used to be derived purely from `section === "profile"`, so
+  // the chevron offered a collapse that could not happen -- clicking the
+  // parent just re-selected the section it was already on, and the tree stayed
+  // open. You cannot fold the tree by leaving the page, because leaving the
+  // page is not what the user is asking for when they click the chevron.
+  const [profileOpen, setProfileOpen] = React.useState(true);
+
+  // Re-open on ARRIVAL at the profile section, so a tree left collapsed does
+  // not stay collapsed when the user later navigates in from somewhere else
+  // (a homepage card, a sub-page link) and expects to see where they landed.
+  // Keyed on the transition, not on `section` being profile, or it would fight
+  // the toggle above on every render while already there.
+  const wasProfile = React.useRef(section === "profile");
+  React.useEffect(() => {
+    const isNow = section === "profile";
+    if (isNow && !wasProfile.current) setProfileOpen(true);
+    wasProfile.current = isNow;
+  }, [section]);
   React.useEffect(() => {
     const el = navRef.current && navRef.current.querySelector("[data-navactive='1']");
     if (!el) return;
@@ -225,28 +323,36 @@ function Sidebar({ section, setSection, company, switchCompany, profileNav = nul
               {group.items.map(({ id, label, Icon }) => {
                 const isProfile = id === "profile";
                 const on = section === id;
-                const expanded = isProfile && section === "profile" && profileNav;
+                const onProfile = isProfile && section === "profile";
+                const expanded = onProfile && profileNav && profileOpen;
                 // The Company Profile parent shows an OPEN state when expanded but never the
                 // accent pill — that is reserved for the one selected sub-page, so exactly one
-                // item ever reads as active.
+                // item ever reads as active. It keeps that state while COLLAPSED too, keyed on
+                // `onProfile` rather than `expanded`: folding the tree shut does not mean you
+                // left the page, and the current section should not look unselected.
                 const parentStrong = on && !isProfile;
                 return (
                   <div key={id}>
                     <button
-                      onClick={() => setSection(id)}
+                      onClick={() => {
+                        if (onProfile) { setProfileOpen((v) => !v); return; }
+                        if (isProfile) setProfileOpen(true);
+                        setSection(id);
+                      }}
+                      aria-expanded={isProfile ? Boolean(expanded) : undefined}
                       data-navactive={parentStrong ? "1" : undefined}
                       className={`group flex w-full items-center gap-3 rounded-2xl px-3 py-2 text-[13.5px] font-bold tracking-tight transition active:scale-[0.99] ${
                         parentStrong ? "bg-blue-50 text-blue-600"
-                        : expanded ? "text-slate-900"
+                        : onProfile ? "text-slate-900"
                         : "text-slate-600 hover:bg-slate-50"
                       }`}
                     >
                       <Icon size={16.5} strokeWidth={parentStrong ? 2.4 : 2.2}
-                        className={parentStrong ? "text-blue-600" : expanded ? "text-slate-700" : "text-slate-400 group-hover:text-slate-600"} />
+                        className={parentStrong ? "text-blue-600" : onProfile ? "text-slate-700" : "text-slate-400 group-hover:text-slate-600"} />
                       <span className="flex-1 text-left">{label}</span>
-                      {id === "notifications" && notifCount > 0 && (
+                      {id === "updates" && (notifCount + msgCount) > 0 && (
                         <span className="grid h-[18px] min-w-[18px] shrink-0 place-items-center rounded-full bg-blue-600 px-1 text-[10.5px] font-bold text-white">
-                          {notifCount > 99 ? "99+" : notifCount}
+                          {notifCount + msgCount > 99 ? "99+" : notifCount + msgCount}
                         </span>
                       )}
                       {isProfile && (expanded
@@ -306,6 +412,16 @@ function Sidebar({ section, setSection, company, switchCompany, profileNav = nul
            className="flex items-center gap-2 rounded-2xl px-3 py-2 text-[12.5px] font-bold text-slate-600 transition hover:bg-slate-50 active:scale-[0.99]">
           <HelpCircle size={14} strokeWidth={2.4} className="text-slate-400" /> Help &amp; support
         </a>
+        {/* Settings lives down here with the account actions rather than in the
+            nav. It is the only footer entry that is a DESTINATION, so it is the
+            only one that takes the accent when selected. */}
+        <button onClick={() => setSection("settings")}
+          data-navactive={section === "settings" ? "1" : undefined}
+          className={`mt-0.5 flex w-full items-center gap-2 rounded-2xl px-3 py-2 text-[12.5px] font-bold transition active:scale-[0.99] ${
+            section === "settings" ? "bg-blue-50 text-blue-600" : "text-slate-600 hover:bg-slate-50"
+          }`}>
+          <SettingsIcon size={14} strokeWidth={2.4} className={section === "settings" ? "text-blue-600" : "text-slate-400"} /> Settings
+        </button>
         <button onClick={() => signOut()}
           className="mt-0.5 flex w-full items-center gap-2 rounded-2xl px-3 py-2 text-[12.5px] font-bold text-slate-600 transition hover:bg-slate-50 active:scale-[0.99]">
           <LogOut size={14} strokeWidth={2.4} className="text-slate-400" /> Sign out
@@ -337,12 +453,88 @@ function PageTitle({ title, sub }) {
 // What is left is deliberately a landing page, not a dashboard. If it should
 // carry something again -- a genuine at-a-glance summary rather than a repeat of
 // the menu -- that is worth designing on purpose.
-function HomeView({ company }) {
-  const name = company?.name || "your company";
+// Home is a launchpad, not a dashboard. Six verbs, no statistics -- a company
+// arriving here wants to DO something, and the sidebar already lists where
+// everything lives. Duplicating it as a grid of links would just be the sidebar
+// again, larger.
+//
+// Every tile hands off to an existing destination. None of them owns logic.
+function HomeView({ company, go, openContent, openUpdates, updatesCount = 0 }) {
+  const live = profileUrl(company?.slug);
+
+  const actions = [
+    { id: "pr",      Icon: Upload,    title: "Publish Press Release",
+      sub: "Upload a release and put it on your profile.",
+      onClick: () => openContent("releases", "releases") },
+    { id: "media",   Icon: ImageIcon, title: "Publish Media",
+      sub: "Add photos or video investors will see.",
+      onClick: () => openContent("media", "media") },
+    { id: "draft",   Icon: PenLine,   title: "Draft Press Release",
+      sub: "Write one with MineEx, from your own facts.",
+      onClick: () => openContent("releases", "draft") },
+    { id: "mineiq",  Icon: Brain,     title: "Ask MineIQ",
+      sub: "Your company's own knowledge, answered.",
+      onClick: () => go("mineiq") },
+    { id: "live",    Icon: Eye,       title: "View Live Profile",
+      sub: "See exactly what investors see.",
+      href: live || undefined },
+    { id: "updates", Icon: Bell,      title: "Updates",
+      sub: "Messages, notifications and analytics.",
+      badge: updatesCount, onClick: () => openUpdates() },
+  ];
+
   return (
     <div>
-      <h1 className="text-[22px] font-extrabold leading-tight tracking-tight text-slate-900">Home</h1>
-      <p className="mt-1 text-[14px] text-slate-500">Manage {name} on MineEx. Choose a section from the left to begin.</p>
+      <h1 className="text-[27px] font-extrabold leading-tight tracking-tight text-slate-900">What would you like to do?</h1>
+      <p className="mt-1.5 text-[15px] text-slate-500">Manage {company?.name || "your company"}&rsquo;s MineEx presence.</p>
+
+      {/* Built to the SIDEBAR's system, because these launch the same places
+          the sidebar does and there is no reason the same destination should
+          wear a different face on each surface: slate neutrals on white,
+          cobalt as the ONE accent, hairline borders, rounded-2xl hit areas,
+          heavy lucide strokes.
+
+          The cards are no longer forced to 1:1. A square card in this language
+          is mostly empty -- which was the first version of this page, and the
+          first thing that got rejected. Height comes from the content, and the
+          grid equalises each row. */}
+      <div className="mt-6 grid max-w-[980px] grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+        {actions.map(({ id, Icon, title, sub, onClick, href, badge }) => {
+          const inner = (
+            <>
+              {/* One cube colour for all six: the sidebar's active nav state,
+                  blue-50 on blue-600. The portal's system has exactly ONE
+                  accent, so a per-action hue would be six accents competing
+                  with it -- and the colour would carry no meaning anyway,
+                  since the icon already says which action this is.
+
+                  rounded-xl rather than the sidebar's rounded-2xl so it reads
+                  as a block with corners rather than a pill, with an inset
+                  ring a step deeper than the fill for an edge. Hover deepens
+                  the fill; it never changes hue. */}
+              <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-blue-50 text-blue-600 ring-1 ring-inset ring-blue-100 transition group-hover:bg-blue-100">
+                <Icon size={20} strokeWidth={2.2} />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="flex items-center gap-2">
+                  <span className="text-[14px] font-bold tracking-tight text-slate-900">{title}</span>
+                  {badge > 0 && (
+                    <span className="grid h-[18px] min-w-[18px] shrink-0 place-items-center rounded-full bg-blue-600 px-1 text-[10.5px] font-bold text-white">
+                      {badge > 99 ? "99+" : badge}
+                    </span>
+                  )}
+                </span>
+                <span className="mt-0.5 block text-[12.5px] leading-snug text-slate-500">{sub}</span>
+              </span>
+              <ChevronRight size={15} strokeWidth={2.4} className="mt-1 shrink-0 text-slate-300 transition group-hover:text-slate-400" />
+            </>
+          );
+          const cls = "group flex items-start gap-3 rounded-2xl border border-slate-100 bg-white p-4 text-left shadow-[0_1px_2px_rgba(15,23,42,.04)] transition hover:border-slate-200 active:scale-[0.99] motion-reduce:transform-none motion-reduce:transition-none";
+          return href
+            ? <a key={id} href={href} target="_blank" rel="noreferrer" className={cls}>{inner}</a>
+            : <button key={id} onClick={onClick} className={cls}>{inner}</button>;
+        })}
+      </div>
     </div>
   );
 }
@@ -430,7 +622,74 @@ function placardToPng(svgStr, scale = 2) {
   });
 }
 
-function QRShareView({ company }) {
+// Conference & Sharing — one destination, two tabs.
+//
+// WHY THIS IS IN Portal.jsx AND NOT ITS OWN FILE
+// ----------------------------------------------
+// Content.jsx and Updates.jsx are separate files because their children are
+// separate modules. QRShareView is NOT: it is defined below in this file and
+// leans on local helpers (placardToPng, textWidth, CARD_W/CARD_H). Giving this
+// wrapper its own file would mean either exporting QRShareView and importing
+// it back -- a cycle, since Portal would import the wrapper -- or moving the
+// placard and QR generation into a new module. The brief says not to rebuild
+// QR generation, and moving it is a rebuild's worth of risk for a tab bar.
+//
+// IT OWNS NO FEATURE LOGIC. Both children are the existing components with
+// their own headings suppressed; nothing about the booth, the QR destination
+// or the entitlement behaviour is touched here.
+//
+// Tab state is LIFTED to Portal so the tab survives leaving the section, and
+// so the legacy "conference" / "share" ids can select a tab on the way in.
+const SHARING_TABS = [
+  { id: "conference", label: "Conference Mode", Icon: Presentation,
+    sub: "A full-screen booth for your stand. Visitors scan the code and land on your investor profile." },
+  { id: "qr", label: "QR & Share", Icon: QrCode,
+    sub: "Drive investors to your MineEx profile and encourage them to follow your company." },
+];
+
+function ConferenceShareView({ company, tab = "conference", setTab }) {
+  const active = SHARING_TABS.some((t) => t.id === tab) ? tab : "conference";
+  // One heading for the page, but the sub follows the tab -- the two tools do
+  // genuinely different things, and a single blended sentence would describe
+  // neither. This is what the children's own headings used to say.
+  const sub = (SHARING_TABS.find((t) => t.id === active) || SHARING_TABS[0]).sub;
+
+  return (
+    <div>
+      <h1 className="text-[22px] font-extrabold leading-tight tracking-tight text-slate-900">Conference</h1>
+      <p className="mt-1 text-[14px] text-slate-500">{sub}</p>
+
+      <div className="mt-5 flex items-center gap-1 border-b border-slate-100">
+        {SHARING_TABS.map(({ id, label, Icon }) => {
+          const on = id === active;
+          return (
+            <button
+              key={id}
+              onClick={() => setTab(id)}
+              aria-current={on ? "page" : undefined}
+              className={`-mb-px inline-flex items-center gap-2 border-b-2 px-3.5 py-2.5 text-[13.5px] font-bold tracking-tight transition ${
+                on ? "border-blue-600 text-blue-600"
+                   : "border-transparent text-slate-500 hover:text-slate-900"
+              }`}
+            >
+              <Icon size={15.5} strokeWidth={on ? 2.4 : 2.2} />
+              {label}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* The inactive tab is not mounted, matching Content and Updates. */}
+      <div className="mt-6">
+        {active === "conference"
+          ? <Suspense fallback={<SectionLoader />}><Conference company={company} hideHeading /></Suspense>
+          : <QRShareView company={company} hideHeading />}
+      </div>
+    </div>
+  );
+}
+
+function QRShareView({ company, hideHeading = false }) {
   const slug = company?.slug || "";
   // Derived from THIS company's slug against the canonical origin — never the current
   // window's origin, so a placard generated from a preview deploy or localhost still
@@ -445,10 +704,6 @@ function QRShareView({ company }) {
   const [logoSrc, setLogoSrc] = useState(() => placardLogo(company));
   const [logoBusy, setLogoBusy] = useState("");
   useEffect(() => { setLogoSrc(placardLogo(company)); }, [company]);
-
-  // A QR for an unpublished company resolves to "Profile not available" when scanned. Say
-  // so plainly rather than handing someone a code to print that cannot work yet.
-  const isLive = company?.status === "published";
 
   const pickLogo = async (file) => {
     if (!file) return;
@@ -514,7 +769,7 @@ function QRShareView({ company }) {
   if (!slug) {
     return (
       <div>
-        <PageTitle title="QR & Share" sub="Drive investors to your MineEx profile." />
+        {!hideHeading && <PageTitle title="QR & Share" sub="Drive investors to your MineEx profile." />}
         <div className={`p-6 ${CARD}`}><p className="text-[14px] text-slate-500">Your company needs a public profile URL before a QR code can be generated.</p></div>
       </div>
     );
@@ -522,20 +777,7 @@ function QRShareView({ company }) {
 
   return (
     <div>
-      <PageTitle title="QR & Share" sub="Drive investors to your MineEx profile and encourage them to follow your company." />
-
-      {!isLive && (
-        <div className="mb-5 flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4">
-          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-amber-100 text-amber-600"><AlertCircle size={19} strokeWidth={2.4} /></span>
-          <div>
-            <p className="text-[14.5px] font-bold text-amber-900">This code won't work yet</p>
-            <p className="text-[13px] leading-relaxed text-amber-700">
-              Your profile isn't live, so anyone scanning this sees "Profile not available". Publish from
-              Home and the same code starts working — the link never changes, so it's safe to print ahead of time.
-            </p>
-          </div>
-        </div>
-      )}
+      {!hideHeading && <PageTitle title="QR & Share" sub="Drive investors to your MineEx profile and encourage them to follow your company." />}
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-[340px_1fr]">
         {/* Placard preview */}
@@ -752,7 +994,7 @@ function ActivityView({ company }) {
 
 /* ---------------------------------------------------------------- Billing */
 
-function BillingView({ company }) {
+function BillingView({ company, hideHeading = false }) {
   const [plan, setPlan] = useState(undefined); // undefined = loading
   const [feats, setFeats] = useState(null);
   useEffect(() => {
@@ -800,7 +1042,7 @@ function BillingView({ company }) {
 
   return (
     <div>
-      <PageTitle title="Billing" sub="Your MineEx subscription and what it includes." />
+      {!hideHeading && <PageTitle title="Billing" sub="Your MineEx subscription and what it includes." />}
 
       <div className={`p-6 ${CARD}`}>
         {plan === undefined ? (
@@ -888,7 +1130,7 @@ const FEATURE_LABEL = {
 
 /* ---------------------------------------------------------------- Settings */
 
-function SettingsView({ company, go, goProfile, onPublished }) {
+function SettingsView({ company, tab = "general", setTab, go, goProfile, onPublished }) {
   // Readiness moved off Home. A missing owner or absent entitlement is a
   // CONFIGURATION problem, so it belongs with the configuration -- not as a
   // permanent yellow band above the controls someone came here to use. The
@@ -900,9 +1142,36 @@ function SettingsView({ company, go, goProfile, onPublished }) {
     return () => { alive = false; };
   }, [company.id]);
 
+  const active = tab === "billing" ? "billing" : "general";
+  const TABS = [{ id: "general", label: "General", Icon: SettingsIcon },
+                { id: "billing", label: "Billing", Icon: CreditCard }];
+
   return (
     <div>
       <PageTitle title="Settings" />
+
+      {/* Same tab language as Content, Updates and Conference. Billing used to
+          be its own sidebar entry; it is one panel of account configuration,
+          so it belongs here rather than competing for a top-level slot. */}
+      <div className="-mt-3 mb-6 flex items-center gap-1 border-b border-slate-100">
+        {TABS.map(({ id, label, Icon }) => {
+          const on = id === active;
+          return (
+            <button key={id} onClick={() => setTab && setTab(id)}
+              aria-current={on ? "page" : undefined}
+              className={`-mb-px inline-flex items-center gap-2 border-b-2 px-3.5 py-2.5 text-[13.5px] font-bold tracking-tight transition ${
+                on ? "border-blue-600 text-blue-600" : "border-transparent text-slate-500 hover:text-slate-900"
+              }`}>
+              <Icon size={15.5} strokeWidth={on ? 2.4 : 2.2} />
+              {label}
+            </button>
+          );
+        })}
+      </div>
+
+      {active === "billing" && <BillingView company={company} hideHeading />}
+
+      {active === "general" && (<>
 
       {ready && !ready.ready && (
         <div className="mb-5 flex items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4">
@@ -943,6 +1212,7 @@ function SettingsView({ company, go, goProfile, onPublished }) {
           cta="Update password"
           onSubmit={async (v) => { if ((v.password || "").length < 8) throw new Error("Use at least 8 characters."); await updatePassword(v.password); return "Password updated."; }} />
       </div>
+      </>)}
     </div>
   );
 }

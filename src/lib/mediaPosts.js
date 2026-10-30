@@ -10,9 +10,17 @@
 
 import { SUPABASE_URL } from "./supabase.js";
 import { authHeaders } from "./auth.js";
+import { isPortalDemo } from "./demoMode.js";
+import { guardDemoWrite } from "./demoMode.js";
 
 /** Every media post for a company, newest first. */
 export async function listMediaPosts(companyId) {
+  // DEMO HARNESS ONLY. import.meta.env.DEV is a literal false in a production
+  // build and must LEAD the condition: Rollup cannot see through isPortalDemo()
+  // on its own, and with the call first the fixtures ship as a real chunk.
+  if (import.meta.env && import.meta.env.DEV && isPortalDemo()) {
+    return (await import("../portal/__fixtures/updatesDemo.js")).MEDIA_POSTS;
+  }
   if (!companyId) return [];
   try {
     const h = await authHeaders();
@@ -41,6 +49,9 @@ function shape(row) {
   const url = content.media_url || "";
   return {
     id: row.id,
+    // The publication, not the update: /api/unpublish takes a publication id,
+    // and without this the detail view has nothing to act on.
+    publicationId: (pub && pub.id) || null,
     caption: (content.headline || row.body || "").trim(),
     mediaUrl: url,
     thumbnailUrl: content.thumbnail_url || "",
@@ -65,6 +76,7 @@ function shape(row) {
  * upload itself.
  */
 export async function publishMediaPost({ companyId, file, caption = "", posterFile = null, onStage = () => {} }) {
+  guardDemoWrite("Posting media");
   if (!companyId) throw new Error("No company.");
   if (!file) throw new Error("Choose a photo or video first.");
 

@@ -6,22 +6,27 @@
 // shows ONLY the fields for the page currently in the phone, and switching either side switches
 // the other. Tapping any widget in the phone jumps the editor to that exact field.
 import React, { useState, useEffect, useRef, useMemo } from "react";
+import DevicePhone from "./DevicePhone.jsx";
 import { ArrowLeft, ArrowRight, Check } from "lucide-react";
 import { SUPABASE_URL } from "../lib/supabase.js";
 import { authHeaders } from "../lib/auth.js";
 import { uploadCompanyMedia } from "../lib/storage.js";
 import { buildCompanyIdentity } from "../aiBrief/proHighlights.js";
 import { buildCanonicalProfile } from "../lib/ppToProfile.js";
+import { isPortalDemo } from "../lib/demoMode.js";
+import { withDemoReleases } from "../lib/demoPublish.js";
+import { mapProfileToPP } from "../lib/profileToPP.js";
 
 // Renders the REAL app profile from a `pp` object. Cards portal into `popupEl` (a panel to the
 // RIGHT of the phone). Tab is CONTROLLED by the parent so the editor and the phone stay in sync.
 function AppPreview({ pp, popupEl, tab, onTab, tier }) {
   const [mod, setMod] = useState(null);
   const [ver, setVer] = useState(0);
+  const navRef = useRef(null);
   useEffect(() => {
     let ok = true;
     import("../aiBrief/PassportProto.jsx")
-      .then((m) => { if (ok) { if (m.setPpPreviewLive) m.setPpPreviewLive(true); setMod({ Profile: m.CompanyProfile, applyPP: m.applyPP, setPpFrame: m.setPpFrame }); } })
+      .then((m) => { if (ok) { if (m.setPpPreviewLive) m.setPpPreviewLive(true); setMod({ Profile: m.CompanyProfile, applyPP: m.applyPP, setPpFrame: m.setPpFrame, StatusBar: m.StatusBar, BottomNav: m.BottomNav }); } })
       .catch(() => {});
     return () => { ok = false; };
   }, []);
@@ -33,15 +38,58 @@ function AppPreview({ pp, popupEl, tab, onTab, tier }) {
     mod.setPpFrame(popupEl || null);
     return () => mod.setPpFrame(null);
   }, [mod, popupEl]);
+  // `inert` takes the nav out of the tab order and the hit-testing entirely.
+  // pointer-events alone does NOT stop keyboard focus -- the five buttons would
+  // still be tabbable and Enter would fire their handlers.
+  useEffect(() => { const el = navRef.current; if (el) { try { el.inert = true; } catch (_) {} } }, [mod, ver]);
+
   if (!mod) return <div style={{ height: "100%", display: "grid", placeItems: "center", color: "#94a3b8", fontSize: 13, fontWeight: 600 }}>Loading preview…</div>;
-  const P = mod.Profile;
+  const P = mod.Profile, StatusBar = mod.StatusBar, BottomNav = mod.BottomNav;
+
   // Remount on each change so EVERY widget reflects the edit; the preview-live flag skips the
   // intro, and this scoped CSS disables the app's mount animations (pp-view/pp-fade/…) so the
   // remount is seamless — no washed-out re-animation, no reload feel, text updates live.
+  //
+  // The chrome: the SAME StatusBar and BottomNav the investor app uses, taken from the same
+  // module instance the profile itself comes from — not a lookalike, and not a second copy of
+  // anything. Laid out the way the real shell lays them out (App.jsx): status bar in flow at
+  // the top, profile filling the rest, nav absolutely pinned to the bottom over it.
+  //
+  // THE NAV IS DELIBERATELY DEAD. Three independent reasons it cannot navigate:
+  //   1. `setNav` is a no-op, so even a synthetic click runs nothing.
+  //   2. `inert` removes it from hit-testing AND the tab order.
+  //   3. pointer-events: none, so a press never reaches the buttons and the
+  //      active:scale-90 feedback never fires — it does not even feel tappable.
+  // `nav={null}` is what the real app passes while you are inside a company
+  // profile, so no icon reads as the current tab. That is why none is highlighted.
   return (
-    <div className="pp-editor-preview" style={{ position: "relative", width: "100%", height: "100%", overflow: "hidden" }}>
-      <style>{`.pp-editor-preview .pp-view,.pp-editor-preview .pp-fade,.pp-editor-preview .pp-slide-up,.pp-editor-preview .pp-pop,.pp-editor-preview .pp-wordfade,.pp-editor-preview .pp-glow,.pp-editor-preview .pp-breathe{animation:none!important;opacity:1!important}`}</style>
-      <P key={ver} tab={tab} onTabChange={(t) => onTab && onTab(t)} onBack={() => {}} onScan={() => {}} />
+    <div className="pp-editor-preview" style={{ position: "relative", width: "100%", height: "100%", overflow: "hidden", display: "flex", flexDirection: "column", background: "#fff" }}>
+      <style>{`.pp-editor-preview .pp-bottomnav{position:static!important}.pp-editor-preview .pp-view,.pp-editor-preview .pp-fade,.pp-editor-preview .pp-slide-up,.pp-editor-preview .pp-pop,.pp-editor-preview .pp-wordfade,.pp-editor-preview .pp-glow,.pp-editor-preview .pp-breathe{animation:none!important;opacity:1!important}`}</style>
+      {StatusBar && <div data-preview-chrome="1" style={{ flexShrink: 0 }}><StatusBar /></div>}
+      <div style={{ flex: 1, minHeight: 0, position: "relative" }}>
+        <P key={ver} tab={tab} onTabChange={(t) => onTab && onTab(t)} onBack={() => {}} onScan={() => {}} />
+      </div>
+      {BottomNav && (
+        // The outer layer ABSORBS the click; the inner layer is inert.
+        //
+        // pointer-events:none alone was wrong: a press on the nav fell THROUGH
+        // to the profile content behind it, and the editor's own click-to-edit
+        // then routed somewhere arbitrary -- tapping the dead nav jumped the
+        // editor to another section. So the wrapper is hit-testable and
+        // swallows the event before handlePreviewClick (which is a capture
+        // listener further up) ever sees it.
+        <div
+          aria-hidden="true"
+          data-preview-chrome="1"
+          onClickCapture={(e) => { e.preventDefault(); e.stopPropagation(); }}
+          onPointerDownCapture={(e) => { e.preventDefault(); e.stopPropagation(); }}
+          style={{ position: "absolute", left: 0, right: 0, bottom: 0, zIndex: 40, cursor: "default" }}
+        >
+          <div ref={navRef}>
+            <BottomNav nav={null} setNav={() => {}} />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -561,13 +609,43 @@ export default function ProfileEditor({ company, injectedProfile, navTab, navSte
     // would otherwise come straight back through this handler as if the USER had tapped the
     // phone, and route the editor somewhere else entirely.
     if (syntheticClickRef.current) return;
+    // The iOS chrome is scenery, not company content. Without this, tapping the
+    // dead bottom nav routed the editor to whatever the resolver made of it.
+    if (e.target && e.target.closest && e.target.closest("[data-preview-chrome]")) return;
     const tgt = resolvePreviewTarget(e.target);
     if (tgt.projectKey) { setActiveProj(tgt.projectKey); setOpenSec("images"); }
     setTimeout(() => jump(tgt.tab, tgt.field, tgt.selector), 0);
   };
 
   useEffect(() => {
-    if (injectedProfile) { const prof = injectedProfile || {}; setProfile(prof); setPp(prof.pp || {}); setDebPp(prof.pp || {}); setTier(String((company && company.tier) || prof.tier || "").toLowerCase()); return; }
+    if (injectedProfile) {
+      let prof = injectedProfile || {};
+      // DEMO: fold in anything published from the demo, then RECOMPILE the pp
+      // rather than using the stored one.
+      //
+      // Recompiling is the point. The stored pp was produced before the V2 key
+      // results and takeaway were carried through mapTimeline, so a stored pp
+      // renders old releases with the canned takeaway no matter what the
+      // profile says. Compiling here means the preview shows what the fixed
+      // pipeline produces -- for the release just published AND for every
+      // historical one.
+      let compiled = prof.pp || {};
+      if (isPortalDemo()) {
+        try {
+          prof = withDemoReleases(prof, company?.id);
+          compiled = mapProfileToPP(prof);
+        } catch (e) {
+          // Never block the editor on a preview -- but never swallow it either.
+          // A silent fallback here looks exactly like "the release did not
+          // publish", which cost real time to track down.
+          compiled = prof.pp || {};
+          if (import.meta.env.DEV) console.warn("[demo] preview recompile failed:", e);
+        }
+      }
+      setProfile(prof); setPp(compiled); setDebPp(compiled);
+      setTier(String((company && company.tier) || prof.tier || "").toLowerCase());
+      return;
+    }
     if (!slug) return;
     let ok = true;
     (async () => {
@@ -1313,6 +1391,32 @@ export default function ProfileEditor({ company, injectedProfile, navTab, navSte
       </nav>
       )}
 
+      {/* LEFT — the live preview, in the same photoreal titanium iPhone the
+          sales page uses. The phone and the editor both hold their position
+          while you interact with the preview: the card the app portals out of
+          itself now overlays the screen instead of sliding a panel in beside
+          it, so nothing reflows mid-edit.
+
+          Everything behind the glass is unchanged -- the same AppPreview, the
+          same previewRef, the same click-to-edit routing and the same pp
+          bindings. Only the frame around it is new. */}
+      {showPreview && (
+        <div style={{ flexShrink: 0, width: "clamp(340px, 40%, 620px)", borderRight: "1px solid #eef2f7", background: "#f6f8fb",
+          // Spacing gives way before the device does. At 1024 the fixed 20/18 padding
+          // was costing the phone 36px of the little width it had, so the gutters scale
+          // with the viewport and the device keeps as much of the column as possible.
+          // The app viewport behind the glass stays 393x852 regardless -- only the
+          // scale factor changes, so the investor app never reflows to a width no
+          // phone actually has.
+          padding: "clamp(12px, 1.4vw, 22px) clamp(10px, 1.2vw, 20px)", minWidth: 0 }}>
+          <DevicePhone screenRef={previewRef} onClickCapture={handlePreviewClick}
+            overlay={<div ref={setPopupEl} style={{ position: "absolute", inset: 0, pointerEvents: popupActive ? "auto" : "none" }} />}>
+            <AppPreview pp={debPp} popupEl={popupEl} tab={activeTab} tier={tier}
+              onTab={(t) => { lastTabRef.current = t; setNav(PROFILE_TO_EDITOR[t] || "overview", 0); }} />
+          </DevicePhone>
+        </div>
+      )}
+
       {/* CENTER — the editor form (primary focus) */}
       <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", minHeight: 0 }}>
         {/* header: breadcrumb + heading + Save / Hide preview */}
@@ -1358,23 +1462,6 @@ export default function ProfileEditor({ company, injectedProfile, navTab, navSte
         </div>
       </div>
 
-      {/* RIGHT — live phone preview (sticky column). Kept verbatim: same AppPreview, popupEl,
-          click-to-edit routing and data bindings — only its placement changed. */}
-      {showPreview && (
-        <div style={{ flexShrink: 0, borderLeft: "1px solid #eef2f7", background: "#f6f8fb", padding: "24px 20px", display: "flex", alignItems: "flex-start", justifyContent: "center", gap: 16, overflow: "hidden" }}>
-          <div ref={previewRef} onClickCapture={handlePreviewClick} style={{ width: 372, height: 806, maxHeight: "calc(100vh - 48px)", aspectRatio: "393 / 852", background: "#fff", borderRadius: 42,
-            overflow: "hidden", border: "1px solid #e9eef5", boxShadow: "0 40px 90px -30px rgba(15,23,42,0.4)", transform: "translateZ(0)", flexShrink: 0 }}>
-            <AppPreview pp={debPp} popupEl={popupEl} tab={activeTab} tier={tier}
-              onTab={(t) => { lastTabRef.current = t; setNav(PROFILE_TO_EDITOR[t] || "overview", 0); }} />
-          </div>
-          <div style={{ width: popupActive ? 360 : 0, height: 806, maxHeight: "calc(100vh - 48px)", flexShrink: 0, overflow: "hidden", transition: "width .32s cubic-bezier(0.16,1,0.3,1)" }}>
-            <div onClickCapture={handlePreviewClick} style={{ position: "relative", width: 360, height: "100%", borderRadius: 30, overflow: "hidden",
-              border: popupActive ? "1px solid #e9eef5" : "none", background: popupActive ? "#fff" : "transparent", boxShadow: popupActive ? "0 40px 90px -30px rgba(15,23,42,0.35)" : "none" }}>
-              <div ref={setPopupEl} style={{ position: "absolute", inset: 0 }} />
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

@@ -8,13 +8,14 @@
 // to do and expects to be seen; views and reads are passive and stay aggregate
 // on Analytics. That line is set in migration 0049, which explains itself.
 
-import React, { useState, useEffect, useCallback, useMemo } from "react";
-import { Bell, UserPlus, Heart, AlertCircle, Loader2, RefreshCw } from "lucide-react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { Bell, UserPlus, Heart, AlertCircle, Loader2, RefreshCw, CheckCheck, X } from "lucide-react";
 import {
   listCompanyNotifications as listNotifications,
   companyLastSeenAt as lastSeenAt,
   markCompanyNotificationsSeen as markNotificationsSeen,
   companyUnreadCount as unreadCount,
+  clearCompanyNotifications as clearNotifications,
 } from "../lib/companyNotifications.js";
 
 const CARD = "rounded-2xl border border-slate-100 bg-white shadow-[0_1px_2px_rgba(15,23,42,.04),0_12px_26px_-20px_rgba(15,23,42,.4)]";
@@ -74,6 +75,15 @@ export default function Notifications({ company, onSeen }) {
   const [seen, setSeen] = useState(null);
   const [freshBefore, setFreshBefore] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [cleared, setCleared] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  // `onSeen` arrives as an inline arrow from Portal, so its identity changes on
+  // every parent render. Holding it in a ref keeps it OUT of load()'s deps --
+  // with it in there, load() was rebuilt each render, the effect below re-ran,
+  // and the re-fetch overwrote local state. That is what made "Clear all" look
+  // like it did nothing: the list was cleared and immediately re-loaded.
+  const onSeenRef = useRef(onSeen);
+  useEffect(() => { onSeenRef.current = onSeen; });
 
   const load = useCallback(async () => {
     if (!companyId) return;
@@ -85,30 +95,98 @@ export default function Notifications({ company, onSeen }) {
     setFreshBefore((prev) => (prev === null ? at : prev));
     if (rows && rows.length) {
       const now = await markNotificationsSeen(companyId);
-      if (now) { setSeen(now); onSeen && onSeen(); }
+      if (now) { setSeen(now); onSeenRef.current && onSeenRef.current(); }
     }
-  }, [companyId, onSeen]);
+  }, [companyId]);
 
   useEffect(() => { load(); }, [load]);
 
   const refresh = async () => { setBusy(true); await load(); setBusy(false); };
 
+  // Clear all EMPTIES THE PAGE. It does not delete a follow or a like -- those
+  // are the investor's acts and this list is only a view of them, so 0064
+  // records a cleared_at per company and the feed hides everything up to it.
+  // Anything new afterwards reappears: clearing is not muting.
+  //
+  // Degrades honestly. Without 0064 the RPC is absent, so we fall back to
+  // dismissing the unread state, which is what the button did before.
+  const clearAll = async () => {
+    setConfirming(false);
+    setBusy(true);
+    const at = await clearNotifications(companyId);
+    if (at) {
+      setItems([]);
+      setCleared(true);
+    } else {
+      const now = (await markNotificationsSeen(companyId)) || new Date().toISOString();
+      setSeen(now);
+      setFreshBefore(now);
+    }
+    onSeenRef.current && onSeenRef.current();
+    setBusy(false);
+  };
+
   const newCount = useMemo(() => unreadCount(items, freshBefore), [items, freshBefore]);
   const isFresh = (it) => !freshBefore || (it.at && new Date(it.at).getTime() > new Date(freshBefore).getTime());
 
+  const confirmDialog = confirming ? (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-slate-900/30 p-4" onClick={() => setConfirming(false)}>
+      <div onClick={(e) => e.stopPropagation()} className={`w-full max-w-[400px] bg-white p-5 ${CARD}`}>
+        <div className="flex items-start justify-between gap-3">
+          <p className="text-[15px] font-extrabold tracking-tight text-slate-900">Clear all notifications?</p>
+          <button onClick={() => setConfirming(false)} aria-label="Cancel"
+            className="grid h-7 w-7 shrink-0 place-items-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700">
+            <X size={15} />
+          </button>
+        </div>
+        {/* Says what is NOT affected, because that is the part someone pauses
+            over: clearing a page that lists other people's actions sounds like
+            it might undo them. */}
+        <p className="mt-2 text-[13px] leading-relaxed text-slate-500">
+          This empties the page for your company. Follows and likes themselves are not affected &mdash;
+          investors stay following you. Anything new will appear here.
+        </p>
+        <div className="mt-4 flex justify-end gap-2">
+          <button onClick={() => setConfirming(false)}
+            className="rounded-xl px-3.5 py-2 text-[13px] font-bold text-slate-500 transition hover:bg-slate-100 hover:text-slate-700">
+            Cancel
+          </button>
+          <button onClick={clearAll}
+            className="inline-flex items-center gap-1.5 rounded-xl bg-slate-900 px-4 py-2 text-[13px] font-bold text-white transition hover:bg-slate-800">
+            <CheckCheck size={14} /> Clear all
+          </button>
+        </div>
+      </div>
+    </div>
+  ) : null;
+
   return (
     <div>
+      {confirmDialog}
       <div className="flex items-baseline justify-between gap-4">
         <div>
           <h1 className="text-[22px] font-extrabold leading-tight tracking-tight text-slate-900">Notifications</h1>
           <p className="mt-1 text-[14px] text-slate-500">
-            {newCount > 0 ? `${newCount} new since you last looked.` : "Follows and likes from investors."}
+            {newCount > 0 ? `${newCount} new since you last looked.`
+              : cleared ? "Cleared. New follows and likes will appear here."
+              : "Follows and likes from investors."}
           </p>
         </div>
-        <button onClick={refresh}
-          className="inline-flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[12.5px] font-semibold text-slate-500 transition hover:bg-slate-100 hover:text-slate-700">
-          <RefreshCw size={13} className={busy ? "animate-spin" : ""} /> Refresh
-        </button>
+        <div className="flex shrink-0 items-center gap-1">
+          {/* Only offered when there is something to clear -- a permanently
+              visible control that does nothing most of the time trains people
+              to ignore it. */}
+          {items && items.length > 0 && (
+            <button onClick={() => setConfirming(true)} disabled={busy}
+              className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[12.5px] font-semibold text-blue-600 transition hover:bg-blue-50 disabled:opacity-50">
+              <CheckCheck size={14} /> Clear all
+            </button>
+          )}
+          <button onClick={refresh}
+            className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[12.5px] font-semibold text-slate-500 transition hover:bg-slate-100 hover:text-slate-700">
+            <RefreshCw size={13} className={busy ? "animate-spin" : ""} /> Refresh
+          </button>
+        </div>
       </div>
 
       {items === undefined && (

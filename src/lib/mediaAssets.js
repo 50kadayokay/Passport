@@ -21,6 +21,7 @@
 import { SUPABASE_URL } from "./supabase.js";
 import { writeHeaders } from "./auth.js";
 import { annotateAssets } from "./imageSupport.js";
+import { isPortalDemo } from "./demoMode.js";
 
 const BUCKET = "company-media-private";
 const MAX_BYTES = 25 * 1024 * 1024;
@@ -239,6 +240,13 @@ export async function removeMediaSource(sourceId) {
  */
 export async function signedMediaUrl(storagePath, { expiresIn = 3600 } = {}) {
   if (!storagePath) return "";
+  // Demo assets are public files in /public, not storage objects: there is no
+  // bucket to sign against. Production never reads `demo_url`.
+  if (import.meta.env && import.meta.env.DEV && isPortalDemo()) {
+    const { RELEASE_ASSETS } = await import("../portal/__fixtures/updatesDemo.js");
+    const hit = RELEASE_ASSETS.find((a) => a.storage_path === storagePath);
+    return (hit && hit.demo_url) || "";
+  }
   try {
     const h = await writeHeaders();
     const clean = String(storagePath).replace(new RegExp(`^${BUCKET}/`), "");
@@ -255,6 +263,13 @@ export async function signedMediaUrl(storagePath, { expiresIn = 3600 } = {}) {
 
 /** Every asset for a company — the data behind a future Media Library. */
 export async function listMediaAssets(companyId, { sourceDocumentId = null } = {}) {
+  // DEMO HARNESS ONLY -- see publishDrafts.js for why the DEV check leads.
+  if (import.meta.env && import.meta.env.DEV && isPortalDemo()) {
+    const { RELEASE_ASSETS } = await import("../portal/__fixtures/updatesDemo.js");
+    return sourceDocumentId
+      ? RELEASE_ASSETS.filter((a) => a.source_document_id === sourceDocumentId)
+      : RELEASE_ASSETS;
+  }
   if (!companyId) return [];
   try {
     const h = await writeHeaders();

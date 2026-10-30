@@ -14,19 +14,34 @@
 // does not own returns no rows; it is not a permission check we perform here.
 
 import { SUPABASE_URL } from "./supabase.js";
-import { authHeaders } from "./auth.js";
+import { isPortalDemo } from "./demoMode.js";
+import { authHeaders, getUser } from "./auth.js";
 
 const REST = `${SUPABASE_URL}/rest/v1`;
 
 /** Threads for one company, most recently active first. */
-export async function listConversations(companySlug) {
+// Demo harness: /portaldemo has no company UUID, so the real queries below
+// cannot resolve and every page shows its "not switched on yet" state --
+// correct, but it leaves the finished design invisible. These branches serve
+// synthetic fixtures instead. import.meta.env.DEV is a literal false in a
+// production build. It must be the LEADING term of the condition: Rollup cannot
+// see through the isPortalDemo() call on its own, and with the call first the
+// branch survives and the fixtures ship as a real chunk. Verified by grepping
+// dist/ for a fixture string after building.
+export async function listConversations(companySlug, companyId = null) {
   if (!companySlug) return [];
+  if (import.meta.env && import.meta.env.DEV && isPortalDemo()) return (await import("../portal/__fixtures/updatesDemo.js")).CONVERSATIONS;
   try {
     const h = await authHeaders();
     const res = await fetch(
       `${REST}/conversations` +
-        `?company_slug=eq.${encodeURIComponent(companySlug)}` +
-        `&select=id,investor_id,company_slug,company_name,created_at,last_message_at,company_read_at` +
+        // BOTH DIRECTIONS. A thread this company STARTED (0063) carries the
+        // RECIPIENT's slug in company_slug, so filtering on company_slug alone
+        // would show the inbox and silently hide everything the company sent.
+        (companyId
+          ? `?or=(company_slug.eq.${encodeURIComponent(companySlug)},sender_company_id.eq.${encodeURIComponent(companyId)})`
+          : `?company_slug=eq.${encodeURIComponent(companySlug)}`) +
+        `&select=id,investor_id,company_slug,company_name,created_at,last_message_at,company_read_at,sender_company_id` +
         `&order=last_message_at.desc&limit=200`,
       { headers: h }
     );
@@ -41,6 +56,7 @@ export async function listConversations(companySlug) {
 /** Every message in one thread, oldest first (reading order). */
 export async function listMessages(conversationId) {
   if (!conversationId) return [];
+  if (import.meta.env && import.meta.env.DEV && isPortalDemo()) return (await import("../portal/__fixtures/updatesDemo.js")).MESSAGES[conversationId] || [];
   try {
     const h = await authHeaders();
     const res = await fetch(
@@ -67,6 +83,7 @@ export async function listMessages(conversationId) {
  * previews for its most recent threads, which are the ones on screen.
  */
 export async function latestByConversation(conversationIds) {
+  if (import.meta.env && import.meta.env.DEV && isPortalDemo()) return (await import("../portal/__fixtures/updatesDemo.js")).LATEST_BY_CONVERSATION;
   const ids = (conversationIds || []).filter(Boolean);
   if (!ids.length) return {};
   try {
@@ -150,6 +167,7 @@ export async function markConversationRead(conversationId) {
  * which is the cheapest honest signal available without a schema read.
  */
 export async function messagingReady() {
+  if (import.meta.env && import.meta.env.DEV && isPortalDemo()) return true;
   try {
     const h = await authHeaders();
     const res = await fetch(`${REST}/conversations?select=company_read_at&limit=1`, { headers: h });
@@ -170,6 +188,7 @@ export async function messagingReady() {
  */
 export async function conversationSenders(companySlug) {
   if (!companySlug) return {};
+  if (import.meta.env && import.meta.env.DEV && isPortalDemo()) return (await import("../portal/__fixtures/updatesDemo.js")).SENDERS;
   try {
     const h = await authHeaders();
     const res = await fetch(`${REST}/rpc/company_conversation_senders`, {
@@ -208,4 +227,93 @@ export function isUnread(conv) {
   if (!conv || !conv.last_message_at) return false;
   if (!conv.company_read_at) return true;
   return new Date(conv.last_message_at).getTime() > new Date(conv.company_read_at).getTime();
+}
+
+
+/* ── company-initiated threads (0063) ──────────────────────────────────────*/
+
+/**
+ * Live company search for the portal's compose flow.
+ *
+ * A LIVE QUERY, not a preloaded directory. The investor app ships all 1421
+ * published companies to the client at boot; the portal has no such list and
+ * should not grow one to power a search box. `ilike` against name and ticker,
+ * capped, is both smaller and always current.
+ */
+export async function searchCompanies(q, { excludeSlug = "", limit = 20 } = {}) {
+  const term = String(q || "").trim();
+  if (term.length < 2) return [];
+  // NO DEMO BRANCH, deliberately. The other Updates functions serve fixtures in
+  // /portaldemo because they need a company UUID the harness does not have. This
+  // one does not: `companies` is readable with the publishable key for published
+  // rows, so the demo searches the REAL 1421 companies. A five-row fixture made
+  // almost every search return nothing, which looked exactly like a broken
+  // feature -- and for a search box, a stub IS a broken feature.
+  try {
+    const h = await authHeaders();
+    const pat = `*${term.replace(/[*,()]/g, "")}*`;
+    const res = await fetch(
+      `${REST}/companies` +
+        `?status=eq.published` +
+        `&or=(name.ilike.${encodeURIComponent(pat)},primary_ticker.ilike.${encodeURIComponent(pat)})` +
+        `&select=id,slug,name,primary_ticker&order=name&limit=${limit}`,
+      { headers: h }
+    );
+    if (!res.ok) return [];
+    const rows = await res.json().catch(() => []);
+    const list = Array.isArray(rows) ? rows : [];
+    return excludeSlug ? list.filter((c) => c.slug !== excludeSlug) : list;
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Open (or reuse) a thread this company is starting, and post the first message.
+ *
+ * `investor_id` is the ACTING USER even though a company is speaking: 0063's
+ * insert policy requires it, so every row stays attributable to a human. The
+ * first message is written as sender='investor' -- positional, meaning "the
+ * initiating side". See the note at the top of 0063.
+ */
+export async function startCompanyThread({ fromCompanyId, fromCompanyName, toSlug, toName, body }) {
+  const text = String(body || "").trim();
+  if (!fromCompanyId) throw new Error("No sending company.");
+  if (!toSlug) throw new Error("Choose a company to message.");
+  if (!text) throw new Error("Message is empty.");
+
+  const user = getUser();
+  if (!user) throw new Error("You need to be signed in.");
+
+  const h = await authHeaders();
+  const convRes = await fetch(`${REST}/conversations?on_conflict=sender_company_id,company_slug`, {
+    method: "POST",
+    headers: { ...h, "Content-Type": "application/json", Prefer: "resolution=merge-duplicates,return=representation" },
+    body: JSON.stringify({
+      investor_id: user.id,
+      sender_company_id: fromCompanyId,
+      company_slug: toSlug,
+      company_name: toName || toSlug,
+    }),
+  });
+  if (!convRes.ok) {
+    throw new Error(convRes.status === 401 || convRes.status === 403
+      ? "You do not have permission to message from this company."
+      : "Could not start the conversation.");
+  }
+  const conv = (await convRes.json().catch(() => []))[0];
+  if (!conv || !conv.id) throw new Error("Could not start the conversation.");
+
+  const msgRes = await fetch(`${REST}/messages`, {
+    method: "POST",
+    headers: { ...h, "Content-Type": "application/json", Prefer: "return=representation" },
+    body: JSON.stringify({ conversation_id: conv.id, sender: "investor", body: text }),
+  });
+  if (!msgRes.ok) throw new Error("The conversation was created but the message did not send.");
+  return conv;
+}
+
+/** Did WE start this thread? Drives direction in the inbox. */
+export function isOutbound(conv, myCompanyId) {
+  return !!(conv && conv.sender_company_id && myCompanyId && conv.sender_company_id === myCompanyId);
 }
