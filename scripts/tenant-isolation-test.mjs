@@ -10,7 +10,9 @@
 // real JWT, cannot reach company B's rows through PostgREST, through a serverless
 // route, or through Storage.
 //
-// So this suite authenticates five identities for real and then attacks.
+// So this suite authenticates five identities for real -- the owner of company
+// A, the owner of company B, a staff member of A, an investor and a platform
+// admin -- plus the anon key, and then attacks.
 //
 // WHY IT PROBES INSTEAD OF READING THE SOURCE
 // -------------------------------------------
@@ -34,6 +36,7 @@
 // check:isolation -- --matrix` for the full table.
 
 import { COMPANY_SCOPED, INDIRECTLY_SCOPED, PUBLIC_READABLE, ENDPOINTS,
+         COMPANY_SCOPED_RPCS,
          BUCKETS_PRIVATE, BUCKETS_PUBLIC, SEEDED_OBJECT_ENV }
   from "./_isolation-targets.mjs";
 import fs from "node:fs";
@@ -49,6 +52,10 @@ const IDS = {
   companyA: { email: process.env.ISOLATION_COMPANY_A_EMAIL, pass: process.env.ISOLATION_COMPANY_A_PASS },
   companyB: { email: process.env.ISOLATION_COMPANY_B_EMAIL, pass: process.env.ISOLATION_COMPANY_B_PASS },
   investor: { email: process.env.ISOLATION_INVESTOR_EMAIL,  pass: process.env.ISOLATION_INVESTOR_PASS  },
+  // An active company_memberships row on company A, NOT its owner_id. The
+  // second branch of owns_company() is the one a portal invitation creates, and
+  // it was the only path into the analytics RPCs with no test behind it.
+  staff:    { email: process.env.ISOLATION_STAFF_EMAIL,     pass: process.env.ISOLATION_STAFF_PASS     },
   admin:    { email: process.env.ISOLATION_ADMIN_EMAIL,     pass: process.env.ISOLATION_ADMIN_PASS     },
 };
 const SLUG_A = process.env.ISOLATION_COMPANY_A_SLUG || "";
@@ -128,6 +135,31 @@ async function rest(path, { token, method = "GET", body, prefer } = {}) {
   return { status: r.status, body: parsed };
 }
 
+async function rpc(name, args, token) {
+  return rest(`rpc/${name}`, { token, method: "POST", body: args });
+}
+
+// A denial assertion for a SECURITY DEFINER function, where an empty 200 does
+// NOT mean the same thing it means for a table. RLS denies by filtering, so an
+// empty result is a pass for a table read. These functions deny by RAISING, so
+// a 2xx of any shape means the body ran -- and an empty one is then ambiguous
+// only in the single case where the target tenant genuinely has no rows to
+// return. `bHasData` resolves that ambiguity from a probe rather than a guess;
+// without it the verdict is SKIP, because an unseeded tenant would hand back a
+// clean PASS that proves nothing.
+function expectDeniedRpc(identity, op, target, status, body, bHasData, note) {
+  let verdict, actual = `${status} ${summarise(body)}`;
+  if (status === 401 || status === 403 || status === 404) verdict = "PASS";
+  else if (status >= 200 && status < 300) {
+    const empty = Array.isArray(body) && body.length === 0;
+    if (!empty) verdict = "FAIL";
+    else if (bHasData) verdict = "FAIL";
+    else { verdict = "SKIP"; note = `${note} -- empty 200 on an unseeded tenant proves nothing`; }
+  } else verdict = "FAIL";
+  record(identity, op, target, "denied (the guard must raise)", actual, verdict, note);
+  return verdict === "PASS";
+}
+
 async function signIn(name) {
   const { email, pass } = IDS[name] || {};
   if (!email || !pass) return null;
@@ -182,6 +214,17 @@ async function main() {
   record("suite", "inventory", "company-scoped tables", "all covered",
          untested.length ? `uncovered: ${untested.join(", ")}` : "all covered",
          untested.length ? "FAIL" : "PASS");
+
+  // Same completeness rule for the functions. Any function taking a
+  // caller-supplied `p_company uuid` is a tenant boundary; one that is not in
+  // COMPANY_SCOPED_RPCS would be a boundary with nothing watching it.
+  const declaredRpc = new Set(COMPANY_SCOPED_RPCS.map(([n]) => n));
+  const foundRpc = [...new Set([...sql.matchAll(
+    /create or replace function public\.([a-z_]+)\s*\(\s*p_company uuid/gi)].map((m) => m[1]))];
+  const untestedRpc = foundRpc.filter((n) => !declaredRpc.has(n));
+  record("suite", "inventory", "company-scoped RPCs", "all covered",
+         untestedRpc.length ? `uncovered: ${untestedRpc.join(", ")}` : `all ${foundRpc.length} covered`,
+         untestedRpc.length ? "FAIL" : "PASS");
 
   // --- authenticate ---------------------------------------------------------
   const tok = {};
@@ -267,7 +310,87 @@ async function main() {
     record("admin", "SELECT any", "(all)", "allowed", "no admin session", "SKIP", "admin identity not configured");
   }
 
-  // ===================== 6. SERVERLESS ROUTES ============================
+  // ===================== 6. COMPANY-SCOPED RPCs ==========================
+  // Tables are guarded by RLS, which the database applies unasked. These
+  // functions are SECURITY DEFINER -- RLS does not apply inside them at all --
+  // so the guard is one line of plpgsql, the tenant is an argument the caller
+  // chooses, and the whole boundary is that one line. Attack it from every
+  // identity.
+  //
+  // First, find out whether company B actually has analytics rows. Without that
+  // an empty 200 is indistinguishable from a denial, and this phase would hand
+  // back a page of meaningless passes against an empty tenant.
+  let bHasData = false;
+  if (tok.companyB) {
+    const probe = await rpc("company_engagement_totals", { p_company: ID_B }, tok.companyB);
+    const r0 = Array.isArray(probe.body) ? probe.body[0] : null;
+    bHasData = !!r0 && (Number(r0.reads) > 0 || Number(r0.followers) > 0 || Number(r0.posts) > 0);
+    record("suite", "probe", "company B has engagement rows", "rows, so a breach would show",
+           bHasData ? "seeded" : "EMPTY — denials below cannot be distinguished from nothing to return",
+           bHasData ? "PASS" : "SKIP",
+           bHasData ? "" : "seed company B in supabase/staging/seed.sql");
+  }
+
+  for (const [name, extra, cls] of COMPANY_SCOPED_RPCS) {
+    const own   = { p_company: ID_A, ...extra };
+    const other = { p_company: ID_B, ...extra };
+
+    // Positive controls first, and for BOTH branches of owns_company(): the
+    // owner's owner_id and a staff member's active membership. A guard that
+    // denies everyone passes every assertion below and is still broken.
+    if (cls === "company-read") {
+      for (const who of ["companyA", "staff"]) {
+        if (!tok[who]) { record(who, "RPC own", name, "allowed", "no session", "SKIP", "identity not configured"); continue; }
+        const r = await rpc(name, own, tok[who]);
+        record(who, "RPC own", name, "allowed", `${r.status} ${summarise(r.body)}`,
+               r.status >= 200 && r.status < 300 ? "PASS" : "FAIL",
+               "control: owns_company() admits owner AND active staff");
+      }
+    }
+
+    // admin_set_billing and its kind invert the rule: is_admin() is the guard,
+    // so the admin IS allowed for any company and everyone else is refused.
+    // Checked here rather than skipped, because an admin-only write that a
+    // company owner can reach is worse than one an investor can read.
+    if (cls === "admin-only") {
+      if (tok.admin) {
+        const r = await rpc(name, own, tok.admin);
+        record("admin", "RPC any", name, "allowed", `${r.status} ${summarise(r.body)}`,
+               r.status >= 200 && r.status < 300 ? "PASS" : "FAIL", "control: is_admin() must admit support");
+      }
+      for (const who of ["companyA", "staff", "investor", "anon"]) {
+        if (who !== "anon" && !tok[who]) continue;
+        const r = await rpc(name, own, tok[who]);
+        expectDeniedRpc(who, "RPC admin-only", name, r.status, r.body, true,
+                        "is_admin() is the guard; this is their OWN company and must still be refused");
+      }
+      continue;
+    }
+
+    // The attack. `admin` is in here on purpose and must be DENIED: unlike the
+    // tables above, where is_admin() grants platform support cross-tenant read,
+    // owns_company() does not consult it -- so a platform admin cannot read a
+    // company's analytics through these functions, by design. If that ever
+    // becomes a support requirement it needs can_touch_company() and a
+    // deliberate decision, not a surprise.
+    for (const who of ["companyA", "staff", "investor", "admin", "anon"]) {
+      if (who !== "anon" && !tok[who]) continue;
+      const r = await rpc(name, other, tok[who]);
+      expectDeniedRpc(who, "RPC other", name, r.status, r.body, bHasData,
+        who === "admin" ? "owns_company() excludes platform admins by design"
+                        : "p_company is chosen by the caller");
+    }
+
+    // service-role-only functions: even the legitimate owner must be refused,
+    // because the grant -- not the guard -- is what keeps them off the wire.
+    if (cls === "internal" && tok.companyA) {
+      const r = await rpc(name, own, tok.companyA);
+      expectDeniedRpc("companyA", "RPC internal", name, r.status, r.body, true,
+                      "service-role only: EXECUTE must not reach an end-user JWT");
+    }
+  }
+
+  // ===================== 7. SERVERLESS ROUTES ============================
   if (!API) {
     for (const [name] of ENDPOINTS) record("anon", "POST unauth", `/api/${name}`, "refused", "no API base", "SKIP", "set ISOLATION_API_BASE");
   } else {
@@ -302,7 +425,7 @@ async function main() {
     }
   }
 
-  // ===================== 7. STORAGE ======================================
+  // ===================== 8. STORAGE ======================================
   // Private buckets: fetch a SEEDED object belonging to company B as company A.
   // A listing probe is not used as the assertion, because an empty list is
   // ambiguous between "denied" and "nothing there" -- and because the path

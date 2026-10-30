@@ -69,7 +69,7 @@ exercise is a schema that can be rebuilt.
 
 Skip `0055` (device push). It is deliberately unapplied everywhere.
 
-## 3 · Seed two companies and four identities — STAGING
+## 3 · Seed two companies and five identities — STAGING
 
 Create through the dashboard's Auth panel, or by signing up on a staging build.
 Disposable addresses; no real customer data.
@@ -79,14 +79,29 @@ Disposable addresses; no real customer data.
 | Company A user | `profiles.role = 'company'`, owner or active member of company A |
 | Company B user | same, for company B |
 | Investor | `profiles.role = 'investor'`, no company relationship |
+| Staff of A | `profiles.role = 'company'`, an **active `company_memberships` row on company A and NOT its `owner_id`** |
 | Admin | `profiles.role = 'admin'` |
 | Anonymous | nothing — the suite uses the anon key alone |
+
+The staff identity exists because `owns_company()` admits two things — the
+owner's `owner_id` *and* an active membership — and the membership branch is the
+one a portal invitation creates. It is the branch every analytics RPC depends
+on, and it had no test behind it. Make this user a member, not the owner, or the
+identity tests the same path as Company A twice.
 
 `profiles` is write-locked by `0004`, so set the roles with
 `admin_provision_company()` as the service role, or by direct SQL in the staging
 editor. Seed at least one row per company in `publications`, `conversations`,
 `updates`, `events` and `story_projects`, or the join-scoped assertions report
 SKIP for want of a parent row.
+
+**Company B also needs engagement rows** — at least one `posts` row with an
+`open` in `post_events`, and one follower. The RPC assertions in §6 attack
+company B through functions that deny by raising an exception, so a `403` is an
+unambiguous pass; but if B has nothing to return, a successful breach and a
+working guard both look like an empty `200`. The suite probes for this and
+reports SKIP rather than PASS when B is empty, which is honest and also useless.
+Seed it.
 
 ## 4 · Configure and run — STAGING
 
@@ -98,6 +113,7 @@ SKIP for want of a parent row.
     export ISOLATION_COMPANY_B_EMAIL=... ISOLATION_COMPANY_B_PASS=...
     export ISOLATION_COMPANY_B_ID=<uuid> ISOLATION_COMPANY_B_SLUG=<slug>
     export ISOLATION_INVESTOR_EMAIL=... ISOLATION_INVESTOR_PASS=...
+    export ISOLATION_STAFF_EMAIL=...    ISOLATION_STAFF_PASS=...
     export ISOLATION_ADMIN_EMAIL=...    ISOLATION_ADMIN_PASS=...
     export SUBMISSION_SALT=<any long random string>
 
@@ -115,8 +131,19 @@ Exit codes: `0` clean · `1` a FAIL · `2` pointed at production, refused ·
 | 3 | Cross-tenant INSERT / UPDATE / DELETE denied, with a forged company id in the payload | companyA |
 | 4 | Join-scoped children denied via their parent (`messages`, `publication_media`, `update_documents`, `event_deliveries`, `story_renders`) | companyA |
 | 5 | Admin retains cross-company access | admin |
-| 6 | All 34 routes refuse unauthenticated, and refuse A acting on B | anon, companyA |
-| 7 | Storage: A cannot list B's prefix | companyA |
+| 6 | **Company-scoped RPCs.** All 14 functions taking a caller-supplied `p_company` refuse every identity that does not own the target — and admit both the owner *and* staff for their own | companyA, staff, investor, admin, anon |
+| 7 | All 34 routes refuse unauthenticated, and refuse A acting on B | anon, companyA |
+| 8 | Storage: A cannot list B's prefix | companyA |
+
+§6 is the one that is not about RLS. Those functions are `SECURITY DEFINER`, so
+RLS does not apply inside them at all: the tenant arrives as an argument the
+caller picks, and the entire boundary is the `owns_company(p_company)` line at
+the top of the body. Three expectations there are deliberate and easy to
+misread as bugs — a **platform admin is denied** (`owns_company()` does not
+consult `is_admin()`, unlike the table policies in §5); `admin_set_billing` is
+**inverted**, admitting only the admin and refusing a company its own billing;
+and `upsert_timeline_entry` and `actor_can_publish` must refuse **everyone**,
+including the owner, because they are service-role only.
 
 Section 1 is not a formality. A denial-only suite passes perfectly against a
 totally broken database, so the controls run first and their failure invalidates

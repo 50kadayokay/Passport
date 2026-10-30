@@ -142,3 +142,72 @@ export const SEEDED_OBJECT_ENV = [
   ["company-docs", "ISOLATION_COMPANY_B_DOC_PATH"],
   ["company-media-private", "ISOLATION_COMPANY_B_PRIVMEDIA_PATH"],
 ];
+
+// ---- company-scoped RPCs: the tenant arrives as a CALLER-SUPPLIED ARGUMENT -
+// The sharpest edge in the schema, and the reason this list exists separately
+// from the tables above. Every table target is protected by RLS, which the
+// database applies whether or not the query asks for it. These functions are
+// SECURITY DEFINER: they execute as the owner, RLS DOES NOT APPLY INSIDE THEM,
+// and the only thing between an investor and another company's engagement
+// figures is the `owns_company(p_company)` check on the first line of the body.
+// Move a query above that check, or write a new function without it, and
+// nothing else in the stack says no.
+//
+// `p_company` is the tenant argument in every one of them.
+//
+// class:
+//   "company-read"  -- owner and active staff may call it for THEIR OWN
+//                      company; nobody else, for any company. Platform admins
+//                      included: owns_company() (0006) is owner-or-active-
+//                      membership and deliberately does not consult is_admin().
+//   "company-write" -- same, and a breach mutates rather than merely reads.
+//   "internal"      -- service-role only. No end-user JWT may call it AT ALL,
+//                      including the owner's.
+//   "admin-only"    -- a platform-admin function. is_admin() is the guard, so
+//                      the admin is ALLOWED for any company and every other
+//                      identity is denied -- the inverse of the rows above.
+//
+// actor_can_publish is "internal" because 0008 revokes it from public, anon and
+// authenticated and grants it to service_role alone. That revoke is issued
+// inside a `foreach ... execute format(...)` loop rather than as a literal
+// statement, so grepping for `revoke execute on function
+// public.actor_can_publish` finds nothing and the function looks exposed. It is
+// not. Worth knowing before anyone "fixes" it: it would otherwise be an
+// authorization oracle over companies.owner_id, since p_actor is an argument.
+const NIL_UUID = "00000000-0000-0000-0000-000000000000";
+
+export const COMPANY_SCOPED_RPCS = [
+  // name,                          args besides p_company,     class
+  ["company_engagement_totals",     {},                         "company-read"],
+  ["company_engagement_daily",      { p_days: 30 },             "company-read"],
+  ["company_engagement_by_type",    {},                         "company-read"],
+  ["company_post_engagement",       { p_limit: 5 },             "company-read"],
+  ["company_content_performance",   { p_days: 30, p_limit: 5 }, "company-read"],
+  ["company_follower_growth",       { p_days: 30 },             "company-read"],
+  ["company_engagement_unattributed", {},                       "company-read"],
+  ["company_notifications",         { p_limit: 5 },             "company-read"],
+  ["mark_notifications_seen",       {},                         "company-write"],
+  ["mark_notifications_cleared",    {},                         "company-write"],
+  ["mineiq_search",                 { p_query: "drill", p_limit: 3 }, "company-read"],
+  ["upsert_timeline_entry",         { p_entry: {} },            "internal"],
+  ["actor_can_publish",             { p_actor: NIL_UUID },      "internal"],
+  ["admin_set_billing",             { p_tier: null, p_status: "active", p_renews_at: null }, "admin-only"],
+];
+
+// A note on what the list above is NOT. Sixteen SECURITY DEFINER functions in
+// the schema still carry Postgres's default EXECUTE grant to PUBLIC, and that
+// is mostly correct rather than mostly wrong, so they are not targets here:
+//   • owns_company, can_touch_company, company_has_feature are called from RLS
+//     policy expressions, which are evaluated as the QUERYING role. Revoking
+//     them from `authenticated` would make every guarded table return nothing,
+//     silently. 0056 records nearly making exactly that mistake.
+//   • feed_latest, feed_discover, feed_following, am_following, post_engagement
+//     and company_follower_count are the investor app's and the public site's
+//     read surface, intentionally reachable.
+//   • my_company_role, my_features and portal_readiness take no tenant
+//     argument; they report on auth.uid() and cannot be aimed at a company.
+//   • sync_owner_membership is a trigger function, which needs no caller grant.
+// That leaves accept_company_invitation, create_company_invitation and
+// bump_conversation as the only three worth a second look, and all three guard
+// internally. None of them is a tenant boundary of the p_company shape, so they
+// belong to a grant review, not to this suite.

@@ -19,10 +19,23 @@ const headers = {
 
 // Fetch one company row by slug. Returns the full row ({ slug, name, profile, … })
 // or null if not found. Throws on network / HTTP errors so callers can surface it.
+// Columns are listed EXPLICITLY, not `select=*`. Migration 0061 revokes anon's
+// table-wide SELECT on companies and re-grants it per column, withholding
+// owner_id and preview_token. Under a column grant `select=*` does not quietly
+// omit what you may not read -- it FAILS the whole request -- so this list is
+// what keeps the public investor app working across that change. It is also
+// forward-safe: it works identically before and after the migration, which is
+// what lets the deploy and the migration happen at different times.
+//
+// A column added to companies later must be added here too, or it will not
+// reach the investor app.
+const PUBLIC_COMPANY_COLS =
+  "id,slug,name,primary_ticker,status,profile,created_at,updated_at,tier,managed_by_admin";
+
 export async function fetchCompany(slug) {
   const url =
     `${SUPABASE_URL}/rest/v1/companies` +
-    `?slug=eq.${encodeURIComponent(slug)}&select=*&limit=1`;
+    `?slug=eq.${encodeURIComponent(slug)}&select=${PUBLIC_COMPANY_COLS}&limit=1`;
   const res = await fetch(url, { headers });
   if (!res.ok) {
     const detail = await res.text().catch(() => "");

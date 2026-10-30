@@ -22,7 +22,12 @@ export async function follow(companyId) {
     const h = await authHeaders();
     const res = await fetch(`${SUPABASE_URL}/rest/v1/company_follows`, {
       method: "POST",
-      headers: { ...h, "content-type": "application/json", Prefer: "resolution=merge-duplicates,return=minimal" },
+      // ignore-duplicates, not merge-duplicates. The row is (user_id,
+      // company_id) and nothing else, so the ON CONFLICT UPDATE branch only
+      // ever rewrote a row to itself -- yet it is what forced UPDATE onto the
+      // table's grant. DO NOTHING is identical in effect and lets 0061 withhold
+      // the privilege. post_likes already works this way.
+      headers: { ...h, "content-type": "application/json", Prefer: "resolution=ignore-duplicates,return=minimal" },
       body: JSON.stringify({ user_id: u.id, company_id: companyId }),
     });
     return res.ok;
