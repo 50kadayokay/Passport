@@ -536,9 +536,19 @@ export default async function handler(req, res) {
 
       const ctx = await mineIqContext(token, companyId, question);
 
-      if (!ctx.blocks.length) {
-        // Nothing retrieved — say so rather than letting the model answer from
-        // general knowledge about mining companies.
+      // Files attached to THIS question. Bounded by the same helper the drafting
+      // modes use, and deliberately NOT written anywhere: an attachment informs
+      // one answer and is gone. That is what keeps an uploaded file from
+      // becoming a company fact without passing through the document pipeline
+      // and its review.
+      const askAttachments = Array.isArray(body.attachments) ? body.attachments : [];
+      const askAttachBlock = attachmentsPrompt(askAttachments);
+
+      if (!ctx.blocks.length && !askAttachBlock) {
+        // Nothing retrieved AND nothing attached — say so rather than letting
+        // the model answer from general knowledge about mining companies. An
+        // attachment counts: the company handed over the text itself, so there
+        // is something to answer from even when the record has nothing.
         return res.status(200).json({
           text: "I couldn't find anything in your company's record that answers that. "
               + "MineIQ only answers from your own profile, projects, releases and uploaded documents.",
@@ -556,15 +566,25 @@ export default async function handler(req, res) {
           question.slice(0, 2000),
           '"""',
           contextPrompt(ctx),
+          askAttachBlock,
           "Answer from the company record above. If it does not contain the",
           "answer, say that you could not find it.",
-        ].join("\n"),
+        ].filter(Boolean).join("\n"),
       });
 
       return res.status(200).json({
         text,
-        grounded: true,
-        context: { available: ctx.available, sources: ctx.sources },
+        grounded: ctx.blocks.length > 0,
+        context: {
+          available: ctx.available,
+          // Attachments are named as sources so the reader can tell an answer
+          // that leaned on a file they just handed over from one drawn out of
+          // the company record.
+          sources: [
+            ...ctx.sources,
+            ...askAttachments.filter((a) => a && a.text).map((a) => `Attached: ${String(a.name || "file")}`),
+          ],
+        },
       });
     }
 

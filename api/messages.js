@@ -69,9 +69,34 @@ async function handleSend(req, res) {
   const compR = await serviceRest(`companies?slug=eq.${encodeURIComponent(slug)}&select=name,profile&limit=1`);
   const comp = compR.ok ? (await compR.json().catch(() => []))[0] : null;
   if (!comp) return bad(res, 404, "company-not-found");
+
+  // NO TIER GATE, deliberately. An investor may write to ANY published company,
+  // claimed or not. The message is stored against the slug here and becomes
+  // visible to the company the moment somebody claims the account -- see the
+  // note on the conversations upsert below.
   const companyName = comp.name || slug;
   const ceoEmail = contactEmail(comp.profile);
 
+  // MESSAGES OUTLIVE THE CLAIM, AND THAT IS THE POINT.
+  //
+  // The thread is keyed on company_slug, not on a company_id or an owner, so it
+  // can be created for a company nobody has claimed yet -- which is most of
+  // them: 1420 published, 5 claimed. The message is stored here regardless. The
+  // email below is best-effort and `ceo_email` is nullable, so an unclaimed
+  // company simply gets no notification; it does NOT lose the message.
+  //
+  // Visibility then follows automatically. Migration 0047's company-side policy
+  // resolves company_slug -> companies.id -> owns_company(id), and owns_company
+  // is evaluated AT QUERY TIME. So the moment a company is claimed -- owner_id
+  // set, or an active membership added (0006's trigger creates the membership
+  // from owner_id) -- every thread ever written to that slug appears in their
+  // portal inbox, unread, with full history. Nothing has to be migrated or
+  // back-filled, because nothing was ever addressed to a person.
+  //
+  // DO NOT make this conditional on the company being claimed, entitled or on a
+  // paid tier. An investor writing to an unclaimed company is exactly the
+  // message worth keeping: it is the reason that company has to come and claim
+  // the account. Gate the REPLY if you must gate something.
   const upR = await serviceRest(`conversations?on_conflict=investor_id,company_slug`, {
     method: "POST",
     prefer: "resolution=merge-duplicates,return=representation",
@@ -79,6 +104,12 @@ async function handleSend(req, res) {
   });
   const conv = upR.ok ? (await upR.json().catch(() => []))[0] : null;
   if (!conv || !conv.id) return bad(res, 500, "conversation-failed");
+
+  // Declared by the client so the notification email can mention files that are
+  // uploaded immediately AFTER this call (an attachment row needs a message id,
+  // which does not exist until the insert below). Advisory only -- it affects a
+  // sentence in an email and nothing else, so a wrong value cannot grant access.
+  const attachmentCount = Math.max(0, Math.min(20, parseInt(req.body?.attachments, 10) || 0));
 
   const msgR = await serviceRest(`messages`, {
     method: "POST", prefer: "return=representation",
@@ -98,6 +129,14 @@ async function handleSend(req, res) {
       subject: `New investor message — ${companyName}`,
       text:
         `${investorName} sent ${companyName} a message on Passport:\n\n${text}\n\n` +
+        // Files are NAMED, never linked. A signed URL in an email is forwardable,
+        // outlives the message it came with, and turns an inbox into a way around
+        // the storage policy. The company opens the portal to read them, where the
+        // link is minted for them and expires.
+        (attachmentCount > 0
+          ? `${attachmentCount} file${attachmentCount > 1 ? "s" : ""} attached — ` +
+            `open the MineEx portal to view ${attachmentCount > 1 ? "them" : "it"}.\n\n`
+          : "") +
         `— — —\nReply to this email to respond. Your reply goes straight to the investor ` +
         `inside the Passport app. Write above this line; the investor won't see this footer.`,
     });
