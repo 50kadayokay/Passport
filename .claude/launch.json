@@ -48,6 +48,16 @@
         "/Users/leifer/Claude Projects/Passport-ConfV4"
       ],
       "port": 5180
+    },
+    {
+      "name": "qr-banner-preview",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "/private/tmp/claude-501/-Users-leifer-Claude-Projects-Passport-Portal/4c906611-8eea-45a5-b562-470e59ad687e/scratchpad/spa-serve.mjs",
+        "/private/tmp/claude-501/-Users-leifer-Claude-Projects-Passport-Portal/4c906611-8eea-45a5-b562-470e59ad687e/scratchpad/web-banner",
+        "4211"
+      ],
+      "port": 4211
     }
   ]
 }
