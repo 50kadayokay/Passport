@@ -16,18 +16,19 @@
 // reason.
 
 import fs from "node:fs";
-import { DEFERRED, PENDING, PREREQUISITES, NEEDS_SUPERUSER } from "./_migration-manifest.mjs";
+import { DEFERRED, PENDING, UNVERIFIED, PREREQUISITES, NEEDS_SUPERUSER } from "./_migration-manifest.mjs";
 
 const DIR = "supabase/migrations";
 const files = fs.readdirSync(DIR).filter((f) => f.endsWith(".sql")).sort();
 const LIST_ONLY = process.argv.includes("--list");
 
 // ---- every file must be classified ----------------------------------------
-const unclassified = files.filter((f) => !(f in DEFERRED) && !(f in PENDING));
+const unclassified = files.filter((f) => !(f in DEFERRED) && !(f in PENDING) && !(f in UNVERIFIED));
 // APPLIED is the derived default, but a file added since the manifest was last
 // reviewed is indistinguishable from one deliberately marked applied. Surface
 // the newest ones so a human confirms rather than assumes.
 const newest = unclassified.slice(-3);
+const unverified = Object.keys(UNVERIFIED).filter((f) => files.includes(f));
 
 if (!LIST_ONLY) {
   console.log(`\n  ${files.length} migrations in ${DIR}\n`);
@@ -44,6 +45,16 @@ if (!LIST_ONLY) {
     console.log(`     ${exists ? " " : "!"} ${f}`);
     console.log(`        ${why}`);
     if (!exists) console.log("        ** NOT PRESENT -- manifest is stale **");
+  }
+  if (unverified.length) {
+    console.log("\n  ══ UNVERIFIED — production state unknown; CONFIRM BEFORE PLANNING ══");
+    for (const f of unverified) {
+      const u = UNVERIFIED[f];
+      console.log(`     ? ${f}`);
+      console.log(`        ${u.why}`);
+      console.log(`        verify: ${u.verify}`);
+      console.log(`        expect: ${u.expect}`);
+    }
   }
   console.log(`\n  ══ APPLIED (derived: everything else) — ${unclassified.length} files ══`);
   console.log(`     ${unclassified[0]} … ${unclassified[unclassified.length - 1]}`);
@@ -95,7 +106,20 @@ if (problems.length) {
   console.error("\n  PROBLEMS");
   for (const p of problems) console.error("     ✗ " + p);
 }
-const stale = [...Object.keys(DEFERRED), ...Object.keys(PENDING)].filter((f) => !files.includes(f));
+const stale = [...Object.keys(DEFERRED), ...Object.keys(PENDING), ...Object.keys(UNVERIFIED)]
+  .filter((f) => !files.includes(f));
+if (stale.length) {
+  console.error("\n  STALE ENTRIES — named in the manifest, absent from the directory");
+  for (const f of stale) console.error("     ✗ " + f);
+}
+// Unverified files do NOT make the manifest inconsistent -- the manifest is
+// correctly recording that nobody knows. They do block a PRODUCTION plan,
+// which is the whole point: staging replays everything regardless.
+if (unverified.length) {
+  console.log("\n  NO PRODUCTION PLAN WHILE ANYTHING IS UNVERIFIED.");
+  console.log("  Run each `verify` above against production (read-only), then either move the");
+  console.log("  file to PENDING (absent) or delete its entry (present -- derived APPLIED is right).");
+}
 console.log(`\n  ${problems.length === 0 && stale.length === 0
   ? "Manifest is consistent with supabase/migrations/."
   : "MANIFEST INCONSISTENT -- resolve before replaying."}\n`);
