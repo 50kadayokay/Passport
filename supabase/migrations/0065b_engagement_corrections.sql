@@ -108,6 +108,13 @@
 begin;
 
 -- ------------------------------------------------------------------ totals
+-- DROP BEFORE CREATE (added 2026-10-30). These three functions gain an OUT
+-- column relative to 0048, and `create or replace` cannot change a return
+-- type -- Postgres raises 42P13 and the whole migration aborts. Caught by a
+-- from-scratch staging replay; it would have failed on production the same
+-- way, because 0048's versions are what production runs today.
+-- No CASCADE: nothing depends on them (checked against pg_depend).
+drop function if exists public.company_engagement_totals(uuid);
 create or replace function public.company_engagement_totals(p_company uuid)
 returns table (
   views            bigint,   -- impressions. Nothing emits one: structurally 0.
@@ -160,6 +167,7 @@ revoke execute on function public.company_engagement_totals(uuid) from public, a
 grant  execute on function public.company_engagement_totals(uuid) to authenticated;
 
 -- ------------------------------------------------------------------- daily
+drop function if exists public.company_engagement_daily(uuid, integer);
 create or replace function public.company_engagement_daily(p_company uuid, p_days integer default 30)
 returns table (day date, views bigint, reads bigint)
 language plpgsql stable security definer set search_path = public, pg_temp as $$
@@ -212,6 +220,7 @@ grant  execute on function public.company_engagement_daily(uuid, integer) to aut
 -- Superseded for the portal by 0065a's company_content_performance, but
 -- corrected rather than left behind: a function reporting the same metric in a
 -- different unit is a trap for whoever reads it next.
+drop function if exists public.company_post_engagement(uuid, integer);
 create or replace function public.company_post_engagement(p_company uuid, p_limit integer default 20)
 returns table (
   post_id uuid, title text, published_at timestamptz,

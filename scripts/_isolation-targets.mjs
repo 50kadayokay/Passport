@@ -8,14 +8,38 @@
 // rather than silently skipping it.
 
 // ---- directly company-scoped: the column names the tenant ------------------
+// WRITE-ONLY TABLES. A company may INSERT but never SELECT, so the
+// "can the owner read its own row" control does not apply -- it is not a
+// broken policy, it is the design. listing_reports is a report inbox: you
+// file one, you do not read the queue.
+export const WRITE_ONLY = new Set(["listing_reports"]);
+
+// USER-SCOPED, NOT COMPANY-SCOPED. company_claims is keyed on user_id: its
+// policies are `user_id = auth.uid() OR is_admin()`, and company_slug names
+// the company BEING CLAIMED, not the owner of the row. Listing it as
+// company-scoped made the suite read a claim company A had filed about
+// company B and call it a leak. The real property is asserted separately:
+// one user must not read another user's claims.
+export const USER_SCOPED = [
+  ["company_claims", "user_id", "company_slug"],
+];
+
 export const COMPANY_SCOPED = [
+  // Added 2026-10-30 after the suite's own inventory check reported these
+  // uncovered. They are among the most sensitive tables in the system: Mine IQ
+  // holds whatever documents a company uploaded, and site_credentials holds the
+  // tokens a bespoke website authenticates with. Isolation on all three was
+  // confirmed by hand that day; this puts them in the default run so it is not
+  // confirmed by hand again.
+  ["mineiq_threads", "company_id"],
+  ["mineiq_messages", "company_id"],
+  ["site_credentials", "company_id"],
   ["activity_log", "company_id"],
   ["brand_kits", "company_id"],
   ["canonical_sources", "company_id"],
   ["canonical_spans", "company_id"],
   ["company_agreement_acceptances", "company_id"],
   ["company_blueprints", "company_id"],
-  ["company_claims", "company_slug"],
   ["company_destinations", "company_id"],
   ["company_features", "company_id"],
   ["company_follows", "company_id"],

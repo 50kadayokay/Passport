@@ -36,7 +36,7 @@
 // check:isolation -- --matrix` for the full table.
 
 import { COMPANY_SCOPED, INDIRECTLY_SCOPED, PUBLIC_READABLE, ENDPOINTS,
-         COMPANY_SCOPED_RPCS,
+         COMPANY_SCOPED_RPCS, WRITE_ONLY, USER_SCOPED,
          BUCKETS_PRIVATE, BUCKETS_PUBLIC, SEEDED_OBJECT_ENV }
   from "./_isolation-targets.mjs";
 import fs from "node:fs";
@@ -149,7 +149,12 @@ async function rpc(name, args, token) {
 // clean PASS that proves nothing.
 function expectDeniedRpc(identity, op, target, status, body, bHasData, note) {
   let verdict, actual = `${status} ${summarise(body)}`;
-  if (status === 401 || status === 403 || status === 404) verdict = "PASS";
+  // A plpgsql `raise exception 'not authorized'` carries no SQLSTATE that
+  // PostgREST maps to 403, so the guard firing arrives as 400 with that exact
+  // message. Matching the message rather than the status keeps the assertion
+  // strict: any OTHER 400 (a malformed call, a missing column) still fails.
+  const guardRaised = status === 400 && /not authoris?zed|permission denied|insufficient/i.test(JSON.stringify(body || ""));
+  if (status === 401 || status === 403 || status === 404 || guardRaised) verdict = "PASS";
   else if (status >= 200 && status < 300) {
     const empty = Array.isArray(body) && body.length === 0;
     if (!empty) verdict = "FAIL";
@@ -171,6 +176,13 @@ async function signIn(name) {
   if (!r.ok) return null;
   const j = await r.json().catch(() => null);
   return j?.access_token || null;
+}
+
+/** The `sub` claim of a JWT -- the user id -- read without a DB connection. */
+const UID = {};
+function subjectOf(jwt) {
+  try { return JSON.parse(Buffer.from(jwt.split(".")[1], "base64url").toString()).sub || ""; }
+  catch { return ""; }
 }
 
 // =============================================================== the suite ==
@@ -205,8 +217,12 @@ async function main() {
   const sql = fs.readdirSync("supabase/migrations")
     .filter((f) => f.endsWith(".sql"))
     .map((f) => fs.readFileSync(`supabase/migrations/${f}`, "utf8")).join("\n");
+  // USER_SCOPED belongs here too: those tables ARE covered, by the user-scoped
+  // assertions rather than the company ones. Omitting them would report a table
+  // as untested purely because its tenancy is keyed on the user.
   const declared = new Set([...COMPANY_SCOPED.map(([t]) => t),
-                            ...INDIRECTLY_SCOPED.map(([t]) => t)]);
+                            ...INDIRECTLY_SCOPED.map(([t]) => t),
+                            ...USER_SCOPED.map(([t]) => t)]);
   const found = [...sql.matchAll(/create table if not exists public\.([a-z_]+)\s*\(([\s\S]*?)\n\);/gi)]
     .filter(([, , body]) => /^\s+(company_id|company_slug)\s/m.test(body))
     .map(([, t]) => t);
@@ -235,12 +251,16 @@ async function main() {
            tok[name] ? "PASS" : "FAIL");
   }
   tok.anon = null; // the anon key alone
+  // Record each identity's user id from its own token, so the user-scoped
+  // assertions can tell "my row" from "someone else's" with no DB connection.
+  for (const [k, v] of Object.entries(tok)) if (v) UID[k] = subjectOf(v);
 
   // ===================== 1. POSITIVE CONTROLS ============================
   // Run FIRST and deliberately. If company A cannot read its own rows, every
   // denial below is meaningless -- a fully broken database passes a
   // denial-only suite perfectly.
   for (const [table, col] of COMPANY_SCOPED) {
+    if (WRITE_ONLY.has(table)) continue;        // insert-only by design; see _isolation-targets
     const val = col === "company_slug" ? SLUG_A : ID_A;
     const { status, body } = await rest(`${table}?${col}=eq.${val}&select=*&limit=1`, { token: tok.companyA });
     record("companyA", "SELECT own", table, "reachable (any row count)",
@@ -249,9 +269,42 @@ async function main() {
            "control: proves the denials below are meaningful");
   }
   for (const [table, filter] of PUBLIC_READABLE) {
-    const { status, body } = await rest(`${table}?${filter}${filter ? "&" : ""}select=*&limit=1`, { token: null });
+    // NAMED COLUMNS, not select=*. Where 0061b has replaced table-wide SELECT
+    // with per-column grants, select=* FAILS outright instead of omitting what
+    // the caller may not read -- so a star here tests 0061b, not the public
+    // surface. `id` exists on every table in this list.
+    // Where the filter names a column, select THAT -- it provably exists and is
+    // readable, since the filter depends on it. Only `companies` needs this
+    // (0061b's column grants make select=* fail outright); everywhere else the
+    // star is correct, and assuming `id` was wrong -- news_item_companies has
+    // no id column at all.
+    const named = (filter.match(/^([a-z_]+)=/) || [])[1];
+    const cols = named || "*";
+    const { status, body } = await rest(`${table}?${filter}${filter ? "&" : ""}select=${cols}&limit=1`, { token: null });
     expectAllowed("anon", "SELECT public", table, status, body,
-                  "control: public surface must not go dark");
+                  "control: public surface must not go dark (named columns)");
+  }
+
+  // ============ 1b. USER-SCOPED TABLES (tenancy is the USER, not the company) ===
+  for (const [table, ucol, ctx] of USER_SCOPED) {
+    // The row company A's owner filed. Company B's owner must not see it, and
+    // neither must an investor -- the company it NAMES is irrelevant to who
+    // may read it.
+    const mine = await rest(`${table}?select=${ucol},${ctx}`, { token: tok.companyA });
+    record("companyA", "SELECT own", table, "reachable (any row count)",
+           `${mine.status} ${summarise(mine.body)}`,
+           mine.status >= 200 && mine.status < 300 ? "PASS" : "FAIL",
+           "control: a user reads their OWN claims");
+    for (const who of ["companyB", "investor", "staff"]) {
+      if (!tok[who]) continue;
+      const r = await rest(`${table}?select=${ucol},${ctx}`, { token: tok[who] });
+      const rows = Array.isArray(r.body) ? r.body : [];
+      const foreign = rows.filter((x) => x && x[ucol] && x[ucol] !== UID[who]);
+      record(who, "SELECT another user's", table, "denied / only their own",
+             `${r.status} ${rows.length} row(s), ${foreign.length} belonging to someone else`,
+             r.status >= 400 || foreign.length === 0 ? "PASS" : "FAIL",
+             "user-scoped: company_slug names the company CLAIMED, not the owner");
+    }
   }
 
   // ===================== 2. CROSS-TENANT READ ============================
@@ -272,9 +325,20 @@ async function main() {
       body: { [col]: val }, prefer: "return=representation" });
     expectDenied("companyA", "INSERT other", table, ins.status, ins.body, "forged company id in payload");
 
+    // THE PAYLOAD IS THE ATTACK. This used to send `updated_at`, which most of
+    // these tables do not have: PostgREST answered 400 "could not find the
+    // column" and the test could not tell a policy denial from a malformed
+    // request, so thirty of them scored as failures that proved nothing.
+    //
+    // The scoping column is the one column every table here is guaranteed to
+    // have -- it is what puts the table in this list -- and rewriting it is the
+    // real threat: company A reassigning company B's row to itself. A success
+    // is unambiguous theft, not a schema accident.
+    const steal = col === "company_slug" ? SLUG_A : ID_A;
     const upd = await rest(`${table}?${col}=eq.${val}`, { token: tok.companyA, method: "PATCH",
-      body: { updated_at: new Date().toISOString() }, prefer: "return=representation" });
-    expectDenied("companyA", "UPDATE other", table, upd.status, upd.body, "");
+      body: { [col]: steal }, prefer: "return=representation" });
+    expectDenied("companyA", "UPDATE other (reassign to self)", table, upd.status, upd.body,
+                 "rewriting the scoping column is row theft, not a no-op touch");
 
     const del = await rest(`${table}?${col}=eq.${val}`, { token: tok.companyA, method: "DELETE",
       prefer: "return=representation" });

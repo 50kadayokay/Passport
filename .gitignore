@@ -33,3 +33,7 @@ scratchpad/
 # profile.conference.attractVideo to a hosted URL) for the booth's attract loop.
 # The public marketing site does not use it.
 public/conference-media/
+
+# Staging DB connection string — never committed.
+supabase/staging/.connection
+supabase/staging/.isolation-env
