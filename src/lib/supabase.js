@@ -9,8 +9,20 @@
 // reading the source.
 const ENV = (import.meta && import.meta.env) || {};
 
-export const SUPABASE_URL = ENV.VITE_SUPABASE_URL || "https://rvptronniomlqumjhyrr.supabase.co";
-export const SUPABASE_ANON = ENV.VITE_SUPABASE_ANON_KEY || "sb_publishable_NNxikHZSGZ0CYnzN7jckLg_vPvrRCTl";
+// A STAGING bundle (VITE_MINEEX_ENV=staging, set by vite.config.js) has no
+// fallback: the production values below would make a staging UI read and write
+// production. vite.config.js already refuses to build one without the staging
+// URL; this is the same rule at runtime, for any bundle built some other way.
+const STAGING_URL = "https://jmljfovtfxcdhjmtlnva.supabase.co";
+const IS_STAGING = ENV.VITE_MINEEX_ENV === "staging";
+if (IS_STAGING && (String(ENV.VITE_SUPABASE_URL || "").replace(/\/+$/, "") !== STAGING_URL || !ENV.VITE_SUPABASE_ANON_KEY)) {
+  throw new Error("[staging tripwire] this staging bundle is not configured for the staging Supabase project.");
+}
+
+export const SUPABASE_URL = IS_STAGING ? STAGING_URL
+  : (ENV.VITE_SUPABASE_URL || "https://rvptronniomlqumjhyrr.supabase.co");
+export const SUPABASE_ANON = IS_STAGING ? ENV.VITE_SUPABASE_ANON_KEY
+  : (ENV.VITE_SUPABASE_ANON_KEY || "sb_publishable_NNxikHZSGZ0CYnzN7jckLg_vPvrRCTl");
 
 const headers = {
   apikey: SUPABASE_ANON,

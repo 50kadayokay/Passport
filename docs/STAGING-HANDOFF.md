@@ -136,7 +136,8 @@ API needs the `service_role` key, which is deliberately not available.
 |---|---|---|
 | `iso-owner-a@staging.invalid` | company | Alpha (owner) |
 | `iso-owner-b@staging.invalid` | company | Beta (owner) |
-| `iso-staff-a@staging.invalid` | company | Alpha (member, **not** owner) |
+| `iso-staff-a@staging.invalid` | company | Alpha, membership role **`viewer`** (was the `'owner'` default until 2026-10-30, see `STAGING-PHASE-A.md`) |
+| `iso-publisher-a@staging.invalid` | company | Alpha, membership role `publisher` (added 2026-10-30) |
 | `iso-investor@staging.invalid` | investor | converses with Alpha only |
 | `iso-investor-b@staging.invalid` | investor | converses with Beta only |
 | `iso-admin@staging.invalid` | admin | — |
@@ -256,6 +257,11 @@ The plan must cover:
 8. How staging eventually supports end-to-end testing of the Portal UI itself.
 
 `ISOLATION_API_BASE` is the single variable that unlocks the 34.
+
+> **Superseded 2026-10-30:** see `docs/STAGING-API-PLAN.md` (the plan) and
+> `docs/STAGING-PHASE-A.md` (results). There are 37 routes, not 34. `ENDPOINTS`
+> was removed because it could score unguarded routes as PASS, and the API layer
+> now runs through `scripts/api-authz-test.mjs`.
 
 ---
 

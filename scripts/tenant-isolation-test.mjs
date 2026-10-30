@@ -35,10 +35,12 @@
 // them separately and a run with any SKIP is not a proof. Read `npm run
 // check:isolation -- --matrix` for the full table.
 
-import { COMPANY_SCOPED, INDIRECTLY_SCOPED, PUBLIC_READABLE, ENDPOINTS,
+import { COMPANY_SCOPED, INDIRECTLY_SCOPED, PUBLIC_READABLE,
          COMPANY_SCOPED_RPCS, WRITE_ONLY, USER_SCOPED,
-         BUCKETS_PRIVATE, BUCKETS_PUBLIC, SEEDED_OBJECT_ENV }
+         BUCKETS_PRIVATE, BUCKETS_PUBLIC, SEEDED_OBJECT_ENV, PUBLIC_BY_DESIGN }
   from "./_isolation-targets.mjs";
+import { API_ROUTES } from "./_api-routes.mjs";
+import { runApiSuite } from "./api-authz-test.mjs";
 import fs from "node:fs";
 
 // ---------------------------------------------------------------- config ----
@@ -55,7 +57,10 @@ const IDS = {
   // An active company_memberships row on company A, NOT its owner_id. The
   // second branch of owns_company() is the one a portal invitation creates, and
   // it was the only path into the analytics RPCs with no test behind it.
+  // Role 'viewer' (explicit since 2026-10-30; the column default is 'owner').
   staff:    { email: process.env.ISOLATION_STAFF_EMAIL,     pass: process.env.ISOLATION_STAFF_PASS     },
+  // Role 'publisher' on company A: the non-owner role actor_can_publish admits.
+  publisher: { email: process.env.ISOLATION_PUBLISHER_EMAIL, pass: process.env.ISOLATION_PUBLISHER_PASS },
   admin:    { email: process.env.ISOLATION_ADMIN_EMAIL,     pass: process.env.ISOLATION_ADMIN_PASS     },
 };
 const SLUG_A = process.env.ISOLATION_COMPANY_A_SLUG || "";
@@ -310,6 +315,18 @@ async function main() {
   // ===================== 2. CROSS-TENANT READ ============================
   for (const [table, col] of COMPANY_SCOPED) {
     const val = col === "company_slug" ? SLUG_B : ID_B;
+    if (PUBLIC_BY_DESIGN.has(table)) {
+      // Public read by design: assert the HIDDEN subset stays hidden instead.
+      const spec = PUBLIC_BY_DESIGN.get(table);
+      const hidden = spec && process.env[spec.hiddenEnv];
+      if (!spec) { console.log(`  note: ${table} read is public by design; no cross-tenant READ assertion (writes still tested)`); continue; }
+      if (!hidden) { record("companyA", "SELECT hidden", table, "denied / empty", `no seeded hidden row (${spec.hiddenEnv})`, "SKIP", spec.why); continue; }
+      for (const who of ["companyA", "anon", "investor"]) {
+        const r = await rest(`${table}?id=eq.${hidden}&select=id`, { token: who === "anon" ? null : tok[who] });
+        expectDenied(who, "SELECT hidden", table, r.status, r.body, `B's ${spec.why}`);
+      }
+      continue;
+    }
     const { status, body } = await rest(`${table}?${col}=eq.${val}&select=*`, { token: tok.companyA });
     expectDenied("companyA", "SELECT other", table, status, body, `targeting B via ${col}`);
     const anonRes = await rest(`${table}?${col}=eq.${val}&select=*`, { token: null });
@@ -351,7 +368,11 @@ async function main() {
   for (const [child, fk, parent, pcol] of INDIRECTLY_SCOPED) {
     const pval = pcol === "company_slug" ? SLUG_B : ID_B;
     const look = await rest(`${parent}?${pcol}=eq.${pval}&select=id&limit=1`, { token: tok.companyB });
-    const parentId = Array.isArray(look.body) && look.body[0]?.id;
+    // Some parents are not readable even by their own company (events is
+    // admin-read only), so the seeded id is the fallback, never a substitute
+    // for a discovered one.
+    const parentId = (Array.isArray(look.body) && look.body[0]?.id)
+      || process.env[`ISOLATION_PARENT_${parent.toUpperCase()}_B`];
     if (!parentId) {
       record("companyA", "SELECT via join", child, "denied / empty", "no fixture parent row", "SKIP",
              `needs a seeded ${parent} row for company B`);
@@ -455,38 +476,22 @@ async function main() {
   }
 
   // ===================== 7. SERVERLESS ROUTES ============================
+  // Delegated to api-authz-test.mjs: one valid request per route, positive
+  // controls first, 400/405/5xx never counted as a denial, and the staging
+  // egress log as evidence of what each request reached. The secrets it needs
+  // for the shared-secret routes come from supabase/staging/.api-env, which
+  // only exists for a LOCAL staging server.
   if (!API) {
-    for (const [name] of ENDPOINTS) record("anon", "POST unauth", `/api/${name}`, "refused", "no API base", "SKIP", "set ISOLATION_API_BASE");
+    for (const { name } of API_ROUTES) record("anon", "API", `/api/${name}`, "refused", "no API base", "SKIP",
+      "set ISOLATION_API_BASE, or run: node scripts/api-authz-test.mjs --local");
   } else {
-    for (const [name, guard] of ENDPOINTS) {
-      const r = await fetch(`${API}/api/${name}`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ companyId: ID_B, company_slug: SLUG_B, publicationId: ID_B }),
-      }).catch((e) => ({ status: 0, _err: String(e) }));
-      const status = r.status || 0;
-      if (guard === "open") {
-        record("anon", "POST unauth", `/api/${name}`, "public (no cross-tenant write)",
-               String(status), status === 0 ? "SKIP" : "PASS", "intentionally public — see §7");
-      } else {
-        record("anon", "POST unauth", `/api/${name}`, "401/403/405",
-               String(status),
-               status === 0 ? "SKIP" : (status === 401 || status === 403 || status === 405) ? "PASS" : "FAIL",
-               `declared guard: ${guard}`);
-      }
-      // Same route, authenticated as A, aimed at B.
-      if (tok.companyA) {
-        const r2 = await fetch(`${API}/api/${name}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok.companyA}` },
-          body: JSON.stringify({ companyId: ID_B, company_slug: SLUG_B, publicationId: ID_B }),
-        }).catch(() => ({ status: 0 }));
-        const s2 = r2.status || 0;
-        record("companyA", "POST cross-tenant", `/api/${name}`, "403/404/400",
-               String(s2),
-               s2 === 0 ? "SKIP" : (s2 === 403 || s2 === 404 || s2 === 400 || s2 === 401) ? "PASS" : "FAIL",
-               "authenticated as A, body names B");
-      }
-    }
+    const apiEnv = fs.existsSync("supabase/staging/.api-env")
+      ? Object.fromEntries(fs.readFileSync("supabase/staging/.api-env", "utf8").split("\n")
+          .filter((l) => l && !l.startsWith("#") && l.includes("="))
+          .map((l) => { const i = l.indexOf("="); return [l.slice(0, i), l.slice(i + 1)]; }))
+      : {};
+    await runApiSuite({ api: API, tok, env: { ...process.env, ...apiEnv }, record,
+      headers: process.env.ISOLATION_API_BYPASS ? { "x-vercel-protection-bypass": process.env.ISOLATION_API_BYPASS } : {} });
   }
 
   // ===================== 8. STORAGE ======================================
@@ -503,6 +508,15 @@ async function main() {
              "seed one of B's objects and set this, or the bucket is untested");
       continue;
     }
+    // POSITIVE CONTROL first: the owner must be able to fetch this object, or a
+    // refusal below could mean "it does not exist" -- a false PASS.
+    const own = await fetch(`${SB}/storage/v1/object/${bucket}/${path}`, {
+      headers: { apikey: ANON, Authorization: `Bearer ${tok.companyB || ANON}` },
+    }).catch(() => ({ status: 0 }));
+    record("companyB", "GET storage own", bucket, "200",
+           String(own.status || 0),
+           (own.status || 0) === 0 ? "SKIP" : own.status === 200 ? "PASS" : "FAIL",
+           "control: the object exists and its owner can read it");
     const r = await fetch(`${SB}/storage/v1/object/${bucket}/${path}`, {
       headers: { apikey: ANON, Authorization: `Bearer ${tok.companyA || ANON}` },
     }).catch(() => ({ status: 0 }));

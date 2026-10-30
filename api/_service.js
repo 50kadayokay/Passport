@@ -9,8 +9,12 @@
 // user-token calls always target the same project as the browser. Only the
 // service-role key is read here, because only this file may ever see it.
 import { SB_URL as SB, ANON_KEY as ANON, supabaseConfigured, verifyBearer } from "./_supabase.js";
+import { IS_STAGING, STAGING } from "./_stagingEnv.js";
 // Accept the canonical name; fall back to the older local name for dev parity.
-const SERVICE = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY;
+// Staging reads ONLY its own name: the production names are refused outright by
+// _stagingEnv.js, so a production key loaded by mistake can never be used here.
+const SERVICE = IS_STAGING ? (STAGING.service || "")
+  : (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY);
 
 export const SB_URL = SB;
 export const ANON_KEY = ANON;

@@ -100,36 +100,29 @@ export const PUBLIC_READABLE = [
   ["news_item_companies", ""],
 ];
 
-// ---- every serverless route, with the guard each one is SUPPOSED to have ---
-// Deliberately NOT derived by grepping the source: every endpoint in this repo
-// rolls its own auth helper (messages.js has a local authUser(), dispatch.js
-// checks x-dispatch-secret, publish.js uses _service.js's verifyUser, compose.js
-// uses _supabase.js's verifyBearer), so static detection produces false
-// positives in both directions. The suite PROBES each route instead.
+// ---- company-scoped tables whose READ is public by design -------------------
+// Both lists above name these, which is a contradiction the suite could not see
+// until company B had rows: `posts` is the public investor feed (policy
+// public_read, 0009: removed_at is null AND the company is published), and
+// `news_item_companies` is public outright. "A cannot read B's posts" is false
+// by design, and passed only because B's tenant was empty -- a false PASS.
 //
-// expect: "user"    -> 401/403 without a valid user JWT
-//         "secret"  -> 401 without the shared secret
-//         "admin"   -> 403 for a non-admin user
-//         "open"    -> intentionally public; must still refuse cross-tenant writes
-export const ENDPOINTS = [
-  ["audience-card", "open"],      ["build-from-website", "admin"],
-  ["comms-generate", "user"],     ["compose", "user"],
-  ["conference-inquiry", "open"], ["contact", "open"],
-  ["dispatch", "secret"],         ["extract-company", "admin"],
-  ["extract-docx", "user"],       ["extract-projects", "admin"],
-  ["extract-text", "admin"],      ["market-pull", "secret"],
-  ["messages", "user"],           ["news-broadcast", "admin"],
-  ["news-notify", "secret"],      ["news-process", "secret"],
-  ["news-pull", "secret"],        ["news-push-send", "secret"],
-  ["news-review", "admin"],       ["news-usage", "admin"],
-  ["og-news", "open"],            ["publish", "user"],
-  ["revise-release", "user"],     ["share-news", "open"],
-  ["story-extract", "user"],      ["story-fetch", "user"],
-  ["stripe-checkout", "user"],    ["stripe-portal", "user"],
-  ["stripe-webhook", "secret"],   ["structure-batch", "admin"],
-  ["structure-release", "user"],  ["synthesize-profile", "admin"],
-  ["unpublish", "user"],          ["verify-source", "user"],
-];
+// Cross-tenant WRITES on these stay fully tested. For READ, the property that
+// actually holds is narrower and sharper: the HIDDEN subset stays hidden. Where
+// a hidden subset exists the seeder plants one row of it (env var below) and the
+// suite asserts nobody else can read it. Where none exists (null), there is no
+// read assertion to make, and the suite says so rather than recording a PASS.
+export const PUBLIC_BY_DESIGN = new Map([
+  ["posts", { hiddenEnv: "ISOLATION_HIDDEN_POST_B", why: "removed post: public_read requires removed_at is null" }],
+  ["news_item_companies", null],
+]);
+
+// ---- serverless routes -------------------------------------------------------
+// The former ENDPOINTS list lived here. It is REMOVED, not kept alongside its
+// replacement: it declared the wrong guard for 9 routes, omitted 3, and was
+// probed with one malformed body for every route -- so routes with no guard at
+// all could score PASS. Its replacement is API_ROUTES in ./_api-routes.mjs,
+// run by ./api-authz-test.mjs, which every route must appear in (enforced).
 
 // ---- storage ---------------------------------------------------------------
 // Taken from live `storage.buckets` and the live storage.objects policies, NOT

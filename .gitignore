@@ -37,3 +37,7 @@ public/conference-media/
 # Staging DB connection string — never committed.
 supabase/staging/.connection
 supabase/staging/.isolation-env
+
+# Local staging API environment and egress log -- never committed.
+supabase/staging/.api-env
+supabase/staging/egress.log

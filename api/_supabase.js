@@ -31,6 +31,13 @@
 //      SAFE diagnostic. The token is never logged, and is scrubbed from any error
 //      text before it is surfaced.
 
+// FIRST, before anything can make a request: on staging (MINEEX_ENV=staging)
+// this validates the configuration and throws on anything that could reach
+// production, then installs the outbound allowlist. Every route reaches this
+// module, so every route gets both. On production both are inert.
+import "./_stagingEgress.js";
+import { IS_STAGING, STAGING } from "./_stagingEnv.js";
+
 // Mirrors the fallbacks in src/lib/supabase.js. Both values are public by design —
 // the project URL and the publishable ("anon") key are shipped in the browser
 // bundle. The service-role key is NOT here and must never be.
@@ -54,9 +61,13 @@ function resolve(name, raw, valid, fallback, warnings) {
   return fallback;
 }
 
+// On staging there is no fallback: _stagingEnv.js has already validated these
+// or thrown, so the production values below are unreachable.
 const warnings = [];
-export const SB_URL = resolve("VITE_SUPABASE_URL", process.env.VITE_SUPABASE_URL, looksLikeUrl, FALLBACK_URL, warnings);
-export const ANON_KEY = resolve("VITE_SUPABASE_ANON_KEY", process.env.VITE_SUPABASE_ANON_KEY, looksLikeAnonKey, FALLBACK_ANON, warnings);
+export const SB_URL = IS_STAGING ? STAGING.url
+  : resolve("VITE_SUPABASE_URL", process.env.VITE_SUPABASE_URL, looksLikeUrl, FALLBACK_URL, warnings);
+export const ANON_KEY = IS_STAGING ? STAGING.anon
+  : resolve("VITE_SUPABASE_ANON_KEY", process.env.VITE_SUPABASE_ANON_KEY, looksLikeAnonKey, FALLBACK_ANON, warnings);
 
 // One line at startup beats a 502 at runtime. Values are never printed.
 if (warnings.length) {

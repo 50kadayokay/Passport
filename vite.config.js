@@ -1,4 +1,4 @@
-import { defineConfig } from "vite";
+import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
 import fs from "node:fs";
 import path from "node:path";
@@ -15,6 +15,12 @@ import path from "node:path";
  * because this runs only in the dev server process.
  */
 function loadServerEnv() {
+  // STAGING LOADS NOTHING FROM DISK. These files hold production credentials
+  // (.env.import: a service key, Stripe, OpenAI). A staging process gets its
+  // environment from scripts/staging-api-server.mjs or the shell, never from
+  // here -- and api/_stagingEnv.js refuses the production-named variables even
+  // if one arrives some other way.
+  if (process.env.MINEEX_ENV === "staging") return;
   for (const f of [".env.vercel.local", ".env.import", ".env.local", ".env"]) {
     const file = path.resolve(process.cwd(), f);
     if (!fs.existsSync(file)) continue;
@@ -110,11 +116,46 @@ function devApiRoutes() {
   };
 }
 
+/**
+ * Which Supabase project the BROWSER bundle will talk to, decided at config
+ * time so a wrong target fails the build instead of shipping.
+ *
+ * Production is unchanged: no MINEEX_ENV, and src/lib/supabase.js keeps its
+ * fallback. Staging (MINEEX_ENV=staging) must name the staging project exactly
+ * -- there is no fallback, so a missing variable is a build error, not a
+ * production bundle -- and the flag is passed to the client as
+ * VITE_MINEEX_ENV so src/lib/supabase.js enforces the same rule at runtime.
+ * A bundle aimed at staging without the flag is refused too.
+ */
+const STAGING_SUPABASE_URL = "https://jmljfovtfxcdhjmtlnva.supabase.co";
+function assertBuildTarget(mode) {
+  const flag = process.env.MINEEX_ENV;
+  if (flag !== undefined && flag !== "" && flag !== "staging") {
+    throw new Error(`[staging tripwire] MINEEX_ENV must be unset or "staging".`);
+  }
+  const fromFiles = loadEnv(mode, process.cwd(), "VITE_");
+  const url = String(process.env.VITE_SUPABASE_URL || fromFiles.VITE_SUPABASE_URL || "").replace(/\/+$/, "");
+  if (flag === "staging") {
+    if (url !== STAGING_SUPABASE_URL) {
+      throw new Error("[staging tripwire] MINEEX_ENV=staging needs VITE_SUPABASE_URL set to exactly the staging project (no fallback).");
+    }
+    if (!(process.env.VITE_SUPABASE_ANON_KEY || fromFiles.VITE_SUPABASE_ANON_KEY)) {
+      throw new Error("[staging tripwire] MINEEX_ENV=staging needs VITE_SUPABASE_ANON_KEY (no fallback).");
+    }
+    process.env.VITE_MINEEX_ENV = "staging";
+  } else if (url.includes("jmljfovtfxcdhjmtlnva")) {
+    throw new Error("[staging tripwire] VITE_SUPABASE_URL names the staging project but MINEEX_ENV is not \"staging\".");
+  }
+}
+
 // https://vite.dev/config/
-export default defineConfig({
-  plugins: [react(), devApiRoutes()],
-  server: {
-    host: true,
-    port: 5173,
-  },
+export default defineConfig(({ mode }) => {
+  assertBuildTarget(mode);
+  return {
+    plugins: [react(), devApiRoutes()],
+    server: {
+      host: true,
+      port: 5173,
+    },
+  };
 });
