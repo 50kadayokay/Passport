@@ -158,7 +158,7 @@ export const API_ROUTES = [
   { name: "revise-release", methods: ["POST"], guard: "verifyUser + service read + actor_can_publish", special: "publishing", source: /serviceRpc\("revise_publication"/ },
 
   // ------------------------------------------------------------ messaging ----
-  { name: "messages", methods: ["POST"], guard: "send: any signed-in user; inbound: MESSAGES_INBOUND_SECRET when set", special: "messages", source: /if \(secret && req\.query\.secret !== secret\)/ },
+  { name: "messages", methods: ["POST"], guard: "send: any signed-in user; inbound (selected by ?secret only): MESSAGES_INBOUND_SECRET required (>=16 chars, else 503), constant-time match, sender must equal the thread's ceo_email", special: "messages", source: /if \(!inboundSecretMatches\(req\.query\.secret, configured\)\) return res\.status\(401\)[\s\S]*const isInbound = req\.query && req\.query\.secret !== undefined;/ },
 
   // ------------------------------------------------------- Site Contract ----
   { name: "site-content", methods: ["GET"], guard: "site/draft token (company from token)", special: "site", source: /verifySiteToken\(siteToken\(req\), \{ kind: draft \? "draft" : "site" \}\)/ },
@@ -169,9 +169,9 @@ export const API_ROUTES = [
     req: () => ({ method: "GET", query: { id: uuid() } }) },
   { name: "og-news", methods: ["GET"], guard: "public (news_public view)", public: true, source: /news_public\?id=eq\./,
     req: () => ({ method: "GET", query: { id: uuid() } }) },
-  { name: "contact", methods: ["POST"], guard: "public form, NO throttle", public: true, source: /storeLead\(row\)/,
+  { name: "contact", methods: ["POST"], guard: "public form; honeypot, spam check and durable per-IP throttle (lead:contact)", public: true, source: /guardLeadForm\(req, "lead:contact", data\)/,
     req: () => post({ name: "Iso Tester", email: "iso-tester@staging.invalid", company: "Iso Co", message: "iso" }) },
-  { name: "conference-inquiry", methods: ["POST"], guard: "public form, NO throttle", public: true, source: /storeInquiry|storeLead|demo_bookings/,
+  { name: "conference-inquiry", methods: ["POST"], guard: "public form; honeypot, spam check and durable per-IP throttle (lead:conference)", public: true, source: /guardLeadForm\(req, "lead:conference", data\)/,
     req: () => post({ name: "Iso Tester", email: "iso-tester@staging.invalid", company: "Iso Co", message: "iso" }) },
   { name: "submit", methods: ["POST"], guard: "public form, honeypot + IP throttle", public: true, source: /checkThrottle\(formName, clientIp\(req\)\)/,
     req: () => post({ form: "contact", name: "Iso Tester", email: "iso-tester@staging.invalid", message: "iso" }) },

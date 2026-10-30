@@ -16,6 +16,7 @@
 // response reports { stored, emailed } so the page can tell the sender what happened.
 // ─────────────────────────────────────────────────────────────────────────────
 import { SB_URL, ANON_KEY, serviceRest, serviceConfigured } from "./_service.js";
+import { guardLeadForm } from "./_submissions.js";
 
 const SUPPORT_TO = process.env.CONTACT_TO || process.env.CONFERENCE_INQUIRY_TO || "support@mineex.ca";
 
@@ -114,6 +115,14 @@ export default async function handler(req, res) {
 
   if (!data.name || !data.company || !isEmail(data.email)) {
     return res.status(400).json({ ok: false, error: "missing-required-fields" });
+  }
+
+  // Abuse controls (F7): honeypot, spam heuristics and a durable per-IP throttle,
+  // all before anything is stored or emailed. See api/_submissions.js.
+  const refused = await guardLeadForm(req, "lead:contact", data);
+  if (refused) {
+    for (const [k, v] of Object.entries(refused.headers || {})) res.setHeader(k, v);
+    return res.status(refused.status).json(refused.body);
   }
 
   const row = { name: data.name, email: data.email, company: data.company, notes: composeNotes(data) };

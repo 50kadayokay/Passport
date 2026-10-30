@@ -14,6 +14,7 @@
 //      MESSAGES_INBOUND_SECRET. Missing email env → the message still stores
 //      (in-app chat works), response reports emailed:false.
 
+import crypto from "node:crypto";
 import { SB_URL, ANON_KEY, serviceRest, serviceConfigured } from "./_service.js";
 
 function bad(res, code, msg) { res.status(code).json({ ok: false, error: msg }); }
@@ -164,21 +165,50 @@ function fromAddress(p) {
   return (m ? m[1] : String(p.From || "")).trim().toLowerCase();
 }
 
+// The inbound secret must be configured AND non-trivial. Shorter than this is
+// treated as misconfiguration, not as a secret.
+export const INBOUND_SECRET_MIN_LENGTH = 16;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Constant-time comparison of the supplied secret against the configured one. */
+export function inboundSecretMatches(supplied, configured) {
+  const a = Buffer.from(String(supplied ?? ""), "utf8");
+  const b = Buffer.from(String(configured ?? ""), "utf8");
+  // timingSafeEqual needs equal lengths; comparing b with itself keeps the work
+  // constant when they differ, and the length check still decides the result.
+  return crypto.timingSafeEqual(a.length === b.length ? a : b, b) && a.length === b.length;
+}
+
 async function handleInbound(req, res) {
-  const secret = process.env.MESSAGES_INBOUND_SECRET;
-  if (secret && req.query.secret !== secret) return res.status(401).json({ ok: false });
+  // FAIL CLOSED (F3). This used to skip the check entirely when the secret was
+  // unset, so any caller could post a "company" reply into an investor's
+  // thread. Unset or trivially short is now a refusal: 503, which Postmark
+  // retries, so a misconfigured deployment delays replies rather than losing
+  // them -- and never accepts a forged one.
+  const configured = String(process.env.MESSAGES_INBOUND_SECRET || "");
+  if (configured.trim().length < INBOUND_SECRET_MIN_LENGTH) {
+    console.error("[messages] inbound refused: MESSAGES_INBOUND_SECRET is not configured (or shorter than " + INBOUND_SECRET_MIN_LENGTH + " characters)");
+    return res.status(503).json({ ok: false, error: "inbound-not-configured" });
+  }
+  if (!inboundSecretMatches(req.query.secret, configured)) return res.status(401).json({ ok: false });
 
   const p = req.body || {};
   const conversationId = String(p.MailboxHash || "").trim();
   const emailId = String(p.MessageID || "").trim() || null;
   const text = replyText(p);
   if (!conversationId || !text) return res.status(200).json({ ok: true, skipped: "empty" });
+  // MailboxHash is our own conversation UUID; anything else cannot be a reply.
+  if (!UUID.test(conversationId)) return res.status(200).json({ ok: true, skipped: "bad-mailbox-hash" });
 
   const cR = await serviceRest(`conversations?id=eq.${encodeURIComponent(conversationId)}&select=id,ceo_email&limit=1`);
   const conv = cR.ok ? (await cR.json().catch(() => []))[0] : null;
   if (!conv) return res.status(200).json({ ok: true, skipped: "no-conversation" });
+  // No CEO address on the thread means no notification was ever emailed for
+  // it, so a genuine reply cannot exist. Refused rather than accepted from any
+  // sender (the previous behaviour). 200 so Postmark does not retry.
   const expected = (conv.ceo_email || "").toLowerCase();
-  if (expected && fromAddress(p) !== expected) return res.status(200).json({ ok: true, skipped: "sender-mismatch" });
+  if (!expected) return res.status(200).json({ ok: true, skipped: "no-ceo-email" });
+  if (fromAddress(p) !== expected) return res.status(200).json({ ok: true, skipped: "sender-mismatch" });
 
   const ins = await serviceRest(`messages`, {
     method: "POST", prefer: "return=minimal",
@@ -193,6 +223,9 @@ export default async function handler(req, res) {
   if (req.method !== "POST") return bad(res, 405, "method");
   if (!serviceConfigured()) return bad(res, 500, "service-not-configured");
   // The Postmark inbound webhook URL carries ?secret=…; investor sends don't.
-  const isInbound = req.query.secret !== undefined || (req.body && req.body.MailboxHash !== undefined);
+  // Decided by the QUERY ONLY (F3): a body containing MailboxHash used to switch
+  // a request into inbound mode, so anyone could reach the company-reply path
+  // by body shape. Without ?secret it is a send, which requires a session.
+  const isInbound = req.query && req.query.secret !== undefined;
   return isInbound ? handleInbound(req, res) : handleSend(req, res);
 }

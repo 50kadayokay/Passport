@@ -23,13 +23,13 @@ S1 leads the plan because it is live.
 | # | Id | Issue | Severity | Customer impact today | Fix size |
 |---|---|---|---|---|---|
 | 1 | **S1** | Staging DB posts to the **production** `/api/dispatch` every minute | **Critical (isolation)** | None observed: every response 401 | Tiny (staging config) |
-| 2 | **F3** | Forged "company" replies when the inbound secret is unset | High (conditional) | Investors could receive impersonated company messages | Small |
+| 2 | **F3** | Forged "company" replies when the inbound secret is unset | High (conditional). **FIXED LOCALLY: Batch B, §7** | Investors could receive impersonated company messages | Small |
 | 3 | **F4** | Paid AI open to any signed-in account and to other companies | High | Unbounded AI spend; no data leak | Medium |
 | 4 | **F2** | Checkout for any company by anyone; return URL from `Origin` | High | Billing integrity; open redirect after payment | Small–medium |
-| 5 | **F5** | Request Host header decides where internal secrets go | Critical if Vercel passes the header, otherwise none | Possible secret exfiltration | Small, but **production-config dependent** (D22) |
+| 5 | **F5** | Request Host header decides where internal secrets go | **Low on Vercel**: measured 2026-10-30, the platform overwrites `Host`, `x-forwarded-host` and `forwarded` (§6 results). Defence in depth | None on Vercel; real on any host that passes headers through | Small, but **production-config dependent** (D22) |
 | 6 | **D20** | Messaging cannot store a thread where 0063 is applied | High (functional) | None today; **breaks messaging the moment 0063 ships** | Small |
-| 7 | **F12** | Form throttle keyed on a client-supplied header | Medium (conditional) | Throttle bypass | Small |
-| 8 | **F7** | `contact`, `conference-inquiry` unthrottled | Medium | Spam relay into the support inbox | Small |
+| 7 | **F12** | Form throttle keyed on `x-forwarded-for` | **Low on Vercel**: measured, Vercel overwrites `x-forwarded-for` with the real IP (§6 results). Hardening: switch to `x-real-ip` | None on Vercel | Small |
+| 8 | **F7** | `contact`, `conference-inquiry` unthrottled | Medium. **FIXED LOCALLY: Batch B, §7** | Spam relay into the support inbox | Small |
 | 9 | **F9** | Stripe webhook accepts replays; no de-duplication | Medium-low | A replayed "active" event could re-activate a cancelled plan | Small (+ optional migration) |
 | 10 | **D22** | No guaranteed dispatcher drain in production (0011 deferred) | Medium (functional) | Missed or late feed and timeline projections | Medium (product decision) |
 | 11 | **F10** | Config checked before auth on 8 routes | Low | Configuration disclosure | Small |
@@ -367,6 +367,10 @@ outside the code.
 
 ### F5 · Request headers choose where internal secrets are sent
 
+> **Measured 2026-10-30 (§6 results):** not exploitable on Vercel; the
+> platform overwrites `Host`, `x-forwarded-host` and `forwarded`. Severity is
+> **low: defence in depth**. The exact fix is in §6 results, fix 2.
+
 **Root cause.**
 
 - `api/_service.js:86` (`invokeDispatchBestEffort`) sends `DISPATCH_SECRET`
@@ -452,6 +456,12 @@ grant review; not recommended.)
 ---
 
 ### F12 · Form throttle trusts a client-supplied header
+
+> **Measured 2026-10-30 (§6 results):** not exploitable on Vercel; the
+> platform overwrites `x-forwarded-for` with the real client IP. Severity is
+> **low: hardening**. Exact fix: prefer `x-real-ip` (§6 results, fix 1).
+> `x-vercel-forwarded-for` is absent on Edge, and `x-client-ip` /
+> `true-client-ip` are client-controlled.
 
 **Root cause.** `api/_submissions.js:134-137` uses the first `x-forwarded-for`
 entry as the client IP.
@@ -948,3 +958,225 @@ doesn't depend on it: it removes header use entirely.
 
 Creating and then deleting the throwaway Vercel project. That needs the Vercel
 CLI (not installed here) or the dashboard, and is a Phase B-type action.
+
+### Status: PREPARED, NOT DEPLOYED (2026-10-30)
+
+**Built:**
+
+| File | What it is |
+|---|---|
+| `tools/header-probe/` | The probe: `api/node.js`, `api/edge.js`, the shared `_echo.js`, a minimal `vercel.json` and `package.json`, and a README with the deploy and delete runbook |
+| `scripts/header-probe-test.mjs` | The diagnostic. Sends sentinel headers (198.51.100.0/24, `*.invalid`) and classifies each as survived, overwritten, appended or absent. Prints the F5 and F12 conclusions and writes `docs/header-probe-results.json`. Refuses MineEx production hosts |
+| `scripts/header-probe-safety-test.mjs` | 23 offline checks, in `npm test`. See below |
+
+**What `header-probe-safety-test.mjs` proves:**
+
+- The probe reads no environment and makes no outbound call.
+- It imports nothing outside its own directory, has no dependencies, and its
+  `vercel.json` declares no crons, env or rewrites.
+- Nothing in `api/` or `src/` references it.
+- It never echoes cookie, authorization or bypass values.
+- Against a **simulated platform proxy**, every verdict and both conclusions
+  come out right.
+
+`node scripts/header-probe-test.mjs --local` passes the no-proxy harness
+check. The production `vite build` contains no trace of the probe.
+
+**Approval needed to run it on Vercel:**
+
+1. Create the separate `mineex-header-probe` project, with root directory
+   `tools/header-probe`.
+2. Turn on protection and a bypass secret.
+3. `vercel deploy --prod`.
+4. Run the diagnostic.
+5. Delete the project.
+
+That requires the Vercel CLI (not installed here) or the dashboard.
+
+### RESULTS: run 2026-10-30, project created and deleted
+
+**Run conditions:**
+
+| | |
+|---|---|
+| Team | `50kadayokays-projects` (Pro) |
+| Disposable project | `mineex-header-probe-0769f7` (`prj_iC4BorqMMEM6DHYGz6icUVsm495L`): no Git link, 0 env vars, no integrations, crons or domains beyond its own |
+| CLI | `vercel@64.3.1`, integrity- and signature-verified |
+| Deployed | Only the six `tools/header-probe` files, deployed from a byte-identical copy outside Git |
+| Requests | Synthetic headers only (198.51.100.0/24, `*.invalid`), through the protected deployment URL with a probe-only bypass secret. The secret was never printed and is in no file |
+| Raw results | `docs/header-probe-results.json`. Vercel's signed `forwarded` token and the caller's real IP are redacted; the file contains no secret |
+
+**Observed Vercel behaviour (both runtimes unless stated):**
+
+| Header the client sent | What the function received | Verdict |
+|---|---|---|
+| `Host` | the deployment hostname | platform-set |
+| `x-forwarded-host: canary-….invalid` | the deployment hostname | **overwritten**, cannot be spoofed |
+| `forwarded: for=…;host=canary-….invalid` | Vercel's own value, with a **signed** `sig=` token | **overwritten** |
+| `x-forwarded-for: 198.51.100.7` | the caller's real public IP, **single value** | **overwritten, not appended**: cannot be spoofed |
+| `x-real-ip: 198.51.100.8` | the caller's real public IP | **overwritten** |
+| `x-vercel-forwarded-for: 198.51.100.9` | Node: the real IP. **Edge: absent** | overwritten on Node, **stripped on Edge** |
+| `x-forwarded-proto: http` | `https` | overwritten |
+| `x-vercel-ip-country: ZZ` | `CA` | overwritten |
+| `x-client-ip`, `true-client-ip` | **exactly as sent** | **client-controlled: never trust** |
+| (Node socket) `remoteAddress` | `127.0.0.1` | an internal proxy hop: **useless for client identity** |
+
+**Production path, checked read-only:** `mineex.ca` resolves straight to
+Vercel (76.76.21.21, `server: Vercel`, DNS at GoDaddy) with no third-party
+proxy in front, so production traffic meets the same edge behaviour.
+
+### Implications
+
+- **F5 (Host header steers secrets).** On Vercel, `Host`, `x-forwarded-host`
+  and `forwarded` are platform-set, so a client **cannot** redirect
+  `DISPATCH_SECRET` or `NEWS_PULL_SECRET`. Severity drops from
+  "critical if exploitable" to **low: defence in depth**. Still worth fixing:
+  - the code trusts request headers by design, which breaks under any other
+    host, local dev, the emulator, or a proxy added later;
+  - it is coupled to D22 anyway.
+- **F12 (throttle keyed on `x-forwarded-for`).** On Vercel, `x-forwarded-for`
+  is **overwritten with the real client IP**, so today's `clientIp()` (first
+  entry) is **not spoofable on Vercel**. Severity drops to **low: hardening**.
+  The emulator finding came from my local server passing headers through,
+  which Vercel does not.
+- **New hazards the probe surfaced:**
+  - `x-client-ip` and `true-client-ip` pass through untouched. No code reads
+    them today; it must never start.
+  - `x-vercel-forwarded-for` is **absent on Edge**, so code relying on it
+    would break on Edge.
+  - Vercel's `forwarded` header carries a signed token, so request headers
+    must not be logged wholesale.
+
+### Exact recommended fixes (not implemented; for approval)
+
+1. **F12, `api/_submissions.js` `clientIp(req)`:** return `x-real-ip`
+   (platform-set on both runtimes), else the **first** `x-forwarded-for`
+   entry (platform-overwritten on Vercel), else `"unknown"`. Never read
+   `x-client-ip`, `true-client-ip`, `x-vercel-forwarded-for` (absent on Edge)
+   or `req.socket.remoteAddress` (127.0.0.1 on Vercel).
+2. **F5, a new `selfBaseUrl()` in `api/_service.js`:** `PUBLIC_BASE_URL`
+   (validated https) → `https://${VERCEL_URL}` → `null` (skip the chained
+   call). Never read `Host`, `x-forwarded-host` or `forwarded`. Used by
+   `invokeDispatchBestEffort`, `news-broadcast`, `news-pull` and
+   `news-process`. Production sequencing is unchanged: D22's guaranteed drain
+   first, then F5.
+3. **Emulator fidelity, `scripts/staging-api-server.mjs`:** behave like the
+   measured Vercel edge.
+   - Overwrite `host`, `x-forwarded-host` and `forwarded` with its own host.
+   - Overwrite `x-forwarded-for` and `x-real-ip` with the socket address; set
+     `x-vercel-forwarded-for` on Node routes and strip it on Edge.
+   - Pass `x-client-ip` and `true-client-ip` through, as Vercel does.
+
+   After this, the local H1 and spoof probes report Vercel's real behaviour.
+   The offline `authz-risk-test` F5 probe, which calls handlers with no proxy,
+   stays as the defence-in-depth guard until fix 2 lands.
+4. **Regression tests:**
+   - an offline test that `clientIp()` ignores `x-client-ip` and
+     `true-client-ip`, and handles a missing `x-vercel-forwarded-for`;
+   - one that `selfBaseUrl()` never reads a request header;
+   - an emulator test that client-sent forwarding headers are overwritten.
+
+### Limitations
+
+- **One point in time** (2026-10-30). Vercel can change edge behaviour; the
+  probe can be re-run with the runbook.
+- **Only Vercel-managed hostnames were probed** (the deployment URL and the
+  project domain). `mineex.ca` was shown to hit the same edge by DNS and
+  response headers, but no diagnostic request went to a custom domain.
+- **One client:** IPv4, a single network, GET only. IPv6 clients and request
+  bodies were not tested; there is no reason header handling would differ.
+- `vercel.json` rewrites (for example `/n/:id`) were not exercised.
+- **Exposure window.** The production alias was reachable without login for
+  about 2–3 minutes, until protection was raised from the default
+  `all_except_custom_domains` to `all`. Only a header echo could be returned
+  (no secrets). Runtime request logs for that window couldn't be retrieved
+  through the API, so other visitors in it can't be ruled out. The runbook now
+  sets `all` before the first deploy.
+- **Deletion.** The project, the deployment and both aliases return 404 from
+  the API, and the project domain returns `DEPLOYMENT_NOT_FOUND`. The deleted
+  deployment's *unique* hostname still redirected to Vercel login
+  (`vercel.com/sso-api`) for at least 7 minutes, from edge cache. A
+  never-existing hostname returns 404 immediately. That is a login wall, not
+  content. Recheck later, or open it while logged in, to see the 404.
+
+---
+
+## 7 · Batch B: F3 and F7, IMPLEMENTED LOCALLY (2026-10-30, uncommitted, not deployed)
+
+### Changes
+
+| File | Change |
+|---|---|
+| `api/messages.js` (F3) | Inbound mode is selected **only** by `?secret`; a `MailboxHash` in the body no longer switches modes. `MESSAGES_INBOUND_SECRET` unset, blank or shorter than 16 characters gives **503** (Postmark retries, so replies are delayed, never forged or lost). The supplied secret is compared in **constant time**. A non-UUID `MailboxHash` is refused before any lookup. A thread with **no `ceo_email`** refuses the reply (it used to accept any sender). The sender must still equal the thread's `ceo_email`. Postmark retries of an already-stored reply return 200 |
+| `api/_submissions.js` (F7, and F12 hardening) | New `guardLeadForm()`: honeypot and spam heuristics (discarded, 200), then the **durable database throttle** (`bump_submission_throttle`, atomic, already applied in production as 0057), before anything is stored or emailed. Separate buckets: `lead:contact` (5 per 10 min) and `lead:conference` (20 per 10 min, for shared booth Wi-Fi). **`clientIp()` now prefers `x-real-ip`**, then the first `x-forwarded-for` entry, and never reads `x-client-ip`, `true-client-ip`, `x-vercel-forwarded-for` or the socket. This follows the measured Vercel behaviour in §6 |
+| `api/contact.js`, `api/conference-inquiry.js` | Call `guardLeadForm()` after validation. A 429 carries `Retry-After: 600` and sends no mail and stores no lead |
+| `scripts/staging-api-server.mjs` | **Emulator fidelity:** it overwrites `Host`, `x-forwarded-host`, `forwarded`, `x-forwarded-for`, `x-real-ip` and `x-forwarded-proto` the way the measured Vercel edge does, and strips `x-vercel-forwarded-for` on Edge routes |
+| Tests | New `scripts/inbound-and-forms-test.mjs` (39 offline, in `npm test`). `authz-risk-test` F3 marker removed: now 5 secure / 8 known. `api-authz-test`: a positive-control Postmark reply, exact-limit bursts and a **30-request concurrent** burst against the real staging database. `_api-routes.mjs` re-pinned for messages, contact and conference-inquiry |
+
+**No migration. Nothing in `src/` changed.** The callers (`ContactPage.jsx`,
+`ConferenceInquiry.jsx`, `lib/conference.js`) already show a clean error on
+any non-OK response.
+
+### Results
+
+| Suite | Before Batch B | After |
+|---|---|---|
+| `npm test` | exit 0 | **exit 0** (now including `inbound-and-forms` 39/39) |
+| Offline risk tests | 3 secure, 9 known | **5 secure, 8 known**, 0 unexpected |
+| API suite (local emulation, staging data) | 263 / 16 / 1 | **268 / 12 / 1** (281 assertions), 0 unexpected |
+| Combined database + API | 709 / 16 / 1 | **714 / 12 / 1** (727 assertions), 0 unexpected |
+| Database only | 446 / 0 | 446 / 0 (API probes counted separately) |
+
+**Key live results on staging:**
+
+- A genuine Postmark reply is **stored and visible to the investor**.
+- A wrong secret gets 401. An investor posting a `MailboxHash` body gets 4xx.
+  A forged sender is skipped.
+- Contact admits **exactly 5**, then 429, with no mail on any 429.
+- **30 simultaneous** conference requests admitted exactly the remaining 19
+  (20 in total), with exactly 19 emails, so the database counter holds under
+  concurrency.
+- Egress for the whole run: nothing beyond staging, 0 production attempts.
+
+**Why 16 known failures became 12:**
+
+| Change | Reason |
+|---|---|
+| F7 ×2 | **fixed** |
+| F12 spoof probe | now passes because the emulator behaves like Vercel (measured) **and** `clientIp()` prefers `x-real-ip` |
+| F5 H1 probe | now passes **only** because the emulator behaves like Vercel. **The F5 code fix is not done**; the offline `authz-risk-test` F5 probes still report it as known |
+
+### Remaining 12 known failures (all tracked)
+
+F4 ×5, F2 ×3, F8, F9, D20, D21. Also tracked:
+
+- F5 (offline, defence in depth)
+- F10, F11, F6
+- **D22**, publishing reliability (§5)
+- the `og-news` render skip
+
+### Before Batch B goes to production (read-only checks for you)
+
+1. `MESSAGES_INBOUND_SECRET` is set on production and is **at least 16
+   characters**. Otherwise inbound replies get 503 and Postmark retries them
+   until it is fixed.
+2. The Postmark inbound webhook URL carries `?secret=<that value>`.
+3. **`SUBMISSION_SALT` is set on production.** Without it, each serverless
+   instance salts IP hashes with its own random value, and the throttle stops
+   being shared across instances.
+
+### Remaining risks
+
+- **The throttle fails OPEN** if its database call fails (the documented
+  policy shared with `submit.js`: a broken counter must not drop leads).
+  During a database outage the forms are unthrottled.
+- **The secret travels in the URL query string**, which platform request logs
+  can record. Postmark supports HTTP Basic Auth on webhook URLs; moving to it
+  is a proposed follow-up.
+- **SMTP-level sender spoofing.** Someone who knows a conversation's UUID
+  *and* its CEO address could send email with a forged `From` to the inbound
+  address. Postmark passes SPF/DKIM results in the payload; requiring a pass
+  is a proposed follow-up.
+- **Shared networks.** Leads from one office or booth network share a bucket
+  (5 per 10 min for contact, 20 for conference). Legitimate bursts beyond that
+  get a clear error and the "email support directly" fallback.

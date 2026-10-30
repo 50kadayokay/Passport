@@ -91,14 +91,22 @@ console.log("\n  F3 · messages inbound");
   delete process.env.MESSAGES_INBOUND_SECRET;
   const { res, calls } = await run("messages", mkReq({ body: { MailboxHash: "conv-1", From: "anyone@stub.invalid", StrippedTextReply: "forged company reply" } }));
   const inserted = calls.some((c) => c.path === "/rest/v1/messages" && c.method === "POST" && /"sender":"company"/.test(c.body));
-  check("with MESSAGES_INBOUND_SECRET unset, an unauthenticated inbound post is refused and stores nothing",
-        res.statusCode === 401 && !inserted, { known: "F3", detail: `got ${res.statusCode}, company message stored: ${inserted}` });
+  check("with MESSAGES_INBOUND_SECRET unset, an unauthenticated MailboxHash post is refused and stores nothing (F3, fixed)",
+        res.statusCode === 401 && !inserted, { detail: `got ${res.statusCode}, company message stored: ${inserted}` });
+  const r1b = await run("messages", mkReq({ query: { secret: "guess" }, body: { MailboxHash: "11111111-2222-4333-8444-555555555555", From: "anyone@stub.invalid", StrippedTextReply: "forged" } }));
+  check("with MESSAGES_INBOUND_SECRET unset, the inbound path itself fails closed: 503, nothing stored (F3, fixed)",
+        r1b.res.statusCode === 503 && !r1b.calls.some((c) => c.path === "/rest/v1/messages" && c.method === "POST"), { detail: `got ${r1b.res.statusCode}` });
 
   process.env.MESSAGES_INBOUND_SECRET = "stub-inbound-secret";
   const r2 = await run("messages", mkReq({ body: { MailboxHash: "conv-1", StrippedTextReply: "forged" } }));
   check("with the secret set, a MailboxHash body with no secret is refused (control)", r2.res.statusCode === 401);
   const r3 = await run("messages", mkReq({ headers: { authorization: "Bearer tok-investor" }, body: { MailboxHash: "conv-1", StrippedTextReply: "forged" } }));
-  check("with the secret set, an INVESTOR posting MailboxHash cannot forge a company reply (control)", r3.res.statusCode === 401);
+  // Since F3's fix the body shape no longer selects inbound mode: a signed-in
+  // investor's MailboxHash post is an ordinary (malformed) send. The property is
+  // that no COMPANY reply is stored, whatever the status.
+  check("with the secret set, an INVESTOR posting MailboxHash cannot forge a company reply (control)",
+        !r3.calls.some((c) => c.path === "/rest/v1/messages" && c.method === "POST" && /"sender":"company"/.test(c.body)) && r3.res.statusCode >= 400,
+        { detail: `got ${r3.res.statusCode}` });
 }
 
 console.log("\n  F5 · the Host header must not choose where internal secrets go");

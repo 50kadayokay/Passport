@@ -277,9 +277,25 @@ export async function runApiSuite({ api, tok, env, record, headers: extraHeaders
     put("anon", "messages inbound", "/api/messages", "401", r, r.status === 401 ? "PASS" : r.status >= 200 && r.status < 300 ? "FAIL" : "SKIP",
         r.status >= 500 ? `wrong inbound secret -- inconclusive: ${r.status}` : "wrong inbound secret");
     r = await call("messages", inbound(undefined), tok.investor || null);
-    put("investor", "messages inbound", "/api/messages", "401", r, r.status === 401 ? "PASS" : r.status >= 200 && r.status < 300 ? "FAIL" : "SKIP",
-        "body carries MailboxHash with no secret: must not be accepted as a company reply (secret IS set here; see risk test for unset)");
+    // Since F3's fix the body shape no longer selects inbound mode: this is an
+    // ordinary send with no companySlug, refused 4xx. Any 2xx would be a failure.
+    put("investor", "messages inbound", "/api/messages", "refused (4xx), no company reply", r,
+        r.status >= 400 && r.status < 500 ? "PASS" : r.status >= 200 && r.status < 300 ? "FAIL" : "SKIP",
+        "body carries MailboxHash with no ?secret: must not be accepted as a company reply");
     if (env.MESSAGES_INBOUND_SECRET) {
+      // POSITIVE CONTROL: what Postmark sends for a genuine CEO reply. Must be stored.
+      const marker = `iso inbound reply ${crypto.randomUUID()}`;
+      const good = await call("messages", { method: "POST", query: { secret: env.MESSAGES_INBOUND_SECRET },
+        body: { MailboxHash: conv, From: `Alpha CEO <ceo@${c.slug.A}.invalid>`, FromFull: { Email: `ceo@${c.slug.A}.invalid` }, StrippedTextReply: marker, MessageID: crypto.randomUUID() } }, null);
+      let landed = false;
+      if (good.status === 200 && tok.investor) {
+        const look = await fetch(`${env.ISOLATION_SUPABASE_URL}/rest/v1/messages?conversation_id=eq.${conv}&sender=eq.company&select=body`,
+          { headers: { apikey: env.ISOLATION_ANON_KEY, Authorization: `Bearer ${tok.investor}` } }).then((x) => x.json()).catch(() => []);
+        landed = Array.isArray(look) && look.some((m) => m.body === marker);
+      }
+      put("postmark", "messages inbound", "/api/messages", "genuine CEO reply stored and visible to the investor", good,
+          good.status === 200 && good.body && good.body.ok && !good.body.skipped && landed ? "PASS" : good.status === 401 || good.status === 503 || (good.body && good.body.skipped) ? "FAIL" : "SKIP",
+          landed ? "positive control: legitimate Postmark delivery still works" : `not stored: ${JSON.stringify(good.body).slice(0, 80)}`);
       r = await call("messages", inbound({ secret: env.MESSAGES_INBOUND_SECRET }, "attacker@staging.invalid"), null);
       put("anon", "messages inbound", "/api/messages", "skipped: sender mismatch", r,
           r.status === 200 && r.body && r.body.skipped === "sender-mismatch" ? "PASS" : r.status === 200 && r.body && r.body.ok && !r.body.skipped ? "FAIL" : "SKIP",
@@ -361,8 +377,10 @@ export async function runApiSuite({ api, tok, env, record, headers: extraHeaders
   }
 
   // ---- 8. public routes: reachable, and they touch nothing but staging -------------------
+  const leadAdmitted = { contact: 0, "conference-inquiry": 0 };
   for (const rt of API_ROUTES.filter((x) => x.public)) {
     const r = await call(rt.name, rt.req(c, "A"), null);
+    if (rt.name in leadAdmitted && r.status === 200) leadAdmitted[rt.name]++;
     if (rt.name === "og-news") {
       expectedBlocks.add("cdn.jsdelivr.net:443");
       // The security property of a public route: reachable without auth, and it
@@ -391,18 +409,48 @@ export async function runApiSuite({ api, tok, env, record, headers: extraHeaders
 
   // ---- 9. abuse -------------------------------------------------------------------------
   {
-    // Unthrottled public forms: a burst must hit a limit somewhere.
-    for (const name of ["contact", "conference-inquiry", "submit"]) {
-      const rt = API_ROUTES.find((x) => x.name === name);
-      let limited = false, statuses = [];
-      for (let i = 0; i < 8 && !limited; i++) { const r = await call(name, rt.req(c, "A"), null); statuses.push(r.status); if (r.status === 429) limited = true; }
-      const known = name === "submit" ? "" : "KNOWN F7: no throttle on this public form";
-      record("anon", "API abuse burst", `/api/${name}`, "429 within 8 requests", statuses.join(","),
-             limited ? "PASS" : statuses.every((s) => s >= 500) ? "SKIP" : "FAIL", limited ? "" : known);
+    // Lead forms (F7): the limit must hold EXACTLY -- admitted requests in this
+    // window (including the public probe above) equal the configured ceiling,
+    // every one after it is 429, and no refused request sends mail.
+    const LIMIT = { contact: 5, "conference-inquiry": 20 };
+    {
+      const rt = API_ROUTES.find((x) => x.name === "contact");
+      let admitted = leadAdmitted.contact, mails = 0, statuses = [], first429 = null;
+      for (let i = 0; i < LIMIT.contact + 2; i++) {
+        const r = await call("contact", rt.req(c, "A"), null); statuses.push(r.status);
+        if (r.status === 200) admitted++;
+        if (r.status === 429 && first429 === null) first429 = r;
+        if (r.status === 429) mails += r.egress.mail.length;
+      }
+      record("anon", "API abuse burst", "/api/contact", `exactly ${LIMIT.contact} admitted per window, then 429 with no mail`, statuses.join(","),
+             admitted === LIMIT.contact && first429 && mails === 0 && first429.body?.error === "rate-limited" ? "PASS" : statuses.every((x) => x >= 500) ? "SKIP" : "FAIL",
+             `admitted ${admitted} in this window`);
     }
-    // The form throttle keys on the FIRST x-forwarded-for value. If a client can
-    // choose it, every request is a new "IP". Locally nothing overwrites the
-    // header; whether Vercel does is a Phase B question (as with F5).
+    {
+      // CONCURRENT: 30 simultaneous requests against the real database counter.
+      const rt = API_ROUTES.find((x) => x.name === "conference-inquiry");
+      const before = egressAvailable ? (await egressLen()).length : 0;
+      const burst = await Promise.all(Array.from({ length: 30 }, () =>
+        fetch(`${api}/api/conference-inquiry`, { method: "POST", headers: { ...extraHeaders, "content-type": "application/json" }, body: JSON.stringify(rt.req(c, "A").body) })
+          .then((x) => x.status).catch(() => 0)));
+      const admitted = leadAdmitted["conference-inquiry"] + burst.filter((x) => x === 200).length;
+      const mails = egressAvailable ? (await egressLen()).slice(before).filter((e) => e.provider === "postmark").length : null;
+      record("anon", "API abuse concurrent", "/api/conference-inquiry", `30 at once: total admitted exactly ${LIMIT["conference-inquiry"]}, mail only for admitted`,
+             `${burst.filter((x) => x === 200).length}x200 ${burst.filter((x) => x === 429).length}x429 ${burst.filter((x) => x !== 200 && x !== 429).length}xother`,
+             admitted === LIMIT["conference-inquiry"] && burst.every((x) => x === 200 || x === 429) && (mails === null || mails === burst.filter((x) => x === 200).length) ? "PASS"
+               : burst.every((x) => x >= 500 || x === 0) ? "SKIP" : "FAIL",
+             `admitted ${admitted} in this window; mocked mails during burst: ${mails}`);
+    }
+    {
+      const rt = API_ROUTES.find((x) => x.name === "submit");
+      let limited = false, statuses = [];
+      for (let i = 0; i < 8 && !limited; i++) { const r = await call("submit", rt.req(c, "A"), null); statuses.push(r.status); if (r.status === 429) limited = true; }
+      record("anon", "API abuse burst", "/api/submit", "429 within 8 requests", statuses.join(","),
+             limited ? "PASS" : statuses.every((x) => x >= 500) ? "SKIP" : "FAIL");
+    }
+    // A client must not be able to reset the throttle by sending its own
+    // forwarding headers. Measured on Vercel (2026-10-30): x-forwarded-for and
+    // x-real-ip are platform-set, and the emulator now does the same.
     {
       const rt = API_ROUTES.find((x) => x.name === "submit");
       let limited = null;
@@ -411,7 +459,7 @@ export async function runApiSuite({ api, tok, env, record, headers: extraHeaders
       else {
         const r = await call("submit", rt.req(c, "A"), null, { "x-forwarded-for": `198.51.100.${Math.floor(Math.random() * 200) + 20}` });
         put("anon", "API abuse spoof", "/api/submit", "still 429 after changing x-forwarded-for", r,
-            r.status === 429 ? "PASS" : "FAIL", r.status === 429 ? "" : "KNOWN F12: a new x-forwarded-for value resets the throttle (local emulation; Vercel may overwrite the header -- Phase B decides)");
+            r.status === 429 ? "PASS" : "FAIL", r.status === 429 ? "the emulator, like Vercel (measured), overwrites x-forwarded-for; clientIp() also prefers x-real-ip" : "a new x-forwarded-for value reset the throttle -- the emulator no longer matches Vercel's measured behaviour");
       }
     }
     // AI rate limit: the publisher's bucket for structure-release.

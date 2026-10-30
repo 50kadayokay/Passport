@@ -1,0 +1,6 @@
+{
+  "name": "mineex-header-probe",
+  "private": true,
+  "type": "module",
+  "description": "Throwaway, secret-less Vercel project: reports which forwarding headers reach a function. Not part of MineEx. Delete the Vercel project after use."
+}

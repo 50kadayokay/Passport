@@ -131,9 +131,22 @@ export function looksLikeSpam(data) {
 const WINDOW_MINUTES = 10;
 const MAX_PER_WINDOW = 5;
 
+// WHICH HEADER IDENTIFIES THE CLIENT -- measured on Vercel on 2026-10-30 with
+// the secret-less header probe (docs/header-probe-results.json):
+//   x-real-ip               set by Vercel to the real client IP, Node AND Edge
+//   x-forwarded-for         OVERWRITTEN by Vercel with the real IP (single value)
+//   x-vercel-forwarded-for  real IP on Node, ABSENT on Edge -- not usable
+//   x-client-ip, true-client-ip   passed through untouched: CLIENT-CONTROLLED
+//   socket remoteAddress    127.0.0.1 (an internal hop) -- meaningless
+// So: x-real-ip, else the first x-forwarded-for entry. Never the others. With
+// neither (a non-Vercel host that sets nothing), every caller shares the
+// "unknown" bucket -- stricter, never looser.
 export function clientIp(req) {
-  const fwd = String(req.headers["x-forwarded-for"] || "");
-  return fwd.split(",")[0].trim() || req.socket?.remoteAddress || "unknown";
+  const h = (req && req.headers) || {};
+  const real = String(h["x-real-ip"] || "").trim();
+  if (real) return real;
+  const fwd = String(h["x-forwarded-for"] || "").split(",")[0].trim();
+  return fwd || "unknown";
 }
 
 function ipHash(ip) {
@@ -153,7 +166,7 @@ function windowStart(now = new Date()) {
 // Returns { allowed, count } and fails OPEN on infrastructure trouble: a broken
 // throttle must not take the contact form down with it. The cost of failing open
 // is bounded by the other layers; the cost of failing closed is lost business.
-export async function checkThrottle(formName, ip) {
+export async function checkThrottle(formName, ip, { max = MAX_PER_WINDOW } = {}) {
   if (!serviceConfigured()) return { allowed: true, count: 0, note: "no-service-role" };
   // Via RPC, not a REST upsert. PostgREST's resolution=merge-duplicates issues
   // ON CONFLICT DO UPDATE SET <the columns you sent> -- so sending count:1 would
@@ -168,10 +181,46 @@ export async function checkThrottle(formName, ip) {
     if (!r.ok) return { allowed: true, count: 0, note: `throttle-${r.status}` };
     const count = await r.json().catch(() => null);
     if (typeof count !== "number") return { allowed: true, count: 0, note: "throttle-unparsed" };
-    return { allowed: count <= MAX_PER_WINDOW, count };
+    return { allowed: count <= max, count, max };
   } catch {
     return { allowed: true, count: 0, note: "throttle-threw" };
   }
 }
 
 export const THROTTLE_LIMITS = { WINDOW_MINUTES, MAX_PER_WINDOW };
+
+// ------------------------------------------------- public lead forms (F7) ---
+// api/contact.js and api/conference-inquiry.js email support@ on every call and
+// had no throttle at all: a free relay into the support inbox. They now share
+// submit.js's controls, applied AFTER validation and BEFORE anything is stored
+// or sent:
+//   honeypot  -> 200, nothing stored or sent (a bot told it failed retries)
+//   spam      -> 200, nothing stored or sent
+//   throttle  -> 429 + Retry-After, nothing stored or sent
+// Each form has its own bucket, so one cannot exhaust the other. Conference
+// inquiries come from booths on shared Wi-Fi, so they get a higher ceiling.
+export const LEAD_FORM_LIMITS = {
+  "lead:contact":    { max: MAX_PER_WINDOW },
+  "lead:conference": { max: 20 },
+};
+
+/**
+ * Returns null when the request may proceed, or { status, body, headers } to
+ * send instead. Never throws. The throttle keeps submit.js's documented policy
+ * of failing OPEN on infrastructure trouble (a broken counter must not take the
+ * lead forms down); that trade-off is recorded in docs/REMEDIATION-PLAN.md.
+ */
+export async function guardLeadForm(req, formKey, data) {
+  const limits = LEAD_FORM_LIMITS[formKey];
+  if (!limits) return { status: 500, body: { ok: false, error: "unknown-form" } };
+  const body = (req && req.body && typeof req.body === "object") ? req.body : {};
+  if (String(body[HONEYPOT_FIELD] || "").trim()) return { status: 200, body: { ok: true, stored: false, emailed: false, discarded: "honeypot" } };
+  const spam = looksLikeSpam(data);
+  if (spam) return { status: 200, body: { ok: true, stored: false, emailed: false, discarded: spam } };
+  const t = await checkThrottle(formKey, clientIp(req), { max: limits.max });
+  if (!t.allowed) {
+    return { status: 429, headers: { "Retry-After": String(WINDOW_MINUTES * 60) },
+             body: { ok: false, error: "rate-limited", limit: limits.max, windowMinutes: WINDOW_MINUTES } };
+  }
+  return null;
+}

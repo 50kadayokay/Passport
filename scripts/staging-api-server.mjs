@@ -96,6 +96,23 @@ async function serve() {
 
     const url = new URL(req.url, `http://127.0.0.1:${PORT}`);
 
+    // VERCEL EDGE FIDELITY (measured 2026-10-30, docs/header-probe-results.json).
+    // Vercel overwrites the forwarding headers a client sends; this server used to
+    // pass them through, which made header-spoofing findings (F5, F12) look
+    // exploitable locally when they are not on Vercel. Now it behaves like the
+    // measured edge: Host / x-forwarded-host / forwarded / x-forwarded-for /
+    // x-real-ip / x-forwarded-proto are set by the platform; x-vercel-forwarded-for
+    // is set on Node routes (stripped on Edge, below); x-client-ip and
+    // true-client-ip pass through untouched, exactly as Vercel lets them.
+    const peer = (req.socket.remoteAddress || "").replace(/^::ffff:/, "") || "127.0.0.1";
+    req.headers.host = `127.0.0.1:${PORT}`;
+    req.headers["x-forwarded-host"] = `127.0.0.1:${PORT}`;
+    req.headers["x-forwarded-proto"] = "http";
+    req.headers["x-forwarded-for"] = peer;
+    req.headers["x-real-ip"] = peer;
+    req.headers["x-vercel-forwarded-for"] = peer;
+    delete req.headers.forwarded;
+
     if (url.pathname === "/__staging/egress") {
       if (req.method === "POST") { egress.clearEgressLog(); return res.json({ cleared: true }); }
       return res.json({ log: egress.egressLog() });
@@ -123,6 +140,7 @@ async function serve() {
     if (mod.config && mod.config.runtime === "edge") {
       try {
         const body = ["GET", "HEAD"].includes(req.method) ? undefined : await readRaw(req);
+        delete req.headers["x-vercel-forwarded-for"];   // absent on Vercel's Edge runtime (measured)
         const webReq = new Request(`http://127.0.0.1:${PORT}${req.url}`, { method: req.method, headers: req.headers, body });
         const out = await mod.default(webReq);
         res.statusCode = out.status;
