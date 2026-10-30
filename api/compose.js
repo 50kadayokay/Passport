@@ -17,7 +17,8 @@
 //
 // The Anthropic key lives ONLY here (server-side env), as with structure-release.
 
-import { bearerToken, verifyBearer, supabaseConfigured } from "./_supabase.js";
+import { bearerToken } from "./_supabase.js";
+import { requireAiCaller, DRAFTING_ROLES, MEMBER_ROLES } from "./_aiGuard.js";
 import { userSelect } from "./_userDb.js";
 import { mineIqSearch } from "./_mineiqSearch.js";
 
@@ -433,21 +434,25 @@ export { SYSTEM, FACT_TOOL, callModel };
 export default async function handler(req, res) {
   if (req.method !== "POST") return bad(res, 405, "POST only");
 
-  // SIGNED-IN CALLERS ONLY. This endpoint spends money per request, so an open
-  // one is an invitation to burn someone else's Anthropic credits.
-  //
-  // Note: api/structure-release.js has no such check and is reachable
-  // unauthenticated today. That is a pre-existing exposure, not one introduced
-  // here -- flagged rather than silently copied.
-  if (!supabaseConfigured()) return bad(res, 502, "Could not verify the session.");
-  const token = bearerToken(req);
-  const auth = await verifyBearer(token);
-  if (!auth.ok) return bad(res, auth.status || 401, auth.error || "Sign in required.");
-
-  if (!process.env.OPENAI_API_KEY) return bad(res, 500, "AI is not configured on this deployment.");
-
+  // AUTHORISED COMPANY USERS, FOR THEIR OWN COMPANY (F4). This used to accept
+  // any signed-in account -- investors included -- and any companyId, so one
+  // company's users could spend on another's behalf. Every mode now names a
+  // company the caller belongs to, entitled to the portal (portal_access: the
+  // same entitlement that admits them to /portal at all), and:
+  //   ask                          Mine IQ questions -- any member role
+  //   draft, revise, check_facts,  content creation -- drafting roles only
+  //   caption                      (owner, admin, editor, publisher)
+  // plus the kill switch, size ceiling and per-user / per-company limits.
+  // Investors have no company membership and are refused.
   const body = req.body && typeof req.body === "object" ? req.body : {};
   const mode = String(body.mode || "");
+  const caller = await requireAiCaller(req, res, mode === "ask"
+    ? { label: "compose-ask", feature: "portal_access", roles: MEMBER_ROLES }
+    : { label: "compose", feature: "portal_access", roles: DRAFTING_ROLES });
+  if (!caller) return;
+  const token = caller.token || bearerToken(req);
+
+  if (!process.env.OPENAI_API_KEY) return bad(res, 500, "AI is not configured on this deployment.");
   const companyName = String(body.companyName || "").slice(0, 200);
   const who = companyName ? `The company is ${companyName}. ` : "";
 
@@ -476,7 +481,9 @@ export default async function handler(req, res) {
       return res.status(200).json({ text });
     }
 
-    const companyId = String(body.companyId || "");
+    // The company the guard AUTHORISED -- never re-read from the body, so the
+    // authorisation subject and the data subject cannot diverge.
+    const companyId = String(caller.companyId || "");
     const attachments = Array.isArray(body.attachments) ? body.attachments : [];
     const attachBlock = attachmentsPrompt(attachments);
 

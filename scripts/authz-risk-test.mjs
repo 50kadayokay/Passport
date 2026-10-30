@@ -48,6 +48,12 @@ globalThis.fetch = async (input, init = {}) => {
     if (p.startsWith("/rest/v1/messages") && method === "POST") return json([], 201);
     if (p.startsWith("/rest/v1/publications")) return json([{ id: "pub-1", company_id: "company-A", destination_id: "passport", status: "draft", update_id: null }]);
     if (p.startsWith("/rest/v1/rpc/my_features")) return json(["passport_profile"]);
+    // The AI guard's own calls (F4): kill switch on, nobody holds a company role
+    // here, counters always under the limit, and only the admin token is an admin.
+    if (p.startsWith("/rest/v1/rpc/ai_enabled")) return json(true);
+    if (p.startsWith("/rest/v1/rpc/my_company_role")) return json(null);
+    if (p.startsWith("/rest/v1/rpc/bump_submission_throttle")) return json(1);
+    if (p.startsWith("/rest/v1/profiles")) return json([{ role: auth === "tok-admin" ? "admin" : auth === "tok-investor" ? "investor" : "company" }]);
     if (p.startsWith("/rest/v1/destinations")) return json([{ feature_id: "passport_profile" }]);
     if (p.startsWith("/rest/v1/rpc/publish_publication")) return json({ ok: true, published_at: new Date().toISOString() });
     if (p.startsWith("/rest/v1/rpc/revise_publication")) return json({ ok: true, revision: 2 });
@@ -143,17 +149,17 @@ console.log("\n  F2 · Stripe checkout is for a company's owners and platform ad
 console.log("\n  F4 · AI drafting is for authorized company users, not investors");
 {
   const { res, calls } = await run("story-extract", mkReq({ headers: { authorization: "Bearer tok-investor" }, body: { text: "release text" } }));
-  check("an investor cannot spend on story-extract",
+  check("an investor cannot spend on story-extract (F4, fixed: platform admins only)",
         res.statusCode === 403 && !calls.some((c) => c.host === "api.anthropic.com"),
-        { known: "F4", detail: `got ${res.statusCode}; Anthropic called: ${calls.some((c) => c.host === "api.anthropic.com")}` });
+        { detail: `got ${res.statusCode}; Anthropic called: ${calls.some((c) => c.host === "api.anthropic.com")}` });
 }
 
 console.log("\n  F10 · configuration is checked AFTER authentication");
 {
   const saved = process.env.ANTHROPIC_API_KEY; delete process.env.ANTHROPIC_API_KEY;
   const { res } = await run("story-extract", mkReq({ body: { text: "x" } }));
-  check("story-extract answers an anonymous caller 401, not a configuration 500",
-        res.statusCode === 401, { known: "F10", detail: `got ${res.statusCode}: the key check runs before auth, so a probe learns config state and auth is untestable without the key` });
+  check("story-extract answers an anonymous caller 401, not a configuration 500 (F10, fixed by the F4 guard order)",
+        res.statusCode === 401, { detail: `got ${res.statusCode}: the key check runs before auth, so a probe learns config state and auth is untestable without the key` });
   process.env.ANTHROPIC_API_KEY = saved;
   const sk = process.env.STRIPE_SECRET_KEY; delete process.env.STRIPE_SECRET_KEY;
   const r2 = await run("stripe-checkout", mkReq({ body: { tier: "basic", companyId: "company-B" } }));

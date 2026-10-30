@@ -13,7 +13,8 @@
 // Haiku by default — structuring a press release is not a reasoning-heavy task,
 // and this runs across a whole corpus, so cost matters.
 
-import { requireFeature, companyIdFromSlug, requireAdmin } from "./_entitlement.js";
+import { companyIdFromSlug } from "./_entitlement.js";
+import { requireAiCaller, DRAFTING_ROLES } from "./_aiGuard.js";
 
 const MODEL = process.env.BATCH_MODEL || "claude-haiku-4-5";
 const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
@@ -83,6 +84,13 @@ export const config = { maxDuration: 60 };
 
 export default async function handler(req, res) {
   if (req.method !== "POST") return bad(res, 405, "Method not allowed");
+  // F4: the full AI guard -- kill switch, size ceiling, company + entitlement +
+  // ROLE (drafting roles only), or a platform admin when no company is named
+  // (the onboarding concierge), then per-user and per-company limits. Runs
+  // before the API-key check, so configuration is never disclosed to a caller
+  // who is not allowed in (F10).
+  const caller = await requireAiCaller(req, res, { label: "structure-batch", feature: "company_memory", adminWhenNoCompany: true, roles: DRAFTING_ROLES });
+  if (!caller) return;
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key) return bad(res, 500, "Server not configured: ANTHROPIC_API_KEY is missing.");
 
@@ -95,8 +103,8 @@ export default async function handler(req, res) {
   // Same auth as the other extractors: companyId + feature, or admin concierge.
   const token = /^Bearer\s+(.+)$/i.exec(String(req.headers.authorization || "").trim())?.[1] || "";
   const companyId = bodyCompanyId || (await companyIdFromSlug(slug, token));
-  if (!companyId) { const admin = await requireAdmin(req, res); if (!admin) return; }
-  else { const auth = await requireFeature(req, res, { companyId, feature: "company_memory" }); if (!auth) return; }
+  // Authorisation already done by requireAiCaller above (same company / admin rule).
+  void companyId;
 
   // Each release's text, capped, tagged with its id.
   const docs = list.slice(0, 15).map((r) => `\n===== RELEASE id=${r.id} =====\n${String(r.text).slice(0, 12000)}`).join("\n");

@@ -38,23 +38,38 @@ const COMPANY = {
   "anon": "deny", "companyA>A": "allow", "companyA>B": "deny", "staff>A": "allow",
   "staff>B": "deny", "investor>A": "deny", "companyB>B": "allow",
 };
+// F4 (Batch C): AI drafting / content creation. Drafting roles of THAT company
+// (owner, admin, editor, publisher) and platform admins. `staff` is the fixture
+// viewer -- a read-only role -- and is refused, as are investors and other companies.
+const DRAFT = {
+  "anon": "deny", "companyA>A": "allow", "publisher>A": "allow", "admin>A": "allow", "companyB>B": "allow",
+  "staff>A": "deny", "companyA>B": "deny", "staff>B": "deny", "investor>A": "deny",
+};
+// Mine IQ ask: any member role of that company, viewer included.
+const MEMBER = {
+  "anon": "deny", "companyA>A": "allow", "publisher>A": "allow", "staff>A": "allow", "admin>A": "allow",
+  "companyA>B": "deny", "staff>B": "deny", "investor>A": "deny",
+};
+// Platform-admin tools: nobody else, whatever company they name.
+const ADMIN_TOOL = { "anon": "deny", "companyA>A": "deny", "publisher>A": "deny", "investor>A": "deny", "admin>A": "allow" };
+const aiGuardPin = (label, extra) => new RegExp(`requireAiCaller\\(req, res, \\{ label: "${label}"${extra}`);
 
 export const API_ROUTES = [
   // ------------------------------------------------------------- AI guard ---
-  { name: "audience-card", methods: ["POST"], guard: "requireAiCaller(company_memory)", source: /requireAiCaller\(req, res, \{ label: "audience-card", feature: "company_memory" \}\)/,
+  { name: "audience-card", methods: ["POST"], guard: "requireAiCaller(company_memory, drafting roles)", source: aiGuardPin("audience-card", ', feature: "company_memory", roles: DRAFTING_ROLES \\}'),
     req: (c, X) => post({ companyId: c.id[X], timeline: [{ date: "2026-01-01", title: "iso" }] }),
-    passed: okOrProvider, matrix: COMPANY },
-  { name: "structure-release", methods: ["POST"], guard: "requireAiCaller(company_memory, onboarding)", source: /label: "structure-release", feature: "company_memory", allowOnboarding: true/,
+    passed: okOrProvider, matrix: DRAFT },
+  { name: "structure-release", methods: ["POST"], guard: "requireAiCaller(company_memory, drafting roles)", source: aiGuardPin("structure-release", ', feature: "company_memory", allowOnboarding: true, roles: DRAFTING_ROLES \\}'),
     req: (c, X) => post({ companyId: c.id[X], text: "Iso Resources intersects 31.4 m of 4.8 g/t gold." }),
-    passed: okOrProvider, matrix: COMPANY },
-  { name: "synthesize-profile", methods: ["POST"], guard: "requireAiCaller(company_memory, onboarding)", source: /label: "synthesize-profile", feature: "company_memory", allowOnboarding: true/,
+    passed: okOrProvider, matrix: DRAFT },
+  { name: "synthesize-profile", methods: ["POST"], guard: "requireAiCaller(company_memory, drafting roles)", source: aiGuardPin("synthesize-profile", ', feature: "company_memory", allowOnboarding: true, roles: DRAFTING_ROLES \\}'),
     req: (c, X) => post({ companyId: c.id[X], timeline: [{ date: "2026-01-01", title: "iso" }] }),
-    passed: okOrProvider, matrix: COMPANY },
+    passed: okOrProvider, matrix: DRAFT },
 
   // ------------------------------------------------------- requireFeature ---
-  { name: "comms-generate", methods: ["POST"], guard: "requireFeature(communications_center)", source: /requireFeature\(req, res, \{ companyId, feature: "communications_center" \}\)/,
+  { name: "comms-generate", methods: ["POST"], guard: "requireAiCaller(communications_center, drafting roles)", source: aiGuardPin("comms-generate", ', feature: "communications_center", roles: DRAFTING_ROLES \\}'),
     req: (c, X) => post({ companyId: c.id[X], update: "Iso drill program begins.", destinations: ["passport"] }),
-    passed: okOrProvider, matrix: COMPANY },
+    passed: okOrProvider, matrix: DRAFT },
   { name: "extract-docx", methods: ["POST"], guard: "requireFeature(company_memory)", source: /requireFeature\(req, res, \{ companyId, feature: "company_memory" \}\)/,
     // A non-empty stub: the parser fails AFTER the guard, which is the evidence.
     req: (c, X) => post({ companyId: c.id[X], docx: Buffer.from("PK iso stub").toString("base64") }),
@@ -66,41 +81,38 @@ export const API_ROUTES = [
     matrix: COMPANY },
 
   // ------------------------------------------ admin, or feature with companyId
-  { name: "extract-company", methods: ["POST"], guard: "requireAdmin if no companyId, else requireFeature(company_memory)", source: /requireAdmin\(req, res\)[\s\S]*requireFeature\(req, res, \{ companyId, feature: "company_memory" \}\)/,
+  { name: "extract-company", methods: ["POST"], guard: "requireAiCaller(company_memory, drafting roles; platform admin when no company)", source: aiGuardPin("extract-company", ', feature: "company_memory", adminWhenNoCompany: true, roles: DRAFTING_ROLES \\}'),
     req: (c, X) => post({ companyId: c.id[X] }),
-    passed: (r) => okOrProvider(r) || afterGuard(/No document text found/)(r), matrix: COMPANY },
-  { name: "extract-projects", methods: ["POST"], guard: "requireAdmin if no companyId, else requireFeature(company_memory)", source: /requireAdmin\(req, res\)[\s\S]*requireFeature\(req, res, \{ companyId, feature: "company_memory" \}\)/,
+    passed: (r) => okOrProvider(r) || afterGuard(/No document text found/)(r), matrix: DRAFT },
+  { name: "extract-projects", methods: ["POST"], guard: "requireAiCaller(company_memory, drafting roles; platform admin when no company)", source: aiGuardPin("extract-projects", ', feature: "company_memory", adminWhenNoCompany: true, roles: DRAFTING_ROLES \\}'),
     req: (c, X) => post({ companyId: c.id[X] }),
     // Both messages are emitted only after the guard (extract-projects.js:228-230);
     // the pre-guard one reads "Provide `companyId`, or a `slug` you can access".
-    passed: (r) => okOrProvider(r) || afterGuard(/No release text found|Provide `slug` or `releases`/)(r), matrix: COMPANY },
-  { name: "extract-text", methods: ["POST"], guard: "requireAdmin if no companyId, else requireFeature(company_memory)", source: /requireAdmin\(req, res\)[\s\S]*requireFeature\(req, res, \{ companyId, feature: "company_memory" \}\)/,
+    passed: (r) => okOrProvider(r) || afterGuard(/No release text found|Provide `slug` or `releases`/)(r), matrix: DRAFT },
+  { name: "extract-text", methods: ["POST"], guard: "requireAiCaller(company_memory, drafting roles; platform admin when no company)", source: aiGuardPin("extract-text", ', feature: "company_memory", adminWhenNoCompany: true, roles: DRAFTING_ROLES \\}'),
     req: (c, X) => post({ companyId: c.id[X], text: "Iso Resources intersects 31.4 m of 4.8 g/t gold." }),
-    passed: okOrProvider, matrix: COMPANY },
-  { name: "structure-batch", methods: ["POST"], guard: "requireAdmin if no companyId, else requireFeature(company_memory)", source: /requireAdmin\(req, res\)[\s\S]*requireFeature\(req, res, \{ companyId, feature: "company_memory" \}\)/,
+    passed: okOrProvider, matrix: DRAFT },
+  { name: "structure-batch", methods: ["POST"], guard: "requireAiCaller(company_memory, drafting roles; platform admin when no company)", source: aiGuardPin("structure-batch", ', feature: "company_memory", adminWhenNoCompany: true, roles: DRAFTING_ROLES \\}'),
     req: (c, X) => post({ companyId: c.id[X], releases: [{ id: "iso-1", text: "Iso Resources intersects 31.4 m of 4.8 g/t gold." }] }),
-    passed: okOrProvider, matrix: COMPANY },
+    passed: okOrProvider, matrix: DRAFT },
 
   // ----------------------------------------------- authentication only (F4) --
   // Proposed policy: AI drafting / company-content creation is for authorized
   // company users acting for their own company, not investors.
-  { name: "compose", methods: ["POST"], guard: "verifyBearer only (no company check)", source: /const auth = await verifyBearer\(token\)/,
+  { name: "compose", methods: ["POST"], guard: "requireAiCaller(portal_access, drafting roles) for draft/revise/check_facts/caption", source: /mode === "ask"\s*\? \{ label: "compose-ask", feature: "portal_access", roles: MEMBER_ROLES \}\s*: \{ label: "compose", feature: "portal_access", roles: DRAFTING_ROLES \}/,
     req: (c, X) => post({ mode: "draft", companyId: c.id[X], details: "Iso drill program begins." }),
-    passed: okOrProvider,
-    matrix: { ...COMPANY },
-    known: { "companyA>B": "F4", "staff>B": "F4", "investor>A": "F4" } },
-  { name: "story-extract", methods: ["POST"], guard: "verifyUser only (no company check)", source: /const user = await verifyUser\(bearer\(req\)\)/,
+    passed: okOrProvider, matrix: DRAFT },
+  { name: "compose", key: "compose-ask", methods: ["POST"], guard: "requireAiCaller(portal_access, any member role) for Mine IQ ask", source: /label: "compose-ask", feature: "portal_access", roles: MEMBER_ROLES/,
+    req: (c, X) => post({ mode: "ask", companyId: c.id[X], question: "What did we drill?" }),
+    passed: okOrProvider, matrix: MEMBER },
+  { name: "story-extract", methods: ["POST"], guard: "requireAiCaller(adminOnly): Story Studio", source: aiGuardPin("story-extract", ", adminOnly: true \\}"),
     req: () => post({ text: "Iso Resources intersects 31.4 m of 4.8 g/t gold." }),
-    passed: okOrProvider,
-    matrix: { "anon": "deny", "companyA>A": "allow", "investor>A": "deny" },
-    known: { "investor>A": "F4" } },
-  { name: "story-fetch", methods: ["POST"], guard: "verifyUser only (no company check)", source: /const user = await verifyUser\(bearer\(req\)\)/,
+    passed: okOrProvider, matrix: ADMIN_TOOL },
+  { name: "story-fetch", methods: ["POST"], guard: "requireAiCaller(adminOnly): Story Studio URL ingest", source: aiGuardPin("story-fetch", ", adminOnly: true \\}"),
     // example.com resolves publicly, so the SSRF check passes and the fetch is
     // attempted -- and stopped by the egress guard. The attempt is the evidence.
     req: () => post({ url: "https://example.com/iso-release" }),
-    passed: (r) => r.status === 200 || r.egress.blocked > 0,
-    matrix: { "anon": "deny", "companyA>A": "allow", "investor>A": "deny" },
-    known: { "investor>A": "F4" } },
+    passed: (r) => r.status === 200 || r.egress.blocked > 0, matrix: ADMIN_TOOL },
 
   // ----------------------------------------------------------- Stripe (F2) --
   // Proposed policy: checkout for a company is for its owners and platform
@@ -118,12 +130,12 @@ export const API_ROUTES = [
     matrix: { "anon": "deny", "companyA>A": "allow" } },
 
   // ------------------------------------------------------------- admin only --
-  { name: "build-from-website", methods: ["POST"], guard: "requireAdmin", source: /if \(!\(await requireAdmin\(req, res\)\)\) return;/,
+  { name: "build-from-website", methods: ["POST"], guard: "requireAiCaller(adminOnly)", source: aiGuardPin("build-from-website", ", adminOnly: true \\}"),
     req: (c, X) => post({ companyId: c.id[X] }),
     // AI_PAID_ENABLED is unset on staging, so an admitted admin stops at the
     // paid-build switch -- which is checked only after requireAdmin.
     passed: (r) => okOrProvider(r) || afterGuard(/AI_PAID_ENABLED|No website URL/)(r),
-    matrix: { "anon": "deny", "companyA>A": "deny", "investor>A": "deny", "admin>A": "allow" } },
+    matrix: ADMIN_TOOL },
   { name: "news-review", methods: ["POST"], guard: "requireAdmin", source: /const admin = await requireAdmin\(req, res\)/,
     req: () => post({ action: "reject", id: uuid() }),
     passed: (r) => r.status !== 401 && r.status !== 403 && r.status !== 400 && r.status < 500,

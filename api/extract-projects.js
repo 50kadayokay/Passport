@@ -11,7 +11,8 @@
 //
 // Reads the corpus server-side from Supabase so the caller only sends a slug.
 
-import { requireFeature, companyIdFromSlug, requireAdmin } from "./_entitlement.js";
+import { companyIdFromSlug } from "./_entitlement.js";
+import { requireAiCaller, DRAFTING_ROLES } from "./_aiGuard.js";
 // Config from the shared resolver — see api/_supabase.js. Reading process.env
 // here is what let the server target a different (or unusable) project than the
 // browser, surfacing as an auth error rather than a configuration one.
@@ -174,6 +175,13 @@ export const config = { maxDuration: 300 };
 
 export default async function handler(req, res) {
   if (req.method !== "POST") return bad(res, 405, "Method not allowed");
+  // F4: the full AI guard -- kill switch, size ceiling, company + entitlement +
+  // ROLE (drafting roles only), or a platform admin when no company is named
+  // (the onboarding concierge), then per-user and per-company limits. Runs
+  // before the API-key check, so configuration is never disclosed to a caller
+  // who is not allowed in (F10).
+  const caller = await requireAiCaller(req, res, { label: "extract-projects", feature: "company_memory", adminWhenNoCompany: true, roles: DRAFTING_ROLES });
+  if (!caller) return;
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key) return bad(res, 500, "Server not configured: ANTHROPIC_API_KEY is missing.");
 
@@ -202,11 +210,9 @@ export default async function handler(req, res) {
     if (!Array.isArray(releases) || !releases.length) {
       return bad(res, 400, "Provide `companyId`, or a `slug` you can access, or inline `releases` (admin).");
     }
-    const admin = await requireAdmin(req, res);
-    if (!admin) return;   // 401/403 already sent
+    // admin already verified by requireAiCaller (no company named)
   } else {
-    const auth = await requireFeature(req, res, { companyId, feature: "company_memory" });
-    if (!auth) return;    // 401/403 already sent
+    // company, entitlement and role already verified by requireAiCaller
   }
 
   // Either take the corpus inline, or fetch a published company's from Supabase.

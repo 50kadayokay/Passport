@@ -32,9 +32,11 @@ async function call(payload) {
   return data;
 }
 
-/** A caption for a photo or video, from the company's description of it. */
-export function generateCaption({ hint, filename, isVideo, companyName }) {
-  return call({ mode: "caption", hint, filename, isVideo, companyName }).then((r) => r.text);
+/** A caption for a photo or video, from the company's description of it.
+ *  `companyId` is required: /api/compose authorises every mode against the
+ *  company the caller belongs to (F4). */
+export function generateCaption({ hint, filename, isVideo, companyName, companyId }) {
+  return call({ mode: "caption", hint, filename, isVideo, companyName, companyId }).then((r) => r.text);
 }
 
 /**

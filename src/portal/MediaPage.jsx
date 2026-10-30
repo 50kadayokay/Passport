@@ -241,7 +241,7 @@ function Composer({ company, initialFile = null, onCancel, onPosted }) {
     setAiErr(""); setAiBusy(true);
     try {
       const text = await generateCaption({
-        hint, filename: file?.name || "", isVideo, companyName: company?.name || "",
+        hint, filename: file?.name || "", isVideo, companyName: company?.name || "", companyId,
       });
       setCaption(text);
     } catch (e) {

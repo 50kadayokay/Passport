@@ -8,7 +8,7 @@
 //
 // The Anthropic key lives ONLY here (server-side env var). Model via AI_MODEL.
 
-import { requireAiCaller } from "./_aiGuard.js";
+import { requireAiCaller, DRAFTING_ROLES } from "./_aiGuard.js";
 
 const MODEL = process.env.AI_MODEL || "claude-sonnet-5";
 const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
@@ -102,7 +102,7 @@ export default async function handler(req, res) {
   // authorisation + paid entitlement, then a rate limit that FAILS CLOSED.
   // Nothing below this line runs for an unauthorised caller, so no
   // unauthorised request can reach Anthropic. See api/_aiGuard.js.
-  const caller = await requireAiCaller(req, res, { label: "synthesize-profile", feature: "company_memory", allowOnboarding: true });
+  const caller = await requireAiCaller(req, res, { label: "synthesize-profile", feature: "company_memory", allowOnboarding: true, roles: DRAFTING_ROLES });
   if (!caller) return;
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key) return bad(res, 500, "Server not configured: ANTHROPIC_API_KEY is missing.");

@@ -171,21 +171,26 @@ export async function runApiSuite({ api, tok, env, record, headers: extraHeaders
 
   // ---- 2. the route matrix ------------------------------------------------------
   const ID_OF = { A: "companyA", B: "companyB" };
+  const allowPassed = new Set();       // `${rid}|${probe}` for ADMITTED probes that passed
   for (const rt of API_ROUTES) {
     if (rt.special || rt.public) continue;
+    // One route can have several entries (compose: drafting and Mine IQ ask), so
+    // results are keyed by the entry, not the route.
+    const rid = rt.key || rt.name;
     const entries = Object.entries(rt.matrix);
     // Positive controls FIRST.
     const ordered = [...entries.filter(([, e]) => e === "allow"), ...entries.filter(([, e]) => e === "deny")];
     for (const [probe, expect] of ordered) {
       const [identity, target] = probe === "anon" ? ["anon", "A"] : probe.split(">");
       const token = identity === "anon" ? null : tok[identity];
-      if (identity !== "anon" && !token) { record(identity, "API", `/api/${rt.name}`, expect, "no session", "SKIP", "identity not configured"); continue; }
+      if (identity !== "anon" && !token) { record(identity, "API", `/api/${rid}`, expect, "no session", "SKIP", "identity not configured"); continue; }
       const r = await call(rt.name, rt.req(c, target), token);
       if (rt.name === "story-fetch") expectedBlocks.add("example.com:443");
       const known = rt.known && rt.known[probe];
       let verdict, note;
       if (expect === "allow") {
         [verdict, note] = judgeAllow(r, rt.passed);
+        if (verdict === "PASS") allowPassed.add(`${rid}|${probe}`);
       } else {
         [verdict, note] = judgeDeny(r, identity, rt.secret && rt.name !== "news-broadcast" ? [401] : []);
         // A denial is only evidence if this route admitted SOMEONE in this run:
@@ -197,20 +202,43 @@ export async function runApiSuite({ api, tok, env, record, headers: extraHeaders
         // this route must have passed -- an admin's, the secret's, an owner's.
         const homeOf = { companyA: "A", staff: "A", publisher: "A", companyB: "B" };
         const crossTenant = homeOf[identity] && homeOf[identity] !== target;
-        const control = crossTenant
-          ? results.get(`${rt.name}|${identity}>${homeOf[identity]}`) === "PASS"
-          : [...results.entries()].some(([k, v]) => k.startsWith(`${rt.name}|`) && v === "PASS");
+        // The control must be an ADMITTED probe that passed: the caller's own when
+        // the matrix admits them at home, otherwise any admitted probe on this
+        // entry (a viewer has no admitted drafting probe -- a passing REFUSAL
+        // proves nothing about whether the route works).
+        const home = crossTenant && rt.matrix[`${identity}>${homeOf[identity]}`] === "allow";
+        const control = home
+          ? allowPassed.has(`${rid}|${identity}>${homeOf[identity]}`)
+          : [...allowPassed].some((k) => k.startsWith(`${rid}|`)) || results.get(`${rt.name}|secret`) === "PASS";
         if (verdict === "PASS" && !control) { verdict = "SKIP"; note = "denied, but no positive control passed on this route -- unproven"; }
       }
       if (known && verdict === "FAIL") note = `KNOWN ${known} (proposed policy, not yet implemented)${note ? ": " + note : ""}`;
-      put(identity, identity === "anon" ? "API unauth" : (target === "B" && identity !== "companyB" && identity !== "admin") ? "API cross-tenant" : "API", `/api/${rt.name}`,
-          expect === "allow" ? "admitted" : "refused", r, verdict, note, `${rt.name}|${probe}`);
+      put(identity, identity === "anon" ? "API unauth" : (target === "B" && identity !== "companyB" && identity !== "admin") ? "API cross-tenant" : "API", `/api/${rid}`,
+          expect === "allow" ? "admitted" : "refused", r, verdict, note, `${rid}|${probe}`);
     }
     // A method the route does not serve must be 405 -- recorded on its own, and
     // never counted as a denial above.
     if (!rt.methods.includes("PUT") && rt.name !== "news-usage") {
       const r = await call(rt.name, { method: "PUT", body: {} }, null);
       put("anon", "API wrong method", `/api/${rt.name}`, "405", r, r.status === 405 ? "PASS" : "FAIL", `serves ${rt.methods.join("/")}`);
+    }
+  }
+
+  // ---- 3b. extractors with NO company: the onboarding concierge (F4) ---------
+  // Platform admin admitted (unchanged behaviour); a company owner refused.
+  for (const name of ["extract-text", "structure-batch", "extract-company", "extract-projects"]) {
+    const body = name === "extract-text" ? { text: "Iso release text." } : name === "structure-batch" ? { releases: [{ id: "r1", text: "Iso drill results." }] }
+      : { releases: [{ date: "2026-01-01", text: "Iso Resources intersects 31.4 m of 4.8 g/t gold." }] };
+    if (tok.admin) {
+      const r = await call(name, post2(body), tok.admin);
+      const [v, n] = judgeAllow(r, (x) => (x.status >= 200 && x.status < 300) || x.egress.provider > 0 || (x.status === 400 && /No release text|No document text|Provide/.test(JSON.stringify(x.body || ""))));
+      put("admin", "API no company", `/api/${name}`, "admitted (concierge)", r, v, n || "platform admin, no company named", `${name}|admin-nocompany`);
+      if (tok.companyA) {
+        const rr = await call(name, post2(body), tok.companyA);
+        let [dv, dn] = judgeDeny(rr, "companyA");
+        if (dv === "PASS" && v !== "PASS") { dv = "SKIP"; dn = "no positive control"; }
+        put("companyA", "API no company", `/api/${name}`, "refused", rr, dv, dn || "an owner may not use the no-company admin path");
+      }
     }
   }
 
@@ -482,11 +510,12 @@ export async function runApiSuite({ api, tok, env, record, headers: extraHeaders
       put("companyA", "API abuse size", "/api/synthesize-profile", "413, no provider call", r,
           r.status === 413 && r.egress.provider === 0 ? "PASS" : r.status === 503 ? "SKIP" : "FAIL", "600 KB over a 512 KB ceiling");
     }
-    // SSRF: a private address is refused before any fetch.
-    if (tok.companyA) {
+    // SSRF: a private address is refused before any fetch. Run as the platform
+    // admin -- since F4 the only caller story-fetch admits at all.
+    if (tok.admin) {
       for (const u of ["http://169.254.169.254/latest/meta-data/", "http://127.0.0.1:8787/__staging/egress", "http://[::1]/"]) {
-        const r = await call("story-fetch", { method: "POST", body: { url: u } }, tok.companyA);
-        put("companyA", "API abuse ssrf", "/api/story-fetch", "400 private address, nothing fetched", r,
+        const r = await call("story-fetch", { method: "POST", body: { url: u } }, tok.admin);
+        put("admin", "API abuse ssrf", "/api/story-fetch", "400 private address, nothing fetched", r,
             r.status === 400 && !r.egress.entries.some((e) => e.action !== "allow") ? "PASS" : r.status === 200 || r.egress.blocked ? "FAIL" : "SKIP", u);
       }
     }

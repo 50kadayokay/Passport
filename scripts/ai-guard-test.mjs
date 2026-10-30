@@ -44,6 +44,12 @@ globalThis.fetch = async (url, opts = {}) => {
     }
     return new Response(JSON.stringify({ error: "bad jwt" }), { status: 401 });
   }
+  // F4: the caller's role in the named company (my_company_role, asked as the
+  // caller). Defaults to "owner" so every pre-F4 scenario keeps its meaning.
+  if (u.includes("/rest/v1/rpc/my_company_role")) {
+    if (scenario.roleDown) return new Response("err", { status: 500 });
+    return new Response(JSON.stringify(scenario.companyRole === undefined ? "owner" : scenario.companyRole), { status: 200 });
+  }
   if (u.includes("/rest/v1/rpc/my_features")) {
     return new Response(JSON.stringify(scenario.features ?? []), { status: scenario.featuresStatus ?? 200 });
   }

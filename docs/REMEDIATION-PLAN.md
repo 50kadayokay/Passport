@@ -24,7 +24,7 @@ S1 leads the plan because it is live.
 |---|---|---|---|---|---|
 | 1 | **S1** | Staging DB posts to the **production** `/api/dispatch` every minute | **Critical (isolation)** | None observed: every response 401 | Tiny (staging config) |
 | 2 | **F3** | Forged "company" replies when the inbound secret is unset | High (conditional). **FIXED LOCALLY: Batch B, §7** | Investors could receive impersonated company messages | Small |
-| 3 | **F4** | Paid AI open to any signed-in account and to other companies | High | Unbounded AI spend; no data leak | Medium |
+| 3 | **F4** | Paid AI open to any signed-in account and to other companies | High. **FIXED LOCALLY: Batch C, §8** | Unbounded AI spend; no data leak | Medium |
 | 4 | **F2** | Checkout for any company by anyone; return URL from `Origin` | High | Billing integrity; open redirect after payment | Small–medium |
 | 5 | **F5** | Request Host header decides where internal secrets go | **Low on Vercel**: measured 2026-10-30, the platform overwrites `Host`, `x-forwarded-host` and `forwarded` (§6 results). Defence in depth | None on Vercel; real on any host that passes headers through | Small, but **production-config dependent** (D22) |
 | 6 | **D20** | Messaging cannot store a thread where 0063 is applied | High (functional) | None today; **breaks messaging the moment 0063 ships** | Small |
@@ -1180,3 +1180,122 @@ F4 ×5, F2 ×3, F8, F9, D20, D21. Also tracked:
 - **Shared networks.** Leads from one office or booth network share a bucket
   (5 per 10 min for contact, 20 for conference). Legitimate bursts beyond that
   get a clear error and the "email support directly" fallback.
+
+---
+
+## 8 · Batch C: F4 AI authorization, IMPLEMENTED LOCALLY (2026-10-30, uncommitted, not deployed)
+
+### Caller review (before any change)
+
+| Route | Real callers | Who uses them |
+|---|---|---|
+| `compose` (draft, revise, check_facts, caption) | `src/lib/compose.js` ← `portal/publish/DraftRelease.jsx`, `portal/MediaPage.jsx` | Company portal |
+| `compose` (ask) | `src/lib/mineiqChat.js` ← `portal/MineIQ.jsx` (`askMineIq` in `lib/mineiq.js` has no callers) | Company portal |
+| `comms-generate`, `extract-text` (with company) | `console/CommsCenter.jsx` | Company portal (`press`) |
+| `structure-release` | `portal/publish/CreateRelease.jsx` (passes `companyId`), `Onboarding.jsx` (`onboarding:true`) | Company portal, onboarding |
+| `audience-card` | `admin/AudienceCard.jsx` | Admin |
+| `synthesize-profile`, `extract-company`, `extract-projects`, `extract-text`, `structure-batch` (no company) | `lib/structureReleases.js` ← `Onboarding.jsx`, `console/CompanyMemory.jsx` | Onboarding concierge / company console |
+| `story-extract`, `story-fetch` | `src/studio/*` | **Story Studio, admin-only** (`main.jsx` `AuthGate requireAdmin`) |
+| `build-from-website` | `admin/Admin.jsx`, `admin/onboarding/*` | Admin |
+
+**Investor-facing Mine IQ:** no investor-app code calls any AI endpoint.
+Investors see Mine IQ only as published facts read from the database, which
+none of these routes serve. A test now pins this.
+
+### Policy implemented (proposed; confirm before production)
+
+| Surface | Admitted | Refused |
+|---|---|---|
+| Drafting and content creation: `compose` draft/revise/check_facts/caption, `comms-generate`, `structure-release`, `audience-card`, `synthesize-profile`, `extract-*`, `structure-batch` | **owner, admin, editor, publisher** of the named company; platform admin | **viewer, analyst** (`403 role_not_permitted`); investors; other companies; anonymous |
+| Mine IQ `ask` (`compose` mode `ask`) | **any member role** of that company, viewer included; platform admin | investors; other companies; anonymous |
+| Story Studio (`story-extract`, `story-fetch`) and `build-from-website` | **platform admin only**; a company named in the body is ignored | everyone else |
+| Extractors with **no** company named (onboarding concierge) | platform admin, **unchanged** | everyone else |
+
+### Changes
+
+| File | Change |
+|---|---|
+| `api/_aiGuard.js` | `requireAiCaller` gains `adminOnly`, `adminWhenNoCompany` and `roles`. Roles are checked with **`my_company_role(cid)` called as the caller** (migration 0006; no new migration); platform admins always pass. New **per-user daily cap** (`AI_USER_DAILY_CAP`, default 1500) alongside the existing per-user burst window and per-company daily cap. Body ceilings for every newly guarded route. `DRAFTING_ROLES` and `MEMBER_ROLES` are each one exported line |
+| `api/compose.js` | `verifyBearer` replaced by the guard per mode (`portal_access`, the entitlement that admits a company to `/portal` at all). The Mine IQ context uses the **authorised** company (`caller.companyId`), never re-read from the body |
+| `api/comms-generate.js` | Guard with `communications_center` plus drafting roles, before the key check |
+| `api/extract-company.js`, `extract-projects.js`, `extract-text.js`, `structure-batch.js` | Guard with `company_memory`, `adminWhenNoCompany` and drafting roles, **before** the key check (F10 for these). Redundant inner checks removed |
+| `api/structure-release.js`, `audience-card.js`, `synthesize-profile.js` | Gain `roles: DRAFTING_ROLES` |
+| `api/story-extract.js`, `story-fetch.js`, `build-from-website.js` | Guard with `adminOnly` |
+| `src/lib/compose.js`, `src/portal/MediaPage.jsx` | **The only client change:** captions now send `companyId` |
+| Tests | New `scripts/ai-access-test.mjs`: 193 offline tests, mutation-checked (allowing viewers to draft gives 22 failures; removing the role check, 33; making Story Studio non-admin, 6). `ai-guard-test` stub learns `my_company_role` (145/145, every prior case unchanged). `authz-risk-test` F4 and story-extract F10 markers removed (7 secure / 6 known). Live suite: role-aware matrices, a Mine IQ ask entry, no-company concierge probes, SSRF probes run as admin |
+
+**No migration. No change to `vercel.json` or environment configuration.**
+
+### Results
+
+| Suite | Before Batch C | After |
+|---|---|---|
+| `npm test` | exit 0 | **exit 0** (now including `ai-access` 193/193) |
+| Offline risk tests | 5 secure / 8 known | **7 secure / 6 known**, 0 unexpected |
+| API suite (staging) | 268 / 12 / 1 (281) | **314 / 7 / 1** (322), 0 unexpected |
+| Combined database + API | 714 / 12 / 1 (727) | **760 / 7 / 1** (768), 0 unexpected |
+
+**F4: all 5 known probes now pass on staging.** Verified live:
+
+- owner, publisher and admin draft;
+- the viewer is refused drafting (`role_not_permitted`) but **may ask Mine IQ**;
+- investors and other companies are refused everywhere;
+- Story Studio admits only the admin.
+
+Offline also verifies:
+
+- an owner naming another company is refused **without consuming that
+  company's AI budget**;
+- admitted calls are charged to the authorised company;
+- the kill switch covers all 13 AI surfaces;
+- anonymous callers get 401, not a configuration 500, on every route;
+- the per-user daily cap refuses the call over the cap with no provider call.
+
+### Remaining 7 known failures, all tracked
+
+**Batch D, F2 ×3**, F8, F9, **D20**, D21. Also tracked:
+
+- F5 (offline; defence in depth)
+- F10 for `stripe-checkout` and `stripe-portal` (part of Batch D)
+- F11, F6
+- **D22**, publishing reliability (§5)
+- the `og-news` render skip
+
+### Found during Batch C
+
+- **D23 (pre-existing, unchanged by this batch).** Company Memory
+  (`console/CompanyMemory.jsx`, at `/onboarding`, open to non-admin company
+  users) and the self-serve builder call `extract-text`, `structure-batch`,
+  `extract-company` and `extract-projects` through `lib/structureReleases.js`
+  helpers that **drop the `companyId`**. Those requests take the admin-only
+  branch, so **ordinary company users are refused** (403), both before and
+  after this batch; confirmed live ("owner, no company → 403"). Proposed fix,
+  not implemented: thread `companyId` through those helpers so company users
+  are authorised for their own company. It is a client change and needs
+  approval.
+- **A broken test script, pre-existing.** `scripts/compose-test.mjs` imports
+  `callClaude`, which was removed in `a2727b3` when Mine IQ moved to OpenAI. It
+  is not part of `npm test`. Not fixed here.
+
+### Before Batch C goes to production (read-only checks for you)
+
+1. **Confirm the role policy:** viewers and analysts may ask Mine IQ but not
+   draft.
+2. **Count production members with role `viewer` or `analyst`.** They would
+   lose drafting. `createInvitation()` defaults to `owner`, so probably none.
+3. **Check production AI usage per user and per company per day.** The new
+   per-user cap (1500) and the existing company cap (1000) should sit well
+   above real use.
+4. `SUBMISSION_SALT` set (already required by Batch B; the AI counters use it
+   too).
+
+### Remaining risks
+
+- **Portal UX for read-only roles.** A viewer opening Draft or Media sees a
+  403 error rather than a hidden or disabled control. A UI follow-up:
+  `my_company_role` is already available to the client.
+- **Fail-closed availability.** If the database counters or the role lookup
+  are unreachable, AI requests are refused (503 or 502), as the guard already
+  did for its three original routes. That is safer for spend, but stricter
+  than before for `compose`, `comms-generate` and the extractors.
+- **The role check costs one extra database call** per admitted AI request.

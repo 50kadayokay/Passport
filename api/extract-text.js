@@ -12,7 +12,8 @@
 // Uses Haiku by default: transcription is not a reasoning task, and this runs
 // once per document across a whole corpus, so cost matters.
 
-import { requireFeature, companyIdFromSlug, requireAdmin } from "./_entitlement.js";
+import { companyIdFromSlug } from "./_entitlement.js";
+import { requireAiCaller, DRAFTING_ROLES } from "./_aiGuard.js";
 
 const MODEL = process.env.TEXT_MODEL || "claude-haiku-4-5";
 const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
@@ -30,6 +31,13 @@ export const config = { maxDuration: 60 };
 
 export default async function handler(req, res) {
   if (req.method !== "POST") return bad(res, 405, "Method not allowed");
+  // F4: the full AI guard -- kill switch, size ceiling, company + entitlement +
+  // ROLE (drafting roles only), or a platform admin when no company is named
+  // (the onboarding concierge), then per-user and per-company limits. Runs
+  // before the API-key check, so configuration is never disclosed to a caller
+  // who is not allowed in (F10).
+  const caller = await requireAiCaller(req, res, { label: "extract-text", feature: "company_memory", adminWhenNoCompany: true, roles: DRAFTING_ROLES });
+  if (!caller) return;
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key) return bad(res, 500, "Server not configured: ANTHROPIC_API_KEY is missing.");
 
@@ -43,11 +51,9 @@ export default async function handler(req, res) {
   const token = /^Bearer\s+(.+)$/i.exec(String(req.headers.authorization || "").trim())?.[1] || "";
   const companyId = bodyCompanyId || (await companyIdFromSlug(slug, token));
   if (!companyId) {
-    const admin = await requireAdmin(req, res);
-    if (!admin) return;
+    // admin already verified by requireAiCaller (no company named)
   } else {
-    const auth = await requireFeature(req, res, { companyId, feature: "company_memory" });
-    if (!auth) return;
+    // company, entitlement and role already verified by requireAiCaller
   }
 
   // A plain-text file needs no model call — just hand it back trimmed.

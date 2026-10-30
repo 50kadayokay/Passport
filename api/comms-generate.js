@@ -13,7 +13,7 @@
 // idiom. It must not invent facts the update doesn't contain — this is a public
 // communication for a regulated issuer.
 
-import { requireFeature } from "./_entitlement.js";
+import { requireAiCaller, DRAFTING_ROLES } from "./_aiGuard.js";
 
 // OpenAI (same provider + billing as the news pipeline). gpt-4o-mini is ~$0.001 per
 // generation; override per-deploy with COMMS_MODEL (e.g. gpt-4o) if a channel needs
@@ -102,6 +102,13 @@ export const config = { maxDuration: 60 };
 
 export default async function handler(req, res) {
   if (req.method !== "POST") return bad(res, 405, "Method not allowed");
+
+  // F4: the Communications Center entitlement for THIS company, a drafting role,
+  // the kill switch, size ceiling and per-user / per-company limits -- before
+  // the key is read (F10). Returns the caller with its `features`, used below.
+  const auth = await requireAiCaller(req, res, { label: "comms-generate", feature: "communications_center", roles: DRAFTING_ROLES });
+  if (!auth) return;
+
   const key = process.env.OPENAI_API_KEY;
   if (!key) return bad(res, 500, "Server not configured: OPENAI_API_KEY is missing.");
 
@@ -124,8 +131,7 @@ export default async function handler(req, res) {
   // The Communications Center itself is the gate. Individual destinations are
   // filtered by their own feature below, so a company can draft for what it pays
   // for and nothing else — the model never even sees a locked channel.
-  const auth = await requireFeature(req, res, { companyId, feature: "communications_center" });
-  if (!auth) return;
+  // (Checked above by requireAiCaller, which named this same company.)
 
   const requested = (Array.isArray(destinations) ? destinations : [])
     .filter((d) => CHANNELS[d])

@@ -14,7 +14,7 @@
 //   • a hard response size and time budget.
 // It returns TEXT ONLY — never headers, never status of internal hosts.
 
-import { verifyUser, bearer } from "./_service.js";
+import { requireAiCaller } from "./_aiGuard.js";
 import { lookup } from "node:dns/promises";
 
 export const config = { maxDuration: 30 };
@@ -95,8 +95,10 @@ function titleOf(html) {
 export default async function handler(req, res) {
   if (req.method !== "POST") return bad(res, 405, "Method not allowed");
 
-  const user = await verifyUser(bearer(req));
-  if (!user || !user.id) return bad(res, 401, "Sign in to fetch a release.");
+  // PLATFORM ADMINS ONLY (F4). Story Studio's URL ingest; it makes a server-side
+  // fetch of an arbitrary public URL, which any signed-in account could trigger.
+  const user = await requireAiCaller(req, res, { label: "story-fetch", adminOnly: true });
+  if (!user) return;
 
   let body = req.body;
   if (typeof body === "string") { try { body = JSON.parse(body); } catch { return bad(res, 400, "Invalid JSON body"); } }

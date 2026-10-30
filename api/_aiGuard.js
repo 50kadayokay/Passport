@@ -70,6 +70,19 @@ const MAX_PER_WINDOW = Number(process.env.AI_CALLS_PER_WINDOW || 200);
 // genuinely needs more is a conversation, not a silent charge.
 const COMPANY_DAILY_CAP = Number(process.env.AI_COMPANY_DAILY_CAP || 1000);
 
+// Per-USER daily budget (F4). The company cap bounds what one company's members
+// spend together; this bounds what one account spends in total, including on
+// paths with no company (platform-admin tools), which had no daily bound at all.
+const USER_DAILY_CAP = Number(process.env.AI_USER_DAILY_CAP || 1500);
+
+// WHO MAY DRAFT (F4, proposed policy 2026-10-30). AI drafting and company-content
+// creation are for a company's authorised users acting for THAT company. The
+// read-only roles (analyst, viewer) may ask Mine IQ about their company but may
+// not generate content. Platform admins are always admitted. This is the one
+// line to change if the role policy changes.
+export const DRAFTING_ROLES = ["owner", "admin", "editor", "publisher"];
+export const MEMBER_ROLES = ["owner", "admin", "editor", "publisher", "analyst", "viewer"];
+
 // ROLLBACK SWITCHES. Rolling back must NEVER mean reverting to the
 // unauthenticated code -- the previous deployment IS the vulnerability. So there
 // are two ways to turn AI off, and they have different operational properties.
@@ -92,6 +105,18 @@ export const BODY_LIMITS = {
   "structure-release": 8 * 1024 * 1024,
   "synthesize-profile": 512 * 1024,
   "audience-card": 512 * 1024,
+  // Added with F4. Generous on purpose: these carry release corpora or PDFs, and
+  // Vercel's own request ceiling (4.5 MB) is the effective limit for most.
+  "compose": 2 * 1024 * 1024,
+  "compose-ask": 2 * 1024 * 1024,
+  "comms-generate": 512 * 1024,
+  "extract-company": 8 * 1024 * 1024,
+  "extract-projects": 8 * 1024 * 1024,
+  "extract-text": 8 * 1024 * 1024,
+  "structure-batch": 8 * 1024 * 1024,
+  "story-extract": 8 * 1024 * 1024,
+  "story-fetch": 16 * 1024,
+  "build-from-website": 64 * 1024,
 };
 
 function windowStart() {
@@ -137,7 +162,14 @@ function userHash(id) {
  *   });
  *   if (!caller) return;
  */
-export async function requireAiCaller(req, res, { label, feature, allowOnboarding = false }) {
+export async function requireAiCaller(req, res, {
+  label, feature, allowOnboarding = false,
+  // F4 options. adminOnly: a platform-admin tool; any company in the body is
+  // ignored. adminWhenNoCompany: no company named -> platform admin required
+  // (the extractors' existing semantics, now with limits). roles: company roles
+  // admitted on the company path (platform admins always are).
+  adminOnly = false, adminWhenNoCompany = false, roles = null,
+}) {
   // ---- 0. kill switches ---------------------------------------------------
   // Checked before everything, including size: when AI is off, nothing about
   // the request matters.
@@ -215,9 +247,16 @@ export async function requireAiCaller(req, res, { label, feature, allowOnboardin
   const companyId = body.companyId || (body.slug ? await companyIdFromSlug(body.slug, token) : null);
 
   let caller;
-  let subject = companyId;
+  let subject = adminOnly ? null : companyId;
 
-  if (subject) {
+  if (adminOnly) {
+    // PLATFORM-ADMIN TOOL (Story Studio, the website builder). There is no
+    // company path at all: the UI that calls these is admin-gated, and a company
+    // id in the body must not turn them into a company-billed route.
+    caller = await requireAdmin(req, res);          // 401 unauth · 403 non-admin
+    if (!caller) return null;
+
+  } else if (subject) {
     // EXPLICIT COMPANY CONTEXT. The only path for a company-specific request.
     // There is deliberately NO fallback from here: if the named company is not
     // yours or not entitled, the answer is 403, never "try a different company".
@@ -255,6 +294,13 @@ export async function requireAiCaller(req, res, { label, feature, allowOnboardin
       if (!caller) return null;
     }
 
+  } else if (adminWhenNoCompany) {
+    // No company named: the concierge/onboarding tooling run by a platform admin
+    // before a company exists. Exactly the semantics these routes always had --
+    // now behind the kill switch, size ceiling and rate limits as well.
+    caller = await requireAdmin(req, res);
+    if (!caller) return null;
+
   } else {
     // No company named, and no onboarding claim. Refuse rather than guess.
     res.status(400).json({
@@ -262,6 +308,26 @@ export async function requireAiCaller(req, res, { label, feature, allowOnboardin
       detail: allowOnboarding ? "send companyId, slug, or onboarding:true" : "send companyId or slug",
     });
     return null;
+  }
+
+  // ---- 2b. company ROLE (F4) -----------------------------------------------
+  // my_features() admits any active member, whatever their role. Drafting is
+  // narrower: my_company_role() -- asked AS THE CALLER, so it can only describe
+  // the caller -- must be one of `roles`, unless the caller is a platform admin.
+  if (roles && subject && !caller.isAdmin) {
+    const role = await callerCompanyRole(caller.token || token, subject);
+    if (role === undefined) {
+      res.status(502).json({ error: "Could not check your role for this company." });
+      return null;
+    }
+    if (!roles.includes(role || "") && !(await callerIsPlatformAdmin(caller.token || token))) {
+      res.status(403).json({
+        error: "Your role in this company does not allow this.",
+        code: "role_not_permitted", role: role || null, allowed: roles,
+      });
+      return null;
+    }
+    caller.role = role || null;
   }
 
   // ---- 3. rate limit, FAILING CLOSED --------------------------------------
@@ -285,6 +351,25 @@ export async function requireAiCaller(req, res, { label, feature, allowOnboardin
     res.status(429).json({
       error: "Too many AI requests just now. Please try again in a few minutes.",
       limit: MAX_PER_WINDOW, windowMinutes: WINDOW_MINUTES, scope: "user",
+    });
+    return null;
+  }
+
+  // (a2) per-user daily budget (F4): bounds one account across every endpoint
+  //      and every company, including the admin-only paths.
+  const userDay = await bump(`ud:${userHash(caller.userId)}`, "ai:user-day", dayStart());
+  if (userDay === null) {
+    res.status(503).json({
+      error: "AI requests are temporarily unavailable. Please try again shortly.",
+      detail: "budget-unavailable",
+    });
+    return null;
+  }
+  if (userDay > USER_DAILY_CAP) {
+    res.setHeader("Retry-After", "3600");
+    res.status(429).json({
+      error: "You have reached your daily AI limit. It resets at 00:00 UTC.",
+      limit: USER_DAILY_CAP, scope: "user",
     });
     return null;
   }
@@ -355,4 +440,35 @@ async function callerOwnCompany(token) {
   } catch { return null; }
 }
 
-export const AI_RATE_LIMITS = { WINDOW_MINUTES, MAX_PER_WINDOW, COMPANY_DAILY_CAP };
+/** The caller's role in `cid` via my_company_role(), asked AS the caller.
+ *  Returns the role string, null for "no role", or undefined if it could not be asked. */
+async function callerCompanyRole(token, cid) {
+  if (!token) return null;
+  try {
+    const r = await fetch(`${SB_URL}/rest/v1/rpc/my_company_role`, {
+      method: "POST",
+      headers: { apikey: ANON_KEY, Authorization: `Bearer ${token}`, "content-type": "application/json" },
+      body: JSON.stringify({ cid }),
+    });
+    if (!r.ok) return undefined;
+    const v = await r.json().catch(() => undefined);
+    return typeof v === "string" ? v : v === null ? null : undefined;
+  } catch { return undefined; }
+}
+
+/** Is the caller a platform admin? Their own profile row, read as themselves. */
+async function callerIsPlatformAdmin(token) {
+  if (!token) return false;
+  try {
+    const u = await fetch(`${SB_URL}/auth/v1/user`, { headers: { apikey: ANON_KEY, Authorization: `Bearer ${token}` } });
+    if (!u.ok) return false;
+    const user = await u.json().catch(() => null);
+    if (!user || !user.id) return false;
+    const r = await fetch(`${SB_URL}/rest/v1/profiles?id=eq.${encodeURIComponent(user.id)}&select=role&limit=1`,
+      { headers: { apikey: ANON_KEY, Authorization: `Bearer ${token}` } });
+    const rows = r.ok ? await r.json().catch(() => []) : [];
+    return !!(rows[0] && rows[0].role === "admin");
+  } catch { return false; }
+}
+
+export const AI_RATE_LIMITS = { WINDOW_MINUTES, MAX_PER_WINDOW, COMPANY_DAILY_CAP, USER_DAILY_CAP };
