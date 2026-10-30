@@ -178,7 +178,7 @@ export const API_ROUTES = [
   { name: "revise-release", methods: ["POST"], guard: "verifyUser + service read + actor_can_publish", special: "publishing", source: /serviceRpc\("revise_publication"/ },
 
   // ------------------------------------------------------------ messaging ----
-  { name: "messages", methods: ["POST"], guard: "send: any signed-in user; inbound (selected by ?secret only): MESSAGES_INBOUND_SECRET required (>=16 chars, else 503), constant-time match, sender must equal the thread's ceo_email", special: "messages", source: /if \(!inboundSecretMatches\(req\.query\.secret, configured\)\) return res\.status\(401\)[\s\S]*const isInbound = req\.query && req\.query\.secret !== undefined;/ },
+  { name: "messages", methods: ["POST"], guard: "send: any signed-in user; start (body.action=\"start\"): signed in AND an active member/owner of fromCompanyId (my_company_role as the caller), not to itself; inbound (selected by ?secret only): MESSAGES_INBOUND_SECRET required (>=16 chars, else 503), constant-time match, sender must equal the thread's ceo_email", special: "messages", source: /if \(!inboundSecretMatches\(req\.query\.secret, configured\)\) return res\.status\(401\)[\s\S]*const isInbound = req\.query && req\.query\.secret !== undefined;/ },
 
   // ------------------------------------------------------- Site Contract ----
   { name: "site-content", methods: ["GET"], guard: "site/draft token (company from token)", special: "site", source: /verifySiteToken\(siteToken\(req\), \{ kind: draft \? "draft" : "site" \}\)/ },

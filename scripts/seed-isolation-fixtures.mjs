@@ -274,7 +274,7 @@ for (const k of ["A", "B"]) {
 
   // The investor conversation must name the CEO address, so the inbound
   // sender check is exercised rather than skipped (it is skipped when null).
-  await c.query(`update public.conversations set ceo_email=$2 where company_slug=$1 and ceo_email is distinct from $2`,
+  await c.query(`update public.conversations set ceo_email=$2 where company_slug=$1 and sender_company_id is null and ceo_email is distinct from $2`,
     [out[`ISOLATION_COMPANY_${k}_SLUG`], `ceo@${out[`ISOLATION_COMPANY_${k}_SLUG`]}.invalid`]);
   const conv = await one(`select id from public.conversations where company_slug=$1 order by created_at limit 1`, [out[`ISOLATION_COMPANY_${k}_SLUG`]]);
   out[`ISOLATION_CONVERSATION_${k}`] = conv.id;

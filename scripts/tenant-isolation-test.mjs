@@ -331,7 +331,13 @@ async function main() {
       continue;
     }
     const { status, body } = await rest(`${table}?${col}=eq.${val}&select=*`, { token: tok.companyA });
-    expectDenied("companyA", "SELECT other", table, status, body, `targeting B via ${col}`);
+    // Since 0063, conversations.company_slug names the RECIPIENT, so a thread
+    // company A started with B carries B's slug -- and A is a party to it. Those
+    // rows (sender_company_id = A) are A's own; every OTHER row is still a leak.
+    const ownSent = table === "conversations" && Array.isArray(body) ? body.filter((r) => r && r.sender_company_id === ID_A) : [];
+    const theirs = ownSent.length ? body.filter((r) => !ownSent.includes(r)) : body;
+    expectDenied("companyA", "SELECT other", table, status, theirs,
+                 `targeting B via ${col}${ownSent.length ? ` (${ownSent.length} thread(s) A started itself excluded)` : ""}`);
     const anonRes = await rest(`${table}?${col}=eq.${val}&select=*`, { token: null });
     expectDenied("anon", "SELECT other", table, anonRes.status, anonRes.body, "");
     const invRes = await rest(`${table}?${col}=eq.${val}&select=*`, { token: tok.investor });
@@ -370,7 +376,10 @@ async function main() {
   // child's policy forgets the join, this is where it shows.
   for (const [child, fk, parent, pcol] of INDIRECTLY_SCOPED) {
     const pval = pcol === "company_slug" ? SLUG_B : ID_B;
-    const look = await rest(`${parent}?${pcol}=eq.${pval}&select=id&limit=1`, { token: tok.companyB });
+    // A conversation with B's slug that company A STARTED is A's own (0063), so
+    // the parent must be one A is not a party to.
+    const notA = parent === "conversations" ? `&or=(sender_company_id.is.null,sender_company_id.neq.${ID_A})` : "";
+    const look = await rest(`${parent}?${pcol}=eq.${pval}${notA}&select=id&limit=1`, { token: tok.companyB });
     // Some parents are not readable even by their own company (events is
     // admin-read only), so the seeded id is the fallback, never a substitute
     // for a discovered one.

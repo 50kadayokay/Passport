@@ -314,14 +314,20 @@ export default function Messages({ company }) {
     setPickedCo(null); setIntroDraft(""); setComposeErr("");
   };
 
+  const introKey = useRef(null);
   const sendIntro = async () => {
     if (!pickedCo || !introDraft.trim() || sending) return;
     setSending(true); setComposeErr("");
     try {
+      // One idempotency key per (recipient, text): pressing Send again after a
+      // network failure returns the stored message instead of posting it twice.
+      const sig = `${pickedCo.slug}\n${introDraft.trim()}`;
+      if (!introKey.current || introKey.current.sig !== sig) introKey.current = { sig, id: crypto.randomUUID() };
       const conv = await startCompanyThread({
-        fromCompanyId: company?.id, fromCompanyName: company?.name,
-        toSlug: pickedCo.slug, toName: pickedCo.name, body: introDraft.trim(),
+        fromCompanyId: company?.id,
+        toSlug: pickedCo.slug, body: introDraft.trim(), clientMessageId: introKey.current.id,
       });
+      introKey.current = null;
       closeCompose();
       await loadInbox();
       if (conv && conv.id) setOpenId(conv.id);

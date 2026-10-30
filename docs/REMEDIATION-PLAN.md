@@ -27,7 +27,7 @@ S1 leads the plan because it is live.
 | 3 | **F4** | Paid AI open to any signed-in account and to other companies | High. **FIXED LOCALLY: Batch C, §8** | Unbounded AI spend; no data leak | Medium |
 | 4 | **F2** | Checkout for any company by anyone; return URL from `Origin` | High | Billing integrity; open redirect after payment | Small–medium |
 | 5 | **F5** | Request Host header decides where internal secrets go | **Low on Vercel**: measured 2026-10-30, the platform overwrites `Host`, `x-forwarded-host` and `forwarded` (§6 results). Defence in depth | None on Vercel; real on any host that passes headers through | Small, but **production-config dependent** (D22) |
-| 6 | **D20** | Messaging cannot store a thread where 0063 is applied | High (functional) | None today; **breaks messaging the moment 0063 ships** | Small |
+| 6 | **D20** | Messaging cannot store a thread where 0063 is applied | High (functional) | None today; **breaks messaging the moment 0063 ships** | Small. **Implemented locally, §11** |
 | 7 | **F12** | Form throttle keyed on `x-forwarded-for` | **Low on Vercel**: measured, Vercel overwrites `x-forwarded-for` with the real IP (§6 results). Hardening: switch to `x-real-ip` | None on Vercel | Small |
 | 8 | **F7** | `contact`, `conference-inquiry` unthrottled | Medium. **FIXED LOCALLY: Batch B, §7** | Spam relay into the support inbox | Small |
 | 9 | **F9** | Stripe webhook accepts replays; no de-duplication | Medium-low | A replayed "active" event could re-activate a cancelled plan | Small (+ optional migration) |
@@ -409,6 +409,11 @@ secret-less diagnostic in §6, never by deploying this vulnerability.
 ---
 
 ### D20 · Messaging upserts target a constraint 0063 removed
+
+> **Status (2026-10-30): implemented locally, see §11.** The plan below is the
+> original. Two corrections from implementing it: the portal path also lacked
+> an INSERT grant (42501), so it moved server-side rather than running under
+> RLS; and duplicate messages are now prevented as well.
 
 **Root cause.** 0063 dropped `conversations_investor_id_company_slug_key` and
 replaced it with two **partial** unique indexes. PostgREST `on_conflict`
@@ -1440,3 +1445,228 @@ any real numbers.** What exists:
 Per-endpoint and per-role caps need a small change to `requireAiCaller`, a
 label-to-limit map. That is no migration, but it is a production behaviour
 change, so it should be its own approved item.
+
+---
+
+## 11 · D20: messaging after 0063, IMPLEMENTED LOCALLY (2026-10-30, uncommitted, not deployed)
+
+### The exact conflict (measured on staging)
+
+| Call site | Request | Staging answer | Cause |
+|---|---|---|---|
+| `api/messages.js` (investor send) | `POST conversations?on_conflict=investor_id,company_slug` (service role) | **400 `42P10`** | 0063 replaced the full unique `conversations_investor_id_company_slug_key` with **partial** indexes: `uq_conv_investor_thread (investor_id, company_slug) WHERE sender_company_id IS NULL` and `uq_conv_company_thread (sender_company_id, company_slug) WHERE sender_company_id IS NOT NULL`. PostgREST's `on_conflict` can only name a full constraint |
+| `src/lib/messages.js` `startCompanyThread` (portal) | `POST conversations?on_conflict=sender_company_id,company_slug` (as the user) | **400 `42P10`** | Same |
+| The same row, as a plain insert, as the user | `POST conversations` | **403 `42501`** "permission denied for table conversations" | **A second defect.** 0052 grants `authenticated` only **SELECT** on `conversations`. 0063's `conv_insert_company` policy can never be reached, so company-started threads could not work from the browser even without the upsert |
+| `sendCompanyReply` (company reply in an existing thread) | `POST messages`, `sender='company'` | **201** | Works; not affected |
+
+Production does not have 0063: the old full constraint is there and the
+investor upsert works. **Every fix below must work on both schemas, and
+does.**
+
+### The fix (code only; no migration, no grant, no policy change)
+
+- **Find-or-create, server-side, as the service role.**
+  - It selects the thread, inserts it if absent, and re-selects if a
+    concurrent insert loses on the unique index (409/23505).
+  - Investor threads are matched as `sender_company_id == null`. Before 0063
+    the column does not exist and reads as `undefined`, so the same code runs
+    on production's schema.
+  - The old upsert's refresh of `company_name`/`ceo_email` is kept: a PATCH,
+    only when they changed.
+- **New: `POST /api/messages` with `action: "start"`** (same endpoint, so the
+  Hobby function cap is unchanged). It replaces the portal's direct
+  upsert. It enforces 0063's `conv_insert_company` rule in code:
+  - **Caller:** signed in, and `my_company_role(fromCompanyId)` asked as the
+    caller is non-null. That is exactly `owns_company()`: any active member
+    or the owner; platform admins not included, as in 0063.
+  - **Row fields:** `investor_id` = the acting user. `company_name` is
+    resolved server-side. Client-supplied `investor_id`, `sender_company_id`
+    and `company_name` are ignored.
+  - **Recipient:** must exist, and a company cannot message itself.
+  - **Before 0063:** answers 503 `company-threads-unavailable`. It never
+    silently creates an investor thread instead.
+  - **First message:** `sender='investor'` (positional: the initiating side,
+    as 0063 defines).
+- **Duplicate messages.**
+  - **With a client idempotency key** (`clientMessageId`, a UUID), the
+    database enforces it. The key is stored in `messages.email_id` as
+    `client:<conversation>:<uuid>`, and the existing unique index
+    `uq_messages_email` (0014) rejects a second insert. The losing request
+    returns the stored message. Postmark MessageIDs never carry the
+    `client:` prefix, so the two uses cannot collide.
+  - **Without a key** (the investor app today), an identical body from the
+    same side of the same thread within **30 s** is returned instead of
+    stored. A retried send also no longer emails the CEO twice.
+  - **Trade-off to review:** this repurposes `email_id` rather than adding a
+    column, which avoids a migration. A dedicated column would be cleaner
+    and needs approval.
+- **Client.**
+  - `startCompanyThread` now calls the API. The portal's compose box sends
+    one `clientMessageId` per (recipient, text), so pressing Send again after
+    a network failure cannot post twice.
+  - The investor app is unchanged; it relies on the 30-second window.
+- **Fixture correction.** The seeder's `ceo_email` update is now limited to
+  investor threads (`sender_company_id is null`). Before, it would have put a
+  CEO address on a company-started thread with the same recipient slug.
+- **Isolation-probe correction** (`tenant-isolation-test.mjs`).
+  - **Cause:** since 0063, `conversations.company_slug` names the
+    **recipient**. A thread company A started with B carries B's slug, and A
+    is a party to it. Once D20 made such threads possible, two probes
+    counted A's own sent thread as a leak.
+  - **Fix:** they now exclude only rows with `sender_company_id = A`. Any
+    other B row visible to A still fails. The join probe now picks a parent
+    thread A is not a party to.
+
+### Authorization: unchanged, and still to decide (F6)
+
+- **Unchanged.** Who may message as a company is exactly what RLS already
+  allowed: any active member, viewers included, for both replies (0047) and
+  company-started threads (0063). D20 does not narrow or widen it.
+- **Open decision.** Batch C's drafting policy (owner/admin/editor/publisher)
+  is **not** applied to messaging, because no messaging policy has been
+  approved. If messaging should follow it, that is a separate change:
+  - `handleStart`: a role list;
+  - 0047/0063: their policies, which needs a migration;
+  - tracked with F6.
+
+### Tests
+
+| Suite | Result |
+|---|---|
+| **New** `scripts/messaging-flow-test.mjs` (offline, in `npm test`) | **70 / 70**. In-memory PostgREST that enforces 0063's partial indexes, the pre-0063 full constraint and `uq_messages_email`, answers `on_conflict` with 42P10, and interleaves requests randomly. Covers investor → company (new, reuse, CEO refresh, unclaimed company), retries (keyed, unkeyed, malformed key, outside window), concurrency (25 rounds × 8 parallel first messages → 1 thread; 25 × 6 concurrent keyed retries → 1 message; same for company starts), company start (create, reuse, viewer, separate from the same person's private thread), 12 refusals (anonymous, invalid token, investor, cross-company ×2, platform admin non-member, outsider, self, unknown recipient, bad/missing ids), role check down → 502, spoofed fields ignored, pre-0063 schema, existing history preserved, no egress. **Fails against the previous handler** (verified) |
+| **New** `scripts/messaging-live-test.mjs` (staging, real database, `npm run test:messaging-live`) | **53 / 53, run twice** |
+| API suite (staging) | **339 / 3 / 1** (343). D20 resolved; 5 new `action:"start"` assertions (positive control, anonymous, cross-company, investor, platform admin) |
+| Combined database + API | **787 / 3 / 1** (791), 0 unexpected |
+| `npm test` | **exit 0** |
+| `vite build` | succeeds |
+
+**What the live staging run proved, each checked in the database (service-role reads), not just by HTTP status:**
+
+- **The defect is real and untouched.** The old upsert still returns 42P10
+  on staging. The browser still cannot insert conversations: no grant was
+  added.
+- **Investor → company:** 200. The message lands in the **existing seeded
+  thread**; the database has exactly one investor thread for the pair, the
+  message is stored once, and earlier history is unchanged. Company A reads
+  it; company B and another investor cannot.
+- **Retries:**
+  - A repeated `clientMessageId` is stored once.
+  - An unkeyed resend within the window is folded into the first.
+  - 6 concurrent keyed retries store one message.
+- **Concurrency:** 8 parallel first messages into a **new** thread produce
+  exactly one thread and all 8 messages.
+- **Company → investor:** A's owner replies in the investor thread (201) and
+  the investor reads it. A's viewer may also reply (unchanged). Refused:
+  company B replying into A's thread, and the investor posting as
+  `'company'`. Neither refused row exists.
+- **Company → company:**
+  - A's owner starts a thread with B. The database row has
+    `sender_company_id=A`, `company_slug=B`, `investor_id` = the actor, no
+    CEO address, and one `'investor'` message.
+  - A's viewer reuses the same thread.
+  - B sees the thread and replies; A reads the reply and continues from the
+    browser (0063 `msg_insert_sender_company`).
+  - Both investors are blind to the thread, and B cannot write as A.
+- **Refusals:** anonymous 401. Investor, cross-company owner (twice),
+  platform-admin non-member and investor B: 403. Self-message: 400. Unknown
+  recipient: 404. **The database shows no thread or message created by any
+  of them.**
+- **Concurrent starts:** 6 parallel starts B → A produce one thread, exactly
+  one response says `created`, and 6 messages are stored. 5 concurrent keyed
+  retries store one message. A → B and B → A stay separate.
+- **Boundary:** no outbound call blocked. 12 Postmark mails, all mocked, all
+  to `.invalid` fixture addresses.
+
+**What the live test writes on staging.** Only messages marked `[d20-live]`.
+It also deletes and recreates three test-owned threads each run (investor B →
+A, A → B, B → A), so the creation race is exercised every time. It deletes a
+thread **only if every message in it carries the marker**; otherwise it stops.
+Seeded fixture threads are never deleted.
+
+**Not verified.**
+- The portal UI and the investor app were not clicked through in a browser.
+  The client change is covered by the build and by calling the same API the
+  client calls.
+- Production was not touched.
+- The investor app's own sends were exercised only via the API, not through
+  its UI.
+
+### Before D20 goes to production
+
+1. **Order.** D20 is safe to deploy **before** 0063: the code is verified on
+   the pre-0063 schema offline only, because staging has 0063. It must be
+   live **before** 0063 is applied to production.
+2. **Read-only check:** count conversations that would collide under 0063.
+   This query should return 0 rows:
+   ```sql
+   select investor_id, company_slug, count(*)
+   from conversations
+   group by 1, 2
+   having count(*) > 1;
+   ```
+3. **Company-started threads** stay unavailable (503) until 0063 is applied
+   there, and the portal shows "not switched on yet".
+
+### Remaining known failures and tracked items
+
+- **Known failures (3):** F8, F9, D21.
+- **Tracked:** D23 (below), D22, F5, F11, F6, the og-news render skip, the
+  S1 inactive cron row (yours to unschedule if wanted), the AI limits (§10,
+  unchanged), and the read-only `supabase/audit/ai_usage_review.sql`
+  (preserved, unchanged).
+
+---
+
+## 12 · D23: Company Memory drops `companyId`, INVESTIGATED ONLY (2026-10-30, not implemented)
+
+Measured on staging through the local API server (AI provider mocked;
+staging-only throttle counters were bumped). Each AI route the helpers call
+was tried as each role, once as the helpers send it today (no `companyId`)
+and once with `companyId`:
+
+| Route (helper) | Owner / editor today | With `companyId` | Viewer with `companyId` | Platform admin today |
+|---|---|---|---|---|
+| `structure-batch` (`structureReleasesBatched`) | **403** Admin only | 200 | 403 (role) | 200 |
+| `extract-company` (`extractCompany`) | **403** | 200 | 403 | 200 |
+| `extract-projects` (`extractProjects`) | **403** | 200 | 403 | 200 |
+| `extract-text` (scanned-PDF fallback) | **403** | 200 | 403 | 200 |
+| `synthesize-profile` (`synthesizeProfile` in re-analyze) | **400** companyId required | passes guard | 403 | **400, admins too** |
+
+**What a user sees.**
+- **Company owners and editors.**
+  - "Re-analyze from memory" finishes with a success message: "Rebuilt from
+    N documents: 0 timeline entries, 0 projects, 0 leaders, capital none
+    found." Every AI step was refused and swallowed.
+  - `mergeExtraction` writes nothing it did not receive, so **no existing
+    data is lost**, but nothing is rebuilt.
+  - "Analyze new documents" raises an error (the projects step throws).
+    Documents are not marked reflected, so nothing is lost.
+- **Platform admins.** Everything works, except that the **company status
+  card and AI brief are never rebuilt** by re-analyze, for anyone.
+  `synthesizeProfile` is called with neither `companyId` nor `onboarding`,
+  and that route has no admin fallback. This was **not in the earlier D23
+  note**.
+- **Billing.** Admin runs are charged to the admin's limits, not the
+  company's.
+- **Onboarding (`Onboarding.jsx`) is a different path and works.** It passes
+  `onboarding: true` (and a slug for synthesis), though `extractCompany` and
+  `extractProjects` there also omit it and rely on the caller being an
+  admin.
+
+**Proposed fix (client only; no server, policy or migration change).**
+- Thread `companyId` from `reanalyzeFromMemory`/`analyzeNewDocuments` into:
+  - `structureReleasesBatched` → `callBatch` body;
+  - `extractCompany` and `extractProjects` → `extractPart`;
+  - `extractDocText`;
+  - `synthesizeProfile`.
+- With it, owners, admins, editors and publishers are admitted for their own
+  company, charged to it, and capped by it. Viewers and analysts get 403, as
+  the approved Batch C policy says. Platform admins keep access.
+- **Also recommended:**
+  - make re-analyze report "the AI steps were refused" instead of a zero
+    success;
+  - stop retrying 403s inside `extractPart`'s retry loop (it retries a
+    refusal up to 3 times).
+- **Tests:** an offline stub asserting each helper's body carries
+  `companyId`; plus the staging table above re-run through the helpers.
+- **Awaiting your review; not implemented.**

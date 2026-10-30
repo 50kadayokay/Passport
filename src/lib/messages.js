@@ -15,7 +15,7 @@
 
 import { SUPABASE_URL } from "./supabase.js";
 import { isPortalDemo } from "./demoMode.js";
-import { authHeaders, getUser } from "./auth.js";
+import { authHeaders, apiHeaders } from "./auth.js";
 
 const REST = `${SUPABASE_URL}/rest/v1`;
 
@@ -271,46 +271,40 @@ export async function searchCompanies(q, { excludeSlug = "", limit = 20 } = {}) 
 /**
  * Open (or reuse) a thread this company is starting, and post the first message.
  *
- * `investor_id` is the ACTING USER even though a company is speaking: 0063's
- * insert policy requires it, so every row stays attributable to a human. The
- * first message is written as sender='investor' -- positional, meaning "the
- * initiating side". See the note at the top of 0063.
+ * Done by /api/messages (action "start"), not from the browser (D20). The
+ * browser cannot create conversations at all -- 0052 grants authenticated users
+ * SELECT only -- and PostgREST cannot upsert against 0063's partial unique
+ * indexes. The server applies 0063's insert rule: the caller must be a member
+ * or owner of `fromCompanyId`, cannot message its own company, and the row
+ * records the acting user as investor_id. The first message is written as
+ * sender='investor' -- positional, meaning "the initiating side".
+ *
+ * `clientMessageId` makes a retry safe: send the same one again for the same
+ * text and the server returns the message it already stored.
  */
-export async function startCompanyThread({ fromCompanyId, fromCompanyName, toSlug, toName, body }) {
+export async function startCompanyThread({ fromCompanyId, toSlug, body, clientMessageId }) {
   const text = String(body || "").trim();
   if (!fromCompanyId) throw new Error("No sending company.");
   if (!toSlug) throw new Error("Choose a company to message.");
   if (!text) throw new Error("Message is empty.");
 
-  const user = getUser();
-  if (!user) throw new Error("You need to be signed in.");
-
-  const h = await authHeaders();
-  const convRes = await fetch(`${REST}/conversations?on_conflict=sender_company_id,company_slug`, {
+  const res = await fetch("/api/messages", {
     method: "POST",
-    headers: { ...h, "Content-Type": "application/json", Prefer: "resolution=merge-duplicates,return=representation" },
-    body: JSON.stringify({
-      investor_id: user.id,
-      sender_company_id: fromCompanyId,
-      company_slug: toSlug,
-      company_name: toName || toSlug,
-    }),
+    headers: await apiHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify({ action: "start", fromCompanyId, toSlug, body: text, clientMessageId }),
   });
-  if (!convRes.ok) {
-    throw new Error(convRes.status === 401 || convRes.status === 403
-      ? "You do not have permission to message from this company."
-      : "Could not start the conversation.");
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || !data.ok) {
+    throw new Error(
+      res.status === 401 ? "You need to be signed in."
+      : res.status === 403 ? "You do not have permission to message from this company."
+      : data.error === "cannot-message-self" ? "A company cannot message itself."
+      : data.error === "company-not-found" ? "That company could not be found."
+      : data.error === "company-threads-unavailable" ? "Starting conversations is not switched on yet."
+      : "Could not start the conversation."
+    );
   }
-  const conv = (await convRes.json().catch(() => []))[0];
-  if (!conv || !conv.id) throw new Error("Could not start the conversation.");
-
-  const msgRes = await fetch(`${REST}/messages`, {
-    method: "POST",
-    headers: { ...h, "Content-Type": "application/json", Prefer: "return=representation" },
-    body: JSON.stringify({ conversation_id: conv.id, sender: "investor", body: text }),
-  });
-  if (!msgRes.ok) throw new Error("The conversation was created but the message did not send.");
-  return conv;
+  return data.conversation;
 }
 
 /** Did WE start this thread? Drives direction in the inbox. */

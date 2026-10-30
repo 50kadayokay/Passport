@@ -289,15 +289,32 @@ export async function runApiSuite({ api, tok, env, record, headers: extraHeaders
     if (tok.investor) {
       r = await call("messages", send, tok.investor);
       const mailedFixture = r.egress.mail.every((m) => /\.invalid$/.test(m.to || ""));
-      // "conversation-failed" is returned only AFTER authUser() admitted the caller
-      // (messages.js:59-104), so it is admission evidence. The failure itself is a
-      // separate, functional defect (D20) and is recorded as one.
+      // "conversation-failed" is returned only AFTER authUser() admitted the caller,
+      // so it is admission evidence; storing the message is asserted separately.
       const admitted = (r.status === 200 && mailedFixture) || (r.body && r.body.error === "conversation-failed");
       put("investor", "messages send", "/api/messages", "admitted; mail only to a .invalid fixture", r,
           admitted ? "PASS" : r.status === 401 || r.status === 403 || (r.status === 200 && !mailedFixture) ? "FAIL" : "SKIP",
           r.status === 200 ? `${r.egress.mail.length} mocked mail(s)` : `admitted, then: ${JSON.stringify(r.body).slice(0, 80)}`);
       put("investor", "messages store", "/api/messages", "message stored", r, r.status === 200 ? "PASS" : "FAIL",
-          r.status === 200 ? "" : "KNOWN D20: the conversations upsert has no matching unique index since 0063 (PostgREST 42P10) -- messaging is broken wherever 0063 is applied");
+          r.status === 200 ? "" : `D20 regression: ${JSON.stringify(r.body).slice(0, 80)} (fixed by find-or-create; see messaging-live-test.mjs)`);
+    }
+    // Company-started threads (action "start", D20). The body carries the
+    // "[d20-live]" marker so messaging-live-test.mjs may recreate the thread.
+    const startA = { method: "POST", body: { action: "start", fromCompanyId: c.id.A, toSlug: c.slug.B, body: "[d20-live] api suite start" } };
+    let ctrlStart = false;
+    if (tok.companyA) {
+      r = await call("messages", startA, tok.companyA);
+      ctrlStart = r.status === 200 && r.body && r.body.ok && r.body.conversation && r.body.conversation.sender_company_id === c.id.A;
+      const [v, n] = judgeAllow(r, () => ctrlStart);
+      put("companyA", "messages start", "/api/messages", "200: A opens/reuses its thread with B", r, v, n || "positive control", "messages-start|own");
+    }
+    r = await call("messages", startA, null);
+    put("anon", "messages start", "/api/messages", "refused", r, ...judgeDeny(r, "anon"));
+    for (const [id, label] of [["companyB", "as company A (cross-company)"], ["investor", "as company A (no membership)"], ["admin", "as company A (platform admin, not a member)"]]) {
+      if (!tok[id]) continue;
+      r = await call("messages", startA, tok[id]);
+      const [v, n] = judgeDeny(r, id);
+      put(id, "messages start", "/api/messages", `refused ${label}`, r, ctrlStart || v === "FAIL" ? v : "SKIP", ctrlStart ? n : "no positive control this run");
     }
     const conv = env.ISOLATION_CONVERSATION_A;
     const inbound = (q, from = `ceo@${c.slug.A}.invalid`) => ({ method: "POST", query: q, body: { MailboxHash: conv, From: from, StrippedTextReply: "iso forged reply", MessageID: crypto.randomUUID() } });
