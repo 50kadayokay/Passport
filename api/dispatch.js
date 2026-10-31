@@ -1,11 +1,19 @@
 // Outbox Dispatcher — drains PUBLICATION_* events to independent, idempotent,
 // VERSIONED listeners (api/_listeners.js).
 //
-// TRIGGERS. A protected POST with x-dispatch-secret. Today the only callers are
-// the best-effort nudges from /api/publish, /api/unpublish and
-// /api/revise-release (to selfBaseUrl(), never a request header: F5/F11). There
-// is NO guaranteed scheduler in production or staging yet (D22 Phase 3); until
-// one exists, work that no nudge reaches waits in the outbox -- queued, not lost.
+// TRIGGERS.
+//   GET  + Authorization: Bearer <CRON_SECRET>   the SCHEDULER (Vercel Cron, D22
+//        Phase 3; see api/_cronAuth.js). The schedule itself lives in vercel.json
+//        and is NOT enabled until approved -- until then nothing calls this.
+//   POST + x-dispatch-secret                     the best-effort nudges from
+//        /api/publish, /api/unpublish and /api/revise-release (to selfBaseUrl(),
+//        never a request header: F5/F11), and manual runs.
+//   GET  ?health=1 + Bearer <DISPATCH_HEALTH_TOKEN>   liveness for an external
+//        monitor: 200 if a run finished in the last 3 minutes, else 503.
+// Every run writes a heartbeat (dispatcher_runs) and evaluates the alert
+// conditions (ops_alerts; api/_dispatchOps.js). Overlapping runs are safe: the
+// claims are leased with SKIP LOCKED, and the 40 s budget keeps a run inside a
+// 1-minute schedule.
 //
 // SECURITY: refuses to run without a valid x-dispatch-secret. It uses the service
 // role (never exposed to the browser) to claim work and write projections.
@@ -30,6 +38,8 @@
 
 import { serviceConfigured, serviceRpc, serviceDb, checkDispatchSecret } from "./_service.js";
 import { requireAdmin } from "./_entitlement.js";
+import { isTrustedCron, isHealthReader } from "./_cronAuth.js";
+import { recordRunStart, recordRunFinish, evaluateAlerts, dispatcherHealth } from "./_dispatchOps.js";
 import { LISTENERS } from "./_listeners.js";
 
 export const config = { maxDuration: 60 };
@@ -95,18 +105,33 @@ async function backfill(req, res) {
 }
 
 export default async function handler(req, res) {
-  if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+  if (req.method !== "POST" && req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
   if (!serviceConfigured()) return res.status(500).json({ error: "Server not configured: Supabase service env missing." });
-  const body = (req.body && typeof req.body === "object") ? req.body : {};
-  // Explicit admin action, authenticated as a platform admin -- never by the dispatch secret.
-  if (body.action === "backfill" && !req.headers["x-dispatch-secret"]) return backfill(req, res);
-  if (!checkDispatchSecret(req)) return res.status(401).json({ error: "unauthorized" });
+  let trigger;
+  if (req.method === "GET") {
+    const q = req.query || {};
+    if (q.health !== undefined) {
+      if (!isHealthReader(req)) return res.status(401).json({ error: "unauthorized" });
+      const h = await dispatcherHealth();
+      return res.status(h.status).json(h.body);
+    }
+    // A scheduled run: ONLY the cron bearer authenticates a GET.
+    if (!isTrustedCron(req)) return res.status(401).json({ error: "unauthorized" });
+    trigger = "cron";
+  } else {
+    const body = (req.body && typeof req.body === "object") ? req.body : {};
+    // Explicit admin action, authenticated as a platform admin -- never by the dispatch secret.
+    if (body.action === "backfill" && !req.headers["x-dispatch-secret"]) return backfill(req, res);
+    if (!checkDispatchSecret(req)) return res.status(401).json({ error: "unauthorized" });
+    trigger = body.trigger === "immediate" ? "nudge" : "manual";
+  }
 
   // A unique worker id per invocation so lease ownership is attributable and a
   // reclaimed delivery can't be completed by the crashed worker that lost it.
   const worker = (globalThis.crypto?.randomUUID?.() || `w-${Date.now()}-${Math.floor(Math.random() * 1e9)}`);
   const db = serviceDb();
   const started = Date.now();
+  const runId = await recordRunStart(worker, trigger);   // heartbeat (best effort: never blocks delivery)
   const now = () => Date.now();
   const deadline = started + (Number(process.env.DISPATCH_BUDGET_MS) > 0 ? Number(process.env.DISPATCH_BUDGET_MS) : RUN_BUDGET_MS);
   const summary = [];
@@ -115,5 +140,8 @@ export default async function handler(req, res) {
     try { summary.push(await runListener(listener, worker, db, deadline, now)); }
     catch (e) { summary.push({ listener: listener.name, error: String((e && e.message) || e) }); }
   }
-  return res.status(200).json({ ok: true, worker, ms: Date.now() - started, listeners: LISTENERS.map((l) => l.name), summary });
+  const alerts = await evaluateAlerts();
+  const result = { ok: true, worker, trigger, ms: Date.now() - started, listeners: LISTENERS.map((l) => l.name), summary, alerts, heartbeat: !!runId };
+  await recordRunFinish(runId, { ms: result.ms, summary, alerts });
+  return res.status(200).json(result);
 }

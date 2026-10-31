@@ -171,7 +171,7 @@ export const API_ROUTES = [
     req: () => post({ news_item_id: uuid() }),
     passed: (r) => r.status !== 401 && r.status !== 403 && r.status < 500,
     matrix: { "anon": "deny", "companyA>A": "deny", "investor>A": "deny", "admin>A": "allow" } },
-  { name: "dispatch", methods: ["POST"], guard: "x-dispatch-secret", secret: "dispatch", source: /if \(!checkDispatchSecret\(req\)\) return res\.status\(401\)/,
+  { name: "dispatch", methods: ["POST", "GET"], guard: "POST: x-dispatch-secret; GET: Vercel Cron bearer (CRON_SECRET / staging STAGING_CRON_SECRET) or ?health with DISPATCH_HEALTH_TOKEN", secret: "dispatch", source: /if \(!checkDispatchSecret\(req\)\) return res\.status\(401\)/,
     req: () => post({ trigger: "iso-suite" }), passed: (r) => r.status === 200, matrix: { "anon": "deny", "companyA>A": "deny" } },
   { name: "market-pull", methods: ["GET", "POST"], guard: "news/cron secret", secret: "news", source: /if \(!checkNewsAuth\(req\)\) return res\.status\(401\)/,
     req: () => post({}), passed: (r) => r.status === 200, matrix: { "anon": "deny", "companyA>A": "deny" } },

@@ -1,8 +1,8 @@
 -- 0071_publishing_reliability.sql — D22 Phase 2 (PROPOSAL).
 --
--- STATUS: PREPARED, NOT APPLIED ANYWHERE. Not executed, not even in a rolled-back
--- transaction. Needs explicit approval: staging first (through the guarded
--- runner), then production. See docs/REMEDIATION-PLAN.md §18.
+-- STATUS: APPLIED TO STAGING ONLY (jmljfovtfxcdhjmtlnva, 2026-10-31, approved,
+-- through scripts/apply-migrations.mjs). NOT applied to production; production
+-- needs its own approval. See docs/REMEDIATION-PLAN.md §19-§20.
 --
 -- WHAT IT DOES, AND WHY EACH PART NEEDS SQL
 --   A. posts.media_url -- the column feed_projection_v1 writes for media posts

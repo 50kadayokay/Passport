@@ -41,11 +41,13 @@ const q = async (s, a) => (await c.query(s, a)).rows;
 
 const pubs = await q(`select p.id, p.company_id, p.update_id, p.status, p.content->>'headline' headline,
     (select count(*)::int from public.release_revisions r where r.publication_id = p.id) revs,
-    (select owner_id from public.companies c where c.id = p.company_id) owner
+    (select owner_id from public.companies c where c.id = p.company_id) owner,
+    (p.content ? 'retired') retired
   from public.publications p
   where ${TEST_MARKERS.map((_, i) => `p.content->>'headline' like $${i + 1}`).join(" or ")}
   order by p.created_at`, TEST_MARKERS.map((m) => `${m.replace(/[%_]/g, "\\$&")}%`));
-const targets = pubs.filter((p) => INCLUDE_FIXTURE || !String(p.headline).startsWith(FIXTURE));
+// Idempotent: a publication already retired (and unpublished) is left alone.
+const targets = pubs.filter((p) => (INCLUDE_FIXTURE || !String(p.headline).startsWith(FIXTURE)) && !(p.retired && p.status !== "published"));
 console.log(`\n  ${APPLY ? "RETIRING" : "DRY RUN"}: ${targets.length} test publication(s) on staging${INCLUDE_FIXTURE ? "" : " (the reused revision fixture is skipped; --include-fixture to include it)"}`);
 
 let deleted = 0, kept = 0;

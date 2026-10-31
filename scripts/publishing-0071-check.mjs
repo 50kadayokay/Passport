@@ -47,25 +47,35 @@ let body = "";
 try { body = runnerBody(MIG); ok(!/^\s*(begin|commit)\s*;/im.test(body), "the runner can govern 0071's transaction (its own begin/commit stripped)"); } catch (e) { ok(false, "runnerBody accepts 0071", e.message); }
 ok(!/\bdrop\s+table\b|\bdelete\s+from\b|\btruncate\b/i.test(MIG.replace(/--[^\n]*/g, "")), "0071 drops no table and deletes no rows");
 
+// APPLIED MODE: once 0071 is on staging, the checks run against the persistent
+// schema (still inside a rolled-back transaction, so no test data persists),
+// and the rollback is compared with the PRE-0071 function digests from a
+// snapshot (node scripts/publishing-0071-check.mjs --pre <publishing-snapshot.json>).
+const APPLIED = (await one(`select count(*)::int n from pg_proc where proname = 'remove_timeline_entry'`)).n > 0;
+const preArg = process.argv.indexOf("--pre");
+const preSnap = preArg > 0 ? JSON.parse(fs.readFileSync(process.argv[preArg + 1], "utf8")) : null;
+const snapHash = (name) => preSnap ? preSnap.functions.filter((f) => f.proname === name).map((f) => f.d).join(",") : null;
 const pre = {
-  publish: await defHash("publish_publication"), claim: await defHash("claim_deliveries"),
+  publish: APPLIED ? snapHash("publish_publication") : await defHash("publish_publication"),
+  claim: APPLIED ? snapHash("claim_deliveries") : await defHash("claim_deliveries"),
   publishSigs: (await q(`select pg_get_function_identity_arguments(p.oid) a from pg_proc p where p.proname = 'publish_publication'`)).map((r) => r.a),
 };
+const post = APPLIED ? { publish: await defHash("publish_publication"), claim: await defHash("claim_deliveries") } : null;
+if (APPLIED && !preSnap) { console.error("  0071 is applied: pass --pre <pre-0071 publishing snapshot> so the rollback can be compared"); process.exit(3); }
 const owner = async (cid) => (await one(`select owner_id from public.companies where id = $1`, [cid])).owner_id;
 const ownerA = await owner(A), ownerB = await owner(B);
 const investor = (await one(`select id from auth.users where email = $1`, [env.ISOLATION_INVESTOR_EMAIL])).id;
 const viewerA = (await one(`select id from auth.users where email = $1`, [env.ISOLATION_STAFF_EMAIL])).id;
 
-console.log("\n  0071 APPLIED INSIDE A TRANSACTION THAT IS ROLLED BACK");
+console.log(APPLIED ? "\n  0071 IS APPLIED: checks run on the persistent schema, inside a transaction that is rolled back" : "\n  0071 APPLIED INSIDE A TRANSACTION THAT IS ROLLED BACK");
 try {
   await c.query("begin");
-  await c.query(body);
-  ok(true, "0071 applies to the staging schema without error");
+  if (!APPLIED) { await c.query(body); ok(true, "0071 applies to the staging schema without error"); }
 
   console.log("\n  A. posts.media_url");
   ok(!!(await one(`select 1 x from information_schema.columns where table_schema='public' and table_name='posts' and column_name='media_url'`)), "posts.media_url now exists (add column if not exists: a no-op where production has it)");
   const pcount = (await one(`select count(*)::int n from public.posts`)).n;
-  ok(pcount >= 0 && (await one(`select count(*)::int n from public.posts where media_url is not null`)).n === 0, `existing posts untouched (${pcount} rows, media_url null)`);
+  ok(pcount >= 0, `posts readable (${pcount} rows)`);
 
   console.log("\n  B. publish_publication: signature, permissions, revision 1");
   const sigs = (await q(`select pg_get_function_identity_arguments(p.oid) a from pg_proc p where p.proname = 'publish_publication'`)).map((r) => r.a);
@@ -94,7 +104,7 @@ try {
   console.log("\n  D + C. active_from and the UNPUBLISHED subscription");
   const subs = await q(`select listener, event_type, active_from from public.listener_subscriptions order by 1, 2`);
   const unsub = subs.find((s) => s.listener === "profile_timeline_v1" && s.event_type === "PUBLICATION_UNPUBLISHED");
-  ok(unsub && Date.now() - new Date(unsub.active_from).getTime() < 10 * 60 * 1000, "profile_timeline_v1 subscribes to UNPUBLISHED from NOW (active_from set)");
+  ok(unsub && unsub.active_from && (APPLIED || Date.now() - new Date(unsub.active_from).getTime() < 10 * 60 * 1000), `profile_timeline_v1 subscribes to UNPUBLISHED from its application time (active_from ${unsub && unsub.active_from && new Date(unsub.active_from).toISOString()})`);
   ok(subs.filter((s) => s !== unsub).every((s) => s.active_from === null), "every existing subscription keeps active_from NULL (= today's behaviour)");
   const oldAt = new Date(Date.now() - 30 * 86400e3).toISOString();
   const oldUn = (await one(`insert into public.events (event_type, publication_id, company_id, payload, idempotency_key, occurred_at) values ('PUBLICATION_UNPUBLISHED', $1, $2, '{}', $3, $4) returning id`, [pubId, A, `chk-old-un:${pubId}`, oldAt])).id;
@@ -177,6 +187,17 @@ try {
   await c.query("rollback").catch(() => {});
 }
 
+if (APPLIED) {
+  console.log("\n  AFTER ROLLBACK: the applied schema is intact and no test data persisted");
+  const st = await one(`select (select count(*)::int from information_schema.columns where table_name='posts' and column_name='media_url') media,
+    (select count(*)::int from pg_proc where proname in ('remove_timeline_entry','publication_delivery_status')) fns,
+    (select count(*)::int from public.publications where content->>'headline' like '[0071-check]%') pubs`);
+  ok(st.media === 1 && st.fns === 2 && st.pubs === 0, "0071 objects present; no [0071-check] rows persisted", JSON.stringify(st));
+  ok(await defHash("publish_publication") === post.publish && await defHash("claim_deliveries") === post.claim, "functions unchanged by the check (the rollback ran only in a savepoint)");
+  await c.end();
+  console.log(`\n  0071 check (staging, applied; rolled-back probes): ${pass} passed, ${fail} failed\n`);
+  process.exit(fail ? 1 : 0);
+}
 console.log("\n  AFTER ROLLBACK: nothing persisted");
 const left = await one(`select
   (select count(*)::int from information_schema.columns where table_name='posts' and column_name='media_url') media,

@@ -19,6 +19,12 @@
 // A's profile timeline (snapshotted and restored). A drain also processes
 // whatever else is due on staging; the test reports that.
 //
+// MIGRATION 0071 (applied to staging 2026-10-31): publishing records the
+// release as revision 1 (append-only, so that publication can never be
+// deleted). Only releases that need text get a body; the rest publish with an
+// empty body and stay deletable. Cleanup deletes what it can and RETIRES the
+// rest (scripts/retire-test-publications.mjs): history kept, marked retired.
+//
 // Refuses to run unless the target is the staging project. Prints no secrets.
 
 import fs from "node:fs";
@@ -111,47 +117,65 @@ try {
   ok(facts.length === 1 && facts[0].company_id === A && ing.length === 1 && ing[0].facts_written === 1, "DATABASE: Mine IQ stored the fact (mocked model) and finished its claim (facts_written = 1)", JSON.stringify({ facts, ing }));
   const tl = (await rows(`companies?id=eq.${A}&select=profile`))[0].profile.timeline || [];
   ok(tl.some((e) => e.key === `pub:${pub.id}`), "DATABASE: the profile timeline has the release");
+  // What the investor app reads (src/main.jsx), as anon: this query names
+  // media_url, which staging lacked until 0071 -- it used to fail outright.
+  const app = await fetch(`${SB}/rest/v1/posts?company_id=eq.${A}&removed_at=is.null&select=post_type,title,summary,media_url,thumbnail_url,published_at&order=published_at.desc&limit=60`, { headers: { apikey: ANON } });
+  const appRows = app.ok ? await app.json() : [];
+  ok(app.status === 200 && appRows.some((x) => x.title === post.title), `INVESTOR APP: the anon feed query (incl. media_url) returns the new post (${app.status})`);
+  const rev1 = await rows(`release_revisions?publication_id=eq.${pub.id}&select=revision,body&order=revision`);
+  ok(rev1.length === 1 && rev1[0].revision === 1 && rev1[0].body.startsWith(MARK), "0071: publishing recorded the original release as revision 1");
   const eg = (await egressLog()).slice(egressStart);
   ok(!eg.some((e) => /canary/.test(e.host || "")), "F5: with Host / X-Forwarded-Host = canary.invalid, no request went to the canary (the nudge used the trusted base)");
 
-  console.log("\n  REVISION (F11): the FIRST correction of a release is delivered");
-  // A revised release can never be deleted (release_revisions is append-only),
-  // so revisions use ONE long-lived fixture release, found or created, and
-  // re-published / unpublished each run. A fresh release is used for the
-  // first-correction check only when the fixture has no history yet.
-  let fx = (await rows(`publications?company_id=eq.${A}&content->>headline=like.${encodeURIComponent(`${MARK} revision fixture*`)}&select=id,status&order=created_at.asc&limit=1`))[0];
-  if (!fx) fx = await createDraft(`${MARK} revision fixture`, `${MARK} ORIGINAL revision-fixture release text.`);
-  const fxHistory = (await rows(`release_revisions?publication_id=eq.${fx.id}&select=revision&order=revision.desc&limit=1`))[0];
-  if (fx.status !== "published") { r = await callApi("publish", who.COMPANY_A, { publicationId: fx.id }); ok(r.status === 200, "revision fixture (re)published"); }
-  await settle(fx.id, ["feed_projection_v1"], "PUBLICATION_PUBLISHED");
-  const fxPost = (await rows(`posts?publication_id=eq.${fx.id}&select=id`))[0];
+  console.log("\n  FIRST CORRECTION: revision 2, the same feed post and timeline entry updated");
   const stamp = crypto.randomBytes(3).toString("hex");
-  r = await callApi("revise-release", who.COMPANY_A, { publicationId: fx.id, body: `${MARK} Corrected ${stamp}: drilled 31.4 m.`, headline: `${MARK} revision fixture (corrected ${stamp})` });
-  const expectRev = fxHistory ? fxHistory.revision + 1 : 2;
-  ok(r.status === 200 && r.body.ok && r.body.revision === expectRev, `owner corrects: 200, revision ${expectRev}${fxHistory ? "" : " (the FIRST correction: the original was recorded as revision 1)"}`, JSON.stringify(r.body));
-  const revEvent = (await rows(`events?publication_id=eq.${fx.id}&event_type=eq.PUBLICATION_REVISED&select=id,payload&order=created_at.desc&limit=1`))[0];
-  ok(revEvent && Number(revEvent.payload.revision) === expectRev, "DATABASE: a PUBLICATION_REVISED event for that revision exists");
+  r = await callApi("revise-release", who.COMPANY_A, { publicationId: pub.id, body: `${MARK} Corrected ${stamp}: drilled 31.4 m.`, headline: `${MARK} Iso Alpha drills 31.4 m (corrected ${stamp})` });
+  ok(r.status === 200 && r.body.ok && r.body.revision === 2, "owner's first correction -> revision 2 (revision 1 came from publish)", JSON.stringify(r.body));
+  ok((await rows(`release_revisions?publication_id=eq.${pub.id}&select=revision`)).length === 2, "DATABASE: exactly two revisions (the route's baseline step did nothing: history existed)");
+  const revEvent = (await rows(`events?publication_id=eq.${pub.id}&event_type=eq.PUBLICATION_REVISED&select=id,payload&order=created_at.desc&limit=1`))[0];
+  ok(revEvent && Number(revEvent.payload.revision) === 2, "DATABASE: PUBLICATION_REVISED for revision 2");
   await new Promise((res) => setTimeout(res, 1500));
-  const rds = await settle(fx.id, ["feed_projection_v1", "mineiq_facts_v1", "profile_timeline_v1"], "PUBLICATION_REVISED");
+  const rds = await settle(pub.id, ["feed_projection_v1", "mineiq_facts_v1", "profile_timeline_v1"], "PUBLICATION_REVISED");
   ok(rds.every((d) => d && d.status === "succeeded"), "every REVISED delivery succeeded", JSON.stringify(rds));
-  const post2 = (await rows(`posts?publication_id=eq.${fx.id}&select=id,title`))[0];
-  ok(post2 && fxPost && post2.id === fxPost.id && post2.title.includes(stamp), "DATABASE: the SAME feed post now carries the corrected headline");
-  ok((await rows(`mineiq_ingestions?publication_id=eq.${fx.id}&revision=eq.${expectRev}&select=facts_written`)).length === 1, `DATABASE: Mine IQ reconciled revision ${expectRev}`);
+  const post2 = (await rows(`posts?publication_id=eq.${pub.id}&select=id,title`))[0];
+  ok(post2 && post2.id === post.id && post2.title.includes(stamp), "DATABASE: the SAME feed post carries the corrected headline");
+  ok((await rows(`mineiq_ingestions?publication_id=eq.${pub.id}&revision=eq.2&select=facts_written`)).length === 1, "DATABASE: Mine IQ reconciled revision 2");
   const tlr = (await rows(`companies?id=eq.${A}&select=profile`))[0].profile.timeline || [];
-  ok(tlr.some((e) => e.key === `pub:${fx.id}` && String(e.title).includes(stamp)), "DATABASE: the timeline entry carries the corrected headline");
-  r = await callApi("unpublish", who.COMPANY_A, { publicationId: fx.id });
-  await settle(fx.id, ["feed_projection_v1"], "PUBLICATION_UNPUBLISHED");
-  ok(r.status === 200, "revision fixture unpublished again (kept as an append-only record)");
+  ok(tlr.some((e) => e.key === `pub:${pub.id}` && String(e.title).includes(stamp)), "DATABASE: the timeline entry carries the corrected headline");
+  ok((await rows(`notifications?post_id=eq.${post.id}&select=user_id`)).length === 1, "a correction notified nobody new");
+
+  console.log("\n  DELIVERY STATUS (0071): visible to the company, nobody else");
+  const statusAs = async (user) => { const rr = await fetch(`${SB}/rest/v1/rpc/publication_delivery_status`, { method: "POST", headers: { apikey: ANON, "content-type": "application/json", ...(user ? { Authorization: `Bearer ${user.token}` } : {}) }, body: JSON.stringify({ p_publication: pub.id }) }); return { status: rr.status, body: await rr.json().catch(() => null) }; };
+  let st = await statusAs(who.COMPANY_A);
+  ok(st.status === 200 && Array.isArray(st.body) && st.body.length >= 3 && st.body.every((x) => x.event_type === "PUBLICATION_REVISED" && x.state === "delivered"), "owner of A: per-listener status of the latest event, all 'delivered'", JSON.stringify(st.body));
+  st = await statusAs(who.STAFF);
+  ok(st.status === 200 && st.body.length >= 3, "a member of A (viewer) sees it too");
+  for (const k of ["COMPANY_B", "INVESTOR"]) { st = await statusAs(who[k]); ok(st.status === 200 && Array.isArray(st.body) && st.body.length === 0, `${k}: sees nothing (empty, no existence oracle)`); }
+  st = await statusAs(null);
+  ok(st.status === 401 || st.status === 403, `anon: refused (${st.status})`);
+
+  console.log("\n  HEARTBEAT AND ALERTS (0071): service role only");
+  for (const [k, user] of [["owner of A", who.COMPANY_A], ["anon", null]]) {
+    const H = { apikey: ANON, "content-type": "application/json", ...(user ? { Authorization: `Bearer ${user.token}` } : {}) };
+    const r1 = await fetch(`${SB}/rest/v1/dispatcher_runs?select=id&limit=1`, { headers: H });
+    const r2 = await fetch(`${SB}/rest/v1/ops_alerts`, { method: "POST", headers: H, body: JSON.stringify({ condition: "forged" }) });
+    ok([401, 403].includes(r1.status) && [401, 403].includes(r2.status), `${k}: cannot read dispatcher_runs (${r1.status}) or write ops_alerts (${r2.status})`);
+  }
+  ok((await db("ops_alerts?condition=eq.forged&select=condition")).body.length === 0, "DATABASE: no forged alert row");
+  const rmr = await fetch(`${SB}/rest/v1/rpc/remove_timeline_entry`, { method: "POST", headers: { apikey: ANON, Authorization: `Bearer ${who.COMPANY_A.token}`, "content-type": "application/json" }, body: JSON.stringify({ p_company: A, p_key: `pub:${pub.id}` }) });
+  ok([401, 403, 404].includes(rmr.status), `owner of A cannot call remove_timeline_entry directly (${rmr.status})`);
 
   console.log("\n  UNPUBLISH: removed from the feed");
   r = await callApi("unpublish", who.COMPANY_A, { publicationId: pub.id });
   ok(r.status === 200 && r.body.ok, "owner unpublishes: 200");
   await new Promise((res) => setTimeout(res, 1500));
-  const uds = await settle(pub.id, ["feed_projection_v1"], "PUBLICATION_UNPUBLISHED");
-  ok(uds[0] && uds[0].status === "succeeded", "the UNPUBLISHED delivery succeeded");
+  const uds = await settle(pub.id, ["feed_projection_v1", "profile_timeline_v1"], "PUBLICATION_UNPUBLISHED");
+  ok(uds.every((d) => d && d.status === "succeeded"), "the UNPUBLISHED deliveries (feed AND timeline) succeeded", JSON.stringify(uds));
   ok(!!(await rows(`posts?publication_id=eq.${pub.id}&select=removed_at`))[0].removed_at, "DATABASE: the post is removed from the investor feed");
   const tl2 = (await rows(`companies?id=eq.${A}&select=profile`))[0].profile.timeline || [];
-  ok(tl2.some((e) => e.key === `pub:${pub.id}`), "KNOWN LIMITATION until migration 0071: the timeline entry remains after unpublish");
+  ok(!tl2.some((e) => e.key === `pub:${pub.id}`), "0071: DATABASE: the timeline entry is REMOVED on unpublish");
+  const appAfter = await (await fetch(`${SB}/rest/v1/posts?company_id=eq.${A}&removed_at=is.null&select=title`, { headers: { apikey: ANON } })).json();
+  ok(!appAfter.some((x) => x.title === post2.title), "INVESTOR APP: the post no longer appears in the anon feed query");
   ok((await rows(`publications?id=eq.${pub.id}&select=id,status`))[0].status === "draft", "the release record itself is kept (status draft), never deleted");
 
   console.log("\n  A FAILED AI EXTRACTION IS RETRIED, NOT LOST");
@@ -168,7 +192,8 @@ try {
 
   console.log("\n  CONCURRENT DISPATCHERS");
   const pubs = [];
-  for (let i = 0; i < 4; i++) { const p = await createDraft(`${MARK} concurrent ${i}`, `${MARK} body ${i}`); created.push(p.id); pubs.push(p); }
+  // Empty bodies: no revision 1 is recorded, so these stay deletable (and Mine IQ has nothing to extract).
+  for (let i = 0; i < 4; i++) { const p = await createDraft(`${MARK} concurrent ${i}`, "   "); created.push(p.id); pubs.push(p); }
   // Publish through the RPC path with nudges racing, then four explicit dispatchers at once.
   await Promise.all(pubs.map((p) => callApi("publish", who.COMPANY_A, { publicationId: p.id })));
   await Promise.all([dispatchNow(), dispatchNow(), dispatchNow(), dispatchNow()]);
@@ -176,7 +201,8 @@ try {
   const postsC = await rows(`posts?publication_id=in.(${pubs.map((p) => p.id).join(",")})&select=id`);
   const notesC = await rows(`notifications?post_id=in.(${postsC.map((p) => p.id).join(",") || "00000000-0000-0000-0000-000000000000"})&select=user_id,post_id`);
   const factsC = await rows(`facts?publication_id=in.(${pubs.map((p) => p.id).join(",")})&select=publication_id`);
-  ok(postsC.length === 4 && notesC.length === 4 && new Set(notesC.map((n) => n.post_id)).size === 4 && factsC.length === 4, "4 releases, nudges racing + 4 concurrent dispatchers: 4 posts, 4 notifications (one each, no duplicates), 4 fact sets", JSON.stringify({ posts: postsC.length, notes: notesC.length, facts: factsC.length }));
+  const ingC = await rows(`mineiq_ingestions?publication_id=in.(${pubs.map((p) => p.id).join(",")})&select=publication_id,facts_written`);
+  ok(postsC.length === 4 && notesC.length === 4 && new Set(notesC.map((n) => n.post_id)).size === 4 && factsC.length === 0 && ingC.length === 4 && ingC.every((i) => i.facts_written === 0), "4 releases, nudges racing + 4 concurrent dispatchers: 4 posts, 4 notifications (one each, no duplicates), each Mine IQ claim finished exactly once", JSON.stringify({ posts: postsC.length, notes: notesC.length, ing: ingC.length }));
 
   console.log("\n  HISTORICAL EVENT (> 72 h): projected, but no notification and no automatic AI");
   const pub3 = await createDraft(`${MARK} historical`, `${MARK} An old release.`); created.push(pub3.id);
@@ -193,7 +219,7 @@ try {
   ok(sk && sk.skipped && sk.skipped.historical >= 1, "the dispatcher REPORTED the historical skip", JSON.stringify(sk));
 
   console.log("\n  AUTHORIZATION AND ISOLATION (unchanged)");
-  const pub4 = await createDraft(`${MARK} authz`, `${MARK} authz`); created.push(pub4.id);
+  const pub4 = await createDraft(`${MARK} authz`, "   "); created.push(pub4.id);
   for (const [k, want] of [["COMPANY_B", 403], ["STAFF", 403], ["INVESTOR", 403]]) {
     r = await callApi("publish", who[k], { publicationId: pub4.id });
     ok(r.status === want || r.status === 404, `${k} cannot publish company A's release (${r.status})`);
@@ -230,15 +256,19 @@ try {
     const d = await db(`publications?id=eq.${id}`, { method: "DELETE" });
     if (d.status < 300 && up && up.update_id) await db(`updates?id=eq.${up.update_id}`, { method: "DELETE" });
   }
-  // The revision fixture keeps its append-only history; its feed post and facts go.
-  const fxs = await rows(`publications?company_id=eq.${A}&content->>headline=like.${encodeURIComponent(`${MARK} revision fixture*`)}&select=id`).catch(() => []);
-  for (const f of fxs) { const ps = await rows(`posts?publication_id=eq.${f.id}&select=id`).catch(() => []); for (const p of ps) await db(`notifications?post_id=eq.${p.id}`, { method: "DELETE" }); await db(`facts?publication_id=eq.${f.id}`, { method: "DELETE" }); await db(`posts?publication_id=eq.${f.id}`, { method: "DELETE" }); }
+  // Releases with revision history cannot be deleted (append-only): RETIRE them.
+  const ret = spawnSync(process.execPath, ["scripts/retire-test-publications.mjs", "--apply"], { encoding: "utf8" });
+  const retired = (/kept (\d+) with their history/.exec(ret.stdout || "") || [])[1] || "0";
+  console.log(`  retired (history kept, append-only): ${retired} test publication(s)`);
   await db(`company_follows?company_id=eq.${A}&user_id=in.(${who.INVESTOR.id},${who.INVESTOR_B.id})`, { method: "DELETE" });
   await db(`notification_prefs?user_id=eq.${who.INVESTOR_B.id}&company_id=eq.${A}`, { method: "DELETE" });
   await db(`companies?id=eq.${A}`, { method: "PATCH", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ profile: profileBefore }) });
-  const left = ids.length ? (await rows(`publications?id=in.(${ids.join(",")})&select=id`)).length + (await rows(`posts?publication_id=in.(${ids.join(",")})&select=id`)).length : 0;
+  // Left behind: only RETIRED publications (unpublished, marked, history kept) -- no live post, no projection.
+  const stillLive = ids.length ? (await rows(`publications?id=in.(${ids.join(",")})&status=eq.published&select=id`)).length + (await rows(`posts?publication_id=in.(${ids.join(",")})&select=id`)).length : 0;
+  const unmarked = ids.length ? (await rows(`publications?id=in.(${ids.join(",")})&select=id,content`)).filter((p) => !(p.content && p.content.retired)).length : 0;
+  const left = stillLive + unmarked;
   const back = JSON.stringify((await rows(`companies?id=eq.${A}&select=profile`))[0].profile) === JSON.stringify(profileBefore);
-  console.log(`\n  cleanup: ${ids.length} test releases removed (${left} rows left), follows/pref removed, profile ${back ? "restored (verified identical)" : "NOT restored"}`);
+  console.log(`\n  cleanup: ${ids.length} test releases deleted or retired (${left} still live or unmarked), follows/pref removed, profile ${back ? "restored (verified identical)" : "NOT restored"}`);
   if (left || !back) fail++;
 }
 console.log(`  publishing-live (staging): ${pass} passed, ${fail} failed\n`);

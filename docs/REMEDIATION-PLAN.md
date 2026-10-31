@@ -2806,3 +2806,198 @@ be a product feature (an admin "withdraw/retire"), not this script.
    schema).
 3. Later: the production audit (read-only, pending), Phase 3 scheduler,
    `DELIVERY_EPOCH` and `PUBLIC_BASE_URL` on production.
+
+---
+
+## 20 · D22: 0071 APPLIED TO STAGING; Phase 3 scheduler implemented locally (2026-10-31)
+
+The Phase 2 review work was committed as `af03b93`. **Production untouched.**
+No push, merge or deploy; no cron enabled; production audit not run.
+
+### Migration 0071 on staging
+
+- **Target:** the connection names `jmljfovtfxcdhjmtlnva`, not production.
+- **Preflight:** no database egress; the runner planned exactly one file.
+- **Snapshot before** (`scripts/publishing-snapshot.mjs`, read-only): 8
+  publications, 115 events, 295 delivery rows, 8 subscriptions, 2 company
+  timelines, 5 posts, 8 revisions, 2 billing rows, plus the entitlement
+  matrix.
+- **Applied** with `node scripts/apply-migrations.mjs --from
+  0071_publishing_reliability.sql` → **"ALL 1 APPLIED. Database egress:
+  none."** The repaired runner checked egress inside its own transaction,
+  before commit.
+- **Snapshot after:** changed **only** `subscriptions` (+1:
+  `profile_timeline_v1` / `PUBLICATION_UNPUBLISHED`, `active_from` =
+  application time) and `functions` (`publish_publication`,
+  `claim_deliveries`). Publications, events, deliveries, timelines, posts,
+  revisions, billing and entitlements were identical.
+- **Persistent verification** (`publishing-0071-check.mjs --pre <snapshot>`,
+  probes in rolled-back transactions): **46 / 46**.
+  - **Schema and signature:** `media_url` exists; a single 3-argument
+    `publish_publication`.
+  - **Grants:**
+    - `publish_publication`, `claim_deliveries` and `remove_timeline_entry`:
+      service_role only;
+    - delivery status: authenticated yes, anon no;
+    - heartbeat and alerts: no anon/authenticated access, RLS on.
+  - **Behaviour:** revision 1 at publish; the first correction is revision
+    2; `active_from` blocks the replay of a 30-day-old unpublish.
+  - **Isolation:** owner and member of A see A's status; B and investors see
+    nothing; anon is denied.
+  - **Rollback file:** exercised in a savepoint, it restores both functions
+    byte-identically to the pre-0071 snapshot.
+
+### Persistent staging tests
+
+| Suite | Result | Covers |
+|---|---|---|
+| `publishing-live-test` (extended for 0071) | **51 / 51, run twice** | Publish → feed → **investor-app anon query** (incl. `media_url`, which failed on staging before); revision 1 at publish; first correction → revision 2, same post, timeline updated, Mine IQ revision 2; **delivery status** (owner/member see it; B and investor empty; anon 401); **heartbeat and alerts** refused to users and anon; `remove_timeline_entry` refused to users; **unpublish removes the post AND the timeline entry** and the post leaves the anon feed; AI failure → retry; 4 concurrent dispatchers, no duplicates; historical event projected, not notified, no AI; publish authorization unchanged |
+| `dispatch-scheduler-live-test` (new) | **18 / 18** | See Phase 3 |
+| `publishing-0071-check` (applied mode) | 46 / 46 | Above |
+
+**Existing data intact:**
+- the 6 non-test publications are unchanged;
+- the 2 timelines and the 5 posts match the pre-apply digest;
+- the delivery queue is empty (no pending, failed or processing
+  deliveries).
+- **Billing: one change, not caused by 0071.** The fixture seeder (run by
+  the live suite) deletes iso company B's leftover `note='stripe'`
+  (cancelled) subscription from earlier webhook tests, by design, so each
+  run starts from the same billing state. The manual subscription is
+  untouched.
+
+**A transient failure, reproduced clean.** One back-to-back batch degraded:
+the combined suite had 43 skips, the form throttle failed open (its
+documented policy when the database is unreachable), and one live suite
+crashed. Rerun individually, everything passed (combined 816 / 2 / 1). The
+cause is not proven; it is consistent with Supabase auth and connection
+limits under back-to-back suites.
+
+### Residual staging changes (all marked)
+
+- **0071 objects** (persistent, approved).
+- **Retired test publications.** Publishing now writes an append-only
+  revision 1, so each live run retires **2** test releases (main flow and
+  AI-failure case): unpublished, `content.retired`, history kept. Releases
+  that need no text publish with an empty body and are deleted.
+  Currently: 6 `[d22-live]` publications, 5 retired, plus the unpublished
+  revision fixture.
+- **Three new staging-only values** in the gitignored
+  `supabase/staging/.api-env`: `STAGING_CRON_SECRET`,
+  `DISPATCH_HEALTH_TOKEN` and `OPS_ALERT_TO=ops@mineex-staging.invalid`
+  (random values, never printed).
+- **66 dead deliveries** from before Phase 1 remain; an admin replay would
+  clear them. They now raise the `dead_deliveries` alert, which the
+  scheduler test restored afterwards.
+
+### Phase 3: the scheduler (code implemented locally; NOT activated)
+
+**Cron authentication** (`api/_cronAuth.js`):
+- **What authenticates a run:** only Vercel Cron's own `Authorization:
+  Bearer <CRON_SECRET>` on a GET, compared in constant time. The secret must
+  be set and at least 16 characters; unset or short is a refusal.
+- **What never does:** the user agent and `x-vercel-cron-schedule` (both
+  client-settable).
+- **Staging:** the production name `CRON_SECRET` stays forbidden;
+  `STAGING_CRON_SECRET` is used instead.
+- **Health:** a **separate** `DISPATCH_HEALTH_TOKEN`. A monitoring service
+  holding it can read liveness but cannot trigger a run, and the cron secret
+  cannot read health.
+
+**Dispatcher** (`api/dispatch.js` + `api/_dispatchOps.js`):
+
+| Request | Purpose |
+|---|---|
+| GET + cron bearer | scheduled run (`trigger: "cron"`) |
+| POST + `x-dispatch-secret` | nudges and manual runs (unchanged) |
+| GET `?health=1` + health token | 200 when a run finished in the last 180 s, else 503, with last-run age, last cron age, open alerts and current conditions |
+
+- **Heartbeat:** every run writes a `dispatcher_runs` row (start, finish,
+  per-listener summary, alerts). A failed heartbeat write never stops
+  delivery.
+- **Alerts:** evaluated after every run:
+  - `dead_deliveries`, `stuck_leases`, and `backlog_age` (over 300 s);
+  - recorded in `ops_alerts`;
+  - one email per condition per hour while it holds, one on resolution, to
+    `OPS_ALERT_TO` via the existing Postmark path;
+  - without `OPS_ALERT_TO`, recorded only, and the run says so.
+- **Overlap handling:** claims are leased with `SKIP LOCKED`, the 40 s
+  budget fits inside a 1-minute schedule, and every overlapping run records
+  its own heartbeat. Vercel documents that runs can overlap, be missed or be
+  duplicated, and are never retried. The leased, idempotent outbox handles
+  all three, and health catches a stopped schedule.
+- **Monitoring of the scheduler itself:** a stopped scheduler cannot alert
+  about itself. An **external uptime monitor** polls the health check (every
+  minute or two) and pages on 503.
+
+**Vercel plan constraints** (Vercel docs, checked 2026-10-31):
+- Pro: per-minute schedules, per-minute precision, 100 crons per project
+  (4 used).
+- Hobby: once a day, ±59 min. Unusable.
+- The team is Pro per d15 (confirm in the dashboard).
+- Duration is the function's `maxDuration` (60 s).
+- Crons run only for production deployments and do not follow redirects.
+- **Open:** how Deployment Protection treats cron requests is not stated in
+  the docs. Verify on a protected preview or staging project before relying
+  on it.
+
+**Tests:**
+- `dispatch-scheduler-test` (offline, in `npm test`): **30 / 30**.
+  - **Authentication:** no or wrong bearer; user-agent and schedule headers
+    ignored; GET with the nudge secret, POST with the cron bearer, an unset
+    secret and a short secret all refused.
+  - **Heartbeat:** written every run; a failing heartbeat is non-fatal.
+  - **Health:** its own token; the cron secret cannot read it; the health
+    token cannot trigger a run; 503 with no run or a stale run.
+  - **Alerts:** raise → hold → remind after an hour → resolve → clear;
+    stuck leases and backlog detected; no ops address means record-only.
+  - **Overlap:** 3 overlapping runs.
+  - **Pins:** `vercel.json` has **no** dispatch cron.
+- `dispatch-scheduler-live-test` (staging): **18 / 18**.
+  - Authentication refusals.
+  - **A release published with no nudge was projected by a scheduled run
+    alone.**
+  - The heartbeat row in the database.
+  - The dead-letter alert recorded once with one mocked email to `.invalid`,
+    then held.
+  - Health 200 with the token and refused without it.
+  - 3 overlapping runs, a single post.
+  - Cleanup restored alerts and heartbeat rows exactly.
+
+**Activation (needs approval; not done):**
+1. Apply 0071 to production (after the read-only audit).
+2. Set `CRON_SECRET` (≥ 16 random characters), `DISPATCH_HEALTH_TOKEN`,
+   `OPS_ALERT_TO`, `PUBLIC_BASE_URL` and, at go-live, `DELIVERY_EPOCH`.
+3. Add to `vercel.json`: `{ "path": "/api/dispatch", "schedule": "* * * * *" }`.
+4. Deploy, then watch the heartbeat and health.
+5. Configure the external uptime monitor on the health check.
+6. Decide the 66-dead-letters equivalent in production (the audit's queries
+   5 and 8) **before** the first drain: replay or leave dead.
+
+### Next D22 blockers
+
+1. **Production audit** (read-only; your approval): backlog size (query 6)
+   and `posts` columns (query 9) decide the first-drain plan.
+2. **Production application of 0071** (approval).
+3. **Phase 3 activation:** production env values and `vercel.json` cron
+   (approval), plus an external uptime monitor.
+4. **Deployment Protection vs cron requests:** verify.
+5. **Phase 4:** the portal shows `publication_delivery_status` on the publish
+   confirmation; a Mission Control panel for health, dead letters and replay.
+6. **Retiring a revised release** in production needs a product decision
+   (admin "withdraw"); the staging tool is not for production.
+
+### Tests (this step)
+
+| Suite | Result |
+|---|---|
+| `npm test` (incl. dispatch-scheduler 30, publishing-reliability 89, script-targets 20) | pass |
+| Build | pass |
+| API suite | 354 / 2 / 1 (KNOWN F8, D21) |
+| Combined | 816 / 2 / 1, 0 unexpected |
+| Live: publishing 51 ×2, scheduler 18, 0071 check 46, webhook 41, messaging 54, Company Memory 97 | pass |
+| Staging db guard 55; db egress | pass; none |
+
+**Uncommitted:** the Phase 3 scheduler code and tests, the extended live
+publishing test, the snapshot tool, the retirement idempotency fix, and the
+0071 header status. Awaiting your review.
