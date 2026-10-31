@@ -233,6 +233,11 @@ export const COMPANY_SCOPED_RPCS = [
   ["save_profile_draft",            { p_actor: NIL_UUID, p_draft: { pp: {}, projects: [] }, p_expected_version: null, p_base_fingerprint: "probe" }, "internal"],
   ["publish_profile_draft",         { p_actor: NIL_UUID, p_expected_version: 1 }, "internal"],
   ["discard_profile_draft",         { p_actor: NIL_UUID, p_expected_version: 1 }, "internal"],
+  // 0074 (a05): revision history, service-role only; the route passes the
+  // verified caller as p_actor and each function re-checks the role.
+  ["list_profile_versions",         { p_actor: NIL_UUID },      "internal"],
+  ["get_profile_version",           { p_actor: NIL_UUID, p_version: NIL_UUID }, "internal"],
+  ["restore_profile_version_to_draft", { p_actor: NIL_UUID, p_version: NIL_UUID, p_expected_version: null }, "internal"],
   ["admin_set_billing",             { p_tier: null, p_status: "active", p_renews_at: null }, "admin-only"],
 ];
 

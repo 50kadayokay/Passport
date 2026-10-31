@@ -24,6 +24,7 @@ export const MESSAGES = {
   not_found: "This company could not be found.",
   "sign-in-required": "Your session has expired. Sign in again.",
   "profile drafts need migration 0072": "Profile drafts are not available yet on this environment.",
+  "profile history needs migration 0074": "Profile history is not available yet on this environment.",
 };
 
 export const messageFor = (out) => (out && (MESSAGES[out.error] || out.reason || out.error)) || "Something went wrong.";
@@ -47,6 +48,11 @@ export const saveProfileDraft = ({ companyId, draft, expectedVersion = null, bas
   call({ action: "save", companyId, draft, expectedVersion, baseFingerprint });
 export const publishProfileDraft = ({ companyId, expectedVersion }) => call({ action: "publish", companyId, expectedVersion });
 export const discardProfileDraft = ({ companyId, expectedVersion }) => call({ action: "discard", companyId, expectedVersion });
+// Revision history (a05, migration 0074). Restore writes a past version INTO
+// THE DRAFT; nothing goes live until an owner or admin publishes it.
+export const listProfileVersions = (companyId) => call({ action: "history", companyId });
+export const getProfileVersion = (companyId, versionId) => call({ action: "version", companyId, versionId });
+export const restoreProfileVersion = ({ companyId, versionId, expectedVersion = null }) => call({ action: "restore", companyId, versionId, expectedVersion });
 
 /** The profile the editor starts from: the live one with the draft's fields over it. */
 export function editorStart(load) {

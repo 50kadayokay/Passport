@@ -3795,3 +3795,199 @@ and event counts are unchanged.
 The dashboard UI was browser-verified before 0073c (2 impressions, 2
 investors, 50%). 0073c changes no reader function, and the live test re-checks
 the readers against the table.
+
+## 26 · a12 committed; staging index repair; a05 implemented locally, 0074 PREPARED (2026-10-31)
+
+**a12 committed as `88b757c`**, after 0073c was applied to staging and all
+suites passed (live 27/27; rolled-back 62/62; `npm test`, build, authz
+376/2/1, combined 890/2/1).
+
+### Staging index repair (approved; done)
+
+`scripts/repair-staging-indexes.mjs` is not a migration re-run. It takes the
+three statements verbatim from 0050b and 0065c, skips any index that already
+exists and is valid, stops if one exists but is invalid, runs each
+CONCURRENTLY outside a transaction, then verifies `indisvalid`, checks the
+stored definition, and compares database egress before and after.
+
+- **Before:** no equivalent index existed under another name. There was no
+  GIN full-text index on `documents` or `updates`; `post_likes` had only its
+  primary key (which leads with `user_id`) and the `(company_slug, created_at)`
+  index.
+- **Created and valid:**
+  - `documents_fts_idx`: GIN on to_tsvector('english', filename ‖ title ‖
+    extracted_text)
+  - `updates_fts_idx`: GIN on to_tsvector('english', headline ‖ body)
+  - `idx_post_likes_slug_key`: btree (company_slug, post_key)
+- **Second run:** all three skipped. **Snapshot:** only the `post_likes`
+  index was added within the analytics scope; no data changed. No egress.
+
+### a05 Profile revision history
+
+**Approved:**
+- **View history and restore into a draft:** owner, company admin, editor,
+  platform admin.
+- **Publish the restored draft:** owner, company admin, platform admin.
+- **Publisher, analyst, viewer:** no access.
+- **Retention:** every publish snapshot is kept.
+
+**Retention inspection (before 0074).** Publish history could be silently
+deleted in two ways:
+1. `saveProfileSafely` (admin Account Management) calls
+   `pruneVersions(company, 20)`, which deleted the oldest snapshots of any
+   origin;
+2. 0013's delete policy lets the owner delete snapshots.
+
+Only a free-text note distinguished them.
+
+**0074 (prepared; NOT applied):**
+- **`kind`** column (`manual` or `publish`). Existing rows noted "before
+  profile publish" are back-filled to `publish`.
+- Clients may insert only `manual`.
+- A **delete trigger** refuses to remove a `publish` snapshot while its company
+  exists, for every role including the service role and the table owner.
+  Deleting the company itself still cascades.
+- A **kind-frozen trigger**: a snapshot cannot be relabelled to `manual` to
+  make it prunable.
+- `publish_profile_draft`: 0072's body verbatim, except the snapshot is marked
+  `kind = 'publish'`.
+- **`list_profile_versions`, `get_profile_version`,
+  `restore_profile_version_to_draft`:** service-role only, re-checking roles.
+  A restore writes only `{projects, pp}` into the draft, using compare-and-set
+  like a save. A new draft is based on the current live fingerprint, so
+  publish still detects later live changes. Each restore is audited. The live
+  profile is never touched.
+- RLS on `company_profile_versions` is otherwise unchanged.
+- **Rollback:** restores 0072's publish function and 0013's insert policy
+  verbatim; snapshot rows are kept.
+
+**App (local, uncommitted):**
+- `src/lib/profileVersions.js` **prunes only `kind = 'manual'`**. Before 0074,
+  when publish history cannot be told apart, it prunes nothing.
+- `api/profile-draft.js` gains the actions `history`, `version` and `restore`
+  (draft roles; 503 "needs migration 0074" when absent).
+- **Editor:** a History button and a Revision history panel listing each
+  version with when it was replaced and who published. Preview shows a version
+  in the phone ("preview only"), Back returns to the draft. "Restore as draft"
+  confirms, warning about unsaved changes and that nothing goes live until
+  published.
+
+**Verification:**
+
+| Suite | Result |
+|---|---|
+| `scripts/profile-history-0074-check.mjs` (staging, ONE rolled-back transaction) | **45/45** (below) |
+| `scripts/profile-history-test.mjs` (offline) | 31/31: route role gates for all three actions, the actor from the session, versionId validation, pruning lists only manual snapshots and keeps the newest 20, prunes nothing before 0074. The committed `pruneVersions` fails 3 of these. |
+| `npm test`, build | pass |
+
+What the rolled-back check proved:
+- real publish history through 0072's workflow, with each snapshot
+  `kind = 'publish'`;
+- the role table: owner, company admin, editor and platform admin can list;
+  publisher, analyst, viewer, investor and company B get nothing from list,
+  preview or restore;
+- preview returns only the editor-owned fields; a cross-company id gives
+  not_found;
+- restore puts V-one into a new draft, the live profile and its `updated_at`
+  are untouched, and the draft is based on the current live fields;
+- the audit row is written; a blind second restore gets stale_draft; with
+  the version it works;
+- the editor cannot publish; the owner publishes, so live returns to V-one and
+  V-two is itself kept;
+- **retention:** the table owner cannot delete or relabel a publish snapshot;
+  the owner cannot delete or forge one; manual snapshots still insert and
+  prune; company deletion still cascades;
+- the rollback is exact, and nothing persisted.
+
+**Not yet done:** applying 0074 to staging (your approval), then live API
+tests and the browser history workflow (list, preview, restore, publish, the
+unauthorized roles), then commit.
+
+### 27 · 0074 APPLIED TO STAGING ONLY (2026-10-31); a05 complete on staging
+
+**Pre-checks:**
+- Target `jmljfovtfxcdhjmtlnva`.
+- A read-only snapshot was taken: columns, 3 policies (read, insert, delete),
+  no triggers, the publish function, grants, and **0 version records**.
+- The 0074 and rollback files were byte-identical to the tested ones (sha256
+  `641b7d2c…` and `acef4009…`); the rolled-back check was re-run on them
+  (45/45).
+- **Compatibility:** staging has no historical snapshots. In production, 0072
+  is not applied, so no company-publish snapshots exist yet; production
+  snapshots come from the admin tools ("before conference publish", "before
+  restore", "Account Management edit"), which are correctly `manual`.
+  0074 back-fills `publish` only where the note proves a company publish.
+  Every record is preserved; no DELETE is involved.
+- **Finding (pre-existing, not changed):** anon and authenticated hold every
+  table privilege on `company_profile_versions`, TRUNCATE included. RLS
+  blocks rows and PostgREST cannot issue TRUNCATE, but 0061a's privilege
+  hardening never covered this table. Recommended follow-up.
+
+**Applied** by the guarded runner, with no egress. The verified diff:
+- the `kind` column (NOT NULL, default `manual`, CHECK manual|publish);
+- only the insert policy changed (`kind = 'manual' AND (admin OR owner)`);
+- both triggers enabled;
+- the three functions executable by service_role only;
+- `publish_profile_draft` redefined;
+- grants unchanged; version count 0 → 0.
+
+**Live API test (`scripts/profile-history-live-test.mjs`): 42/42**, on a
+throwaway company with A's role layout, deleted at the end.
+- **Roles:**
+  - history: owner, company admin, editor and platform admin get 200;
+  - history, preview and restore: publisher, analyst, viewer, investor and
+    company B get 403, with nothing returned;
+  - preview returns only the editor-owned fields.
+- **Restore:** a new draft; the live profile and its `updated_at` are
+  unchanged; anon still sees the live version.
+- **Concurrency:** a blind restore into an existing draft gets 409; **4
+  simultaneous restores give exactly 1 winner**, and the stored draft is the
+  winner's version.
+- **Publish:** the editor gets 403; the owner publishes; live is the restored
+  version; **the timeline, including an entry written meanwhile, and unrelated
+  fields are preserved**; the replaced version is kept; restores and publishes
+  are audited. The platform admin can restore and publish.
+- **Retention** through user paths (owner and platform admin, REST):
+  - DELETE of a publish snapshot is refused (403) and it remains;
+  - relabelling to `manual` is refused;
+  - forging `publish` is refused;
+  - company admin, editor and viewer direct table reads return nothing.
+- **Concierge:** 23 manual snapshots plus a direct-to-live save (still works).
+  The prune keeps 20 manual and all 4 publish snapshots. The OLD prune
+  ("oldest of any kind") is refused when it reaches a publish snapshot.
+- **Company deletion** (platform admin REST) removes the company, its history,
+  draft, audit rows and memberships.
+
+**Browser workflow** (staging bundle, a throwaway company with an active
+staging subscription; deleted afterwards):
+1. **Editor:** History lists 2 versions, showing when each was replaced and who
+   published.
+2. Preview shows "Version from … — preview only", the phone shows that
+   version, and nothing is saved.
+3. Restore as draft: the confirm says nothing goes live until published.
+   "Unpublished draft", "ask the owner or an admin to publish it", and no
+   Publish button. In the database: draft v1 holds the old version, live is
+   unchanged, the restore is audited.
+4. A release lands on the timeline during review.
+5. **Owner:** reviews the restored draft and publishes. In the database: live
+   is the restored version, both timeline entries and the unrelated field are
+   preserved, the draft is completed, and the replaced version is kept (3
+   publish snapshots).
+
+The history panel header now wraps cleanly.
+
+**Regression consequence, fixed:** `profile-draft-live-test` published on
+company A and deleted its snapshots in cleanup. That is now refused by design,
+so three runs left **9 publish snapshots on staging company A**. They are
+real, retained history; the 3 manual snapshots were removed. The test now
+runs on a throwaway company (61/61, nothing left).
+Removing the 9 snapshots would mean disabling the retention trigger, which
+needs your explicit approval; they are harmless otherwise.
+
+**Suites:**
+
+| Suite | Result |
+|---|---|
+| `npm test`, build | pass |
+| API authz | 376 / 2 / 1 (KNOWN F8, D21; 0 unexpected) |
+| Combined isolation | **908 / 2 / 1**; the three history functions are classified internal |

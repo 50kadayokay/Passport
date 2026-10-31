@@ -14,7 +14,8 @@ import { buildCanonicalProfile } from "../lib/ppToProfile.js";
 import { isPortalDemo } from "../lib/demoMode.js";
 import { withDemoReleases } from "../lib/demoPublish.js";
 import { mapProfileToPP } from "../lib/profileToPP.js";
-import { loadProfileDraft, saveProfileDraft, publishProfileDraft, discardProfileDraft, editorStart, messageFor } from "../lib/profileDraft.js";
+import { loadProfileDraft, saveProfileDraft, publishProfileDraft, discardProfileDraft, editorStart, messageFor,
+  listProfileVersions, getProfileVersion, restoreProfileVersion } from "../lib/profileDraft.js";
 
 // Renders the REAL app profile from a `pp` object. Cards portal into `popupEl` (a panel to the
 // RIGHT of the phone). Tab is CONTROLLED by the parent so the editor and the phone stay in sync.
@@ -388,6 +389,12 @@ export default function ProfileEditor({ company, injectedProfile, navTab, navSte
   const [denied, setDenied] = useState("");            // the server refused to open the editor
   const [publishing, setPublishing] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
+  // a05: revision history. Versions are snapshots of what was LIVE before each
+  // publish. Previewing never saves; restoring puts a version INTO THE DRAFT.
+  const [histOpen, setHistOpen] = useState(false);
+  const [versions, setVersions] = useState(undefined);   // undefined loading · {error} · []
+  const [previewVer, setPreviewVer] = useState(null);    // { id, created_at, pp } shown in the phone, not saved
+  const [histBusy, setHistBusy] = useState("");
   const [busyImg, setBusyImg] = useState("");
   const [activeProj, setActiveProj] = useState(null);   // Projects editor: the one project being edited
   const [openSec, setOpenSec] = useState("images");     // Projects editor: which accordion subsection is expanded
@@ -913,6 +920,32 @@ export default function ProfileEditor({ company, injectedProfile, navTab, navSte
     if (out.ok) { setNotice({ tone: "ok", text: "Published. Investors now see these changes." }); setReloadKey((k) => k + 1); }
     else setNotice({ tone: "error", text: messageFor(out), reload: out.status === 409 });
   };
+
+  const openHistory = async () => {
+    setHistOpen(true); setVersions(undefined);
+    const out = await listProfileVersions(company.id);
+    setVersions(out.ok ? out.versions : { error: messageFor(out) });
+  };
+  const previewVersion = async (v) => {
+    setHistBusy(v.id);
+    const out = await getProfileVersion(company.id, v.id);
+    setHistBusy("");
+    if (out.ok) setPreviewVer({ id: v.id, created_at: v.created_at, pp: out.fields.pp || {} });
+    else setNotice({ tone: "error", text: messageFor(out) });
+  };
+  const restoreVersion = async (v) => {
+    const when = new Date(v.created_at).toLocaleString();
+    if (!window.confirm(`Restore the version from ${when} into your draft?\n\n${unsaved ? "Your unsaved changes on this page will be replaced. " : ""}${hasDraftNow() ? "It replaces the current draft. " : ""}Nothing goes live until the draft is published.`)) return;
+    setHistBusy(v.id);
+    const out = await restoreProfileVersion({ companyId: company.id, versionId: v.id, expectedVersion: draft ? draft.version : null });
+    setHistBusy("");
+    if (out.ok) {
+      setPreviewVer(null); setHistOpen(false);
+      setNotice({ tone: "ok", text: `Restored the version from ${when} into your draft. Review it, then ${draft && draft.canPublish ? "publish it" : "ask the owner or an admin to publish it"}.` });
+      setReloadKey((k) => k + 1);
+    } else setNotice({ tone: "error", text: messageFor(out), reload: out.status === 409 });
+  };
+  const hasDraftNow = () => !!(draft && draft.version);
 
   const doDiscard = async () => {
     if (!draft || !draft.version) return;
@@ -1466,12 +1499,17 @@ export default function ProfileEditor({ company, injectedProfile, navTab, navSte
           padding: "clamp(12px, 1.4vw, 22px) clamp(10px, 1.2vw, 20px)", minWidth: 0 }}>
           {!injectedProfile && (
             <div data-testid="preview-label" style={{ textAlign: "center", fontSize: 11, fontWeight: 800, letterSpacing: "0.04em", textTransform: "uppercase", marginBottom: 8, color: pending ? "#b45309" : "#047857" }}>
-              {pending ? "Draft preview — not public" : "Live profile preview"}
+              {previewVer ? `Version from ${new Date(previewVer.created_at).toLocaleDateString()} — preview only` : pending ? "Draft preview — not public" : "Live profile preview"}
+            </div>
+          )}
+          {previewVer && (
+            <div style={{ textAlign: "center", marginBottom: 8 }}>
+              <button onClick={() => setPreviewVer(null)} style={{ border: "none", background: "transparent", color: "#2563eb", fontSize: 11.5, fontWeight: 700, cursor: "pointer" }}>Back to your draft</button>
             </div>
           )}
           <DevicePhone screenRef={previewRef} onClickCapture={handlePreviewClick}
             overlay={<div ref={setPopupEl} style={{ position: "absolute", inset: 0, pointerEvents: popupActive ? "auto" : "none" }} />}>
-            <AppPreview pp={debPp} popupEl={popupEl} tab={activeTab} tier={tier}
+            <AppPreview pp={previewVer ? previewVer.pp : debPp} popupEl={popupEl} tab={activeTab} tier={tier}
               onTab={(t) => { lastTabRef.current = t; setNav(PROFILE_TO_EDITOR[t] || "overview", 0); }} />
           </DevicePhone>
         </div>
@@ -1498,6 +1536,12 @@ export default function ProfileEditor({ company, injectedProfile, navTab, navSte
                 <span style={{ width: 7, height: 7, borderRadius: 999, background: pending ? "#f59e0b" : "#10b981" }} />
                 {unsaved ? "Unsaved changes" : hasDraft ? "Unpublished draft" : "Live profile"}
               </span>
+            )}
+            {!injectedProfile && draft && (
+              <button onClick={() => (histOpen ? (setHistOpen(false), setPreviewVer(null)) : openHistory())} aria-pressed={histOpen}
+                style={{ padding: "9px 12px", borderRadius: 10, border: "1px solid #e2e8f0", background: histOpen ? "#f1f5f9" : "#fff", color: "#64748b", fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>
+                History
+              </button>
             )}
             <button onClick={() => setShowPreview((v) => !v)}
               style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "9px 12px", borderRadius: 10, border: "1px solid #e2e8f0", background: "#fff", color: "#64748b", fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>
@@ -1539,6 +1583,36 @@ export default function ProfileEditor({ company, injectedProfile, navTab, navSte
                 Draft saved. The company's owner or an admin can review and publish it; investors see the live profile until then.
               </div>
             )}
+          </div>
+        )}
+
+        {histOpen && (
+          <div data-testid="profile-history" style={{ maxWidth: 832, padding: "10px 32px 0", flexShrink: 0 }}>
+            <div style={{ border: "1px solid #e2e8f0", borderRadius: 12, padding: "12px 14px" }}>
+              <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "baseline", gap: "2px 12px" }}>
+                <span style={{ fontSize: 12.5, fontWeight: 800, color: "#0f172a", whiteSpace: "nowrap" }}>Revision history</span>
+                <span style={{ fontSize: 11.5, color: "#94a3b8" }}>Each entry is what was live before a publish. Restoring puts it into your draft.</span>
+              </div>
+              {versions === undefined && <p style={{ margin: "10px 0 2px", fontSize: 12.5, color: "#94a3b8" }}>Loading history…</p>}
+              {versions && versions.error && <p role="alert" style={{ margin: "10px 0 2px", fontSize: 12.5, color: "#b91c1c" }}>{versions.error}</p>}
+              {Array.isArray(versions) && versions.length === 0 && <p style={{ margin: "10px 0 2px", fontSize: 12.5, color: "#64748b" }}>No earlier versions yet. One is kept every time the profile is published.</p>}
+              {Array.isArray(versions) && versions.length > 0 && (
+                <ul style={{ listStyle: "none", margin: "8px 0 0", padding: 0, maxHeight: 220, overflow: "auto" }}>
+                  {versions.map((v) => (
+                    <li key={v.id} data-version={v.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 0", borderTop: "1px solid #f1f5f9" }}>
+                      <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, color: "#334155" }}>
+                        <b>{new Date(v.created_at).toLocaleString()}</b>
+                        <span style={{ color: "#94a3b8" }}> · {v.kind === "publish" ? `replaced when ${v.by_label} published` : `saved by ${v.by_label}`}</span>
+                      </span>
+                      <button onClick={() => previewVersion(v)} disabled={!!histBusy}
+                        style={{ border: "1px solid #e2e8f0", background: previewVer && previewVer.id === v.id ? "#eff6ff" : "#fff", borderRadius: 8, padding: "5px 9px", fontSize: 11.5, fontWeight: 700, color: "#475569", cursor: "pointer" }}>Preview</button>
+                      <button onClick={() => restoreVersion(v)} disabled={!!histBusy}
+                        style={{ border: "none", background: "#0f172a", color: "#fff", borderRadius: 8, padding: "5px 9px", fontSize: 11.5, fontWeight: 700, cursor: "pointer" }}>{histBusy === v.id ? "…" : "Restore as draft"}</button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           </div>
         )}
 

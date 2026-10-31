@@ -27,7 +27,12 @@ const iso = readEnvFile("supabase/staging/.isolation-env"), apiEnv = readEnvFile
 const SB = (iso.ISOLATION_SUPABASE_URL || "").replace(/\/+$/, ""), ANON = iso.ISOLATION_ANON_KEY, SERVICE = apiEnv.STAGING_SUPABASE_SERVICE_ROLE_KEY;
 const DSN = fs.readFileSync("supabase/staging/.connection", "utf8").trim();
 if (!SB || /rvptronniomlqumjhyrr/.test(SB + DSN) || !/jmljfovtfxcdhjmtlnva/.test(SB) || !/jmljfovtfxcdhjmtlnva/.test(DSN)) { console.error("  refusing: not the staging project"); process.exit(2); }
-const A = iso.ISOLATION_COMPANY_A_ID, B = iso.ISOLATION_COMPANY_B_ID, MARK = "[0072-live]";
+// Runs on a THROWAWAY company ("zz-0072-live") with company A's role layout:
+// since 0074, publish snapshots are retained while their company exists, so a
+// test that publishes on a fixture company would leave permanent history. The
+// throwaway company is deleted at the end (cascading its history).
+const B = iso.ISOLATION_COMPANY_B_ID, MARK = "[0072-live]", XSLUG = "zz-0072-live";
+let A = null;
 
 const PORT = 8787 + Math.floor(Math.random() * 500);
 const server = spawn(process.execPath, ["scripts/staging-api-server.mjs", "--port", String(PORT)], { stdio: ["ignore", "pipe", "pipe"] });
@@ -54,6 +59,12 @@ const missing = Object.entries(who).filter(([, v]) => !v).map(([k]) => k);
 if (missing.length) { console.error(`  could not sign in: ${missing.join(", ")}`); process.exit(4); }
 
 const testStart = new Date().toISOString();
+{
+  const old = await rows(`companies?slug=eq.${XSLUG}&select=id`);
+  for (const o of old) await db(`companies?id=eq.${o.id}`, { method: "DELETE" });   // a previous aborted run
+  A = (await db("companies", { method: "POST", headers: { Prefer: "return=representation" }, body: JSON.stringify({ slug: XSLUG, name: "0072 Live", owner_id: who.COMPANY_A.id, status: "published", profile: { pp: { COMPANY: { name: "0072 Original" } }, projects: [], timeline: [{ key: "pub:seed", title: "Seed", date: "2026-10-01" }] } }) })).body[0].id;
+  for (const [k, role] of [["COADMIN", "admin"], ["EDITOR", "editor"], ["PUBLISHER", "publisher"], ["ANALYST", "analyst"], ["STAFF", "viewer"]]) await db("company_memberships", { method: "POST", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ company_id: A, user_id: who[k].id, role, status: "active" }) });
+}
 const before = await liveA();
 const beforeB = (await rows(`companies?id=eq.${B}&select=profile,updated_at`))[0];
 const egressStart = (await egress()).length;
@@ -179,8 +190,8 @@ try {
 
   console.log("\n  MISSION CONTROL CONCIERGE EDITOR (platform admin, direct-to-live: approved exception)");
   const cur = (await liveA()).profile;
-  const snap = await asUserRest(who.ADMIN, "company_profile_versions", { method: "POST", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ company_id: A, slug: iso.ISOLATION_COMPANY_A_SLUG, profile: cur, note: `${MARK} concierge snapshot`, created_by: who.ADMIN.id }) });
-  const patched = await asUserRest(who.ADMIN, `companies?slug=eq.${encodeURIComponent(iso.ISOLATION_COMPANY_A_SLUG)}`, { method: "PATCH", headers: { Prefer: "return=representation" }, body: JSON.stringify({ profile: { ...cur, pp: { ...cur.pp, COMPANY: { ...(cur.pp?.COMPANY || {}), name: `${MARK} concierge edit` } } } }) });
+  const snap = await asUserRest(who.ADMIN, "company_profile_versions", { method: "POST", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ company_id: A, slug: XSLUG, profile: cur, note: `${MARK} concierge snapshot`, created_by: who.ADMIN.id }) });
+  const patched = await asUserRest(who.ADMIN, `companies?slug=eq.${encodeURIComponent(XSLUG)}`, { method: "PATCH", headers: { Prefer: "return=representation" }, body: JSON.stringify({ profile: { ...cur, pp: { ...cur.pp, COMPANY: { ...(cur.pp?.COMPANY || {}), name: `${MARK} concierge edit` } } } }) });
   ok(snap.status < 300 && patched.status === 200 && Array.isArray(patched.body) && patched.body.length === 1, "platform admin: snapshot + direct PATCH of the live profile still work (1 row)");
   ok((await liveA()).profile.pp.COMPANY.name === `${MARK} concierge edit`, "  ...and are live immediately");
   const coPatch = await asUserRest(who.COADMIN, `companies?id=eq.${A}`, { method: "PATCH", headers: { Prefer: "return=representation" }, body: JSON.stringify({ profile: cur }) });
@@ -195,17 +206,14 @@ try {
   await c1.query("rollback").catch(() => {});
   await c1.end().catch(() => {}); await c2.end().catch(() => {});
   await new Promise((res) => setTimeout(res, 1000));
-  await db(`company_profile_drafts?company_id=in.(${A},${B})`, { method: "DELETE" });
-  await db(`company_profile_versions?company_id=in.(${A},${B})&created_at=gte.${encodeURIComponent(testStart)}`, { method: "DELETE" });
-  await db(`activity_log?company_id=in.(${A},${B})&created_at=gte.${encodeURIComponent(testStart)}`, { method: "DELETE" });
-  await db(`companies?id=eq.${A}`, { method: "PATCH", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ profile: before.profile }) });
-  const after = await liveA();
+  await db(`company_profile_drafts?company_id=eq.${B}`, { method: "DELETE" });
+  // Deleting the throwaway company cascades its drafts, history and audit rows.
+  if (A) await db(`companies?id=eq.${A}`, { method: "DELETE" });
   const afterB = (await rows(`companies?id=eq.${B}&select=profile,updated_at`))[0];
-  const left = { drafts: (await rows(`company_profile_drafts?select=company_id`)).length, versions: (await rows(`company_profile_versions?created_at=gte.${encodeURIComponent(testStart)}&select=id`)).length, activity: (await rows(`activity_log?created_at=gte.${encodeURIComponent(testStart)}&select=id`)).length };
-  const profOk = JSON.stringify(after.profile) === JSON.stringify(before.profile) && after.status === before.status;
+  const left = { company: A ? (await rows(`companies?id=eq.${A}&select=id`)).length : 0, drafts: (await rows(`company_profile_drafts?select=company_id`)).length, versions: (await rows(`company_profile_versions?created_at=gte.${encodeURIComponent(testStart)}&select=id`)).length, activity: (await rows(`activity_log?created_at=gte.${encodeURIComponent(testStart)}&select=id`)).length };
   const bOk = JSON.stringify(afterB.profile) === JSON.stringify(beforeB.profile) && afterB.updated_at === beforeB.updated_at;
-  console.log(`\n  cleanup: company A profile ${profOk ? "restored (content identical; updated_at moves on restore)" : "NOT identical"}; company B ${bOk ? "untouched" : "CHANGED"}; left: ${JSON.stringify(left)}`);
-  if (!profOk || !bOk || left.drafts || left.versions || left.activity) fail++;
+  console.log(`\n  cleanup: throwaway company deleted (history cascaded); company B ${bOk ? "untouched" : "CHANGED"}; left: ${JSON.stringify(left)}`);
+  if (!bOk || left.company || left.drafts || left.versions || left.activity) fail++;
 }
 console.log(`  profile-draft-live (staging): ${pass} passed, ${fail} failed\n`);
 process.exit(fail ? 1 : 0);

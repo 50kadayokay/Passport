@@ -1,5 +1,7 @@
 // POST /api/profile-draft — company profile drafts: load, save, publish, discard
-// (a04 / d28 / d29). Needs migration 0072.
+// (a04 / d28 / d29; migration 0072), and revision history: history, version,
+// restore (a05; migration 0074) -- restore puts a past version INTO THE DRAFT,
+// never the live profile; going live is the ordinary publish.
 //
 // APPROVED POLICY (2026-10-31):
 //   draft    load / save / discard: the company's OWNER, a company ADMIN or an
@@ -42,7 +44,7 @@ import { callerCompanyRole, callerIsPlatformAdmin, UUID } from "./_roles.js";
 
 export const DRAFT_ROLES = ["owner", "admin", "editor"];
 export const PUBLISH_ROLES = ["owner", "admin"];
-export const ACTIONS = ["load", "save", "publish", "discard"];
+export const ACTIONS = ["load", "save", "publish", "discard", "history", "version", "restore"];
 export const MAX_BODY_BYTES = 3 * 1024 * 1024;
 
 // The database's refusals, as HTTP.
@@ -88,7 +90,7 @@ export default async function handler(req, res) {
   if (!v.ok || !v.user || !v.user.id) return bad(res, 401, "sign-in-required");
 
   const action = String((body && body.action) || "");
-  if (!ACTIONS.includes(action)) return bad(res, 400, "action must be load, save, publish or discard");
+  if (!ACTIONS.includes(action)) return bad(res, 400, `action must be one of ${ACTIONS.join(", ")}`);
   const companyId = String((body && body.companyId) || "");
   if (!UUID.test(companyId)) return bad(res, 400, "companyId-required");
 
@@ -103,7 +105,9 @@ export default async function handler(req, res) {
       role: role || null, allowed,
       reason: action === "publish"
         ? "Only the company's owner or admins (or a MineEx admin) can publish profile changes."
-        : "Only the company's owner, admins or editors (or a MineEx admin) can edit the profile.",
+        : ["history", "version", "restore"].includes(action)
+          ? "Only the company's owner, admins or editors (or a MineEx admin) can see and restore profile history."
+          : "Only the company's owner, admins or editors (or a MineEx admin) can edit the profile.",
     });
   }
 
@@ -118,6 +122,15 @@ export default async function handler(req, res) {
     const base = body.baseFingerprint == null ? null : String(body.baseFingerprint);
     if (expected === null && !/^[0-9a-f]{32}$/.test(base || "")) return bad(res, 400, "a first save needs the baseFingerprint the editor loaded");
     fn = "save_profile_draft"; args = { p_company: companyId, p_actor: v.user.id, p_draft: c.draft, p_expected_version: expected, p_base_fingerprint: base };
+  } else if (action === "history") {
+    fn = "list_profile_versions"; args = { p_company: companyId, p_actor: v.user.id, p_limit: 50 };
+  } else if (action === "version" || action === "restore") {
+    const versionId = String(body.versionId || "");
+    if (!UUID.test(versionId)) return bad(res, 400, "versionId-required");
+    fn = action === "version" ? "get_profile_version" : "restore_profile_version_to_draft";
+    args = action === "version"
+      ? { p_company: companyId, p_actor: v.user.id, p_version: versionId }
+      : { p_company: companyId, p_actor: v.user.id, p_version: versionId, p_expected_version: expected };
   } else {
     if (expected === null) return bad(res, 400, "expectedVersion (the draft version you saw) is required");
     fn = action === "publish" ? "publish_profile_draft" : "discard_profile_draft";
@@ -126,7 +139,7 @@ export default async function handler(req, res) {
 
   let r;
   try { r = await serviceRpc(fn, args); } catch { return bad(res, 502, "database-unavailable"); }
-  if (r.status === 404) return bad(res, 503, "profile drafts need migration 0072");
+  if (r.status === 404) return bad(res, 503, ["history", "version", "restore"].includes(action) ? "profile history needs migration 0074" : "profile drafts need migration 0072");
   if (!r.ok) return bad(res, 502, `database error (${r.status})`);
   const out = await r.json().catch(() => null);
   if (!isObj(out)) return bad(res, 502, "database returned nothing");
