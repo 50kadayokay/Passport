@@ -3400,3 +3400,63 @@ step 1, fixed).
 The isolation inventory now classifies `company_profile_drafts` as service-only
 (its insert probe uses the table's real columns, so a refusal is a permission
 refusal) and the five functions as internal.
+
+## 23 · D26: press-release upload restored, FIXED LOCALLY (2026-10-31; uncommitted)
+
+a04/d28/d29/D25 were committed as `6b33be8`.
+
+**Cause.** `storeTranscript()` (`src/lib/sourceTranscript.js`) posted with
+`Prefer: resolution=merge-duplicates`. PostgREST runs that as
+`INSERT … ON CONFLICT DO UPDATE`, and Postgres requires UPDATE privilege for
+that at planning time, even when nothing conflicts.
+
+0053 revoked UPDATE from signed-in users on purpose: transcripts are immutable
+evidence, and the 0054 trigger refuses updates too. 0053's own header expected
+this write to need only INSERT, which was the mistake. Result: 42501 on every
+upload, from a drop or the file picker. Whether production is affected depends
+on whether 0053 is applied there (part of the pending read-only audit).
+
+**Fix (client only; grants unchanged):**
+- the write is `INSERT … ON CONFLICT (document_id, sha256) DO NOTHING`
+  (`resolution=ignore-duplicates&on_conflict=document_id,sha256`), which needs
+  INSERT only;
+- when no row comes back (an identical re-extraction), the EXISTING row is
+  read back by the digest the database computes: `sha256Hex()` equals
+  `public.sha256_hex()` (UTF-8, hex), verified on staging for ASCII, accented
+  text, CJK, emoji and control characters;
+- a missing read-back still fails closed (`TranscriptPersistenceError`).
+
+`recordExtractionAttempt()` already used a plain insert.
+
+**Tests:**
+
+| Suite | Result |
+|---|---|
+| `scripts/transcript-write-test.mjs` (new, in `npm test`) | 14/14 against a stub that enforces 0053. The committed code fails with exactly the staging error (42501). |
+| Existing transcript (66) and fail-closed (32) suites | pass |
+| `npm test`, build | pass |
+
+**Browser on the staging bundle (company A owner):**
+- **Drop a `.txt` release:** review opens with the extracted headline. In the
+  database: the document (`done`, stored object 327 bytes), 1 transcript
+  (engine `text`, 327 characters), 1 extraction attempt `ok` linked to it, and
+  a draft.
+- **Drop the identical file again:** the POST with `ignore-duplicates` returns
+  no row, then a GET by sha256 finds it. The same document is reused, still 1
+  transcript, a second `ok` attempt, review opens, and the existing "source
+  used before" warning shows.
+- **Drop a `.png`:** refused on the library page, nothing written.
+- **Drop an empty `.txt`:** "We couldn't read that document". A `failed`
+  attempt is recorded, no transcript is created, and review opens for typing
+  by hand (existing design).
+
+**Staging residue (append-only by design; retention safeguards respected; not
+deleted):**
+
+| Document | What remains |
+|---|---|
+| `d25-live-drop-test.txt` ×2 | 2 failed `extraction_attempts` (the D26 failure itself). Their storage objects were removed before the append-only refusal was understood. |
+| `d26-live-upload.txt` | 1 transcript, 2 `ok` attempts, stored object kept |
+| `d26-live-empty.txt` | 1 `failed` attempt, stored object kept |
+
+The test drafts (`updates`) were deleted.
