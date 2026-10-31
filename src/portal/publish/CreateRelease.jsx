@@ -6,6 +6,7 @@
 // read, a date we couldn't find, media we couldn't store.
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { can } from "../../lib/companyRoles.js";
 import {
   Upload, FileText, Loader2, CheckCircle2, AlertCircle, ArrowLeft, Check,
   Image as ImageIcon, ImageOff, Calendar as CalendarIcon, Send, Sparkles, Lock,
@@ -258,6 +259,12 @@ function MediaTile({ asset, selected, onToggle, order = -1, total = 0, caption =
 /* ---------------------------------------------------------------- main */
 
 export default function CreateRelease({ company, draftId, onExit, onPublished, initialFile = null }) {
+  // a03: publish / correct / take down are for owner, admin and publisher.
+  // Editors draft and stop there. The routes and 0076 refuse the same.
+  const canPublish = can(company?.role || "owner", "publishContent");
+  // Analysts and viewers may open a release to read it; every editing control
+  // (text, date, images, the carousel's brand and look) is disabled for them.
+  const canDraft = can(company?.role || "owner", "draftContent");
   const companyId = company?.id;
   // A file handed over from the library's dropzone starts in `working`, not
   // `upload`: the person has already chosen it, so showing them an empty
@@ -944,7 +951,15 @@ export default function CreateRelease({ company, draftId, onExit, onPublished, i
           <h1 className="mt-3 text-[27px] font-extrabold leading-tight tracking-tight text-slate-900">Review your release</h1>
           <p className="mt-1.5 text-[15px] text-slate-500">Here's what MineEx prepared. Edit anything before you publish.</p>
         </div>
-        {draft && draft.status === "published" && pubId ? (
+        {!canPublish ? (
+          <span className="max-w-[260px] rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-[12.5px] leading-relaxed text-slate-600" data-publish-locked>
+            {!can(company?.role || "owner", "draftContent")
+              ? `Your role (${company?.role}) can read releases but not change them.`
+              : draft && draft.status === "published"
+              ? "This release is live. Corrections and take-downs are made by an owner, admin or publisher."
+              : "Your edits are saved to this draft. An owner, admin or publisher publishes it."}
+          </span>
+        ) : draft && draft.status === "published" && pubId ? (
           /* ALREADY LIVE. Text changes are corrections, not a re-publish: they
              append a revision and update the existing feed post and timeline
              entry in place. Publishing again would be a second announcement. */
@@ -1081,8 +1096,14 @@ export default function CreateRelease({ company, draftId, onExit, onPublished, i
       {/* LEFT the editor, RIGHT the investor app. The phone is sticky so it
           stays in view while the company works down a long release -- that is
           the whole point of it being here rather than behind a button. */}
+      {!canDraft && (
+        <p className="mt-5 flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-5 py-3.5 text-[13px] text-slate-600" data-readonly-editor>
+          <Lock size={14} strokeWidth={2.4} className="shrink-0 text-slate-400" />
+          Read only. Your role ({company?.role}) can view this release but not edit it, its images or its social posts.
+        </p>
+      )}
       <div className="mt-4 grid grid-cols-1 gap-6 xl:mt-6 xl:grid-cols-[minmax(0,1fr)_minmax(360px,520px)]">
-      <div className={pane === "preview" ? "hidden xl:block" : ""}>
+      <fieldset disabled={!canDraft} aria-disabled={!canDraft || undefined} className={`m-0 min-w-0 border-0 p-0 ${pane === "preview" ? "hidden xl:block" : ""} ${!canDraft ? "opacity-80" : ""}`}>
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_320px] xl:grid-cols-1">
         {/* ---- release ---- */}
         <div className="space-y-5">
@@ -1440,7 +1461,7 @@ export default function CreateRelease({ company, draftId, onExit, onPublished, i
                         {new Date(r.created_at).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" })}
                       </span>
                     </span>
-                    {i > 0 && (
+                    {i > 0 && canPublish && (
                       <button onClick={() => onRestore(r)} disabled={!!reviseBusy}
                         className="shrink-0 rounded-lg border border-slate-200 px-2.5 py-1 text-[11.5px] font-bold text-slate-600 transition hover:border-slate-300 disabled:opacity-40">
                         Restore
@@ -1493,7 +1514,7 @@ export default function CreateRelease({ company, draftId, onExit, onPublished, i
           onRefresh={refreshCarousel}
         />
       )}
-      </div>
+      </fieldset>
 
         <aside className={pane === "preview" ? "" : "hidden xl:block"}>
           <div className="xl:sticky xl:top-6">

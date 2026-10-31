@@ -16,6 +16,7 @@
 // (which would read as "no investor has ever written to us") the page says so.
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { can } from "../lib/companyRoles.js";
 import { Mail, Search, Send, Loader2, AlertCircle, ArrowLeft, RefreshCw, Paperclip, X, FileText, Download, PenSquare, Building2, ArrowUpRight } from "lucide-react";
 import {
   listConversations, listMessages, sendCompanyReply, markConversationRead,
@@ -145,6 +146,9 @@ function Bubble({ msg, attachments = [] }) {
 
 export default function Messages({ company }) {
   const slug = company?.slug;
+  // a03: analysts and viewers read the inbox; sending is for owner, admin,
+  // editor and publisher. 0076's policies and /api/messages refuse the rest.
+  const canSend = can(company?.role || "owner", "sendMessages");
 
   const [ready, setReady] = useState(null);       // null = still checking
   const [convs, setConvs] = useState(null);
@@ -401,7 +405,7 @@ export default function Messages({ company }) {
       </div>
 
       {/* ---- compose: search a company, write the first message ---- */}
-      {composing && (
+      {composing && canSend && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-slate-900/30 p-4" onClick={closeCompose}>
           <div onClick={(e) => e.stopPropagation()} className={`w-full max-w-[520px] overflow-hidden bg-white ${CARD}`}>
             <div className="flex items-center justify-between border-b border-slate-100 px-5 py-3.5">
@@ -483,6 +487,7 @@ export default function Messages({ company }) {
           <div className="shrink-0 border-b border-slate-100 p-3">
             <div className="mb-2 flex items-center justify-between">
               <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Conversations</p>
+              {canSend && (
               <button
                 onClick={() => setComposing(true)}
                 title="Message another company"
@@ -490,6 +495,7 @@ export default function Messages({ company }) {
               >
                 <PenSquare size={14} /> New
               </button>
+              )}
             </div>
             <div className="flex items-center gap-2 rounded-xl bg-slate-100 px-3 py-2">
               <Search size={15} className="shrink-0 text-slate-400" />
@@ -572,6 +578,11 @@ export default function Messages({ company }) {
                 <div ref={bottomRef} />
               </div>
 
+              {!canSend ? (
+                <p className="shrink-0 border-t border-slate-100 px-5 py-3 text-[12.5px] text-slate-500" data-readonly-inbox>
+                  Your role ({company?.role}) can read messages but not send them. An owner, admin, editor or publisher can reply.
+                </p>
+              ) : (
               <div className="shrink-0 border-t border-slate-100 p-3">
                 {err && <p className="mb-2 px-1 text-[12.5px] font-semibold text-rose-500">{err}</p>}
                 {staged.length > 0 && (
@@ -622,6 +633,7 @@ export default function Messages({ company }) {
                   </button>
                 </div>
               </div>
+              )}
             </>
           )}
         </div>

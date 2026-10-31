@@ -356,9 +356,9 @@ export default function ReleaseLibrary({ drafts, published, onCreate, onDraft, o
               Clear filters
             </button>
           ) : (
-            <button onClick={onCreate} className="mt-4 rounded-xl bg-slate-900 px-4 py-2.5 text-[13px] font-bold text-white">
+            onCreate ? <button onClick={onCreate} className="mt-4 rounded-xl bg-slate-900 px-4 py-2.5 text-[13px] font-bold text-white">
               Create new
-            </button>
+            </button> : null
           )}
         </div>
       ) : (

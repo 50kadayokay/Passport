@@ -20,7 +20,7 @@
 import crypto from "node:crypto";
 import { SB_URL, ANON_KEY, serviceRest, serviceConfigured } from "./_service.js";
 import { bearerToken, verifyBearer } from "./_supabase.js";
-import { callerCompanyRole, UUID as UUID_RE } from "./_roles.js";
+import { callerCompanyRole, MESSAGING_ROLES, UUID as UUID_RE } from "./_roles.js";
 
 function bad(res, code, msg) { res.status(code).json({ ok: false, error: msg }); }
 
@@ -247,9 +247,11 @@ export async function insertMessageOnce({ convId, sender, text, clientMessageId 
  * only on conversations, so 0063's insert policy could never be reached).
  * Moving it here needs no grant and no migration. The checks are 0063's
  * conv_insert_company policy, enforced in code:
- *   * the caller is signed in and is an active member or owner of the SENDING
- *     company -- my_company_role(cid) asked AS THE CALLER, the same test as
- *     owns_company(); any role, platform admins not included (as in 0063);
+ *   * the caller is signed in and holds a MESSAGING role in the SENDING
+ *     company -- my_company_role(cid) asked AS THE CALLER: owner, admin, editor
+ *     or publisher (a03, approved); analysts and viewers read threads but do
+ *     not send. Platform admins not included (as in 0063). 0076's
+ *     conv_insert_company / msg_insert_* policies hold the same line;
  *   * investor_id is the acting user, so the row stays attributable;
  *   * the recipient exists and is not the sending company.
  * The first message is sender='investor' -- positional: the initiating side.
@@ -263,11 +265,11 @@ async function handleStart(req, res) {
   const v = await verifyBearer(token);
   if (!v.ok || !v.user || !v.user.id) return bad(res, 401, "sign-in-required");
   if (!UUID_RE.test(fromCompanyId)) return bad(res, 400, "fromCompanyId-required");
-  // Any active membership or ownership, exactly owns_company(). undefined means
-  // the role could not be checked: refuse rather than guess.
+  // undefined means the role could not be checked: refuse rather than guess.
   const role = await callerCompanyRole(token, fromCompanyId);
   if (role === undefined) return bad(res, 502, "role-check-failed");
   if (!role) return bad(res, 403, "not-a-member-of-sending-company");
+  if (!MESSAGING_ROLES.includes(role)) return bad(res, 403, "role-cannot-send");
   const who = { user: v.user, role };
   if (!toSlug) return bad(res, 400, "toSlug-required");
   if (!text) return bad(res, 400, "empty-message");

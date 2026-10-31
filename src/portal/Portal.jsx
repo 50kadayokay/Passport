@@ -6,7 +6,7 @@ import {
   ChevronDown, ChevronRight, CheckCircle2, AlertCircle, ArrowRight, Sparkles, Loader2,
   Plus, Trash2, Clock, TrendingUp, FileText, Radio as RadioIcon, Check, ArrowLeft,
   Megaphone, QrCode, HelpCircle, Copy, Download, Eye, Upload, Send, Mail, Bell,
-  Presentation, Brain, PenLine,
+  Presentation, Brain, PenLine, Users,
 } from "lucide-react";
 import { getUser, signOut, authHeaders, updatePassword, updateEmail } from "../lib/auth.js";
 import { profileUrl, companyLogo, companyMonogram, placardLogo } from "../lib/brand.js";
@@ -19,6 +19,7 @@ import { fetchPlan, fetchFeatures } from "../lib/features.js";
 import { uploadCompanyLogo } from "../lib/storage.js";
 import { visibleProfileSections } from "./profileNav.js";
 import OnboardingPanel from "./OnboardingPanel.jsx";
+import { can } from "../lib/companyRoles.js";
 const Content = React.lazy(() => import("./Content.jsx"));
 const Updates = React.lazy(() => import("./Updates.jsx"));
 import { MineExLockup, CompanyMark } from "./BrandMarks.jsx";
@@ -36,6 +37,7 @@ const Notifications = React.lazy(() => import("./Notifications.jsx"));      // f
 const Conference    = React.lazy(() => import("./Conference.jsx"));         // iPad booth: launch + status
 const MineIQ        = React.lazy(() => import("./MineIQ.jsx"));             // company memory, searchable
 const Services      = React.lazy(() => import("./Services.jsx"));           // MineEx services
+const TeamView      = React.lazy(() => import("./TeamView.jsx"));           // members, roles, invitations (a03)
 
 // The Company Portal shell. ONE app; the resolved company arrives from PortalGate.
 // Every navigation item is a real page: Home, Broadcast, Company Profile, Media,
@@ -120,6 +122,7 @@ export default function Portal({ company: initial, switchCompany, adminMode = fa
       conference:    ["sharing", "conference"],
       share:         ["sharing", "qr"],
       billing:       ["settings", "billing"],
+      team:          ["settings", "team"],
     }[id];
     if (mapped) {
       const [dest, tab] = mapped;
@@ -213,7 +216,8 @@ export default function Portal({ company: initial, switchCompany, adminMode = fa
         {bare ? (
           <div className={`min-h-0 flex-1 ${section === "mineiq" ? "overflow-hidden" : "overflow-y-auto"}`}>
             <Suspense fallback={<SectionLoader />}>
-              {(section === "press" || section === "broadcast") && <CommsCenter company={company} devFeatures={devFeatures} />}
+              {/* Legacy composer: no navigation reaches it; gated anyway so a future link cannot expose it to read-only roles. */}
+              {(section === "press" || section === "broadcast") && can(company?.role || "owner", "draftContent") && <CommsCenter company={company} devFeatures={devFeatures} />}
               {section === "profile"   && <Suspense fallback={<SectionLoader />}><ProfileEditor company={company} injectedProfile={injectedProfile} navTab={profTab} navStep={profStep} onNav={(t, s) => { setProfTab(t); setProfStep(s); }} /></Suspense>}
               {section === "mineiq"    && <MineIQ company={company} go={setSection} />}
             </Suspense>
@@ -461,15 +465,17 @@ function PageTitle({ title, sub }) {
 // Every tile hands off to an existing destination. None of them owns logic.
 function HomeView({ company, go, openContent, openUpdates, updatesCount = 0 }) {
   const live = profileUrl(company?.slug);
+  const role = company?.role || "owner";
 
   const actions = [
-    { id: "pr",      Icon: Upload,    title: "Publish Press Release",
+    // a03: tiles a role cannot use are left out rather than shown to refuse.
+    can(role, "draftContent") && { id: "pr",      Icon: Upload,    title: "Publish Press Release",
       sub: "Upload a release and put it on your profile.",
       onClick: () => openContent("releases", "releases") },
-    { id: "media",   Icon: ImageIcon, title: "Publish Media",
+    can(role, "publishContent") && { id: "media",   Icon: ImageIcon, title: "Publish Media",
       sub: "Add photos or video investors will see.",
       onClick: () => openContent("media", "media") },
-    { id: "draft",   Icon: PenLine,   title: "Draft Press Release",
+    can(role, "draftContent") && { id: "draft",   Icon: PenLine,   title: "Draft Press Release",
       sub: "Write one with MineEx, from your own facts.",
       onClick: () => openContent("releases", "draft") },
     { id: "mineiq",  Icon: Brain,     title: "Ask MineIQ",
@@ -481,7 +487,7 @@ function HomeView({ company, go, openContent, openUpdates, updatesCount = 0 }) {
     { id: "updates", Icon: Bell,      title: "Updates",
       sub: "Messages, notifications and analytics.",
       badge: updatesCount, onClick: () => openUpdates() },
-  ];
+  ].filter(Boolean);
 
   return (
     <div>
@@ -714,15 +720,18 @@ function QRShareView({ company, hideHeading = false }) {
       const nextProfile = { ...(company.profile || {}), brand: { ...((company.profile || {}).brand || {}), qrLogo: url } };
       const saved = await updateCompanyProfile(company.id, nextProfile);
       setLogoSrc(url);
-      setLogoBusy(saved ? "Saved" : "Saved for this download only");
-      setTimeout(() => setLogoBusy(""), 2600);
+      // A refused save is said plainly: the logo is used for this download
+      // only, and the profile keeps its previous one.
+      setLogoBusy(saved ? "Saved" : "Not saved to your profile (only the account owner or MineEx can change it) — used for this download only");
+      if (saved) setTimeout(() => setLogoBusy(""), 2600);
     } catch (_) {
       setLogoBusy("Upload failed"); setTimeout(() => setLogoBusy(""), 2600);
     }
   };
   const clearLogo = async () => {
     const nextProfile = { ...(company.profile || {}), brand: { ...((company.profile || {}).brand || {}), qrLogo: "" } };
-    await updateCompanyProfile(company.id, nextProfile).catch(() => null);
+    const saved = await updateCompanyProfile(company.id, nextProfile).catch(() => null);
+    if (!saved) { setLogoBusy("Couldn't change the logo — only the account owner or MineEx can."); return; }
     setLogoSrc(companyLogo(company));
   };
 
@@ -806,6 +815,13 @@ function QRShareView({ company, hideHeading = false }) {
               {logoSrc
                 ? <img src={logoSrc} alt="" className="h-11 w-11 shrink-0 rounded-xl border border-slate-200 bg-white object-cover" />
                 : <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-slate-900 text-[14px] font-extrabold text-white">{companyMonogram(company)}</span>}
+              {/* The placard logo is written straight to the LIVE profile
+                  (profile.brand), so it follows the profile-publish roles. */}
+              {!can(company?.role || "owner", "publishProfile") ? (
+                <p className="min-w-0 flex-1 text-[11px] leading-relaxed text-slate-500" data-readonly-brand>
+                  Only an owner or admin can change the placard logo. You can still download the placard.
+                </p>
+              ) : (
               <div className="min-w-0 flex-1">
                 <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-bold text-slate-600 transition hover:border-slate-300 active:scale-95">
                   <Upload size={13} strokeWidth={2.4} /> {logoSrc ? "Replace" : "Upload"}
@@ -817,6 +833,7 @@ function QRShareView({ company, hideHeading = false }) {
                 )}
                 <p className="mt-1 text-[11px] text-slate-400">{logoBusy || "PNG, JPG or SVG. A square, high-resolution version prints best."}</p>
               </div>
+              )}
             </div>
           </div>
         </div>
@@ -864,6 +881,9 @@ function CalendarView({ company, setCompany }) {
   const [items, setItems] = useState(() => (Array.isArray(company.profile?.catalysts) ? company.profile.catalysts : []));
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const [saveErr, setSaveErr] = useState("");
+  // Catalysts are written straight to the LIVE profile.
+  const canEdit = can(company?.role || "owner", "publishProfile");
 
   const addItem = () => { setItems((xs) => [...xs, { id: uid(), title: "", type: "Drilling", expected: "", status: "upcoming", note: "" }]); setDirty(true); };
   const patch = (id, k, v) => { setItems((xs) => xs.map((x) => (x.id === id ? { ...x, [k]: v } : x))); setDirty(true); };
@@ -874,6 +894,7 @@ function CalendarView({ company, setCompany }) {
     const clean = items.filter((x) => (x.title || "").trim());
     const nextProfile = { ...(company.profile || {}), catalysts: clean };
     const saved = await updateCompanyProfile(company.id, nextProfile);
+    setSaveErr(saved ? "" : "Not saved. Only the account owner or MineEx can change the live profile's catalysts — your edits are still here.");
     if (saved) {
       setCompany((c) => ({ ...c, profile: saved }));
       setItems(Array.isArray(saved.catalysts) ? saved.catalysts : clean);
@@ -891,14 +912,17 @@ function CalendarView({ company, setCompany }) {
       <div className="flex items-start justify-between">
         <PageTitle title="Calendar & Catalysts" sub="The upcoming events that move your story — drilling, assays, studies, financings and conferences." />
         <div className="flex items-center gap-2">
-          {dirty && <span className="text-[12px] font-semibold text-amber-600">Unsaved changes</span>}
-          <button onClick={save} disabled={saving || !dirty}
+          {saveErr && <span role="alert" className="max-w-[340px] text-[12px] font-semibold text-rose-600" data-save-error>{saveErr}</span>}
+          {dirty && !saveErr && <span className="text-[12px] font-semibold text-amber-600">Unsaved changes</span>}
+          {canEdit && <button onClick={save} disabled={saving || !dirty}
             className={`inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-[13.5px] font-bold text-white ${dirty ? "bg-slate-900" : "bg-slate-300"} ${saving ? "opacity-60" : ""}`}>
             {saving ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />} Save
-          </button>
+          </button>}
         </div>
       </div>
 
+      {!canEdit && <p className="mt-2 text-[12.5px] text-slate-500" data-readonly-calendar>Read only. Catalysts are part of the live profile, which an owner or admin changes.</p>}
+      <fieldset disabled={!canEdit} className="m-0 min-w-0 border-0 p-0">
       {items.length === 0 ? (
         <div className="mt-4 rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-14 text-center">
           <Calendar size={26} className="mx-auto text-slate-300" />
@@ -940,6 +964,7 @@ function CalendarView({ company, setCompany }) {
           <button onClick={addItem} className="mt-3 inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-[13.5px] font-bold text-slate-700 hover:border-slate-300"><Plus size={15} /> Add another</button>
         </>
       )}
+      </fieldset>
     </div>
   );
 }
@@ -982,6 +1007,9 @@ function ActivityView({ company }) {
                   {r.reason && <span className="block truncate text-[12.5px] text-slate-400">{r.reason}</span>}
                 </span>
                 {r.actor_kind === "admin" && <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-bold uppercase text-indigo-500">MineEx</span>}
+                {/* a03 / 0076: source 'ui' is reserved for entries a member's browser
+                    reported; everything else was recorded by the server itself. */}
+                {r.source === "ui" && <span title="Recorded by a member's browser, not by the server" className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase text-slate-500">Reported in portal</span>}
                 <span className="shrink-0 text-[12px] text-slate-400">{fmtDate(r.created_at)}</span>
               </li>
             ))}
@@ -1044,7 +1072,7 @@ function BillingView({ company, hideHeading = false }) {
   // Billing is for owners and company admins (F2). The server enforces it; this
   // only spares other members a button that would refuse them. company.role is
   // the caller's own role (lib/portal.js); "owner" when absent, as elsewhere here.
-  const canManageBilling = ["owner", "admin"].includes(company?.role || "owner");
+  const canManageBilling = can(company?.role || "owner", "manageBilling");
 
   return (
     <div>
@@ -1151,8 +1179,9 @@ function SettingsView({ company, tab = "general", setTab, go, goProfile, onPubli
     return () => { alive = false; };
   }, [company.id]);
 
-  const active = tab === "billing" ? "billing" : "general";
+  const active = tab === "billing" || tab === "team" ? tab : "general";
   const TABS = [{ id: "general", label: "General", Icon: SettingsIcon },
+                { id: "team", label: "Team", Icon: Users },
                 { id: "billing", label: "Billing", Icon: CreditCard }];
 
   return (
@@ -1179,6 +1208,7 @@ function SettingsView({ company, tab = "general", setTab, go, goProfile, onPubli
       </div>
 
       {active === "billing" && <BillingView company={company} hideHeading />}
+      {active === "team" && <Suspense fallback={<SectionLoader />}><TeamView company={company} /></Suspense>}
 
       {active === "general" && (<>
 

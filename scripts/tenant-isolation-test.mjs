@@ -37,7 +37,7 @@
 
 import { COMPANY_SCOPED, INDIRECTLY_SCOPED, PUBLIC_READABLE,
          COMPANY_SCOPED_RPCS, WRITE_ONLY, USER_SCOPED,
-         BUCKETS_PRIVATE, BUCKETS_PUBLIC, SEEDED_OBJECT_ENV, PUBLIC_BY_DESIGN }
+         BUCKETS_PRIVATE, BUCKETS_PUBLIC, SEEDED_OBJECT_ENV, PUBLIC_BY_DESIGN, COLUMN_LIMITED }
   from "./_isolation-targets.mjs";
 import { SERVICE_ONLY } from "./_isolation-targets.mjs";
 import { API_ROUTES } from "./_api-routes.mjs";
@@ -144,6 +144,8 @@ async function rest(path, { token, method = "GET", body, prefer } = {}) {
   return { status: r.status, body: parsed };
 }
 
+const colsFor = (table) => (COLUMN_LIMITED[table] ? COLUMN_LIMITED[table].cols : "*");
+
 async function rpc(name, args, token) {
   return rest(`rpc/${name}`, { token, method: "POST", body: args });
 }
@@ -195,6 +197,10 @@ function subjectOf(jwt) {
 }
 
 // =============================================================== the suite ==
+const phases = [];
+const mark = (name) => phases.push({ name, t: Date.now() });
+let apiRun = null;
+
 async function main() {
   assertNotProduction();
 
@@ -265,6 +271,7 @@ async function main() {
   // assertions can tell "my row" from "someone else's" with no DB connection.
   for (const [k, v] of Object.entries(tok)) if (v) UID[k] = subjectOf(v);
 
+  mark("1-6 table and RPC probes");
   // ===================== 1. POSITIVE CONTROLS ============================
   // Run FIRST and deliberately. If company A cannot read its own rows, every
   // denial below is meaningless -- a fully broken database passes a
@@ -272,11 +279,18 @@ async function main() {
   for (const [table, col] of COMPANY_SCOPED) {
     if (WRITE_ONLY.has(table)) continue;        // insert-only by design; see _isolation-targets
     const val = col === "company_slug" ? SLUG_A : ID_A;
-    const { status, body } = await rest(`${table}?${col}=eq.${val}&select=*&limit=1`, { token: tok.companyA });
+    const { status, body } = await rest(`${table}?${col}=eq.${val}&select=${colsFor(table)}&limit=1`, { token: tok.companyA });
     record("companyA", "SELECT own", table, "reachable (any row count)",
            `${status} ${summarise(body)}`,
            status >= 200 && status < 300 ? "PASS" : "FAIL",
            "control: proves the denials below are meaningful");
+    // The withheld column must be refused even for the company's own owner.
+    if (COLUMN_LIMITED[table]) {
+      const w = await rest(`${table}?${col}=eq.${val}&select=${COLUMN_LIMITED[table].withheld}&limit=1`, { token: tok.companyA });
+      expectDenied("companyA", "SELECT withheld col", `${table}.${COLUMN_LIMITED[table].withheld}`, w.status, w.body, "column privilege: never readable from a client, own company included");
+      const s2 = await rest(`${table}?${col}=eq.${val}&select=*&limit=1`, { token: tok.companyA });
+      expectDenied("companyA", "SELECT * (withheld)", table, s2.status, s2.body, "select=* would include the withheld column");
+    }
   }
   for (const [table, filter] of PUBLIC_READABLE) {
     // NAMED COLUMNS, not select=*. Where 0061b has replaced table-wide SELECT
@@ -349,7 +363,7 @@ async function main() {
       }
       continue;
     }
-    const { status, body } = await rest(`${table}?${col}=eq.${val}&select=*`, { token: tok.companyA });
+    const { status, body } = await rest(`${table}?${col}=eq.${val}&select=${colsFor(table)}`, { token: tok.companyA });
     // Since 0063, conversations.company_slug names the RECIPIENT, so a thread
     // company A started with B carries B's slug -- and A is a party to it. Those
     // rows (sender_company_id = A) are A's own; every OTHER row is still a leak.
@@ -357,9 +371,9 @@ async function main() {
     const theirs = ownSent.length ? body.filter((r) => !ownSent.includes(r)) : body;
     expectDenied("companyA", "SELECT other", table, status, theirs,
                  `targeting B via ${col}${ownSent.length ? ` (${ownSent.length} thread(s) A started itself excluded)` : ""}`);
-    const anonRes = await rest(`${table}?${col}=eq.${val}&select=*`, { token: null });
+    const anonRes = await rest(`${table}?${col}=eq.${val}&select=${colsFor(table)}`, { token: null });
     expectDenied("anon", "SELECT other", table, anonRes.status, anonRes.body, "");
-    const invRes = await rest(`${table}?${col}=eq.${val}&select=*`, { token: tok.investor });
+    const invRes = await rest(`${table}?${col}=eq.${val}&select=${colsFor(table)}`, { token: tok.investor });
     expectDenied("investor", "SELECT other", table, invRes.status, invRes.body, "");
   }
 
@@ -419,7 +433,7 @@ async function main() {
   if (tok.admin) {
     for (const [table, col] of COMPANY_SCOPED.slice(0, 8)) {
       const val = col === "company_slug" ? SLUG_B : ID_B;
-      const { status, body } = await rest(`${table}?${col}=eq.${val}&select=*&limit=1`, { token: tok.admin });
+      const { status, body } = await rest(`${table}?${col}=eq.${val}&select=${colsFor(table)}&limit=1`, { token: tok.admin });
       expectAllowed("admin", "SELECT any", table, status, body, "staff access must survive remediation");
     }
   } else {
@@ -447,9 +461,38 @@ async function main() {
            bHasData ? "" : "seed company B in supabase/staging/seed.sql");
   }
 
-  for (const [name, extra, cls] of COMPANY_SCOPED_RPCS) {
+  for (const [name, extra, cls, staffOwn] of COMPANY_SCOPED_RPCS) {
     const own   = { p_company: ID_A, ...extra };
     const other = { p_company: ID_B, ...extra };
+
+    // 0076 team functions (a03): role-guarded, platform admins admitted, and
+    // refusals come back as data. See _isolation-targets.mjs.
+    if (cls === "company-role") {
+      const refused = (r) => r.status === 401 || r.status === 403 || r.status === 404 || r.body === false
+        || (Array.isArray(r.body) && r.body.length === 0) || (r.body && r.body.ok === false && /^(forbidden|signin)$/.test(r.body.error));
+      const show = (r) => `${r.status} ${summarise(r.body)}`;
+      const first = tok.companyA ? await rpc(name, own, tok.companyA) : null;
+      if (first && first.status === 404 && /PGRST202|Could not find the function/i.test(JSON.stringify(first.body || ""))) {
+        record("companyA", "RPC own", name, "allowed", "function not on this database", "SKIP", "migration 0076 not applied here");
+        continue;
+      }
+      if (first) record("companyA", "RPC own", name, "admitted (owner)", show(first), first.status === 200 && !refused(first) ? "PASS" : "FAIL", "control: the owner passes the role guard");
+      if (tok.staff) {
+        const r = await rpc(name, own, tok.staff);
+        const ok = staffOwn === "allowed" ? r.status === 200 && !refused(r) : refused(r);
+        record("staff", "RPC own", name, staffOwn === "allowed" ? "admitted (viewer)" : "refused (viewer)", show(r), ok ? "PASS" : "FAIL", "viewer of company A, on company A");
+      }
+      if (tok.admin) {
+        const r = await rpc(name, other, tok.admin);
+        record("admin", "RPC any", name, "admitted (platform admin)", show(r), r.status === 200 && !refused(r) ? "PASS" : "FAIL", "profile_actor_role admits platform admins");
+      }
+      for (const who of ["companyA", "staff", "investor", "anon"]) {
+        if (who !== "anon" && !tok[who]) continue;
+        const r = await rpc(name, other, tok[who]);
+        record(who, "RPC other", name, "refused", show(r), refused(r) ? "PASS" : "FAIL", "p_company is chosen by the caller");
+      }
+      continue;
+    }
 
     // Positive controls first, and for BOTH branches of owns_company(): the
     // owner's owner_id and a staff member's active membership. A guard that
@@ -506,6 +549,7 @@ async function main() {
     }
   }
 
+  mark("7 serverless routes (api-authz)");
   // ===================== 7. SERVERLESS ROUTES ============================
   // Delegated to api-authz-test.mjs: one valid request per route, positive
   // controls first, 400/405/5xx never counted as a denial, and the staging
@@ -521,10 +565,11 @@ async function main() {
           .filter((l) => l && !l.startsWith("#") && l.includes("="))
           .map((l) => { const i = l.indexOf("="); return [l.slice(0, i), l.slice(i + 1)]; }))
       : {};
-    await runApiSuite({ api: API, tok, env: { ...process.env, ...apiEnv }, record,
+    apiRun = await runApiSuite({ api: API, tok, env: { ...process.env, ...apiEnv }, record,
       headers: process.env.ISOLATION_API_BYPASS ? { "x-vercel-protection-bypass": process.env.ISOLATION_API_BYPASS } : {} });
   }
 
+  mark("8 storage");
   // ===================== 8. STORAGE ======================================
   // Private buckets: fetch a SEEDED object belonging to company B as company A.
   // A listing probe is not used as the assertion, because an empty list is
@@ -600,6 +645,18 @@ async function main() {
            "control: public media must not go dark");
   }
 
+  mark("end");
+  // Timing evidence: phase durations and the slowest API calls. A stall shows
+  // up here as a phase or a call measured in minutes, with its wall-clock time.
+  console.log("\n  PHASE TIMINGS");
+  for (let i = 0; i < phases.length - 1; i++) console.log(`    ${phases[i].name.padEnd(36)} ${((phases[i + 1].t - phases[i].t) / 1000).toFixed(1).padStart(7)} s   from ${new Date(phases[i].t).toISOString()}`);
+  if (apiRun && apiRun.timings && apiRun.timings.length) {
+    const slow = [...apiRun.timings].sort((a, b) => b.ms - a.ms).slice(0, 5);
+    console.log(`    api calls: ${apiRun.timings.length}, total ${(apiRun.timings.reduce((n, x) => n + x.ms, 0) / 1000).toFixed(1)} s; slowest: ` + slow.map((x) => `${x.route} ${(x.ms / 1000).toFixed(1)}s @${x.at.slice(11, 19)}Z`).join(", "));
+    const stalls = apiRun.timings.filter((x) => x.ms > 60000);
+    record("suite", "timing", "api route calls", "no single call over 60 s", stalls.length ? stalls.map((x) => `${x.route} ${(x.ms / 1000).toFixed(0)}s`).join(", ") : "none", stalls.length ? "FAIL" : "PASS",
+           "a stall here invalidates later results (sessions expire after 3600 s)");
+  }
   // ---------------------------------------------------------------- report --
   if (WANT_MATRIX) {
     console.log("\n  IDENTITY    OPERATION            TARGET                          EXPECTED              ACTUAL                VERDICT");

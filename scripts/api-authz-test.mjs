@@ -61,7 +61,15 @@ export async function runApiSuite({ api, tok, env, record, headers: extraHeaders
   const initial = await egressLen();
   egressAvailable = Array.isArray(initial);
 
+  // Wall-clock per route call, so a stall is visible in the report rather than
+  // inferred afterwards (exposed as runApiSuite's return value).
+  const timings = [];
   async function call(route, reqSpec, token, hdrs = {}) {
+    const t0 = Date.now();
+    try { return await callInner(route, reqSpec, token, hdrs); }
+    finally { timings.push({ route, ms: Date.now() - t0, at: new Date(t0).toISOString() }); }
+  }
+  async function callInner(route, reqSpec, token, hdrs = {}) {
     const before = egressAvailable ? (await egressLen()).length : 0;
     const q = reqSpec.query ? "?" + new URLSearchParams(reqSpec.query).toString() : "";
     const h = { ...extraHeaders, ...hdrs };
@@ -597,6 +605,7 @@ export async function runApiSuite({ api, tok, env, record, headers: extraHeaders
     record("suite", "egress", "whole run", "every mocked mail to a .invalid fixture", `${mails.length} mail(s)`,
            mails.every((m) => /\.invalid$/.test(m.to || "")) ? "PASS" : "FAIL");
   }
+  return { timings };
 }
 
 const post2 = (body) => ({ method: "POST", body });

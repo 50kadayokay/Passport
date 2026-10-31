@@ -89,7 +89,9 @@ export default function PortalGate({ render }) {
           window.history.replaceState(null, "", window.location.pathname + (qs ? `?${qs}` : ""));
           if (!alive) return;
           if (!r.ok && r.error === "email_mismatch") { setState({ phase: "mismatch" }); return; }
-          if (!r.ok && (r.error === "expired" || r.error === "used" || r.error === "invalid")) { setState({ phase: "badinvite", error: r.error }); return; }
+          if (!r.ok && ["expired", "used", "invalid", "revoked"].includes(r.error)) { setState({ phase: "badinvite", error: r.error }); return; }
+          // already_member: nothing changed (0076 never rewrites an existing
+          // membership) -- fall through into the portal with the current role.
           // ok (or a transient failure) → fall through and resolve companies.
         }
 
@@ -139,11 +141,12 @@ export default function PortalGate({ render }) {
   }
 
   if (state.phase === "badinvite") {
-    const msg = state.error === "expired" ? "This invitation has expired." : state.error === "used" ? "This invitation has already been used." : "This invitation link isn't valid.";
+    const msg = state.error === "expired" ? "This invitation has expired." : state.error === "used" ? "This invitation has already been used."
+      : state.error === "revoked" ? "This invitation was withdrawn." : "This invitation link isn't valid.";
     return (
       <Denied
         title="Invitation unavailable"
-        body={`${msg} Ask MineEx to send you a fresh invitation link.`}
+        body={`${msg} Ask whoever invited you (or MineEx) for a fresh invitation link.`}
         cta={null}
       />
     );

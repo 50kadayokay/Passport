@@ -64,9 +64,17 @@ const signIn = async (key) => {
   return j ? { token: j.access_token, id: j.user.id } : null;
 };
 const who = {};
-for (const k of ["INVESTOR", "INVESTOR_B", "COMPANY_A", "COMPANY_B", "STAFF", "ADMIN"]) who[k] = await signIn(k);
+for (const k of ["INVESTOR", "INVESTOR_B", "COMPANY_A", "COMPANY_B", "STAFF", "EDITOR", "ADMIN"]) who[k] = await signIn(k);
 const missing = Object.entries(who).filter(([, v]) => !v).map(([k]) => k);
 if (missing.length) { console.error(`  could not sign in: ${missing.join(", ")} -- run scripts/seed-isolation-fixtures.mjs`); process.exit(3); }
+
+// a03: is migration 0076 on this database? (grantable_roles is one of its
+// functions; PostgREST answers 404 for a function that does not exist.) Before
+// it, the database still lets any member reply (F6); the ROUTE refuses
+// analysts and viewers either way.
+const POST0076 = (await fetch(`${SB}/rest/v1/rpc/grantable_roles`, { method: "POST", headers: { apikey: ANON, authorization: `Bearer ${who.STAFF.token}`, "content-type": "application/json" },
+  body: JSON.stringify({ p_company: iso.ISOLATION_COMPANY_A_ID }) })).status !== 404;
+console.log(`  schema: ${POST0076 ? "0076 applied (role-aware message policies)" : "before 0076 (member-wide message policies)"}`);
 
 // ------------------------------------------------------------------ clients --
 const api = async (user, body) => {
@@ -181,7 +189,11 @@ console.log("\n  COMPANY -> INVESTOR (portal reply, browser insert under RLS)");
   ok(inv.body.some((m) => m.body === T("A replies to investor")), "the investor reads the reply (RLS, as the investor)");
   const v = await rest(who.STAFF, "messages", { method: "POST", headers: { Prefer: "return=minimal" },
     body: JSON.stringify({ conversation_id: CONV_A, sender: "company", body: T("viewer of A replies") }) });
-  ok(v.status === 201, "a viewer of company A may also reply (0047 owns_company_slug; unchanged -- see F6)", `${v.status}`);
+  if (POST0076) ok(v.status === 401 || v.status === 403, "a viewer of company A cannot reply (0076 msg_insert_company: messaging roles only)", `${v.status}`);
+  else ok(v.status === 201, "before 0076: a viewer of company A may still reply directly (F6; closed by 0076)", `${v.status}`);
+  const e = await rest(who.EDITOR, "messages", { method: "POST", headers: { Prefer: "return=minimal" },
+    body: JSON.stringify({ conversation_id: CONV_A, sender: "company", body: T("editor of A replies") }) });
+  ok(e.status === 201, "an editor of company A may reply (messaging role)", `${e.status}`);
   const x = await rest(who.COMPANY_B, "messages", { method: "POST", headers: { Prefer: "return=minimal" },
     body: JSON.stringify({ conversation_id: CONV_A, sender: "company", body: T("B intrudes") }) });
   ok(x.status === 401 || x.status === 403, "company B cannot reply into company A's investor thread", `${x.status}`);
@@ -204,8 +216,10 @@ let AB = null;
   ok(AB.ceo_email === null, "database: no CEO address on a company-started thread (unchanged: no email, no inbound path)");
   const m = await msgsIn(AB.id);
   ok(m.length === 1 && m[0].sender === "investor" && m[0].body === T("A introduces itself to B"), "database: first message stored once as sender='investor' (initiating side)");
-  const again = await start(who.STAFF, A.id, B.slug, T("A's viewer follows up"));
-  ok(again.status === 200 && again.body.created === false && again.body.conversation.id === AB.id && (await companyThreads(A.id, B.slug)).length === 1, "a second start (by A's viewer) REUSES the thread");
+  const vs = await start(who.STAFF, A.id, B.slug, T("A's viewer tries to follow up"));
+  ok(vs.status === 403 && vs.body.error === "role-cannot-send" && (await msgsIn(AB.id)).length === 1, "A's viewer cannot start/follow up (403 role-cannot-send, nothing stored)", `${vs.status} ${JSON.stringify(vs.body)}`);
+  const again = await start(who.EDITOR, A.id, B.slug, T("A's editor follows up"));
+  ok(again.status === 200 && again.body.created === false && again.body.conversation.id === AB.id && (await companyThreads(A.id, B.slug)).length === 1, "a second start (by A's editor) REUSES the thread");
 
   const bSees = await rest(who.COMPANY_B, `conversations?id=eq.${AB.id}&select=id`);
   ok(bSees.body.length === 1, "company B sees the thread in its inbox (RLS conv_select_company)");

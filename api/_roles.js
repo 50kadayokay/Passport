@@ -16,6 +16,10 @@ import { SB_URL, ANON_KEY, bearerToken, verifyBearer, supabaseConfigured } from 
 // requireCompanyRole (they run manual / invoiced billing).
 export const BILLING_ROLES = ["owner", "admin"];
 
+// Who may send company messages (a03, approved): analysts and viewers read the
+// inbox but do not send. Mirrors 0076's has_company_role() message policies.
+export const MESSAGING_ROLES = ["owner", "admin", "editor", "publisher"];
+
 export const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** The caller's role in `cid`. Returns the role, null for "no role", or

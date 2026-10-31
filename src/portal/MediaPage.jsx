@@ -22,6 +22,7 @@ import {
   AlertCircle, Image as ImageIcon, ArrowLeft, Upload, ExternalLink, EyeOff, Lock,
 } from "lucide-react";
 import { listMediaPosts, publishMediaPost } from "../lib/mediaPosts.js";
+import { can } from "../lib/companyRoles.js";
 import { generateCaption } from "../lib/compose.js";
 import { unpublishViaApi } from "../lib/publishClient.js";
 import { profileUrl } from "../lib/brand.js";
@@ -150,7 +151,7 @@ function MediaDetail({ post, company, onBack, onChanged }) {
             </p>
           </div>
 
-          {confirm ? (
+          {!can(company?.role || "owner", "publishContent") ? null : confirm ? (
             <div className="rounded-xl border border-amber-200 bg-amber-50 p-3">
               <p className="text-[12px] font-bold text-amber-900">Take this post down?</p>
               <p className="mt-1 text-[11px] leading-relaxed text-amber-800">
@@ -367,8 +368,11 @@ function Composer({ company, initialFile = null, onCancel, onPosted }) {
 // and default to today's behaviour, so every existing call site is unaffected.
 export default function MediaPage({ company, startComposing = false, onComposerExit = null }) {
   const companyId = company?.id;
+  // a03: media posts publish straight to the profile and feed, so posting is
+  // for owner, admin and publisher (the publish routes refuse the rest).
+  const canPost = can(company?.role || "owner", "publishContent");
   const [posts, setPosts] = useState(null);
-  const [composing, setComposing] = useState(Boolean(startComposing));
+  const [composing, setComposing] = useState(Boolean(startComposing) && canPost);
   const [open, setOpen] = useState(null);       // the post being looked at
   const [handoff, setHandoff] = useState(null); // a file dropped on the grid
   const [dragOver, setDragOver] = useState(false);
@@ -411,6 +415,11 @@ export default function MediaPage({ company, startComposing = false, onComposerE
       <p className="mt-1 text-[14px] text-slate-500">Photos and video on your investor profile.</p>
 
       {/* Upload first, grid below, the same shape as Press Releases. */}
+      {!canPost ? (
+        <p className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 px-5 py-4 text-[13px] text-slate-600" data-publish-locked>
+          Media posts go straight to your profile and followers' feed, so they're posted by an owner, admin or publisher.
+        </p>
+      ) : (
       <div
         onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
         onDragLeave={() => setDragOver(false)}
@@ -430,6 +439,7 @@ export default function MediaPage({ company, startComposing = false, onComposerE
             onChange={(e) => { takeFile(e.target.files && e.target.files[0]); e.target.value = ""; }} />
         </label>
       </div>
+      )}
 
       <div className="mt-8 flex items-center gap-3">
         <span className="h-px flex-1 bg-slate-200" />
@@ -457,7 +467,7 @@ export default function MediaPage({ company, startComposing = false, onComposerE
             Post a photo from site or a short video. These appear on your profile's Media tab and in your
             followers' feed.
           </p>
-          <p className="mt-3 text-[12.5px] font-semibold text-slate-400">Drop a file above to post your first.</p>
+          {canPost && <p className="mt-3 text-[12.5px] font-semibold text-slate-400">Drop a file above to post your first.</p>}
         </div>
       ) : (
         <div className="mt-5 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">

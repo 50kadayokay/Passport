@@ -34,8 +34,13 @@ const USERS = {
   ownerB:   { id: U(4), email: "owner-b@staging.invalid" },
   outsider: { id: U(5), email: "outsider@staging.invalid" },
   admin:    { id: U(6), email: "platform-admin@staging.invalid" },  // platform admin, no membership
+  editorA:  { id: U(7), email: "editor-a@staging.invalid" },
+  publisherA: { id: U(8), email: "publisher-a@staging.invalid" },
+  analystA: { id: U(9), email: "analyst-a@staging.invalid" },
+  adminA:   { id: U(10), email: "admin-a@staging.invalid" },
 };
-const ROLES = { [`${USERS.ownerA.id}|${CO_A}`]: "owner", [`${USERS.viewerA.id}|${CO_A}`]: "viewer", [`${USERS.ownerB.id}|${CO_B}`]: "owner" };
+const ROLES = { [`${USERS.ownerA.id}|${CO_A}`]: "owner", [`${USERS.viewerA.id}|${CO_A}`]: "viewer", [`${USERS.ownerB.id}|${CO_B}`]: "owner",
+  [`${USERS.editorA.id}|${CO_A}`]: "editor", [`${USERS.publisherA.id}|${CO_A}`]: "publisher", [`${USERS.analystA.id}|${CO_A}`]: "analyst", [`${USERS.adminA.id}|${CO_A}`]: "admin" };
 const COMPANIES = [
   { id: CO_A, slug: "iso-alpha", name: "Iso Alpha", profile: { pp: { CONTACT: { email: "ceo@iso-alpha.invalid" } } } },
   { id: CO_B, slug: "iso-beta", name: "Iso Beta", profile: {} },
@@ -320,8 +325,17 @@ reset("post0063");
   ok(mailed(calls) === 0, "no email is sent (unchanged: company-started threads never emailed)");
   const again = await start(USERS.ownerA, CO_A, "iso-beta", "Follow-up");
   ok(again.res.body.created === false && again.res.body.conversation.id === c.id && conversations.length === 1, "starting again REUSES the thread");
-  const viewer = await start(USERS.viewerA, CO_A, "iso-beta", "From a viewer of A");
-  ok(viewer.res.statusCode === 200 && conversations.length === 1 && messages.length === 3, "any active member (viewer) may write -- mirrors 0063's owns_company(); see F6");
+  // a03 (approved): owner, admin, editor and publisher send; analyst and viewer read only.
+  let n = messages.length;
+  for (const k of ["adminA", "editorA", "publisherA"]) {
+    const r = await start(USERS[k], CO_A, "iso-beta", `From ${k}`);
+    ok(r.res.statusCode === 200 && conversations.length === 1 && messages.length === ++n, `${ROLES[`${USERS[k].id}|${CO_A}`]} of A may write into A's thread`);
+  }
+  for (const k of ["analystA", "viewerA"]) {
+    const r = await start(USERS[k], CO_A, "iso-beta", `From ${k}`);
+    ok(r.res.statusCode === 403 && r.res.body.error === "role-cannot-send" && convWrites(r.calls) === 0 && msgWrites(r.calls) === 0 && messages.length === n,
+      `${ROLES[`${USERS[k].id}|${CO_A}`]} of A -> 403 role-cannot-send, nothing written (read-only role)`, `${r.res.statusCode} ${JSON.stringify(r.res.body)}`);
+  }
 }
 {
   reset("post0063");
@@ -374,7 +388,7 @@ for (let round = 0; round < 25; round++) {
   reset("post0063");
   const rs = await Promise.all([
     ...Array.from({ length: 4 }, (_, i) => start(USERS.ownerA, CO_A, "iso-beta", `owner ${i}`)),
-    ...Array.from({ length: 4 }, (_, i) => start(USERS.viewerA, CO_A, "iso-beta", `viewer ${i}`)),
+    ...Array.from({ length: 4 }, (_, i) => start(USERS.editorA, CO_A, "iso-beta", `editor ${i}`)),
   ]);
   if (!(rs.every((r) => r.res.statusCode === 200) && conversations.length === 1 && messages.length === 8 && rs.filter((r) => r.res.body.created).length === 1)) {
     ok(false, `round ${round}: 8 concurrent starts A->B -> 1 thread`, `${conversations.length} threads, statuses ${rs.map((r) => r.res.statusCode)}`);

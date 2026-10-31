@@ -37,6 +37,15 @@ export const USER_SCOPED = [
   ["company_claims", "user_id", "company_slug"],
 ];
 
+// Tables whose client SELECT is granted per COLUMN, so select=* is refused
+// outright (42501) for everyone -- which would make every cross-tenant read
+// "pass" on a permission error that proves nothing about rows. Reads use these
+// columns instead; the withheld column is asserted separately.
+//   site_credentials (0076): token_hash is never readable from a client.
+export const COLUMN_LIMITED = {
+  site_credentials: { cols: "id,company_id,label,kind,revoked_at", withheld: "token_hash" },
+};
+
 export const COMPANY_SCOPED = [
   // Added 2026-10-30 after the suite's own inventory check reported these
   // uncovered. They are among the most sensitive tables in the system: Mine IQ
@@ -239,6 +248,22 @@ export const COMPANY_SCOPED_RPCS = [
   ["get_profile_version",           { p_actor: NIL_UUID, p_version: NIL_UUID }, "internal"],
   ["restore_profile_version_to_draft", { p_actor: NIL_UUID, p_version: NIL_UUID, p_expected_version: null }, "internal"],
   ["admin_set_billing",             { p_tier: null, p_status: "active", p_renews_at: null }, "admin-only"],
+  // 0076 (a03): team management. "company-role": the guard is the caller's
+  // role in p_company (profile_actor_role), which -- unlike owns_company() --
+  // admits platform admins on any company. Refusals are a jsonb
+  // {ok:false, error:"forbidden"} (or false / an empty array), not a raise.
+  // Arguments are chosen so that a caller who PASSES the guard stops at a later,
+  // harmless refusal (invalid email, unknown member/invitation): nothing is
+  // ever written. 4th element: what company A's viewer ("staff") gets on its
+  // OWN company.
+  ["list_members",                  {},                         "company-role", "allowed"],
+  ["list_invitations",              {},                         "company-role", "denied"],
+  ["grantable_roles",               {},                         "company-role", "denied"],
+  ["has_company_role",              { p_roles: ["owner", "admin"] }, "company-role", "denied"],
+  ["invite_member",                 { p_email: "not-an-email", p_role: "viewer" }, "company-role", "denied"],
+  ["revoke_invitation",             { p_invitation: NIL_UUID }, "company-role", "denied"],
+  ["change_member_role",            { p_user: NIL_UUID, p_role: "viewer", p_expected_updated_at: null }, "company-role", "denied"],
+  ["remove_member",                 { p_user: NIL_UUID, p_expected_updated_at: null }, "company-role", "denied"],
 ];
 
 // A note on what the list above is NOT. Sixteen SECURITY DEFINER functions in

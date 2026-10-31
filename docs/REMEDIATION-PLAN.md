@@ -3991,3 +3991,482 @@ needs your explicit approval; they are harmless otherwise.
 | `npm test`, build | pass |
 | API authz | 376 / 2 / 1 (KNOWN F8, D21; 0 unexpected) |
 | Combined isolation | **908 / 2 / 1**; the three history functions are classified internal |
+
+## 28 · a03 Multiple users with roles: inventory, PROPOSED matrix, and 0075 hardening (2026-10-31; nothing applied)
+
+### Inventory (staging, read-only)
+
+**Roles:** `owner, admin, editor, publisher, analyst, viewer` (0006). Platform
+admin is separate (`profiles.role = 'admin'`).
+
+**`company_memberships`:** members can SELECT; every write is platform-admin
+only.
+
+**`company_invitations`:** platform-admin only. `create_company_invitation`
+defaults to role **owner**.
+
+**`accept_company_invitation` (0031)** was built for the admin "first owner"
+handoff and does, for ANY invite:
+1. **re-activates the subscription and resets `plan_id`** to the tier default;
+2. claims `owner_id` if unset;
+3. sets the user's `profiles.role` to `company`;
+4. on an existing membership, **overwrites the role** (up or down).
+
+That is safe only while platform admins alone can invite.
+
+**Server routes:** role-aware for AI (drafting roles), billing (owner and
+admin), Company Memory save (owner and admin), profile drafts and history
+(0072/0074), and releases (`actor_can_publish`: owner, admin, publisher).
+
+**RLS: every other company table admits ANY active member to WRITE**
+(`owns_company` / `can_touch_company`), viewer and analyst included:
+- `updates` (release drafts);
+- `publications` (**insert, update, delete**);
+- `documents`, `media_assets`, `media_asset_sources`, `facts`;
+- `brand_kits`, `company_destinations`, `company_blueprints`,
+  `story_projects`;
+- `site_credentials` UPDATE, which is "revoke": **any member can take the
+  website token offline**;
+- `activity_log` INSERT, which lets any member write audit rows with any
+  content;
+- `conversations` and `messages`: start a conversation and send as the
+  company.
+
+The **`companies` row is readable only by its owner** (or once published),
+so non-owner members of an unpublished company cannot read it.
+
+**UI:** only the profile editor (through its route) and Company Memory check
+the role. Every other surface shows every control to every role.
+
+**Leads:** contact and conference submissions go to MineEx admins only.
+There is no company-facing leads surface, so nothing to authorize.
+
+### Proposed permission matrix
+
+Platform admin: everything, on every company. ✅ = allowed; ◻ = read only;
+— = no access. **Bold rows are already approved and stay unchanged.**
+
+| Surface | Owner | Admin | Editor | Publisher | Analyst | Viewer |
+|---|---|---|---|---|---|---|
+| Portal and company data (read) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Own account (email, password) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **Profile drafts (save, preview, discard)** | ✅ | ✅ | ✅ | — | — | — |
+| **Publish profile; go-live** | ✅ | ✅ | — | — | — | — |
+| **Revision history (view, restore into draft)** | ✅ | ✅ | ✅ | — | — | — |
+| **Company Memory save (D23)** | ✅ | ✅ | — | — | — | — |
+| **AI drafting (Batch C)** | ✅ | ✅ | ✅ | ✅ | — | — |
+| **Mine IQ ask** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Releases and media: draft, upload, edit | ✅ | ✅ | ✅ | ✅ | ◻ | ◻ |
+| **Releases and media: publish, unpublish, correct** | ✅ | ✅ | — | ✅ | ◻ | ◻ |
+| Analytics | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ *(decision 1)* |
+| Messaging: send as the company | ✅ | ✅ | ✅ | ✅ | ◻ | ◻ *(decision 2)* |
+| **Billing and subscription (F2)** | ✅ | ✅ | ◻ | ◻ | ◻ | ◻ |
+| Website and site tokens (create, revoke) | ✅ | ✅ | — | — | — | — |
+| Brand kit, destinations, conference blueprint | ✅ | ✅ | ✅ | ✅ | ◻ | ◻ |
+| Team list | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ *(decision 3)* |
+| Invite and manage members | ✅ all roles below owner | ✅ editor, publisher, analyst, viewer only *(decision 4)* | — | — | — | — |
+
+**Escalation rules (database-enforced):**
+- No one changes their own role.
+- An admin cannot invite, promote to, demote or remove an admin or owner.
+- No one can remove or demote the last active owner.
+- Ownership transfer stays a platform-admin action.
+
+### Proposed implementation (one controlled batch; migration 0076)
+
+1. **`has_company_role(cid, roles[])`**, built on 0072's `profile_actor_role`,
+   so platform admin is included.
+2. **Re-policy the writes above to the matrix:**
+   - drafting roles for `updates`, `documents`, `media_*`, `brand_kits`,
+     `destinations`, `blueprints` and `story_projects`;
+   - `publications` insert, update and delete to the publish roles (the
+     server's `actor_can_publish` already matches);
+   - `site_credentials` to owner and admin;
+   - `activity_log` inserts must carry `actor_id = auth.uid()`;
+   - company-side message sending to the messaging roles.
+
+   Reads are unchanged.
+3. **Invitations:** a `kind` column, `provision` (existing rows and admin
+   handoffs, which keep 0031's behaviour) or `member` (new).
+   - `invite_member(cid, email, role)`: owner or admin, with the escalation
+     rules. A duplicate pending invite for the same email is refreshed rather
+     than duplicated, with a 14-day expiry.
+   - `revoke_invitation`.
+   - `accept_company_invitation` for `member` invites: **no subscription, plan,
+     ownership or platform-role side effects**. It refuses an already active
+     member (no silent role change) and reactivates a removed member at the
+     invited role.
+4. **Membership management:**
+   - `change_member_role(cid, user, role, expected_updated_at)` and
+     `remove_member(cid, user, expected_updated_at)`: compare-and-set, the
+     escalation rules, last-owner protection, and an `activity_log` entry;
+   - `list_members(cid)` for the Team tab.
+5. **Unpublished companies:** let active members read their own company's row
+   (an RLS SELECT addition), so editors of a not-yet-live company can work.
+6. **UI:**
+   - a **Settings, then Team** tab: members with role controls, an invite
+     form whose role choices are limited by the caller's role, and pending
+     invitations with copy-link and revoke;
+   - a `useCompanyRole()` hook that hides or disables controls per the matrix
+     (Content publish buttons, media upload, Billing actions, site tokens,
+     Team actions);
+   - **server and database refusals stay explicit.**
+7. **Invitation delivery:** a copyable link. No outbound email in this batch;
+   adding it is a separate decision.
+
+**Tests:**
+- offline: matrix parity between the UI and the route constants;
+- rolled-back 0076 check: **every role against every re-policied table**, by
+  direct writes; invitations (expired, revoked, duplicate pending, already a
+  member, wrong email, admin escalation attempts, last owner); concurrent role
+  changes (compare-and-set); company isolation;
+- live API; the isolation and authz suites extended with a role dimension;
+- browser with owner, admin, editor, publisher, analyst and viewer fixtures.
+
+### Risks
+
+- **Production behaviour change** across about 12 tables. Members who can
+  write today would lose that ability. Production membership roles are
+  unknown: the read-only audit must first show who holds which role. 0006
+  backfilled only owners and admin invites default to owner, so the impact is
+  probably small, but that is unverified.
+- **Client-side writes as the user** (release drafts, media) must keep working
+  for the drafting roles. A full regression of the publishing and media live
+  suites is required.
+- **Admin provisioning** must keep 0031's behaviour (the `provision` kind) and
+  needs its own test.
+- **The F8 existence oracle and D21 remain open**, as do the other priority-0
+  blockers: a01 (vendored font, Phase B), a26 (empty-project replay), a29
+  (deploy).
+
+### Decisions needed
+
+1. Analytics: all members (recommended), or exclude viewers?
+2. Messaging: send as the company limited to owner, admin, editor and
+   publisher (recommended), or all members?
+3. Team list visible to all members (recommended), with pending invitations
+   visible only to owners and admins?
+4. Company admins manage only editor, publisher, analyst and viewer
+   (recommended), or also other admins?
+5. Invitation delivery as a copyable link (recommended for this batch), or
+   send email?
+
+### 0075 · company_profile_versions privileges (prepared; NOT applied)
+
+- **Revokes:** everything from anon; UPDATE, TRUNCATE, REFERENCES and TRIGGER
+  from authenticated.
+- **Keeps:** SELECT, INSERT and DELETE for authenticated (the admin tools,
+  through RLS). service_role is unchanged.
+
+**Rolled-back check: 19/19.**
+- These still work: platform admin snapshot, list and prune; the owner's read;
+  the 0074 history functions; restore into draft; company deletion cascading.
+- anon SELECT and TRUNCATE, and authenticated TRUNCATE and UPDATE, give
+  **permission denied**.
+- The rollback restores the previous grants exactly.
+- The 9 protected company A snapshots are untouched.
+
+## 29 · a03 Multiple users with roles: 0075 and 0076 APPLIED TO STAGING; committed locally (2026-10-31)
+
+### Approved decisions (2026-10-31)
+
+1. Analytics: all active members.
+2. Messaging: owner, admin, editor and publisher send; analyst and viewer read
+   only.
+3. Team list: all active members; pending invitations: owner and admin only.
+4. Company admins manage editor, publisher, analyst and viewer only, never
+   owners or other admins.
+5. Invitations: copyable links; no email delivery in this batch.
+
+Every row marked approved in §28 (profile drafts, publishing, history,
+Company Memory, AI drafting, billing, go-live) is unchanged.
+
+### 0075 · company_profile_versions privileges: APPLIED TO STAGING ONLY
+
+- **Before applying:** target confirmed (`jmljfovtfxcdhjmtlnva`); read-only
+  privilege snapshot taken (`pre-0075-grants.json`, scratchpad); migration and
+  rollback files re-hashed; rolled-back check 19/19.
+- **After applying:** privilege check in applied mode 19/19 (rollback compared
+  with the snapshot); `profile-history-live-test` 42/42, including the
+  concierge prune. The 9 protected company A snapshots are untouched.
+- Production: not applied.
+
+### 0076 · company roles (APPLIED TO STAGING ONLY, 2026-10-31; not production)
+
+`supabase/migrations/0076_company_roles.sql`, rollback
+`supabase/rollbacks/0076_company_roles.rollback.sql`.
+
+**What it does**
+- `has_company_role(cid, roles[])` on 0072's `profile_actor_role` (platform
+  admin always included).
+- Re-policies the WRITES of 23 policies to the matrix; reads are unchanged:
+  - drafting roles (owner, admin, editor, publisher): `updates` and their
+    documents, `publications` insert/update while unpublished, `documents`,
+    `media_assets`, `media_asset_sources`, `brand_kits`,
+    `company_destinations`, `company_blueprints`, company `story_projects`;
+  - `publications` delete: owner, admin, publisher (= `actor_can_publish`);
+  - `facts` writes: platform admin only (no company UI writes them);
+  - **`site_credentials` SELECT and revoke: owner and admin.** Before 0076 any
+    member, viewer included, could read the hashed-token rows and take the
+    website token offline;
+  - **`activity_log` client inserts:** only `actor_id = auth.uid()`,
+    `actor_kind = 'company'`, `source = 'ui'` and one of the three UI actions
+    the portal records (`profile_updated`, `media_uploaded`,
+    `media_deleted`). System events (publishing, membership, billing) can no
+    longer be forged from the browser; they are written by SECURITY DEFINER
+    functions and the service role, which RLS does not restrict;
+  - conversations and company-side messages: messaging roles;
+  - `companies`: active members may read their own company's row, so members
+    of an unpublished company can open the portal.
+- **Invitations:** `company_invitations.kind` = `provision` (existing rows and
+  the admin first-owner handoff, which keeps 0031's body verbatim) or `member`.
+  - `invite_member`: owner/admin (and platform admin) within
+    `grantable_roles`; email-bound; 14-day expiry; a repeat for the same email
+    refreshes the pending invitation (new token, old link dead); audited.
+  - `revoke_invitation`, `list_invitations` (owner/admin only; tokens
+    included so the link can be copied again).
+  - `accept_company_invitation` for `member`: single-use, expiring, revocable,
+    email-bound; **never** touches subscriptions, plans, `owner_id` or
+    `profiles.role`; refuses an already-active member or the account owner
+    (`already_member`, no role change); reactivates a removed membership at
+    the invited role; audited.
+- **Membership management:** `list_members`, `change_member_role`,
+  `remove_member`. Order of checks: signed in; caller can manage; not
+  yourself; not the account owner (ownership transfer stays a platform-admin
+  tool); the target's current role AND the new role are grantable by the
+  caller; last-owner guard; compare-and-set on `updated_at`. `owner` is never
+  grantable, so owner memberships cannot be changed or removed here at all,
+  even by a platform admin; the last-owner check is a second line behind that.
+
+**Found and fixed while verifying**
+- The compare-and-set version: 0006's touch trigger stamps `updated_at` with
+  `now()`, which is constant inside a transaction. The functions now return
+  the value the row actually stored (`returning updated_at`). In production
+  each RPC is its own transaction; the rolled-back test builds its stale view
+  before the transaction's first write.
+- `revoke_invitation` looked the invitation up before checking the caller's
+  role; the guard now comes first, as in every other team function.
+
+**Hardening added after the first review pass**
+- `site_credentials`: column-level grants. Clients read every column except
+  `token_hash` and may update only `revoked_at`; a guard trigger makes revoke
+  one-way and stamps it with the server clock. Before: `authenticated` held
+  every privilege (0068 revoked only anon), so an owner/admin could rewrite
+  `token_hash` (mint a known credential), extend `expires_at` or un-revoke.
+- `activity_log`: append-only for clients (UPDATE/DELETE/TRUNCATE/REFERENCES/
+  TRIGGER revoked; anon has nothing). `admin_all` becomes `admin_read`
+  (platform admins could UPDATE/DELETE audit rows from the browser). A guard
+  trigger stamps `id` and `created_at` on client rows (no backdating), caps
+  free text, and RESERVES `source = 'ui'` for client rows: a server-side
+  writer using it is refused. So a client row can never pass for a system
+  event, even with an allowlisted action name, and the Activity page labels
+  `ui` rows "Reported in portal".
+- `company_memberships`, `company_invitations`: TRUNCATE/REFERENCES/TRIGGER
+  revoked from anon and authenticated.
+- The rollback restores all of the above; verified by full ACL (table and
+  column), trigger and function digests.
+
+### Results (2026-10-31, staging; 0076 NOT applied)
+
+| Suite | Result |
+|---|---|
+| `company-roles-0076-check` (rolled back, one transaction) | **120 passed, 0 failed** |
+| `company-roles-0076-concurrency` (separate concurrent transactions; 0076's own function text in `pg_temp`; throwaway company, deleted) | **15 passed, 0 failed** |
+| `company-roles-ui-test` (offline matrix and parity; mutation-checked) | **33 passed, 0 failed** |
+| `npm test` (all offline suites, incl. messaging-flow 75/0) | **pass** |
+| `vite build` | pass |
+| `api-authz-test --local` | 376 passed, 2 failed — both KNOWN (F8, D21), 0 unexpected, 1 skipped |
+| combined isolation run | 908 passed, 2 failed — both KNOWN (F8, D21); 9 skipped: the 8 new company-role probes skip because 0076 is not on staging, plus 1 pre-existing |
+| Live (staging): messaging 56/0, publishing 51/0, delivery-ops 45/0, dispatch-scheduler 18/0, impressions 27/0, memory-ai 97/0, profile-draft 61/0, profile-history 42/0, stripe-webhook 41/0 | all pass |
+| mineiq-live | **not run**: it refuses without `MINEEX_LIVE_AI=1` (spends AI credit) |
+| Browser (staging bundle): owner, company admin, editor, publisher, analyst, viewer | controls match the matrix; Team tab shows "not switched on yet" before 0076 |
+
+Rolled-back check sections: role × table matrix for 8 identities (10);
+audit log (16); website credentials (20); unpublished company (2);
+invitations (16); member acceptance (12); first-owner handoff (2); member
+management incl. demotion/removal immediacy and owner protection (31);
+rollback exactness (5); after rollback (3); static (3).
+
+**Not verifiable before applying:** the 8 company-role isolation probes over
+PostgREST, concurrency of single-use invitation acceptance, and the Team tab's
+live behaviour. All three are the first post-apply steps.
+
+### Server routes
+
+- `/api/messages` `start` (company-to-company first message) now requires a
+  messaging role (`MESSAGING_ROLES` in `api/_roles.js`); analysts and viewers
+  get `403 role-cannot-send` and nothing is written. Before 0076 the database
+  still lets any member reply directly (F6); after 0076 it refuses too.
+- Billing, AI drafting, Company Memory, profile drafts/history and release
+  publishing were already role-checked server-side and are unchanged.
+
+### UI
+
+- `src/lib/companyRoles.js`: the approved matrix as one table (`can(role,
+  action)`), used to hide controls a role cannot use. It decides what to show
+  only; the database and routes refuse independently.
+- **Settings → Team** (`src/portal/TeamView.jsx`, `src/lib/team.js`):
+  members with role selectors only where the database says `manageable`;
+  invite form limited to the database's `grantable` roles; pending
+  invitations with show/copy link and revoke; plain text on who can invite,
+  remove or change members; honest that links are not emailed. Before 0076 is
+  applied the tab says team management is not switched on yet.
+- Role gates: Messages (New + reply hidden for analyst/viewer, with a
+  read-only note); release library upload/draft (hidden for analyst/viewer);
+  publish/correct/take-down/restore (owner/admin/publisher; editors see "an
+  owner, admin or publisher publishes it"); media posting and take-down
+  (owner/admin/publisher, since posts publish immediately); Home tiles;
+  billing via the same table.
+- **Not yet hidden:** brand kit, destinations and conference blueprint editing
+  controls still show for analysts and viewers. After 0076 the database
+  refuses their writes (verified in the rolled-back check); how clearly each
+  of those screens shows the refusal is NOT verified. Hiding them is a small
+  follow-up, not a security gap.
+- `PortalGate`: a revoked invitation gets its own message; `already_member`
+  enters the portal with the existing role unchanged.
+
+### Authorization gaps found in this batch (all closed by 0076 unless noted)
+
+| # | Gap | Before | After 0076 |
+|---|---|---|---|
+| G1 | `site_credentials` readable and revocable by any member | viewer could read token rows and revoke the website token | owner/admin only (read and revoke) |
+| G2 | `activity_log` forgeable by direct client insert | any member could write any action, actor or kind | own actor, `company`/`ui`, three UI actions only |
+| G3 | 0031 accept side effects for any invitation | reset plan, claimed owner, set platform role, overwrote roles | member path has none; provision path unchanged |
+| G4 | Writes on ~12 company tables open to every member | viewer/analyst could draft, delete publications, edit brand kit | per matrix |
+| G5 | Members of unpublished companies could not read their company row | portal denied for non-owners | member read |
+| G6 | `conversations` INSERT unreachable for clients (grant) | company threads are route-only | unchanged by design: the route enforces messaging roles |
+| G7 | Message start route admitted any member | viewer could start/follow up | route refuses (independent of 0076) |
+| G8 | `site_credentials` privileges and column scope | authenticated: all privileges; owner/admin could rewrite `token_hash`, `expires_at`, un-revoke | read without hash; update `revoked_at` once, server clock |
+| G9 | `activity_log` mutability and backdating | clients could set `created_at`/`id`; platform admins could UPDATE/DELETE rows from the browser; `ui` not reserved | append-only, server-stamped, `ui` reserved for client rows |
+| G10 | TRUNCATE (and REFERENCES/TRIGGER) granted to anon/authenticated on **44 of 78** public tables | not reachable through PostgREST (no TRUNCATE verb; both roles are NOLOGIN); a defence-in-depth gap | 0076 closes it for activity_log, site_credentials, memberships, invitations; **the other 40 need a separate migration (proposed 0077, not prepared)** |
+
+### Still open (unchanged)
+
+- **F8** existence oracle (`/api/revise-release` real id 403 vs fake 404) and
+  **D21** (`contact_submissions.notes` column) — both still reported as KNOWN
+  by the authz and combined suites.
+- Other priority-0 blockers: a01 (vendored og-news font, Phase B), a26
+  (empty-project replay), a29 (deploy; handed to the app session), and the
+  production read-only audit (pending approval). Production membership roles
+  remain unknown until that audit; 0076's production impact cannot be sized
+  before it.
+
+
+### 0076 applied to staging (2026-10-31)
+
+**Before applying:** target confirmed (`jmljfovtfxcdhjmtlnva`); migration and
+rollback hashes equal to the tested versions (`54404e6c…`, `40d82c95…`);
+read-only snapshot (`scripts/staging-roles-snapshot.mjs`): 0 invitations
+(nothing for the new `kind` column to misclassify), 7 active memberships
+(two owners + the five role fixtures), 8 site credentials, 0 audit rows, the 9
+protected snapshots. Applied with the guarded runner; database egress: none.
+
+**After applying (snapshot diff):** invitations, memberships, subscriptions,
+company owners, profile roles and row counts UNCHANGED. Policies: 20 added,
+9 removed, 15 rewritten; functions: 10 added, `accept_company_invitation`
+rewritten; triggers: 2 added; grants changed on exactly activity_log,
+site_credentials, company_memberships, company_invitations.
+
+**Post-apply verification**
+
+| Suite | Result |
+|---|---|
+| `company-roles-live-test` (real API as each fixture; throwaway companies, deleted) | **92 passed, 0 failed** |
+| combined isolation (now incl. the 8 company-role probes and the `site_credentials` withheld-column probes) | **966 passed, 2 failed — both KNOWN (F8, D21); 1 skipped (pre-existing); 3 min 46 s** |
+| browser workflow (staging bundle) | invite → copy link → accept → change role → remove → removed member refused; every role's Team view checked |
+
+**The stalled run, investigated.** One combined run that afternoon reported
+846 passed / 103 failed / 18 skipped. Breakdown of the 103:
+- ~99 API probes: "401 Session expired or invalid" for VALID sessions —
+  expired authentication, not authorization results;
+- 2 storage own-object controls: 400 — the same expired tokens (storage
+  answers 400 to an expired JWT); passed in every later run;
+- 2 `site_credentials` SELECT controls: 403 — an expected 0076 refusal hit by
+  a test-harness defect (`select=*` now includes a withheld column); fixed in
+  the suite (below), not by weakening any assertion;
+- F8 and D21 (KNOWN).
+No genuine regression. **Cause of the stall, from evidence:** the staging
+egress log (every outbound call, timestamped) shows the last request at
+20:59:25.7 UTC (`rpc/mineiq_search`, in the API-route phase), then 44 minutes
+of silence across every process; macOS `pmset -g log` records "Entering Sleep
+state due to 'Clamshell Sleep'" at 13:59:24 local = 20:59:24 UTC, with only
+seconds-long maintenance wakes until ~14:58 local. The suite resumed after
+wake with fixture sessions signed in more than an hour earlier. The laptop
+slept; neither 0076 nor the routes stalled. Direct timings of the new policies
+were 115–205 ms per table read. Every AI-provider call in the log (3,941) was
+mocked; nothing reached a real provider.
+
+The isolation suite now records its own timing: duration of each phase
+(table/RPC probes, serverless routes, storage), the slowest API calls with
+wall-clock times, and a FAIL for any single API call over 60 s (a stall
+invalidates later results because sessions expire after 3600 s).
+
+The isolation suite's `site_credentials` probes now select permitted
+columns (a `select=*` is refused for everyone by design and would have made
+every cross-tenant read "pass" on a permission error), and assert separately
+that `token_hash` and `select=*` are refused even for the company's owner.
+
+The live test covered: directory and invitation visibility per role (6 roles
++ platform admin + outsiders); invitation create/replace/copy; replaced,
+mismatched, anonymous, expired and revoked tokens; **two simultaneous accepts
+of one invitation → exactly one succeeds**; no subscription, ownership,
+account-type or existing-role change on accept; first-owner handoff (provision)
+intact; self-promotion, admin→admin promotion, owner demotion/removal,
+co-owner protection; **two simultaneous role changes over the API → one wins,
+one stale**; analyst and viewer direct writes to drafts, publications, media,
+destinations, brand kit, blueprints, website tokens and messages — all
+refused, database unchanged; editor/publisher drafting, media, destination,
+publication delete and messaging, analytics for analyst/viewer; website-token
+hash unreadable and unmodifiable, one-way revoke with server clock; audit log
+not backdatable, forgeable, rewritable or deletable (platform admin included);
+demotion and removal effective on the next call; unpublished-company
+visibility and company isolation. Company A's memberships and the 9 protected
+snapshots were untouched; INVESTOR_B's account type, changed by the handoff
+test, was restored.
+
+### UI completed after apply
+
+- **Release editor:** analysts and viewers get a read-only notice and a
+  disabled fieldset (text, date, images, the carousel's brand/look controls).
+- **QR placard logo** (written to the live profile's brand): read-only for
+  roles that cannot publish the profile; downloads stay available.
+- **No company-facing editor exists** for brand kits, destinations or
+  blueprints (those live in /admin and /studio, platform-admin only; carousel
+  "looks" are browser-local), so there was nothing else to make read-only.
+- **`updateCompanyProfile` reported an RLS-refused save as success** (the d28
+  pattern: PostgREST answers a refused UPDATE with 200 and zero rows, and the
+  function returned the unsaved profile). It now decides through
+  `savedProfileFromResponse(status, rows)`: zero rows, any non-2xx, a bad body
+  or a network failure → `null` (not saved). Callers:
+  - QR placard upload: "Not saved to your profile (only the account owner or
+    MineEx can change it) — used for this download only"; reset: "Couldn't
+    change the logo"; controls read-only for roles that cannot publish the
+    profile;
+  - Calendar & Catalysts: a refusal shows an error and keeps the edits;
+    read-only (disabled fieldset) for those roles. It has no navigation
+    entry today.
+  Tests: offline (helper and the real function against a stubbed `fetch`:
+  200/[], 403, network failure, success; nothing leaves the machine) and live
+  (real PATCHes on a throwaway company: company admin, editor, analyst and
+  viewer refused, reported not saved and the database unchanged; the account
+  owner's identical PATCH saves).
+  **Remaining inconsistency (not a security gap):** direct live-profile
+  writes (`companies.profile`) are allowed only to the account owner and
+  platform admins, while the approved matrix lets company admins publish the
+  profile through the draft route. A company admin can publish profile drafts
+  but not change the placard logo or catalysts directly. Fixing it means
+  routing those two writes through the server, a separate small task.
+- **Publish chooser:** Draft/Upload tiles only for drafting roles, Post Media
+  only for publishing roles (the chooser has no navigation entry today).
+- **Legacy CommsCenter composer** (no navigation entry): gated to drafting
+  roles.
+
+### Separate security-hardening requirement (NOT in 0076)
+
+**s01 · Broad TRUNCATE/REFERENCES/TRIGGER grants.** 40 public tables still
+grant TRUNCATE (and REFERENCES/TRIGGER) to anon and/or authenticated
+(Supabase defaults). Not reachable through PostgREST and both roles are
+NOLOGIN, so this is defence in depth; RLS is enabled on all 78 public tables.
+Needs its own reviewed migration and rollback, with a check that no SECURITY
+INVOKER function or job relies on those privileges. Recorded for later
+review; nothing prepared.

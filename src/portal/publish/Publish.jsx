@@ -18,12 +18,15 @@ import { listDrafts, listPublished } from "../../lib/publishDrafts.js";
 import CreateRelease from "./CreateRelease.jsx";
 import ReleaseLibrary from "./ReleaseLibrary.jsx";
 import DraftRelease from "./DraftRelease.jsx";
+import { can } from "../../lib/companyRoles.js";
 
 // `startIn` lets Home's "Draft Press Release" tile land straight in the drafting
 // flow instead of the library. Everything else still enters at the library.
 export default function Publish({ company, startIn = null, go = () => {}, view = "publish" }) {
+  // a03: analysts and viewers see the library but do not upload or draft.
+  const canDraft = can(company?.role || "owner", "draftContent");
   // null = show `view`; "draft" / "create" take over the workspace.
-  const [tab, setTab] = useState(startIn || null);
+  const [tab, setTab] = useState(canDraft ? startIn || null : null);
   // A file dropped on the library, handed to CreateRelease so the upload and
   // the library are one screen rather than two.
   // A file dropped on Home arrives as a prop; one dropped here is set locally.
@@ -128,6 +131,11 @@ export default function Publish({ company, startIn = null, go = () => {}, view =
             library below is the result of having done it. They were two
             separate screens, which meant publishing a release and seeing it
             land were never in view at the same time. */}
+        {!canDraft ? (
+          <p className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 px-5 py-4 text-[13px] text-slate-600" data-publish-locked>
+            Your role ({company?.role}) can read releases but not create or change them.
+          </p>
+        ) : (
         <div
           onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
           onDragLeave={() => setDragOver(false)}
@@ -163,6 +171,7 @@ export default function Publish({ company, startIn = null, go = () => {}, view =
             )}
           </div>
         </div>
+        )}
 
         {/* The line the brief asks for: upload above, the body of work below. */}
         <div className="mt-8 flex items-center gap-3">
@@ -178,8 +187,8 @@ export default function Publish({ company, startIn = null, go = () => {}, view =
             drafts={drafts}
             published={published}
             justPublishedIds={justPublished}
-            onCreate={() => setTab("create")}
-            onDraft={() => setTab("draft")}
+            onCreate={canDraft ? () => setTab("create") : undefined}
+            onDraft={canDraft ? () => setTab("draft") : undefined}
             onOpen={(item) => setEditing(item.id)}
           />
         </div>
@@ -194,15 +203,20 @@ export default function Publish({ company, startIn = null, go = () => {}, view =
       <p className="mt-1.5 text-[15px] text-slate-500">What would you like to publish?</p>
 
       <div className="mt-6 flex max-w-[836px] flex-wrap gap-4">
-        <LaunchTile title="Draft Press Release" Icon={Sparkles}
+        {!canDraft && (
+          <p className="rounded-2xl border border-slate-200 bg-slate-50 px-5 py-4 text-[13px] text-slate-600" data-publish-locked>
+            Your role ({company?.role}) can read releases and media but not create them.
+          </p>
+        )}
+        {canDraft && <LaunchTile title="Draft Press Release" Icon={Sparkles}
           body="Give MineEx the facts and it writes the release."
-          onClick={() => setTab("draft")} />
-        <LaunchTile title="Upload Press Release" Icon={Upload}
+          onClick={() => setTab("draft")} />}
+        {canDraft && <LaunchTile title="Upload Press Release" Icon={Upload}
           body="Upload a finished release and have it prepared."
-          onClick={() => setTab("create")} />
-        <LaunchTile title="Post Media" Icon={ImageIcon}
+          onClick={() => setTab("create")} />}
+        {can(company?.role || "owner", "publishContent") && <LaunchTile title="Post Media" Icon={ImageIcon}
           body="Publish photos and video to your MineEx media feed."
-          onClick={() => go("media")} />
+          onClick={() => go("media")} />}
       </div>
     </div>
   );

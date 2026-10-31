@@ -120,6 +120,16 @@ export async function logActivity(companyId, entry = {}) {
 // by pages that own a slice of the profile (e.g. Calendar → profile.catalysts)
 // without going through the full onboarding builder. Returns the saved profile or
 // null. Logs nothing itself — the caller decides what to record.
+// What a PATCH of companies.profile actually did. PostgREST answers a refused
+// update (RLS: only the account owner and platform admins may write companies)
+// with 200 and ZERO rows, not an error -- so "no rows" must mean "not saved".
+// Returns the stored profile, or null for any refusal or failure.
+export function savedProfileFromResponse(status, rows, nextProfile) {
+  if (!(status >= 200 && status < 300)) return null;
+  if (!Array.isArray(rows) || rows.length === 0) return null;
+  return rows[0].profile ?? nextProfile;
+}
+
 export async function updateCompanyProfile(companyId, nextProfile) {
   if (!companyId) return null;
   try {
@@ -129,9 +139,8 @@ export async function updateCompanyProfile(companyId, nextProfile) {
       headers: { ...h, "content-type": "application/json", Prefer: "return=representation" },
       body: JSON.stringify({ profile: nextProfile }),
     });
-    if (!res.ok) return null;
-    const rows = await res.json().catch(() => []);
-    return rows[0]?.profile ?? nextProfile;
+    const rows = res.ok ? await res.json().catch(() => null) : null;
+    return savedProfileFromResponse(res.status, rows, nextProfile);
   } catch {
     return null;
   }
