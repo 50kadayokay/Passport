@@ -16,6 +16,14 @@ import { authHeaders } from "./auth.js";
 
 const REST = `${SUPABASE_URL}/rest/v1`;
 
+// Why the last call to each function failed: "missing" (the database does not
+// have the function -- PostgREST 404 -- so it needs an update) or "failed"
+// (anything else: a refusal, an outage, the network). The page words the two
+// differently; telling someone to wait for a database update during an outage
+// would be untrue.
+const lastFailure = {};
+export const failureKind = (name) => lastFailure[name] || null;
+
 async function rpc(name, body) {
   try {
     const h = await authHeaders();
@@ -24,9 +32,12 @@ async function rpc(name, body) {
       headers: { ...h, "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
-    if (!res.ok) return null;
-    return await res.json().catch(() => null);
+    if (!res.ok) { lastFailure[name] = res.status === 404 ? "missing" : "failed"; return null; }
+    const out = await res.json().catch(() => null);
+    lastFailure[name] = out === null ? "failed" : null;
+    return out;
   } catch {
+    lastFailure[name] = "failed";
     return null;
   }
 }
@@ -182,4 +193,31 @@ export async function unattributedEngagement(companyId) {
     retiredLikes: n(r.retired_likes), retiredSaves: n(r.retired_saves),
     orphanLikes: n(r.orphan_likes),   orphanSaves: n(r.orphan_saves),
   };
+}
+
+/* Impressions (a12, migration 0073b). Recorded only from the moment the app
+   started sending them, so the summary carries `firstRecordedAt` and the read
+   rate is computed ONLY over opens since then -- opens from before had no
+   impression to be measured against. `firstRecordedAt === null` means nothing
+   has been recorded yet: the page says so instead of showing 0 or 0%.
+   null (not an object) = the function is missing or the call was refused. */
+export async function impressionSummary(companyId, days = null) {
+  if (!companyId) return null;
+  const rows = await rpc("company_impression_summary", { p_company: companyId, p_days: days });
+  if (!Array.isArray(rows) || !rows.length) return null;
+  const r = rows[0];
+  const impressions = Number(r.impressions || 0), opensSince = Number(r.opens_since || 0);
+  return {
+    firstRecordedAt: r.first_recorded_at || null,
+    impressions, viewers: Number(r.viewers || 0), opensSince,
+    readRate: r.first_recorded_at && impressions > 0 ? opensSince / impressions : null,
+  };
+}
+
+/** { [postId]: { impressions, impressionsRecent } } for live posts, or null. */
+export async function postImpressions(companyId, days = 30) {
+  if (!companyId) return null;
+  const rows = await rpc("company_post_impressions", { p_company: companyId, p_days: days });
+  if (!Array.isArray(rows)) return null;
+  return Object.fromEntries(rows.map((r) => [r.post_id, { impressions: Number(r.impressions || 0), impressionsRecent: Number(r.impressions_recent || 0) }]));
 }

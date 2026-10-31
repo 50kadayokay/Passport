@@ -1,7 +1,9 @@
 // Analytics — what investors actually did with this company's releases.
 //
 // Every number on this page comes from recorded events (post_events,
-// company_follows, post_likes, post_saves) through 0048's aggregate functions.
+// company_follows, post_likes, post_saves) through the aggregate functions of
+// 0048/0065a/0065b, and impressions through 0073b (recorded only from when the
+// app began sending them -- the page says from when).
 // Nothing is modelled, estimated or extrapolated, and the page distinguishes
 // three states that are easy to conflate:
 //
@@ -23,7 +25,11 @@ import {
 import {
   engagementTotals,
   engagementByType, followerGrowth, contentPerformance, unattributedEngagement,
+  impressionSummary, postImpressions, failureKind,
 } from "../lib/engagement.js";
+
+// Why a figure is missing, worded truthfully: an outage is not a pending update.
+const missingNote = (fn) => (failureKind(fn) === "failed" ? "Couldn't load just now" : "Needs a database update");
 
 const CARD = "rounded-2xl border border-slate-100 bg-white shadow-[0_1px_2px_rgba(15,23,42,.04),0_12px_26px_-20px_rgba(15,23,42,.4)]";
 
@@ -203,7 +209,7 @@ function ContentRow({ item, onOpen, short }) {
 /* The per-item view. Lifetime and recent side by side, and the metrics that
    are NOT collected for this kind of item are named rather than omitted --
    a missing row reads as zero, and zero is a claim. */
-function ItemDetail({ item, onBack, period }) {
+function ItemDetail({ item, onBack, period, impr, recordedSince }) {
   const isMedia = item.postType === "media";
   return (
     <div className={`${CARD} overflow-hidden`}>
@@ -228,10 +234,14 @@ function ItemDetail({ item, onBack, period }) {
             note={item.saveActions
               ? `Currently saved · ${item.saveActions.toLocaleString()} recorded in total`
               : "Currently saved by an investor"} />
-          <Metric index={5} Icon={Eye} label="Impressions" value={0} untracked note="Not recorded — see note below" />
+          {/* a12: impressions exist only from when the app began recording them. */}
+          <Metric index={5} Icon={Eye} label="Impressions" value={impr ? impr.impressions : 0}
+            unavailable={impr === null} untracked={impr !== null && !recordedSince}
+            note={impr === null ? missingNote("company_post_impressions") : !recordedSince ? "Not recorded yet"
+                  : `Since ${fmtDay(recordedSince)} · ${(impr ? impr.impressionsRecent : 0).toLocaleString()} ${period.days === null ? "all time" : period.label.toLowerCase()}`} />
           <Metric index={6} Icon={Share2} label="Shares" value={0} untracked note="Sharing isn't recorded" />
           <Metric index={7} Icon={BarChart3} label={isMedia ? "Open rate" : "Read rate"} value={0} untracked
-            note="Needs impressions to compute" />
+            note="Shown for all posts together, from when impressions began" />
         </div>
         {isMedia && (
           <p className="mt-3 text-[11.5px] leading-relaxed text-slate-400">
@@ -287,6 +297,8 @@ export default function Analytics({ company }) {
   const [growth, setGrowth] = useState(undefined);
   const [content, setContent] = useState(undefined);
   const [unattr, setUnattr] = useState(undefined);
+  const [impr, setImpr] = useState(undefined);         // a12: undefined loading · null unavailable · {firstRecordedAt...}
+  const [postImpr, setPostImpr] = useState(undefined);
   const [periodId, setPeriodId] = useState("30");
   const [windowBusy, setWindowBusy] = useState(false);
   const period = PERIODS.find((p) => p.id === periodId) || PERIODS[2];
@@ -297,13 +309,15 @@ export default function Analytics({ company }) {
   // Lifetime figures do not depend on the period, so they are fetched once.
   // Re-fetching them on every toggle would make the whole page flicker to
   // redraw numbers that cannot have changed.
+  const [retryKey, setRetryKey] = useState(0);
   useEffect(() => {
     let alive = true;
     if (!companyId) return undefined;
+    setTotals(undefined);
     engagementTotals(companyId).then((t) => { if (alive) setTotals(t); });
     unattributedEngagement(companyId).then((u) => { if (alive) setUnattr(u); });
     return () => { alive = false; };
-  }, [companyId]);
+  }, [companyId, retryKey]);
 
   // The windowed figures. All three read the SAME period, so the tiles and the
   // per-item column in section 03 can never disagree.
@@ -322,11 +336,15 @@ export default function Analytics({ company }) {
       engagementByType(companyId, days).then((b) => { if (alive) setByType(b); }),
       followerGrowth(companyId, days).then((g) => { if (alive) setGrowth(g); }),
       contentPerformance(companyId, days).then((c) => { if (alive) setContent(c); }),
+      impressionSummary(companyId, days).then((x) => { if (alive) setImpr(x); }),
+      postImpressions(companyId, days).then((x) => { if (alive) setPostImpr(x); }),
     ]).finally(() => { if (alive) setWindowBusy(false); });
     return () => { alive = false; };
-  }, [companyId, period.days]);
+  }, [companyId, period.days, retryKey]);
 
   const loading = totals === undefined;
+  // Missing function (needs a database update) vs a failed call (try again).
+  const outage = totals === null && failureKind("company_engagement_totals") === "failed";
   const unavailable = totals === null;
 
   const typeOf = (t) => (byType || []).find((r) => r.postType === t) || null;
@@ -397,7 +415,23 @@ export default function Analytics({ company }) {
         <div className="mt-8 grid place-items-center py-16"><Loader2 size={22} className="animate-spin text-blue-500" /></div>
       )}
 
-      {unavailable && (
+      {unavailable && outage && (
+        <div role="alert" data-testid="analytics-error" className={`mt-6 flex items-start gap-3.5 px-5 py-5 ${CARD}`}>
+          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-rose-50 text-rose-600"><AlertCircle size={19} /></span>
+          <div>
+            <p className="text-[14.5px] font-bold text-slate-900">Analytics could not be loaded just now</p>
+            <p className="mt-1 max-w-xl text-[13px] leading-relaxed text-slate-500">
+              Nothing has been lost: activity is still being recorded. Try again in a moment.
+            </p>
+            <button onClick={() => setRetryKey((k) => k + 1)}
+              className="mt-3 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[12.5px] font-bold text-slate-700 hover:border-slate-300">
+              Try again
+            </button>
+          </div>
+        </div>
+      )}
+
+      {unavailable && !outage && (
         <div className={`mt-6 flex items-start gap-3.5 px-5 py-5 ${CARD}`}>
           <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-amber-100 text-amber-600"><AlertCircle size={19} /></span>
           <div>
@@ -431,7 +465,7 @@ export default function Analytics({ company }) {
                 value={isAllTime ? totals.followers : newFollowersInPeriod}
                 unavailable={!isAllTime && growth === null}
                 note={isAllTime ? "Investors following this company"
-                      : growth === null ? "Needs a database update" : "First-time follows, still following"} />
+                      : growth === null ? missingNote("company_follower_growth") : "First-time follows, still following"} />
               <Metric index={1} Icon={Eye} label="Profile views" value={0} untracked note="Not recorded yet — needs instrumentation" />
               <Metric index={2} Icon={UserPlus} label="Unique visitors" value={0} untracked note="Not recorded yet — needs instrumentation" />
             </div>
@@ -450,9 +484,9 @@ export default function Analytics({ company }) {
               <Metric index={0} Icon={BookOpen} label="Post opens" value={reads}
                 unavailable={byType === null} note="Press releases and media combined" />
               <Metric index={1} Icon={FileText} label="Release opens" value={rel ? rel.reads : 0}
-                unavailable={byType === null} note={byType === null ? "Needs a database update" : `${rel ? rel.posts : 0} release${rel && rel.posts === 1 ? "" : "s"} live`} />
+                unavailable={byType === null} note={byType === null ? missingNote("company_engagement_by_type") : `${rel ? rel.posts : 0} release${rel && rel.posts === 1 ? "" : "s"} live`} />
               <Metric index={2} Icon={ImageIcon} label="Media opens" value={med ? med.reads : 0}
-                unavailable={byType === null} note={byType === null ? "Needs a database update" : `${med ? med.posts : 0} media post${med && med.posts === 1 ? "" : "s"} live`} />
+                unavailable={byType === null} note={byType === null ? missingNote("company_engagement_by_type") : `${med ? med.posts : 0} media post${med && med.posts === 1 ? "" : "s"} live`} />
               <Metric index={3} Icon={Clock} label="Avg. time" value={Math.round(avgDwell || 0)} suffix="s"
                 unavailable={avgDwell == null} note="Seconds spent reading a post" />
             </div>
@@ -462,12 +496,27 @@ export default function Analytics({ company }) {
               <Metric index={5} Icon={Bookmark} label="Saves" value={saves} unavailable={byType === null}
                 note={saveActions == null ? "Currently saved by an investor"
                       : `Still saved · ${saveActions.toLocaleString()} save${saveActions === 1 ? "" : "s"} pressed`} />
-              <Metric index={6} Icon={Eye} label="Impressions" value={0} untracked note="Never recorded — see note below" />
+              <Metric index={6} Icon={Eye} label="Impressions" value={impr ? impr.impressions : 0}
+                unavailable={!impr}
+                untracked={!!impr && !impr.firstRecordedAt}
+                note={impr === undefined ? "Loading…" : impr === null ? missingNote("company_impression_summary")
+                      : !impr.firstRecordedAt ? "Not recorded yet"
+                      : `Seen in a feed · ${impr.viewers.toLocaleString()} investor${impr.viewers === 1 ? "" : "s"}`} />
               <Metric index={7} Icon={Share2} label="Shares" value={0} untracked note="Sharing isn't recorded" />
             </div>
-            <p className="mt-2.5 text-[11.5px] leading-relaxed text-slate-400">
-              An impression means a post appeared in a feed. Nothing in the app records one today, so it is untracked
-              rather than zero — and read rate is left out entirely, because it cannot be computed without it.
+            <p className="mt-2.5 text-[11.5px] leading-relaxed text-slate-400" data-testid="impressions-note">
+              An impression is a post shown in an investor's feed — at least half on screen for a second — counted
+              once per investor, per post, per day.{" "}
+              {impr && impr.firstRecordedAt
+                ? <>Impressions have been recorded since {fmtDay(impr.firstRecordedAt)}; nothing earlier was recorded.{" "}
+                    {impr.readRate == null
+                      ? "There is no read rate for this period yet."
+                      : <>Read rate since then: <span className="font-bold text-slate-600">{Math.round(impr.readRate * 100)}%</span> ({impr.opensSince.toLocaleString()} open{impr.opensSince === 1 ? "" : "s"} from {impr.impressions.toLocaleString()} impression{impr.impressions === 1 ? "" : "s"}). Earlier opens are left out because they had no impression to measure against.</>}</>
+                : impr === null
+                  ? (failureKind("company_impression_summary") === "failed"
+                      ? "Impression figures could not be loaded just now."
+                      : "Impression figures need a database update on this environment, so they are not shown.")
+                  : "None has been recorded yet, so impressions and read rate are shown as not recorded rather than as zero."}
               {!isAllTime && " Saves counts investors who saved in this period and still have it saved; post_saves holds current state, not history."}
             </p>
             {/* Every figure above counts posts that are live, so these totals
@@ -482,7 +531,9 @@ export default function Analytics({ company }) {
           <Section n="03" title="Individual content performance"
             sub={`Every live release and media post — lifetime, and ${period.label.toLowerCase()}.`}>
             {openItem ? (
-              <ItemDetail item={openItem} onBack={() => setOpenItem(null)} period={period} />
+              <ItemDetail item={openItem} onBack={() => setOpenItem(null)} period={period}
+                impr={postImpr === null ? null : (postImpr || {})[openItem.id] || { impressions: 0, impressionsRecent: 0 }}
+                recordedSince={impr ? impr.firstRecordedAt : null} />
             ) : content === null ? (
               <div className={`px-5 py-10 text-center ${CARD}`}>
                 <p className="text-[13px] text-slate-400">Per-item performance needs a database update.</p>

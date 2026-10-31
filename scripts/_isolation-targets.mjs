@@ -214,6 +214,9 @@ export const COMPANY_SCOPED_RPCS = [
   ["company_post_engagement",       { p_limit: 5 },             "company-read"],
   ["company_content_performance",   { p_days: 30, p_limit: 5 }, "company-read"],
   ["company_follower_growth",       { p_days: 30 },             "company-read"],
+  // 0073b (a12): impressions, member-only like 0065a.
+  ["company_impression_summary",    { p_days: null },           "company-read"],
+  ["company_post_impressions",      { p_days: 30 },             "company-read"],
   ["company_engagement_unattributed", {},                       "company-read"],
   ["company_notifications",         { p_limit: 5 },             "company-read"],
   ["mark_notifications_seen",       {},                         "company-write"],

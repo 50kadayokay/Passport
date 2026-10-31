@@ -27,7 +27,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import pg from "pg";
-import { prepareForStaging, MigrationEgressError, inspectDatabase, newEgress, evaluate, runnerBody } from "./_db-egress.mjs";
+import { prepareForStaging, MigrationEgressError, inspectDatabase, newEgress, evaluate, runnerBody, bareStatements } from "./_db-egress.mjs";
 
 // MIGRATIONS_DIR exists for tests only (scripts/staging-db-guard-test.mjs points
 // the runner at a temporary copy to prove it refuses). Every safety check below
@@ -149,7 +149,9 @@ for (const f of files) {
     if (bare) {
       // Split on semicolons at end of line, outside dollar-quoting. These files
       // are plain CREATE INDEX statements, so the simple split is sound.
-      const stmts = sql.split(/;\s*$/m).map((s) => s.trim()).filter((s) => s && !/^--/.test(s));
+      // bareStatements strips comments per statement; the old filter dropped
+      // every statement that had a comment above it (see _db-egress.mjs).
+      const stmts = bareStatements(sql);
       const before = await inspectDatabase(client);
       for (const s of stmts) await client.query(s);
       const added = newEgress(before, await inspectDatabase(client));

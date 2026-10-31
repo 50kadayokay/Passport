@@ -31,6 +31,21 @@ import crypto from "node:crypto";
 // Comments stripped first: prose that MENTIONS cron.schedule is not a call.
 export const stripSqlComments = (sql) => String(sql).replace(/\/\*[\s\S]*?\*\//g, " ").replace(/--[^\n]*/g, " ");
 
+/**
+ * The statements of a file that must run WITHOUT a transaction (CREATE INDEX
+ * CONCURRENTLY), one per entry, comments removed.
+ *
+ * The runner used to split on end-of-line semicolons and then DROP every piece
+ * that started with "--". A statement shares its piece with the comment above
+ * it, so every commented statement was silently skipped while the runner
+ * printed "ok": on staging that lost 0065c's first index and both of 0050b's
+ * full-text indexes (found 2026-10-31, a12). Comments are now stripped from
+ * each piece and only empty pieces are dropped.
+ */
+export function bareStatements(sql) {
+  return String(sql).split(/;\s*$/m).map((s) => stripSqlComments(s).trim()).filter(Boolean);
+}
+
 export const EGRESS_PATTERNS = [
   ["pg_cron schedule",            /\bcron\s*\.\s*schedule(_in_database)?\s*\(/i],
   ["pg_cron job re-activation",   /\bcron\s*\.\s*alter_job\s*\([^)]*active\s*:?=\s*true/i],

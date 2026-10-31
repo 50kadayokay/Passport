@@ -159,5 +159,22 @@ console.log("\n  RUNNER TRANSACTION: a file's own begin/commit cannot end the ru
   ok(/await client\.query\("begin"\);[\s\S]{0,200}await client\.query\(runnerBody\(sql\)\);[\s\S]*inTransaction: true[\s\S]*await client\.query\("commit"\)/.test(runner), "the runner applies runnerBody(sql) inside its own transaction, inspects, then commits");
 }
 
+// a12: non-transactional files (CREATE INDEX CONCURRENTLY) must run EVERY
+// statement. The old split dropped any piece starting with "--", i.e. every
+// statement with a comment above it -- staging lost 0050b's two FTS indexes
+// and 0065c's first index while the runner printed "ok".
+{
+  const { bareStatements } = await import("./_db-egress.mjs");
+  const count = (f, re) => (fs.readFileSync(f, "utf8").replace(/--[^\n]*/g, "").match(re) || []).length;
+  for (const f of fs.readdirSync("supabase/migrations").filter((x) => /^(0050b|0065c|0073a)_/.test(x))) {
+    const sql = fs.readFileSync(`supabase/migrations/${f}`, "utf8");
+    const want = count(`supabase/migrations/${f}`, /\bcreate\s+(unique\s+)?index\s+concurrently/gi);
+    const got = bareStatements(sql);
+    ok(got.length === want && got.every((x) => /^create\s+(unique\s+)?index\s+concurrently/i.test(x)), `${f}: all ${want} commented CREATE INDEX CONCURRENTLY statements are run (${got.length} found)`);
+  }
+  ok(bareStatements("-- header\ncreate index concurrently a on t (x);\n-- note\ncreate index concurrently b on t (y);\n").length === 2, "a statement preceded by a comment is no longer skipped");
+  ok(/const stmts = bareStatements\(sql\);/.test(fs.readFileSync("scripts/apply-migrations.mjs", "utf8")), "the runner uses bareStatements for non-transactional files");
+}
+
 console.log(`\nstaging db guard: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

@@ -72,6 +72,7 @@ import * as discovery from "../lib/discovery.js";
 import { mockEnabled, buildMockNewsroom, disableMock } from "./mockNewsroom.js"; // DEV-ONLY Mock Newsroom (delete to remove)
 import { fetchLiveNews } from "../lib/news.js"; // approved real news (public view)
 import { fetchCompanyFeedPosts, recordPostEvent } from "../lib/feed.js"; // company posts (press releases + media), server-ranked + engagement
+import { Seen } from "../lib/impressions.js"; // a12: a company post seen in the feed (once per investor per post per UTC day)
 import PullToRefresh from "./PullToRefresh.jsx"; // swipe-down refresh on the feed
 import { resolveWidgets, resolveProjectWidgets, widgetText } from "../lib/conferenceWidgets.js";
 import { ConferenceScenes } from "./ConferenceScenes.jsx";
@@ -7367,11 +7368,13 @@ export function TodayScreen({ onOpenCompany, onScan }) {
     return out;
   }, [objects, lead, mockOn, mock, followKey, interest, mockInv]);
 
-  const renderFeedItem = (it, reason) =>
+  // Company posts (it.postId) are wrapped in <Seen> to record impressions;
+  // news and briefs have no postId and render unwrapped.
+  const renderFeedItem = (it, reason) => <Seen postId={it.postId}>{
     isMedia(it.contentType) ? <MediaTeaser it={it} onRead={openStory} />
     : it.contentType === "NEWS" ? <NewsCard it={it} onRead={openStory} size="med" />
     : it.contentType === "MINEEX BRIEF" ? <BriefCard it={it} onRead={openStory} reason={reason} />
-    : <PRCard it={it} onRead={openStory} />;
+    : <PRCard it={it} onRead={openStory} />}</Seen>;
 
   // Press Releases — official company news only, followed first, then relevance/recency.
   const updates = useMemo(() => {
@@ -7457,10 +7460,10 @@ export function TodayScreen({ onOpenCompany, onScan }) {
 
           {tab === "foryou" && (
             lead ? (<div className="pt-2">
-              <LeadStory it={lead} onRead={openStory} reason={reasonFor(lead)} />
+              <Seen postId={lead.postId}><LeadStory it={lead} onRead={openStory} reason={reasonFor(lead)} /></Seen>
               {topStories.length > 0 && (<>
                 <p className="px-1 pb-2 pt-5 text-[11px] font-bold uppercase tracking-widest text-slate-400">Top Stories</p>
-                <div className="space-y-2.5">{topStories.map((it) => <TopStory key={it.id} it={it} onRead={openStory} />)}</div>
+                <div className="space-y-2.5">{topStories.map((it) => <Seen key={it.id} postId={it.postId}><TopStory it={it} onRead={openStory} /></Seen>)}</div>
               </>)}
               <p className="px-1 pb-2 pt-5 text-[11px] font-bold uppercase tracking-widest text-slate-400">For You</p>
               <div className="space-y-2.5">
@@ -7501,7 +7504,7 @@ export function TodayScreen({ onOpenCompany, onScan }) {
           {tab === "updates" && (
             <div className="pt-3">
               {updates.length ? (
-                <div className="space-y-2.5">{updates.map((it) => it.contentType === "NEWS" ? <NewsCard key={it.id} it={it} onRead={openStory} size="med" /> : <PRCard key={it.id} it={it} onRead={openStory} />)}</div>
+                <div className="space-y-2.5">{updates.map((it) => it.contentType === "NEWS" ? <NewsCard key={it.id} it={it} onRead={openStory} size="med" /> : <Seen key={it.id} postId={it.postId}><PRCard it={it} onRead={openStory} /></Seen>)}</div>
               ) : (
                 <FeedEmpty Icon={Radio} title="No press releases yet" sub="Follow companies to see their official releases — presented in a readable MineEx format — here first." />
               )}

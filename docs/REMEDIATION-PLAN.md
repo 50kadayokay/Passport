@@ -3460,3 +3460,338 @@ deleted):**
 | `d26-live-empty.txt` | 1 `failed` attempt, stored object kept |
 
 The test drafts (`updates`) were deleted.
+
+## 24 · a12 Analytics: reviewed, impressions implemented, 0073 PREPARED (2026-10-31; uncommitted; nothing applied)
+
+D26 was committed as `8af06a5`.
+
+### What is recorded, inferred, missing, or wrong
+
+| Metric | Source | Production (0048) | Staging (0065a/b applied) |
+|---|---|---|---|
+| Opens | `post_events` 'open' (feed, story reader) | counted over ALL posts, retired included | live posts only; list = split = total |
+| Avg. time | `post_events` 'dwell', **milliseconds** (one writer, Feed.jsx) | **shown as seconds**: a 4 s read displays as 4,000 | divided by 1000; correct |
+| Saves | `post_saves` (current state) + 'save' events (presses) | **summed**: two different measurements | `saves` = currently saved; `save_actions` = presses; never summed |
+| Likes | `post_likes` | counts orphaned keys | resolved to live posts; retired/orphan on their own line |
+| Followers / growth | `company_follows` + relationships | totals only | growth by first-follow day |
+| Breakdowns | — | **absent** (0065a not applied: page shows "Needs a database update") | press vs media, per item, unattributed |
+| Impressions | **nothing emitted them** (2 staging rows are fixtures) | `views` structurally 0 | `views` structurally 0 |
+| Read rate | needs impressions | — | — |
+| Profile views, unique visitors, shares, video plays | **not collected anywhere** | untracked | untracked (unchanged; a13) |
+
+### 0065a/b/c review (applied on staging by the build; NOT on production)
+
+- **Dependencies:** 0065b replaces 0048's three functions. Its drop-then-create
+  was fixed on 2026-10-30, because `create or replace` cannot change return
+  types. 0065a is additive. 0065c is indexes only.
+- **Transactions:** 0065a and 0065b are transactional. 0065c is
+  `CONCURRENTLY`, so outside a transaction (the runner detects it).
+- **Permissions:** every function is SECURITY DEFINER, gated by
+  `owns_company()` (the owner and active members; refuses other companies and
+  investors with 42501), with EXECUTE for authenticated only. Not anon, not
+  PUBLIC.
+- **Compatibility:** dwell is fixed at read time, so the native app keeps
+  writing milliseconds. There is no mixed-unit era and no backfill.
+- **Staging drift found:** `idx_post_likes_slug_key` (0065c) is **missing on
+  staging**. It is in batch-10 and the cause is unknown. It affects performance
+  only.
+- **Rollbacks:** 0065a and 0065c had their rollbacks only as comments, and
+  0065b had no tested one. Now there are files in `supabase/rollbacks/`: 0065b's
+  restores 0048 verbatim, and 0065c's runs outside a transaction.
+
+### Impressions: 0073a + 0073b (prepared; not applied anywhere)
+
+**Definition:** a company post's card at least half on screen for at least one
+continuous second in an investor's feed, counted **once per investor, per
+post, per UTC day**.
+
+- **0073a:** a unique partial index on `post_events (post_id, user_id, UTC
+  day) where kind='impression'`, built CONCURRENTLY, outside a transaction.
+  The database enforces the rule for every writer, including old app builds
+  and hand-made REST inserts.
+  Pre-check: there must be no duplicate impression rows. Staging has none.
+  Production is expected to have none (nothing emitted them); that check is
+  part of the audit.
+- **0073b:**
+  - `record_post_impressions(ids)`: signed-in users only, at most 50 per
+    call, live posts only, duplicates ignored;
+  - `company_impression_summary`: when recording began, impressions,
+    distinct viewers, and opens since recording began;
+  - `company_post_impressions`: per post.
+
+  The readers are member-only, like 0065a.
+- **Honest history:** the page states when impressions began and that nothing
+  earlier was recorded. Read rate = opens since recording began / impressions;
+  earlier opens are excluded and the page says why. With nothing recorded, it
+  shows "Not recorded yet", never 0 or 0%.
+
+**Client:**
+- `src/lib/impressions.js`: one shared IntersectionObserver, a 1 s visibility
+  timer, a per-device memory of what was already sent today, batches of at
+  most 50, and a flush on `pagehide` or when the page is hidden. Best-effort;
+  signed-out viewers record nothing.
+- `<Seen>` wraps the company-post cards in `PassportProto.jsx`: lead story,
+  top stories, For You, and the press-release tab. The native app gets it with
+  its next store build.
+
+**Dashboard (`src/portal/Analytics.jsx`, `src/lib/engagement.js`):**
+- the Impressions tile shows its loading, needs-update and not-recorded states,
+  or the count with viewers;
+- the note explains the definition, the start date and the read rate;
+- each item shows its impressions;
+- **"function missing" (404) is now distinguished from "call failed"**: an
+  outage says "Analytics could not be loaded just now", with Try again, instead
+  of wrongly saying a database update is needed.
+
+### Verification
+
+**`scripts/analytics-0065-0073-check.mjs` (staging, ONE rolled-back transaction): 56/56.**
+- The 0065b and 0065a rollbacks restore production's state (0048).
+- On a controlled throwaway company, 0048 reproduces the defects: 4,666.7
+  "seconds" for reads of 4, 8 and 2 seconds; saves = 3 (2 saved + 1 press);
+  reads = 5 including a retired post.
+- The production path 0065a, 0065b, 0065c, 0073a, 0073b applies over 0048.
+- Hand-computed figures all match:
+  - totals: 4 reads, **4.7 s**, 2 saved, 2 likes, 2 posts;
+  - split: release 3 reads / 6.0 s / 2 saved / 1 press; media 1 read / 2.0 s;
+  - the 30-day window drops the 40-day-old open;
+  - per item: lifetime against recent;
+  - identity: list = split = total;
+  - unattributed: retired 1 open / 1 like, orphan 1 like;
+  - follower growth, daily buckets.
+- Impressions:
+  - 2 recorded for [release, media, retired, release again]; a repeat the same
+    day gives 0;
+  - a direct duplicate insert gets 23505; more than 50 ids is refused; anon is
+    refused;
+  - a second investor counts;
+  - "yesterday" counts as a new day: 4 impressions by 2 viewers;
+  - read rate 3/4 over recorded opens only (the 40-day-old open excluded);
+  - 0065b's `views` now reads 4.
+- Access: viewer and analyst members can read; another company's owner and an
+  investor get 42501; anon has no EXECUTE.
+- The full rollback chain returns byte-for-byte to 0048, and nothing persisted.
+
+**Other suites:**
+
+| Suite | Result |
+|---|---|
+| `scripts/impressions-test.mjs` (offline) | 24/24: queue and de-duplication, a different investor, the next UTC day, batches ≤ 50, a failed send not remembered, no invented rate, missing vs failed |
+| `npm test`, build | pass |
+| Analytics fixture reconcile | pass |
+
+**Browser (staging bundle, company A owner):**
+- **Empty:** recorded zeros as 0; Avg. time "—"; Impressions "Needs a database
+  update" (0073 not on staging); shares and profile views untracked.
+- **Populated** with controlled events, checked against figures computed from
+  the raw tables: 2 opens, **45 s**, 1 like, "1 · 1 save pressed".
+- **Loading:** the busy indicator shows and earlier values stay visible.
+- **Error** (calls forced to 500): "Analytics could not be loaded just now";
+  Try again restored the figures.
+- The fixture was removed and staging is back at baseline.
+
+### Blockers and approvals needed
+
+1. **Apply 0073a then 0073b to STAGING** (your approval). Then: impressions
+   live on staging, a browser check of the recorded state and read rate, a feed
+   impression check in the investor app, and the isolation-suite inventory for
+   the three new functions.
+2. Optionally, recreate the missing `idx_post_likes_slug_key` on staging
+   (0065c, CONCURRENTLY).
+3. **Production:** the read-only audit (confirm 0048 is live, that there are
+   no impression rows or duplicates, and whether 0053 is applied, for D26),
+   then 0065a, 0065b, 0065c, 0073a, 0073b with approval. Until then production
+   shows the dwell and saves defects.
+4. **Native app:** impressions from phones start only with the next store
+   build.
+5. **Still uncollected** (a13, out of scope): profile views, unique visitors,
+   shares, video plays.
+
+### 24b · 0073a/0073b APPLIED TO STAGING ONLY (2026-10-31), persistent results
+
+**Before applying:**
+- Target `jmljfovtfxcdhjmtlnva`. Read-only snapshot (`scripts/analytics-snapshot.mjs`):
+  7 analytics functions; events {dwell 2, impression 2, open 2};
+  **0 duplicate impressions**.
+- **Runner defect found and fixed before use.** The non-transactional path
+  dropped every statement that had a comment above it, and still printed
+  "ok (no transaction)". That is why staging is **missing 0065c's
+  `idx_post_likes_slug_key` and both of 0050b's full-text indexes**
+  (`documents_fts_idx`, `updates_fts_idx`), and 0073a's index would have been
+  skipped too.
+  - The fix is `bareStatements()` in `scripts/_db-egress.mjs`, which strips
+    comments per statement.
+  - Guarded by `staging-db-guard-test` (57/57), which counts every CREATE INDEX
+    CONCURRENTLY in 0050b, 0065c and 0073a.
+  - Re-running 0050b and 0065c on staging to restore the three missing indexes
+    needs your approval.
+
+**Applied:**
+- 0073a ran "ok (no transaction)" and 0073b "ok". Database egress: none.
+- Snapshot diff: exactly 3 functions added (EXECUTE for authenticated; not
+  anon or PUBLIC) and 1 valid index. Counts, policies and grants unchanged.
+
+**Verified:**
+- **Applied-mode rolled-back check:** 57/57, later **62/62** with 0073c added
+  (see below).
+- **`scripts/impressions-live-test.mjs`** (real API, fixture users): **22
+  passed, 1 KNOWN.**
+  - An unpublished post is rejected; same-day repeats store exactly 1 row; a
+    second investor counts.
+  - 51 ids and signed-out calls are refused.
+  - **12 simultaneous submissions store exactly 1 row.**
+  - Direct same-day duplicate gets 409; another investor's id 403; no user
+    403; anon 401.
+  - Dashboard functions equal counts taken from the table. Recording start is
+    the first impression row.
+  - An open from before recording began is excluded from the read rate; one
+    after it is included.
+  - Members (owner, viewer, analyst) can read; company B, an investor and anon
+    are refused.
+  - Reading time, likes, saves and save presses are unchanged; `views` equals
+    the de-duplicated impressions.
+  - **KNOWN: a BACKDATED impression written directly is ACCEPTED** (201). In
+    the run it moved "recorded since" to 2026-01-15. This is 0073c's purpose.
+- **Investor app, in the browser (staging bundle, a real investor):** with the
+  pane rendering, both company-post cards were recorded, 2 rows. With the pane
+  hidden the browser delivers no visibility callbacks, so **a hidden page
+  records nothing**, which is correct for impressions.
+  The 50%/1 s rule is proven deterministically offline: 60% for 0.9 s gives
+  none; 40% gives none; a dip below half restarts the clock; one continuous
+  second gives one (`impressions-test` 29/29, stable across 3 runs).
+- **Dashboard (company A owner):**
+  - Populated: **2 impressions, 2 investors, read rate 50% (1 open from 2
+    impressions)**, "recorded since Oct 30", matching the table. Oct 30 is
+    company A's earliest impression row, a fixture on a since-unpublished
+    post.
+  - Empty, with recording started: 0 impressions and "no read rate for this
+    period yet".
+- **Cleanup:** staging is back to its 2 original fixture impression rows. The
+  temporary `investor_profiles` row (onboarding gate) was removed; it did not
+  exist before.
+
+**Suites:**
+
+| Suite | Result |
+|---|---|
+| `npm test`, build | pass |
+| API authz | 376 / 2 / 1 (KNOWN F8, D21; 0 unexpected) |
+| Combined isolation | 890 / 2 / 1; the two impression readers are classified company-read |
+
+### 0073c · prepared, NOT applied: clients cannot backdate events or write impressions directly
+
+Two rules, both enforced in the database:
+1. **No backdating.** A BEFORE INSERT trigger on `post_events` sets
+   `created_at = now()` when the caller is anon or authenticated.
+2. **Impressions only through `record_post_impressions()`.** The 0009
+   `own_insert` policy gains `kind <> 'impression'`.
+
+Rolled-back verification (within the 62/62):
+- a direct impression insert gets 42501;
+- a backdated client insert is stored at now();
+- even the table owner cannot write a same-day duplicate (23505);
+- the rollback restores 0009's policy exactly.
+
+Opens remain un-deduplicated (they are actions); that is noted.
+
+**a12 is NOT committed:** the backdating test fails until 0073c is applied.
+
+## 25 · a05 Profile revision history: inspection and PROPOSED access rules (nothing implemented)
+
+**What exists:**
+- `company_profile_versions` (0013): full-profile snapshots, insert-only from
+  the app's point of view.
+- RLS: read, insert and delete for **the company OWNER or a platform admin
+  only**. Company admins and editors cannot read it.
+- Writers:
+  - 0072's `publish_profile_draft` (every company publish, note "before profile
+    publish", inside the publish transaction);
+  - the admin tools `saveProfileSafely` (Account Management) and
+    `restoreVersion` (Mission Control's BlueprintReview, direct-to-live: the
+    approved concierge exception).
+- **`saveProfileSafely` prunes each company to its newest 20 snapshots.**
+  Admin edits can therefore delete a company's own publish history.
+- A snapshot holds the whole live profile. The editor owns only
+  `{projects, pp}`; timeline and Company Memory fields belong to other
+  services.
+
+**Proposed access rules (your decision):**
+
+| Who | View history | Prepare a restoration (as a draft) | Publish the restored draft |
+|---|---|---|---|
+| Owner, company admin | yes | yes | yes |
+| Editor | yes | yes | no: owner or admin publishes, as for any draft |
+| Publisher, analyst, viewer | no | no | no |
+| Platform admin | yes | yes | yes |
+| Other companies, investors, anon | no | no | no |
+
+(This matches the approved draft policy: whoever may draft may see what they
+can restore.)
+
+**Proposed design (no RLS widening):**
+- **Migration 0074:** three service-role-only SECURITY DEFINER functions that
+  re-check the actor's role (`profile_actor_role`, 0072):
+  - `list_profile_versions(company, actor)`: id, when it was replaced, by whom
+    (display name or email), note;
+  - `get_profile_version(company, actor, id)`: that version's `{projects, pp}`
+    for preview;
+  - `restore_profile_version_to_draft(company, actor, id, expected_draft_version)`:
+    writes ONLY `{projects, pp}` from the snapshot into the draft, using the
+    same compare-and-set as a save, with the base fingerprint set to the
+    current live fields (so publishing still refuses if live changes in the
+    meantime), and an `activity_log` entry, all in one transaction.
+
+  The live profile is never touched; publishing stays the normal reviewed
+  step.
+- **`api/profile-draft.js`:** actions `history`, `version` and `restore`.
+- **Editor UI:** a "Revision history" panel listing each version (when, by
+  whom), previewing it in the draft phone preview, and "Restore as draft",
+  which explains that it replaces the current unsaved draft and that nothing
+  goes live until published.
+- **Retention (decision needed):** stop admin pruning from deleting publish
+  snapshots (prune only admin-made snapshots, or raise the limit). Proposed:
+  never prune "before profile publish" snapshots.
+- Admin tools are unchanged; BlueprintReview's direct-to-live restore remains
+  the concierge exception.
+
+**Approval points:** the role table; the retention rule; then 0074, prepared
+and verified rolled back before any apply.
+
+### 24c · 0073c APPLIED TO STAGING ONLY (2026-10-31); a12 complete on staging
+
+**Pre-checks:**
+- Target `jmljfovtfxcdhjmtlnva`. The exact diff was reviewed: one trigger
+  function, one trigger, and the `own_insert` policy with
+  `kind <> 'impression'` added.
+- The `post_events` policies and grants were captured, and the rollback was
+  rehearsed (it restores 0009's policy exactly; 62/62).
+
+**Applied** by the guarded runner, with no database egress. The snapshot diff
+shows **only** the `own_insert` policy changed. The trigger is enabled; grants
+and event counts are unchanged.
+
+**Re-verified:**
+- **Live API test: 27/27**, including the previously failing backdating test.
+  - Every direct impression insert is refused (403): backdated, same-day, or
+    in another investor's name.
+  - Opens and reading-time events sent with created_at 2026-01-15 are recorded
+    but stamped with the database's current time.
+  - A feed save press still records.
+  - Record-function de-duplication holds, and 12 simultaneous submissions
+    store 1 row.
+  - Dashboard functions equal the table; recording start and the read-rate
+    window are correct.
+  - Members can read; company B, investors and anon are refused.
+  - The existing metrics are unchanged.
+- **Suites:**
+
+| Suite | Result |
+|---|---|
+| Applied-mode rolled-back check | 62/62 |
+| `npm test`, build | pass |
+| API authz | 376 / 2 / 1 (KNOWN F8, D21; 0 unexpected) |
+| Combined isolation | 890 / 2 / 1 |
+
+The dashboard UI was browser-verified before 0073c (2 impressions, 2
+investors, 50%). 0073c changes no reader function, and the live test re-checks
+the readers against the table.
