@@ -17,6 +17,7 @@ import { listMediaAssets, signedMediaUrl } from "../../lib/mediaAssets.js";
 import { previewability, sanitizeSelection } from "../../lib/imageSupport.js";
 import { profileUrl } from "../../lib/brand.js";
 import { waitForOutcome } from "../../lib/publishOutcome.js";
+import DeliveryStatus from "./DeliveryStatus.jsx";
 import { listRevisions, reviseRelease, restoreRevision } from "../../lib/releaseRevisions.js";
 import { unpublishViaApi } from "../../lib/publishClient.js";
 import { structureRelease, refineRelease } from "../../lib/structureReleases.js";
@@ -326,6 +327,7 @@ export default function CreateRelease({ company, draftId, onExit, onPublished })
   // CORRECTIONS (append a revision) and everything else is presentation.
   const [revisions, setRevisions] = useState([]);
   const [pubId, setPubId] = useState(null);
+  const [pubCreatedAt, setPubCreatedAt] = useState(null);
   const [reviseBusy, setReviseBusy] = useState("");
   const [reviseMsg, setReviseMsg] = useState("");
   const [unpubBusy, setUnpubBusy] = useState(false);
@@ -424,11 +426,11 @@ export default function CreateRelease({ company, draftId, onExit, onPublished })
           const auth = await import("../../lib/auth.js");
           const hh = await auth.authHeaders();
           const pr = await fetch(
-            `${h.SUPABASE_URL}/rest/v1/publications?update_id=eq.${d.id}&destination_id=eq.passport&select=id&limit=1`,
+            `${h.SUPABASE_URL}/rest/v1/publications?update_id=eq.${d.id}&destination_id=eq.passport&select=id,created_at&limit=1`,
             { headers: hh });
           const prows = pr.ok ? await pr.json().catch(() => []) : [];
           const pid = prows[0] && prows[0].id;
-          if (pid) { setPubId(pid); setRevisions(await listRevisions(pid)); }
+          if (pid) { setPubId(pid); setPubCreatedAt(prows[0].created_at || null); setRevisions(await listRevisions(pid)); }
         } catch { /* correction UI simply will not offer itself */ }
       }
       let list = [];
@@ -880,6 +882,12 @@ export default function CreateRelease({ company, draftId, onExit, onPublished })
               unknown="Could not confirm MineIQ ingestion"
               skipped="Not sent to MineIQ — this is a demo" />
           </ul>
+
+          {/* What the outbox reports, per destination -- distinct from the
+              rows observed above, and the only place a FAILED delivery shows. */}
+          {!o.demo && publishedId && !String(publishedId).startsWith("demo-") && (
+            <DeliveryStatus publicationId={publishedId} poll />
+          )}
 
           <p className="mt-4 border-t border-slate-100 pt-4 text-[11.5px] leading-relaxed text-slate-400">
             {o.demo
@@ -1383,6 +1391,20 @@ export default function CreateRelease({ company, draftId, onExit, onPublished })
               </>
             )}
           </div>
+
+          {draft && draft.status === "published" && pubId && !String(pubId).startsWith("demo-") && (
+            <div className={`p-6 ${CARD}`}>
+              <span className={LABEL}>Publication</span>
+              <p className="mt-2 flex items-center gap-2 text-[13.5px] text-slate-700">
+                <span className="inline-flex items-center gap-1 rounded-full bg-blue-600 px-2 py-0.5 text-[10.5px] font-bold text-white">
+                  <span className="h-1 w-1 rounded-full bg-white" /> Live
+                </span>
+                Published on your MineEx profile.
+              </p>
+              {/* Re-keyed by a correction so its delivery is watched afresh. */}
+              <DeliveryStatus key={reviseMsg || "initial"} publicationId={pubId} createdAt={pubCreatedAt} poll={!!reviseMsg} />
+            </div>
+          )}
 
           {reviseMsg && (
             <div className="rounded-xl bg-blue-50 px-4 py-3 text-[12.5px] font-semibold leading-relaxed text-blue-800">

@@ -187,7 +187,7 @@ export async function listPublished(companyId) {
   if (!companyId) return [];
   const h = await writeHeaders();
   const r = await fetch(
-    `${SUPABASE_URL}/rest/v1/updates?company_id=eq.${companyId}&status=eq.published&select=*,publications(id,destination_id,status,published_at,external_url)&order=published_on.desc.nullslast`,
+    `${SUPABASE_URL}/rest/v1/updates?company_id=eq.${companyId}&status=eq.published&select=*,publications(id,destination_id,status,published_at,external_url,created_at)&order=published_on.desc.nullslast`,
     { headers: h }
   );
   return r.ok ? await r.json().catch(() => []) : [];

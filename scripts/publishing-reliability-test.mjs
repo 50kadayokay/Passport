@@ -557,6 +557,46 @@ console.log("\n  PHASE 2 LISTENER CODE (effective once 0071 subscribes UNPUBLISH
   ok(delivery(un2.id, "profile_timeline_v1").status === "failed", "a failed removal is FAILED and retried, not silently completed");
   SUBS.splice(SUBS.indexOf(SUB_0071), 1);
 }
+console.log("\n  OUT-OF-ORDER DELIVERY (Phase 4: a retry or a manual replay after an unpublish)");
+{
+  reset();
+  const u = uuid(); T.company_follows.push({ user_id: u, company_id: CO_A });
+  const { pub } = publishRelease();
+  const pubEv = T.events.find((e) => e.publication_id === pub.id && e.event_type === "PUBLICATION_PUBLISHED");
+  // The feed projection fails, so the PUBLISHED delivery is left to retry.
+  faults["posts:POST"] = 1;
+  await drain();
+  ok(delivery(pubEv.id, "feed_projection_v1").status === "failed", "setup: the PUBLISHED feed delivery failed and is waiting to retry");
+  // The release is withdrawn; the unpublish is delivered FIRST. Then the
+  // retry (or an admin's replay of a dead letter) runs.
+  pub.status = "draft";
+  addEvent("PUBLICATION_UNPUBLISHED", pub);
+  await drain();
+  advance(10 * 60e3);
+  await drain();
+  const post = T.posts.find((x) => x.publication_id === pub.id);
+  ok(!post || post.removed_at, "a PUBLISHED delivery that runs after the unpublish does NOT put the withdrawn release in the feed", JSON.stringify(post || null));
+  ok(delivery(pubEv.id, "feed_projection_v1").status === "succeeded", "  ...and is completed (skipped: not published), not retried forever");
+  ok(!T.notifications.some((n) => n.user_id === u), "  ...and no follower is notified about a withdrawn release");
+  // Re-published, then an OLD unpublish delivered late: the live post stays.
+  pub.status = "published";
+  addEvent("PUBLICATION_PUBLISHED", pub);
+  await drain();
+  ok(T.posts.some((x) => x.publication_id === pub.id && !x.removed_at), "setup: re-published release is live in the feed");
+  const late = addEvent("PUBLICATION_UNPUBLISHED", pub);
+  await drain();
+  ok(T.posts.some((x) => x.publication_id === pub.id && !x.removed_at), "a late UNPUBLISHED delivery after a re-publish does not hide the live post");
+  ok(delivery(late.id, "feed_projection_v1").status === "succeeded", "  ...and is completed (skipped: published again)");
+}
+{
+  // Mine IQ: a release withdrawn before its extraction ran teaches nothing.
+  reset();
+  const { pub } = publishRelease();
+  pub.status = "draft";
+  await drain();
+  const ev = T.events.find((e) => e.publication_id === pub.id && e.event_type === "PUBLICATION_PUBLISHED");
+  ok(!T.facts.some((f) => f.publication_id === pub.id) && delivery(ev.id, "mineiq_facts_v1").status === "succeeded", "Mine IQ does not extract facts from a release withdrawn before its delivery ran (completed, skipped)");
+}
 {
   // DELIVERY_EPOCH: after it, a late delivery still notifies.
   reset();

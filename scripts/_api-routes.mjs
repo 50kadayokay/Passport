@@ -157,6 +157,12 @@ export const API_ROUTES = [
     // paid-build switch -- which is checked only after requireAdmin.
     passed: (r) => okOrProvider(r) || afterGuard(/AI_PAID_ENABLED|No website URL/)(r),
     matrix: ADMIN_TOOL },
+  // D22 Phase 4: delivery operations. Read-only probe (the summary view); the
+  // replay and alert writes are exercised by scripts/delivery-ops-live-test.mjs.
+  { name: "ops", methods: ["GET", "POST"], guard: "requireAdmin", source: /const admin = await requireAdmin\(req, res\);   \/\/ 401 \/ 403 \/ 502 sent on refusal/,
+    req: () => ({ method: "GET", query: { view: "summary" } }),
+    passed: (r) => r.status === 200 && !!(r.body && r.body.health),
+    matrix: { ...ADMIN_TOOL, "coadmin>A": "deny", "staff>A": "deny", "companyB>B": "deny" } },
   { name: "news-review", methods: ["POST"], guard: "requireAdmin", source: /const admin = await requireAdmin\(req, res\)/,
     req: () => post({ action: "reject", id: uuid() }),
     passed: (r) => r.status !== 401 && r.status !== 403 && r.status !== 400 && r.status < 500,

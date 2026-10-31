@@ -108,7 +108,13 @@ async function feedProjectionV1(event, db) {
   // PUBLICATION_REVISED lands here too (0051). The upsert below is keyed on
   // publication_id, so a correction UPDATES the existing post -- same id, same
   // published_at, same place in the feed -- rather than adding a second one.
+  // Re-checked against the publication's CURRENT status (D22 Phase 4), as the
+  // timeline listener does: deliveries can run out of order -- a retried or
+  // replayed PUBLISHED delivery after an unpublish used to put the withdrawn
+  // release back in the feed (removed_at: null below), and a late UNPUBLISHED
+  // delivery after a re-publish would hide a live post.
   if (event.event_type === "PUBLICATION_UNPUBLISHED") {
+    if (pub.status === "published") return { skipped: "published again" };
     // Checked: a failed soft-remove used to be ignored, leaving an unpublished
     // release in the investor feed with its delivery marked done.
     await mustWrite(db, `posts?publication_id=eq.${event.publication_id}`, {
@@ -116,6 +122,7 @@ async function feedProjectionV1(event, db) {
     }, "feed soft-remove");
     return;
   }
+  if (pub.status !== "published") return { skipped: "not published" };
 
   // PUBLICATION_PUBLISHED → build the projection from authoritative data.
   let materialityLabel = null;
@@ -258,6 +265,7 @@ async function mineIqFactsV1(event, db, opts = {}) {
   const pub = pubs[0];
   if (!pub) return;
   if (pub.destination_id !== "passport") return;   // only the profile publication is a disclosure
+  if (pub.status !== "published") return { skipped: "not published" };   // withdrawn before we got to it
 
   // CLAIM FIRST. Two workers racing this event would each run their own
   // extraction, and two model runs do not produce byte-identical facts -- so a

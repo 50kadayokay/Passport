@@ -8,7 +8,10 @@
 // The confirmation screen must therefore not assert them. This polls for the
 // rows each listener actually writes and reports only what it can see. Anything
 // still pending is reported as pending -- never as done, and never as failed,
-// because a slow drain is normal and Supabase Cron is the guaranteed backstop.
+// because a slow drain is normal. Whether a destination actually FAILED is the
+// outbox's answer, not this poll's: see src/lib/deliveryStatus.js (D22 Phase 4).
+// (This comment used to call Supabase Cron "the guaranteed backstop"; D22 found
+// no active scheduler -- see docs/REMEDIATION-PLAN.md.)
 //
 // DEVICE PUSH IS NOT CHECKED, because it is not wired to this path: the
 // in_app_notifications_v1 listener writes in-app notifications only. Device push

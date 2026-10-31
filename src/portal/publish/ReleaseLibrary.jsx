@@ -20,6 +20,8 @@ import {
 } from "lucide-react";
 import { dateParts } from "../../lib/structureReleases.js";
 import { listMediaAssets, signedMediaUrl } from "../../lib/mediaAssets.js";
+import { fetchManyDeliveryStatuses, passportPublication } from "../../lib/deliveryStatus.js";
+import { DeliveryChip } from "./DeliveryStatus.jsx";
 
 const CARD = "rounded-2xl border border-slate-100 bg-white shadow-[0_1px_2px_rgba(15,23,42,.04),0_12px_26px_-20px_rgba(15,23,42,.4)]";
 
@@ -106,7 +108,13 @@ function Thumb({ asset, category }) {
    the page and coming back shows an ordinary card. A "new" flag that persisted
    would need a per-viewer read receipt to ever clear, which is a feature, not
    a highlight. */
-function ReleaseCard({ item, asset, onOpen, isNew = false }) {
+// Delivery is shown on a card only when there is something to know: pending,
+// retrying or failed. "Delivered" (and "no record", for releases from before
+// tracking) stay quiet here; the release itself shows the full breakdown.
+const CARD_DELIVERY = new Set(["pending", "retrying", "failed"]);
+const DELIVERY_CARDS = 60;
+
+function ReleaseCard({ item, asset, onOpen, isNew = false, delivery = null }) {
   return (
     <button
       onClick={() => onOpen(item)}
@@ -126,6 +134,9 @@ function ReleaseCard({ item, asset, onOpen, isNew = false }) {
           )}
           {isNew && (
             <span className="rounded-full bg-blue-600 px-2 py-0.5 text-[10.5px] font-bold uppercase tracking-wider text-white shadow-sm">New</span>
+          )}
+          {!item.isDraft && delivery && delivery.ok && CARD_DELIVERY.has(delivery.state) && (
+            <DeliveryChip state={delivery.state} />
           )}
           {item.needsDate && (
             <span className="rounded-full bg-amber-500 px-2 py-0.5 text-[10.5px] font-bold text-white shadow-sm">Date needed</span>
@@ -223,6 +234,20 @@ export default function ReleaseLibrary({ drafts, published, onCreate, onDraft, o
     });
     return by;
   }, [companyAssets]);
+
+  // Delivery status of the most recent published releases (one small RPC each,
+  // four at a time). Older releases are long settled; opening one shows it.
+  const [delivery, setDelivery] = useState({});
+  useEffect(() => {
+    const targets = (published || []).map((r) => ({ updateId: r.id, pub: passportPublication(r) }))
+      .filter((x) => x.pub).slice(0, DELIVERY_CARDS);
+    if (!targets.length) return undefined;
+    const byPub = Object.fromEntries(targets.map((x) => [x.pub.id, x.updateId]));
+    return fetchManyDeliveryStatuses(
+      targets.map((x) => ({ publicationId: x.pub.id, createdAt: x.pub.created_at || null })),
+      (pid, st) => setDelivery((m) => ({ ...m, [byPub[pid]]: st })),
+    );
+  }, [published]);
 
   // All · Milestones · each year that actually has a release, newest first.
   // Nothing offered that would return an empty grid: a company with three
@@ -340,7 +365,7 @@ export default function ReleaseLibrary({ drafts, published, onCreate, onDraft, o
         <div className="mt-3 grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-4">
           {filtered.map((item) => (
             <ReleaseCard key={item.id} item={item} asset={assetByDoc[item.documentId]} onOpen={onOpen}
-              isNew={fresh.has(item.id)} />
+              isNew={fresh.has(item.id)} delivery={delivery[item.id] || null} />
           ))}
         </div>
       )}

@@ -3001,3 +3001,169 @@ limits under back-to-back suites.
 **Uncommitted:** the Phase 3 scheduler code and tests, the extended live
 publishing test, the snapshot tool, the retirement idempotency fix, and the
 0071 header status. Awaiting your review.
+
+## 21 · D22 Phase 4: delivery status and delivery operations, IMPLEMENTED LOCALLY (2026-10-31, uncommitted, not deployed)
+
+No migration. Everything uses objects 0071 already created (applied to STAGING
+only): `publication_delivery_status()`, `dispatcher_runs`, `ops_alerts`.
+No production configuration, no cron, nothing pushed or deployed.
+
+### What a company sees (portal)
+
+- **Publication status and delivery status are separate.** "Live" is the
+  release record (the publish committed). "Delivery" is what the outbox did
+  afterwards, for each destination: Investor feed, Pro Profile timeline,
+  Follower notifications, MineIQ knowledge.
+- **States:**
+  - **Delivered.**
+  - **Pending:** queued, or not picked up yet. Deliveries are created lazily, so
+    a destination with no row yet is pending, never delivered.
+  - **Retrying:** a failed attempt, retrying automatically.
+  - **Failed:** a dead letter. The page says "the MineEx team can see this
+    failure and can retry it".
+  - **No delivery record:** published more than 24 h ago with no row at all,
+    most likely before tracking began.
+- **Where it shows:**
+  - the publish confirmation (polls every 5 s, up to 3 min);
+  - an opened live release (re-polls after a correction);
+  - library cards: a chip for Pending, Retrying and Failed only; Delivered stays
+    quiet.
+- **Isolation is the database's job:** the RPC returns rows only to members of
+  the release's company and to platform admins, and its columns carry no error
+  text.
+- **Files:** `src/lib/deliveryStatus.js` (mapping, fetch),
+  `src/portal/publish/DeliveryStatus.jsx`, plus `CreateRelease.jsx`,
+  `ReleaseLibrary.jsx` and `publishDrafts.js` (embeds `publications.created_at`).
+- **"Delivered" means the destination finished processing.** That includes
+  deliberate skips: notifications are not sent for historical or demo releases.
+
+### What a platform admin sees (Mission Control → Delivery Operations)
+
+`api/ops.js` gates every request with `requireAdmin` (401 signed out, 403
+everyone else) before any service-role read. The UI is
+`src/admin/DeliveryOps.jsx`.
+
+- **Health:**
+  - dispatcher running or stalled (the Phase 3 health logic);
+  - last successful run (finished, with no listener error);
+  - last scheduled run. Staging shows "Not active", which is true: no scheduler
+    is enabled anywhere.
+- **Outbox:** totals by status, and counts by destination and status.
+- **Alerts:**
+  - **Acknowledge** records who and when, and pauses reminder emails while the
+    alert holds (`evaluateAlerts` keeps the acknowledgement; it is dropped on
+    resolution).
+  - **Resolve** is refused while the condition still holds.
+- **Lists:**
+  - Dead letters, Retrying and Pending, by company, paged;
+  - History: events newest first, each with all of its deliveries.
+- **Detail:** the full internal error, the event, the release, the sibling
+  deliveries, and whether a replay is allowed and why.
+
+### Replay rules (no mass redispatch)
+
+- One delivery per request. Lists and `{all:true}` get 400.
+  `reconcile_outbox` is never called.
+- Dead letters only. A `failed` delivery already retries on its own schedule.
+- Never superseded: if the release has a newer event, replay gets 409.
+- Requires `confirm: true` and the `updated_at` the admin was shown. The UPDATE
+  is a compare-and-set on `status = 'dead'` and that `updated_at`, so a double
+  click or a race redispatches once. Tested with 5 and 6 concurrent requests:
+  exactly one is accepted.
+- Attempts are kept, so a replay buys exactly ONE more attempt.
+- At most 10 replays a minute across all admins (429 beyond).
+- Audited in `dispatcher_runs` (trigger `replay`: admin, delivery, previous
+  state and error excerpt).
+  - Interim, no migration. Health now counts only `cron`, `nudge` and `manual`
+    rows (`RUN_TRIGGERS`), so an audit row is never a heartbeat.
+  - A dedicated audit table belongs with a25.
+
+### D24 · found and fixed: out-of-order delivery re-published withdrawn releases
+
+The feed projection never re-checked the release's current status, so a
+`PUBLICATION_PUBLISHED` delivery that ran after the unpublish (a retry, or a
+replay) put the withdrawn release back in the investor feed (`removed_at:
+null`). Follower notifications then went out about it, because they key off the
+post.
+
+A late `UNPUBLISHED` delivery after a re-publish would also hide a live post,
+and Mine IQ extracted facts from releases withdrawn before extraction ran.
+
+**Fix** (`api/_listeners.js`), the same rule the timeline listener already used:
+- the feed skips PUBLISHED or REVISED events unless the release is published,
+  and skips UNPUBLISHED events if it is published again;
+- Mine IQ skips releases that are not published.
+
+**Proof:** 8 new offline assertions. 4 of them fail on the committed code,
+and all pass with the fix.
+
+### Also corrected
+
+`src/lib/publishOutcome.js` called Supabase Cron "the guaranteed backstop".
+There is none (§17); the comment now says so.
+
+### Tests
+
+| Suite | Result |
+|---|---|
+| `delivery-ops-test` (new, offline, real handler, stub Supabase) | 71/71. Mutation check: removing the compare-and-set fails the race test. |
+| `publishing-reliability-test` | 97/97 (+8: out-of-order D24) |
+| `npm test`, build | pass |
+| `delivery-ops-live-test` (new, staging, real fixture users, local harness) | 45/45; cleanup verified identical (ops_alerts, company A profile; release and run rows deleted) |
+| API authz suite | 364 / 2 / 1 (+10 for `/api/ops`; KNOWN F8, D21; 0 unexpected) |
+| Combined | 826 / 2 / 1 |
+| Live publishing (re-run with the D24 fix) / scheduler | 51/51, 18/18 |
+
+**UI workflow, verified in a browser against staging:**
+- **Setup:**
+  - A staging bundle (`MINEEX_ENV=staging`; the vite tripwire enforces the
+    staging project), served on loopback with `/api` proxied to the staging
+    harness. Never the vite dev server.
+  - Sessions were obtained server-side from the fixture file; no credential
+    passed through the transcript.
+- **Company A owner:**
+  - the card shows Live and Failed separately;
+  - the release shows Delivery: Failed, with each destination;
+  - no error text anywhere on the page (checked against the injected error
+    string).
+- **Platform admin:**
+  - health, alerts and counts render;
+  - the dead letter's detail shows the internal error;
+  - Replay (confirm text checked) leads to "Replayed and delivered.", and the
+    list refreshes;
+  - Acknowledge records who and when;
+  - Resolve while dead letters remain shows the refusal;
+  - the empty state and History render.
+- **Company user at `/admin`:** "Admins only".
+- **Network:** no request to the production project was seen. The bundle does
+  contain public demo-image URLs on production storage, used only by demo
+  pages, which were not visited.
+- **Not verified:** the publish-confirmation screen's live polling through the
+  UI. Its component and RPC are exercised on the release screen and in the live
+  test, but a full UI publish was not run.
+
+**Found in passing, not fixed (out of D22 scope), D25:** `Publish.jsx` calls
+`setHandoff` (lines 81, 84, 99) but never declares it. Leaving the review
+screen throws a ReferenceError, and dropping a file on the library would throw
+too. This dates from `df931e5`.
+
+### Remaining D22 blockers (all need your approval)
+
+1. **Production read-only audit** (`supabase/audit/outbox_review.sql`, 10
+   statements): backlog size and dead letters decide the first-drain plan.
+2. **Apply 0071 to production.** Phase 4's RPC, tables and admin page depend on
+   it. Without it, the portal says "Delivery status is not available yet" and
+   the admin page reports that 0071 is needed (503), with no internals.
+3. **Phase 3 activation:**
+   - production `CRON_SECRET`, `DISPATCH_HEALTH_TOKEN`, `OPS_ALERT_TO`,
+     `PUBLIC_BASE_URL`, `DELIVERY_EPOCH`;
+   - the `vercel.json` cron;
+   - an external uptime monitor;
+   - verification of Deployment Protection against cron requests.
+4. **Production dead letters:** decide before the first drain, using the
+   admin page one at a time. There is deliberately no bulk replay.
+5. **Withdrawing a revised release in production** needs a product decision.
+6. **Optional:** a dedicated audit table for replays (with a25), replacing the
+   interim `dispatcher_runs` rows.
+
+**Uncommitted:** all of Phase 4. Awaiting your review.

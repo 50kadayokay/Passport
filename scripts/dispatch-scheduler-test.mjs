@@ -10,7 +10,7 @@
 
 const SB = "https://stub-project.supabase.invalid";
 Object.assign(process.env, {
-  VITE_SUPABASE_URL: SB, VITE_SUPABASE_ANON_KEY: "sb_publishable_stub", SUPABASE_SERVICE_ROLE_KEY: "stub-service-key",
+  VITE_SUPABASE_URL: SB, VITE_SUPABASE_ANON_KEY: "sb_publishable_offline_stub_key", SUPABASE_SERVICE_ROLE_KEY: "stub-service-key",
   DISPATCH_SECRET: "stub-dispatch-secret-0123456789", CRON_SECRET: "cron-secret-0123456789abcdef",
   DISPATCH_HEALTH_TOKEN: "health-token-0123456789abcdef", POSTMARK_SERVER_TOKEN: "stub-postmark",
   MESSAGES_FROM_EMAIL: "noreply@stub.invalid", OPS_ALERT_TO: "ops@stub.invalid",

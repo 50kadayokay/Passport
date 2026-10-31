@@ -13,6 +13,9 @@
 // One email per condition per ALERT_RESEND_MINUTES while it holds, and one when
 // it resolves, to OPS_ALERT_TO through the existing Postmark path. Without
 // OPS_ALERT_TO (or Postmark) the alert is RECORDED in ops_alerts only.
+// A platform admin can ACKNOWLEDGE an open alert (api/ops.js): reminders stop
+// until it resolves; the acknowledgement is kept in detail while it holds and
+// dropped on resolution, so a recurrence is a fresh, unacknowledged alert.
 // A STOPPED dispatcher cannot alert about itself: that is what health is for --
 // an external monitor polls it and pages when it returns 503.
 
@@ -21,6 +24,11 @@ import { serviceRest } from "./_service.js";
 export const BACKLOG_ALERT_SECONDS = 300;
 export const ALERT_RESEND_MINUTES = 60;
 export const HEALTH_MAX_AGE_SECONDS = 180;   // a per-minute schedule may miss a run (Vercel: best effort)
+// dispatcher_runs triggers that are real dispatch runs. api/ops.js also records
+// each manual replay there (trigger 'replay') as its audit trail; those rows
+// are NOT runs and must never count as a heartbeat.
+export const RUN_TRIGGERS = ["cron", "nudge", "manual"];
+const RUNS = `trigger=in.(${RUN_TRIGGERS.join(",")})`;
 
 const rows = async (r) => (r && r.ok ? (await r.json().catch(() => [])) || [] : null);
 
@@ -83,16 +91,17 @@ export async function evaluateAlerts(now = Date.now()) {
   const out = {};
   let conds;
   try { conds = await outboxConditions(now); } catch (e) { return { error: String(e.message || e) }; }
-  const existing = (await rows(await serviceRest(`ops_alerts?select=condition,first_seen,last_sent,resolved_at`))) || [];
+  const existing = (await rows(await serviceRest(`ops_alerts?select=condition,first_seen,last_sent,resolved_at,detail`))) || [];
   for (const [condition, { active, detail }] of Object.entries(conds)) {
     try {
       const row = existing.find((x) => x.condition === condition);
       const open = row && !row.resolved_at;
       if (active) {
-        const due = !open || !row.last_sent || now - Date.parse(row.last_sent) >= ALERT_RESEND_MINUTES * 60 * 1000;
+        const ack = open && row.detail && row.detail.acknowledged_at ? { acknowledged_at: row.detail.acknowledged_at, acknowledged_by: row.detail.acknowledged_by || null } : null;
+        const due = !open || (!ack && (!row.last_sent || now - Date.parse(row.last_sent) >= ALERT_RESEND_MINUTES * 60 * 1000));
         let sent = null;
         if (due) sent = await sendOpsEmail(`[MineEx ops] ${condition}`, `Dispatcher alert: ${condition}\n${JSON.stringify(detail)}\nSince: ${open ? row.first_seen : new Date(now).toISOString()}`);
-        const body = { condition, detail, resolved_at: null, ...(open ? {} : { first_seen: new Date(now).toISOString() }), ...(due ? { last_sent: new Date(now).toISOString() } : {}) };
+        const body = { condition, detail: ack ? { ...detail, ...ack } : detail, resolved_at: null, ...(open ? {} : { first_seen: new Date(now).toISOString() }), ...(due ? { last_sent: new Date(now).toISOString() } : {}) };
         await serviceRest(`ops_alerts?on_conflict=condition`, { method: "POST", prefer: "resolution=merge-duplicates,return=minimal", body });
         out[condition] = open ? (due ? "reminded" : "held") : "raised";
         if (sent) out[`${condition}_email`] = sent.emailed ? "sent" : sent.reason || `status ${sent.status}`;
@@ -109,7 +118,7 @@ export async function evaluateAlerts(now = Date.now()) {
 
 /** Liveness for an external monitor: 200 when a run finished recently, else 503. */
 export async function dispatcherHealth(now = Date.now()) {
-  const last = await rows(await serviceRest(`dispatcher_runs?finished_at=not.is.null&select=started_at,finished_at,trigger&order=finished_at.desc&limit=1`));
+  const last = await rows(await serviceRest(`dispatcher_runs?${RUNS}&finished_at=not.is.null&select=started_at,finished_at,trigger&order=finished_at.desc&limit=1`));
   if (last === null) return { status: 503, body: { ok: false, reason: "heartbeat unreadable (is migration 0071 applied?)" } };
   const lastCron = await rows(await serviceRest(`dispatcher_runs?trigger=eq.cron&finished_at=not.is.null&select=finished_at&order=finished_at.desc&limit=1`));
   const ageOf = (r) => (r && r[0] ? Math.round((now - Date.parse(r[0].finished_at)) / 1000) : null);
