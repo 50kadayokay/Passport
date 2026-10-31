@@ -155,8 +155,12 @@ console.log("\n  RETRIES (investor)");
   const c = await send(who.INVESTOR, A.slug, T("unkeyed retry"));
   const d = await send(who.INVESTOR, A.slug, T("unkeyed retry"));
   ok(c.status === 200 && d.body.duplicate === true && (await msgsIn(CONV_A, `&body=eq.${encodeURIComponent(T("unkeyed retry"))}`)).length === 1, "an identical resend with no key inside the window is folded into the first");
-  const rs = await Promise.all(Array.from({ length: 6 }, () => send(who.INVESTOR, A.slug, T("concurrent keyed"), { clientMessageId: k.replace(/.$/, "f") })));
+  // A FRESH key: deriving it from k (as this once did) collided with k ~1 run in 16.
+  const concKey = crypto.randomUUID();
+  const rs = await Promise.all(Array.from({ length: 6 }, () => send(who.INVESTOR, A.slug, T("concurrent keyed"), { clientMessageId: concKey })));
   ok(rs.every((r) => r.status === 200) && (await msgsIn(CONV_A, `&body=eq.${encodeURIComponent(T("concurrent keyed"))}`)).length === 1, "6 CONCURRENT retries sharing one key: stored once, all 200", rs.map((r) => r.status).join(","));
+  const reuse = await send(who.INVESTOR, A.slug, T("different text, same key"), { clientMessageId: k });
+  ok(reuse.status === 409 && reuse.body.error === "idempotency-key-reused" && (await msgsIn(CONV_A, `&body=eq.${encodeURIComponent(T("different text, same key"))}`)).length === 0, "an idempotency key reused for DIFFERENT text -> 409 idempotency-key-reused, nothing stored (was 500)");
 }
 console.log("\n  CONCURRENT FIRST MESSAGES (investor B -> company A, a new thread)");
 {

@@ -133,7 +133,7 @@ async function handleSend(req, res) {
   const attachmentCount = Math.max(0, Math.min(20, parseInt(req.body?.attachments, 10) || 0));
 
   const stored = await insertMessageOnce({ convId: conv.id, sender: "investor", text, clientMessageId: body.clientMessageId });
-  if (!stored.msg) return bad(res, 500, "message-failed");
+  if (!stored.msg) return stored.keyReused ? bad(res, 409, "idempotency-key-reused") : bad(res, 500, "message-failed");
   const msg = stored.msg;
   // A retry of a message already stored: same answer, and the CEO is not
   // emailed a second time.
@@ -228,7 +228,13 @@ export async function insertMessageOnce({ convId, sender, text, clientMessageId 
   const r = await serviceRest("messages", { method: "POST", prefer: "return=representation", body });
   if (r.ok) return { msg: (await readRows(r))[0] || null, duplicate: false };
   // 409: the same key was stored by a concurrent retry. Return that one.
-  if (r.status === 409 && key) { const won = await prior(); if (won) return { msg: won, duplicate: true }; }
+  if (r.status === 409 && key) {
+    const won = await prior();
+    if (won) return { msg: won, duplicate: true };
+    // The key is taken by a message with DIFFERENT text: the client reused an
+    // idempotency key for new content. Refuse clearly rather than 500.
+    return { msg: null, duplicate: false, keyReused: true };
+  }
   return { msg: null, duplicate: false };
 }
 
@@ -286,7 +292,7 @@ async function handleStart(req, res) {
   });
   if (!found.conv) return bad(res, 500, "conversation-failed");
   const stored = await insertMessageOnce({ convId: found.conv.id, sender: "investor", text, clientMessageId: body.clientMessageId });
-  if (!stored.msg) return bad(res, 500, "message-failed");
+  if (!stored.msg) return stored.keyReused ? bad(res, 409, "idempotency-key-reused") : bad(res, 500, "message-failed");
   res.status(200).json({ ok: true, conversation: found.conv, created: found.created, message: stored.msg, duplicate: stored.duplicate });
 }
 

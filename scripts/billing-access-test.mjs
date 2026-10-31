@@ -71,6 +71,10 @@ globalThis.fetch = async (input, init = {}) => {
     const cid = JSON.parse(body || "{}").cid; return json(caller ? caller.roles[cid] ?? null : null);
   }
   if (p === "/rest/v1/profiles") return json(caller ? [{ role: caller.profile }] : []);
+  // This suite runs the webhook as it behaves BEFORE migration 0069b: the
+  // function does not exist, so the handler takes its direct-write path.
+  // scripts/stripe-webhook-test.mjs covers the 0069b path.
+  if (p === "/rest/v1/rpc/stripe_apply_event") return json({ code: "PGRST202", message: "Could not find the function" }, 404);
   if (method !== "GET") DB_WRITES.push({ method, path: p, search: url.search, body: body ? JSON.parse(body) : null });
   return json([], method === "GET" ? 200 : 201);
 };
@@ -180,7 +184,8 @@ const sign = (payload, t = Math.floor(Date.now() / 1000), secret = SECRET) =>
   `t=${t},v1=${crypto.createHmac("sha256", secret).update(`${t}.${payload}`, "utf8").digest("hex")}`;
 async function hook(event, { sig } = {}) {
   mods.webhook = mods.webhook || (await import("../api/stripe-webhook.js")).default;
-  const payload = JSON.stringify(event);
+  // Every real Stripe event carries `created`; the handler now requires it.
+  const payload = JSON.stringify(event.created ? event : { created: Math.floor(Date.now() / 1000), ...event });
   const req = Readable.from([Buffer.from(payload)]);
   Object.assign(req, { method: "POST", headers: { "stripe-signature": sig === undefined ? sign(payload) : sig, "content-type": "application/json" } });
   const res = mkRes(); const before = DB_WRITES.length;
@@ -207,7 +212,7 @@ const session = { id: "cs_test_1", object: "checkout.session", mode: "subscripti
   ok(f.writes.some((w) => w.path === "/rest/v1/company_subscriptions" && w.body.status === "past_due"), "invoice.payment_failed (subscription_details.metadata) -> past_due");
   const u = await hook({ id: "evt_5", type: "invoice.paid", data: { object: { id: "in_2" } } });
   ok(u.status === 200 && u.writes.length === 0, "an event type the handler does not use -> 200, no writes"); }
-{ const e = { id: "evt_6", type: "checkout.session.completed", data: { object: session } }, p = JSON.stringify(e);
+{ const e = { id: "evt_6", type: "checkout.session.completed", created: Math.floor(Date.now() / 1000), data: { object: session } }, p = JSON.stringify(e);
   for (const [label, sig] of [["no signature", ""], ["wrong secret", sign(p, undefined, "whsec_wrong")], ["tampered body", sign(p.replace(A, B))], ["garbage", "t=1,v1=zz"]]) {
     const r = await hook(e, { sig });
     ok(r.status === 400 && r.writes.length === 0, `bad signature (${label}) -> 400, nothing written`);
@@ -217,8 +222,7 @@ const session = { id: "cs_test_1", object: "checkout.session", mode: "subscripti
   ok((await hook(e, { sig: both })).status === 200, "a header carrying Stripe's extra v0 scheme alongside v1 is accepted");
   const rotated = `t=${t},v1=${crypto.createHmac("sha256", SECRET).update(`${t}.${p}`).digest("hex")},v1=${"0".repeat(64)}`;
   const rr = await hook(e, { sig: rotated });
-  console.log(rr.status === 200 ? "  ✓ (secret rotation) two v1 signatures, first valid -> accepted"
-    : "  ~ KNOWN F9: during a webhook-secret ROTATION Stripe sends two v1 signatures; the handler keeps only the LAST, so a valid first one is rejected (tracked with F9)"); }
+  ok(rr.status === 200, "(secret rotation, F9) two v1 signatures, first valid -> accepted"); }
 
 console.log(`\nbilling access: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

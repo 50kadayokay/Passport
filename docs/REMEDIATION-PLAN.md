@@ -1943,3 +1943,345 @@ RLS version.
   saves being silent no-ops (d28).
 - **Deployment order (unchanged):** D20 must reach production before
   migration 0063.
+
+---
+
+## 15 · F9: Stripe webhook replay, rotation, idempotency and ordering, IMPLEMENTED LOCALLY (2026-10-30, uncommitted, not deployed)
+
+D23 was committed as `1dda3d6` before this work began.
+
+### What was wrong (from reading the handler and schema)
+
+| # | Defect | Effect |
+|---|---|---|
+| 1 | `verifySig` never checked the timestamp | A captured, correctly signed event could be replayed **forever** (the KNOWN F9 probe: a day-old event got 200) |
+| 2 | Only the **last** `v1` was kept | During a secret roll Stripe signs with both secrets; a valid first signature was rejected |
+| 3 | The raw body was decoded **chunk by chunk** into a string | A multi-byte character split across chunks changes the bytes and fails verification |
+| 4 | No record of processed event ids | Duplicates and concurrent deliveries are applied again |
+| 5 | No ordering | An older event delivered late overwrote newer state; a replayed "active" could re-activate a cancelled plan |
+| 6 | No binding of company to subscription | An event for **another** subscription carrying a company's id (an old, replaced subscription, for example) could cancel that company's current billing |
+| 7 | Write errors ignored | A failed upsert still returned 200, so Stripe never retried and the change was lost |
+| 8 | `invoice.payment_failed` (no tier) reset `plan_id` to `passport` | A Pro company lost its plan on a failed payment |
+| 9 | Checkout passed Stripe's raw status through | `incomplete` was stored as the portal status, a value nothing else understands |
+
+### Changes
+
+**`api/stripe-webhook.js`** (works with or without the migration):
+1. **Signature over the raw bytes.** Any `v1` may match, each compared in
+   constant time. `v0` is never trusted.
+2. **Timestamp:** within **300 s** either side (Stripe's default). Stripe's
+   own retries are re-signed with a fresh timestamp, so legitimate delivery
+   is unaffected.
+3. **Shape:** an `evt_` id, a type, an integer `created` and an object, or 400.
+4. **Company checks.** The company id must be a UUID. A checkout session
+   must name the **same** company in `metadata.company_id` and
+   `client_reference_id` (both written by `stripe-checkout`), or it is
+   ignored.
+5. **Status mapping.** Every status goes through the same mapping:
+   active/trialing → active, past_due → past_due, else cancelled.
+6. **`stripe_apply_event()` (0069b)** records and applies each event in one
+   transaction. If the function is missing (PGRST202, i.e. 0069b not
+   applied), the handler falls back to the previous direct writes and logs
+   that de-duplication is off.
+7. **Write failures** return 500, so Stripe retries.
+
+**`supabase/migrations/0069b_stripe_events.sql`: PREPARED, NOT APPLIED. Needs your approval.**
+- **New table `stripe_events`.** The event id is the primary key. It is
+  service-role only (RLS on, no policies, privileges revoked from anon and
+  authenticated). This is the durable idempotency key. It holds across
+  serverless instances, because a concurrent insert of the same id waits on
+  the key and then conflicts.
+- **Three nullable columns on `company_subscriptions`** (no default, no
+  backfill): `stripe_subscription_id` (the binding), `stripe_status` (raw;
+  `canceled` is terminal) and `stripe_event_at` (`created` of the last
+  applied event).
+- **`stripe_apply_event()`, one transaction:**
+  1. Claim the event id, else return `duplicate`.
+  2. Lock the company row (serialises that company's events).
+  3. Refuse an event for a subscription the company is not bound to
+     (`other_subscription`). Exceptions: a checkout, which binds, and a
+     `subscription.created` when the bound subscription is no longer active.
+  4. Refuse an older event (`stale`).
+  5. Refuse to revive a canceled subscription (`terminal`).
+  6. Otherwise upsert and bind, and set the tier when active (`applied`).
+  7. An event with no tier keeps the stored plan.
+  8. Any exception rolls back the event row too, so Stripe's retry is
+     processed rather than seen as a duplicate.
+- **Impact:**
+  - `ADD COLUMN … NULL` is metadata-only (no rewrite, brief lock).
+  - Nothing existing reads the new columns; entitlements still read
+    `plan_id` and `status`.
+  - Existing rows have no binding: the first event for a company binds it.
+  - Manual/invoiced rows are untouched unless a Stripe event for that
+    company arrives, exactly as before.
+  - One small row per Stripe event.
+- **Rollback** is in the file header.
+- **Order:** the code is safe to deploy before or after 0069b. De-duplication,
+  ordering and binding start the moment 0069b is applied.
+
+### Tests
+
+| Suite | Result |
+|---|---|
+| **New** `scripts/stripe-webhook-test.mjs` (offline, in `npm test`) | **66 / 66**; details below. **Fails against the old handler** (5 failures, then it crashes) |
+| **New** `scripts/stripe-webhook-sql-check.mjs` (staging, `npm run test:stripe-webhook-sql`) | **25 / 25**; details below |
+| **New** `scripts/stripe-webhook-live-test.mjs` (staging, `npm run test:stripe-webhook-live`) | **19 / 19**; details below |
+| `billing-access-test` | **59 / 59** (was 58 + 1 KNOWN): rotation now asserted; webhook cases run on the pre-0069b path |
+| API suite (staging) | **354 / 2 / 1** (357). F9 resolved; new rotation assertion; payloads now carry `created` and unique ids |
+| Combined database + API | **802 / 2 / 2** (806), 0 unexpected. The new SKIP is `stripe_events` not existing on staging; see below |
+| Live messaging, live Company Memory | 53 / 53, 97 / 97 |
+| `npm test` and build | pass |
+
+**What the offline suite (66) covers:**
+- **Signatures and timestamps:**
+  - ±301 s refused; a day-old event refused; 295 s accepted;
+  - rotation with the first or the second `v1` valid; neither valid refused;
+  - `v0` ignored;
+  - 8 malformed or forged headers, each with nothing recorded;
+  - a multi-byte character split across chunks still verifies.
+- **Malformed events:** 7 shapes refused, plus non-JSON.
+- **Existing behaviour through 0069b:** checkout, past_due, upgrade to Pro,
+  payment failed keeping the plan, deleted, ignored types.
+- **Idempotency and replay:** a duplicate is 200 `{duplicate: true}`; a
+  re-signed redelivery is a duplicate; replaying the old "active" after
+  cancellation is a duplicate and the company stays cancelled; the original
+  hour-old signature is refused.
+- **Concurrency:**
+  - 25 rounds × 10 concurrent deliveries of one event: exactly 1 applied;
+  - 25 rounds × 4 shuffled concurrent updates: the newest always wins.
+- **Out of order:** stale, terminal, a late old checkout, re-binding on a new
+  checkout.
+- **Unrelated companies:** another subscription's delete or payment failure;
+  a mismatched checkout; unknown or malformed company; manual company B
+  never touched; `created` for a second subscription does not steal the
+  binding; legacy unbound rows bind on their first event.
+- **Failed writes:** a mid-transaction failure is 500 and leaves nothing
+  recorded, and the retry is applied.
+- **Pre-0069b path:** applied, with the tolerance and company checks
+  enforced.
+- **Migration file:** pinned.
+
+**What the SQL check (25) covers on staging.** The migration runs inside
+**one transaction that is always rolled back**. The scenarios run as
+`service_role` with service-role JWT claims, as PostgREST does:
+- applied, duplicate (one row), newer, stale, Pro upgrade, plan kept on
+  payment failure;
+- other_subscription, deleted, terminal, re-bind on created, a third
+  subscription refused, unknown company, ignored-but-recorded;
+- manual company B untouched; no event left `pending`;
+- an exception leaves no event row; the `evt_` check constraint holds;
+- anon and authenticated may neither execute the function nor read the
+  table; service_role may execute;
+- **after the rollback, no table, columns or function exist.**
+
+**What the live check (19) covers on staging**, through the local staging
+API with synthetic, locally signed events and no Stripe account:
+- **Signatures:** fresh 200; day-old, −301 s and +400 s refused; rotation
+  with either `v1` valid 200, neither valid refused; tampered body, no
+  signature and malformed events refused.
+- **Billing, read back from the database:** company B's checkout →
+  active/passport/basic, then past_due, payment failed, cancelled.
+- **Unrelated companies:** a mismatched checkout is ignored with neither
+  company changed; a malformed company id is ignored.
+- **Pre-0069b behaviour:** the path is detected as legacy, and the
+  duplicate-within-window limitation is shown.
+- **Boundary:** Stripe was mock only.
+- **Cleanup:** rows and tiers are restored and verified identical.
+
+**Found while testing:** the `company_owner_guard` trigger refuses a tier
+change unless `auth.role()` is `service_role` or a platform admin. Through
+PostgREST with the service key that holds, so the function works for the
+webhook. A direct `postgres` connection without claims would be refused,
+which is relevant to anyone running it by hand.
+
+**Isolation inventory.** `stripe_events` carries a `company_id`, so the
+combined suite now has a **SERVICE_ONLY** category: anon, company users and
+investors must be refused even their own company's rows. Until 0069b is on
+staging this reports **SKIP** ("table not on this database"), never a pass.
+
+### What is NOT done (needs approval)
+
+- **Applying 0069b** to staging (then the live suite exercises the 0069b
+  path end to end, including concurrent deliveries across real
+  connections), and later to production. **Until it is applied,
+  de-duplication, ordering and binding are not active anywhere.** The
+  tolerance, rotation, shape, company cross-check and retry-on-failure
+  changes are active without it.
+- **Not run:** Stripe's official library (not installed; would be a new
+  download) and live Stripe test-mode delivery.
+
+### Still tracked
+
+- **Known failures:** F8, D21.
+- **Next: D22**, reliable press-release publishing (stop for review
+  before implementing).
+- **Also tracked:** F5, F6, F11, d28, d29, profile drafts/approval/versioning
+  (a04, a05), the og-news render skip, the S1 inactive cron row, AI limits
+  (§10, unchanged) and `ai_usage_review.sql` (preserved).
+- **Deployment order:** D20 before migration 0063; 0069b may go before or
+  after the F9 code.
+
+---
+
+## 16 · F9 migration 0069b APPLIED TO STAGING ONLY (2026-10-30), persistent results
+
+**Production: not touched. Nothing pushed, merged, deployed or committed.**
+
+### Preflight (all passed before applying)
+
+| Check | Result |
+|---|---|
+| Target | The connection names `jmljfovtfxcdhjmtlnva` and not the production ref; the runner's allowlist agrees |
+| Database egress | `check:staging-db-egress`: no egress (the one inactive `outbox-drain` row is contained) |
+| Guard suite | `staging-db-guard-test --network`: 48 / 48 |
+| Plan | The runner listed exactly one file, `0069b_stripe_events.sql` |
+| Destructive operations | None: no DROP, DELETE or UPDATE of existing data; `ADD COLUMN … NULL` only |
+| Privileges and exposure | Table: RLS on, no policies, all privileges revoked from public, anon and authenticated. Function: `SECURITY DEFINER` with `search_path = public, pg_temp`; EXECUTE revoked from public, anon and authenticated, granted to service_role only |
+| Existing subscriptions | Snapshot before applying: 2 rows, 24 entitlement cells (12 granted), 2 tiers |
+| Rolled-back dry run | 31 / 31 |
+
+`company_subscriptions` remains readable by that company's members (0005
+`owner_read`). They will see their own subscription's Stripe id and status.
+That is not a credential, and writes stay admin-only.
+
+**First binding (your point 5): one gap found in review and fixed before
+applying.** As first written, the first event for an existing, unbound
+company bound whatever subscription it named. A late `deleted` or
+`payment_failed` for an **old** subscription carrying the company's id could
+therefore cancel the company and set the wrong binding. Now:
+- **Dead checkouts:** a checkout for a subscription that is not live never
+  binds or replaces anything (`dead_checkout`).
+- **First binding by anything but a checkout:**
+  1. The function releases its claim and answers `needs_verification`.
+  2. The handler asks Stripe for the company's **current** subscription: the
+     newest live one, else the newest.
+  3. The handler calls again. An event for any other subscription is recorded
+     as `unverified_binding` and changes nothing.
+  4. If Stripe can't be asked, the first binding is **refused**, never
+     guessed.
+- **An event naming no subscription** can't be attributed and changes nothing.
+
+### Applying, and a staging-runner defect found doing it
+
+`node scripts/apply-migrations.mjs --from 0069b_stripe_events.sql` committed
+the migration, then reported **FAILED** with "SAVEPOINT can only be used in
+transaction blocks".
+
+- **Cause:** the file has its own `begin;` / `commit;`. Its `commit` ended
+  the runner's transaction, so the runner's **pre-commit** egress check (S1)
+  ran after the commit, and its savepoint failed.
+- **Scope:** 56 migration files carry their own begin/commit. For all of
+  them, that in-transaction check has never been effective since S1. The
+  static scan before connecting and the end-state check that refuses a
+  database able to reach the network kept working.
+- **For 0069b:** the static scan had passed. Afterwards, egress was checked
+  and is none, and subscriptions, entitlements and tiers were identical to
+  the snapshot.
+- **Fixed (staging tooling only):**
+  - `runnerBody()` in `scripts/_db-egress.mjs` masks dollar-quoted bodies
+    and comments, then strips a file's single top-level begin/commit, so the
+    runner's own transaction and pre-commit check govern.
+  - Any other transaction control (two transactions, a top-level `ROLLBACK`,
+    a bare `END;`) is refused.
+  - **Tests:** 7 new offline cases (`staging db guard` now 52 offline, 55
+    live).
+  - **Live proof:** a harmless own-transaction probe file applied through
+    the fixed runner reports "ALL 1 APPLIED. Database egress: none".
+
+### Results on staging (persistent schema)
+
+| Suite | Result |
+|---|---|
+| `stripe-webhook-sql-check` (applied mode) | **39 / 39** |
+| `stripe-webhook-live-test` (the real handler via the local staging API, synthetic signed events) | **41 / 41** |
+| `stripe-webhook-test` (offline, in `npm test`) | **81 / 81** |
+| Subscriptions and entitlements after all tests | Identical to the pre-apply snapshot except `updated_at` on company B's row, where the live test's restore fired the existing touch trigger. Entitlements identical; tiers identical; no Stripe binding left on any existing row; no test events left in `stripe_events` |
+| API suite | **354 / 2 / 1** (KNOWN F8, D21) |
+| Combined database + API | **810 / 2 / 1**, 0 unexpected (was 802/2/2). The `stripe_events` SERVICE_ONLY probe moved from SKIP to 8 passing assertions |
+| `npm test`, build, live messaging, live Company Memory, staging db guard (live), db egress | all pass (live messaging 54/54) |
+
+**What the database check (39) covers.** Scenarios run in a rolled-back
+transaction, so no scenario data persists:
+- duplicate, ordering, plan kept on payment failure, other subscription,
+  terminal, re-bind, unknown company;
+- first binding: `needs_verification` with the claim released, then
+  `unverified_binding`, dead checkout, then binding to the proven current
+  subscription;
+- rollback on exception, then retry;
+- privileges for anon, authenticated and service_role.
+
+Real concurrency, committed then restored:
+- 5 rounds × the **same event on 8 separate database connections at once**:
+  exactly 1 applied, 7 duplicates each time;
+- **8 different events with shuffled timestamps on 8 connections**: the
+  newest wins;
+- exactly one `stripe_events` row per distinct event;
+- company A's row and tier restored exactly.
+
+**What the live check (41) covers.** Each step goes through the real
+handler, with results read back from the database:
+- **Signatures:** tolerance (day-old, −301 s, +400 s), rotation either way,
+  tampered, missing, malformed.
+- **Billing:** company B's checkout, past_due, payment failed, cancelled.
+- **Idempotency and concurrency:** re-binding on a new live checkout; a
+  duplicate is 200 `{duplicate:true}`, recorded once; **8 concurrent
+  deliveries through the API: 1 applied, 7 duplicates**.
+- **Ordering and cancellation:** an older event is stale; payment failed
+  keeps Pro; an unbound subscription's delete is `other_subscription`;
+  cancellation applies; **replaying the old "active" after cancellation is a
+  duplicate**; a new "active" for the canceled subscription is `terminal`.
+- **First binding:** an unbound company's unproven delete is
+  `unverified_binding`.
+- **Failed transactions:** a raising call leaves no event row, and the retry
+  is processed.
+- **Privileges:** company owners A and B, an investor, a viewer and anon are
+  refused SELECT on `stripe_events` and EXECUTE on `stripe_apply_event`.
+- **Boundary:** Stripe was mock only.
+- **Cleanup:** verified identical.
+
+**Found and fixed during the reruns (D20 code).** The live messaging suite
+failed intermittently. Its concurrent-retry key was derived from an earlier
+key by replacing the last character with `f`, which collided about 1 run in
+16. That exposed a real defect: an idempotency key reused for different text
+returned **500** `message-failed`. It now returns **409**
+`idempotency-key-reused`, with nothing stored under it. The test uses a fresh
+key. Offline (71) and live (54, run twice) tests now assert the 409.
+
+### Remaining limitations
+
+- **Production:** 0069b is not applied there. Production keeps the legacy
+  path (tolerance, rotation and company checks active; no de-duplication,
+  ordering or binding) until you approve applying it.
+- **First binding on staging:** the Stripe mock's subscription search
+  returns nothing, so first binding by a non-checkout event is only shown
+  refusing (`unverified_binding`). The positive verified path is proven by
+  the database check (with an explicit current subscription) and offline.
+  It has not run against real Stripe search.
+- **Stripe search unavailable** (some accounts, or an outage): a legacy
+  company's first non-checkout event is recorded `unverified_binding` and
+  not applied. A checkout, or an admin setting
+  `company_subscriptions.stripe_subscription_id`, establishes the binding.
+- **Search lag:** search is eventually consistent (up to about a minute). A
+  brand-new subscription's first event could be refused as unverified if
+  search lags. The checkout event binds independently.
+- **Not run:** Stripe's official library and live test-mode delivery.
+- **Commit:** F9 is uncommitted, per your instruction, until you review
+  these results.
+
+### Still tracked
+
+- **Known failures:** F8, D21.
+- **Next: D22** (stop for review before implementing).
+- **Also tracked:** F5, F6, F11, d28, d29, a04/a05 (drafts, approval,
+  versioning), the og-news render skip, the S1 inactive cron row, AI limits
+  (unchanged) and `ai_usage_review.sql` (preserved).
+- **Deployment order:** D20 before 0063. For 0069b, the code is safe either
+  way, and production needs separate approval.
+
+**Before committing F9 (2026-10-30).** The repaired runner was proven live on
+staging against a migration that manages its own transaction and builds an
+HTTP-capable function at runtime from fragments, so the static scan cannot
+see it. The runner found it **inside its transaction**, rolled back and
+refused ("added database egress, rolled back"), and the function does not
+exist on staging afterwards. Before the fix, that file's own `commit;` would
+have committed it ahead of the check, exactly as happened with 0069b.

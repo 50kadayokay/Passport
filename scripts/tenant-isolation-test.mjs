@@ -39,6 +39,7 @@ import { COMPANY_SCOPED, INDIRECTLY_SCOPED, PUBLIC_READABLE,
          COMPANY_SCOPED_RPCS, WRITE_ONLY, USER_SCOPED,
          BUCKETS_PRIVATE, BUCKETS_PUBLIC, SEEDED_OBJECT_ENV, PUBLIC_BY_DESIGN }
   from "./_isolation-targets.mjs";
+import { SERVICE_ONLY } from "./_isolation-targets.mjs";
 import { API_ROUTES } from "./_api-routes.mjs";
 import { runApiSuite } from "./api-authz-test.mjs";
 import fs from "node:fs";
@@ -230,7 +231,8 @@ async function main() {
   // as untested purely because its tenancy is keyed on the user.
   const declared = new Set([...COMPANY_SCOPED.map(([t]) => t),
                             ...INDIRECTLY_SCOPED.map(([t]) => t),
-                            ...USER_SCOPED.map(([t]) => t)]);
+                            ...USER_SCOPED.map(([t]) => t),
+                            ...SERVICE_ONLY.map(([t]) => t)]);
   const found = [...sql.matchAll(/create table if not exists public\.([a-z_]+)\s*\(([\s\S]*?)\n\);/gi)]
     .filter(([, , body]) => /^\s+(company_id|company_slug)\s/m.test(body))
     .map(([, t]) => t);
@@ -312,6 +314,20 @@ async function main() {
              `${r.status} ${rows.length} row(s), ${foreign.length} belonging to someone else`,
              r.status >= 400 || foreign.length === 0 ? "PASS" : "FAIL",
              "user-scoped: company_slug names the company CLAIMED, not the owner");
+    }
+  }
+
+  // ===================== 1b. SERVICE-ROLE ONLY ===========================
+  for (const [table, col] of SERVICE_ONLY) {
+    const probe = await rest(`${table}?select=${col}&limit=1`, { token: null });
+    // PostgREST answers PGRST205 / 404 for a table that is not in its schema.
+    const absent = probe.status === 404 || (probe.body && /PGRST205|Could not find the table/.test(JSON.stringify(probe.body)));
+    if (absent) { record("suite", "SELECT (service-only)", table, "refused", "table not on this database", "SKIP", "migration not applied here yet"); continue; }
+    for (const who of ["anon", "companyA", "investor", "staff"]) {
+      const r = await rest(`${table}?${col}=eq.${ID_A}&select=*`, { token: who === "anon" ? null : tok[who] });
+      expectDenied(who, "SELECT (service-only)", table, r.status, r.body, "no end user may read the ledger, even for their own company");
+      const w = await rest(table, { token: who === "anon" ? null : tok[who], method: "POST", body: { id: `evt_iso_${who}`, type: "x", stripe_created: new Date().toISOString(), outcome: "x" } });
+      expectDenied(who, "INSERT (service-only)", table, w.status, w.body, "nobody but the service role may write it");
     }
   }
 

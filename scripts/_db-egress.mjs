@@ -191,6 +191,41 @@ export function evaluate(report) {
 }
 
 /** What a migration ADDED that can egress: compares two inspections. */
+// A migration file that manages its OWN transaction (56 of them: a top-level
+// `begin;` ... `commit;`) defeats the runner's in-transaction check: the file's
+// commit ends the runner's transaction, so the egress inspection that was meant
+// to run BEFORE commit runs after it (and its savepoint fails). Found applying
+// 0069b, 2026-10-30. The runner now strips the file's own single begin/commit,
+// so the runner's transaction -- and its pre-commit check -- governs. Any other
+// transaction control in a file is refused rather than guessed at.
+// Dollar-quoted bodies ($$ ... $$, $fn$ ... $fn$) and comments are masked out
+// first (same length, newlines kept), so plpgsql's own BEGIN / END; inside a
+// function is never mistaken for transaction control.
+function maskSql(sql) {
+  const keepNl = (m) => m.replace(/[^\n]/g, " ");
+  return String(sql)
+    .replace(/\$([A-Za-z_][A-Za-z0-9_]*)?\$[\s\S]*?\$\1\$/g, keepNl)
+    .replace(/\/\*[\s\S]*?\*\//g, keepNl)
+    .replace(/--[^\n]*/g, keepNl);
+}
+const TX_LINE = /^[ \t]*(begin|start[ \t]+transaction|commit|end|rollback|abort)(?:[ \t]+(?:work|transaction))?[ \t]*;[ \t]*$/gim;
+export function runnerBody(sql) {
+  const src = String(sql), masked = maskSql(src);
+  const hits = [...masked.matchAll(TX_LINE)].map((m) => ({ at: m.index, len: m[0].length, kw: m[1].toLowerCase().replace(/\s+/g, " ") }));
+  const begins = hits.filter((h) => h.kw === "begin" || h.kw === "start transaction").length;
+  const commits = hits.filter((h) => h.kw === "commit").length;
+  const other = hits.filter((h) => !["begin", "start transaction", "commit"].includes(h.kw));
+  if (begins > 1 || commits > 1 || other.length) {
+    throw new Error(`unexpected transaction control in migration (begin x${begins}, commit x${commits}${other.length ? `, ${other.map((h) => h.kw).join("/")}` : ""}); apply it by hand`);
+  }
+  let out = src;
+  for (const h of hits.sort((x, y) => y.at - x.at)) {
+    const line = src.slice(h.at, h.at + h.len);
+    out = out.slice(0, h.at) + `-- [runner] ${line.trim()} (the runner's transaction governs)` + out.slice(h.at + h.len);
+  }
+  return out;
+}
+
 export function newEgress(before, after) {
   const was = new Map(before.cronJobs.map((j) => [j.jobid, j]));
   const added = [];

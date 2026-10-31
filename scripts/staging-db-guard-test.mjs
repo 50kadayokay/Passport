@@ -11,7 +11,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
-import { scanMigrationSql, prepareForStaging, STAGING_TRANSFORMS, MigrationEgressError, evaluate, newEgress, sha256, stripSqlComments } from "./_db-egress.mjs";
+import { scanMigrationSql, prepareForStaging, STAGING_TRANSFORMS, MigrationEgressError, evaluate, newEgress, sha256, stripSqlComments, runnerBody } from "./_db-egress.mjs";
 
 let pass = 0, fail = 0;
 const ok = (c, m, d = "") => { if (c) { pass++; console.log(`  ✓ ${m}`); } else { fail++; console.error(`  ✗ ${m}${d ? `\n      ${d}` : ""}`); } };
@@ -83,7 +83,7 @@ r = runDry(copy({ "0099_webhook.sql": "create trigger t after insert on public.p
 ok(r.status === 2, "a migration adding a database webhook is refused before connecting");
 fs.rmSync(tmp, { recursive: true, force: true });
 const runnerSrc = fs.readFileSync("scripts/apply-migrations.mjs", "utf8");
-ok(/await client\.query\(sql\);\s*\/\/[\s\S]{0,300}?newEgress\(before, await inspectDatabase\(client, \{ inTransaction: true \}\)\)[\s\S]{0,200}?await client\.query\("commit"\)/.test(runnerSrc),
+ok(/await client\.query\(runnerBody\(sql\)\);\s*\/\/[\s\S]{0,300}?newEgress\(before, await inspectDatabase\(client, \{ inTransaction: true \}\)\)[\s\S]{0,200}?await client\.query\("commit"\)/.test(runnerSrc),
    "the runner checks for new egress INSIDE the transaction, before commit (dynamic jobs are rolled back)");
 ok(/evaluate\(await inspectDatabase\(client\)\)/.test(runnerSrc) && /evaluate\(await inspectDatabase\(c\)\)/.test(fs.readFileSync("scripts/seed-isolation-fixtures.mjs", "utf8")),
    "the runner and the seeder both refuse to finish on a database that can reach the network");
@@ -129,6 +129,34 @@ if (process.argv.includes("--network")) {
     await c.query("rollback"); await c.end();
     ok(alive && Array.isArray(rep.cronJobs) && rep.cronJobs.length >= 1, "a failing probe inside a transaction is undone by its savepoint; the transaction stays usable (read-only, live)");
   }
+}
+
+// ---- the runner's transaction governs (found applying 0069b) -----------------
+console.log("\n  RUNNER TRANSACTION: a file's own begin/commit cannot end the runner's transaction");
+{
+  const files = fs.readdirSync("supabase/migrations").filter((f) => f.endsWith(".sql"));
+  let own = 0, broken = [];
+  for (const f of files) {
+    const sql = fs.readFileSync(`supabase/migrations/${f}`, "utf8");
+    if (/^[ \t]*begin[ \t]*;/im.test(sql)) own++;
+    try {
+      const body = runnerBody(sql);
+      if (/^[ \t]*(begin|commit)[ \t]*;/im.test(body)) broken.push(f);
+    } catch (e) { if (!/0055_enable_device_push/.test(f)) broken.push(`${f}: ${e.message}`); }
+  }
+  ok(own > 0 && broken.length === 0, `every migration with its own begin/commit (${own}) is reduced to a body with neither`, broken.join("; "));
+  const plpgsql = "begin;\ncreate function f() returns void language plpgsql as $$\nbegin\n  perform 1;\nend;\n$$;\ncommit;\n";
+  const b = runnerBody(plpgsql);
+  ok(/\nbegin\n  perform 1;\nend;\n/.test(b) && !/^begin;/m.test(b) && !/^commit;/m.test(b), "plpgsql BEGIN ... END; inside a function body is left alone");
+  let refused = false; try { runnerBody("begin;\nselect 1;\ncommit;\nbegin;\nselect 2;\ncommit;\n"); } catch { refused = true; }
+  ok(refused, "two transactions in one file -> refused (apply by hand)");
+  refused = false; try { runnerBody("begin;\nselect 1;\nrollback;\n"); } catch { refused = true; }
+  ok(refused, "a top-level ROLLBACK -> refused");
+  refused = false; try { runnerBody("begin;\nselect 1;\nend;\n"); } catch { refused = true; }
+  ok(refused, "a top-level END; (which commits) -> refused");
+  ok(runnerBody("create table t (id int);\n") === "create table t (id int);\n", "a file with no transaction control is unchanged");
+  const runner = fs.readFileSync("scripts/apply-migrations.mjs", "utf8");
+  ok(/await client\.query\("begin"\);[\s\S]{0,200}await client\.query\(runnerBody\(sql\)\);[\s\S]*inTransaction: true[\s\S]*await client\.query\("commit"\)/.test(runner), "the runner applies runnerBody(sql) inside its own transaction, inspects, then commits");
 }
 
 console.log(`\nstaging db guard: ${pass} passed, ${fail} failed`);

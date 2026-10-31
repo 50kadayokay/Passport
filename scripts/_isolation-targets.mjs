@@ -20,6 +20,16 @@ export const WRITE_ONLY = new Set(["listing_reports"]);
 // company-scoped made the suite read a claim company A had filed about
 // company B and call it a leak. The real property is asserted separately:
 // one user must not read another user's claims.
+// SERVICE-ROLE ONLY. Carries a company_id for bookkeeping, but no end user may
+// read or write it at all: RLS on, no policies, every privilege revoked from
+// anon and authenticated. stripe_events (0069b, F9) is the webhook's
+// idempotency ledger. Asserted: anon, company users and investors are refused
+// even their "own" company's rows. Where the migration is not applied yet the
+// suite reports SKIP, never a pass.
+export const SERVICE_ONLY = [
+  ["stripe_events", "company_id"],
+];
+
 export const USER_SCOPED = [
   ["company_claims", "user_id", "company_slug"],
 ];

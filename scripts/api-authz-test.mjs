@@ -401,7 +401,8 @@ export async function runApiSuite({ api, tok, env, record, headers: extraHeaders
   {
     const secret = env.STRIPE_WEBHOOK_SECRET;
     // An event type the handler ignores, so a valid delivery changes nothing.
-    const payload = JSON.stringify({ id: "evt_iso", type: "invoice.paid", data: { object: { id: "in_iso" } } });
+    // A unique id per run: with migration 0069b a repeated id is a duplicate.
+    const payload = JSON.stringify({ id: `evt_iso_${crypto.randomBytes(6).toString("hex")}`, type: "invoice.paid", created: Math.floor(Date.now() / 1000), data: { object: { id: "in_iso" } } });
     const sign = (t, p = payload, s = secret) => `t=${t},v1=${crypto.createHmac("sha256", s).update(`${t}.${p}`).digest("hex")}`;
     const hook = (sig) => call("stripe-webhook", { method: "POST", raw: payload }, null, { "content-type": "application/json", ...(sig ? { "stripe-signature": sig } : {}) });
     const now = Math.floor(Date.now() / 1000);
@@ -412,12 +413,15 @@ export async function runApiSuite({ api, tok, env, record, headers: extraHeaders
       for (const [label, sig] of [["no signature", null], ["wrong secret", sign(now, payload, "whsec_wrong")], ["tampered body", sign(now, payload.replace("in_iso", "in_x"))], ["garbage header", "t=1,v1=zz"]]) {
         const r = await hook(sig);
         put("anon", "stripe-webhook", "/api/stripe-webhook", "400 Invalid signature", r,
-            r.status === 400 && /Invalid signature/.test(String(r.body)) && good.status === 200 ? "PASS" : r.status === 200 ? "FAIL" : "SKIP", label);
+            r.status === 400 && /Invalid signature|Timestamp outside tolerance/.test(String(r.body)) && good.status === 200 ? "PASS" : r.status === 200 ? "FAIL" : "SKIP", label);
       }
       // Stripe's own guidance: reject events older than 5 minutes (replay).
       const old = await hook(sign(now - 86400));
       put("anon", "stripe-webhook", "/api/stripe-webhook", "refused: a day-old signed event (replay)", old,
-          old.status === 400 ? "PASS" : old.status === 200 ? "FAIL" : "SKIP", old.status === 200 ? "KNOWN F9: no timestamp tolerance -- replay accepted" : "");
+          old.status === 400 && /Timestamp outside tolerance/.test(String(old.body)) ? "PASS" : old.status === 200 ? "FAIL" : "SKIP", "F9: 5-minute tolerance");
+      // F9: during a secret roll Stripe signs with both secrets; either v1 may be the valid one.
+      const rot = await hook(`t=${now},v1=${crypto.createHmac("sha256", "whsec_rotated_out").update(`${now}.${payload}`).digest("hex")},v1=${crypto.createHmac("sha256", secret).update(`${now}.${payload}`).digest("hex")}`);
+      put("stripe", "stripe-webhook", "/api/stripe-webhook", "200: two v1 signatures, the second valid (secret rotation)", rot, rot.status === 200 ? "PASS" : rot.status === 400 ? "FAIL" : "SKIP", "F9");
 
       // ROUND TRIP against the real staging database, no live Stripe: a signed
       // checkout.session.completed shaped exactly as stripe-checkout stamps it, then
@@ -433,13 +437,13 @@ export async function runApiSuite({ api, tok, env, record, headers: extraHeaders
         const send = (event) => { const p = JSON.stringify(event); const t = Math.floor(Date.now() / 1000);
           return call("stripe-webhook", { method: "POST", raw: p }, null, { "content-type": "application/json", "stripe-signature": sign(t, p) }); };
         const meta = { company_id: c.id.B, tier: "basic" };
-        const done = await send({ id: `evt_iso_${crypto.randomUUID()}`, type: "checkout.session.completed",
+        const done = await send({ id: `evt_iso_${crypto.randomUUID().replace(/-/g, "")}`, type: "checkout.session.completed", created: Math.floor(Date.now() / 1000),
           data: { object: { id: "cs_iso", object: "checkout.session", mode: "subscription", subscription: "sub_iso_B", client_reference_id: c.id.B, metadata: meta } } });
         const after1 = await readB();
         put("stripe", "stripe-webhook live", "/api/stripe-webhook", "checkout.session.completed -> B active on passport, tier basic", done,
             done.status === 200 && after1.sub && after1.sub.status === "active" && after1.sub.plan_id === "passport" && after1.sub.note === "stripe" && after1.tier === "basic" ? "PASS" : done.status >= 500 ? "SKIP" : "FAIL",
             `read back as B's owner: ${JSON.stringify(after1)}`);
-        const del = await send({ id: `evt_iso_${crypto.randomUUID()}`, type: "customer.subscription.deleted",
+        const del = await send({ id: `evt_iso_${crypto.randomUUID().replace(/-/g, "")}`, type: "customer.subscription.deleted", created: Math.floor(Date.now() / 1000) + 1,
           data: { object: { id: "sub_iso_B", object: "subscription", status: "canceled", metadata: meta } } });
         const after2 = await readB();
         put("stripe", "stripe-webhook live", "/api/stripe-webhook", "customer.subscription.deleted -> B cancelled", del,

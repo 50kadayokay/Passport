@@ -27,7 +27,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import pg from "pg";
-import { prepareForStaging, MigrationEgressError, inspectDatabase, newEgress, evaluate } from "./_db-egress.mjs";
+import { prepareForStaging, MigrationEgressError, inspectDatabase, newEgress, evaluate, runnerBody } from "./_db-egress.mjs";
 
 // MIGRATIONS_DIR exists for tests only (scripts/staging-db-guard-test.mjs points
 // the runner at a temporary copy to prove it refuses). Every safety check below
@@ -160,7 +160,9 @@ for (const f of files) {
     } else {
       const before = await inspectDatabase(client);
       await client.query("begin");
-      await client.query(sql);
+      // The file's own begin/commit is stripped: otherwise its commit would end
+      // this transaction before the egress check below (runnerBody, _db-egress).
+      await client.query(runnerBody(sql));
       // Checked INSIDE the transaction, before commit: a job built at runtime
       // (EXECUTE format(...)) escapes the static scan but not this. Rolled back.
       const added = newEgress(before, await inspectDatabase(client, { inTransaction: true }));

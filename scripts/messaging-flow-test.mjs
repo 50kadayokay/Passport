@@ -252,6 +252,8 @@ reset("post0063");
   ok(messages.find((m) => m.body === "Keyed").email_id.startsWith("client:"), "the key is stored under the 'client:' prefix (cannot collide with a Postmark MessageID)");
   const c = await send(USERS.investor, "iso-alpha", "Keyed", { clientMessageId: uuid() });
   ok(!c.res.body.duplicate && messages.filter((m) => m.body === "Keyed").length === 2, "a NEW key for the same text is a deliberate second message");
+  const reuse = await send(USERS.investor, "iso-alpha", "Different text", { clientMessageId: k });
+  ok(reuse.res.statusCode === 409 && reuse.res.body.error === "idempotency-key-reused" && !messages.some((m) => m.body === "Different text" && m.email_id), "an idempotency key reused for DIFFERENT text -> 409 idempotency-key-reused (was 500), nothing stored under it");
   const d = await send(USERS.investor, "iso-alpha", "bad key", { clientMessageId: "not-a-uuid'); drop" });
   ok(d.res.statusCode === 200 && messages.find((m) => m.body === "bad key").email_id === null, "a malformed key is ignored, never stored");
 }
