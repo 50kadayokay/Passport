@@ -149,6 +149,16 @@ export const API_ROUTES = [
     req: (c, X) => post({ companyId: c.id[X], fields: { companyStatus: { statusHeadline: "iso probe" } } }),
     passed: (r) => r.status === 400 && r.body && r.body.error === "baseUpdatedAt-required",
     matrix: BILLING },
+  // a04 / d28 (0072): profile drafts. Read-only probe (load); saves, publish and
+  // discard are exercised by scripts/profile-draft-live-test.mjs. Before 0072 is
+  // applied an admitted caller gets 503 (the database function is missing) --
+  // reached only AFTER the role gate.
+  { name: "profile-draft", methods: ["POST"], guard: "verifyBearer + my_company_role in (owner, admin, editor) [publish: owner, admin] or platform admin; then 0072 functions re-check",
+    source: /const allowed = action === "publish" \? PUBLISH_ROLES : DRAFT_ROLES;[\s\S]*callerIsPlatformAdmin\(token\)/,
+    req: (c, X) => post({ action: "load", companyId: c.id[X] }),
+    passed: (r) => (r.status === 200 && r.body && r.body.ok === true) || (r.status === 503 && /0072/.test(JSON.stringify(r.body || ""))),
+    matrix: { "anon": "deny", "companyA>A": "allow", "coadmin>A": "allow", "editor>A": "allow", "admin>B": "allow",
+              "publisher>A": "deny", "staff>A": "deny", "investor>A": "deny", "companyA>B": "deny", "coadmin>B": "deny" } },
 
   // ------------------------------------------------------------- admin only --
   { name: "build-from-website", methods: ["POST"], guard: "requireAiCaller(adminOnly)", source: aiGuardPin("build-from-website", ", adminOnly: true \\}"),

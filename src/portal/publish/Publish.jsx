@@ -28,6 +28,9 @@ export default function Publish({ company, startIn = null, go = () => {}, view =
   // the library are one screen rather than two.
   // A file dropped on Home arrives as a prop; one dropped here is set locally.
   // Both end up in the same place, so there is one upload path, not two.
+  // (D25: this state was used but never declared, so leaving the review screen
+  // threw a ReferenceError and a file dropped here never reached the upload.)
+  const [handoff, setHandoff] = useState(null);
   const [dropErr, setDropErr] = useState("");
   const [dragOver, setDragOver] = useState(false);
   // Releases published during THIS visit, so their new cards are findable in a
@@ -78,6 +81,7 @@ export default function Publish({ company, startIn = null, go = () => {}, view =
       <CreateRelease
         company={company}
         draftId={editing}
+        initialFile={editing ? null : handoff}
         onExit={() => { setEditing(null); setTab(null); setHandoff(null); refresh(); }}
         onPublished={(id) => {
           if (id) setJustPublished((prev) => (prev.includes(id) ? prev : [...prev, id]));

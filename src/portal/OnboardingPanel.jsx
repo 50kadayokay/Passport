@@ -46,7 +46,9 @@ export default function OnboardingPanel({ company, go, goProfile, onPublished, c
         agreement_required: "Please accept the company agreement first.",
         subscription_required: "An active plan is required before going live.",
         profile_incomplete: "Add at least your company name before going live.",
-        forbidden: "Only the company owner can publish this profile.",
+        // d29 (0072): owner / company admin / MineEx admin, checked by the database.
+        forbidden: "Only the company's owner or an admin can take the profile live. Ask them to publish it.",
+        signin: "Your session has expired. Sign in again.",
       };
       setPublishErr(map[r && r.error] || "Couldn't publish. Please try again.");
     }

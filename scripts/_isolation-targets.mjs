@@ -28,6 +28,9 @@ export const WRITE_ONLY = new Set(["listing_reports"]);
 // suite reports SKIP, never a pass.
 export const SERVICE_ONLY = [
   ["stripe_events", "company_id"],
+  // 0072 (a04/d28): unpublished profile drafts. Reached only through
+  // api/profile-draft.js (service role, after a role check); never public.
+  ["company_profile_drafts", "company_id", () => ({ company_id: process.env.ISOLATION_COMPANY_A_ID, draft: { pp: {}, projects: [] }, base_fingerprint: "probe" })],
 ];
 
 export const USER_SCOPED = [
@@ -220,6 +223,13 @@ export const COMPANY_SCOPED_RPCS = [
   // 0071 (proposed, D22): service-role only, like upsert_timeline_entry.
   ["remove_timeline_entry",         { p_key: "pub:probe" },     "internal"],
   ["actor_can_publish",             { p_actor: NIL_UUID },      "internal"],
+  // 0072 (a04/d28): service-role only; api/profile-draft.js passes the verified
+  // caller as p_actor and each function re-checks that actor's role.
+  ["profile_actor_role",            { p_actor: NIL_UUID },      "internal"],
+  ["load_profile_draft",            { p_actor: NIL_UUID },      "internal"],
+  ["save_profile_draft",            { p_actor: NIL_UUID, p_draft: { pp: {}, projects: [] }, p_expected_version: null, p_base_fingerprint: "probe" }, "internal"],
+  ["publish_profile_draft",         { p_actor: NIL_UUID, p_expected_version: 1 }, "internal"],
+  ["discard_profile_draft",         { p_actor: NIL_UUID, p_expected_version: 1 }, "internal"],
   ["admin_set_billing",             { p_tier: null, p_status: "active", p_renews_at: null }, "admin-only"],
 ];
 

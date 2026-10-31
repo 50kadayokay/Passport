@@ -257,7 +257,7 @@ function MediaTile({ asset, selected, onToggle, order = -1, total = 0, caption =
 
 /* ---------------------------------------------------------------- main */
 
-export default function CreateRelease({ company, draftId, onExit, onPublished }) {
+export default function CreateRelease({ company, draftId, onExit, onPublished, initialFile = null }) {
   const companyId = company?.id;
   // A file handed over from the library's dropzone starts in `working`, not
   // `upload`: the person has already chosen it, so showing them an empty
@@ -395,6 +395,13 @@ export default function CreateRelease({ company, draftId, onExit, onPublished })
       carousel,
     ));
   };
+
+  // A file dropped on the library (Publish.jsx hands it over): ingest it once,
+  // through the same path as a drop on this screen. handleFile's own guard
+  // stops a second ingest if this effect runs again.
+  useEffect(() => {
+    if (initialFile && !draftId) handleFile(initialFile);
+  }, [initialFile]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Reopen an existing draft.
   useEffect(() => {

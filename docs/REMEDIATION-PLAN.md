@@ -3167,3 +3167,236 @@ too. This dates from `df931e5`.
    interim `dispatcher_runs` rows.
 
 **Uncommitted:** all of Phase 4. Awaiting your review.
+
+## 22 · a04 / d28 / d29 profile drafts, and D25: IMPLEMENTED LOCALLY, 0072 PREPARED (2026-10-31; uncommitted; 0072 NOT applied)
+
+D22 Phase 4 was committed as `d5dfe07`.
+
+### Approved policy (2026-10-31)
+
+- **Draft** (create, edit, save, preview, discard): the owner, a company admin
+  or an editor, plus platform admins.
+- **Publish** profile changes **and take a company live**: the owner, a company
+  admin, or a platform admin.
+- Publishers, analysts and viewers can do neither.
+- **Company Memory rebuild** (D23) still saves directly to the live profile
+  (unchanged). A draft publish refuses (`live_changed`) if a rebuild changed the
+  live editor fields in the meantime.
+- **Intentional administrative exception:** the Mission Control concierge
+  editor (`src/admin/ProfileEditor.jsx`) still writes the live profile
+  directly. This is approved for now.
+
+### Design
+
+Drafts **cannot** live in `companies.profile`: anon holds SELECT on that whole
+column (0061b, confirmed on staging).
+
+**Migration 0072** (`supabase/migrations/0072_profile_drafts.sql`, rollback in
+`supabase/rollbacks/`):
+
+| Object | What it does |
+|---|---|
+| `company_profile_drafts` | One draft per company. Holds only `{projects, pp}`, plus a version, the live fingerprint it started from, and who changed it and when. RLS on, with no client grants: service role only. |
+| `profile_actor_role()` | The caller's role in the company. |
+| `profile_editor_fingerprint()` | md5 of the live `projects` and `pp`. Timeline is deliberately excluded. |
+| `load_profile_draft()`, `save_profile_draft()`, `publish_profile_draft()`, `discard_profile_draft()` | SECURITY DEFINER, service role only, and each **re-checks the actor's role**. |
+| `company_go_live` | Identical to 0035 except the authorisation line: owner, company admin or platform admin, instead of `owns_company()` (d29). |
+
+**Publish is one function, so one transaction.** It:
+1. snapshots the live profile into `company_profile_versions` (0013);
+2. replaces **only** `projects` and `pp` on the **current** live row, so
+   timeline entries and other services' fields are preserved;
+3. appends to `activity_log` (0006);
+4. deletes the draft.
+
+**`api/profile-draft.js`:** verifies the session, checks the role as the caller
+(fast and explicit), then calls the 0072 function with the verified user as
+`p_actor`. Database refusals map to explicit HTTP errors:
+
+| Error | HTTP |
+|---|---|
+| `forbidden` | 403 |
+| `stale_draft`, `stale_base`, `draft_missing`, `no_draft`, `live_changed` | 409 |
+| `invalid` | 400 |
+| `too_large` | 413 |
+| 0072 missing | 503 |
+
+**Portal editor:**
+- loads through the route;
+- **Save draft** never touches the live profile;
+- **Publish changes** (shown only to roles that can publish) and **Discard
+  draft**;
+- labels for "Live profile", "Unpublished draft" and "Unsaved changes";
+- the preview is labelled "Draft preview — not public";
+- conflicts are explained, with a Reload action;
+- a refused user sees "You can't edit this profile" (d28: no fake "Saved ✓").
+
+The go-live refusal text now names the approved roles.
+
+### d28 notes
+
+`src/lib/publish.js`'s profile write, named in d28, has **no callers**: it is
+dead code.
+
+### D25: fixed
+
+`Publish.jsx` declares the handoff state. A file dropped on the library is
+passed to `CreateRelease`, which ingests it through `handleFile` (one upload
+path, guarded against a double ingest). New check:
+`scripts/undeclared-setter-test.mjs`. It scans `src/` for `setX(` calls with no
+declaration, and fails on the old `Publish.jsx`.
+
+**Browser test on a staging bundle (company A owner):**
+- Opening a release and pressing its back control returns to the library with
+  no error; this threw before.
+- A file dropped on the library now reaches the upload pipeline; before, it
+  opened an empty upload page.
+
+### D26 · NEW, found by the D25 drop test, not fixed (outside this batch)
+
+**Every press-release upload fails on staging** at "Could not save the source
+text".
+- `storeTranscript()` (`src/lib/sourceTranscript.js`) posts with
+  `Prefer: resolution=merge-duplicates`.
+- PostgREST runs that as `INSERT … ON CONFLICT DO UPDATE`, which needs UPDATE.
+- 0053 revoked UPDATE from `authenticated`, on purpose, because transcripts are
+  immutable evidence.
+
+Whether production has 0053 is unknown; the production audit is pending. If it
+does, uploads are broken there too.
+
+Likely fix: `resolution=ignore-duplicates`, then read back the existing row. A
+client change, no migration.
+
+**Residue on staging (append-only by design):** 2 `documents` rows
+(`d25-live-drop-test.txt`) and their 2 failed `extraction_attempts` rows. The
+storage objects were removed.
+
+### Tests so far
+
+| Suite | Result |
+|---|---|
+| `profile-drafts-0072-check` (staging, ONE rolled-back transaction) | **78/78** |
+| `profile-draft-test` (offline, real route, stub Supabase) | 66/66; mutation check: admitting editors to publish fails 3 |
+| `undeclared-setter-test` | 4/4; fails on the old `Publish.jsx` |
+| `npm test`, build | pass |
+| API authz suite | 376 / 2 / 1 (+12 for `/api/profile-draft`; KNOWN F8, D21; 0 unexpected) |
+
+**What the rolled-back check proved:**
+- permissions: drafts are unreachable by anon and authenticated, even
+  directly;
+- every role in the approved policy, for load, save, publish, discard and
+  go-live;
+- the draft never changes the live profile or its `updated_at`, and anon never
+  sees it;
+- version compare-and-set (stale tab, double first save, a draft that
+  disappeared);
+- draft recovery on reload;
+- a forced mid-publish failure leaves the live profile, the snapshots and the
+  draft untouched;
+- publish preserves a timeline entry written meanwhile, and every other key;
+- a snapshot and an audit row are written;
+- `live_changed` when a rebuild altered the live fields;
+- discard;
+- the rollback file restores 0035's `company_go_live` exactly;
+- nothing persisted afterwards.
+
+**Not yet tested** (needs 0072 on staging):
+- truly concurrent saves from two connections;
+- the route and the editor against the real functions;
+- the full browser workflow: draft, preview, publish, unauthorized roles,
+  conflict recovery.
+
+**Next:** your approval to apply 0072 to STAGING only. Then live tests, the
+browser workflow, and the matrix.
+
+### 22b · 0072 APPLIED TO STAGING ONLY (2026-10-31), persistent results
+
+**Target:** `jmljfovtfxcdhjmtlnva`, via the guarded runner
+(`--from 0072_profile_drafts.sql`, 1 file). Database egress: none. Production
+is untouched.
+
+**Pre/post snapshot** (`scripts/profile-drafts-snapshot.mjs`, read-only). The
+diff is exactly:
+- `company_go_live` redefined;
+- six functions added. Five are service-role only; `profile_editor_fingerprint`
+  is executable by everyone, but it is a pure md5 of its argument and reads no
+  table;
+- `company_profile_drafts` created, with service-role grants only.
+
+Every company's profile content, status, timeline and editor fields are
+unchanged. `company_profile_versions` and `activity_log` are unchanged, and so
+are all policies, the anon column grants on `companies`, and the
+`companies`, versions and activity grants.
+
+One false alarm: the first compare flagged `updated_at` on both companies. The
+compare had matched a JSON ISO string against `String(Date)`; the timestamps
+were identical. The tool was fixed to compare instants.
+
+**Applied-mode check** (`--pre` snapshot, rolled back): **77/77**. The rollback
+rehearsal restores 0035's `company_go_live` exactly, and was itself rolled back.
+
+**Live test** (`scripts/profile-draft-live-test.mjs`, real fixture users,
+staging harness, two DB connections): **61/61**.
+- **Roles:** owner, company admin, editor and platform admin load; publisher,
+  analyst, viewer, investor and another company get 403; signed out gets 401.
+  Saves and discards are refused for the five disallowed roles. Publish is
+  refused for editor, publisher, viewer and another company.
+- **Simultaneous API saves:** 5 at once; exactly one is accepted, and the
+  stored draft is the winner's (no mixed writes).
+- **Simultaneous publishes:** 3 at once; exactly one succeeds, with one
+  snapshot and one audit row. The timeline entry written meanwhile is
+  preserved, and every other key is unchanged.
+- **Two connections:**
+  - simultaneous first saves: one is created, the other gets `stale_draft`;
+  - a save during an open publish **waited about 1.6 s**, then got
+    `draft_missing`;
+  - simultaneous publishes: one succeeds, the other gets `no_draft`, and only
+    the winner writes a snapshot.
+- **Company Memory rebuild** (`/api/memory-save`, direct to live as approved)
+  succeeds. The draft is then flagged stale, and publishing returns 409
+  `live_changed`; the rebuild is not overwritten.
+- **Discard** is role-gated and version-checked.
+- **Go-live:** editor, publisher, analyst, viewer, another company and an
+  investor get `forbidden`; owner, company admin and platform admin are
+  admitted.
+- **Concierge exception:** a platform admin's snapshot plus direct PATCH still
+  works and is immediately live. A company admin's direct PATCH still matches
+  0 rows (RLS unchanged), and the portal no longer uses that path.
+- **Cleanup:** company A's profile content was restored identically, company B
+  was untouched, and no drafts, versions or activity rows were left.
+
+**Browser workflow** (staging bundle, loopback, sessions set server-side):
+1. Editor opens the editor: "Live profile"; Save draft is disabled until a
+   change; no Publish button.
+2. Edits the name: "Unsaved changes", and the preview "Draft preview — not
+   public" shows the new name.
+3. Save draft: "Unpublished draft", with "The owner or an admin can review and
+   publish it". In the database the live profile is unchanged and the draft is
+   version 1.
+4. Reload: the draft comes back.
+5. Stale tab: tab B (still on version 1) saves after tab A. It gets "Someone
+   else saved this draft…" with a Reload action, its typed edits are kept, and
+   the stored draft stays tab A's version 2.
+6. Viewer and publisher see "You can't edit this profile", with no draft
+   content.
+7. Owner sees the editor's draft and publishes. The confirm dialog appears;
+   the notice reads "Published. Investors now see these changes."; anon now
+   sees the new name; one snapshot and one audit row exist.
+8. Owner edits, saves, then discards: back to "Live profile"; the live profile
+   is untouched and the discard is audited.
+
+No new console errors. The editor header now wraps on narrow screens (found in
+step 1, fixed).
+
+**Suites:**
+
+| Suite | Result |
+|---|---|
+| `npm test`, build | pass |
+| API authz | 376 / 2 / 1 (KNOWN F8, D21; 0 unexpected) |
+| Combined isolation | 876 / 2 / 1 |
+
+The isolation inventory now classifies `company_profile_drafts` as service-only
+(its insert probe uses the table's real columns, so a refusal is a permission
+refusal) and the five functions as internal.

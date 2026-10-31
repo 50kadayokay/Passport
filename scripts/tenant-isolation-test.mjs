@@ -318,7 +318,7 @@ async function main() {
   }
 
   // ===================== 1b. SERVICE-ROLE ONLY ===========================
-  for (const [table, col] of SERVICE_ONLY) {
+  for (const [table, col, probeRow] of SERVICE_ONLY) {
     const probe = await rest(`${table}?select=${col}&limit=1`, { token: null });
     // PostgREST answers PGRST205 / 404 for a table that is not in its schema.
     const absent = probe.status === 404 || (probe.body && /PGRST205|Could not find the table/.test(JSON.stringify(probe.body)));
@@ -326,7 +326,10 @@ async function main() {
     for (const who of ["anon", "companyA", "investor", "staff"]) {
       const r = await rest(`${table}?${col}=eq.${ID_A}&select=*`, { token: who === "anon" ? null : tok[who] });
       expectDenied(who, "SELECT (service-only)", table, r.status, r.body, "no end user may read the ledger, even for their own company");
-      const w = await rest(table, { token: who === "anon" ? null : tok[who], method: "POST", body: { id: `evt_iso_${who}`, type: "x", stripe_created: new Date().toISOString(), outcome: "x" } });
+      // A row with this table's real columns, so the refusal is a PERMISSION
+      // refusal and not a 400 for an unknown column (which proves nothing).
+      const row = probeRow ? probeRow(who) : { id: `evt_iso_${who}`, type: "x", stripe_created: new Date().toISOString(), outcome: "x" };
+      const w = await rest(table, { token: who === "anon" ? null : tok[who], method: "POST", body: row });
       expectDenied(who, "INSERT (service-only)", table, w.status, w.body, "nobody but the service role may write it");
     }
   }
