@@ -37,6 +37,8 @@ const SUBS = [
   ["profile_timeline_v1", "PUBLICATION_PUBLISHED"], ["profile_timeline_v1", "PUBLICATION_REVISED"],
   ["device_push_v1", "PUBLICATION_PUBLISHED"],   // subscribed here to test it (0055 is deferred in production)
 ];
+// Migration 0071 (proposed) adds this subscription; tests toggle it.
+const SUB_0071 = ["profile_timeline_v1", "PUBLICATION_UNPUBLISHED"];
 function reset() {
   skew = 0; faults = {}; maxUrl = 0; aiCalls = 0; aiFail = 0;
   T = { publications: [], updates: [], companies: [{ id: CO_A, name: "Iso Alpha", slug: "iso-alpha", timeline: [] }, { id: CO_B, name: "Iso Beta", slug: "iso-beta", timeline: [] }],
@@ -108,6 +110,11 @@ globalThis.fetch = async (input, init = {}) => {
   const p = url.pathname;
   if (p === "/rest/v1/rpc/claim_deliveries") return json(claim(body.p_listener, body.p_worker, body.p_limit, body.p_lease_seconds));
   if (p === "/rest/v1/rpc/complete_delivery") return json(complete(body.p_event_id, body.p_listener, body.p_worker, body.p_ok, body.p_error));
+  if (p === "/rest/v1/rpc/remove_timeline_entry") {
+    const co = T.companies.find((c) => c.id === body.p_company);
+    co.timeline = co.timeline.filter((x) => x.key !== body.p_key);
+    return json({ ok: true, remaining: co.timeline.length });
+  }
   if (p === "/rest/v1/rpc/upsert_timeline_entry") {
     if (fault("timeline:RPC")) return json({ message: "down" }, 500);
     const co = T.companies.find((c) => c.id === body.p_company); const e = body.p_entry;
@@ -519,6 +526,50 @@ console.log("\n  SOURCE PINS");
     const s = fs.readFileSync(new URL(`../api/${f}.js`, import.meta.url), "utf8");
     ok(/await invokeDispatchBestEffort\(\)/.test(s), `${f}.js awaits invokeDispatchBestEffort() with no request (F5/F11)`);
   }
+}
+
+// ================================================ Phase 2 listener code ==
+console.log("\n  PHASE 2 LISTENER CODE (effective once 0071 subscribes UNPUBLISHED)");
+{
+  reset(); SUBS.push(SUB_0071);
+  const { pub } = publishRelease();
+  await drain();
+  ok(T.companies[0].timeline.some((e) => e.key === `pub:${pub.id}`), "setup: published release is on the timeline");
+  pub.status = "draft";
+  const un = addEvent("PUBLICATION_UNPUBLISHED", pub);
+  await drain();
+  ok(!T.companies[0].timeline.some((e) => e.key === `pub:${pub.id}`) && delivery(un.id, "profile_timeline_v1").status === "succeeded", "unpublish removes the timeline entry");
+  ok(T.publications.some((x) => x.id === pub.id), "the release record is kept");
+  // Re-published before the unpublish delivery ran: the live entry must stay.
+  pub.status = "published";
+  addEvent("PUBLICATION_PUBLISHED", pub);
+  const late = addEvent("PUBLICATION_UNPUBLISHED", pub);   // an older unpublish delivered late
+  await drain();
+  ok(T.companies[0].timeline.some((e) => e.key === `pub:${pub.id}`), "an unpublish delivered after the release was published AGAIN does not remove the live entry (status re-checked)");
+  ok(delivery(late.id, "profile_timeline_v1").status === "succeeded", "  ...and that delivery is completed (skipped: published again), not retried forever");
+  faults["publications:GET"] = 0;
+  pub.status = "draft"; const un2 = addEvent("PUBLICATION_UNPUBLISHED", pub);
+  T.companies[0].timeline.push({ key: `pub:${pub.id}` });
+  const realRpc = globalThis.fetch;
+  globalThis.fetch = async (input, init) => (String(input).includes("/rpc/remove_timeline_entry") ? new Response("{}", { status: 503 }) : realRpc(input, init));
+  await drain();
+  globalThis.fetch = realRpc;
+  ok(delivery(un2.id, "profile_timeline_v1").status === "failed", "a failed removal is FAILED and retried, not silently completed");
+  SUBS.splice(SUBS.indexOf(SUB_0071), 1);
+}
+{
+  // DELIVERY_EPOCH: after it, a late delivery still notifies.
+  reset();
+  const u = uuid(); T.company_follows.push({ user_id: u, company_id: CO_A });
+  process.env.DELIVERY_EPOCH = new Date(Date.now() - 10 * 86400e3).toISOString();
+  const late = publishRelease({ hoursAgo: 24 * 4 });          // 4 days old, after the epoch
+  const before = publishRelease({ hoursAgo: 24 * 30 });       // 30 days old, before the epoch
+  await drain();
+  delete process.env.DELIVERY_EPOCH;
+  const postOf = (r) => T.posts.find((p) => p.publication_id === r.pub.id).id;
+  ok(T.notifications.some((n) => n.post_id === postOf(late)), "DELIVERY_EPOCH set: a release from AFTER it, delivered 4 days late (an outage), still notifies");
+  ok(!T.notifications.some((n) => n.post_id === postOf(before)), "...a release from BEFORE it (a backfill) still does not");
+  ok(L.isHistorical({ occurred_at: new Date(Date.now() - 96 * 3600e3).toISOString() }) === true, "without DELIVERY_EPOCH: the plain 72 h rule");
 }
 
 console.log(`\n  publishing-reliability: ${pass} passed, ${fail} failed\n`);

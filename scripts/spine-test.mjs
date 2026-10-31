@@ -9,20 +9,17 @@
 //
 //   SUPABASE_SERVICE_ROLE_KEY=… node scripts/spine-test.mjs
 
+import { requireStagingTarget } from "./_target-guard.mjs";
 import { readFileSync } from "node:fs";
 
-const SB = process.env.VITE_SUPABASE_URL || "https://rvptronniomlqumjhyrr.supabase.co";
-const ANON = process.env.VITE_SUPABASE_ANON_KEY || "sb_publishable_NNxikHZSGZ0CYnzN7jckLg_vPvrRCTl";
+const SB = requireStagingTarget(process.env.VITE_SUPABASE_URL, "spine-test");   // never defaults to a project
+const ANON = process.env.VITE_SUPABASE_ANON_KEY || (() => { throw new Error("VITE_SUPABASE_ANON_KEY is required (staging)"); })();
 
 function serviceKey() {
   if (process.env.SUPABASE_SERVICE_ROLE_KEY) return process.env.SUPABASE_SERVICE_ROLE_KEY.trim();
   if (process.env.SUPABASE_SERVICE_KEY) return process.env.SUPABASE_SERVICE_KEY.trim();
-  try {
-    const raw = readFileSync(new URL("../.env.import", import.meta.url), "utf8");
-    const m = /SUPABASE_SERVICE_(?:ROLE_)?KEY\s*=\s*(.+)/.exec(raw);
-    if (m) return m[1].trim();
-  } catch {}
-  throw new Error("SUPABASE_SERVICE_ROLE_KEY not found (env or .env.import).");
+  // (no longer reads .env.import: that file holds PRODUCTION credentials)
+  throw new Error("SUPABASE_SERVICE_ROLE_KEY not set (the STAGING service key, in the environment).");
 }
 const SERVICE = serviceKey();
 const svc = { apikey: SERVICE, Authorization: `Bearer ${SERVICE}`, "content-type": "application/json" };

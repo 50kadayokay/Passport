@@ -2671,3 +2671,138 @@ revision fixture, unpublished between runs.
 - **Phase 3:** Vercel Cron (recommended).
 - **Retiring revised releases** (blocker 4).
 - **`listener-test.mjs`:** retarget it to staging or delete it.
+
+---
+
+## 19 · D22 Phase 2: migration 0071 review (2026-10-31; NOT applied; uncommitted)
+
+Phase 1 was committed as `4883f2f`. **0071 was not part of that commit.** It
+remains an untracked, unapplied proposal. Nothing was applied persistently, no
+cron was enabled, and production was not touched.
+
+### Review findings and corrections
+
+| Area | Finding | Result |
+|---|---|---|
+| `posts.media_url` | `add column if not exists text`: a no-op where production has the legacy column, created where it does not. A different legacy type in production would be kept (audit query 9 shows it) | OK |
+| `publish_publication` signature | Staging has exactly one: `(uuid, uuid, timestamptz)` from 0036, SECURITY DEFINER, `search_path=public`, EXECUTE service_role only (0060). **The first draft of 0071 redefined a 2-argument version**, which would have created a stray overload and changed nothing `/api/publish` calls | **Corrected** to the 3-argument version, same settings and grants; verified a single signature after applying |
+| Revision 1 at publish | Recorded once from `updates.body` and `content.headline`, `on conflict do nothing`; nothing when the body is empty | OK; the Phase 1 route baseline becomes a no-op once history exists (verified) |
+| Unpublish timeline cleanup | **As drafted, subscribing `profile_timeline_v1` to UNPUBLISHED would replay every historical unpublish event**, in arbitrary order. A release unpublished long ago and published again since would lose its **live** timeline entry | **Corrected:** the new subscription carries `active_from = now()`, and the listener re-checks the current status ("published again" is skipped). Verified in SQL and offline |
+| Delivery status | **As drafted, "latest event" matched every event sharing the newest `created_at`**, mixing a publish's and an unpublish's deliveries | **Corrected:** exactly one event (newest; `id` breaks ties), with the event type returned. Isolation verified: owner and member of A see it; owner of B and investors see nothing (empty, no existence oracle); anon is denied |
+| Heartbeat and alerts | RLS on; no anon/authenticated privileges; service_role writes | OK |
+| Newly enabled listeners | `active_from` gates delivery **creation** in `claim_deliveries`. Existing subscriptions keep NULL (unchanged behaviour, verified). A future listener should be added with `active_from = now()` | OK |
+| Rollback | **As drafted, rollback was comment text**, and it could not have restored `claim_deliveries` before dropping the column it reads | **Corrected:** `supabase/rollbacks/0071_publishing_reliability.rollback.sql`, outside `migrations/`, restores 0008's `claim_deliveries` and 0036's `publish_publication` **verbatim** before dropping anything. It keeps `posts.media_url` and revision rows. Verified byte-identical function definitions after rollback |
+| Existing publications and backlog | No table rewrite and no row change. Revision 1 is written only on future publishes. The UNPUBLISHED subscription creates no deliveries for past events. The feed and other listeners are unchanged. Media posts start projecting on databases without the column | OK |
+| 72 h cutoff during an outage | With Phase 1 alone, releases published during a dispatcher outage longer than 72 h are **projected but never notified** | **Corrected in code:** optional `DELIVERY_EPOCH`. Events after it are never historical (late notifications instead of none), and the 72 h rule then only stops backfill of events from before reliable delivery. Set when the scheduler goes live (a production config change, later approval) |
+
+Listener code for Phase 2 (uncommitted; safe before 0071, because until the
+subscription exists nothing reaches the new branch):
+- `profile_timeline_v1` handles UNPUBLISHED: it removes the entry through
+  `remove_timeline_entry`, never the release, and re-checks the current
+  status.
+- `isHistorical()` honours `DELIVERY_EPOCH`.
+- **Order for staging:** this code, then 0071.
+
+### Rolled-back verification on staging: 47 / 47
+
+`scripts/publishing-0071-check.mjs` (`npm run test:publishing-0071`) applies
+0071 **exactly as the guarded runner would** (`runnerBody`), inside one
+transaction that is always rolled back.
+- **Static:** no egress; the runner governs the transaction; no
+  DROP/DELETE/TRUNCATE.
+- **Schema and authorization:**
+  - `media_url` exists and existing posts are untouched;
+  - a single 3-argument `publish_publication`, service_role only;
+  - `claim_deliveries`, `remove_timeline_entry`, the heartbeat and the
+    alerts are service_role only;
+  - delivery status: authenticated yes, anon no.
+- **Behaviour:**
+  - revision 1 at publish, the first correction is revision 2 with its
+    event, an empty body records nothing, a backdated publish works;
+  - `active_from`: a 30-day-old unpublish is not replayed, while the
+    existing feed subscription still sees old events;
+  - `remove_timeline_entry` removes exactly one entry and refuses an empty
+    key;
+  - isolation by role (owner A, viewer A, owner B, investor, anon).
+- **The rollback file:** applied in a savepoint, it restores both functions
+  byte-identically and removes everything else, keeping `media_url` and the
+  revision rows.
+- **Afterwards:** no column, function, table or test row persisted; the
+  functions are exactly as before.
+
+**Verdict: 0071 (as corrected) is ready to apply to staging**, with your
+approval, through `scripts/apply-migrations.mjs` (whose in-transaction
+egress check now governs files with their own begin/commit). Not yet
+verified: concurrency across committed connections, and the end-to-end
+listener path on the persistent schema. Both run after a staging
+application (`npm run test:publishing-live`, extended).
+
+### Retiring test publications (append-only respected)
+
+`scripts/retire-test-publications.mjs`: staging only, a dry run unless
+`--apply`, and only for publications whose headline starts with a known test
+marker. For each:
+- unpublish through `unpublish_publication` as the owner (lifecycle and
+  outbox stay consistent);
+- remove projections (post, notifications, push queue, facts, Mine IQ
+  claims, timeline entry);
+- **delete** when there are no revisions;
+- otherwise **keep** it with its history, marked `content.retired`.
+  `release_revisions` is never written.
+
+Applied on staging to the one leftover from the first D22 live run: kept and
+marked, 0 revision rows touched. The reused live-test revision fixture is
+skipped unless `--include-fixture`. For **production**, the same idea would
+be a product feature (an admin "withdraw/retire"), not this script.
+
+### Legacy scripts cannot target production
+
+- **New `scripts/_target-guard.mjs`:**
+  - `requireStagingTarget` (no default; production refused; only the
+    allowlisted staging project);
+  - `requireProductionOptIn` (a production tool runs only when
+    `MINEEX_PRODUCTION_TOOL` names that exact script);
+  - `requireLiveAiOptIn` (`MINEEX_LIVE_AI=1`).
+- **Patched:**
+  - `listener-test`, `publish-endpoint-test`, `portal-smoke-test` and
+    `spine-test` defaulted to production **and** read a service key from
+    `.env.import`. Now they need staging explicitly and never read env files;
+  - `privilege-hardening-test` defaulted to production;
+  - `mineiq-live-test` loaded every variable from four local env files,
+    including production keys, and spent real AI credit. Now it requires an
+    opt-in and an explicit key;
+  - `import-kingsmen-media` writes to production by design and now needs
+    the explicit opt-in.
+- **Reviewed and left:** `conference-snapshot` and `gen-argenta-package`
+  read published data with the anon key and write nothing.
+- **New `scripts/script-target-guard-test.mjs`** (in `npm test`, 20 checks):
+  - every script is scanned (no `.env` reads in code; production URLs only in
+    6 reviewed files);
+  - each guarded script, run with a **clean environment** pointed at
+    production and with nothing set, exits 2 before any request;
+  - the production tool refuses without its own opt-in, and the live-AI test
+    without `MINEEX_LIVE_AI=1`.
+  - The detectors were confirmed to flag the old `listener-test` (text match
+    only; the old script was not executed).
+
+### Tests
+
+| Suite | Result |
+|---|---|
+| `publishing-reliability` (offline) | **89 / 89** (new: unpublish timeline removal, "published again" not removed, failed removal retried, DELIVERY_EPOCH) |
+| `script-target-guard` (offline, new) | **20 / 20** |
+| `publishing-0071-check` (staging, rolled back, new) | **47 / 47** |
+| `publishing-live` (staging) | 39 / 39 |
+| `npm test`, build | pass |
+| API suite | 354 / 2 / 1 (KNOWN F8, D21) |
+| Combined | 816 / 2 / 1, 0 unexpected |
+| Database egress | none |
+
+### Approvals requested
+
+1. Commit this Phase 2 review work (listener code, guards, retirement tool,
+   0071 + rollback as **unapplied** files, tests, docs).
+2. **Apply 0071 to staging** (then extend the live suite to the persistent
+   schema).
+3. Later: the production audit (read-only, pending), Phase 3 scheduler,
+   `DELIVERY_EPOCH` and `PUBLIC_BASE_URL` on production.

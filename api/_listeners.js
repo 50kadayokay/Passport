@@ -34,10 +34,22 @@ export const HISTORICAL_CUTOFF_HOURS = 72;
 export const FOLLOWER_CHUNK = 100;
 const PAGE = 1000;
 
-/** Is this event too old to notify about or extract automatically? */
+/**
+ * Is this event too old to notify about or extract automatically?
+ *
+ * DELIVERY_EPOCH (optional, ISO timestamp, D22 Phase 2): the moment reliable,
+ * scheduled delivery went live. An event that occurred AFTER it is never
+ * historical -- if the dispatcher is down for days, those releases are
+ * notified late rather than not at all (the 72 h rule exists to stop a backfill
+ * over events from BEFORE delivery was reliable, not to drop current ones).
+ * Unset: the plain 72 h rule (Phase 1 behaviour).
+ */
 export function isHistorical(event, now = Date.now()) {
   const at = Date.parse((event && (event.occurred_at || event.created_at)) || "");
-  return Number.isFinite(at) && now - at > HISTORICAL_CUTOFF_HOURS * 3600 * 1000;
+  if (!Number.isFinite(at)) return false;
+  const epoch = Date.parse(process.env.DELIVERY_EPOCH || "");
+  if (Number.isFinite(epoch) && at >= epoch) return false;
+  return now - at > HISTORICAL_CUTOFF_HOURS * 3600 * 1000;
 }
 
 const chunk = (arr, n) => { const out = []; for (let i = 0; i < arr.length; i += n) out.push(arr.slice(i, i + n)); return out; };
@@ -475,6 +487,19 @@ async function devicePushV1(event, db) {
  * statement so it cannot clobber a profile edit made in the portal meanwhile.
  */
 async function profileTimelineV1(event, db) {
+  // UNPUBLISHED (subscribed by migration 0071, from its active_from on): remove
+  // the timeline entry -- never the release record. Re-checked against the
+  // publication's CURRENT status, so an unpublish delivered after the release
+  // was published again cannot remove a live entry.
+  if (event.event_type === "PUBLICATION_UNPUBLISHED") {
+    const cur = (await db.getRows(`publications?id=eq.${event.publication_id}&select=id,company_id,status,destination_id`))[0];
+    if (!cur) return { skipped: "publication gone" };
+    if (cur.status === "published") return { skipped: "published again" };
+    if (cur.destination_id !== "passport") return;
+    const r = await db.rpc("remove_timeline_entry", { p_company: cur.company_id, p_key: `pub:${cur.id}` });
+    if (!r.ok) throw new Error(`timeline removal failed (${r.status})`);
+    return { removed: true };
+  }
   if (event.event_type !== "PUBLICATION_PUBLISHED" && event.event_type !== "PUBLICATION_REVISED") return;
 
   const pubs = await db.getRows(`publications?id=eq.${event.publication_id}&select=id,company_id,update_id,destination_id,status,content,published_at`);

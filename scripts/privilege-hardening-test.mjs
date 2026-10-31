@@ -12,8 +12,9 @@
 // Exit code is non-zero if any expectation for the selected phase fails.
 
 const AFTER = process.argv.includes("--after");
-const URL = process.env.VITE_SUPABASE_URL || "https://rvptronniomlqumjhyrr.supabase.co";
-const KEY = process.env.VITE_SUPABASE_ANON_KEY || "sb_publishable_NNxikHZSGZ0CYnzN7jckLg_vPvrRCTl";
+import { requireStagingTarget } from "./_target-guard.mjs";
+const URL = requireStagingTarget(process.env.VITE_SUPABASE_URL, "privilege-hardening-test");   // never defaults to a project
+const KEY = process.env.VITE_SUPABASE_ANON_KEY || (() => { throw new Error("VITE_SUPABASE_ANON_KEY is required (staging)"); })();
 const H = { apikey: KEY, Authorization: `Bearer ${KEY}` };
 
 let pass = 0, fail = 0;
