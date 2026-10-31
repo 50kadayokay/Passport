@@ -59,6 +59,9 @@ const BILLING = {
 };
 const aiGuardPin = (label, extra) => new RegExp(`requireAiCaller\\(req, res, \\{ label: "${label}"${extra}`);
 
+// One marker per process, so the stored contact row can be found and removed.
+export const SUBMIT_RUN = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+
 export const API_ROUTES = [
   // ------------------------------------------------------------- AI guard ---
   { name: "audience-card", methods: ["POST"], guard: "requireAiCaller(company_memory, drafting roles)", source: aiGuardPin("audience-card", ', feature: "company_memory", roles: DRAFTING_ROLES \\}'),
@@ -204,7 +207,7 @@ export const API_ROUTES = [
   // ---------------------------------------------- publishing (ordered, special)
   { name: "publish", methods: ["POST"], guard: "verifyUser + RLS read + my_features + actor_can_publish", special: "publishing", source: /serviceRpc\("publish_publication", rpcArgs\)/ },
   { name: "unpublish", methods: ["POST"], guard: "verifyUser + RLS read + actor_can_publish", special: "publishing", source: /serviceRpc\("unpublish_publication"/ },
-  { name: "revise-release", methods: ["POST"], guard: "verifyUser + service read + actor_can_publish", special: "publishing", source: /serviceRpc\("revise_publication"/ },
+  { name: "revise-release", methods: ["POST"], guard: "verifyUser + caller-RLS read + actor_can_publish", special: "publishing", source: /serviceRpc\("revise_publication"/ },
 
   // ------------------------------------------------------------ messaging ----
   { name: "messages", methods: ["POST"], guard: "send: any signed-in user; start (body.action=\"start\"): signed in AND an active member/owner of fromCompanyId (my_company_role as the caller), not to itself; inbound (selected by ?secret only): MESSAGES_INBOUND_SECRET required (>=16 chars, else 503), constant-time match, sender must equal the thread's ceo_email", special: "messages", source: /if \(!inboundSecretMatches\(req\.query\.secret, configured\)\) return res\.status\(401\)[\s\S]*const isInbound = req\.query && req\.query\.secret !== undefined;/ },
@@ -223,5 +226,9 @@ export const API_ROUTES = [
   { name: "conference-inquiry", methods: ["POST"], guard: "public form; honeypot, spam check and durable per-IP throttle (lead:conference)", public: true, source: /guardLeadForm\(req, "lead:conference", data\)/,
     req: () => post({ name: "Iso Tester", email: "iso-tester@staging.invalid", company: "Iso Co", message: "iso" }) },
   { name: "submit", methods: ["POST"], guard: "public form, honeypot + IP throttle", public: true, source: /checkThrottle\(formName, clientIp\(req\)\)/,
-    req: () => post({ form: "contact", name: "Iso Tester", email: "iso-tester@staging.invalid", message: "iso" }) },
+    // D21: one VALID contact submission per run (the throttle allows 5 per IP per
+    // 10 min). A unique message identifies the stored row; notes / created_at /
+    // id are columns the client must not set and must be dropped.
+    req: () => post({ form: "contact", name: "Iso Tester", email: "iso-tester@staging.invalid", message: `iso d21 ${SUBMIT_RUN}`,
+                      notes: "must be dropped", created_at: "2001-01-01T00:00:00Z", id: 1 }) },
 ];

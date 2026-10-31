@@ -13,7 +13,9 @@
 // Presentation edits -- summary, media, captions, order -- never come here. They
 // are ordinary patches to the draft/publication content and create no revision.
 
-import { serviceConfigured, serviceRpc, serviceRest, bearer, verifyUser, invokeDispatchBestEffort } from "./_service.js";
+import { SB_URL, ANON_KEY, serviceConfigured, serviceRpc, serviceRest, bearer, verifyUser, invokeDispatchBestEffort } from "./_service.js";
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function bad(res, code, msg) { res.status(code).json({ ok: false, error: msg }); }
 
@@ -32,13 +34,25 @@ export default async function handler(req, res) {
   const reason = body.reason == null ? null : String(body.reason).slice(0, 500);
 
   if (!publicationId) return bad(res, 400, "publicationId is required.");
+  // Shape only -- the same answer for every caller, whether or not it exists.
+  if (!UUID.test(publicationId)) return bad(res, 400, "publicationId must be a UUID.");
   if (!text.trim()) return bad(res, 400, "A release cannot be corrected to nothing.");
 
-  // Ownership is re-checked inside the RPC via actor_can_publish(); this read is
-  // only so the caller gets 403 rather than a generic failure.
-  const pubRes = await serviceRest(`publications?id=eq.${publicationId}&select=company_id,status,update_id,content`);
-  if (!pubRes.ok) return bad(res, 502, "Could not load the publication.");
-  const [pub] = await pubRes.json().catch(() => []);
+  // Load the publication AS THE CALLER, exactly as /api/publish and
+  // /api/unpublish do (F8). RLS lets only members of the owning company (and
+  // platform admins) see it, so for anyone else a real id and a made-up one
+  // are the same empty result and the same 404 -- this route can no longer be
+  // used to test whether a publication exists. This used to be a SERVICE-role
+  // read: strangers got 404 for a fake id but 403 for a real one. Members who
+  // can see it but may not correct it still get an honest 403 from the RPC
+  // (actor_can_publish), which tells them nothing they cannot already read.
+  let pub = null;
+  try {
+    const r = await fetch(`${SB_URL}/rest/v1/publications?id=eq.${publicationId}&select=company_id,status,update_id,content`, {
+      headers: { apikey: ANON_KEY, Authorization: `Bearer ${token}` },
+    });
+    if (r.ok) { const rows = await r.json().catch(() => []); pub = rows[0] || null; }
+  } catch { /* fallthrough: not visible */ }
   if (!pub) return bad(res, 404, "That publication does not exist.");
 
   // THE FIRST CORRECTION (D22). revise_publication() treats revision 1 as the
@@ -86,6 +100,7 @@ export default async function handler(req, res) {
   if (!result || result.ok === false) {
     const why = (result && result.error) || "unknown";
     if (why === "forbidden") return bad(res, 403, "You cannot correct this release.");
+    if (why === "not_found") return bad(res, 404, "That publication does not exist.");
     if (why === "not_published") return bad(res, 409, "That release is not published yet.");
     return bad(res, 400, `Could not save the correction (${why}).`);
   }

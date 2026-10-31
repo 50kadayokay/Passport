@@ -76,9 +76,10 @@ export default async function handler(req, res) {
   return json(res, 200, { ok: true, stored: true });
 }
 
-// The two lead forms share `demo_bookings`, whose shape predates this endpoint:
-// structured context goes into `notes` rather than new columns, so no migration
-// is needed and api/contact.js's existing rows stay comparable.
+// `demo_bookings`, whose shape predates this endpoint, takes structured context
+// in `notes` rather than new columns, so no migration is needed and
+// api/contact.js's existing rows stay comparable. `contact_submissions` takes
+// exactly its baseline columns (name, email, company, message).
 function buildRow(formName, d) {
   const form = FORMS[formName];
   const row = {};
@@ -92,6 +93,12 @@ function buildRow(formName, d) {
     row.kind = d.kind || "error";
     return row;
   }
+
+  // Only demo_bookings has a `notes` column. contact_submissions keeps its
+  // message in `message` (a passthrough column above) and has nowhere to put
+  // anything else; writing `notes` there made PostgREST reject EVERY contact
+  // submission (D21, PGRST204).
+  if (!form.notesColumn) return row;
 
   // Extra context that has no column of its own goes into `notes`, which is the
   // convention api/contact.js already established for this table.

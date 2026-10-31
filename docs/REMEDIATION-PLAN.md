@@ -4470,3 +4470,118 @@ NOLOGIN, so this is defence in depth; RLS is enabled on all 78 public tables.
 Needs its own reviewed migration and rollback, with a check that no SECURITY
 INVOKER function or job relies on those privileges. Recorded for later
 review; nothing prepared.
+
+## 30 · a01 Tenant isolation, formal proof: F8, D21 and the og-news font (2026-10-31; code only, no migration)
+
+### F8 · revise-release disclosed whether a publication id exists
+
+**Root cause.** `api/revise-release.js` loaded the publication with the
+SERVICE role before any authorization: a made-up id returned 404 "does not
+exist", a real id of another company got past that read and was refused
+later by `revise_publication()` with 403. `/api/publish` and `/api/unpublish`
+never had the problem: they read as the caller, through RLS.
+
+**Fix.** The same pattern as its twins. The publication is read with the
+CALLER's token, so RLS returns nothing for anyone outside the owning company
+(and platform admins): a real id and a made-up one give the identical 404
+(status and body). The service-role reads (revision history, original text)
+now run only after the caller has proved they can see it. Members who can
+read it but may not correct it keep an honest 403 from `actor_can_publish`.
+A malformed id gets the same 400 for everyone; an RPC `not_found` maps to the
+same 404.
+
+**Tests** (`api-authz-test`): real vs fake id, identical status AND body, for
+another company's owner, an investor and anonymous callers, on revise-release,
+publish and unpublish; malformed id → the same 400 for owner and stranger;
+viewer and editor 403 (not 404); investor and other company refused; owner and
+publisher admitted.
+
+### D21 · the contact form could never store
+
+**Root cause.** `api/submit.js` `buildRow()` folded the message into a `notes`
+column for every form, a convention from `demo_bookings`.
+`contact_submissions` has no `notes` column (production-derived
+`0000_baseline.sql`: `id, name, email, company, message, created_at`; staging
+matches), so every contact submission failed with PGRST204.
+
+**Second, larger finding.** The public site's contact and demo forms
+(`src/site/Site.jsx`, `src/marketing/sections/Close.jsx`) did not use
+`/api/submit` at all: they inserted with the anon key. Migration 0058 revokes
+exactly that (applied on staging: anon has no privileges on either table), so
+on staging those forms could store nothing, and in production they break the
+moment 0058 is applied (whether it is: pending the read-only audit).
+
+**Fix (no migration, no new privileges).**
+- `buildRow` writes `notes` only for forms that declare a `notes` column
+  (`demo`); `contact` keeps its message in `message`.
+- Both site lead forms now POST to `/api/submit?form=contact|demo` (validation,
+  throttle, spam screen, service-role write) with friendly errors.
+
+**Tests:** the contact form returns 200 `stored:true`; the stored row, read as
+the service role, has exactly the baseline columns, the run's message, a
+server-set `created_at`, and none of the client-sent `notes` / `created_at` /
+`id`; missing email, malformed email and unknown form → 400 (before the
+throttle); oversized body → 413; anonymous callers, a company owner and an
+investor cannot read `contact_submissions`. Test rows are deleted.
+
+### og-news font
+
+**Cause of the SKIP.** `api/og-news.js` fetched Inter 500 and 800 from
+`cdn.jsdelivr.net` on every cold start; staging's egress guard blocks that
+host by design, so the render failed and the suite recorded a SKIP.
+
+**Fix.** The two weights are vendored in `api/_fonts/` (npm
+`@fontsource/inter@5.2.6`, the package the CDN mirrored; SIL OFL 1.1; sha256
+recorded in `api/_fonts/README.md`). On Vercel's Edge runtime they are read
+with `fetch(new URL("./_fonts/…", import.meta.url))` (the documented bundling
+pattern); under Node (the local staging server) through
+`process.getBuiltinModule("node:fs")`, which is not an import and does not
+exist on Edge, so the Edge static check stays meaningful. The rendering design
+is unchanged. **Not verifiable locally:** that Vercel bundles `api/_fonts`
+with the Edge function (Phase B / first deploy).
+
+**Test:** og-news must return 200 `image/png` (PNG signature checked) with no
+host contacted except staging's `news_public`.
+
+### Test-harness defects found and fixed while verifying
+
+- **Rate-limit probes straddling a window boundary.** The AI limiter and the
+  submission throttle use wall-clock-aligned 10-minute windows. One run's
+  structure-release burst ran 22:39:53–22:40:04 UTC (egress log): 8 calls in
+  one window, 6 in the next, so the limit was never reached. The probes now
+  start in a fresh window when fewer than 90 s remain; assertions unchanged.
+- **Two throttle tests (burst and header-spoof) used the contact form and,
+  once D21 was fixed, STORED real rows** (and filled the contact bucket the
+  D21 check needs). Both now use the demo form (same throttle code, same
+  assertions); every row a run stores carries its run marker and is deleted
+  at the end, and the suite asserts nothing is left. Residue from today's runs
+  before this change -- 13 `contact_submissions` rows with the test email
+  (5 from a run at 22:39 UTC whose server had already picked up the D21 fix,
+  8 from two verification runs) -- was found in the pre-commit review and
+  deleted; the table was empty afterwards, i.e. it held no real submissions.
+
+### Results (2026-10-31, staging; code only)
+
+| Suite | Before a01 | After a01 |
+|---|---|---|
+| API authorization | 376 passed, 2 failed (KNOWN F8, D21), 1 skipped | **402 passed, 0 failed, 0 skipped** (twice, back to back) |
+| Combined isolation | 967 passed, 2 failed (F8, D21), 1 skipped (og-news render) | **993 passed, 0 failed, 0 skipped — "TENANT ISOLATION DEMONSTRATED for every target"** (twice, back to back) |
+| `npm test` | pass | pass |
+| Build | pass | pass |
+| Live: roles 97, messaging 56, publishing 51, delivery-ops 45, dispatch-scheduler 18, impressions 27, memory-ai 97, profile-draft 61, profile-history 42, stripe-webhook 41 | pass | all pass, 0 failed |
+
+Isolation timings: probes 64 s, API routes 150 s (382 calls, slowest 2.8 s),
+storage 3 s.
+
+**Staging hygiene finding (pre-existing, not a01; not security).**
+`demo_bookings` holds 1,926 rows, ALL test submissions (`@staging.invalid`),
+written since 2026-10-30 by the lead-form throttle tests for
+`/api/conference-inquiry` (1,503) and `/api/contact` (423), which store a row
+per admitted request and never clean up. Proposed follow-up: make those tests
+delete their own rows (as the /api/submit tests now do) and remove the
+existing test rows on staging, with approval.
+
+**Deployment / migration.** No database migration. The fixes take effect in
+production only on deploy (F8: revise-release; D21: /api/submit and the site
+forms; og-news fonts). Vercel's bundling of `api/_fonts` for the Edge function
+is confirmed only at the first deploy (Phase B).

@@ -23,9 +23,27 @@ const CAT_COLOR = {
 };
 
 let FONT_REG, FONT_BOLD;
+
+// Inter 500 and 800, vendored in api/_fonts (see its README) -- rendering needs
+// no network. On Vercel's Edge runtime the files are bundled with the function
+// and read with fetch(new URL(..., import.meta.url)), the documented pattern.
+// Under Node (the local staging server) fetch() cannot read file: URLs, so the
+// file is read directly; process.getBuiltinModule exists only on Node (24+), is
+// not an import, and keeps this module free of Node imports for the Edge build.
+async function loadFont(rel) {
+  const url = new URL(rel, import.meta.url);
+  const nodeFs = globalThis.process?.getBuiltinModule?.("node:fs");
+  if (nodeFs) {
+    const b = nodeFs.readFileSync(url);
+    return b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength);
+  }
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(`font ${rel}: ${r.status}`);
+  return r.arrayBuffer();
+}
 async function fonts() {
-  if (!FONT_REG) FONT_REG = fetch("https://cdn.jsdelivr.net/npm/@fontsource/inter/files/inter-latin-500-normal.woff").then((r) => r.arrayBuffer());
-  if (!FONT_BOLD) FONT_BOLD = fetch("https://cdn.jsdelivr.net/npm/@fontsource/inter/files/inter-latin-800-normal.woff").then((r) => r.arrayBuffer());
+  if (!FONT_REG) FONT_REG = loadFont("./_fonts/inter-latin-500-normal.woff");
+  if (!FONT_BOLD) FONT_BOLD = loadFont("./_fonts/inter-latin-800-normal.woff");
   return Promise.all([FONT_REG, FONT_BOLD]);
 }
 

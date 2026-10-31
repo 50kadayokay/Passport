@@ -194,7 +194,7 @@ console.log("\n  F10 · configuration is checked AFTER authentication");
 
 console.log("\n  F11 · revise-release triggers the dispatcher like publish does");
 {
-  const { res, calls } = await run("revise-release", mkReq({ headers: { authorization: "Bearer tok-ownerA", host: "canary.invalid" }, body: { publicationId: "pub-1", body: "corrected" } }));
+  const { res, calls } = await run("revise-release", mkReq({ headers: { authorization: "Bearer tok-ownerA", host: "canary.invalid" }, body: { publicationId: "00000000-0000-4000-8000-0000000000f1", body: "corrected" } }));   // a UUID: revise-release refuses malformed ids (F8)
   const dispatched = calls.filter((c) => c.path === "/api/dispatch");
   check("a successful revision calls /api/dispatch, on the trusted base",
         res.statusCode === 200 && dispatched.length === 1 && dispatched[0].host === TRUSTED && dispatched[0].headers["x-dispatch-secret"] === process.env.DISPATCH_SECRET,

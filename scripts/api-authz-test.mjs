@@ -28,7 +28,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { spawn, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { API_ROUTES } from "./_api-routes.mjs";
+import { API_ROUTES, SUBMIT_RUN } from "./_api-routes.mjs";
 
 const PROVIDERS = new Set(["anthropic", "openai", "stripe", "jina", "eodhd", "yahoo"]);
 const readEnvFile = (f) => fs.existsSync(f)
@@ -91,7 +91,8 @@ export async function runApiSuite({ api, tok, env, record, headers: extraHeaders
       blockedHosts: delta.filter((e) => e.action === "block").map((e) => e.host),
       entries: delta,
     };
-    return { status: r.status || 0, body, egress };
+    const contentType = r.headers && r.headers.get ? r.headers.get("content-type") || "" : "";
+    return { status: r.status || 0, body, egress, contentType, text };
   }
   const brief = (r) => `${r.status} ${typeof r.body === "object" && r.body ? String(r.body.error || r.body.message || r.body.detail || "").slice(0, 40) : String(r.body || "").slice(0, 30)}`
     + (r.egress.provider ? ` +${r.egress.provider} provider` : "") + (r.egress.mail.length ? ` +mail` : "");
@@ -262,8 +263,11 @@ export async function runApiSuite({ api, tok, env, record, headers: extraHeaders
       ["publish", P.draftA, "publisher", "allow", [], "publisher-role member may publish"],
       ["publish", P.draftA, "companyA", "allow", [], "owner (already published -> idempotent 200)"],
       ["revise-release", P.liveA, "staff", "deny", [], "viewer may not correct a release"],
+      ["revise-release", P.liveA, "editor", "deny", [], "editor may not correct a release (publish roles only)"],
       ["revise-release", P.liveA, "companyB", "deny", [], "another company's release"],
+      ["revise-release", P.liveA, "investor", "deny", [], "investor"],
       ["revise-release", P.liveA, "companyA", "allow", [], "owner corrects own release"],
+      ["revise-release", P.liveA, "publisher", "allow", [], "publisher-role member corrects the release"],
       ["unpublish", P.liveA, "staff", "deny", [], "viewer may not unpublish"],
       ["unpublish", P.liveA, "companyB", "deny", [], "another company's release"],
       ["unpublish", P.liveA, "companyA", "allow", [], "owner unpublishes own release"],
@@ -275,17 +279,39 @@ export async function runApiSuite({ api, tok, env, record, headers: extraHeaders
       const [v, n] = expect === "allow" ? judgeAllow(r, (x) => x.status === 200) : judgeDeny(r, who, extra);
       put(who, "publishing", `/api/${route}`, expect === "allow" ? "admitted" : "refused", r, v, `${label}${n ? " -- " + n : ""}`, `${route}|${who}`);
     }
-    // Existence oracle: revise-release reads with the SERVICE role, so a stranger
-    // learns whether a publication id exists (404) or not (403).
-    if (tok.companyB && P.liveA) {
-      const real = await pub("revise-release", P.liveA, "companyB");
-      const fake = await pub("revise-release", crypto.randomUUID(), "companyB");
-      const refusals = [403, 404];
-      const decided = refusals.includes(real.status) && refusals.includes(fake.status);
-      const same = real.status === fake.status;
-      put("companyB", "publishing", "/api/revise-release", "same refusal for real and fake ids", fake,
-          !decided ? "SKIP" : same ? "PASS" : "FAIL",
-          !decided ? `inconclusive: real ${real.status}, fake ${fake.status}` : same ? "" : `KNOWN F8: existence oracle -- real id ${real.status}, fake id ${fake.status}`);
+    // Existence oracle (F8, fixed 2026-10-31): a caller who cannot see a
+    // publication must get the SAME answer -- status AND body -- for a real id
+    // of another company and for an id that does not exist. Checked for every
+    // publication route, for another company's owner, an investor and anonymous
+    // callers. A malformed id must also get one answer for everybody.
+    if (P.liveA) {
+      for (const route of ["revise-release", "publish", "unpublish"]) {
+        for (const who of ["companyB", "investor", "anon"]) {
+          if (who !== "anon" && !tok[who]) continue;
+          const t = who === "anon" ? null : tok[who];
+          const call2 = (id) => call(route, post2({ publicationId: id, ...(route === "revise-release" ? { body: "Iso corrected text.", reason: "iso" } : {}) }), t);
+          const real = await call2(P.liveA);
+          const fake = await call2(crypto.randomUUID());
+          const refused = [401, 403, 404].includes(real.status) && [401, 403, 404].includes(fake.status);
+          const same = real.status === fake.status && JSON.stringify(real.body) === JSON.stringify(fake.body);
+          put(who, "publishing", `/api/${route}`, "identical refusal for a real and a fake id", real,
+              refused && same ? "PASS" : "FAIL",
+              refused && same ? `both ${real.status}` : `EXISTENCE ORACLE: real ${real.status} ${JSON.stringify(real.body).slice(0, 80)} vs fake ${fake.status} ${JSON.stringify(fake.body).slice(0, 80)}`);
+        }
+      }
+      if (tok.companyA && tok.companyB) {
+        const bad1 = await call("revise-release", post2({ publicationId: "not-a-uuid", body: "x" }), tok.companyA);
+        const bad2 = await call("revise-release", post2({ publicationId: "not-a-uuid", body: "x" }), tok.companyB);
+        put("companyB", "publishing", "/api/revise-release", "malformed id: one answer for everybody (400)", bad2,
+            bad1.status === 400 && bad2.status === 400 && JSON.stringify(bad1.body) === JSON.stringify(bad2.body) ? "PASS" : "FAIL", `${bad1.status} / ${bad2.status}`);
+      }
+      // A member of the owning company who cannot correct it gets an honest 403:
+      // they can already read the release, so nothing is disclosed.
+      if (tok.staff) {
+        const v = await pub("revise-release", P.liveA, "staff");
+        put("staff", "publishing", "/api/revise-release", "member without a publish role: 403 (not 404)", v,
+            v.status === 403 ? "PASS" : "FAIL", `${v.status}`);
+      }
     }
   }
 
@@ -467,29 +493,66 @@ export async function runApiSuite({ api, tok, env, record, headers: extraHeaders
     const r = await call(rt.name, rt.req(c, "A"), null);
     if (rt.name in leadAdmitted && r.status === 200) leadAdmitted[rt.name]++;
     if (rt.name === "og-news") {
-      expectedBlocks.add("cdn.jsdelivr.net:443");
       // The security property of a public route: reachable without auth, and it
-      // touches nothing but staging. Its RENDER is not testable here, because the
-      // font CDN is blocked by design -- recorded as SKIP below, not as a pass.
-      const others = r.egress.entries.filter((e) => !(e.action === "allow" && e.host === "jmljfovtfxcdhjmtlnva.supabase.co")
-        && !(e.action === "block" && e.host === "cdn.jsdelivr.net"));
+      // touches nothing but staging. Since the Inter weights are vendored
+      // (api/_fonts), the RENDER is tested too: a real PNG, with no font host --
+      // or any other host -- contacted (it used to fetch cdn.jsdelivr.net, which
+      // staging blocks, so the render was a SKIP).
+      const others = r.egress.entries.filter((e) => !(e.action === "allow" && e.host === "jmljfovtfxcdhjmtlnva.supabase.co"));
       const readStaging = r.egress.entries.some((e) => e.action === "allow" && /news_public/.test(e.path || ""));
       put("anon", "API public", "/api/og-news", "unauthenticated, reads only staging news_public", r,
-          readStaging && others.length === 0 && r.status !== 401 && r.status !== 403 ? "PASS" : others.length ? "FAIL" : "SKIP",
-          others.length ? `also reached: ${others.map((e) => e.host).join(",")}` : "");
+          readStaging && others.length === 0 && r.status !== 401 && r.status !== 403 ? "PASS" : "FAIL",
+          others.length ? `also reached: ${others.map((e) => `${e.action}:${e.host}`).join(",")}` : "");
+      const png = r.status === 200 && /^image\/png/.test(r.contentType) && typeof r.text === "string" && r.text.slice(1, 4) === "PNG";
+      put("anon", "API public", "/api/og-news render", "200 image/png rendered offline with the vendored fonts", r,
+          png && others.length === 0 ? "PASS" : "FAIL", `${r.status} ${r.contentType}${others.length ? "; reached " + others.map((e) => e.host).join(",") : ""}`);
     }
-    if (rt.name === "submit" && r.body && r.body.error === "store-failed") {
-      put("anon", "API public store", "/api/submit", "form stored", r, "FAIL",
-          `KNOWN D21: ${String(r.body.detail || "").slice(0, 110)}`);
+    if (rt.name === "submit") {
+      // D21 (fixed 2026-10-31): the contact form must actually STORE, with
+      // exactly the baseline columns, and nothing the client was not allowed to set.
+      put("anon", "API public store", "/api/submit", "contact form stored (200, stored:true)", r,
+          r.status === 200 && r.body && r.body.stored === true ? "PASS" : "FAIL",
+          r.body && r.body.error === "store-failed" ? `store-failed: ${String(r.body.detail || "").slice(0, 110)}` : "");
+      const SK = env.STAGING_SUPABASE_SERVICE_ROLE_KEY;
+      if (!SK) record("anon", "API public store", "/api/submit stored row", "row matches the baseline contract", "no service key", "SKIP", "local mode only");
+      else {
+        const SH = { apikey: SK, Authorization: `Bearer ${SK}` };
+        const base = `${env.ISOLATION_SUPABASE_URL}/rest/v1/contact_submissions?message=eq.${encodeURIComponent(`iso d21 ${SUBMIT_RUN}`)}`;
+        const rows = await fetch(`${base}&select=*`, { headers: SH }).then((x) => x.json()).catch(() => null);
+        const row = Array.isArray(rows) && rows.length === 1 ? rows[0] : null;
+        const cols = row ? Object.keys(row).sort().join(",") : "";
+        const fresh = row && Date.now() - Date.parse(row.created_at) < 10 * 60 * 1000;
+        record("anon", "API public store", "/api/submit stored row", "one row; baseline columns; client notes/created_at/id dropped",
+               row ? `${cols}; created_at ${fresh ? "server-set" : row.created_at}; id ${row.id}` : `${Array.isArray(rows) ? rows.length : "?"} rows`,
+               row && cols === "company,created_at,email,id,message,name" && row.name === "Iso Tester" && fresh && row.id !== 1 ? "PASS" : "FAIL");
+        await fetch(base, { method: "DELETE", headers: SH }).catch(() => {});   // remove the test row
+      }
+      // Invalid input is refused BEFORE the throttle (no budget spent) and stores nothing.
+      for (const [label, payload, want] of [
+        ["missing email", { form: "contact", name: "Iso", message: "x" }, "missing-required-fields"],
+        ["malformed email", { form: "contact", name: "Iso", email: "not-an-email", message: "x" }, "invalid-email"],
+        ["unknown form", { form: "contact_submissions", name: "Iso", email: "iso@staging.invalid" }, "unknown-form"],
+      ]) {
+        const bad = await call("submit", post2(payload), null);
+        put("anon", "API public store", "/api/submit", `${label} -> 400 ${want}`, bad, bad.status === 400 && bad.body && bad.body.error === want ? "PASS" : "FAIL");
+      }
+      const big = await call("submit", post2({ form: "contact", name: "Iso", email: "iso@staging.invalid", message: "x".repeat(20000) }), null);
+      put("anon", "API public store", "/api/submit", "oversized body -> 413", big, big.status === 413 ? "PASS" : "FAIL");
+      // Nobody outside MineEx reads the submissions: not anonymous callers, not a
+      // company owner, not an investor (admin_read_contact is platform-admin only).
+      for (const who of ["anon", "companyA", "investor"]) {
+        const t = who === "anon" ? env.ISOLATION_ANON_KEY : tok[who];
+        if (!t) continue;
+        const rr = await fetch(`${env.ISOLATION_SUPABASE_URL}/rest/v1/contact_submissions?select=id&limit=5`, { headers: { apikey: env.ISOLATION_ANON_KEY, Authorization: `Bearer ${t}` } });
+        const body = await rr.json().catch(() => null);
+        record(who, "SELECT", "contact_submissions", "denied / empty", `${rr.status} ${Array.isArray(body) ? body.length + " rows" : ""}`,
+               rr.status === 401 || rr.status === 403 || (Array.isArray(body) && body.length === 0) ? "PASS" : "FAIL", "submissions are MineEx-only");
+      }
     }
     const mailOk = r.egress.mail.every((m) => /\.invalid$/.test(m.to || ""));
-    // submit's "store-failed" is returned only after validation and the throttle
-    // admitted the anonymous request (submit.js:53-76) -- the public-route property
-    // holds; the storage defect itself is the separate D21 record above.
-    const reachedStore = rt.name === "submit" && r.body && r.body.error === "store-failed";
-    const v = r.status === 401 || r.status === 403 ? "FAIL" : (r.status >= 200 && r.status < 300 && mailOk) || reachedStore ? "PASS" : !mailOk ? "FAIL" : "SKIP";
+    const v = r.status === 401 || r.status === 403 ? "FAIL" : (r.status >= 200 && r.status < 300 && mailOk) ? "PASS" : !mailOk ? "FAIL" : "SKIP";
     put("anon", "API public", `/api/${rt.name}`, "public by design; mail only to fixtures", r, v,
-        r.status >= 500 ? `inconclusive: ${r.status}${rt.name === "og-news" ? " (font CDN blocked by staging egress)" : ""}` : `${r.egress.mail.length} mocked mail(s)`);
+        r.status >= 500 ? `inconclusive: ${r.status}` : `${r.egress.mail.length} mocked mail(s)`);
   }
 
   // ---- 9. abuse -------------------------------------------------------------------------
@@ -526,10 +589,15 @@ export async function runApiSuite({ api, tok, env, record, headers: extraHeaders
                : burst.every((x) => x >= 500 || x === 0) ? "SKIP" : "FAIL",
              `admitted ${admitted} in this window; mocked mails during burst: ${mails}`);
     }
+    // Both submission-throttle tests use the DEMO form: same throttle code as
+    // contact, but they leave the contact bucket to the D21 store check (one per
+    // run), and since D21 every admitted submission really STORES -- the rows
+    // carry this run's marker and are deleted below.
+    const demoProbe = () => post2({ form: "demo", name: "Iso Tester", company: "Iso Co", email: "iso-tester@staging.invalid", notes: `iso spoof ${SUBMIT_RUN}` });
     {
-      const rt = API_ROUTES.find((x) => x.name === "submit");
+      { const W = 10 * 60 * 1000, l = W - (Date.now() % W); if (l < 90 * 1000) await new Promise((r) => setTimeout(r, l + 1500)); }
       let limited = false, statuses = [];
-      for (let i = 0; i < 8 && !limited; i++) { const r = await call("submit", rt.req(c, "A"), null); statuses.push(r.status); if (r.status === 429) limited = true; }
+      for (let i = 0; i < 8 && !limited; i++) { const r = await call("submit", demoProbe(), null); statuses.push(r.status); if (r.status === 429) limited = true; }
       record("anon", "API abuse burst", "/api/submit", "429 within 8 requests", statuses.join(","),
              limited ? "PASS" : statuses.every((x) => x >= 500) ? "SKIP" : "FAIL");
     }
@@ -537,7 +605,11 @@ export async function runApiSuite({ api, tok, env, record, headers: extraHeaders
     // forwarding headers. Measured on Vercel (2026-10-30): x-forwarded-for and
     // x-real-ip are platform-set, and the emulator now does the same.
     {
-      const rt = API_ROUTES.find((x) => x.name === "submit");
+      // Uses the DEMO form, not contact: same throttle code, but it leaves the
+      // contact bucket for the D21 store check, so back-to-back runs inside one
+      // 10-minute window stay deterministic. Since D21 these submissions really
+      // STORE, so the rows are removed at the end (marked with the run id).
+      const rt = { req: demoProbe };   // the bucket is already full from the burst test above
       let limited = null;
       for (let i = 0; i < 8 && !limited; i++) { const r = await call("submit", rt.req(c, "A"), null, { "x-forwarded-for": "198.51.100.7" }); if (r.status === 429) limited = r; }
       if (!limited) record("anon", "API abuse spoof", "/api/submit", "throttle cannot be reset by a header", "never limited", "SKIP", "could not reach the limit");
@@ -547,9 +619,31 @@ export async function runApiSuite({ api, tok, env, record, headers: extraHeaders
             r.status === 429 ? "PASS" : "FAIL", r.status === 429 ? "the emulator, like Vercel (measured), overwrites x-forwarded-for; clientIp() also prefers x-real-ip" : "a new x-forwarded-for value reset the throttle -- the emulator no longer matches Vercel's measured behaviour");
       }
     }
+    // Remove every row this run's submissions stored (demo spoof rows; the D21
+    // contact row was already removed by its own check).
+    if (env.STAGING_SUPABASE_SERVICE_ROLE_KEY) {
+      const SK = env.STAGING_SUPABASE_SERVICE_ROLE_KEY, SH = { apikey: SK, Authorization: `Bearer ${SK}` };
+      const demoQ = `${env.ISOLATION_SUPABASE_URL}/rest/v1/demo_bookings?notes=eq.${encodeURIComponent(`iso spoof ${SUBMIT_RUN}`)}`;
+      const contactQ = `${env.ISOLATION_SUPABASE_URL}/rest/v1/contact_submissions?message=eq.${encodeURIComponent(`iso d21 ${SUBMIT_RUN}`)}`;
+      await fetch(demoQ, { method: "DELETE", headers: SH }).catch(() => {});
+      await fetch(contactQ, { method: "DELETE", headers: SH }).catch(() => {});
+      const left = [
+        ...((await fetch(`${demoQ}&select=id`, { headers: SH }).then((x) => x.json()).catch(() => null)) || [null]),
+        ...((await fetch(`${contactQ}&select=id`, { headers: SH }).then((x) => x.json()).catch(() => null)) || [null]),
+      ];
+      record("suite", "cleanup", "demo_bookings / contact_submissions", "this run's test submissions removed", `${left.length} left`,
+             left.length === 0 ? "PASS" : "FAIL");
+    }
     // AI rate limit: the publisher's bucket for structure-release.
     if (tok.publisher) {
       const limit = Number(env.AI_CALLS_PER_WINDOW || 0);
+      // The limiter's window is aligned to the wall clock (_aiGuard windowStart:
+      // :00, :10, :20 ...). A burst that straddles a boundary is split across two
+      // counters and is never limited -- observed 2026-10-31 at 22:40:00Z, when 8
+      // probe calls landed before the boundary and 6 after. Start the burst in a
+      // fresh window when fewer than 90 s remain; the assertion is unchanged.
+      const WINDOW_MS = 10 * 60 * 1000, left = WINDOW_MS - (Date.now() % WINDOW_MS);
+      if (left < 90 * 1000) await new Promise((r) => setTimeout(r, left + 1500));
       let got429 = null, providerOn429 = 0, statuses = [];
       for (let i = 0; i < (limit || 12) + 2 && got429 === null; i++) {
         const r = await call("structure-release", { method: "POST", body: { companyId: c.id.A, text: `Iso rate probe ${i}` } }, tok.publisher);

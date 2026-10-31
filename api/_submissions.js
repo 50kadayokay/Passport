@@ -56,6 +56,10 @@ export const FORMS = {
       ticker: 40, plan: 40, message: 4000,
     },
     passthrough: ["name", "email", "company", "phone", "country", "preferred_date", "preferred_time", "notes"],
+    // demo_bookings HAS a notes column (0000_baseline.sql); extra context
+    // (plan, ticker, message) is folded into it. contact_submissions does NOT
+    // (D21) -- it keeps the message in its own `message` column.
+    notesColumn: true,
   },
   listing_report: {
     table: "listing_reports",
