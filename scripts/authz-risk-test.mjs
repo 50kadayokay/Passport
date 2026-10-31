@@ -27,7 +27,10 @@ process.env.STRIPE_SECRET_KEY = "sk_test_stub";
 process.env.STRIPE_PRICE_BASIC = "price_stub_basic";
 process.env.ANTHROPIC_API_KEY = "stub-anthropic";
 delete process.env.MINEEX_ENV;
-delete process.env.PUBLIC_BASE_URL;
+delete process.env.VERCEL_URL;
+// The TRUSTED internal base (F5): internal calls may go here and nowhere else.
+const TRUSTED = "app.mineex.invalid";
+process.env.PUBLIC_BASE_URL = `https://${TRUSTED}`;
 
 const COMPANY_A_UUID = "aaaaaaaa-0000-4000-8000-00000000000a";
 const COMPANY_B_UUID = "bbbbbbbb-0000-4000-8000-00000000000b";
@@ -120,20 +123,36 @@ console.log("\n  F3 · messages inbound");
 }
 
 console.log("\n  F5 · the Host header must not choose where internal secrets go");
-{
-  const { calls } = await run("publish", mkReq({ headers: { authorization: "Bearer tok-ownerA", "x-forwarded-host": "canary.invalid" }, body: { publicationId: "pub-1" } }));
-  const leaked = calls.filter((c) => c.host !== new URL(STUB_SB).host && c.headers["x-dispatch-secret"]);
-  check("publish never sends DISPATCH_SECRET to a host named by the request",
-        !leaked.some((c) => c.host === "canary.invalid"), { known: "F5", detail: `DISPATCH_SECRET sent to: ${leaked.map((c) => c.host).join(", ") || "none"}` });
+const secretCalls = (calls, header) => calls.filter((c) => c.host !== new URL(STUB_SB).host && c.headers[header]);
+for (const [label, hdrs] of [["X-Forwarded-Host", { "x-forwarded-host": "canary.invalid" }], ["Host", { host: "canary.invalid" }],
+                             ["Forwarded", { forwarded: "host=canary.invalid;proto=https" }], ["X-Forwarded-Proto http", { "x-forwarded-proto": "http", "x-forwarded-host": "canary.invalid" }]]) {
+  const { calls } = await run("publish", mkReq({ headers: { authorization: "Bearer tok-ownerA", ...hdrs }, body: { publicationId: "pub-1" } }));
+  const leaked = secretCalls(calls, "x-dispatch-secret");
+  check(`publish (${label} = canary): DISPATCH_SECRET goes ONLY to the trusted base over https`,
+        leaked.length === 1 && leaked.every((c) => c.host === TRUSTED && c.path === "/api/dispatch"), { detail: `sent to: ${leaked.map((c) => c.host).join(", ") || "none"}` });
 }
 {
-  // news-broadcast chains to news-push-send on PUBLIC_BASE_URL || Host.
-  const { calls } = await run("news-broadcast", mkReq({ headers: { "x-news-secret": "stub-news-secret-value", host: "canary.invalid" }, body: { news_item_id: "n-1" } }));
-  const leaked = calls.filter((c) => c.host === "canary.invalid" && c.headers["x-news-secret"]);
-  const chained = calls.some((c) => c.path === "/api/news-push-send");
-  check("news-broadcast reached its chaining step (control: otherwise the next check is vacuous)", chained);
-  check("news-broadcast never sends NEWS_PULL_SECRET to a host named by the request",
-        leaked.length === 0, { known: "F5", detail: `NEWS_PULL_SECRET sent to canary.invalid: ${leaked.length} time(s)` });
+  // news-broadcast chains to news-push-send on the trusted base only.
+  const { calls } = await run("news-broadcast", mkReq({ headers: { "x-news-secret": "stub-news-secret-value", host: "canary.invalid", "x-forwarded-host": "canary.invalid" }, body: { news_item_id: "n-1" } }));
+  const sent = secretCalls(calls, "x-news-secret");
+  check("news-broadcast reached its chaining step (control: otherwise the next check is vacuous)", calls.some((c) => c.path === "/api/news-push-send"));
+  check("news-broadcast sends NEWS_PULL_SECRET only to the trusted base, never to a host named by the request",
+        sent.length > 0 && sent.every((c) => c.host === TRUSTED), { detail: `sent to: ${sent.map((c) => c.host).join(", ")}` });
+}
+{
+  // FAIL SAFE: no trusted base configured -> no internal call at all (the
+  // request's Host is never used as a fallback).
+  const saved = process.env.PUBLIC_BASE_URL; delete process.env.PUBLIC_BASE_URL;
+  const { calls } = await run("publish", mkReq({ headers: { authorization: "Bearer tok-ownerA", host: "canary.invalid" }, body: { publicationId: "pub-1" } }));
+  check("no PUBLIC_BASE_URL / VERCEL_URL: publish still succeeds and sends the dispatch secret NOWHERE", secretCalls(calls, "x-dispatch-secret").length === 0);
+  process.env.PUBLIC_BASE_URL = "http://canary.invalid";   // plain http to a non-loopback host is refused
+  const r2 = await run("publish", mkReq({ headers: { authorization: "Bearer tok-ownerA" }, body: { publicationId: "pub-1" } }));
+  check("a PUBLIC_BASE_URL that is not https (non-loopback) is refused, not used", secretCalls(r2.calls, "x-dispatch-secret").length === 0);
+  process.env.VERCEL_URL = "deploy-abc.vercel.app";
+  const r3 = await run("publish", mkReq({ headers: { authorization: "Bearer tok-ownerA", host: "canary.invalid" }, body: { publicationId: "pub-1" } }));
+  check("falls back to the platform's VERCEL_URL (https), never the request", secretCalls(r3.calls, "x-dispatch-secret").every((c) => c.host === "deploy-abc.vercel.app") && secretCalls(r3.calls, "x-dispatch-secret").length === 1);
+  delete process.env.VERCEL_URL;
+  process.env.PUBLIC_BASE_URL = saved;
 }
 
 console.log("\n  F2 · Stripe checkout is for a company's owners and platform admins");
@@ -175,11 +194,11 @@ console.log("\n  F10 · configuration is checked AFTER authentication");
 
 console.log("\n  F11 · revise-release triggers the dispatcher like publish does");
 {
-  const { res, calls } = await run("revise-release", mkReq({ headers: { authorization: "Bearer tok-ownerA" }, body: { publicationId: "pub-1", body: "corrected" } }));
-  const dispatched = calls.some((c) => c.path === "/api/dispatch");
-  check("a successful revision calls /api/dispatch",
-        res.statusCode === 200 && dispatched,
-        { known: "F11", detail: `status ${res.statusCode}; dispatch attempted: ${dispatched} (invokeDispatchBestEffort() is called without req and throws silently)` });
+  const { res, calls } = await run("revise-release", mkReq({ headers: { authorization: "Bearer tok-ownerA", host: "canary.invalid" }, body: { publicationId: "pub-1", body: "corrected" } }));
+  const dispatched = calls.filter((c) => c.path === "/api/dispatch");
+  check("a successful revision calls /api/dispatch, on the trusted base",
+        res.statusCode === 200 && dispatched.length === 1 && dispatched[0].host === TRUSTED && dispatched[0].headers["x-dispatch-secret"] === process.env.DISPATCH_SECRET,
+        { detail: `status ${res.statusCode}; dispatch calls: ${dispatched.map((c) => c.host).join(", ") || "none"}` });
 }
 
 console.log(`\nauthz risks: ${pass} secure, ${knownFail} KNOWN findings, ${unexpected} unexpected, ${fixedKnown} fixed-but-still-marked`);

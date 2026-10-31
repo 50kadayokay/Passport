@@ -11,13 +11,83 @@
 // Idempotency: feed_projection upserts on posts.publication_id; notifications upsert
 // on (user_id, post_id, kind). Replaying an event creates no duplicates.
 
+// D22 PHASE 1 -- a delivery is completed only when its work is done.
+//
+//   * READS use db.getRows(), which THROWS on an HTTP error. A failed read used
+//     to return null, which every listener read as "nothing to do", so the
+//     delivery was completed and the work silently lost.
+//   * MISSING DEPENDENCIES throw (the post a notification or push needs), so the
+//     claim/complete RPCs retry with backoff instead of completing.
+//   * WRITES are checked; a failed write throws.
+//   * FOLLOWERS are read in pages and processed in chunks, so a large audience
+//     neither overflows a URL (which used to drop preferences: muted users were
+//     notified) nor gets truncated at PostgREST's row cap.
+//   * HISTORICAL events (older than HISTORICAL_CUTOFF_HOURS when processed) do
+//     not notify investors or start AI extraction. A first drain over months of
+//     never-delivered events must not buzz phones or spend on AI. Retries of a
+//     CURRENT release finish within ~30 minutes, far inside the cutoff.
+//     Skipping is returned as { skipped: "historical" } and counted by the
+//     dispatcher; it is never silent. AI backfill is an explicit admin action
+//     (api/dispatch.js, action "backfill").
+
+export const HISTORICAL_CUTOFF_HOURS = 72;
+export const FOLLOWER_CHUNK = 100;
+const PAGE = 1000;
+
+/** Is this event too old to notify about or extract automatically? */
+export function isHistorical(event, now = Date.now()) {
+  const at = Date.parse((event && (event.occurred_at || event.created_at)) || "");
+  return Number.isFinite(at) && now - at > HISTORICAL_CUTOFF_HOURS * 3600 * 1000;
+}
+
+const chunk = (arr, n) => { const out = []; for (let i = 0; i < arr.length; i += n) out.push(arr.slice(i, i + n)); return out; };
+
+/** Every follower of a company, paged (PostgREST caps a response at ~1000 rows). */
+async function allFollowers(db, companyId) {
+  const ids = new Set();
+  for (let offset = 0; ; offset += PAGE) {
+    const rows = await db.getRows(`company_follows?company_id=eq.${companyId}&select=user_id&order=user_id&limit=${PAGE}&offset=${offset}`);
+    rows.forEach((r) => r && r.user_id && ids.add(r.user_id));
+    if (rows.length < PAGE) break;
+  }
+  return [...ids];
+}
+
+/** Preferences for a set of users on one channel, read in safe chunks. */
+async function prefsFor(db, userIds, channel) {
+  const out = [];
+  for (const part of chunk(userIds, FOLLOWER_CHUNK)) {
+    out.push(...await db.getRows(`notification_prefs?user_id=in.(${part.join(",")})&channel=eq.${channel}&select=user_id,company_id,muted,min_materiality`));
+  }
+  return out;
+}
+
+/** The followers a release should reach: company pref beats global; muted and below-threshold excluded. */
+function eligibleFollowers(userIds, prefs, companyId, score) {
+  return userIds.filter((uid) => {
+    const cPref = prefs.find((p) => p.user_id === uid && p.company_id === companyId);
+    const gPref = prefs.find((p) => p.user_id === uid && p.company_id == null);
+    const pref = cPref || gPref;
+    if (pref && pref.muted) return false;
+    const minMat = pref && pref.min_materiality != null ? pref.min_materiality : 0;
+    return score >= minMat;
+  });
+}
+
+/** A write that must succeed, or the delivery retries. */
+async function mustWrite(db, path, opts, what) {
+  const r = await db.write(path, opts);
+  if (!r || !r.ok) throw new Error(`${what} failed (${r ? r.status : "no response"})`);
+  return r;
+}
+
 const LABEL_TO_SCORE = { Transformational: 90, High: 70, Moderate: 40, Low: 15 };
 const scoreFor = (label) => (label && LABEL_TO_SCORE[label] != null ? LABEL_TO_SCORE[label] : null);
 
 async function feedProjectionV1(event, db) {
-  const pubs = await db.getJson(`publications?id=eq.${event.publication_id}&select=id,company_id,update_id,destination_id,status,content,external_url,published_at`);
-  const pub = pubs && pubs[0];
-  if (!pub) return; // publication gone → nothing to project
+  const pubs = await db.getRows(`publications?id=eq.${event.publication_id}&select=id,company_id,update_id,destination_id,status,content,external_url,published_at`);
+  const pub = pubs[0];
+  if (!pub) return; // publication genuinely gone (deleted) → nothing to project
 
   // The feed post represents the Passport-profile publication only. LinkedIn/X/etc.
   // publications flow through the same outbox but do not become feed posts.
@@ -27,17 +97,19 @@ async function feedProjectionV1(event, db) {
   // publication_id, so a correction UPDATES the existing post -- same id, same
   // published_at, same place in the feed -- rather than adding a second one.
   if (event.event_type === "PUBLICATION_UNPUBLISHED") {
-    await db.write(`posts?publication_id=eq.${event.publication_id}`, {
+    // Checked: a failed soft-remove used to be ignored, leaving an unpublished
+    // release in the investor feed with its delivery marked done.
+    await mustWrite(db, `posts?publication_id=eq.${event.publication_id}`, {
       method: "PATCH", body: { removed_at: new Date().toISOString() }, prefer: "return=minimal",
-    });
+    }, "feed soft-remove");
     return;
   }
 
   // PUBLICATION_PUBLISHED → build the projection from authoritative data.
   let materialityLabel = null;
   if (pub.update_id) {
-    const upd = await db.getJson(`updates?id=eq.${pub.update_id}&select=detected`);
-    materialityLabel = (upd && upd[0] && upd[0].detected && upd[0].detected.materiality) || null;
+    const upd = await db.getRows(`updates?id=eq.${pub.update_id}&select=detected`);
+    materialityLabel = (upd[0] && upd[0].detected && upd[0].detected.materiality) || null;
   }
   const content = pub.content || {};
   // The composer states what it published. Anything that isn't an explicit media
@@ -51,10 +123,6 @@ async function feedProjectionV1(event, db) {
     category: content.category ? String(content.category) : null,
     title: (content.headline && String(content.headline).trim()) || "Company update",
     summary: content.body || null,
-    // The actual media source (photo or video). Without this, a video post has nothing
-    // to play. Photos set thumbnail_url = the image; videos set media_url = the video and
-    // thumbnail_url = a poster frame.
-    media_url: content.media_url || null,
     // A media post's media_url is the video itself, so prefer an explicit thumbnail.
     thumbnail_url: content.thumbnail_url || content.media_url || null,
     source_url: content.source_url || pub.external_url || null,
@@ -63,6 +131,12 @@ async function feedProjectionV1(event, db) {
     published_at: pub.published_at || new Date().toISOString(),
     removed_at: null, // re-publish makes it visible again
   };
+  // The actual media source (photo or video). Without this, a video post has
+  // nothing to play. Sent ONLY when there is one: posts.media_url is a legacy
+  // column that no migration creates (0071 adds it), so a database built from
+  // migrations -- staging -- refused EVERY projection with PGRST204 while
+  // media_url was always sent, even as null. Press releases never set it.
+  if (content.media_url) row.media_url = content.media_url;
   const r = await db.write(`posts?on_conflict=publication_id`, {
     method: "POST", body: row, prefer: "resolution=merge-duplicates,return=minimal",
   });
@@ -75,42 +149,35 @@ async function inAppNotificationsV1(event, db) {
   // notification is the one side effect that cannot be taken back, so it is
   // guarded in code as well as in the subscription table.
   if (event.event_type !== "PUBLICATION_PUBLISHED") return;
-  const posts = await db.getJson(`posts?publication_id=eq.${event.publication_id}&select=id,company_id,title,post_type,materiality_score`);
-  const post = posts && posts[0];
+  if (isHistorical(event)) return { skipped: "historical" };   // no surprise notifications for old releases
+  const posts = await db.getRows(`posts?publication_id=eq.${event.publication_id}&select=id,company_id,title,post_type,materiality_score,removed_at`);
+  const post = posts[0];
   if (!post) throw new Error("post not yet projected"); // retry until feed_projection has run
+  if (post.removed_at) return { skipped: "unpublished" };   // withdrawn before we got to it
 
   // Eligibility: only official releases notify — never every media upload.
   if (post.post_type !== "press_release") return;
 
-  const cos = await db.getJson(`companies?id=eq.${post.company_id}&select=name,slug`);
-  const co = (cos && cos[0]) || {};
-  const follows = await db.getJson(`company_follows?company_id=eq.${post.company_id}&select=user_id`);
-  if (!follows || !follows.length) return;
+  const cos = await db.getRows(`companies?id=eq.${post.company_id}&select=name,slug`);
+  const co = cos[0] || {};
+  const userIds = await allFollowers(db, post.company_id);
+  if (!userIds.length) return;
 
-  const userIds = follows.map((f) => f.user_id);
-  const prefs = await db.getJson(`notification_prefs?user_id=in.(${userIds.join(",")})&channel=eq.in_app&select=user_id,company_id,muted,min_materiality`) || [];
+  const prefs = await prefsFor(db, userIds, "in_app");
   const score = post.materiality_score == null ? 0 : post.materiality_score;
-
-  const rows = [];
-  for (const uid of userIds) {
-    const cPref = prefs.find((p) => p.user_id === uid && p.company_id === post.company_id);
-    const gPref = prefs.find((p) => p.user_id === uid && p.company_id == null);
-    const pref = cPref || gPref;
-    if (pref && pref.muted) continue;
-    const minMat = pref && pref.min_materiality != null ? pref.min_materiality : 0;
-    if (score < minMat) continue;
-    rows.push({
-      user_id: uid, kind: "new_release", company_id: post.company_id, post_id: post.id,
-      title: `${co.name || "A company you follow"} posted an update`,
-      body: post.title, deep_link: `/p/${post.id}`,
-    });
+  const rows = eligibleFollowers(userIds, prefs, post.company_id, score).map((uid) => ({
+    user_id: uid, kind: "new_release", company_id: post.company_id, post_id: post.id,
+    title: `${co.name || "A company you follow"} posted an update`,
+    body: post.title, deep_link: `/p/${post.id}`,
+  }));
+  // Upsert on (user_id, post_id, kind): a retry or a second dispatcher writes
+  // nothing twice. Chunked so a large audience is not one enormous request.
+  for (const part of chunk(rows, 500)) {
+    await mustWrite(db, `notifications?on_conflict=user_id,post_id,kind`, {
+      method: "POST", body: part, prefer: "resolution=merge-duplicates,return=minimal",
+    }, "notifications upsert");
   }
-  if (rows.length) {
-    const r = await db.write(`notifications?on_conflict=user_id,post_id,kind`, {
-      method: "POST", body: rows, prefer: "resolution=merge-duplicates,return=minimal",
-    });
-    if (!r.ok) throw new Error(`notifications upsert failed (${r.status})`);
-  }
+  return { notified: rows.length };
 }
 
 /**
@@ -133,12 +200,50 @@ async function inAppNotificationsV1(event, db) {
  * never from the event or any user input, so a fact cannot land on another
  * company even if an event were malformed.
  */
-async function mineIqFactsV1(event, db) {
+// THE CLAIM LIFECYCLE (D22). mineiq_ingestions.facts_written = -1 means "claimed,
+// extraction running"; >= 0 means "done" (rows written before D22 hold 0 or
+// more, so they read as done). Previously the claim was simply inserted first,
+// so an AI failure -- or the function being killed at its time limit -- left a
+// claim behind and every retry returned early: that release's facts were lost
+// for good. Now a failure RELEASES the claim, and a claim left "running" for
+// longer than CLAIM_STALE_MINUTES (a killed run) is taken over by the retry.
+export const CLAIM_STALE_MINUTES = 15;
+
+async function claimIngestion(db, pub, revision) {
+  const key = `publication_id=eq.${pub.id}&revision=eq.${revision}`;
+  const tryClaim = async () => {
+    const r = await mustWrite(db, `mineiq_ingestions?on_conflict=publication_id,revision`, {
+      method: "POST",
+      body: [{ publication_id: pub.id, company_id: pub.company_id, revision, facts_written: -1 }],
+      prefer: "resolution=ignore-duplicates,return=representation",
+    }, "mineiq claim");
+    const rows = await r.json().catch(() => []);
+    return Array.isArray(rows) && rows.length > 0;
+  };
+  if (await tryClaim()) return "claimed";
+  const cur = (await db.getRows(`mineiq_ingestions?${key}&select=facts_written,ingested_at`))[0];
+  if (!cur) return (await tryClaim()) ? "claimed" : "busy";          // vanished between calls
+  if (Number(cur.facts_written) >= 0) return "done";                 // finished earlier: idempotent
+  const age = Date.now() - Date.parse(cur.ingested_at || 0);
+  if (age > CLAIM_STALE_MINUTES * 60 * 1000) {
+    // A run that died mid-extraction. Remove exactly that stale claim (the
+    // filter on ingested_at stops two retries both removing a fresh one), then race to re-claim.
+    await mustWrite(db, `mineiq_ingestions?${key}&facts_written=eq.-1&ingested_at=eq.${encodeURIComponent(cur.ingested_at)}`,
+      { method: "DELETE", prefer: "return=minimal" }, "stale mineiq claim removal");
+    return (await tryClaim()) ? "claimed" : "busy";
+  }
+  return "busy";                                                     // another worker is extracting now
+}
+
+async function mineIqFactsV1(event, db, opts = {}) {
   // Both the original publication and a correction reconcile knowledge.
   if (event.event_type !== "PUBLICATION_PUBLISHED" && event.event_type !== "PUBLICATION_REVISED") return;
+  // Old events are not extracted automatically: AI backfill is an explicit
+  // admin action (opts.force, from api/dispatch.js action "backfill").
+  if (!opts.force && isHistorical(event)) return { skipped: "historical" };
 
-  const pubs = await db.getJson(`publications?id=eq.${event.publication_id}&select=id,company_id,update_id,destination_id,status,published_at`);
-  const pub = pubs && pubs[0];
+  const pubs = await db.getRows(`publications?id=eq.${event.publication_id}&select=id,company_id,update_id,destination_id,status,published_at`);
+  const pub = pubs[0];
   if (!pub) return;
   if (pub.destination_id !== "passport") return;   // only the profile publication is a disclosure
 
@@ -152,19 +257,30 @@ async function mineIqFactsV1(event, db) {
   const revision = Number(event.payload && event.payload.revision) || 1;
   const revisionId = (event.payload && event.payload.revision_id) || null;
 
-  const claim = await db.write(`mineiq_ingestions?on_conflict=publication_id,revision`, {
-    method: "POST",
-    body: [{ publication_id: pub.id, company_id: pub.company_id, revision }],
-    prefer: "resolution=ignore-duplicates,return=representation",
-  });
-  if (!claim.ok) throw new Error(`mineiq claim failed (${claim.status})`);
-  const claimed = await claim.json().catch(() => []);
-  if (!Array.isArray(claimed) || claimed.length === 0) return;   // someone else has it
+  const state = await claimIngestion(db, pub, revision);
+  if (state === "done") return { skipped: "already extracted" };
+  // Busy: another worker holds a fresh claim. Retry later (backoff) rather than
+  // completing -- if that worker dies, its claim goes stale and this one takes over.
+  if (state === "busy") throw new Error("mineiq extraction in progress elsewhere; retrying");
 
-  if (!pub.update_id) return;
-  const upds = await db.getJson(`updates?id=eq.${pub.update_id}&select=body,detected,published_on`);
-  const upd = upds && upds[0];
-  if (!upd) return;
+  const ingestionKey = `mineiq_ingestions?publication_id=eq.${pub.id}&revision=eq.${revision}`;
+  const finish = async (n) => {
+    await mustWrite(db, ingestionKey, { method: "PATCH", body: { facts_written: n }, prefer: "return=minimal" }, "mineiq finish");
+    return { facts: n };
+  };
+  try {
+    return await extractAndStore();
+  } catch (e) {
+    // Release the claim so the retry extracts instead of returning early.
+    await db.write(`${ingestionKey}&facts_written=eq.-1`, { method: "DELETE", prefer: "return=minimal" }).catch(() => {});
+    throw e;
+  }
+
+  async function extractAndStore() {
+  if (!pub.update_id) return finish(0);
+  const upds = await db.getRows(`updates?id=eq.${pub.update_id}&select=body,detected,published_on`);
+  const upd = upds[0];
+  if (!upd) return finish(0);
 
   const det = upd.detected || {};
   // The FULL release is the authoritative text, not the MineEx summary: the
@@ -172,17 +288,17 @@ async function mineIqFactsV1(event, db) {
   // For a correction, read the REVISION that was published, not the working draft.
   let body = upd.body || "";
   if (revisionId) {
-    const revs = await db.getJson(`release_revisions?id=eq.${revisionId}&select=body`);
-    if (revs && revs[0] && String(revs[0].body || "").trim()) body = revs[0].body;
+    const revs = await db.getRows(`release_revisions?id=eq.${revisionId}&select=body`);
+    if (revs[0] && String(revs[0].body || "").trim()) body = revs[0].body;
   }
-  if (!String(body).trim()) return;
+  if (!String(body).trim()) return finish(0);
 
-  const cos = await db.getJson(`companies?id=eq.${pub.company_id}&select=name`);
-  const companyName = (cos && cos[0] && cos[0].name) || "";
+  const cos = await db.getRows(`companies?id=eq.${pub.company_id}&select=name`);
+  const companyName = (cos[0] && cos[0].name) || "";
 
-  const { extractFacts, factRows } = await import("./_mineiq.js");
+  const { extractFacts, factRows } = await (opts.mineiq ? Promise.resolve(opts.mineiq) : import("./_mineiq.js"));
   const facts = await extractFacts({ title: det.headline || "", body, companyName });
-  if (!facts.length) return;
+  if (!facts.length) return finish(0);
 
   const rows = factRows(facts, {
     companyId: pub.company_id,
@@ -192,7 +308,7 @@ async function mineIqFactsV1(event, db) {
     revision,
     revisionId,
   });
-  if (!rows.length) return;
+  if (!rows.length) return finish(0);
 
   // RECONCILIATION against the previous revision of THIS publication.
   //
@@ -205,8 +321,8 @@ async function mineIqFactsV1(event, db) {
   //   only in new  → genuinely new, inserted below.
   let retired = [];
   if (revision > 1) {
-    const priorRows = await db.getJson(
-      `facts?company_id=eq.${pub.company_id}&publication_id=eq.${pub.id}&superseded_by=is.null&select=id,content_key`) || [];
+    const priorRows = await db.getRows(
+      `facts?company_id=eq.${pub.company_id}&publication_id=eq.${pub.id}&superseded_by=is.null&select=id,content_key`);
     const nowKeys = new Set(rows.map((r) => r.content_key));
     retired = priorRows.filter((f) => !nowKeys.has(f.content_key));
   }
@@ -217,7 +333,7 @@ async function mineIqFactsV1(event, db) {
   let priorByMeasure = new Map();
   if (measures.length) {
     const inList = measures.map((m) => `"${encodeURIComponent(m).replace(/"/g, "")}"`).join(",");
-    const prior = await db.getJson(
+    const prior = await db.getRows(
       `facts?company_id=eq.${pub.company_id}&superseded_by=is.null&measure=in.(${inList})&select=id,measure,data`);
     (Array.isArray(prior) ? prior : []).forEach((f) => {
       const cur = priorByMeasure.get(f.measure);
@@ -243,9 +359,9 @@ async function mineIqFactsV1(event, db) {
   for (const gone of retired) {
     if (!anchorId) break;
     const replacement = (Array.isArray(written) ? written : []).find((w) => w.content_key === gone.content_key);
-    await db.write(`facts?id=eq.${gone.id}&superseded_by=is.null`, {
+    await mustWrite(db, `facts?id=eq.${gone.id}&superseded_by=is.null`, {
       method: "PATCH", body: { superseded_by: (replacement && replacement.id) || anchorId }, prefer: "return=minimal",
-    }).catch(() => {});
+    }, "fact retirement");
   }
 
   // SUPERSESSION. Only where a new CURRENT fact shares a measure with an older
@@ -260,14 +376,13 @@ async function mineIqFactsV1(event, db) {
     // Only supersede with something genuinely NEWER. Publishing an older
     // release after a newer one must not roll current knowledge backwards.
     if (oldWhen && newWhen && newWhen <= oldWhen) continue;
-    await db.write(`facts?id=eq.${old.id}&superseded_by=is.null`, {
+    await mustWrite(db, `facts?id=eq.${old.id}&superseded_by=is.null`, {
       method: "PATCH", body: { superseded_by: row.id }, prefer: "return=minimal",
-    }).catch(() => {});
+    }, "fact supersession");
   }
 
-  await db.write(`mineiq_ingestions?publication_id=eq.${pub.id}&revision=eq.${revision}`, {
-    method: "PATCH", body: { facts_written: (written || []).length }, prefer: "return=minimal",
-  }).catch(() => {});
+  return finish((written || []).length);
+  }
 }
 
 /**
@@ -286,37 +401,33 @@ async function mineIqFactsV1(event, db) {
  */
 async function devicePushV1(event, db) {
   if (event.event_type !== "PUBLICATION_PUBLISHED") return;
+  if (isHistorical(event)) return { skipped: "historical" };   // never buzz phones about old releases
 
-  const posts = await db.getJson(`posts?publication_id=eq.${event.publication_id}&select=id,company_id,title,materiality_score,removed_at`);
-  const post = posts && posts[0];
-  if (!post || post.removed_at) return;          // no projection yet → next drain
+  const posts = await db.getRows(`posts?publication_id=eq.${event.publication_id}&select=id,company_id,title,materiality_score,removed_at`);
+  const post = posts[0];
+  // No projection yet: RETRY. This used to return, which completed the delivery
+  // and dropped the push for good (the comment promised "the next drain").
+  if (!post) throw new Error("post not yet projected");
+  if (post.removed_at) return { skipped: "unpublished" };
 
-  const cos = await db.getJson(`companies?id=eq.${post.company_id}&select=name,slug`);
-  const co = (cos && cos[0]) || {};
+  const cos = await db.getRows(`companies?id=eq.${post.company_id}&select=name,slug`);
+  const co = cos[0] || {};
 
-  const follows = await db.getJson(`company_follows?company_id=eq.${post.company_id}&select=user_id`);
-  const userIds = [...new Set((follows || []).map((f) => f.user_id))];
+  const userIds = await allFollowers(db, post.company_id);
   if (!userIds.length) return;
 
   // Same preference model the in-app listener uses: a company-specific pref
   // overrides the global one, muted means silent, and a release below the
   // reader's materiality threshold is not pushed.
-  const prefs = await db.getJson(
-    `notification_prefs?user_id=in.(${userIds.join(",")})&channel=eq.push&select=user_id,company_id,muted,min_materiality`) || [];
+  const prefs = await prefsFor(db, userIds, "push");
   const score = post.materiality_score == null ? 0 : post.materiality_score;
-
-  const eligible = userIds.filter((uid) => {
-    const cPref = prefs.find((p) => p.user_id === uid && p.company_id === post.company_id);
-    const gPref = prefs.find((p) => p.user_id === uid && !p.company_id);
-    const pref = cPref || gPref;
-    if (pref && pref.muted) return false;
-    const minMat = pref && pref.min_materiality != null ? pref.min_materiality : 0;
-    return score >= minMat;
-  });
+  const eligible = eligibleFollowers(userIds, prefs, post.company_id, score);
   if (!eligible.length) return;
 
-  const tokens = await db.getJson(
-    `push_tokens?user_id=in.(${eligible.join(",")})&select=user_id,token,platform`) || [];
+  const tokens = [];
+  for (const part of chunk(eligible, FOLLOWER_CHUNK)) {
+    tokens.push(...await db.getRows(`push_tokens?user_id=in.(${part.join(",")})&select=user_id,token,platform`));
+  }
   if (!tokens.length) return;
 
   const rows = tokens.map((t) => ({
@@ -332,10 +443,12 @@ async function devicePushV1(event, db) {
     data: { deep_link: `/p/${post.id}`, post_id: post.id, company_slug: co.slug || null, kind: "new_release" },
   }));
 
-  const r = await db.write(`notification_outbox?on_conflict=post_id,user_id,token`, {
-    method: "POST", body: rows, prefer: "resolution=ignore-duplicates,return=minimal",
-  });
-  if (!r.ok) throw new Error(`push outbox insert failed (${r.status})`);
+  for (const part of chunk(rows, 500)) {
+    await mustWrite(db, `notification_outbox?on_conflict=post_id,user_id,token`, {
+      method: "POST", body: part, prefer: "resolution=ignore-duplicates,return=minimal",
+    }, "push outbox insert");
+  }
+  return { queued: rows.length };
 }
 
 /**
@@ -364,8 +477,8 @@ async function devicePushV1(event, db) {
 async function profileTimelineV1(event, db) {
   if (event.event_type !== "PUBLICATION_PUBLISHED" && event.event_type !== "PUBLICATION_REVISED") return;
 
-  const pubs = await db.getJson(`publications?id=eq.${event.publication_id}&select=id,company_id,update_id,destination_id,status,content,published_at`);
-  const pub = pubs && pubs[0];
+  const pubs = await db.getRows(`publications?id=eq.${event.publication_id}&select=id,company_id,update_id,destination_id,status,content,published_at`);
+  const pub = pubs[0];
   if (!pub) return;
   if (pub.destination_id !== "passport") return;     // only the profile publication is on the profile
   if (pub.status !== "published") return;
@@ -378,8 +491,8 @@ async function profileTimelineV1(event, db) {
   let summary = "";
   let category = null;
   if (pub.update_id) {
-    const upds = await db.getJson(`updates?id=eq.${pub.update_id}&select=published_on,detected`);
-    const upd = upds && upds[0];
+    const upds = await db.getRows(`updates?id=eq.${pub.update_id}&select=published_on,detected`);
+    const upd = upds[0];
     if (upd) {
       publishedOn = upd.published_on || null;
       const det = upd.detected || {};
@@ -391,8 +504,8 @@ async function profileTimelineV1(event, db) {
   const date = publishedOn || (pub.published_at ? String(pub.published_at).slice(0, 10) : null);
   if (!date) return;
 
-  const posts = await db.getJson(`posts?publication_id=eq.${pub.id}&select=id`);
-  const postId = (posts && posts[0] && posts[0].id) || null;
+  const posts = await db.getRows(`posts?publication_id=eq.${pub.id}&select=id`);
+  const postId = (posts[0] && posts[0].id) || null;
 
   const entry = {
     key: `pub:${pub.id}`,

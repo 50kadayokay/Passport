@@ -105,7 +105,7 @@ export default async function handler(req, res) {
   }
 
   // 5) Best-effort immediate dispatch (never blocks or fails the response).
-  await invokeDispatchBestEffort(req);
+  await invokeDispatchBestEffort();   // target from trusted config only (F5)
 
   return res.status(200).json({ ok: true, publicationId, published_at: result.published_at, already: !!result.already });
 }

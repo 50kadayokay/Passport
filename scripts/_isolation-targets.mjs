@@ -217,6 +217,8 @@ export const COMPANY_SCOPED_RPCS = [
   ["mark_notifications_cleared",    {},                         "company-write"],
   ["mineiq_search",                 { p_query: "drill", p_limit: 3 }, "company-read"],
   ["upsert_timeline_entry",         { p_entry: {} },            "internal"],
+  // 0071 (proposed, D22): service-role only, like upsert_timeline_entry.
+  ["remove_timeline_entry",         { p_key: "pub:probe" },     "internal"],
   ["actor_can_publish",             { p_actor: NIL_UUID },      "internal"],
   ["admin_set_billing",             { p_tier: null, p_status: "active", p_renews_at: null }, "admin-only"],
 ];

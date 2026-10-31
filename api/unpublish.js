@@ -42,6 +42,6 @@ export default async function handler(req, res) {
     return bad(res, map[result?.error] || 400, result?.error || "Unpublish failed.", { detail: result });
   }
 
-  await invokeDispatchBestEffort(req);
+  await invokeDispatchBestEffort();   // target from trusted config only (F5)
   return res.status(200).json({ ok: true, publicationId, already: !!result.already });
 }

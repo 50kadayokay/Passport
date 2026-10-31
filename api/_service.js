@@ -42,6 +42,15 @@ export async function serviceRest(path, { method = "GET", body, prefer } = {}) {
 export function serviceDb() {
   return {
     async getJson(path) { const r = await serviceRest(path); if (!r.ok) return null; return r.json().catch(() => null); },
+    // STRICT read for listeners (D22): an HTTP error THROWS, so the delivery
+    // is retried instead of being completed as "nothing to do". 200 with no
+    // rows is a real answer and returns [].
+    async getRows(path) {
+      const r = await serviceRest(path);
+      if (!r.ok) throw new Error(`read failed (${r.status}) ${path.split("?")[0]}`);
+      const j = await r.json().catch(() => { throw new Error(`read returned no JSON ${path.split("?")[0]}`); });
+      return Array.isArray(j) ? j : [];
+    },
     write(path, opts) { return serviceRest(path, opts); },
     rpc(fn, body) { return serviceRpc(fn, body); },
   };
@@ -79,19 +88,51 @@ export function checkDispatchSecret(req) {
   return diff === 0;
 }
 
+// WHERE INTERNAL CALLS GO (F5). Internal chaining carries secrets
+// (DISPATCH_SECRET, NEWS_PULL_SECRET), so its target must come from trusted
+// configuration only -- never from Host, X-Forwarded-Host, Forwarded or any
+// other request header, which a client controls wherever a proxy passes them
+// through (measured: Vercel overwrites them; other hosts and local emulation may
+// not). Order:
+//   1. PUBLIC_BASE_URL -- set per deployment (https; http only for loopback,
+//      which the local staging harness uses for itself);
+//   2. https://VERCEL_URL -- set by the platform, never by a request;
+//   3. none: the caller SKIPS the call. Every internal chain is an accelerator
+//      with a guaranteed path behind it, so skipping is the safe failure.
+export function selfBaseUrl() {
+  const raw = String(process.env.PUBLIC_BASE_URL || "").trim();
+  if (raw) {
+    try {
+      const u = new URL(raw);
+      const loopback = ["127.0.0.1", "localhost", "[::1]"].includes(u.hostname);
+      if ((u.protocol === "https:" || (u.protocol === "http:" && loopback)) && !u.username && !u.password) {
+        return `${u.protocol}//${u.host}`;
+      }
+    } catch { /* fall through */ }
+    console.error("[service] PUBLIC_BASE_URL is not a usable https origin; internal calls fall back or are skipped");
+  }
+  const vercel = String(process.env.VERCEL_URL || "").trim().replace(/^https?:\/\//, "").replace(/\/.*$/, "");
+  if (vercel && /^[a-z0-9.-]+(:\d+)?$/i.test(vercel)) return `https://${vercel}`;
+  return null;
+}
+
 // Fire the dispatcher immediately (best effort). Short timeout; NEVER throws, so a
-// committed publish can never fail because acceleration failed. Cron is the safety net.
-export async function invokeDispatchBestEffort(req) {
+// committed publish can never fail because acceleration failed. The guaranteed
+// drain is a scheduler (D22 Phase 3); until one exists, a skipped or failed
+// nudge leaves the work queued, not lost. Takes no request: the target is
+// selfBaseUrl(), never a header (F5). Returns what happened, for logs and tests.
+export async function invokeDispatchBestEffort() {
   try {
-    const host = req.headers["x-forwarded-host"] || req.headers.host;
-    const proto = req.headers["x-forwarded-proto"] || "https";
+    const base = selfBaseUrl();
     const secret = process.env.DISPATCH_SECRET;
-    if (!host || !secret) return;
-    await fetch(`${proto}://${host}/api/dispatch`, {
+    if (!base) return { dispatched: false, reason: "no trusted base url (PUBLIC_BASE_URL / VERCEL_URL)" };
+    if (!secret) return { dispatched: false, reason: "DISPATCH_SECRET not set" };
+    const r = await fetch(`${base}/api/dispatch`, {
       method: "POST",
       headers: { "x-dispatch-secret": secret, "content-type": "application/json" },
       body: JSON.stringify({ trigger: "immediate" }),
       signal: AbortSignal.timeout(1500),
-    }).catch(() => {});
-  } catch { /* never affects the publish response */ }
+    }).catch(() => null);
+    return { dispatched: !!r, status: r ? r.status : 0 };
+  } catch { return { dispatched: false, reason: "error" }; /* never affects the response */ }
 }

@@ -6,7 +6,7 @@
 // queued for this story by news-notify is NOT double-pushed — then drains to APNs now.
 //
 // POST { news_item_id, title?, body? }  (title/body override the auto text)
-import { serviceConfigured, serviceRest } from "./_service.js";
+import { serviceConfigured, serviceRest, selfBaseUrl } from "./_service.js";
 import { checkNewsAuth } from "./_news.js";
 import { requireAdmin } from "./_entitlement.js";
 
@@ -62,9 +62,9 @@ export default async function handler(req, res) {
   // Drain to APNs immediately so a paid broadcast is near-instant.
   let sent = null;
   try {
-    const proto = req.headers["x-forwarded-proto"] || "https";
-    const host = req.headers["x-forwarded-host"] || req.headers.host;
-    const base = process.env.PUBLIC_BASE_URL || `${proto}://${host}`;
+    // Trusted configuration only, never request headers (F5).
+    const base = selfBaseUrl();
+    if (!base) throw new Error("no trusted base url (PUBLIC_BASE_URL / VERCEL_URL); chain skipped");
     sent = await fetch(`${base}/api/news-push-send`, { method: "POST", headers: { "x-news-secret": process.env.NEWS_PULL_SECRET || "", "content-type": "application/json" } }).then((r) => r.json()).catch(() => null);
   } catch (e) { sent = { error: String((e && e.message) || e).slice(0, 150) }; }
 

@@ -2285,3 +2285,389 @@ see it. The runner found it **inside its transaction**, rolled back and
 refused ("added database egress, rolled back"), and the function does not
 exist on staging afterwards. Before the fix, that file's own `commit;` would
 have committed it ahead of the check, exactly as happened with 0069b.
+
+---
+
+## 17 · D22: reliable publishing and distribution, FINDINGS AND PLAN (2026-10-30, nothing implemented)
+
+F9 was committed as `5b22866` before this work began. This section
+**supersedes the §5 proposal**, which was written before the code and staging
+were inspected end to end.
+
+### How a release is supposed to reach investors
+
+```
+Portal "Publish"  ──► /api/publish (auth, entitlement, actor_can_publish)
+                        └─► publish_publication() RPC, ONE transaction:
+                              publications.status = published
+                              + events(PUBLICATION_PUBLISHED, idempotency key)
+                        └─► invokeDispatchBestEffort(req)   (1.5 s, Host header: F5)
+/api/revise-release ──► revise_publication() → events(PUBLICATION_REVISED)
+                        └─► invokeDispatchBestEffort()      (no req → throws, swallowed: F11)
+/api/unpublish      ──► unpublish_publication() → events(PUBLICATION_UNPUBLISHED)
+
+/api/dispatch (x-dispatch-secret) ─► for each listener: claim_deliveries (lease 120 s,
+   SKIP LOCKED, creates missing delivery rows) → handle → complete_delivery
+   (retry 30 s·2ⁿ, dead after 6)
+     feed_projection_v1      → posts            (the investor app reads posts)
+     in_app_notifications_v1 → notifications    (needs the post first)
+     mineiq_facts_v1         → facts            (AI extraction)
+     profile_timeline_v1     → companies.profile.timeline (upsert_timeline_entry)
+     device_push_v1          → notification_outbox (NOT subscribed: 0055 deferred;
+                                news-push-send hourly, PUSH_ENABLED off)
+```
+
+There is no connector for the other destinations (LinkedIn, X, newsletter,
+website, push). Comms Center reports them honestly as "pending" (`connectorIsLive`).
+That is a missing product (a22), not part of D22.
+
+### Findings (verified in code; staging measured read-only)
+
+| # | Finding | Evidence | Effect |
+|---|---|---|---|
+| 1 | **No guaranteed trigger anywhere.** Production: 0011's cron is deferred and `vercel.json` has no dispatch cron. Staging: the only cron row is inactive (S1). The only trigger is publish/unpublish's best-effort call (Host header, F5; 1.5 s timeout added to the publish response). **Revise never triggers** (F11: `invokeDispatchBestEffort()` with no `req` throws inside its own try) | code; staging `cron.job` | A release, revision or unpublish reaches investors only if the best-effort call happens to complete. Otherwise it waits indefinitely, while the portal says "Published" |
+| 2 | **Staging feed projection fails on every release.** `posts.media_url` (written by `feed_projection_v1`, read by the investor app) exists in no migration; 0009 only backfills from it "if it exists" | staging: feed_projection_v1 **34 dead, 8 failed, 40 succeeded** (the successes are unpublish PATCHes and fixtures), PGRST204 *Could not find the 'media_url' column*; in_app_notifications_v1 **32 dead** ("post not yet projected") | Schema drift: a migration-built database cannot deliver releases. Production probably has the legacy column; **unverified** (audit query 9) |
+| 3 | **Silent loss on read errors.** `db.getJson` returns `null` on any HTTP error, and listeners treat `null` as "nothing to do", so the delivery is marked **succeeded** | `feedProjectionV1`, `profileTimelineV1`, `mineIqFactsV1` (`if (!pub) return`) | A transient database error permanently skips the feed post, timeline entry or facts |
+| 4 | **device_push silently drops** when the post is not projected yet. Its comment says "the next drain picks it up", but it returns, so the delivery succeeds | `devicePushV1` | Lost pushes once push is enabled |
+| 5 | **Mine IQ claim-before-work.** The claim row is inserted before extraction. An AI failure or timeout throws, but the retry finds the claim and returns | `mineIqFactsV1` | One AI failure (or a 60 s function kill) means facts are **never** extracted for that release |
+| 6 | **Large follower lists break notifications.** `user_id=in.(…)` grows with followers; a long URL fails, `getJson` gives `null`, and `prefs \|\| []` ignores mute and threshold preferences, so **muted users are notified**. For push, tokens become `[]`, so nobody is pushed | `inAppNotificationsV1`, `devicePushV1` | Correctness and a preference-privacy defect beyond a few hundred followers |
+| 7 | **Unpublish is incomplete.** The feed's PATCH result is unchecked, and the timeline entry is never removed (no UNPUBLISHED subscription) | code; 0051 subscriptions | An unpublished release stays on the company's profile timeline |
+| 8 | **Backfill storm on the first real drain.** `claim_deliveries` creates deliveries for **every historical event** of a subscribed type | 0008:153-157 | Production's first scheduled drain could run AI extraction on every past release and notify followers about months-old releases. Size unknown (audit query 6) |
+| 9 | **Dependency handled two ways.** in_app throws until the post exists, then dies after 6 attempts if the feed is broken; push drops silently | staging dead letters | One upstream failure cascades into permanent loss downstream |
+| 10 | **No visibility.** The company sees "Published" immediately; `publishOutcome.js` polls and reports "pending" forever. Dead letters, stuck leases and a stopped dispatcher alert no one; `outbox_health()` is admin-only and unused | code | A paid customer cannot tell their release did not reach investors; neither can MineEx |
+| 11 | **No run budget.** Listeners run serially, 20 per batch, with AI calls inside a 60 s function | `api/dispatch.js` | Timeouts mid-run (leases recover, but combined with #5, facts are lost) |
+
+**Kept and sound:**
+- event creation inside the state-change transaction, with idempotency keys;
+- leased, `SKIP LOCKED` claims;
+- backoff and dead-lettering;
+- keyed or upserting listeners (feed, notifications, timeline);
+- company id always read from the authoritative publication row;
+- publish authorization (`actor_can_publish`: owner/admin/publisher/platform admin).
+
+### Read-only production audit (run before approving anything)
+
+`supabase/audit/outbox_review.sql`: 10 statements, verified read-only by
+`scripts/audit-sql-readonly-check.mjs`. It answers:
+- whether pg_cron or pg_net exist (is there any scheduler);
+- which outbox functions and listener subscriptions are present;
+- events and deliveries by listener and status;
+- **the never-attempted backlog a first drain would process** (query 6);
+- orphan publications;
+- recent errors;
+- the `posts` columns (the drift in #2);
+- non-passport publications.
+
+### Implementation plan (phased; each phase has its own approval)
+
+**Phase 1: correctness, code only (no migration, no deployment).**
+1. **Strict reads in listeners.** An HTTP error **throws** (retry). "Not
+   found" is distinguished from "could not ask".
+2. **device_push:** throws until the post exists.
+3. **Mine IQ:** on any failure, release the claim (delete the claim row
+   before rethrowing). A claim older than 15 minutes with
+   `facts_written is null` counts as abandoned and is re-taken.
+4. **Followers** read in chunks of 100 ids. A failed chunk throws; never
+   "no preferences".
+5. **Unpublish:** the feed PATCH is checked.
+6. **F5 + F11:** one `selfBaseUrl()` = `PUBLIC_BASE_URL` → `https://VERCEL_URL`
+   → none, never request headers. Publish, unpublish **and revise** use it.
+   The publish response no longer waits on it (fire and forget).
+7. **Dispatcher run budget:** it stops claiming new work after ~45 s and
+   reports per-listener counts.
+8. **Notification listeners skip stale events:** `occurred_at` older than
+   72 h is recorded and not sent. This stops the backfill storm (#8) for
+   notifications without a migration.
+
+**Phase 2: migration `0071_publishing_reliability.sql` (prepared, applied to staging only after approval).**
+- **`posts.media_url text`, `add column if not exists`.** This is the drift
+  fix; a no-op where production already has it.
+- **Unpublish removes the timeline entry:** subscribe `profile_timeline_v1`
+  to `PUBLICATION_UNPUBLISHED`, plus `remove_timeline_entry(p_company, p_key)`,
+  service-role only.
+- **`dispatcher_runs`:** a heartbeat (started, finished, claimed, succeeded,
+  failed, dead), service-role only, trimmed after 7 days.
+- **`ops_alerts`:** one alert per condition per hour, plus a resolved notice.
+- **`publication_delivery_status(p_publication)`:** SECURITY DEFINER. It
+  returns per-listener status (`delivered` / `retrying` / `failed`) only to
+  callers who can see that company's publication (`can_touch_company` or a
+  platform admin). Company isolation is enforced in SQL and tested
+  cross-company.
+- **Mine IQ backfill policy:** `listener_subscriptions.active_from`, so a
+  listener only gets deliveries for events after it was enabled. A
+  historical AI backfill becomes a deliberate, separate admin action.
+
+**Phase 3: the guaranteed trigger (production change; needs approval).**
+- **Vercel Cron every minute** on `/api/dispatch`. The team is on Pro (d15).
+- **Authentication:** `dispatch.js` also accepts `Authorization: Bearer
+  CRON_SECRET`, constant-time and fail closed.
+- **Health:** a `GET /api/dispatch?health` mode returns 503 when the last
+  heartbeat is older than 3 minutes. It is folded into the same function (no
+  new function), and an external uptime monitor watches it.
+- **Fallback if Vercel Cron is not wanted:** pg_cron with the URL **and**
+  the secret in `app_secrets` (the S1 lesson: absent means do nothing).
+
+**Phase 4: visibility and operations.**
+- **Portal publish confirmation:** reads `publication_delivery_status`:
+  "Live in the investor app", "Retrying", or "Delivery failed: MineEx has
+  been alerted", instead of polling forever.
+- **Alerting:** at the end of each run, thresholds (dead > 0, stuck leases,
+  oldest pending > 5 min, orphans, heartbeat age) are recorded in
+  `ops_alerts` and emailed to `OPS_ALERT_TO` via Postmark (mocked on
+  staging).
+- **Mission Control (admin):** health, recent runs, dead letters, and
+  **Replay**, using the existing `reconcile_outbox()` / `replay_delivery()`.
+
+**Tests and staging verification** (staging runs the dispatcher through
+the local server, because staging has no Vercel cron):
+- **Offline:** strict reads (an error retries rather than succeeding);
+  push retries until projected; Mine IQ releases its claim on failure;
+  chunked followers with mute respected at 1,000 followers; stale events not
+  notified; selfBaseUrl never reads headers (F5); revise dispatches (F11);
+  run budget.
+- **Staging, real database:**
+  - publish, then the drain alone → a post, timeline entry and facts (needs
+    the 0071 drift fix);
+  - a revision projects with no publish;
+  - unpublish removes the post and the timeline entry;
+  - a forced listener failure → backoff → dead → one alert row (mock mail)
+    → replay → succeeded;
+  - two dispatchers concurrently on separate connections → no double
+    processing;
+  - a stopped heartbeat → health 503.
+- **Isolation:** company B cannot read A's delivery status; a viewer cannot
+  publish (unchanged).
+
+### Decisions needed from you
+
+1. **Run `supabase/audit/outbox_review.sql` in production** and share the
+   counts. Query 6 (backlog) and query 9 (posts columns) decide how Phase 2
+   and 3 roll out.
+2. **Approve Phase 1** (code-only correctness fixes, including F5 and F11).
+3. **Approve preparing migration 0071** (drift fix, unpublish timeline,
+   heartbeat, alerts, delivery-status function, `active_from`) for staging.
+4. **Scheduler:** Vercel Cron (recommended) or pg_cron.
+5. **Backfill policy:** skip notifications for events older than 72 h
+   (recommended); Mine IQ historical extraction off by default, as an
+   explicit admin action.
+6. **Unpublish removes the profile timeline entry:** recommended yes.
+7. **Ops alert recipient** (`OPS_ALERT_TO`) and an uptime monitor for the
+   health endpoint.
+
+**Order of rollout to production (later, with approval):**
+1. Run the audit.
+2. Apply 0071.
+3. Deploy Phases 1, 2 and 4.
+4. Enable the cron and watch the heartbeat. The F5 fix ships with Phase 1
+   (`selfBaseUrl`), so the D22 drain exists before F5 is relied on.
+5. D20 must still reach production before 0063.
+
+### Tracked alongside
+
+- **Coordinated with D22 (Phase 1):** F5, F11.
+- **Also tracked:** F6, D21, d28, d29, profile drafts/approval/versioning
+  (a04, a05), a07 (runtime proof a release reaches the investor app), the
+  og-news skip, the S1 inactive cron row.
+
+---
+
+## 18 · D22 Phase 1: publishing reliability, IMPLEMENTED LOCALLY (2026-10-31, uncommitted, not deployed)
+
+No scheduler created, no production configuration changed, no migration
+applied, nothing pushed or deployed. Staging was investigated with read-only or
+rolled-back probes; the live tests write only their own marked test rows and
+remove them.
+
+### Changes (code only)
+
+- **Strict reads** (`api/_service.js` `getRows`). Every listener read throws
+  on an HTTP error, so the delivery retries. A missing dependency throws. Every
+  write is checked (`mustWrite`).
+- **Feed** (`feed_projection_v1`):
+  - the unpublish soft-remove is checked;
+  - `media_url` is sent only when the post has one. Press releases now
+    project on a database without the legacy column (staging). **Media
+    posts still need 0071.**
+- **Push** (`device_push_v1`): retries until the feed post exists, instead of
+  completing and dropping the push.
+- **Mine IQ** (`mineiq_facts_v1`): a claim lifecycle with no schema change.
+  - `facts_written = -1` means "running"; `>= 0` means "done" (rows from
+    before D22 read as done).
+  - A failure **releases** the claim.
+  - A claim still "running" after 15 minutes (a killed run) is taken over.
+  - A fresh claim held elsewhere means retry later.
+  - Supersession writes are checked.
+  - The docstring of `extractFacts` ("returns [] on any failure") is wrong:
+    `callOpenAITool` throws after 3 internal attempts, which is what made
+    claim-before-work lose facts.
+- **Followers:** read in pages of 1,000 (PostgREST's cap used to truncate
+  silently), preferences and tokens in chunks of 100, writes in chunks of 500.
+  Mute and threshold preferences are applied; upserts keep it idempotent.
+- **Historical events** (`occurred_at` more than 72 h before processing): no
+  in-app notification, no push, no automatic AI extraction. The feed and
+  timeline still project. Each skip returns `{skipped:"historical"}` and is
+  counted in the dispatcher summary. A current release's retries finish
+  within about 32 minutes, far inside the cutoff. **Trade-off:** if no
+  dispatcher runs for more than 72 h (possible until Phase 3), releases from
+  that gap are projected but not notified.
+- **AI backfill** is an explicit admin action:
+  - a platform admin calls `POST /api/dispatch {action:"backfill",
+    listener:"mineiq_facts_v1", publication_id}`;
+  - non-admins get 401 or 403;
+  - only Mine IQ can be backfilled.
+- **Dispatcher:**
+  - a 40 s run budget (no new claim after it; `DISPATCH_BUDGET_MS` overrides
+    it for tests);
+  - Mine IQ claimed 2 at a time, other listeners 20;
+  - repeated claims while batches come back full;
+  - the summary reports claimed / ok / failed / skipped / lease_lost /
+    budget_exhausted.
+- **F5:** `selfBaseUrl()` = `PUBLIC_BASE_URL` (https; http only for loopback)
+  → `https://VERCEL_URL` → **none**, never request headers.
+  - Used by the dispatch nudge **and** the three news chains (`news-pull`,
+    `news-process`, `news-broadcast`, which sent `NEWS_PULL_SECRET` to
+    `PUBLIC_BASE_URL || Host`).
+  - With no trusted base, internal calls are skipped and the work stays
+    queued.
+- **F11:** revise-release awaits the nudge with no request object (it threw
+  inside its own try before).
+- **First correction (newly found, below):** revise-release records the
+  original release as revision 1 before the first correction, through the
+  same RPC and authorization. The correction becomes revision 2 and emits
+  `PUBLICATION_REVISED`.
+- **Staging harness and mock** (staging-only):
+  - `PUBLIC_BASE_URL` is the harness's own loopback origin;
+  - the OpenAI mock returns one tagged fact for `report_facts`;
+  - a release carrying `[staging-mock:ai-fail-once]` fails its first
+    listener attempt.
+
+### Publishing failures now prevented (verified)
+
+| Failure | Offline | Staging (real database) |
+|---|---|---|
+| Read error marks a delivery done (feed, timeline, Mine IQ, notifications) | ✓ 4 listeners: 503 → failed → retry succeeds | — (read errors cannot be induced safely on staging) |
+| Failed write, including unpublish soft-remove, silently ignored | ✓ failed → retried; persistent → dead with reason | ✓ unpublish removes the post |
+| Push dropped when the post is not projected yet | ✓ retries; queued once | — (push not subscribed on staging) |
+| One AI failure loses a release's facts forever | ✓ claim released, retry extracts; stale claim taken over; 3 concurrent → 1 AI call | ✓ mocked outage → failed with reason → claim released → retry stores the fact |
+| Muted followers notified / pushes vanish beyond a few hundred followers | ✓ 1,250 followers: all minus muted and below-threshold; longest URL < 8,000 chars; replay adds nothing | ✓ the muted follower got nothing |
+| A failed preferences read becomes "no preferences" | ✓ failed, nobody notified, retry notifies once | — |
+| Surprise notifications and AI cost for old events | ✓ a 30-day event projected, not notified, no AI; a 48 h event notifies; skip counted | ✓ the same, read back from the database |
+| Dispatcher killed at its time limit | ✓ budget stops claiming; nothing left half-claimed | — |
+| Duplicates under concurrent dispatchers | ✓ 10 × 4 dispatchers: every delivery processed once | ✓ racing nudges + 4 dispatchers: 4 posts, 4 notifications, 4 fact sets |
+| F5: Host / X-Forwarded-Host / Forwarded choose where secrets go | ✓ 4 header variants, news chain, fail-safe without a trusted base, http refused, VERCEL_URL fallback | ✓ canary host never contacted |
+| F11: revisions never dispatch | ✓ | ✓ |
+| **First correction never delivered** | ✓ revision 2, event, feed updated; second correction revision 3; unchanged no-op; 403 for non-publishers | ✓ the corrected headline reached the same feed post and the timeline; Mine IQ reconciled; repeat run → revision 3 |
+| Isolation | ✓ an event naming company B projects only onto the publication's company A | ✓ owner of B, viewer, investor refused publish; publisher allowed; no event from refusals |
+
+### Still requires migration 0071 or a scheduler
+
+| Gap | Needs |
+|---|---|
+| Media posts on a migration-built database (`posts.media_url`) | 0071 A |
+| Revision 1 recorded at publish (Phase 1 does it at first correction) | 0071 B |
+| **Unpublish leaves the profile timeline entry** (verified on staging) | 0071 C + listener code |
+| Backfill guard for a newly enabled listener (Phase 1 covers notifications and AI by event age only) | 0071 D |
+| Heartbeat, alerting, dead-letter visibility | 0071 E + Phase 4 |
+| Company-visible delivery status ("Live" / "Retrying" / "Failed") | 0071 F + Phase 4 UI |
+| **Anything delivered without a nudge** (missed nudges, retries after backoff, a release published while the dispatcher was unreachable) | **Phase 3 scheduler**. Today a failed delivery waits for the next publish anywhere on the platform |
+| 66 dead deliveries on staging from before the fix | an admin replay (`reconcile_outbox`) |
+
+`supabase/migrations/0071_publishing_reliability.sql` is **prepared, not
+applied, not executed**. It is based on the current 3-argument
+`publish_publication` (0036) with 0060's grants. Every part is additive and
+the rollback is in the header. The isolation inventory now lists
+`remove_timeline_entry` as internal; its probe passes only because the
+function does not exist yet.
+
+### Scheduler: Vercel Cron, checked against Vercel's current documentation
+
+- **Plan limits** (Vercel docs, last updated 2026-07-15 / 2026-08-11):
+  - Pro: 100 cron jobs per project, **once per minute**, per-minute precision.
+  - Hobby: once per day, ±59 min. Unusable for a dispatcher.
+  - This project uses 4 of 100.
+  - The team plan is **Pro** per the earlier measurement (d15). That was
+    not re-verified this session; confirm in the dashboard.
+- **Behaviour that shapes the design:**
+  1. **No retries, best-effort delivery.** Runs are occasionally missed or
+     duplicated, so the outbox's leased, idempotent claims fit. The
+     heartbeat must tolerate a missed minute.
+  2. **Overlap is possible** if a run outlasts the interval. The 40 s budget
+     plus `SKIP LOCKED` claims keep a 1-minute schedule safe.
+  3. **Invocations are GET with `Authorization: Bearer CRON_SECRET`.**
+     `/api/dispatch` is POST + `x-dispatch-secret` today, so Phase 3 must
+     accept that form, constant-time and fail closed.
+  4. Crons run only for the production deployment and do not follow
+     redirects.
+  5. Duration follows the function's `maxDuration` (60 s here).
+  6. **Deployment Protection's interaction with cron requests is not stated
+     on these pages.** Verify before relying on it.
+- **Recommendation:** Vercel Cron `* * * * *` on `/api/dispatch` (Pro). Keep
+  pg_cron, with the URL and secret in `app_secrets`, as the documented
+  fallback.
+
+### Newly discovered launch blockers
+
+1. **The first correction of every release was never delivered.** Fixed in
+   code (Phase 1); 0071 B makes it structural.
+2. **Unpublishing leaves the release on the company's profile timeline.**
+   Needs 0071 C.
+3. **No scheduler: failed or missed deliveries are not retried on their
+   own.** Needs Phase 3.
+4. **Revised releases can never be deleted** (`release_revisions` is
+   append-only, so a cascade from `publications` is refused). Likely
+   intended for disclosure records; there is no admin path to retire one.
+   Decision needed.
+5. **`scripts/listener-test.mjs` defaults to the production project** and
+   reads a service key from `.env.import`. It is a legacy live test, not in
+   `npm test`, and was not run. Recommend retargeting it to staging or
+   deleting it.
+
+### Production audit: what would run, if approved
+
+- **Target:** the production Supabase project `rvptronniomlqumjhyrr`, SQL
+  editor, run **by you**. I have no production credentials and connect to
+  nothing.
+- **Scope:** `supabase/audit/outbox_review.sql`, 10 statements:
+  - extensions;
+  - outbox functions present;
+  - listener subscriptions;
+  - events by type;
+  - deliveries by listener and status;
+  - the never-attempted backlog;
+  - orphan publications;
+  - the last 20 failures (error text truncated to 120 chars);
+  - the `posts` columns;
+  - non-passport publications.
+
+  Query 11 (`cron.job`) is commented out and only for if pg_cron exists.
+- **Read-only:** every statement is a SELECT over tables or catalogs.
+  `scripts/audit-sql-readonly-check.mjs` verifies it mechanically (10 of 10
+  read-only; no writes, DDL, `SET`, `DO` or locks). No content or user
+  identity is returned.
+
+### Tests
+
+| Suite | Result |
+|---|---|
+| **New** `publishing-reliability-test.mjs` (offline, in `npm test`) | **80 / 80**; **36 of its 72 original checks fail against the previous code** |
+| **New** `publishing-live-test.mjs` (staging) | **39 / 39, run 3 times** (fixture reuse: revisions 2, then 3) |
+| `authz-risk-test` | **19 secure, 0 KNOWN** (F5 ×2 and F11 resolved; new fail-safe cases) |
+| `mineiq-test` | 76 / 76 (updated for the claim lifecycle and push retry) |
+| `npm test`, build | pass |
+| API suite | 354 / 2 / 1 (KNOWN F8, D21) |
+| Combined database + API | **816 / 2 / 1**, 0 unexpected |
+| Live webhook / messaging / Company Memory | 41 / 41, 54 / 54, 97 / 97 |
+| Staging db guard (live), db egress | 55 / 55; no egress |
+
+**Staging residue (permanent by design):** one revised `[d22-live]` release
+from the first live run, unpublished (append-only history), plus the reused
+revision fixture, unpublished between runs.
+
+### Decisions needed
+
+- **Review Phase 1**, then approve the commit.
+- **Run `outbox_review.sql`** in production (scope above).
+- **Approve 0071** for staging.
+- **Phase 3:** Vercel Cron (recommended).
+- **Retiring revised releases** (blocker 4).
+- **`listener-test.mjs`:** retarget it to staging or delete it.

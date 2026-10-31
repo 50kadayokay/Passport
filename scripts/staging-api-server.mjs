@@ -49,6 +49,9 @@ if (process.env.__MINEEX_STAGING_CHILD !== "1") {
     ...fileVars,
     MINEEX_ENV: "staging",
     STAGING_SELF_HOSTS: `127.0.0.1:${PORT}`,
+    // The harness's own origin is its trusted internal base (F5: selfBaseUrl()
+    // reads configuration, never request headers).
+    PUBLIC_BASE_URL: `http://127.0.0.1:${PORT}`,
     STAGING_EGRESS_LOG: fileVars.STAGING_EGRESS_LOG || "",
     __MINEEX_STAGING_CHILD: "1",
   };

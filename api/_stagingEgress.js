@@ -128,6 +128,10 @@ const parse = (s) => { try { return JSON.parse(s); } catch { return null; } };
 // many chronology entries it was given and the first headline, which shows the
 // pipeline sent the shape synthesize-profile reads. Never real output.
 const MOCK_TAG = "[staging mock]";
+export const FAIL_ONCE_MARKER = "[staging-mock:ai-fail-once]";
+const failedOnce = new Map();
+const FAIL_ONCE_CALLS = 3;
+const textKey = (t) => { let h = 0; for (let i = 0; i < t.length; i++) h = (Math.imul(31, h) + t.charCodeAt(i)) | 0; return String(h) + ":" + t.length; };
 function mockToolInput(tool, body) {
   const text = (Array.isArray(body.messages) ? body.messages : [])
     .flatMap((m) => (typeof m.content === "string" ? [m.content] : (m.content || []).map((c) => c.text || ""))).join("\n");
@@ -183,8 +187,25 @@ function mockResponse(provider, url, method, init) {
           usage: { input_tokens: 1, output_tokens: 1 } }), op: path };
       }
       const fn = body.tool_choice?.function?.name || (Array.isArray(body.tools) && body.tools[0]?.function?.name);
+      // Mine IQ (D22): one deterministic, tagged fact, so staging can prove facts
+      // are persisted -- and a release carrying FAIL_ONCE_MARKER fails its first
+      // listener attempt with 500s, so a real AI failure and its retry can be tested.
+      let args = "{}";
+      if (fn === "report_facts") {
+        const text = (body.messages || []).map((m) => (typeof m.content === "string" ? m.content : "")).join("\n");
+        if (text.includes(FAIL_ONCE_MARKER)) {
+          // Fail the first FAIL_ONCE_CALLS calls for this text: callOpenAITool
+          // retries 3 times internally, so this fails exactly one LISTENER
+          // attempt, and the listener's own retry (backoff) then succeeds.
+          const key = textKey(text);
+          const n = failedOnce.get(key) || 0;
+          if (n < FAIL_ONCE_CALLS) { failedOnce.set(key, n + 1); return { res: json({ error: { message: "staging mock: simulated AI outage" } }, 500), op: path }; }
+        }
+        args = JSON.stringify({ facts: [{ kind: "capital", subject: "[staging mock] subject", data: { note: "[staging mock] fact" },
+          quote: "[staging mock] verbatim quote", confidence: 0.9, current: true }] });
+      }
       const message = fn
-        ? { role: "assistant", content: null, tool_calls: [{ id: "call_staging_mock", type: "function", function: { name: fn, arguments: "{}" } }] }
+        ? { role: "assistant", content: null, tool_calls: [{ id: "call_staging_mock", type: "function", function: { name: fn, arguments: args } }] }
         : { role: "assistant", content: "Staging mock response." };
       return { res: json({ id: "chatcmpl_staging_mock", choices: [{ index: 0, message, finish_reason: fn ? "tool_calls" : "stop" }],
         usage: { prompt_tokens: 1, completion_tokens: 1 } }), op: path };

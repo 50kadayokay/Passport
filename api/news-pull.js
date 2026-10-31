@@ -11,7 +11,7 @@
 //
 //   curl -X POST https://<host>/api/news-pull -H "x-news-secret: $NEWS_PULL_SECRET"
 //
-import { serviceConfigured, serviceRest } from "./_service.js";
+import { serviceConfigured, serviceRest, selfBaseUrl } from "./_service.js";
 import { checkNewsAuth, parseFeed, toRow, NEWS_UA } from "./_news.js";
 
 export const config = { maxDuration: 300 };
@@ -150,9 +150,9 @@ export default async function handler(req, res) {
   else if (inserted === 0 && !truthy(q.force_chain)) chained = { skipped: "no new items ingested" };
   else {
     try {
-      const proto = req.headers["x-forwarded-proto"] || "https";
-      const host = req.headers["x-forwarded-host"] || req.headers.host;
-      const base = process.env.PUBLIC_BASE_URL || `${proto}://${host}`;
+      // Trusted configuration only, never request headers (F5).
+      const base = selfBaseUrl();
+      if (!base) throw new Error("no trusted base url (PUBLIC_BASE_URL / VERCEL_URL); chain skipped");
       const lim = Math.max(1, Math.min(30, parseInt(process.env.NEWS_CHAIN_LIMIT, 10) || 15));
       const pr = await fetch(`${base}/api/news-process`, {
         method: "POST",
