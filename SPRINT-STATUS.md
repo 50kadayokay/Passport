@@ -172,3 +172,12 @@ Apply 0080/0090 after approval, then rerun isolation and the live sweep.
   migrations, plan = manifest 19/0) and 0071 rollback guard (staging 11/0), S3's CSP Report-Only (29/0). Round trip 73/0,
   publishing-0071 46/0, npm test and build pass. Launch readiness 41% (g06 now partial). Open: the read-only production audit
   query (R1/R3/R4) needs approval; S1 is fixing the browser-side Anthropic call in src/Onboarding.jsx.
+
+## Batch 7: production audits, 0091 on staging, launch checklist (2026-11-01)
+- Two approved read-only production audits. The four "drifted" functions are token-identical to the repo (formatting only),
+  storage policies and mineiq_search match, so all 28 pending migrations apply in production's shape. Production password rotated.
+- Capture-on-apply rollbacks proven production-exact on staging (15/0) after fixing a verify-step bug that test found.
+- 0091 applied to staging (approved): platform admins need their own owner/admin membership to Clear all. Only that function
+  changed. Live 31/0, 0091 check 26/0, isolation 1077/0/0/0, authz 435/0, 25 live suites, investor app 35/0, round trip 75/0,
+  npm test and build pass.
+- docs/PRODUCTION-LAUNCH-CHECKLIST.md: the remaining approvals and configuration. Launch readiness 64% (7/11 gates).
