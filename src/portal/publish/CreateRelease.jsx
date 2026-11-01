@@ -1027,9 +1027,11 @@ export default function CreateRelease({ company, draftId, onExit, onPublished, o
     onExit && onExit();
   };
   // Facts stay with MineIQ after a take-down. Said with the count when known.
+  // a08: a taken-down release and its facts leave Mine IQ's answers and drafts;
+  // the rows stay as a record (src/lib/mineiqActive.js).
   const factsNote = factsLearned > 0
-    ? `MineIQ keeps the ${factsLearned} fact${factsLearned === 1 ? "" : "s"} it learned from this release`
-    : "MineIQ keeps any facts it learned from this release";
+    ? `MineIQ stops using this release and the ${factsLearned} fact${factsLearned === 1 ? "" : "s"} it learned from it`
+    : "MineIQ stops using this release and any facts it learned from it";
 
   // HOW MUCH OF THE DOCUMENT SURVIVED EXTRACTION.
   // Below this, the release on screen is materially shorter than the file the
@@ -1125,10 +1127,9 @@ export default function CreateRelease({ company, draftId, onExit, onPublished, o
                   It disappears from your profile and the investor feed. Its revision history, the document you
                   uploaded and its engagement figures are all kept, and publishing it again brings it back.
                 </span>
-                {/* a08: fact retention on take-down is an open product decision.
-                    Until it is made the behaviour is unchanged, and this says so. */}
+                {/* a08: taking a release down removes it from Mine IQ retrieval. */}
                 <span className="text-[11px] leading-relaxed text-amber-800" data-mineiq-retention>
-                  {factsNote}: they still inform MineIQ answers and drafts after the release comes down.
+                  {factsNote} in answers and drafts. They are kept as a record, and come back if you publish again.
                 </span>
                 <span className="flex gap-2">
                   <button onClick={unpublish} disabled={unpubBusy}
@@ -1157,7 +1158,7 @@ export default function CreateRelease({ company, draftId, onExit, onPublished, o
           </button>
           {isDown && (
             <span className="max-w-[260px] text-[11px] leading-relaxed text-slate-400" data-mineiq-retention>
-              {factsNote} while it is down. Publishing again puts it back on your profile and in the feed.
+              {factsNote} while it is down. Publishing again puts it back on your profile, in the feed and in MineIQ.
             </span>
           )}
           </span>

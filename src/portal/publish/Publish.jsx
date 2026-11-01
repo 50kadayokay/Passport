@@ -134,8 +134,8 @@ export default function Publish({ company, startIn = null, go = () => {}, view =
                 It is no longer on your profile or in the investor feed. Its history and source document are kept, and
                 you can open it below to publish it again.{" "}
                 {takenDown.facts > 0
-                  ? `MineIQ keeps the ${takenDown.facts} fact${takenDown.facts === 1 ? "" : "s"} it learned from it.`
-                  : "MineIQ keeps any facts it learned from it."}
+                  ? `MineIQ no longer uses it or the ${takenDown.facts} fact${takenDown.facts === 1 ? "" : "s"} it learned from it.`
+                  : "MineIQ no longer uses it or any facts it learned from it."}
               </p>
             </div>
             <button onClick={() => setTakenDown(null)} aria-label="Dismiss"

@@ -1,6 +1,7 @@
 // a07 / a08 offline checks: the release editor tells the truth about a release's
 // state, a live release is only changed by a saved correction, and taking a
-// release down leaves Mine IQ's facts where they are (and says so).
+// release down keeps Mine IQ's facts as a record but stops using them (a08,
+// decided 2026-11-01; retrieval itself is tested in mineiq-a08-retrieval-test.mjs).
 //   node scripts/release-edit-unpublish-test.mjs
 //
 // No network, no database. The state rule is executed; the editor's wiring is
@@ -40,18 +41,18 @@ ok(/\) : pubMissing \? \(/.test(cr) && /data-publication-missing/.test(cr), "a l
 ok(/isDown \? "Publish again" : "Publish to MineEx"/.test(cr), "a taken-down release offers Publish again");
 ok(/title=\{errTitle\}/.test(cr) && !/title="Couldn't publish" body=\{err\}/.test(cr), "the error banner names what failed");
 ok(/Couldn't take this release down/.test(cr) && /Couldn't save the correction/.test(cr), "take-down and correction failures have their own titles");
-ok((cr.match(/data-mineiq-retention/g) || []).length >= 2 && /factCountForPublication\(pid\)/.test(cr), "the take-down confirm and the taken-down view say Mine IQ keeps the facts (with the count)");
+ok((cr.match(/data-mineiq-retention/g) || []).length >= 2 && /factCountForPublication\(pid\)/.test(cr), "the take-down confirm and the taken-down view say what leaves Mine IQ (with the count)");
 ok(/onTakenDown\(\{ headline, facts: factsLearned \}\)/.test(cr), "a take-down reports back to the library instead of exiting silently");
 ok(/data-live-presentation-note/.test(cr), "a live release says date and image changes apply only on the next publish");
 
 console.log("\n  THE LIBRARY");
 const pub = read("src/portal/publish/Publish.jsx");
 const lib = read("src/portal/publish/ReleaseLibrary.jsx");
-ok(/onTakenDown=\{/.test(pub) && /data-taken-down-notice/.test(pub) && /MineIQ keeps/.test(pub), "the library confirms a take-down, including Mine IQ retention");
+ok(/onTakenDown=\{/.test(pub) && /data-taken-down-notice/.test(pub) && /MineIQ no longer uses it/.test(pub), "the library confirms a take-down, including that Mine IQ no longer uses it");
 ok(/releaseState\(\{ updateStatus: row\.status, publications: row\.publications \}\) === "down"/.test(lib) && /Taken down<\/span>/.test(lib),
    "a taken-down card is badged Taken down, not Live");
 
-console.log("\n  FACT RETENTION IS UNCHANGED (a08 decision still open)");
+console.log("\n  FACTS ARE KEPT AS A RECORD (a08: retrieval filters, nothing deletes)");
 const listeners = read("api/_listeners.js");
 const unpub = read("api/unpublish.js");
 const mineiqFacts = listeners.slice(listeners.indexOf("async function mineIqFactsV1"), listeners.indexOf("async function", listeners.indexOf("async function mineIqFactsV1") + 10));
