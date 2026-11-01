@@ -83,10 +83,17 @@ async function matrix(label) {
 
 console.log("\n  STATIC");
 ok(scanMigrationSql(MIG).length === 0 && scanMigrationSql(RB).length === 0, "0078 and its rollback contain no database egress");
-const S0 = await state();
+const LIVE = await state(); let S0;
 try {
   await c.query("begin");
   await c.query("set local lock_timeout = '10s'");
+  // 0078 is applied on staging (2026-10-31): unwind it inside this transaction so the
+  // BEFORE / AFTER / rollback comparison still starts from the pre-0078 state.
+  if ((await q(`select to_regprocedure('public.can_upload_company_assets()') is not null as on`))[0].on) {
+    await q(runnerBody(RB));
+    ok(true, "0078 already applied here: its rollback runs inside the transaction");
+  }
+  S0 = await state();
   // Fixture objects + the rows that make them readable (as memory.js / mediaAssets.js create them).
   await q(`insert into storage.objects (bucket_id, name, owner, owner_id) values ('company-docs', $1, $2::uuid, $2::text), ('company-media-private', $3, $4::uuid, $4::text)`, [DOC, U.COMPANY_A, PRIV, U.EDITOR]);
   await q(`insert into public.documents (company_id, storage_path, filename, mime) values ($1, $2, 'a78.pdf', 'application/pdf')`, [A, `company-docs/${DOC}`]);
@@ -120,7 +127,7 @@ try {
   await c.query("rollback").catch(() => {});
 }
 await asPostgres().catch(() => {});
-ok((await state()) === S0 && (await q(`select count(*)::int n from storage.objects where name like $1`, [`%a78-${T}%`]))[0].n === 0, "nothing persisted on staging");
+ok((await state()) === LIVE && (await q(`select count(*)::int n from storage.objects where name like $1`, [`%a78-${T}%`]))[0].n === 0, "nothing persisted on staging");
 await c.end();
 console.log(`\n  storage-role-0078 (staging, rolled back): ${pass} passed, ${fail} failed\n`);
 process.exit(fail ? 1 : 0);

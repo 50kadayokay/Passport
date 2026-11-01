@@ -135,5 +135,19 @@ Feature completion **53% -> 61%** (12 working, 11 partial, 4 missing, 1 unverifi
 - Waiting on the user: 0087/0088 staging apply; a08 decision; a19 real-AI run; a20 Stripe test keys;
   a26 empty project; a15 revalidate hook; viewer clear-all.
 
+## Batch 4-5: 0087/0088 on staging, product decisions applied (2026-11-01)
+- 0087 + 0088 applied to staging (approved): target verified, additive, no existing function or policy
+  changed, data counts identical before and after; rollbacks proven (round trip 75/0 incl. 0080/0090).
+- Tenant isolation **1075 passed, 0 failed, 0 unverified, 0 skipped**. A missing security-sensitive table or
+  function now reports UNVERIFIED (exit 3), never a pass. API authorization 435/0.
+- Decisions implemented and integrated: a08 (S1, unpublished text and facts leave Mine IQ), a15 signed website
+  refresh (S2, no browser credentials, no outbound call on staging), notification Clear all owner/admin only
+  (S3, 0090 written, rolled-back check 21/0, NOT applied). a28 pass on new screens (S3) and 11 fixes (S2).
+- New defect found and fixed: mineiq_search ANDed every question word (S1 0080, rolled-back check 16/0, NOT applied).
+- Feature completion **90%** (24 working, 4 partial, 1 missing). Implemented 97%, integrated 97%,
+  verified (implemented + tested + integrated) 83%. Launch readiness unchanged at 36%.
+- Blockers: apply 0080 and 0090 to staging (approval); a19 real-model run has no real OpenAI key on staging;
+  a20 Stripe test keys; a26 disposable project; a22 deferred.
+
 ## Next
-Four parallel sessions per docs/PARALLEL-SESSIONS.md, after approval.
+Apply 0080/0090 after approval, rerun a07 click-through and isolation, mark a07 working.

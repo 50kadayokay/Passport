@@ -80,14 +80,16 @@ try {
   ok(r.status === 403, `0073c: ANY direct impression insert is refused -- impressions only through record_post_impressions() (${r.status})`);
 
   console.log("\n  DASHBOARD FIGURES vs THE TABLE");
+  // A deleted investor's impressions keep their row with user_id = null (on delete
+  // set null); count(distinct user_id) ignores them, so the table side does too.
   const imp = await svc(`post_events?post_id=in.(${liveIds.join(",")})&kind=eq.impression&select=user_id,created_at`);
   const allImp = await svc(`post_events?post_id=in.(${posts.map((p) => p.id).join(",")})&kind=eq.impression&select=created_at&order=created_at.asc&limit=1`);
   const first = allImp[0] && allImp[0].created_at;
   const opensSince = (await svc(`post_events?post_id=in.(${liveIds.join(",")})&kind=eq.open&created_at=gte.${encodeURIComponent(first)}&select=id`)).length;
   const sum = (await rpcAs(who.COMPANY_A, "company_impression_summary", { p_company: A, p_days: null })).body[0];
   ok(Date.parse(sum.first_recorded_at) === Date.parse(first), `recording start = the company's first impression row (${String(first).slice(0, 10)})`);
-  ok(Number(sum.impressions) === imp.length && Number(sum.viewers) === new Set(imp.map((x) => x.user_id)).size && Number(sum.opens_since) === opensSince,
-    `summary = table: ${sum.impressions} impressions, ${sum.viewers} viewers, ${sum.opens_since} opens since recording began`, JSON.stringify({ sum, table: { impressions: imp.length, viewers: new Set(imp.map((x) => x.user_id)).size, opensSince } }));
+  ok(Number(sum.impressions) === imp.length && Number(sum.viewers) === new Set(imp.map((x) => x.user_id).filter(Boolean)).size && Number(sum.opens_since) === opensSince,
+    `summary = table: ${sum.impressions} impressions, ${sum.viewers} viewers, ${sum.opens_since} opens since recording began`, JSON.stringify({ sum, table: { impressions: imp.length, viewers: new Set(imp.map((x) => x.user_id).filter(Boolean)).size, opensSince } }));
   // Opens from BEFORE recording began must not enter the read rate.
   const ago = new Date(Date.parse(first) - 86400e3).toISOString(), after = new Date().toISOString();
   const o1 = await svc("post_events", { method: "POST", headers: { Prefer: "return=representation" }, body: JSON.stringify({ post_id: LP, user_id: who.INVESTOR.id, kind: "open", created_at: ago }) });

@@ -135,7 +135,10 @@ try {
   const revEvent = (await rows(`events?publication_id=eq.${pub.id}&event_type=eq.PUBLICATION_REVISED&select=id,payload&order=created_at.desc&limit=1`))[0];
   ok(revEvent && Number(revEvent.payload.revision) === 2, "DATABASE: PUBLICATION_REVISED for revision 2");
   await new Promise((res) => setTimeout(res, 1500));
-  const rds = await settle(pub.id, ["feed_projection_v1", "mineiq_facts_v1", "profile_timeline_v1"], "PUBLICATION_REVISED");
+  // 0088 added two destination listeners; settle them too where staging subscribes
+  // them, or the status read below races their delivery (seen 2026-11-01).
+  const fanout = (await rows(`listener_subscriptions?event_type=eq.PUBLICATION_REVISED&listener=in.(site_content_v1,conference_content_v1)&select=listener`)).map((x) => x.listener);
+  const rds = await settle(pub.id, ["feed_projection_v1", "mineiq_facts_v1", "profile_timeline_v1", ...fanout], "PUBLICATION_REVISED");
   ok(rds.every((d) => d && d.status === "succeeded"), "every REVISED delivery succeeded", JSON.stringify(rds));
   const post2 = (await rows(`posts?publication_id=eq.${pub.id}&select=id,title`))[0];
   ok(post2 && post2.id === post.id && post2.title.includes(stamp), "DATABASE: the SAME feed post carries the corrected headline");
