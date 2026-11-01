@@ -479,6 +479,18 @@ async function main() {
     const own   = { p_company: ID_A, ...extra };
     const other = { p_company: ID_B, ...extra };
 
+    // A member function the owner should be ADMITTED to answers 404/PGRST202
+    // only when it does not exist here (its migration is not applied): one SKIP,
+    // never a pass. Internal / admin-only functions are excluded -- there a 404
+    // could hide a refusal, so they stay strict.
+    if ((cls === "company-read" || cls === "company-write") && tok.companyA) {
+      const probe = await rpc(name, own, tok.companyA);
+      if (probe.status === 404 && /PGRST202|Could not find the function/i.test(JSON.stringify(probe.body || ""))) {
+        record("suite", "RPC present", name, "present", "function not on this database", "SKIP", "migration not applied here yet");
+        continue;
+      }
+    }
+
     // 0076 team functions (a03): role-guarded, platform admins admitted, and
     // refusals come back as data. See _isolation-targets.mjs.
     if (cls === "company-role") {
