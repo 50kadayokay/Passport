@@ -50,7 +50,10 @@ import AuthGate from "./auth/AuthGate.jsx";
 //   /onboarding  → the desktop-only company builder (not reachable from the app)
 //   anything else → the mobile consumer app
 // Onboarding is gated to wide screens so it can't be used on a phone.
-function DesktopOnly({ children }) {
+// `title` / `body` name the surface being blocked; the defaults are the
+// onboarding builder's, which is where this screen started.
+function DesktopOnly({ children, title = "Onboarding is a desktop tool",
+  body = "Building a company profile needs a larger screen. Open this page on a desktop or laptop to continue. The MineEx app itself works great on your phone." }) {
   const [wide, setWide] = React.useState(typeof window !== "undefined" ? window.innerWidth >= 1024 : true);
   React.useEffect(() => {
     const on = () => setWide(window.innerWidth >= 1024);
@@ -62,10 +65,8 @@ function DesktopOnly({ children }) {
     <div style={{ minHeight: "100dvh", display: "grid", placeItems: "center", padding: 32, background: "#f4f5f7", textAlign: "center" }}>
       <div style={{ maxWidth: 340 }}>
         <div style={{ fontSize: 40, marginBottom: 12 }}>🖥️</div>
-        <h1 style={{ fontSize: 22, fontWeight: 800, color: "#0f172a", margin: 0 }}>Onboarding is a desktop tool</h1>
-        <p style={{ fontSize: 14, color: "#64748b", marginTop: 10, lineHeight: 1.5 }}>
-          Building a company profile needs a larger screen. Open this page on a desktop or laptop to continue. The MineEx app itself works great on your phone.
-        </p>
+        <h1 style={{ fontSize: 22, fontWeight: 800, color: "#0f172a", margin: 0 }}>{title}</h1>
+        <p style={{ fontSize: 14, color: "#64748b", marginTop: 10, lineHeight: 1.5 }}>{body}</p>
       </div>
     </div>
   );
@@ -939,7 +940,8 @@ if (isEditorDemo) {
   root.render(
     <React.StrictMode>
       {isPortal ? (
-        <DesktopOnly>
+        <DesktopOnly title="The Company Portal is a desktop tool"
+          body="The portal needs a larger screen. Open it on a desktop or laptop to manage your company. The MineEx app itself works great on your phone.">
           <AuthGate title="Sign in to your Company Portal" subtitle="Manage your company on MineEx">
             <React.Suspense fallback={lazyFallback("portal")}>
               <PortalGate render={(company, opts) => <Portal company={company} switchCompany={opts?.switchCompany} adminMode={opts?.adminMode} />} />
