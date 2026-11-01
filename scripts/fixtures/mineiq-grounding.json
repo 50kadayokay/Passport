@@ -16,25 +16,25 @@
         ]
       },
       "search": [
-        { "source": "fact", "id": "f-1", "label": "Halden Ridge", "occurred_on": "2026-09-22", "rank": 0.9,
+        { "source": "fact", "id": "f0000000-0000-4000-8000-000000000001", "label": "Halden Ridge", "occurred_on": "2026-09-22", "rank": 0.9,
           "body": "Hole HR-26-014 intersected 14.2 g/t Au over 6.0 metres from 88 metres.",
           "terms": ["hr-26-014", "intercept", "best", "hole", "halden", "grade", "drill"] },
-        { "source": "fact", "id": "f-2", "label": "Halden Ridge", "occurred_on": "2026-09-22", "rank": 0.6,
+        { "source": "fact", "id": "f0000000-0000-4000-8000-000000000002", "label": "Halden Ridge", "occurred_on": "2026-09-22", "rank": 0.6,
           "body": "Assays for hole HR-26-021 are pending.",
           "terms": ["hr-26-021", "hole", "halden", "assay", "assays"] },
-        { "source": "fact", "id": "f-3", "label": "Halden Ridge Resources", "occurred_on": "2026-06-30", "rank": 0.8,
-          "body": "The Company has 41,250,000 common shares outstanding.", "superseded_by": "f-4",
+        { "source": "fact", "id": "f0000000-0000-4000-8000-000000000003", "label": "Halden Ridge Resources", "occurred_on": "2026-06-30", "rank": 0.8,
+          "body": "The Company has 41,250,000 common shares outstanding.", "superseded_by": "f0000000-0000-4000-8000-000000000004",
           "terms": ["shares", "outstanding", "share", "capital"] },
-        { "source": "fact", "id": "f-4", "label": "Halden Ridge Resources", "occurred_on": "2026-10-05", "rank": 0.8,
+        { "source": "fact", "id": "f0000000-0000-4000-8000-000000000004", "label": "Halden Ridge Resources", "occurred_on": "2026-10-05", "rank": 0.8,
           "body": "Following closing of the private placement, the Company has 48,900,000 common shares outstanding.",
           "terms": ["shares", "outstanding", "share", "capital", "placement"] },
-        { "source": "release", "id": "r-1", "label": "Halden Ridge closes C$2.4M private placement", "occurred_on": "2026-10-05", "rank": 0.5,
+        { "source": "release", "id": "e0000000-0000-4000-8000-000000000001", "label": "Halden Ridge closes C$2.4M private placement", "occurred_on": "2026-10-05", "rank": 0.5,
           "body": "Halden Ridge Resources Ltd. closed a private placement of 7,650,000 units at C$0.32 for gross proceeds of C$2,448,000. Following closing, the Company has 48,900,000 common shares outstanding.",
           "terms": ["shares", "outstanding", "placement", "financing", "raise", "raised", "proceeds"] },
-        { "source": "document", "id": "d-1", "label": "Q3 2026 interim financial statements", "occurred_on": "2026-09-30", "rank": 0.4,
+        { "source": "document", "id": "d0000000-0000-4000-8000-000000000001", "label": "Q3 2026 interim financial statements", "occurred_on": "2026-09-30", "rank": 0.4,
           "body": "As at September 30, 2026 the Company held cash of C$3.4 million.",
           "terms": ["cash", "treasury", "financial", "money"] },
-        { "source": "document", "id": "d-2", "label": "Q3 2026 MD&A", "occurred_on": "2026-09-30", "rank": 0.4,
+        { "source": "document", "id": "d0000000-0000-4000-8000-000000000002", "label": "Q3 2026 MD&A", "occurred_on": "2026-09-30", "rank": 0.4,
           "body": "As at September 30, 2026 the Company had cash and cash equivalents of C$2.9 million.",
           "terms": ["cash", "treasury", "financial", "money"] }
       ]
@@ -73,7 +73,7 @@
     {
       "id": "supersession-shares",
       "question": "How many shares are outstanding?",
-      "expect": { "cite": ["2026-10-05"], "mustInclude": ["48900000"], "latest": "48900000", "superseded": ["f-3"] },
+      "expect": { "cite": ["2026-10-05"], "mustInclude": ["48900000"], "latest": "48900000", "superseded": ["f0000000-0000-4000-8000-000000000003"] },
       "good": "48,900,000 common shares as of the October 5, 2026 placement release, up from 41,250,000 in the company profile as at 2026-06-30.",
       "bad": [
         { "why": "stale value only", "text": "41,250,000 shares are outstanding, per the company profile as at 2026-06-30." },

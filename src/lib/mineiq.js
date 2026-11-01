@@ -17,6 +17,7 @@ import { authHeaders } from "./auth.js";
 import { listDocuments } from "./memory.js";
 import { listPublished, listDrafts } from "./publishDrafts.js";
 import { listMediaPosts } from "./mediaPosts.js";
+import { ACTIVE_FACTS } from "./mineiqActive.js";
 
 const REST = `${SUPABASE_URL}/rest/v1`;
 
@@ -35,17 +36,18 @@ async function countOf(path) {
  * How many approved facts MineIQ holds. `null` means the knowledge layer is not
  * switched on (0050 unapplied), which the page states; `0` means it is on and
  * nothing has been ingested yet. Those are different and must not be conflated.
+ * Only facts from releases that are live count (a08, mineiqActive.js).
  */
 export async function factCount(companyId) {
   if (!companyId) return null;
-  return countOf(`facts?company_id=eq.${companyId}&select=id`);
+  return countOf(`facts?company_id=eq.${companyId}&select=id,${ACTIVE_FACTS}`);
 }
 
 /**
  * How many facts MineIQ learned from ONE publication (facts.publication_id,
- * 0050a). Used by the take-down flow to say plainly what stays behind: taking a
- * release down does not remove its facts (a08 -- retention is an open product
- * decision, and the behaviour is unchanged until it is made). `null` = unknown.
+ * 0050a). Used by the take-down flow to say what leaves Mine IQ: taking a
+ * release down keeps its facts as a record but stops using them (a08). Counts
+ * every row, live or not -- it is the release's own record. `null` = unknown.
  */
 export async function factCountForPublication(publicationId) {
   if (!publicationId || String(publicationId).startsWith("demo-")) return null;
@@ -68,7 +70,7 @@ export async function factsByCategory(companyId) {
   try {
     const h = await authHeaders();
     const res = await fetch(
-      `${REST}/facts?company_id=eq.${companyId}&superseded_by=is.null&select=kind&limit=2000`,
+      `${REST}/facts?company_id=eq.${companyId}&superseded_by=is.null&select=kind,${ACTIVE_FACTS}&limit=2000`,
       { headers: h });
     if (!res.ok) return null;
     const rows = await res.json().catch(() => []);
@@ -90,7 +92,7 @@ export async function listFacts(companyId, { kinds = null, limit = 100 } = {}) {
     const kindFilter = kinds && kinds.length ? `&kind=in.(${kinds.join(",")})` : "";
     const res = await fetch(
       `${REST}/facts?company_id=eq.${companyId}&superseded_by=is.null${kindFilter}` +
-      `&select=id,kind,subject,data,quote,confidence,created_at&order=created_at.desc&limit=${limit}`,
+      `&select=id,kind,subject,data,quote,confidence,created_at,${ACTIVE_FACTS}&order=created_at.desc&limit=${limit}`,
       { headers: h });
     if (!res.ok) return [];
     const rows = await res.json().catch(() => []);
@@ -126,9 +128,15 @@ export async function knowledgeSummary(companyId, profile) {
     factsByCategory(companyId),
   ]);
   const count = (list) => (Array.isArray(list) ? list.length : null);
+  // a08: a taken-down release is not current public material, so it is not
+  // counted as published or shown as something Mine IQ learned from. The
+  // /portaldemo fixtures carry no publications field and keep their status.
+  const live = Array.isArray(published)
+    ? published.filter((p) => !Array.isArray(p.publications) || p.publications.some((x) => x.destination_id === "passport" && x.status === "published"))
+    : null;
   return {
     documents: count(docs),
-    releases: count(published),
+    releases: count(live),
     drafts: count(drafts),
     projects: Array.isArray(prof.projects) ? prof.projects.length : 0,
     milestones: Array.isArray(prof.timeline) ? prof.timeline.length : 0,
@@ -139,7 +147,7 @@ export async function knowledgeSummary(companyId, profile) {
     unavailable: Object.keys(errors),
     errors,
     _docs: docs || [],
-    _published: published || [],
+    _published: live || [],
   };
 }
 

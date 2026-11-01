@@ -121,6 +121,11 @@ globalThis.fetch = async (input, init = {}) => {
       .map(({ source, id, label, body: b, occurred_on, rank }) => ({ source, id, label, body: b, occurred_on, rank }));
     return json(rows);
   }
+  // a08 liveness reads (src/lib/mineiqActive.js): every fixture release is live.
+  // Taken-down releases are covered by mineiq-a08-retrieval-test.mjs.
+  const inIds = (v) => (String(v || "").match(/^in\.\((.*)\)$/) || [, ""])[1].split(",").filter(Boolean);
+  if (p === "/rest/v1/publications") return json(caller ? inIds(url.searchParams.get("update_id")).map((update_id) => ({ update_id })) : []);
+  if (p === "/rest/v1/facts") return json(caller ? inIds(url.searchParams.get("id")).map((id) => ({ id })) : []);
   if (p === "/rest/v1/company_memberships") return json([]);
   return json([]);
 };
