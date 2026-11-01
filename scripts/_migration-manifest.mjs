@@ -29,6 +29,9 @@ export const DEFERRED = {
 // PENDING, so replay-migrations.mjs stops describing them as unapplied.
 //   0057 - throttle table + ai_controls kill switch (drill-tested both ways)
 //   0060 - publish_publication revoked from public/anon/authenticated
+// Verified applied by the read-only production audit of 2026-11-01:
+//   0053, 0054, 0056, 0059 (sign-up trigger identical to staging; NEVER run
+//   0059's rollback in production), 0067.
 //
 // Written this session; awaiting approval. Replay applies these in staging.
 export const PENDING = {
@@ -55,8 +58,6 @@ export const PENDING = {
 
   "0058_close_public_insert.sql":
     "Revokes anon INSERT on the three public forms. MUST follow the /api/submit deploy.",
-  "0059_auth_user_trigger.sql":
-    "on_auth_user_created on auth.users. No-op on production.",
 
   "0064_notification_clearing.sql":
     "Clear-all for the company Notifications page: company_notification_reads.cleared_at + mark_notifications_cleared(), and company_notifications() hides events at or before it. Deletes NOTHING -- follows and likes are the investor's rows and are untouched. NULL cleared_at = pre-migration behaviour exactly.",
@@ -67,6 +68,32 @@ export const PENDING = {
   "0062_message_attachments.sql":
     "Files on investor<->company messages: message_attachments + can_touch_conversation() + a PRIVATE message-attachments bucket with size/MIME limits. Additive; nothing existing changes behaviour. The portal UI degrades to 'no attachments' until applied.",
 
+  // Verified absent from production by the read-only audit of 2026-11-01
+  // (supabase/audit/production_readiness_2026_10_31.sql). Until then the derived
+  // default classified all of these APPLIED. Staging has them (0077/0078 since
+  // 2026-11-01). Order and gates: docs/PRODUCTION-ROLLOUT-PLAN.md.
+  "0069b_stripe_events.sql":
+    "Stripe webhook ledger: de-duplication, ordering and subscription binding for /api/stripe-webhook (F9).",
+  "0071_publishing_reliability.sql":
+    "Publishing reliability: posts.media_url and the corrected publish_publication. Production's publish_publication matches NO repo version (function drift) -- read its source before writing the production rollback.",
+  "0072_profile_drafts.sql":
+    "Profile drafts and the role-gated publish path (a04).",
+  "0073a_impression_dedupe_index.sql":
+    "Impression de-duplication index. CREATE INDEX CONCURRENTLY -- outside a transaction.",
+  "0073b_impression_tracking.sql":
+    "Impression tracking RPC (a12). Needs a new native build to emit from the apps.",
+  "0073c_post_events_client_guard.sql":
+    "Stops clients writing backdated impressions directly (post_events insert policy).",
+  "0074_profile_revision_history.sql":
+    "Profile revision history with restore-into-draft (a05).",
+  "0075_profile_versions_privileges.sql":
+    "Privilege fix for company_profile_versions.",
+  "0076_company_roles.sql":
+    "Company roles (a03). Its brand_kits/story_projects statements are guarded (0028 is deferred in production). Production's accept_company_invitation matches no repo version (function drift) -- keep production's first-owner handoff.",
+  "0077_listing_reports_installed_app_compat.sql":
+    "Keeps anon INSERT on listing_reports for installed 1.3.x apps. Apply in the SAME session as 0058, right after it.",
+  "0078_storage_role_hardening.sql":
+    "Storage writes/deletes follow the a03 drafting roles; investors can no longer upload to the public buckets. Needs 0076's has_company_role.",
   "0061a_table_privilege_hardening.sql":
     "Revokes the default all-7 grant on company_follows/post_events/post_likes/user_company_relationships; re-grants only what traced call sites need. anon gets nothing. NO code deploy required.",
 
@@ -105,6 +132,9 @@ export const PREREQUISITES = {
   "0061a_table_privilege_hardening.sql": ["0052_messaging_privilege_hardening.sql"],
   "0065b_engagement_corrections.sql": ["0048_company_engagement_analytics.sql"],
   "0065c_analytics_indexes.sql": ["0065a_analytics_breakdown.sql"],
+  "0076_company_roles.sql": ["0072_profile_drafts.sql"],
+  "0077_listing_reports_installed_app_compat.sql": ["0058_close_public_insert.sql"],
+  "0078_storage_role_hardening.sql": ["0076_company_roles.sql"],
 };
 
 // Sections that need the SQL-editor role (postgres), not a pooled lesser role.
