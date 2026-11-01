@@ -199,19 +199,36 @@ leaked one exposes unpublished marketing copy for half an hour — not an accoun
 
 ## 5 · Publishing and revalidation
 
-*(Stage 3 — specified here so sites can be built against it now.)*
-
-On publish, MineEx calls the site's revalidate hook:
+On publish, revision and unpublish, once the website copy of the release has
+been delivered, the dispatcher calls the site's revalidate hook (server side,
+`api/_siteRevalidate.js`):
 
 ```
-POST <company_destinations.config.revalidate_url>
-X-MineEx-Signature: sha256=<hmac of the body, keyed with the site secret>
-{ "contract": "1.0", "companyId": "…", "event": "content.published", "version": { … } }
+POST <company_destinations.config.revalidate_url>     (destination 'website', enabled)
+X-MineEx-Timestamp: <unix seconds>
+X-MineEx-Signature: sha256=<hex hmac_sha256(key, "<timestamp>.<raw body>")>
+X-MineEx-Key: v1
+X-MineEx-Delivery: <event id, the same on every retry>
+{ "contract": "1.0", "companyId": "…", "event": "content.published" | "content.revised" | "content.unpublished",
+  "version": { "publicationId": "…", "seq": 3 } }
 ```
 
-Verify the signature before acting. Respond `2xx` once revalidation is queued;
-any other status is recorded against `company_destinations.last_error` and
-retried by the dispatcher.
+**Verify before acting.** Recompute the HMAC over the timestamp, a dot and the
+raw body, compare in constant time, and refuse a timestamp more than 5 minutes
+old. `X-MineEx-Delivery` may repeat (retries); treat it as idempotent. The body
+only names what changed: fetch the content itself with the site token.
+
+**The key** is per company, issued to the site's operator by MineEx staff out of
+band. It is never shown in the portal and never returned by any API.
+
+**The URL** must be `https` on port 443, with no credentials, and must resolve
+only to public addresses; anything else is refused before a request is made.
+Redirects are not followed. The timeout is 5 seconds.
+
+Respond `2xx` once revalidation is queued. Any other status, a timeout or a
+refused URL fails that delivery: it is retried with the dispatcher's backoff
+(dead-lettered after 6 attempts), recorded against
+`company_destinations.last_error`, and never undoes the publish.
 
 **Content is fetched, never built in.** An ordinary edit triggers revalidation,
 not a deploy. A deploy happens only when the site's own code changes.
