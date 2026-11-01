@@ -8,7 +8,7 @@
 //     websites, the native apps, crawlers for og images), never framed;
 //   - nothing in the app frames a page from another origin, so 'self' is enough
 //     (capacitor://localhost covers the booth phone in a native webview);
-//   - no script CSP yet (a separate, riskier change);
+//   - no ENFORCED script CSP (it is Report-Only, scripts/csp-report-only-test.mjs);
 //   - production-smoke expects exactly these values.
 // OFFLINE: reads files only.
 import fs from "node:fs";
@@ -32,7 +32,7 @@ const resolve = (p) => {
 
 console.log("\n  RULES");
 ok(V.headers.every((r) => SUPPORTED.test(r.source)), "every header source uses syntax this test resolves", V.headers.map((r) => r.source).join(" "));
-ok(V.headers.every((r) => r.headers.every((h) => !/script-src|default-src|style-src/.test(h.value))), "no script/style CSP yet (separate change)");
+ok(V.headers.every((r) => r.headers.every((h) => h.key !== "Content-Security-Policy" || !/script-src|default-src|style-src/.test(h.value))), "the ENFORCED CSP has no script/style rules (those are Report-Only, scripts/csp-report-only-test.mjs)");
 
 console.log("\n  PAGES (headers apply)");
 const PAGES = [
@@ -57,7 +57,7 @@ const EXEMPT = [
 ];
 for (const [p, why] of EXEMPT) {
   const h = resolve(p);
-  ok(h["x-content-type-options"] === "nosniff" && !h["x-frame-options"] && !h["content-security-policy"] && !h["referrer-policy"], `${p}: ${why}`, JSON.stringify(h));
+  ok(h["x-content-type-options"] === "nosniff" && !h["x-frame-options"] && !h["content-security-policy"] && !h["content-security-policy-report-only"] && !h["referrer-policy"], `${p}: ${why}`, JSON.stringify(h));
 }
 ok(/immutable/.test(resolve("/assets/x.js")["cache-control"] || ""), "/assets/ keeps its immutable cache");
 

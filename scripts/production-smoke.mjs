@@ -199,6 +199,7 @@ export async function runSmoke({ target, env = {}, fetchImpl = globalThis.fetch,
       if (page) {
         ok(h.get("content-security-policy") === PAGE_HEADERS["content-security-policy"], `${label}: CSP ${PAGE_HEADERS["content-security-policy"]}`, h.get("content-security-policy") || "missing");
         ok((h.get("x-frame-options") || "").toUpperCase() === PAGE_HEADERS["x-frame-options"], `${label}: X-Frame-Options SAMEORIGIN`, h.get("x-frame-options") || "missing");
+        ok(/^default-src 'self';/.test(h.get("content-security-policy-report-only") || ""), `${label}: CSP Report-Only (script policy, observed not enforced)`, "missing");
         ok(h.get("referrer-policy") === PAGE_HEADERS["referrer-policy"], `${label}: Referrer-Policy ${PAGE_HEADERS["referrer-policy"]}`, h.get("referrer-policy") || "missing");
       } else {
         // The API is fetched cross-origin (company websites, the native apps): no framing or referrer rules there.

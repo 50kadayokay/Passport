@@ -27,7 +27,7 @@ const ENV = {
   SMOKE_VIEWER_EMAIL: "vw@stub.invalid", SMOKE_VIEWER_PASSWORD: PW.viewer,
 };
 const TARGET = { app: APP, supabase: SB, ref: "stubref0000000000000", production: false, apiOnly: false };
-const SAFE_HEADERS = { "strict-transport-security": "max-age=63072000", ...PAGE_HEADERS };
+const SAFE_HEADERS = { "strict-transport-security": "max-age=63072000", ...PAGE_HEADERS, "content-security-policy-report-only": "default-src 'self'; script-src 'self'" };
 const API_HEADERS = { "strict-transport-security": "max-age=63072000", "x-content-type-options": "nosniff" };
 
 /** A healthy deployment; `bug` names one regression to introduce. */
@@ -42,7 +42,8 @@ function world(bug = null) {
     calls.push({ method, href, body });
     const pageHeaders = bug === "no-nosniff" ? { ...SAFE_HEADERS, "x-content-type-options": "" }
       : bug === "xfo-deny" ? { ...SAFE_HEADERS, "x-frame-options": "DENY" }
-      : bug === "referrer-unsafe" ? { ...SAFE_HEADERS, "referrer-policy": "unsafe-url" } : SAFE_HEADERS;
+      : bug === "referrer-unsafe" ? { ...SAFE_HEADERS, "referrer-policy": "unsafe-url" }
+      : bug === "no-report-only" ? { ...SAFE_HEADERS, "content-security-policy-report-only": "" } : SAFE_HEADERS;
     if (u.origin === APP) {
       if (u.pathname === "/") return res(200, `<!doctype html><div id="root"></div><script type="module" crossorigin src="/assets/index-abc.js"></script>`, { ...pageHeaders, "content-type": "text/html" });
       if (u.pathname === "/assets/index-abc.js") return res(200, `const u="${bug === "bundle-elsewhere" ? "https://other.supabase.co" : SB}",k="${ANON}",s="${SERVICE}";` + "x".repeat(2000), { "content-type": "text/javascript" });
@@ -141,6 +142,7 @@ for (const [bug, expect] of [
   ["owner-id-leak", "a guest cannot read owner_id"],
   ["xfo-deny", "page: X-Frame-Options SAMEORIGIN"],
   ["referrer-unsafe", "page: Referrer-Policy"],
+  ["no-report-only", "page: CSP Report-Only"],
   ["api-framing-headers", "API: no page-only framing headers"],
   ["bundle-elsewhere", "the bundle names the Supabase project given"],
 ]) {
