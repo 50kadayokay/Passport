@@ -1,11 +1,14 @@
-// Clear all by role (0090) offline: the portal sends the clear through the real
-// src/lib/companyNotifications.js to a stub that applies 0090's check, and the
-// Notifications page offers the action only to the roles that check accepts.
+// Clear all by role (0090, 0091) offline: the portal sends the clear through the
+// real src/lib/companyNotifications.js to a stub that applies 0091's check, and
+// the Notifications page offers the action only to the roles that check accepts.
+// 0091: a platform admin clears only with an owner/admin role of their own there.
 //   node scripts/notifications-clear-ui-test.mjs
 //
 // OFFLINE. fetch answers only from the stub below. The real function is proven
 // on staging by scripts/notifications-clear-0090-check.mjs (rolled back) and
-// scripts/notifications-clear-live-test.mjs (S4).
+// scripts/notifications-clear-live-test.mjs (S4); 0091 by
+// scripts/notifications-clear-0091-check.mjs (rolled back). 0091's SQL is
+// checked offline by scripts/notifications-clear-0091-test.mjs.
 import fs from "node:fs";
 import { installBrowserGlobals, installFetch, signIn, loadBundle, json, reporter, STUB_SB } from "./_portal-offline.mjs";
 
@@ -15,8 +18,10 @@ installBrowserGlobals();
 const A = "aaaaaaaa-0000-4000-8000-00000000000a";
 const B = "bbbbbbbb-0000-4000-8000-00000000000b";
 // role of each token in A (0076 memberships); B is another company's owner
-const ROLE = { "tok-owner": "owner", "tok-admin": "admin", "tok-editor": "editor", "tok-publisher": "publisher", "tok-analyst": "analyst", "tok-viewer": "viewer", "tok-b": null };
-const CLEARERS = ["owner", "admin"];   // 0090: has_company_role(p_company, array['owner','admin'])
+// tok-padmin*: platform admins (profiles.role 'admin') with no / an admin / an editor membership of A
+const ROLE = { "tok-owner": "owner", "tok-admin": "admin", "tok-editor": "editor", "tok-publisher": "publisher", "tok-analyst": "analyst", "tok-viewer": "viewer", "tok-b": null,
+  "tok-padmin": null, "tok-padmin-admin": "admin", "tok-padmin-editor": "editor" };
+const CLEARERS = ["owner", "admin"];   // 0091: owner_id, or an active owner/admin membership -- held by the caller; platform admin adds nothing
 let clearedAt = null, mode = "ok";
 const calls = [];
 
@@ -40,11 +45,11 @@ installFetch(async (req) => {
 
 const N = await loadBundle("notifications-clear", `
   export * from "./src/lib/companyNotifications.js";
-  export { can } from "./src/lib/companyRoles.js";
+  export { can, canIn, OWN_ROLE_ONLY } from "./src/lib/companyRoles.js";
 `);
 const as = (tok) => signIn({ id: `u-${tok}`, email: `${tok}@stub.invalid` }, { token: tok });
 
-section("SERVER CHECK (as 0090 answers)");
+section("SERVER CHECK (as 0091 answers)");
 {
   for (const t of ["tok-viewer", "tok-analyst", "tok-editor", "tok-publisher"]) {
     as(t);
@@ -54,10 +59,15 @@ section("SERVER CHECK (as 0090 answers)");
   as("tok-b");
   const rb = await N.clearCompanyNotifications(A);
   ok(rb && rb.denied && clearedAt === null, "another company's owner: refused");
-  for (const t of ["tok-owner", "tok-admin"]) {
+  for (const t of ["tok-padmin", "tok-padmin-editor"]) {
+    as(t);
+    const r = await N.clearCompanyNotifications(A);
+    ok(r && r.failed && r.denied && clearedAt === null, `platform admin ${t === "tok-padmin" ? "with no membership" : "with an editor membership"}: refused (0091)`);
+  }
+  for (const t of ["tok-owner", "tok-admin", "tok-padmin-admin"]) {
     as(t); clearedAt = null;
     const r = await N.clearCompanyNotifications(A);
-    ok(r === "2026-11-01T12:00:00Z" && clearedAt, `${t.slice(4)}: clears (returns the clear time)`);
+    ok(r === "2026-11-01T12:00:00Z" && clearedAt, `${t === "tok-padmin-admin" ? "platform admin with an admin membership" : t.slice(4)}: clears (returns the clear time)`);
   }
   as("tok-owner");
   mode = "500";
@@ -73,7 +83,15 @@ section("ROLE POLICY IN THE UI");
   ok(["owner", "admin"].every((r) => N.can(r, "clearNotifications")) && !["editor", "publisher", "analyst", "viewer"].some((r) => N.can(r, "clearNotifications")), "clearNotifications: owner/admin yes; editor/publisher/analyst/viewer no");
   ok(!N.can(null, "clearNotifications") && !N.can("investor", "clearNotifications"), "no role / investor: no");
   const src = fs.readFileSync("src/portal/Notifications.jsx", "utf8");
-  ok(/const canClear = can\(company\?\.role \|\| "owner", "clearNotifications"\)/.test(src), "Notifications derives canClear from the company role");
+  // A platform admin's portal (PortalGate ?company=) has role "admin", platformAdmin, and ownRole = what they hold there.
+  const padmin = (ownRole) => ({ id: A, role: "admin", platformAdmin: true, ownRole });
+  ok(!N.canIn(padmin(null), "clearNotifications") && !N.canIn(padmin("editor"), "clearNotifications") && !N.canIn(padmin("viewer"), "clearNotifications"), "platform admin without an owner/admin role of their own: no Clear all (0091)");
+  ok(N.canIn(padmin("admin"), "clearNotifications") && N.canIn(padmin("owner"), "clearNotifications"), "platform admin who is owner/admin there themselves: Clear all");
+  ok(N.canIn(padmin(null), "manageTeam") && N.canIn(padmin(null), "publishProfile") && N.OWN_ROLE_ONLY.join() === "clearNotifications", "only Clear all needs their own role; admin mode keeps every other action");
+  ok(N.canIn({ role: "admin" }, "clearNotifications") && !N.canIn({ role: "viewer" }, "clearNotifications") && N.canIn(undefined, "clearNotifications"), "members: canIn = can(company.role) (missing role reads as owner, as before)");
+  ok(/const canClear = canIn\(company, "clearNotifications"\)/.test(src) && !/\bcan\(company\?\.role/.test(src), "Notifications derives canClear through canIn (own role for platform admins)");
+  const gate = fs.readFileSync("src/portal/PortalGate.jsx", "utf8");
+  ok(/role: "admin", platformAdmin: true, ownRole \}/.test(gate) && /const ownRole = own\.ok \? own\.role : null;/.test(gate), "PortalGate's admin mode records the admin's own role (unknown = none)");
   ok(/\{canClear && items && items\.length > 0 && \(\s*<button onClick=\{\(\) => setConfirming\(true\)\}/.test(src), "the Clear all button is only rendered for roles that may clear");
   ok(/const confirmDialog = confirming && canClear \?/.test(src), "the confirm dialog cannot open without the role either");
   ok(/if \(at && at\.denied\) \{\s*setClearErr\("Only owners and admins can clear/.test(src), "a refusal from the server is shown as a role refusal, not 'try again'");

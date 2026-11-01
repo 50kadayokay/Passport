@@ -19,7 +19,7 @@ installBrowserGlobals();
 const A = "aaaaaaaa-0000-4000-8000-00000000000a", B = "bbbbbbbb-0000-4000-8000-00000000000b";
 const CO = {
   [A]: { id: A, slug: "alpha-gold", name: "Alpha Gold Corp.", status: "published" },
-  [B]: { id: B, slug: "beta-copper", name: "Beta Copper Ltd.", status: "draft" },
+  [B]: { id: B, slug: "beta-copper", name: "Beta Copper Ltd.", status: "draft", owner_id: "padmin_o" },
 };
 // user id -> { platform role, memberships: [[companyId, role]] }
 const USERS = {
@@ -27,6 +27,9 @@ const USERS = {
   owner:    { role: "company", m: [[A, "owner"]] },
   multi:    { role: "company", m: [[A, "editor"], [B, "viewer"]] },
   admin:    { role: "admin",   m: [] },
+  padmin_m: { role: "admin",   m: [[B, "admin"]] },               // platform admin, also an admin of B
+  padmin_e: { role: "admin",   m: [[B, "editor"]] },              // platform admin, an editor of B
+  padmin_o: { role: "admin",   m: [] },                           // platform admin, B's owner_id
   odd:      { role: "company", m: [[A, "superuser"]] },          // malformed role
   ...Object.fromEntries(["admin_m", "editor", "publisher", "analyst", "viewer"].map((r) => [r, { role: "company", m: [[A, r === "admin_m" ? "admin" : r]] }])),
 };
@@ -51,7 +54,8 @@ const calls = installFetch(async (req) => {
   const p = url.pathname;
   if (p === "/rest/v1/company_memberships" && method === "GET") {
     if (mode === "badjson") return new Response("<html>gateway</html>", { status: 200 });
-    return json(u.m.map(([cid, role]) => ({ role, joined_at: "2026-10-01", company: CO[cid] })));
+    const only = (url.searchParams.get("company_id") || "").replace(/^eq\./, "");
+    return json(u.m.filter(([cid]) => !only || cid === only).map(([cid, role]) => ({ role, joined_at: "2026-10-01", company: CO[cid] })));
   }
   if (p === "/rest/v1/profiles") return json([{ role: u.role }]);
   if (p === "/rest/v1/rpc/my_features") {
@@ -75,7 +79,7 @@ const M = await loadBundle("gate", `
   export { resolvePortal, enterCompany, GateScreen } from "./src/portal/PortalGate.jsx";
   export { normaliseRole } from "./src/lib/portalGate.js";
   export { getMyRole, getSession } from "./src/lib/auth.js";
-  export { can, ROLES } from "./src/lib/companyRoles.js";
+  export { can, canIn, ROLES } from "./src/lib/companyRoles.js";
   export { default as LoginScreen } from "./src/auth/LoginScreen.jsx";
 `);
 const html = (state, companies = [], extra = {}) => renderToStaticMarkup(React.createElement(M.GateScreen, { state, companies, onEnter() {}, onRetry() {}, onSignOut() {}, onSignInAgain() {}, ...extra }));
@@ -144,6 +148,13 @@ section("PLATFORM ADMIN");
   as("admin");
   const r = await resolve("?company=beta-copper");
   ok(r.state.phase === "ready" && r.state.adminMode && r.state.company.role === "admin", "admin + ?company=<slug> -> that company's portal in admin mode (no entitlement needed)");
+  ok(r.state.company.platformAdmin === true && r.state.company.ownRole === null && !M.canIn(r.state.company, "clearNotifications") && M.canIn(r.state.company, "manageTeam"), "admin mode records no role of their own: no Clear all (0091), every other admin action stays");
+  for (const [who, role, clears] of [["padmin_m", "admin", true], ["padmin_e", "editor", false], ["padmin_o", "owner", true]]) {
+    as(who);
+    const x = await resolve("?company=beta-copper");
+    ok(x.state.adminMode && x.state.company.ownRole === role && M.canIn(x.state.company, "clearNotifications") === clears, `platform admin who is ${role === "owner" ? "the owner_id" : `an ${role}`} of the company: ownRole ${role}, Clear all ${clears ? "yes" : "no"}`);
+  }
+  as("admin");
   const nf = await resolve("?company=no-such-co");
   ok(nf.state.phase === "notfound" && /Company not found/.test(text(html(nf.state))) && /no-such-co/.test(text(html(nf.state))), "admin + unknown slug -> 'Company not found', not a generic error");
   as("owner");

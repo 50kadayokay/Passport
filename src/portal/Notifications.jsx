@@ -17,7 +17,7 @@ import {
   companyUnreadCount as unreadCount,
   clearCompanyNotifications as clearNotifications,
 } from "../lib/companyNotifications.js";
-import { can } from "../lib/companyRoles.js";
+import { canIn } from "../lib/companyRoles.js";
 
 const CARD = "rounded-2xl border border-slate-100 bg-white shadow-[0_1px_2px_rgba(15,23,42,.04),0_12px_26px_-20px_rgba(15,23,42,.4)]";
 
@@ -73,8 +73,9 @@ function Row({ item, fresh }) {
 export default function Notifications({ company, onSeen, hideHeading = false }) {
   const companyId = company?.id;
   // Clearing empties the page for the whole company (one cleared_at per
-  // company, 0064), so it is owner/admin only (0090). Everyone else reads.
-  const canClear = can(company?.role || "owner", "clearNotifications");
+  // company, 0064), so it is owner/admin only (0090) -- and a platform admin
+  // needs that role in the company themselves (0091). Everyone else reads.
+  const canClear = canIn(company, "clearNotifications");
   const [items, setItems] = useState(undefined);   // undefined = loading, null = not switched on (0049)
   const [loadErr, setLoadErr] = useState(false);   // the last read failed (network, 5xx)
   const [clearErr, setClearErr] = useState("");
