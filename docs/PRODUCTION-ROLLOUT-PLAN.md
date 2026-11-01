@@ -140,6 +140,7 @@ This is the authoritative list. `scripts/rollout-plan-manifest-test.mjs` (in `np
 | 25 | `0087_audience_events.sql` | 5b | transaction | 0071 | lossy: audience events |
 | 26 | `0088_content_fanout.sql` | 5b | transaction; deploy `api/_listeners.js` first (Phase 1) | 0071 | lossy: destination copies; **roll back before 0071** (R2) |
 | 27 | `0090_notification_clear_roles.sql` | 5b | transaction | 0064, 0076 | clean (restores 0064's body) |
+| 28 | `0091_notification_clear_no_platform_admin.sql` | 5b | transaction; right after 0090 | 0090 | clean (restores 0090's body) |
 <!-- migration-order:end -->
 
 **Already applied in production, not in the list:** 0053, 0054, 0056, 0057, 0059 (never run its rollback in production), 0060 and 0067.
@@ -167,7 +168,7 @@ This is the authoritative list. `scripts/rollout-plan-manifest-test.mjs` (in `np
   - A service request is created, and an admin changes its status.
   - Profile views and shares show on Analytics.
   - Mine IQ answers a natural question.
-  - Clear all works for an owner and is refused for a viewer.
+  - Clear all works for an owner and is refused for a viewer, and for a platform admin with no owner/admin role in that company (0091).
   - Investor smoke passes.
   - Content fan-out is checked only after Phase 6 (it needs a drain).
 
