@@ -102,6 +102,8 @@ export const PENDING = {
     "a13: company_events (profile views, unique visitors, shares, video progress) written only through record_company_events(); members-only aggregates. Additive; no installed-app table touched. Applied to staging 2026-11-01.",
   "0088_content_fanout.sql":
     "a15: destination_content plus the site_content_v1 and conference_content_v1 listeners (active_from = now(), nothing historical replays). Deploy api/_listeners.js with it. Applied to staging 2026-11-01.",
+  "0090_notification_clear_roles.sql":
+    "Company-wide \"Clear all\" notifications limited to owner/admin (and platform admins) via has_company_role; was any member. Needs 0064 and 0076. NOT applied to staging yet.",
   "0061a_table_privilege_hardening.sql":
     "Revokes the default all-7 grant on company_follows/post_events/post_likes/user_company_relationships; re-grants only what traced call sites need. anon gets nothing. NO code deploy required.",
 
@@ -144,6 +146,7 @@ export const PREREQUISITES = {
   "0077_listing_reports_installed_app_compat.sql": ["0058_close_public_insert.sql"],
   "0078_storage_role_hardening.sql": ["0076_company_roles.sql"],
   "0086_service_requests.sql": ["0076_company_roles.sql"],
+  "0090_notification_clear_roles.sql": ["0064_notification_clearing.sql", "0076_company_roles.sql"],
 };
 
 // Sections that need the SQL-editor role (postgres), not a pooled lesser role.
