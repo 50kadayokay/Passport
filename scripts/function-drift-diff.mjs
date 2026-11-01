@@ -1,14 +1,19 @@
 // Compare function SOURCE read from a database (by
 // supabase/audit/production_function_source_2026_11_01.sql) with every version
 // of that function in supabase/migrations/, and show only the differences.
-//   node scripts/function-drift-diff.mjs <results.json>
+//   node scripts/function-drift-diff.mjs <results.json>          summary only
+//   node scripts/function-drift-diff.mjs <results.json> --show   also print the diffs
 //
 // The source is treated as sensitive. Before anything is shown or written,
 // every body is scanned for secret-shaped text (API keys, JWTs, bearer tokens,
 // long hex/base64 runs, quoted values next to password/secret/key/token words);
-// each hit is replaced with [REDACTED-<kind>] and counted. Only the redacted
-// unified diffs are printed, and they are saved next to the results file in the
-// gitignored supabase/audit/results/ folder. Nothing connects to a database.
+// each hit is replaced with [REDACTED-<kind>] and counted. The redacted unified
+// diffs are saved next to the results file in the gitignored
+// supabase/audit/results/ folder. By default the terminal shows only the summary
+// (changed-line counts, nearest version), never source: production function
+// source must stay out of git, chat and shared logs, and a session's terminal
+// output is chat. Read the saved file locally, or pass --show in a terminal of
+// your own. Nothing connects to a database.
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -71,7 +76,8 @@ const REPLACED_BY = { publish_publication: "0071", claim_deliveries: "0071", com
 const changed = (d) => d.split("\n").filter((l) => /^[+-](?![+-])/.test(l)).length;
 
 let report = "";
-const say = (s = "") => { report += s + "\n"; console.log(s); };
+const SHOW = process.argv.includes("--show");
+const say = (s = "", detail = "") => { report += s + detail + "\n"; console.log(s + (SHOW ? detail : detail ? " (diff in the saved report)" : "")); };
 let totalHits = 0;
 for (const r of rows) {
   const name = r.signature.replace(/\(.*$/, "").replace(/^public\./, "");
@@ -85,7 +91,8 @@ for (const r of rows) {
   if (!versions.length) { say("    no repo version found"); continue; }
   for (const v of versions) say(`    vs ${v.where}: ${changed(v.d)} changed line(s) (whitespace/comments ignored)`);
   const best = versions.reduce((a, b) => (changed(b.d) < changed(a.d) ? b : a));
-  say(changed(best.d) ? `    nearest: ${best.where}; differences:\n${best.d.replace(/^/gm, "      ")}` : `    identical in substance to ${best.where}`);
+  if (changed(best.d)) say(`    nearest: ${best.where}; differences:`, `\n${best.d.replace(/^/gm, "      ")}`);
+  else say(`    identical in substance to ${best.where}`);
 }
 fs.rmSync(tmp, { recursive: true, force: true });
 const outFile = file.replace(/\.json$/, ".drift.txt");
