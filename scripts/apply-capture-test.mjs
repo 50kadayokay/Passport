@@ -224,6 +224,13 @@ console.log("\n  ROUND TRIP: the rollback file");
   ok(prod.every((v) => text.includes(`'${manifest.functions.find((f) => f.ident === v.ident).def_md5}'`)) && /raise exception 'capture rollback: % does not match the capture'/.test(text),
      "the file ends by checking every restored function against the captured md5, ACL and owner");
   const stmts = topLevelStatements(text);
+  // A fake client cannot run SQL, so the staging check (scripts/capture-rollback-staging-check.mjs)
+  // is what executes this file; these catch the class of bug it found offline.
+  const generated = text.replace(/-- >>> captured definition[\s\S]*?-- <<< end of captured definition \d+/g, "");
+  ok(!/\border\s+by\s+\d+\b/i.test(generated), "the generated SQL never orders by a position number (inside an aggregate that is the integer itself; with collate it fails)",
+     (generated.match(/order\s+by\s+\d+[^\n]*/i) || [""])[0]);
+  ok(!/\b\d+\s+collate\b/i.test(generated) && (generated.match(/\bcollate "C"/g) || []).length === manifest.functions.filter((f) => f.existed).length,
+     "...and collate is applied only to a text key, once per restored function's ACL check");
   ok(stmts[0] === "begin" && stmts.at(-1) === "commit" && stmts.filter((s) => /^CREATE OR REPLACE FUNCTION/.test(s)).length === 3, "it is one transaction holding the three definitions as whole statements");
   const mode = fs.statSync(written.path).mode & 0o777;
   ok(mode === 0o600, `the file is mode 600 (got ${mode.toString(8)})`);
