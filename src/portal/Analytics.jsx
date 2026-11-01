@@ -485,9 +485,9 @@ export default function Analytics({ company }) {
               <Metric index={0} Icon={isAllTime ? Users : UserPlus}
                 label={isAllTime ? "Followers" : "New followers"}
                 value={isAllTime ? totals.followers : newFollowersInPeriod}
-                unavailable={!isAllTime && growth === null}
+                unavailable={!isAllTime && !growth}
                 note={isAllTime ? "Investors following this company"
-                      : growth === null ? missingNote("company_follower_growth") : "First-time follows, still following"} />
+                      : growth === undefined ? "Loading…" : growth === null ? missingNote("company_follower_growth") : "First-time follows, still following"} />
               <Metric index={1} Icon={Eye} label="Profile views" value={aud ? aud.profileViews : 0}
                 unavailable={!aud} untracked={!!aud && !aud.firstRecordedAt}
                 note={audNote(aud, "Once per visitor per day")} />
@@ -513,18 +513,18 @@ export default function Analytics({ company }) {
             sub={periodSub("Everything investors did with your press releases and media")}>
             <div className={G4}>
               <Metric index={0} Icon={BookOpen} label="Post opens" value={reads}
-                unavailable={byType === null} note="Press releases and media combined" />
+                unavailable={!byType} note="Press releases and media combined" />
               <Metric index={1} Icon={FileText} label="Release opens" value={rel ? rel.reads : 0}
-                unavailable={byType === null} note={byType === null ? missingNote("company_engagement_by_type") : `${rel ? rel.posts : 0} release${rel && rel.posts === 1 ? "" : "s"} live`} />
+                unavailable={!byType} note={byType === undefined ? "Loading…" : byType === null ? missingNote("company_engagement_by_type") : `${rel ? rel.posts : 0} release${rel && rel.posts === 1 ? "" : "s"} live`} />
               <Metric index={2} Icon={ImageIcon} label="Media opens" value={med ? med.reads : 0}
-                unavailable={byType === null} note={byType === null ? missingNote("company_engagement_by_type") : `${med ? med.posts : 0} media post${med && med.posts === 1 ? "" : "s"} live`} />
+                unavailable={!byType} note={byType === undefined ? "Loading…" : byType === null ? missingNote("company_engagement_by_type") : `${med ? med.posts : 0} media post${med && med.posts === 1 ? "" : "s"} live`} />
               <Metric index={3} Icon={Clock} label="Avg. time" value={Math.round(avgDwell || 0)} suffix="s"
                 unavailable={avgDwell == null} note="Seconds spent reading a post" />
             </div>
             <div className={`mt-3 ${G4}`}>
-              <Metric index={4} Icon={Heart} label="Likes" value={likes} unavailable={byType === null}
+              <Metric index={4} Icon={Heart} label="Likes" value={likes} unavailable={!byType}
                 note="Investors who liked a post" />
-              <Metric index={5} Icon={Bookmark} label="Saves" value={saves} unavailable={byType === null}
+              <Metric index={5} Icon={Bookmark} label="Saves" value={saves} unavailable={!byType}
                 note={saveActions == null ? "Currently saved by an investor"
                       : `Still saved · ${saveActions.toLocaleString()} save${saveActions === 1 ? "" : "s"} pressed`} />
               <Metric index={6} Icon={Eye} label="Impressions" value={impr ? impr.impressions : 0}
@@ -568,9 +568,17 @@ export default function Analytics({ company }) {
                 video={vid === undefined || vid === null ? vid : vid[openItem.id] || false} audRecorded={!!(aud && aud.firstRecordedAt)}
                 impr={postImpr === null ? null : (postImpr || {})[openItem.id] || { impressions: 0, impressionsRecent: 0 }}
                 recordedSince={impr ? impr.firstRecordedAt : null} />
+            ) : content === undefined ? (
+              <div className={`grid place-items-center px-5 py-10 ${CARD}`}>
+                <Loader2 size={18} className="animate-spin text-slate-300" aria-label="Loading content" />
+              </div>
             ) : content === null ? (
               <div className={`px-5 py-10 text-center ${CARD}`}>
-                <p className="text-[13px] text-slate-400">Per-item performance needs a database update.</p>
+                <p className="text-[13px] text-slate-400">
+                  {failureKind("company_content_performance") === "failed"
+                    ? "Per-item performance could not be loaded just now."
+                    : "Per-item performance needs a database update."}
+                </p>
               </div>
             ) : (
               <div className={`${CARD} overflow-hidden`}>
