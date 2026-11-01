@@ -22,6 +22,8 @@ const A = env.ISOLATION_COMPANY_A_ID, B = env.ISOLATION_COMPANY_B_ID;
 
 const MIG = fs.readFileSync("supabase/migrations/0071_publishing_reliability.sql", "utf8");
 const RB = fs.readFileSync("supabase/rollbacks/0071_publishing_reliability.rollback.sql", "utf8");
+// 0071's rollback refuses while 0088 is applied (R2); the savepoint unwinds 0088 first, in reverse order.
+const RB_0088 = fs.readFileSync("supabase/rollbacks/0088_content_fanout.rollback.sql", "utf8");
 
 let pass = 0, fail = 0;
 const ok = (c, m, d = "") => { if (c) { pass++; console.log(`  ✓ ${m}`); } else { fail++; console.error(`  ✗ ${m}${d ? `\n      ${d}` : ""}`); } };
@@ -168,6 +170,7 @@ try {
   await c.query(`reset role`);
   await c.query(`savepoint rb`);
   try {
+    if ((await one(`select to_regclass('public.destination_content') t`)).t) await c.query(runnerBody(RB_0088));
     await c.query(runnerBody(RB));
     ok(await defHash("publish_publication") === pre.publish, "publish_publication restored to its exact pre-0071 definition");
     ok(await defHash("claim_deliveries") === pre.claim, "claim_deliveries restored to its exact pre-0071 definition");
