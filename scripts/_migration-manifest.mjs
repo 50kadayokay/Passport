@@ -94,6 +94,10 @@ export const PENDING = {
     "Keeps anon INSERT on listing_reports for installed 1.3.x apps. Apply in the SAME session as 0058, right after it.",
   "0078_storage_role_hardening.sql":
     "Storage writes/deletes follow the a03 drafting roles; investors can no longer upload to the public buckets. Needs 0076's has_company_role.",
+  "0085_conference_booth_config.sql":
+    "a17: the booth's look (template/theme/accent) as a published record the booth fetches and caches; public read via conference_booth_config(slug). Applied to staging 2026-11-01.",
+  "0086_service_requests.sql":
+    "a21: bespoke-service requests with status history; drafting roles create, platform admins update. Needs 0076's has_company_role. Applied to staging 2026-11-01.",
   "0061a_table_privilege_hardening.sql":
     "Revokes the default all-7 grant on company_follows/post_events/post_likes/user_company_relationships; re-grants only what traced call sites need. anon gets nothing. NO code deploy required.",
 
@@ -135,6 +139,7 @@ export const PREREQUISITES = {
   "0076_company_roles.sql": ["0072_profile_drafts.sql"],
   "0077_listing_reports_installed_app_compat.sql": ["0058_close_public_insert.sql"],
   "0078_storage_role_hardening.sql": ["0076_company_roles.sql"],
+  "0086_service_requests.sql": ["0076_company_roles.sql"],
 };
 
 // Sections that need the SQL-editor role (postgres), not a pooled lesser role.

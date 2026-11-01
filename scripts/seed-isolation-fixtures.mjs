@@ -184,6 +184,19 @@ for (const k of ["A", "B"]) {
     [cid, `hash-secret-${k}-fixed`, label]);
   made.push("site credential");
 
+  // a17/a21 (0085, 0086): one booth look and one service request per company.
+  // Skipped where the migration is not applied, so the seeder runs on any staging.
+  if ((await c.query(`select to_regclass('public.conference_booth_configs') is not null x`)).rows[0].x) {
+    await c.query(`insert into public.conference_booth_configs (company_id, studio) values ($1, $2) on conflict (company_id) do nothing`,
+      [cid, JSON.stringify({ template: "v3", theme: k === "A" ? "dark" : "light" })]);
+    made.push("booth config");
+  }
+  if ((await c.query(`select to_regclass('public.service_requests') is not null x`)).rows[0].x) {
+    const sr = await c.query(`select 1 from public.service_requests where company_id=$1 and details=$2`, [cid, `iso-request-${k}`]);
+    if (!sr.rowCount) await c.query(`insert into public.service_requests (company_id, service, details) values ($1, 'brand', $2)`, [cid, `iso-request-${k}`]);
+    made.push("service request");
+  }
+
   const ma = await c.query(`select count(*)::int n from public.media_assets where company_id=$1`, [cid]);
   if (ma.rows[0].n === 0) await c.query(`insert into public.media_assets (company_id) values ($1)`, [cid]);
   made.push("media asset");

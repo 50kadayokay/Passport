@@ -22,8 +22,12 @@ import { runnerBody } from "./_db-egress.mjs";
 const url = fs.readFileSync("supabase/staging/.connection", "utf8").trim();
 if (url.includes("rvptronniomlqumjhyrr") || !url.includes("jmljfovtfxcdhjmtlnva")) { console.error("  REFUSING: not the staging project."); process.exit(2); }
 const RB76 = fs.readFileSync("supabase/rollbacks/0076_company_roles.rollback.sql", "utf8");
-// 0078 (applied to staging 2026-11-01) builds on 0076's has_company_role, so it unwinds first.
-const RB78 = fs.readFileSync("supabase/rollbacks/0078_storage_role_hardening.rollback.sql", "utf8");
+// Everything applied to staging AFTER 0076 unwinds first, newest first: later
+// migrations (0078, 0086, ...) build on 0076's has_company_role, and dropping it
+// under them fails. Taken from the migrations folder, so a new one is included.
+const AFTER76 = fs.readdirSync("supabase/migrations").filter((f) => /^\d{4}[a-z]?_.*\.sql$/.test(f) && f > "0076_company_roles.sql" && !f.startsWith("0055"))
+  .sort().reverse().map((f) => `supabase/rollbacks/${f.replace(/\.sql$/, ".rollback.sql")}`)
+  .map((p) => { if (!fs.existsSync(p)) { console.error(`  missing rollback: ${p}`); process.exit(3); } return fs.readFileSync(p, "utf8"); });
 const m63 = fs.readFileSync("supabase/migrations/0063_company_initiated_threads.sql", "utf8");
 const RB63 = runnerBody("begin;\n" + m63.slice(m63.indexOf("-- ROLLBACK.")).split("\n").filter((l) => /^-- (?!--)/.test(l) && !/^-- (ROLLBACK|Restores|their sender|it is what|=+)/.test(l)).map((l) => l.slice(3)).filter((l) => !/^(begin|commit);/.test(l.trim())).join("\n") + "\ncommit;");
 
@@ -81,7 +85,7 @@ try {
 
   console.log("\n  PRE-0063 (production today; reconstructed in this transaction)");
   await asPostgres();
-  await q(runnerBody(RB78));
+  for (const rb of AFTER76) await q(runnerBody(rb));
   await q(runnerBody(RB76));
   await q(RB63);
   await q(`alter table public.conversations drop column sender_company_id`);

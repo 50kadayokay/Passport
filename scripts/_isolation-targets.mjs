@@ -54,6 +54,9 @@ export const COMPANY_SCOPED = [
   // confirmed by hand that day; this puts them in the default run so it is not
   // confirmed by hand again.
   ["mineiq_threads", "company_id"],
+  // a17 / a21 (0085, 0086; added 2026-11-01 when the inventory reported them).
+  ["conference_booth_configs", "company_id"],
+  ["service_requests", "company_id"],
   ["mineiq_messages", "company_id"],
   ["site_credentials", "company_id"],
   ["activity_log", "company_id"],
