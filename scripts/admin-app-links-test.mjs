@@ -23,5 +23,11 @@ for (const f of files) {
 const admin = fs.readFileSync("src/admin/Admin.jsx", "utf8");
 ok(/const publicUrlFor = \(slug\) => `\$\{PRINT_BASE\}\/app\?c=/.test(admin), "printed QR (publicUrlFor) keeps the fixed public origin");
 
+// a21 (S2's page, mounted here): the Service requests entry lives only in
+// Mission Control, which main.jsx renders behind AuthGate requireAdmin.
+const mc = fs.readFileSync("src/admin/MissionControl.jsx", "utf8");
+ok(/\{ id: "service-requests", label: "Service requests"/.test(mc) && /section === "service-requests" && <ServiceRequests \/>/.test(mc) && /"service-requests"/.test(mc.match(/const READY = new Set\(\[[^\]]*\]\)/)[0]), "Mission Control: 'Service requests' nav entry mounts ServiceRequests.jsx");
+ok(/<AuthGate requireAdmin title="Sign in to Admin"[\s\S]{0,200}<Admin \/>/.test(fs.readFileSync("src/main.jsx", "utf8")), "  ...and Mission Control is platform-admin only (AuthGate requireAdmin)");
+
 console.log(`\n  admin-app-links: ${pass} passed, ${fail} failed\n`);
 process.exit(fail ? 1 : 0);
