@@ -3,11 +3,17 @@
 **Status: PROPOSED. Nothing here has been executed. Every phase needs explicit
 approval. Production = Supabase `rvptronniomlqumjhyrr` ("Passport V1"), shared by
 the investor app (web + iOS/Android 1.3.x, tag `prod-v1.3.2`), the public site,
-the portal and Mission Control.**
+the portal and Mission Control.** Launch gates g02 (production migration review)
+and g03 (rollout plan) are answered by this file; the review behind them is
+"Production-shape review of 0071 onward" below (S2, 2026-11-01, offline).
 
 Items marked **[audit]** are decided by the production read-only audit
 (`supabase/audit/production_readiness_2026_10_31.sql`). It ran on 2026-11-01;
-see "Production audit results" at the end, which supersedes Phase 3's list.
+see "Production audit results" at the end. Items marked **[open]** are still
+undecided and block the step they name.
+
+Staging (`jmljfovtfxcdhjmtlnva`) has every migration below applied (0080 and
+0090 since 2026-11-01), except 0055, which is deferred everywhere.
 
 ## Ground rules (apply to every phase)
 
@@ -20,13 +26,39 @@ see "Production audit results" at the end, which supersedes Phase 3's list.
   data change outside the step's scope. On stop: roll back THAT step with its
   verified rollback file (`supabase/rollbacks/`), re-run the audit, and report
   before anything else.
+- **Rollbacks run in strict reverse order of application.** Never roll back an
+  earlier migration while a later one that depends on it is applied (see the
+  "Needs" column; 0071 under 0088 is the dangerous case, finding R2).
 - Every migration runs through the guarded runner with an egress check, one file
-  per transaction (CONCURRENTLY index files outside a transaction).
+  per transaction (CONCURRENTLY index files outside a transaction, one statement
+  at a time).
   The runner currently targets STAGING only; a production mode (same guards,
   production DSN supplied by you, never stored) must be built and reviewed
-  first. Not built.
+  first. Not built. **[open]**
 - After every phase: re-run the read-only audit and diff it against the
   expected state.
+
+## Deploy order
+
+Code first, then schema, phase by phase:
+
+1. **Phase 0**: preconditions. No production change.
+2. **Phase 1**: deploy the API and web bundle. No schema change.
+3. **Phase 2**: native store build. Runs in parallel, with no schema dependency.
+4. **Phases 3 to 5b**: migrations, in the order of the table below, with a checkpoint after each phase.
+5. **Phase 6**: cron and delivery activation. Needs separate approval.
+
+Every piece of Phase 1 code runs on the current production schema. Features whose tables are missing stay inert:
+
+| Code | What it does until its migration is applied |
+|---|---|
+| `/api/site-*` (until 0068) | Answers "not provisioned". `api/_siteAuth.js` handles the missing `site_credentials` table, and no site holds a token yet. |
+| Booth config (until 0085) | The API answers "none" and booths use their compiled look. |
+| Service requests (until 0086) | The page shows "not enabled yet" (`NotProvisioned`). |
+| `record_company_events` (until 0087) | Returns 404. The web client drops it silently, at one request per batch. |
+| `site_content_v1` / `conference_content_v1` (until 0088) | Get no deliveries, because they have no subscriptions. |
+| The UNPUBLISHED branch of `profile_timeline_v1` | Must be deployed before 0071 (part C), which Phase 1 satisfies. |
+| Messaging find-or-create | Must be live before 0063, which Phase 1 satisfies. |
 
 ## Phase 0: preconditions (no production change)
 
@@ -36,7 +68,10 @@ see "Production audit results" at the end, which supersedes Phase 3's list.
 | Sign-up trigger (Q16) | exactly one profile-creating trigger, or a decision on 0059 |
 | Policy and function digests (Q08, Q10, Q17) | production matches the state each rollback restores, or rollbacks adjusted and re-verified |
 | Listing-reports decision | approve 0077 (keep the anon path for installed builds) |
-| Rollbacks | all 29 verified (`migration-rollback-roundtrip`: 60/0); privilege rollbacks compared with production's current grants **[audit]** |
+| Rollbacks | all verified by `migration-rollback-roundtrip` on staging; privilege rollbacks compared with production's current grants **[audit]** (R5) |
+| Function drift (R1) | `production_function_source_2026_11_01.sql` run (approved) and production-exact rollbacks written for 0071 / 0076 |
+| Replaced functions and storage policies (R3, R4) | `production_replaced_functions_2026_11_01.sql` run (approved); digests match staging's pre-migration state, or the step is re-planned |
+| `SITE_REVALIDATE_SECRET` | set (server only) before Phase 1 ends |
 | Staging evidence current | investor-app suite, messaging-schema check, 0077 check, all live suites, combined isolation: all pass |
 | Smoke-test identity | a designated production test investor account (needs your approval) for post-deploy checks |
 
@@ -65,61 +100,224 @@ Installed 1.3.x builds keep working throughout: 0077 keeps their anon path open.
   (test account). Track adoption; plan the later close of the anon path
   (re-apply 0058's listing_reports section) when 1.3.x usage is low.
 
-## Phase 3: security batch (only after Checkpoint 1)
+## Production migration order
 
-In this order, each only if Q01 shows it pending **[audit]**:
+This is the authoritative list. `scripts/rollout-plan-manifest-test.mjs` (in `npm test`) fails if it ever differs from `PENDING` in `scripts/_migration-manifest.mjs`. It also fails if:
+- a row comes before something it needs;
+- a CONCURRENTLY file is not marked to run outside a transaction;
+- a row that runs has no rollback file.
 
-1. 0057 (throttle and AI switch; `/api/submit` needs it).
-2. **0058 + 0077 in the same runner session** (closes the contact and demo
-   forms, keeps listing reports open for installed apps).
-3. 0059 **only per Q16.**
-4. 0061a (verified safe for the app: it re-grants exactly what the app uses).
-5. 0053, 0054, 0056, 0060 if pending (no app dependency found).
+"Needs" names pending migrations only; already-applied prerequisites (0041, 0048, 0050a, 0057) are omitted. Rollback files are `supabase/rollbacks/<name>.rollback.sql`. "Lossy" means the rollback deletes data recorded since the apply; "re-opens" means it restores a security hole. Use those only in an emergency.
 
-- **Checkpoint 3:** audit diff = exactly these changes; investor-app smoke
-  (guest + test account: follow, like, save, watchlist, notifications, message,
-  report listing from web and from an installed 1.3.x build); public forms;
-  sign-up creates exactly one profile (test account).
-- **Stop if:** any of the above; roll back in reverse order.
+<!-- migration-order:start -->
+| # | Migration | Phase | Runs | Needs | Rollback |
+|---|---|---|---|---|---|
+| 0 | `0000_baseline.sql` | — | **do not run**: no-op, production already has these objects (SCHEMA-RECOVERY §2) | — | none (not run) |
+| 1 | `0058_close_public_insert.sql` | 3 | transaction; same runner session as 0077 | — | re-opens anon INSERT on forms |
+| 2 | `0077_listing_reports_installed_app_compat.sql` | 3 | transaction; immediately after 0058 | 0058 | clean |
+| 3 | `0061a_table_privilege_hardening.sql` | 3 | transaction | — | re-opens anon grants |
+| 4 | `0062_message_attachments.sql` | 4 | transaction | — | lossy: attachment rows (bucket kept) |
+| 5 | `0063_company_initiated_threads.sql` | 4 | transaction; only after Phase 1 messaging code | — | clean |
+| 6 | `0064_notification_clearing.sql` | 4 | transaction | — | clean (cleared_at dropped) |
+| 7 | `0065a_analytics_breakdown.sql` | 4 | transaction | — | clean |
+| 8 | `0065b_engagement_corrections.sql` | 4 | transaction | 0065a | clean (restores 0048 bodies) |
+| 9 | `0065c_analytics_indexes.sql` | 4 | outside a transaction (CONCURRENTLY), one statement at a time | 0065a | clean |
+| 10 | `0066_mineiq_conversations.sql` | 4 | transaction | — | lossy: Mine IQ history |
+| 11 | `0068_site_contract.sql` | 5 | transaction | — | lossy: website tokens, blueprint manifest |
+| 12 | `0069b_stripe_events.sql` | 5 | transaction | — | lossy: Stripe event ledger |
+| 13 | `0071_publishing_reliability.sql` | 5 | transaction; **[open] blocked by finding R1** | — | restores repo 0036/0008, NOT production's drifted publish_publication (R1) |
+| 14 | `0072_profile_drafts.sql` | 5 | transaction | — | lossy: unpublished drafts; restores 0035's company_go_live (R3) |
+| 15 | `0073a_impression_dedupe_index.sql` | 5 | outside a transaction (CONCURRENTLY) | — | clean |
+| 16 | `0073b_impression_tracking.sql` | 5 | transaction | — | clean |
+| 17 | `0073c_post_events_client_guard.sql` | 5 | transaction | — | clean |
+| 18 | `0074_profile_revision_history.sql` | 5 | transaction | 0072 | clean (snapshot rows kept) |
+| 19 | `0075_profile_versions_privileges.sql` | 5 | transaction | — | re-opens anon grants |
+| 20 | `0076_company_roles.sql` | 5 | transaction; **[open] blocked by finding R1** | 0072 | restores 0031's accept_company_invitation, NOT production's (R1); revokes pending member invitations |
+| 21 | `0078_storage_role_hardening.sql` | 5 | transaction; **[open] finding R4** | 0076 | re-opens storage writes (repo 0037/0040 policies) |
+| 22 | `0080_mineiq_search_any_term.sql` | 5b | transaction | — | restores 0050a's mineiq_search (R3) |
+| 23 | `0085_conference_booth_config.sql` | 5b | transaction | — | lossy: published booth looks |
+| 24 | `0086_service_requests.sql` | 5b | transaction | 0076 | lossy: service requests (export first) |
+| 25 | `0087_audience_events.sql` | 5b | transaction | 0071 | lossy: audience events |
+| 26 | `0088_content_fanout.sql` | 5b | transaction; deploy `api/_listeners.js` first (Phase 1) | 0071 | lossy: destination copies; **roll back before 0071** (R2) |
+| 27 | `0090_notification_clear_roles.sql` | 5b | transaction | 0064, 0076 | clean (restores 0064's body) |
+<!-- migration-order:end -->
 
-## Phase 4: messaging and analytics schema (only after Checkpoint 3)
+**Already applied in production, not in the list:** 0053, 0054, 0056, 0057, 0059 (never run its rollback in production), 0060 and 0067.
 
-0062 → **0063 (requires Phase 1's messaging code; never before it)** → 0064 →
-0065a → 0065b → 0065c (CONCURRENTLY) → 0066 → 0067.
+**Deferred, never run:** 0011, 0027, 0028, 0029, 0055 and 0061b.
 
-- **Checkpoint 4:** messaging both directions incl. attachments; analytics pages;
-  notifications; investor smoke as in Checkpoint 3.
+### Checkpoints
 
-## Phase 5: portal schema (only after Checkpoint 4)
+- **Phase 3, after 0061a:**
+  - The audit diff contains exactly these changes.
+  - Investor-app smoke passes (list below).
+  - Public contact and demo go through `/api/submit`.
+  - A listing report works from the web and from an installed 1.3.x build.
+  - A test sign-up creates exactly one profile.
+- **Phase 4, after 0066:**
+  - Messaging works in both directions, including attachments.
+  - Analytics breakdowns and notifications work.
+  - Investor smoke passes.
+- **Phase 5, after 0078:**
+  - The portal works end to end with real roles (owner, admin, editor, publisher, analyst, viewer), using test accounts.
+  - Storage: a viewer cannot delete documents, and an investor cannot upload.
+  - Investor smoke passes, and the audit diff is as expected.
+- **Phase 5b, after 0090:**
+  - The booth look publishes and is read back anonymously.
+  - A service request is created, and an admin changes its status.
+  - Profile views and shares show on Analytics.
+  - Mine IQ answers a natural question.
+  - Clear all works for an owner and is refused for a viewer.
+  - Investor smoke passes.
+  - Content fan-out is checked only after Phase 6 (it needs a drain).
 
-0068 → 0069b → 0071 → 0072 → 0073a (CONCURRENTLY) → 0073b → 0073c → 0074 →
-0075 → 0076 → 0078 (storage role hardening; requires 0076's has_company_role).
+## Environment variables (names only)
 
-- **Checkpoint 5:** portal end-to-end with real roles (owner, admin, editor,
-  publisher, analyst, viewer, using test accounts); investor smoke again; audit diff.
-- **Stop if:** any; 0076's rollback is verified exact.
+The names below come from comparing `process.env` reads in `api/` at `prod-v1.3.2` with the branch tip. Production's actual variable set has **not** been inspected. Confirm each one in the Vercel project settings, and never copy a value into the repo or a chat.
 
-## Phase 6: cron and delivery (separate approval)
+Set before or with Phase 1:
 
-Production cron and delivery activation stay off until explicitly approved
-(standing instruction).
+| Name | Why | When |
+|---|---|---|
+| `SUBMISSION_SALT` | `/api/submit` and the AI counters hash with it | Before Phase 1. Required before 0058. |
+| `SITE_REVALIDATE_SECRET` | Server-side master for the signed website revalidate (`api/_siteRevalidate.js`) | **Before any company configures a `revalidate_url`**, and in any case before 0088. Without it a hooked delivery fails visibly and dead-letters after 6 attempts. |
+| `STRIPE_WEBHOOK_SECRET` | `/api/stripe-webhook` | Before 0069b is used |
+| `MESSAGES_INBOUND_SECRET` | F3: must not be lost or rotated before F3 is deployed | Keep |
+
+`SITE_REVALIDATE_SECRET` is server only and must never get a `VITE_` copy, because Vite inlines `VITE_*` into the bundle. `npm run check:s2-revalidate-bundle` refuses one.
+
+Set for Phase 6 (scheduled delivery, D22), not before:
+
+| Name | Why |
+|---|---|
+| `CRON_SECRET` | Vercel Cron's bearer for a `/api/dispatch` cron |
+| `DISPATCH_HEALTH_TOKEN` | Read-only health probe for the dispatcher |
+| `OPS_ALERT_TO` | Where dispatcher alerts are mailed |
+| `PUBLIC_BASE_URL` | F5's absolute links; required before F5 |
+| `DELIVERY_EPOCH` | The moment a reliable drain went live. Events after it are never treated as historical. |
+
+The following have safe defaults, so set them only to override: `AI_MODEL_ASK`, `AI_MODEL_COMPOSE`, `AI_MODEL_EXTRACT`, `AI_TIMEOUT_MS`, `AI_USER_DAILY_CAP` and `DISPATCH_BUDGET_MS`.
+
+**Must NOT be set in production:**
+- `MINEEX_ENV`, because `staging` turns on the egress guard and makes the revalidate a mock.
+- `STAGING_CRON_SECRET`, `STAGING_EGRESS_LOG`, `STAGING_SELF_HOSTS`.
+- Any `VITE_*REVALIDATE*` variable.
+- `PUSH_ENABLED=true`, because push stays unarmed while 0055 is deferred.
+
+**No longer read:** `MINEEX_BRIEF_API_KEY` and `MINEEX_BRIEF_MODEL`. Remove them only after Phase 1 is confirmed.
+
+## Cron state
+
+**Vercel Cron.** `vercel.json` schedules only the existing news jobs:
+- `news-pull`
+- `news-process`
+- `news-notify`
+- `news-push-send` (inert while `PUSH_ENABLED` is off)
+
+No dispatch cron is added by this rollout.
+
+**pg_cron.** The audit (Q15) found it absent in production. The `outbox-drain` job (0011, deferred) does not exist there and **stays inactive until it is explicitly approved**:
+- No migration in the list schedules a job.
+- 0011 is not applied.
+- `pg_net` is absent, so the database makes no outbound calls.
+
+**Consequence for the new listeners.** Without a scheduled drain, deliveries for `site_content_v1` and `conference_content_v1` (0088) run only when the dispatcher is invoked, exactly as for the existing feed listeners today. This also means no website revalidate call leaves production until something drains. Choosing the D22 drain (Vercel cron, recommended; or 0011) is Phase 6 and needs its own approval.
+
+## Post-launch smoke list
+
+Use the designated production test accounts (investor, plus one company account per role), which need your approval. Run each item after the phase named.
+
+1. **Investor app (after every phase):**
+   - Guest feed loads.
+   - A `/p/` link opens.
+   - A company profile opens.
+   - Follow, like, save and watchlist work.
+   - Notifications appear.
+   - Message send, inbox and thread work.
+   - Report a listing from the web and from an installed 1.3.x build.
+   - Sign-up creates exactly one profile.
+2. **Public site (Phase 1 onward):**
+   - Contact, demo and listing report go through `/api/submit`.
+   - `/api/og-news` returns a PNG.
+   - No 5xx rise over 24 h.
+3. **Portal (Phase 5 onward), per role:**
+   - Profile: draft, publish and restore.
+   - A release: publish, revise and unpublish (timeline entry removed).
+   - Members: invite, accept, change role and remove.
+   - Storage: upload and delete by role.
+   - Delivery status shows on the release.
+4. **Portal features (Phase 5b):**
+   - Booth look: publish it, then read it anonymously through `conference_booth_config(slug)`.
+   - Service request: create one as an editor; a platform admin moves it to `in_review`.
+   - A profile view by the test investor appears in Analytics.
+   - Mine IQ answers a question phrased naturally.
+   - Notifications: Clear all as owner, refused as viewer.
+5. **Delivery (Phase 6 only):**
+   - After one approved drain, a published release reaches `destination_content` for `website` and `conference`.
+   - With no hook configured, nothing is called.
+   - A real website revalidate is tested only against a hook the company owns and has agreed to. Its outcome shows in `company_destinations.status` and `last_error`.
+
+## Production-shape review of 0071 onward (S2, 2026-11-01)
+
+The review was offline and read every file from 0071 to 0090 and every rollback. The inputs were:
+- the production audit summary below;
+- the manifest;
+- `docs/SCHEMA-RECOVERY.md` (production lacks the objects of 0011, 0027, 0028 and 0029);
+- a scan for every `create [or replace] function`, `drop policy` and object reference.
+
+No applied migration was edited, and no production-only migration is needed yet.
+
+**R1 · Function drift: three migrations replace production functions whose bodies are unknown (blocks 0071 and 0076).**
+- 0071 replaces `publish_publication(uuid, uuid, timestamptz)`, and 0076 replaces `accept_company_invitation(text)`.
+- Production's bodies match no repo version (audit Q10).
+- Their rollbacks restore 0036's and 0031's text, not production's. Rolling back would therefore change production's behaviour, for example its first-owner handoff, rather than restore it.
+- `supabase/audit/production_function_source_2026_11_01.sql` is ready but has not been run (it needs approval, after the password rotation).
+- When it has run, write production-exact rollbacks as new files for these two functions. If production's handoff differs, also write a production-only follow-up migration, which needs a number from S4. Until then, 0071 and 0076 cannot be applied.
+
+**R2 · Rolling back 0071 while 0088 is applied replays history into websites (rollback order).**
+- 0088's subscriptions rely on `listener_subscriptions.active_from = now()`.
+- 0071's rollback drops `active_from` and restores 0008's `claim_deliveries`, which ignores it.
+- Both 0088 listeners would then be offered every historical `PUBLICATION_*` event: one `destination_content` write each, plus a signed revalidate POST per event to every configured hook.
+- `site_content_v1` has no 72-hour guard (by design: `active_from` is the guard).
+- Mitigations:
+  - Always roll back 0088 before 0071.
+  - Add `"0088_content_fanout.sql": ["0071_publishing_reliability.sql"]` (and the same for 0087, which reads `posts.media_url`) to `PREREQUISITES`. That is S4's file; the new test enforces the order in the meantime.
+  - Optionally, make 0071's rollback refuse to run while `site_content_v1` subscriptions exist.
+
+**R3 · Replaced functions whose production body was never digested.** The audit's Q10 did not cover these, and each rollback restores the repo's version:
+- `claim_deliveries` (0071 replaces it, rollback restores 0008);
+- `company_go_live` (0072, rollback restores 0035);
+- `mineiq_search` (0080, rollback restores 0050a).
+
+Nothing suggests drift, but R1 shows that "applied by default" does not mean "identical". `supabase/audit/production_replaced_functions_2026_11_01.sql` is new, read-only and **not run**. It returns md5 digests only, for these three and the three in R1, compared with staging's. Run it with the R1 query.
+
+**R4 · storage.objects policies in production are unaudited (0078).**
+- 0078 drops and recreates six named policies. Policies are permissive and OR-ed, so any extra or differently named INSERT or DELETE policy in production would leave the hole 0078 closes open, silently.
+- The audit read bucket flags only (Q13), not storage policies.
+- The R3 query also lists `storage.objects` policy names with digests. Apply 0078 only if the names match staging's pre-0078 set.
+- It also confirms that the `company-media-private` and `company-docs` buckets exist.
+
+**R5 · Low, verify only.**
+- The 0075 and 0076 rollbacks restore grants by staging's ACL digest. Compare them with production's Q09 rows before relying on them (still the Phase 0 **[audit]** item).
+- 0087 reads `posts.media_url`. 0071 adds it if it is missing, so 0087 follows 0071.
+- No migration from 0071 onward references a deferred object, except 0076's `brand_kits`/`story_projects` statements, which are guarded (`migration-0076-without-0028-check` 12/0).
+- 0080, 0085, 0086, 0087, 0088 and 0090 create only new objects, or replace functions created by pending migrations (0064, 0072). Their rollbacks are therefore exact in production as well.
 
 ## Rollback summary
 
-All 29 pending migrations have a rollback file verified by the round trip.
-**Lossy or risky rollbacks:**
-- **Data loss:**
-  - 0057: throttle counters; the AI switch resets to ON.
-  - 0062: attachment rows; the bucket stays.
-  - 0066: Mine IQ history.
-  - 0068: website tokens and the blueprint manifest; website blueprints are kept.
-  - 0069b: the Stripe event ledger.
-  - 0071 / 0072 / 0074: see their files.
-- **Re-open security holes:** 0053, 0056, 0058, 0060, 0061a, 0061b (emergency only).
-- **0059:** only if production had no such trigger before (Q16), otherwise it breaks sign-up.
-- **0067:** cascades Conference Mode removal.
+All 27 migrations that run have a rollback file. The round trip passes on staging (`migration-rollback-roundtrip`). Lossy and security-reopening rollbacks are marked in the table above.
 
-## Production audit results (2026-11-01 00:47 UTC; read-only; 20/21 answered, Q15: no pg_cron)
+Special cases:
+- **0059:** never in production; it is already applied there.
+- **0067:** cascades Conference Mode removal, and is already applied.
+- **0071 and 0076:** see R1.
+- **0071 under 0088:** see R2.
+
+---
+
+## History
+
+### Production audit results (2026-11-01 00:47 UTC; read-only; 20/21 answered, Q15: no pg_cron)
 
 **Already applied in production:** 0053, 0054, 0056, 0057, 0059, 0060, 0067.
 **Pending:** 0058, 0061a, 0062, 0063, 0064, 0065a/b/c, 0066, 0068, 0069b, 0071,
@@ -159,7 +357,7 @@ TRUNCATE granted on 41 tables (s01).
 3. Phase 3 list updated: 0058 + 0077 together, then 0061a. Nothing else from
    0053–0060 is pending.
 
-## Sprint 1 updates (2026-11-01)
+### Sprint 1 updates (2026-11-01)
 - **0076 blocker fixed:** the brand_kits / story_projects statements are guarded
   with to_regclass in the migration and its rollback.
   `scripts/migration-0076-without-0028-check.mjs` 12/0: the original fails in
