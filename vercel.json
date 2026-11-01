@@ -18,6 +18,18 @@
     {
       "source": "/((?!assets/).*)",
       "headers": [{ "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }]
+    },
+    {
+      "source": "/(.*)",
+      "headers": [{ "key": "X-Content-Type-Options", "value": "nosniff" }]
+    },
+    {
+      "source": "/((?!api/|assets/).*)",
+      "headers": [
+        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
+        { "key": "Content-Security-Policy", "value": "frame-ancestors 'self' capacitor://localhost" },
+        { "key": "X-Frame-Options", "value": "SAMEORIGIN" }
+      ]
     }
   ],
   "crons": [

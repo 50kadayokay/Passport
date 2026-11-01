@@ -8,7 +8,7 @@
 // and the target is never implied.
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
-import { parseTarget, refuseRequest, runSmoke, makeRedactor, anonKeyFromBundle, READ_RPCS } from "./production-smoke.mjs";
+import { parseTarget, refuseRequest, runSmoke, makeRedactor, anonKeyFromBundle, READ_RPCS, PAGE_HEADERS } from "./production-smoke.mjs";
 
 let pass = 0, fail = 0;
 const ok = (c, m, d = "") => { if (c) { pass++; console.log(`  ✓ ${m}`); } else { fail++; console.error(`  ✗ ${m}${d ? `\n      ${d}` : ""}`); } };
@@ -27,7 +27,8 @@ const ENV = {
   SMOKE_VIEWER_EMAIL: "vw@stub.invalid", SMOKE_VIEWER_PASSWORD: PW.viewer,
 };
 const TARGET = { app: APP, supabase: SB, ref: "stubref0000000000000", production: false, apiOnly: false };
-const SAFE_HEADERS = { "strict-transport-security": "max-age=63072000", "x-content-type-options": "nosniff", "x-frame-options": "DENY", "referrer-policy": "strict-origin-when-cross-origin" };
+const SAFE_HEADERS = { "strict-transport-security": "max-age=63072000", ...PAGE_HEADERS };
+const API_HEADERS = { "strict-transport-security": "max-age=63072000", "x-content-type-options": "nosniff" };
 
 /** A healthy deployment; `bug` names one regression to introduce. */
 function world(bug = null) {
@@ -39,11 +40,13 @@ function world(bug = null) {
     const u = new URL(href), method = init.method || "GET", h = init.headers || {};
     const body = init.body ? JSON.parse(init.body) : null;
     calls.push({ method, href, body });
-    const pageHeaders = bug === "no-nosniff" ? { ...SAFE_HEADERS, "x-content-type-options": "" } : SAFE_HEADERS;
+    const pageHeaders = bug === "no-nosniff" ? { ...SAFE_HEADERS, "x-content-type-options": "" }
+      : bug === "xfo-deny" ? { ...SAFE_HEADERS, "x-frame-options": "DENY" }
+      : bug === "referrer-unsafe" ? { ...SAFE_HEADERS, "referrer-policy": "unsafe-url" } : SAFE_HEADERS;
     if (u.origin === APP) {
       if (u.pathname === "/") return res(200, `<!doctype html><div id="root"></div><script type="module" crossorigin src="/assets/index-abc.js"></script>`, { ...pageHeaders, "content-type": "text/html" });
       if (u.pathname === "/assets/index-abc.js") return res(200, `const u="${bug === "bundle-elsewhere" ? "https://other.supabase.co" : SB}",k="${ANON}",s="${SERVICE}";` + "x".repeat(2000), { "content-type": "text/javascript" });
-      if (u.pathname === "/api/messages") return res(method === "GET" ? 405 : 401, { ok: false }, pageHeaders);
+      if (u.pathname === "/api/messages") return res(method === "GET" ? 405 : 401, { ok: false }, bug === "no-nosniff" ? { ...API_HEADERS, "x-content-type-options": "" } : bug === "api-framing-headers" ? pageHeaders : API_HEADERS);
       return res(404, {});
     }
     if (h.apikey !== ANON) return res(401, { message: "no api key" });
@@ -97,7 +100,7 @@ async function run(opts = {}) {
 console.log("\n  HEALTHY TARGET");
 const good = await run();
 ok(good.verdict === "PASS" && good.fail === 0 && good.skip === 0, `every check passes (${good.pass}), nothing skipped -> PASS`, good.text.split("\n").filter((l) => /✗|SKIP/.test(l)).join("\n"));
-for (const m of ["the page loads", "the bundle names the Supabase project given", "Strict-Transport-Security", "cannot be framed", "a guest reads nothing from facts", "sees their company as owner (alpha-gold)", "Mine IQ search answers", "a company profile loads (alpha-gold)", "Mine IQ, the company's own knowledge, refuses an investor", "the server refuses a viewer Clear all (0090)", "the server refuses a viewer profile edits (0072)", "no 5xx in"]) {
+for (const m of ["the page loads", "the bundle names the Supabase project given", "Strict-Transport-Security", "page: CSP frame-ancestors 'self' capacitor://localhost", "page: X-Frame-Options SAMEORIGIN", "page: Referrer-Policy strict-origin-when-cross-origin", "API: no page-only framing headers", "a guest reads nothing from facts", "sees their company as owner (alpha-gold)", "Mine IQ search answers", "a company profile loads (alpha-gold)", "Mine IQ, the company's own knowledge, refuses an investor", "the server refuses a viewer Clear all (0090)", "the server refuses a viewer profile edits (0072)", "no 5xx in"]) {
   ok(good.text.includes(m), `checked: ${m}`);
 }
 
@@ -136,6 +139,9 @@ for (const [bug, expect] of [
   ["no-nosniff", "page: X-Content-Type-Options nosniff"],
   ["anon-reads-private", "a guest reads nothing from mineiq_threads"],
   ["owner-id-leak", "a guest cannot read owner_id"],
+  ["xfo-deny", "page: X-Frame-Options SAMEORIGIN"],
+  ["referrer-unsafe", "page: Referrer-Policy"],
+  ["api-framing-headers", "API: no page-only framing headers"],
   ["bundle-elsewhere", "the bundle names the Supabase project given"],
 ]) {
   const r = await run({ bug });

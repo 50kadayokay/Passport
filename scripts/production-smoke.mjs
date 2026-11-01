@@ -13,7 +13,8 @@
 //             notifications and Mine IQ (search, conversations) load
 //   VIEWER    (optional) sees the company as viewer; the server would refuse
 //             "Clear all" (0090) and edits (0072 / 0076)
-//   HEADERS   HSTS, nosniff, frame protection, Referrer-Policy on the page and
+//   HEADERS   HSTS, nosniff, frame-ancestors + X-Frame-Options, Referrer-Policy on the page (as
+//             vercel.json sets them, PAGE_HEADERS) and nosniff alone on
 //             the API; no credentialed wildcard CORS
 //   5xx       every response of the run; any 5xx fails it
 //
@@ -48,6 +49,14 @@ import { pathToFileURL } from "node:url";
 import { PRODUCTION_REFS } from "./_target-guard.mjs";
 
 export const READ_RPCS = ["company_follower_count", "my_features", "company_notifications", "has_company_role", "mineiq_search"];
+// What vercel.json sets on every page (not /api/, not /assets/); scripts/security-headers-test.mjs
+// checks the two agree. Everything gets nosniff.
+export const PAGE_HEADERS = {
+  "x-content-type-options": "nosniff",
+  "referrer-policy": "strict-origin-when-cross-origin",
+  "content-security-policy": "frame-ancestors 'self' capacitor://localhost",
+  "x-frame-options": "SAMEORIGIN",
+};
 const MANAGERS = ["owner", "admin"];                         // 0090: Clear all
 const PROFILE_EDITORS = ["owner", "admin", "editor"];        // 0072 save_profile_draft
 const DRAFTERS = ["owner", "admin", "editor", "publisher"];  // 0076 updates policies
@@ -188,9 +197,12 @@ export async function runSmoke({ target, env = {}, fetchImpl = globalThis.fetch,
       if (https) ok(/max-age=\d{6,}/.test(h.get("strict-transport-security") || ""), `${label}: Strict-Transport-Security`, h.get("strict-transport-security") || "missing");
       ok((h.get("x-content-type-options") || "").toLowerCase() === "nosniff", `${label}: X-Content-Type-Options nosniff`, h.get("x-content-type-options") || "missing");
       if (page) {
-        const xfo = (h.get("x-frame-options") || "").toUpperCase(), csp = h.get("content-security-policy") || "";
-        ok(xfo === "DENY" || xfo === "SAMEORIGIN" || /frame-ancestors/.test(csp), `${label}: cannot be framed (X-Frame-Options or CSP frame-ancestors)`, "neither header set");
-        ok(!!h.get("referrer-policy"), `${label}: Referrer-Policy`, "missing");
+        ok(h.get("content-security-policy") === PAGE_HEADERS["content-security-policy"], `${label}: CSP ${PAGE_HEADERS["content-security-policy"]}`, h.get("content-security-policy") || "missing");
+        ok((h.get("x-frame-options") || "").toUpperCase() === PAGE_HEADERS["x-frame-options"], `${label}: X-Frame-Options SAMEORIGIN`, h.get("x-frame-options") || "missing");
+        ok(h.get("referrer-policy") === PAGE_HEADERS["referrer-policy"], `${label}: Referrer-Policy ${PAGE_HEADERS["referrer-policy"]}`, h.get("referrer-policy") || "missing");
+      } else {
+        // The API is fetched cross-origin (company websites, the native apps): no framing or referrer rules there.
+        ok(!h.get("x-frame-options") && !/frame-ancestors/.test(h.get("content-security-policy") || ""), `${label}: no page-only framing headers`);
       }
       ok(!(h.get("access-control-allow-origin") === "*" && h.get("access-control-allow-credentials") === "true"), `${label}: no credentialed wildcard CORS`);
       ok(!h.get("x-powered-by"), `${label}: no X-Powered-By`, h.get("x-powered-by") || "");
