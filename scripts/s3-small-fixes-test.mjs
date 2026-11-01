@@ -1,6 +1,7 @@
 // S3 follow-ups for S4 (offline): listDocuments reports failure, AuthGate's
 // admin check never hangs or mislabels a failed check, DesktopOnly names the
-// portal, DeliveryOps names S2's listeners.
+// portal, DeliveryOps names S2's listeners, a page that crashes while
+// rendering stays inside its section (SectionBoundary).
 //   node scripts/s3-small-fixes-test.mjs
 import fs from "node:fs";
 import { installBrowserGlobals, installFetch, signIn, loadBundle, json, reporter, STUB_SB } from "./_portal-offline.mjs";
@@ -20,6 +21,7 @@ installFetch(async (req) => {
 const M = await loadBundle("smallfixes", `
   export { listDocuments } from "./src/lib/memory.js";
   export { loadPlatformRole } from "./src/lib/portalGate.js";
+  export { default as SectionBoundary } from "./src/portal/SectionBoundary.jsx";
 `);
 signIn({ id: "u-1", email: "a@stub.invalid" });
 
@@ -60,5 +62,19 @@ section("DesktopOnly / DeliveryOps");
   ok(/isPortal \? \(\s*<DesktopOnly title="The Company Portal is a desktop tool"/.test(main), "/portal says 'The Company Portal is a desktop tool'");
   const d = fs.readFileSync("src/admin/DeliveryOps.jsx", "utf8");
   ok(/site_content_v1: "Company website", conference_content_v1: "Conference booth"/.test(d), "DeliveryOps names site_content_v1 and conference_content_v1");
+}
+section("SectionBoundary (a28): one page's crash keeps the shell");
+{
+  const B = M.SectionBoundary;
+  const e = new Error("Cannot read properties of null");
+  ok(B.getDerivedStateFromError(e).err === e, "a render error is caught into state (the page shows a message, not a white screen)");
+  const b = new B({ resetKey: "website", children: null });
+  b.state = { err: e }; let next = null; b.setState = (x) => { next = x; };
+  b.componentDidUpdate({ resetKey: "website" }); ok(next === null, "same section: the message stays");
+  b.componentDidUpdate({ resetKey: "documents" }); ok(next && next.err === null, "navigating to another section clears it");
+  const portal = fs.readFileSync("src/portal/Portal.jsx", "utf8");
+  ok((portal.match(/<SectionBoundary resetKey=\{section\}>/g) || []).length === 2 && (portal.match(/<\/SectionBoundary>/g) || []).length === 2, "Portal wraps both section areas (full-bleed and padded), keyed by section; the sidebar is outside");
+  const mc = fs.readFileSync("src/admin/MissionControl.jsx", "utf8");
+  ok(/<SectionBoundary resetKey=\{section\}>\s*\{section === "companies"/.test(mc) && /<\/SectionBoundary>\s*<\/div>/.test(mc), "Mission Control wraps its section area, keyed by section");
 }
 done();

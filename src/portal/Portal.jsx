@@ -25,6 +25,7 @@ import { loadActivity } from "../lib/activityLog.js";
 const Content = React.lazy(() => import("./Content.jsx"));
 const Updates = React.lazy(() => import("./Updates.jsx"));
 import { MineExLockup, CompanyMark } from "./BrandMarks.jsx";
+import SectionBoundary from "./SectionBoundary.jsx";
 
 // Heavy, already-built surfaces are reused wholesale (never duplicated) and lazily
 // loaded so the portal shell stays lean:
@@ -253,16 +254,19 @@ export default function Portal({ company: initial, switchCompany, adminMode = fa
         )}
         {bare ? (
           <div className={`min-h-0 flex-1 ${section === "mineiq" ? "overflow-hidden" : "overflow-y-auto"}`}>
+            <SectionBoundary resetKey={section}>
             <Suspense fallback={<SectionLoader />}>
               {/* Legacy composer: no navigation reaches it; gated anyway so a future link cannot expose it to read-only roles. */}
               {(section === "press" || section === "broadcast") && can(company?.role || "owner", "draftContent") && <CommsCenter company={company} devFeatures={devFeatures} />}
               {section === "profile"   && <Suspense fallback={<SectionLoader />}><ProfileEditor company={company} injectedProfile={injectedProfile} navTab={profTab} navStep={profStep} onNav={(t, s) => { setProfTab(t); setProfStep(s); }} /></Suspense>}
               {section === "mineiq"    && <MineIQ company={company} go={setSection} />}
             </Suspense>
+            </SectionBoundary>
           </div>
         ) : (
           <div className="min-h-0 flex-1 overflow-y-auto">
             <div className="mx-auto max-w-6xl px-8 py-10">
+              <SectionBoundary resetKey={section}>
               {section === "home"      && <HomeView company={company} go={setSection}
                   openContent={(tab, takeover) => { setContentTab(tab); setContentTakeover(takeover || null); setSectionRaw("content"); }}
                   openUpdates={() => setSectionRaw("updates")}
@@ -283,6 +287,7 @@ export default function Portal({ company: initial, switchCompany, adminMode = fa
               {section === "activity"  && <ActivityView company={company} />}
               {section === "settings"  && <SettingsView company={company} tab={settingsTab} setTab={setSettingsTab} go={setSection} goProfile={goProfile} onPublished={() => setCompany((c) => ({ ...c, status: "published" }))}
                   billingNotice={billingNotice === "return" ? null : billingNotice} />}
+              </SectionBoundary>
             </div>
           </div>
         )}
