@@ -104,7 +104,11 @@ try {
   ok(!r.ok && r.code === "42501" && String(await clearedAt()) === String(t), "membership removed: the platform admin is refused again; the earlier clear stands");
 
   console.log("\n  UNCHANGED");
-  for (const [who, label] of [["ADMIN", "platform admin"], ["STAFF", "viewer"]]) {
+  // Reading is 0064's owns_company() rule, untouched by 0091: members read, a platform admin
+  // with no membership never could (unchanged).
+  const pa = await attempt("ADMIN", `select count(*)::int n from public.company_notifications($1, 50)`, [X]);
+  ok(!pa.ok, "platform admin without membership: still cannot read the list (owns_company, unchanged)", pa.ok ? "read allowed" : "");
+  for (const [who, label] of [["STAFF", "viewer"]]) {
     const l = await attempt(who, `select count(*)::int n from public.company_notifications($1, 50)`, [X]);
     ok(l.ok, `${label}: still reads the list`, l.msg || "");
   }
