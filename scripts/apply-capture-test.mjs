@@ -254,7 +254,7 @@ console.log("\n  NO LEAK: bodies and secrets stay out of the output");
      "the scan recognises JWTs, connection strings and assigned secrets, and is quiet otherwise");
   const cli = fs.readFileSync("scripts/apply-migrations-production.mjs", "utf8");
   ok(!/console\.(log|error)\([^)]*\.def\b/.test(cli + fs.readFileSync("scripts/_production-migrations.mjs", "utf8")), "the runner never prints a captured .def");
-  ok(cli.indexOf("gitIgnores(path.join(CAPTURE_DIR") > 0 && cli.indexOf("gitIgnores(path.join(CAPTURE_DIR") < cli.indexOf("readDsn(process.env"), "the CLI checks the capture directory is gitignored before reading the DSN");
+  ok(cli.indexOf("gitIgnores(path.join(CAPTURE_DIR") > 0 && cli.indexOf("gitIgnores(path.join(CAPTURE_DIR") < cli.lastIndexOf("readDsn(process.env"), "the CLI checks the capture directory is gitignored before reading the DSN");
 }
 
 fs.rmSync(tmp, { recursive: true, force: true });

@@ -11,6 +11,10 @@
 //       Applies ONE file. Every one of these is required, and the ref must also
 //       be TYPED at an interactive prompt.
 //
+//   --rollback --only <file> --ref=... --approved-by=... [--accept-data-loss="<decision>"]
+//       Undo the file this runner applied MOST RECENTLY: its committed rollback,
+//       then the capture file of that apply, if any. Logged as rolled_back, so
+//       the plan offers the file again. See scripts/_production-rollback.mjs.
 //   --record-manual <file>   a CONCURRENTLY file was run by hand anyway; log it (no connection)
 //   --reviewed <file>        a failed or interrupted run was inspected; log it (no connection)
 //   --audit <record.json>    a newer audit record (default: the 2026-11-01 one)
@@ -63,6 +67,7 @@ import {
   parseArgs, checkRequest, readDsn, confirmRef, applyOne, formatDiff, appendLog,
 } from "./_production-migrations.mjs";
 import { CAPTURE_DIR, gitIgnores, writeCaptureFile } from "./_function-capture.mjs";
+import { checkRollback, applyRollback, formatRollbackSection } from "./_production-rollback.mjs";
 
 const DIR = process.env.MIGRATIONS_DIR || "supabase/migrations";
 const LOG_DIR = process.env.PRODUCTION_LOG_DIR || DEFAULT_LOG_DIR;
@@ -73,31 +78,83 @@ process.on("unhandledRejection", (e) => fail(1, (e && e.message) || String(e)));
 process.on("uncaughtException", (e) => fail(1, (e && e.message) || String(e)));
 
 const args = parseArgs(process.argv.slice(2));
-let record, plan, log;
+// Supabase's server certificate is signed by Supabase's own CA. Give its file in
+// PRODUCTION_DB_CA_FILE to verify it; without it the link is encrypted but the
+// server is not authenticated (as every staging script here), and it says so.
+async function connect(conn) {
+  const caFile = (process.env.PRODUCTION_DB_CA_FILE || "").trim();
+  if (!caFile) console.log("  note: PRODUCTION_DB_CA_FILE not set; TLS is not verifying the server certificate");
+  const ssl = caFile ? { ca: fs.readFileSync(caFile, "utf8"), rejectUnauthorized: true } : { rejectUnauthorized: false };
+  const client = new pg.Client({ connectionString: conn.dsn, ssl, application_name: "mineex-production-migration" });
+  try { await client.connect(); }
+  catch (e) { fail(1, `could not connect (${e.code || "error"}): ${e.message}`); }
+  return client;
+}
+
+let record, plan, log, q01Markers;
 try {
   record = loadRecord(args.audit);
   log = readLog(LOG);
-  const q01Markers = parseQ01Markers(fs.readFileSync(record.query.split(" ")[0], "utf8"));
+  q01Markers = parseQ01Markers(fs.readFileSync(record.query.split(" ")[0], "utf8"));
   plan = buildPlan({ files: fs.readdirSync(DIR).filter((f) => f.endsWith(".sql")), record, log, q01Markers, dir: DIR });
 } catch (e) { fail(2, e.message); }
 
-const wantsAction = args.apply || args.recordManual || args.reviewed || args.only.length || args.approvedBy != null || args.ref != null;
+const wantsAction = args.apply || args.rollback || args.acceptDataLoss != null || args.recordManual || args.reviewed || args.only.length || args.approvedBy != null || args.ref != null;
 if (!wantsAction) {
   if (args.unknown.length) fail(2, `unknown argument(s): ${args.unknown.join(" ")}`);
   console.log(formatPlan(plan, record));
+  console.log(formatRollbackSection(log, record.project_ref, { planDoc: fs.existsSync("docs/PRODUCTION-ROLLOUT-PLAN.md") ? fs.readFileSync("docs/PRODUCTION-ROLLOUT-PLAN.md", "utf8") : "" }));
   process.exit(0);
 }
 
-const kind = args.reviewed ? "reviewed" : args.recordManual ? "record-manual" : "apply";
+const kind = args.rollback ? "rollback" : args.reviewed ? "reviewed" : args.recordManual ? "record-manual" : "apply";
 let item;
-try { item = checkRequest(args, plan, log, { kind, read: (f) => fs.readFileSync(path.join(DIR, f), "utf8") }); }
-catch (e) { fail(2, e.message); }
+try {
+  item = checkRequest(args, plan, log, { kind, read: (f) => fs.readFileSync(path.join(DIR, f), "utf8") });
+  if (kind === "rollback") item = checkRollback(args, { log, ref: args.ref, q01Markers, dir: DIR });
+} catch (e) { fail(2, e.message); }
 
 const ask = (q) => new Promise((resolve) => {
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
   rl.question(q, (a) => { rl.close(); resolve(a); });
 });
 const base = { ref: args.ref, approved_by: args.approvedBy.trim(), file: item.file, sha256: item.sha256 || null, audit: args.audit };
+
+if (kind === "rollback") {
+  let conn;
+  try { conn = readDsn(process.env, args.ref); } catch (e) { fail(2, e.message); }
+  secrets.push(conn.dsn, conn.password);
+  try { await confirmRef(args.ref, `the ROLLBACK of ${item.file}`, ask, { isTTY: !!process.stdin.isTTY }); } catch (e) { fail(2, e.message); }
+  const client = await connect(conn);
+  const rbBase = { ...base, sha256: item.rollbackSha256, rollback: item.rollback, capture: item.capture?.path || null, accept_data_loss: item.acceptDataLoss, lossy: item.lossy };
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const snapBase = path.join(LOG_DIR, `${stamp}_${item.file.replace(/\.sql$/, "")}_rollback`);
+  appendLog(LOG, { ...rbBase, status: "rollback-started", role: "postgres" });
+  console.log(`\n  Rolling back ${item.file}${item.capture ? ` (then ${item.capture.path})` : ""}; approved by: ${base.approved_by}${item.lossy.length ? `; data loss accepted: ${item.acceptDataLoss}` : ""}`);
+  try {
+    const r = await applyRollback(client, item, { say: (m) => console.log(m) });
+    fs.writeFileSync(`${snapBase}.pre.json`, JSON.stringify(r.pre, null, 1));
+    fs.writeFileSync(`${snapBase}.post.json`, JSON.stringify(r.post, null, 1));
+    appendLog(LOG, { ...rbBase, status: "rolled_back", checkpoint_not_applied: r.checkpoint, server_version: r.serverVersion, diff: r.diff, snapshots: `${snapBase}.{pre,post}.json` });
+    console.log(`\n  ROLLED BACK ${item.file}. Marker now reads not applied: ${r.checkpoint ? "true" : "FALSE"}`);
+    console.log("  What changed:");
+    console.log(formatDiff(r.diff));
+    console.log(`\n  The plan offers ${item.file} again. Re-run the read-only audit.\n`);
+  } catch (e) {
+    if (e.pre) fs.writeFileSync(`${snapBase}.pre.json`, JSON.stringify(e.pre, null, 1));
+    appendLog(LOG, { ...rbBase, status: "rollback-failed", error: redact(e.message, secrets), code: e.code || null });
+    console.error(`\n  ROLLBACK FAILED: ${item.file} -- ${item.mode === "concurrently" ? "stopped; statements before it stay" : "rolled back, production unchanged"}.`);
+    console.error(`  ${e.severity || "ERROR"}: ${redact(e.message, secrets)}`);
+    if (e.detail) console.error(`  detail: ${redact(e.detail, secrets)}`);
+    if (e.hint) console.error(`  hint:   ${redact(e.hint, secrets)}`);
+    if (e.recovery) console.error(`  RECOVER: ${e.recovery}`);
+    console.error(`\n  Inspect production, then record --reviewed ${item.file} before anything else runs.\n`);
+    await client.end().catch(() => {});
+    process.exit(1);
+  }
+  await client.end();
+  process.exit(0);
+}
 
 if (kind !== "apply") {
   try { await confirmRef(args.ref, item.file, ask, { isTTY: !!process.stdin.isTTY }); } catch (e) { fail(2, e.message); }
@@ -114,15 +171,7 @@ secrets.push(conn.dsn, conn.password);
 try { await confirmRef(args.ref, item.file, ask, { isTTY: !!process.stdin.isTTY }); } catch (e) { fail(2, e.message); }
 
 const sql = fs.readFileSync(path.join(DIR, item.file), "utf8");
-// Supabase's server certificate is signed by Supabase's own CA. Give its file in
-// PRODUCTION_DB_CA_FILE to verify it; without it the link is encrypted but the
-// server is not authenticated (as every staging script here), and it says so.
-const caFile = (process.env.PRODUCTION_DB_CA_FILE || "").trim();
-if (!caFile) console.log("  note: PRODUCTION_DB_CA_FILE not set; TLS is not verifying the server certificate");
-const ssl = caFile ? { ca: fs.readFileSync(caFile, "utf8"), rejectUnauthorized: true } : { rejectUnauthorized: false };
-const client = new pg.Client({ connectionString: conn.dsn, ssl, application_name: "mineex-production-migration" });
-try { await client.connect(); }
-catch (e) { fail(1, `could not connect (${e.code || "error"}): ${e.message}`); }
+const client = await connect(conn);
 
 const stamp = new Date().toISOString().replace(/[:.]/g, "-");
 const snapBase = path.join(LOG_DIR, `${stamp}_${item.file.replace(/\.sql$/, "")}`);
