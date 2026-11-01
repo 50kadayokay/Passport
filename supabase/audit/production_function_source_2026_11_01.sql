@@ -2,7 +2,7 @@
 -- TARGET: the PRODUCTION Supabase project rvptronniomlqumjhyrr. Nowhere else.
 --
 -- READ-ONLY. Two SELECTs over the system catalogue. Q01 reads the
--- stored definition of exactly three functions with pg_get_functiondef(), which
+-- stored definition of exactly five functions with pg_get_functiondef(), which
 -- formats catalogue text and does NOT execute, replace or modify the function.
 -- No application table is read. Q02 only checks which tables EXIST (to_regclass). Run only through
 -- scripts/production-audit-run.mjs (BEGIN READ ONLY ... ROLLBACK).
@@ -14,10 +14,16 @@
 -- again for keys and long secret-like strings before anything is displayed.
 -- Never commit or share the raw result file.
 --
--- The three signatures are the ones production reported in the first audit (Q10):
---   public.accept_company_invitation(text)
---   public.publish_publication(uuid, uuid, timestamp with time zone)
---   public.revise_publication(uuid, text, text, text, uuid)
+-- The five signatures, and why each is read:
+--   public.accept_company_invitation(text)                              drifted (Q10, 2026-10-31); 0076 replaces it
+--   public.publish_publication(uuid, uuid, timestamp with time zone)    drifted (Q10, 2026-10-31); 0071 replaces it
+--   public.revise_publication(uuid, text, text, text, uuid)             drifted (Q10, 2026-10-31); nothing pending replaces it
+--   public.claim_deliveries(text, text, integer, integer)               drifted (replaced-function digests, 2026-11-01); 0071 replaces it
+--   public.company_go_live(uuid, text)                                  drifted (replaced-function digests, 2026-11-01); 0072 replaces it
+-- A create-or-replace in a pending migration OVERWRITES the production body, so
+-- each one is read and diffed (scripts/function-drift-diff.mjs) before it applies.
+-- to_regprocedure() returns null for a missing signature, so one absent
+-- function does not fail the statement; it just returns no row.
 
 select 'Q01' as q,
        p.oid::regprocedure::text           as signature,
@@ -29,9 +35,13 @@ select 'Q01' as q,
        md5(pg_get_functiondef(p.oid))       as digest,
        pg_get_functiondef(p.oid)            as definition
   from pg_proc p
- where p.oid in ('public.accept_company_invitation(text)'::regprocedure,
-                 'public.publish_publication(uuid, uuid, timestamp with time zone)'::regprocedure,
-                 'public.revise_publication(uuid, text, text, text, uuid)'::regprocedure)
+ where p.oid in (select to_regprocedure(s.sig) from (values
+                   ('public.accept_company_invitation(text)'),
+                   ('public.publish_publication(uuid, uuid, timestamp with time zone)'),
+                   ('public.revise_publication(uuid, text, text, text, uuid)'),
+                   ('public.claim_deliveries(text, text, integer, integer)'),
+                   ('public.company_go_live(uuid, text)')
+                 ) as s(sig))
  order by 2;
 
 -- Q02 · Existence only: every pre-existing table the pending migrations

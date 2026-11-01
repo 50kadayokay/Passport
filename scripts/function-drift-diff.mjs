@@ -17,7 +17,8 @@ import { spawnSync } from "node:child_process";
 const file = process.argv[2];
 if (!file || !/^supabase\/audit\/results\/[\w.-]+\.json$/.test(file)) { console.error("  usage: node scripts/function-drift-diff.mjs supabase/audit/results/<file>.json"); process.exit(2); }
 const res = JSON.parse(fs.readFileSync(file, "utf8"));
-const rows = (res.results || []).flatMap((r) => (r.error ? [] : r.rows || []));
+// Only Q01 rows carry function source; Q02 (table existence) rows are skipped.
+const rows = (res.results || []).flatMap((r) => (r.error ? [] : r.rows || [])).filter((r) => r.signature && typeof r.definition === "string");
 if (!rows.length) { console.error("  no function rows in that file"); process.exit(3); }
 
 const SECRETS = {
@@ -64,16 +65,20 @@ const udiff = (a, b, la, lb) => {
   const r = spawnSync("diff", ["-u", "--label", la, "--label", lb, `${tmp}/a`, `${tmp}/b`], { encoding: "utf8" });
   return r.stdout;
 };
+// The pending migration whose create-or-replace would overwrite each body.
+const REPLACED_BY = { publish_publication: "0071", claim_deliveries: "0071", company_go_live: "0072", accept_company_invitation: "0076" };
+
 const changed = (d) => d.split("\n").filter((l) => /^[+-](?![+-])/.test(l)).length;
 
 let report = "";
 const say = (s = "") => { report += s + "\n"; console.log(s); };
 let totalHits = 0;
 for (const r of rows) {
-  const name = r.signature.replace(/\(.*$/, "");
+  const name = r.signature.replace(/\(.*$/, "").replace(/^public\./, "");
   const { text: def, hits } = redact(r.definition || "");
   const n = Object.values(hits).reduce((a, b) => a + b, 0); totalHits += n;
   say(`\n=== ${r.signature}   owner=${r.owner} security_definer=${r.security_definer} config=${r.config || "-"} digest=${r.digest}`);
+  say(`    ${REPLACED_BY[name] ? `pending ${REPLACED_BY[name]} replaces this body (create or replace): read this diff before it applies` : "no pending migration replaces it"}`);
   say(`    secret scan: ${n ? `${n} redacted ${JSON.stringify(hits)}` : "nothing secret-shaped found"}`);
   const prod = norm(bodyOf(def));
   const versions = repoVersions(name).map((v) => ({ ...v, d: udiff(norm(redact(v.body).text), prod, `repo ${v.where}`, `${res.target} (live)`) }));
