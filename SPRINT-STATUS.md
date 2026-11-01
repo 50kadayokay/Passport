@@ -123,5 +123,17 @@ window: 1001/0/0.
 Feature completion **53% -> 61%** (12 working, 11 partial, 4 missing, 1 unverified,
 1 UI only). Launch readiness **36%** (11 gates: 3 done, 2 partial, 6 open).
 
+## Parallel sessions, integration batches (2026-11-01)
+- 0085 + 0086 applied to staging (approved; counts unchanged; round trip 67/0); a17/a21 live 37/0.
+- Integrated on portal-work: S2 a17/a21 (ea6ceca); S3 a02/a10/a20/a28/a16 + fixes (4e8964f, 01bb380);
+  S1 a06/a07/a08/a19 + page states (472f7db, 4ade3d0); S2 a14/a13/a15 slices 1-3 + fixes (ceef8cf, d6e4f7b).
+- Integrated sweep: API authorization 435/0; every live suite passes (investor app, storage strict,
+  booth/services 37/0, website, profile suggestions, publishing 51/0, messaging 56/0, roles 97/0,
+  onboarding, media, audit, notifications, Mine IQ); round trip and messaging-schema pass; npm test
+  (13 new suites) and build pass. Isolation inventory extended to 0087/0088 objects (rerun after apply).
+- Feature completion **86%** (22 working, 6 partial, 1 missing); launch readiness unchanged at 36%.
+- Waiting on the user: 0087/0088 staging apply; a08 decision; a19 real-AI run; a20 Stripe test keys;
+  a26 empty project; a15 revalidate hook; viewer clear-all.
+
 ## Next
 Four parallel sessions per docs/PARALLEL-SESSIONS.md, after approval.
