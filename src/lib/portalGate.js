@@ -82,6 +82,25 @@ export async function loadPortalAccess(companyId) {
   return { ok: true, entitled: ids.includes("portal_access") };
 }
 
+/**
+ * The role this person holds in one company THEMSELVES: "owner" when they are its
+ * owner_id, else their highest active membership role, else null. For a platform
+ * admin in ?company= mode, whose company.role reads "admin" whatever they hold.
+ */
+export async function loadOwnRole(company) {
+  const u = getUser();
+  if (!u || !u.id) return { ok: false, reason: "signed_out" };
+  if (!company || !company.id) return { ok: false, reason: "unavailable" };
+  if (company.owner_id === u.id) return { ok: true, role: "owner" };
+  const r = await call(
+    `/company_memberships?user_id=eq.${encodeURIComponent(u.id)}&company_id=eq.${encodeURIComponent(company.id)}&status=eq.active&select=role`
+  );
+  if (!r.ok) return r;
+  if (!Array.isArray(r.body)) return { ok: false, reason: "unavailable" };
+  const held = r.body.map((m) => m && m.role);
+  return { ok: true, role: ROLES.find((x) => held.includes(x)) || null };
+}
+
 /** One company by slug, for a platform admin's ?company=<slug>. */
 export async function loadCompanyBySlug(slug) {
   if (!slug) return { ok: true, company: null };

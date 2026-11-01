@@ -145,7 +145,7 @@ window.fetch = async (input, init = {}) => {
   const p = url.pathname.replace(/^\/rest\/v1/, "");
   const member = (cid) => u.m.some(([c]) => c === cid);
 
-  if (p === "/company_memberships") return j(u.m.map(([cid, role]) => ({ role, joined_at: "2026-10-01", company: { id: cid, slug: CO[cid].slug, name: CO[cid].name, status: CO[cid].status } })));
+  if (p === "/company_memberships") { const only = (url.searchParams.get("company_id") || "").replace(/^eq\./, ""); return j(u.m.filter(([cid]) => !only || cid === only).map(([cid, role]) => ({ role, joined_at: "2026-10-01", company: { id: cid, slug: CO[cid].slug, name: CO[cid].name, status: CO[cid].status } }))); }
   if (p === "/profiles") return j([{ role: u.role }]);
   if (p === "/rpc/my_features") {
     if (fail === "features") return j({ message: "upstream" }, 503);
@@ -240,8 +240,8 @@ window.fetch = async (input, init = {}) => {
     if (fail === "booth") return j({ message: "boom" }, 500);
     return j(data === "empty" ? [] : [{ studio: { template: "monolith", theme: "obsidian", accent: "" }, version: 2, published_at: iso(now - 864e5) }]);
   }
-  // 0090: owner/admin (and platform admins) only
-  if (p === "/rpc/mark_notifications_cleared") return ["owner", "admin_m", "platform"].includes(who) ? j(iso(now)) : j({ code: "42501", message: "not authorized to clear this company's notifications" }, 403);
+  // 0091: owner/admin only -- a platform admin needs that membership themselves
+  if (p === "/rpc/mark_notifications_cleared") return ["owner", "admin_m"].includes(who) ? j(iso(now)) : j({ code: "42501", message: "not authorized to clear this company's notifications" }, 403);
   if (p === "/activity_log") {
     if (fail === "activity") return j({ message: "boom" }, 500);
     return j(data === "empty" ? [] : [

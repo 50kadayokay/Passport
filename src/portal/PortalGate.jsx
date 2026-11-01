@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { Loader2, ShieldAlert, Building2, LogOut, ArrowRight, Lock, RefreshCw } from "lucide-react";
 import { signOut } from "../lib/auth.js";
 import { acceptInvitation } from "../lib/portal.js";
-import { loadMemberships, loadPlatformRole, loadPortalAccess, loadCompanyBySlug } from "../lib/portalGate.js";
+import { loadMemberships, loadPlatformRole, loadPortalAccess, loadCompanyBySlug, loadOwnRole } from "../lib/portalGate.js";
 import { can } from "../lib/companyRoles.js";
 import { checkoutReturn } from "../lib/billing.js";
 import BillingView from "./Billing.jsx";
@@ -56,7 +56,11 @@ export async function resolvePortal({ search = "", clearInvite = () => {} } = {}
       const c = await loadCompanyBySlug(companySlug);
       if (!c.ok) return { state: failed(c), companies: [] };
       if (!c.company) return { state: { phase: "notfound", slug: companySlug }, companies: [] };
-      return { state: { phase: "ready", company: { ...c.company, role: "admin" }, adminMode: true }, companies: [] };
+      // ownRole: what they hold in this company themselves. A few actions need it
+      // (companyRoles OWN_ROLE_ONLY); unknown reads as none, so the portal shows less.
+      const own = await loadOwnRole(c.company);
+      const ownRole = own.ok ? own.role : null;
+      return { state: { phase: "ready", company: { ...c.company, role: "admin", platformAdmin: true, ownRole }, adminMode: true }, companies: [] };
     }
     // non-admin: ignore the param and resolve normally.
   }

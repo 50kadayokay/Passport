@@ -6,7 +6,9 @@
 // checks this table against the route constants.
 //
 // `role` is company.role as the portal resolves it: a membership role, or
-// "admin" for a platform admin driving a company's portal (?company=).
+// "admin" for a platform admin driving a company's portal (?company=). For the
+// OWN_ROLE_ONLY actions use canIn(company, action), which asks what that
+// platform admin holds in the company themselves.
 
 export const ROLES = ["owner", "admin", "editor", "publisher", "analyst", "viewer"];
 
@@ -25,7 +27,7 @@ export const PERMISSIONS = {
   viewAnalytics:    ALL,
   manageBilling:    MANAGERS,
   manageSiteTokens: MANAGERS,                       // read + revoke website tokens
-  clearNotifications: MANAGERS,                     // company-wide "Clear all" (0090)
+  clearNotifications: MANAGERS,                     // company-wide "Clear all" (0090); own role only (0091)
   viewTeam:         ALL,
   manageTeam:       MANAGERS,                       // invite / change / remove (within grantable)
 };
@@ -33,6 +35,19 @@ export const PERMISSIONS = {
 export function can(role, action) {
   const allowed = PERMISSIONS[action];
   return !!(allowed && role && allowed.includes(role));
+}
+
+// Actions a platform admin gets only through a role they hold in the company
+// themselves (its owner_id, or an active membership), never by driving its
+// portal. "Clear all": user decision 2026-11-01, enforced by 0091.
+export const OWN_ROLE_ONLY = ["clearNotifications"];
+
+/** can() for a resolved portal company (PortalGate): company.role, except that a
+ *  platform admin's OWN_ROLE_ONLY actions follow company.ownRole. */
+export function canIn(company, action) {
+  const c = company || {};
+  const role = c.platformAdmin && OWN_ROLE_ONLY.includes(action) ? c.ownRole : (c.role || "owner");
+  return can(role, action);
 }
 
 // Roles a manager may hand out (mirrors 0076 grantable_roles). Owners are never
