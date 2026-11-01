@@ -18,8 +18,8 @@ console.log("\n  APPROVED MATRIX (a03 decision, 2026-10)");
 // role -> actions it may take. Written out by hand from the approval, so a
 // change to companyRoles.js that drifts from it fails here.
 const APPROVED = {
-  owner:     ["editProfileDraft", "publishProfile", "saveMemory", "aiDraft", "draftContent", "publishContent", "sendMessages", "viewAnalytics", "manageBilling", "manageSiteTokens", "viewTeam", "manageTeam"],
-  admin:     ["editProfileDraft", "publishProfile", "saveMemory", "aiDraft", "draftContent", "publishContent", "sendMessages", "viewAnalytics", "manageBilling", "manageSiteTokens", "viewTeam", "manageTeam"],
+  owner:     ["editProfileDraft", "publishProfile", "saveMemory", "aiDraft", "draftContent", "publishContent", "sendMessages", "viewAnalytics", "manageBilling", "manageSiteTokens", "clearNotifications", "viewTeam", "manageTeam"],
+  admin:     ["editProfileDraft", "publishProfile", "saveMemory", "aiDraft", "draftContent", "publishContent", "sendMessages", "viewAnalytics", "manageBilling", "manageSiteTokens", "clearNotifications", "viewTeam", "manageTeam"],
   editor:    ["editProfileDraft", "aiDraft", "draftContent", "sendMessages", "viewAnalytics", "viewTeam"],
   publisher: ["aiDraft", "draftContent", "publishContent", "sendMessages", "viewAnalytics", "viewTeam"],
   analyst:   ["viewAnalytics", "viewTeam"],
@@ -58,6 +58,10 @@ ok(same(PERMISSIONS.viewTeam, MEMBER_ROLES), "members: UI == api/_aiGuard.js MEM
   ok(msgPolicy && same(PERMISSIONS.sendMessages, msgPolicy[1].replace(/'/g, "").split(",").map((x) => x.trim())), "messaging: UI == 0076 conv_insert_company policy");
   const tok = MIG.match(/site_credentials_read[\s\S]*?has_company_role\([^,]+, array\[([^\]]*)\]/);
   ok(tok && same(PERMISSIONS.manageSiteTokens, tok[1].replace(/'/g, "").split(",").map((x) => x.trim())), "website tokens: UI == 0076 site_credentials_read policy");
+}
+{
+  const cl = read("supabase/migrations/0090_notification_clear_roles.sql").match(/mark_notifications_cleared[\s\S]*?has_company_role\(p_company, array\[([^\]]*)\]/);
+  ok(cl && same(PERMISSIONS.clearNotifications, cl[1].replace(/'/g, "").split(",").map((x) => x.trim())), "notifications Clear all: UI == 0090 mark_notifications_cleared()");
 }
 
 console.log("\n  TEAM LIB EXPLAINS EVERY REFUSAL");

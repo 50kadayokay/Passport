@@ -17,6 +17,7 @@ import {
   companyUnreadCount as unreadCount,
   clearCompanyNotifications as clearNotifications,
 } from "../lib/companyNotifications.js";
+import { can } from "../lib/companyRoles.js";
 
 const CARD = "rounded-2xl border border-slate-100 bg-white shadow-[0_1px_2px_rgba(15,23,42,.04),0_12px_26px_-20px_rgba(15,23,42,.4)]";
 
@@ -71,6 +72,9 @@ function Row({ item, fresh }) {
 
 export default function Notifications({ company, onSeen, hideHeading = false }) {
   const companyId = company?.id;
+  // Clearing empties the page for the whole company (one cleared_at per
+  // company, 0064), so it is owner/admin only (0090). Everyone else reads.
+  const canClear = can(company?.role || "owner", "clearNotifications");
   const [items, setItems] = useState(undefined);   // undefined = loading, null = not switched on (0049)
   const [loadErr, setLoadErr] = useState(false);   // the last read failed (network, 5xx)
   const [clearErr, setClearErr] = useState("");
@@ -122,7 +126,9 @@ export default function Notifications({ company, onSeen, hideHeading = false }) 
     setBusy(true);
     setClearErr("");
     const at = await clearNotifications(companyId);
-    if (at && at.failed) {
+    if (at && at.denied) {
+      setClearErr("Only owners and admins can clear notifications for the company. Nothing changed.");
+    } else if (at && at.failed) {
       setClearErr("Couldn't clear notifications. Nothing changed; try again.");
     } else if (at) {
       setItems([]);
@@ -139,7 +145,7 @@ export default function Notifications({ company, onSeen, hideHeading = false }) 
   const newCount = useMemo(() => unreadCount(items, freshBefore), [items, freshBefore]);
   const isFresh = (it) => !freshBefore || (it.at && new Date(it.at).getTime() > new Date(freshBefore).getTime());
 
-  const confirmDialog = confirming ? (
+  const confirmDialog = confirming && canClear ? (
     <div className="fixed inset-0 z-50 grid place-items-center bg-slate-900/30 p-4" onClick={() => setConfirming(false)}>
       <div onClick={(e) => e.stopPropagation()} className={`w-full max-w-[400px] bg-white p-5 ${CARD}`}>
         <div className="flex items-start justify-between gap-3">
@@ -186,7 +192,7 @@ export default function Notifications({ company, onSeen, hideHeading = false }) 
           {/* Only offered when there is something to clear -- a permanently
               visible control that does nothing most of the time trains people
               to ignore it. */}
-          {items && items.length > 0 && (
+          {canClear && items && items.length > 0 && (
             <button onClick={() => setConfirming(true)} disabled={busy}
               className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[12.5px] font-semibold text-blue-600 transition hover:bg-blue-50 disabled:opacity-50">
               <CheckCheck size={14} /> Clear all
