@@ -50,18 +50,27 @@ async function detect() {
   if (mode) return mode;
   if (probe) return probe;
   probe = (async () => {
+    // Only "the table is not there" (0066 not applied) settles on local. Every
+    // other failure -- offline, a 5xx, an expired session -- used to switch
+    // this browser to local storage for good, so a blip turned a company's
+    // shared history into "kept in this browser only". Now it is an error the
+    // page shows, and the next call asks again.
+    let r;
     try {
       const h = await authHeaders();
-      const r = await fetch(`${SUPABASE_URL}/rest/v1/mineiq_threads?select=id&limit=1`, { headers: h });
-      // 200 → applied and readable. 404 → table absent (0066 not applied).
-      // 401/403 → no session or denied; either way this browser cannot use it.
-      mode = r.ok ? "supabase" : "local";
+      r = await fetch(`${SUPABASE_URL}/rest/v1/mineiq_threads?select=id&limit=1`, { headers: h });
     } catch {
-      mode = "local";       // offline, blocked, or no Supabase configured
+      throw new Error("Your conversations could not be reached. Check your connection and try again.");
     }
-    return mode;
+    if (r.ok) { mode = "supabase"; return mode; }
+    const b = await r.json().catch(() => null);
+    if (r.status === 404 || (b && (b.code === "PGRST205" || b.code === "42P01"))) { mode = "local"; return mode; }
+    throw new Error(r.status === 401 || r.status === 403
+      ? "Your session has expired. Sign in again to see your conversations."
+      : `Your conversations could not be loaded (${r.status}). Try again shortly.`);
   })();
-  return probe;
+  try { return await probe; }
+  finally { probe = null; }
 }
 
 /* ── local backing ────────────────────────────────────────────────────────── */
@@ -104,6 +113,9 @@ function turnsFromMessages(rows) {
       last.sources = Array.isArray(m.sources) ? m.sources : [];
     }
   }
+  // A question whose answer row is missing (a save that half-failed) used to
+  // render as a blank turn whose Copy wrote "undefined". Say what happened.
+  turns.forEach((t) => { if (t.answer == null) t.error = "No answer was saved for this question."; });
   return turns;
 }
 

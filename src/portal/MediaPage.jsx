@@ -133,8 +133,9 @@ function MediaDetail({ post, company, onBack, onChanged }) {
               {post.caption || <span className="text-slate-400">No caption</span>}
             </p>
             <p className="mt-2 text-[11.5px] text-slate-400">
-              {post.isVideo ? "Video" : "Photo"} · {fmtDay(post.publishedAt)}
-              {post.live ? "" : post.takenDown ? " · taken down" : " · not live yet"}
+              {/* A post never published has no date; "Photo · " read as broken. */}
+              {[post.isVideo ? "Video" : "Photo", post.publishedAt ? fmtDay(post.publishedAt) : "",
+                post.live ? "" : post.takenDown ? "taken down" : "not live yet"].filter(Boolean).join(" · ")}
             </p>
           </div>
         </div>
@@ -413,6 +414,7 @@ export default function MediaPage({ company, startComposing = false, onComposerE
   // for owner, admin and publisher (the publish routes refuse the rest).
   const canPost = can(company?.role || "owner", "publishContent");
   const [posts, setPosts] = useState(null);
+  const [loadErr, setLoadErr] = useState("");
   const [composing, setComposing] = useState(Boolean(startComposing) && canPost);
   const [open, setOpen] = useState(null);       // the post being looked at
   const [handoff, setHandoff] = useState(null); // a file dropped on the grid
@@ -420,7 +422,9 @@ export default function MediaPage({ company, startComposing = false, onComposerE
 
   const load = useCallback(() => {
     if (!companyId) return;
-    listMediaPosts(companyId).then(setPosts).catch(() => setPosts([]));
+    setLoadErr("");
+    listMediaPosts(companyId).then(setPosts)
+      .catch((e) => { setPosts(null); setLoadErr(e.message || "Your media could not be loaded."); });
   }, [companyId]);
 
   useEffect(() => { load(); }, [load]);
@@ -491,7 +495,14 @@ export default function MediaPage({ company, startComposing = false, onComposerE
         <span className="h-px flex-1 bg-slate-200" />
       </div>
 
-      {posts === null ? (
+      {loadErr ? (
+        /* A failed read is not an empty library. */
+        <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4" role="alert" data-media-load-error>
+          <p className="text-[14px] font-bold text-amber-900">Couldn't load your media</p>
+          <p className="mt-0.5 text-[13px] text-amber-700">{loadErr}</p>
+          <button onClick={load} className="mt-2 text-[12.5px] font-bold text-amber-900 underline-offset-2 hover:underline">Try again</button>
+        </div>
+      ) : posts === null ? (
         <div className="mt-5 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
           {[0, 1, 2, 3].map((i) => (
             <div key={i} className={`overflow-hidden ${CARD}`}>

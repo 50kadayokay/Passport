@@ -259,6 +259,14 @@ function Turn({ turn, onRetry }) {
                   Not found in your company record.
                 </p>
               )}
+              {/* Figures the server could not find in any source it supplied.
+                  Shown, never hidden or rewritten: the CEO decides. Not kept
+                  in history, so a reopened chat shows the answer alone. */}
+              {turn.unsupported && turn.unsupported.length > 0 && (
+                <p className="mt-2.5 text-[11.5px] font-semibold text-amber-700">
+                  Check before using: {turn.unsupported.slice(0, 6).join(", ")} {turn.unsupported.length === 1 ? "does" : "do"} not appear in the sources MineIQ used.
+                </p>
+              )}
               <Sources names={turn.sources} />
               <div className="-ml-1.5 mt-1 opacity-0 transition-opacity duration-150 focus-within:opacity-100 group-hover:opacity-100">
                 <CopyButton text={turn.answer} />
@@ -396,7 +404,10 @@ export default function MineIQ({ company }) {
     el.style.height = `${Math.min(el.scrollHeight, 200)}px`;
   }, [q]);
 
-  const send = useCallback(async (question, attached = attachments) => {
+  // `base` lets "Try again" send from the thread WITHOUT the failed turn. It
+  // used to filter that turn out through setThread and then send from the
+  // stale closure, so the question appeared twice.
+  const send = useCallback(async (question, attached = attachments, base = thread) => {
     const text = String(question || "").trim();
     if (!text || busy) return;
     setQ(""); setAttachments([]); setAttachErr(""); setBusy(true);
@@ -404,7 +415,7 @@ export default function MineIQ({ company }) {
 
     const id = `t-${Date.now()}`;
     const asked = { id, question: text, attachments: attached.map((a) => ({ name: a.name })), pending: true };
-    let working = { ...thread, turns: [...thread.turns, asked] };
+    let working = { ...base, turns: [...base.turns, asked] };
     setThread(working);
 
     try { working = { ...(await ensureThread(companyId, working)), turns: working.turns }; }
@@ -413,7 +424,8 @@ export default function MineIQ({ company }) {
     let done;
     try {
       const r = await ask({ question: text, companyId, companyName: company?.name || "", attachments: attached });
-      done = { ...asked, pending: false, answer: r.text, grounded: r.grounded, sources: (r.context && r.context.sources) || [] };
+      done = { ...asked, pending: false, answer: r.text, grounded: r.grounded, sources: (r.context && r.context.sources) || [],
+               unsupported: Array.isArray(r.unsupported_figures) ? r.unsupported_figures : [] };
     } catch (e) {
       done = { ...asked, pending: false, error: e.message || "MineIQ could not answer." };
     }
@@ -431,9 +443,8 @@ export default function MineIQ({ company }) {
   }, [attachments, busy, thread, companyId, company, refreshThreads]);
 
   const retry = useCallback((turn) => {
-    setThread((t) => ({ ...t, turns: t.turns.filter((x) => x.id !== turn.id) }));
-    send(turn.question, []);
-  }, [send]);
+    send(turn.question, [], { ...thread, turns: thread.turns.filter((x) => x.id !== turn.id) });
+  }, [send, thread]);
 
   const openThread = async (t) => {
     setMobileDrawer(false);
@@ -585,6 +596,7 @@ export default function MineIQ({ company }) {
       <p className="px-5 py-3 text-[10.5px] leading-relaxed text-slate-400">
         {mode === "supabase" ? "Saved to your MineEx account."
           : mode === "local" ? "Kept in this browser only."
+          : histErr ? "Couldn't confirm where chats are saved."
           : "Checking where chats are saved…"}
       </p>
     </div>

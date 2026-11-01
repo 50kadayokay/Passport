@@ -22,7 +22,9 @@ export async function listMediaPosts(companyId) {
     return (await import("../portal/__fixtures/updatesDemo.js")).MEDIA_POSTS;
   }
   if (!companyId) return [];
-  try {
+  // THROWS on failure. It used to return [] for a failed read too, so an
+  // outage showed "No media yet" -- an empty library that was not empty.
+  {
     const h = await authHeaders();
     const res = await fetch(
       `${SUPABASE_URL}/rest/v1/updates` +
@@ -33,11 +35,10 @@ export async function listMediaPosts(companyId) {
         `&order=created_at.desc&limit=200`,
       { headers: h }
     );
-    if (!res.ok) return [];
-    const rows = await res.json().catch(() => []);
-    return (Array.isArray(rows) ? rows : []).map(shape);
-  } catch {
-    return [];
+    if (!res.ok) throw new Error(`Your media could not be loaded (${res.status}). Try again shortly.`);
+    const rows = await res.json().catch(() => null);
+    if (!Array.isArray(rows)) throw new Error("Your media could not be loaded. Try again shortly.");
+    return rows.map(shape);
   }
 }
 

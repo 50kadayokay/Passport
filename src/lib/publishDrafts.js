@@ -151,11 +151,12 @@ export async function getDraft(updateId) {
   if (import.meta.env && import.meta.env.DEV && isPortalDemo()) {
     const { demoGetDraft } = await import("./demoPublish.js");
     const cid = (typeof window !== "undefined" && window.__mineexDemoCompanyId) || "demo";
-    return demoGetDraft(cid, updateId);
-  }
-  // Demo harness: without this, clicking any card in the library opens the
-  // review screen and immediately reports "that draft could not be opened".
-  if (import.meta.env && import.meta.env.DEV && isPortalDemo()) {
+    // Session drafts first, then the fixtures. Without the fallback, clicking
+    // any fixture card in the library opened the review screen and immediately
+    // reported "that draft could not be opened" -- the fixture lookup used to
+    // sit in a second demo branch that the first one always returned before.
+    const local = demoGetDraft(cid, updateId);
+    if (local) return local;
     const d = await demo();
     return [...d.RELEASE_PUBLISHED, ...d.RELEASE_DRAFTS].find((r) => r.id === updateId) || null;
   }
@@ -164,6 +165,15 @@ export async function getDraft(updateId) {
   if (!r.ok) return null;
   const rows = await r.json().catch(() => []);
   return rows[0] || null;
+}
+
+// A failed read THROWS. Returning [] made an outage look like "No press
+// releases yet" -- an empty library that was not empty.
+async function listRows(r, what) {
+  if (!r.ok) throw new Error(`Your ${what} could not be loaded (${r.status}). Try again shortly.`);
+  const rows = await r.json().catch(() => null);
+  if (!Array.isArray(rows)) throw new Error(`Your ${what} could not be loaded. Try again shortly.`);
+  return rows;
 }
 
 /** Everything not yet published, newest first. */
@@ -180,7 +190,7 @@ export async function listDrafts(companyId) {
     `${SUPABASE_URL}/rest/v1/updates?company_id=eq.${companyId}&status=in.(draft,review,failed)${NOT_MEDIA}&select=*&order=updated_at.desc`,
     { headers: h }
   );
-  return r.ok ? await r.json().catch(() => []) : [];
+  return listRows(r, "drafts");
 }
 
 /**
@@ -195,7 +205,7 @@ export async function listPublished(companyId) {
     `${SUPABASE_URL}/rest/v1/updates?company_id=eq.${companyId}&status=eq.published${NOT_MEDIA}&select=*,publications(id,destination_id,status,published_at,external_url,created_at)&order=published_on.desc.nullslast`,
     { headers: h }
   );
-  return r.ok ? await r.json().catch(() => []) : [];
+  return listRows(r, "published releases");
 }
 
 /**
@@ -244,6 +254,31 @@ export async function deleteDraft(updateId) {
   const h = await writeHeaders();
   const r = await fetch(`${SUPABASE_URL}/rest/v1/updates?id=eq.${updateId}`, { method: "DELETE", headers: h });
   return r.ok;
+}
+
+/**
+ * What investors can see of a release, from the PUBLICATION, not the update.
+ *
+ * unpublish_publication() flips only publications.status; the updates row keeps
+ * status 'published' after a take-down. Reading updates.status alone is why a
+ * taken-down release kept its Live badge and reopened with "Save correction"
+ * (which the RPC then refused as not_published).
+ *
+ *   draft    never published (updates.status is not 'published')
+ *   live     the passport publication is published
+ *   down     it was published and the publication no longer is (taken down)
+ *   missing  published, but no publication record could be read
+ */
+export function releaseState({ updateStatus, publications = null, publicationStatus = undefined } = {}) {
+  if (updateStatus !== "published") return "draft";
+  let st = publicationStatus;
+  if (st === undefined && Array.isArray(publications)) {
+    const mine = publications.filter((p) => p && p.destination_id === MINEEX_DESTINATION);
+    if (!mine.length) return "missing";
+    st = mine.some((p) => p.status === "published") ? "published" : mine[0].status;
+  }
+  if (st === undefined || st === null) return "missing";
+  return st === "published" ? "live" : "down";
 }
 
 /** What still has to be true before this draft can go out. */

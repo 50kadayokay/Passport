@@ -21,13 +21,16 @@
 // returns you to the tab you were on.
 
 import React, { Suspense, lazy } from "react";
-import { Megaphone, Image as ImageIcon } from "lucide-react";
+import { Megaphone, Image as ImageIcon, Loader2 } from "lucide-react";
 
 const Publish   = lazy(() => import("./publish/Publish.jsx"));
 const MediaPage = lazy(() => import("./MediaPage.jsx"));
 
+// The same loader as every other portal section (Portal.jsx SectionLoader).
 const Loader = () => (
-  <div className="grid h-[40vh] place-items-center text-[13px] font-semibold text-slate-400">Loading…</div>
+  <div className="grid min-h-[40vh] place-items-center text-slate-300" role="status" aria-label="Loading">
+    <Loader2 size={24} className="animate-spin text-blue-500" />
+  </div>
 );
 
 const TABS = [

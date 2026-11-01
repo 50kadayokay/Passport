@@ -19,6 +19,7 @@ import {
   FileText, Search, X, Image as ImageIcon, Gem,
 } from "lucide-react";
 import { dateParts } from "../../lib/structureReleases.js";
+import { releaseState } from "../../lib/publishDrafts.js";
 import { listMediaAssets, signedMediaUrl } from "../../lib/mediaAssets.js";
 import { fetchManyDeliveryStatuses, passportPublication } from "../../lib/deliveryStatus.js";
 import { DeliveryChip } from "./DeliveryStatus.jsx";
@@ -61,6 +62,10 @@ function normalise(row, isDraft) {
     documentId: det.document_id || null,
     hasSummary: !!(det.summary || "").trim(),
     isDraft,
+    // A taken-down release keeps updates.status = 'published' (only the
+    // publication flips), so the badge reads the publication (releaseState).
+    // Rows without a publications embed (the demo) stay Live, as before.
+    isDown: !isDraft && releaseState({ updateStatus: row.status, publications: row.publications }) === "down",
     needsDate: isDraft && !row.published_on,
     updatedAt: row.updated_at || row.created_at,
     raw: row,
@@ -127,6 +132,8 @@ function ReleaseCard({ item, asset, onOpen, isNew = false, delivery = null }) {
         <span className="absolute left-3 top-3 flex gap-1.5">
           {item.isDraft ? (
             <span className="rounded-full bg-white/95 px-2 py-0.5 text-[10.5px] font-bold text-slate-600 shadow-sm">Draft</span>
+          ) : item.isDown ? (
+            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10.5px] font-bold text-amber-800 shadow-sm" data-card-state="down">Taken down</span>
           ) : (
             <span className="inline-flex items-center gap-1 rounded-full bg-blue-600 px-2 py-0.5 text-[10.5px] font-bold text-white shadow-sm">
               <span className="h-1 w-1 rounded-full bg-white" /> Live

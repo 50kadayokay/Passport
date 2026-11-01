@@ -13,7 +13,7 @@ import {
   RefreshCw, Wand2, ChevronLeft, ChevronRight, ExternalLink, EyeOff, X,
 } from "lucide-react";
 import { ingestRelease, INGEST_STATUS, EXTRACTION_METHOD, supportedKind, blocksReview } from "../../lib/ingestRelease.js";
-import { createDraft, saveDraft, getDraft, publishDraftToMineEx, validateForPublish, releasesForDocument } from "../../lib/publishDrafts.js";
+import { createDraft, saveDraft, getDraft, publishDraftToMineEx, validateForPublish, releasesForDocument, releaseState } from "../../lib/publishDrafts.js";
 import { listMediaAssets, signedMediaUrl } from "../../lib/mediaAssets.js";
 import { previewability, sanitizeSelection } from "../../lib/imageSupport.js";
 import { profileUrl } from "../../lib/brand.js";
@@ -21,6 +21,8 @@ import { waitForOutcome } from "../../lib/publishOutcome.js";
 import DeliveryStatus from "./DeliveryStatus.jsx";
 import { listRevisions, reviseRelease, restoreRevision } from "../../lib/releaseRevisions.js";
 import { unpublishViaApi } from "../../lib/publishClient.js";
+import { factCountForPublication } from "../../lib/mineiq.js";
+import ProfileSuggestions from "./ProfileSuggestions.jsx";
 import { structureRelease, refineRelease } from "../../lib/structureReleases.js";
 import { isPortalDemo } from "../../lib/demoMode.js";
 import { normalizeKeyResults } from "../../lib/keyResults.js";
@@ -258,7 +260,7 @@ function MediaTile({ asset, selected, onToggle, order = -1, total = 0, caption =
 
 /* ---------------------------------------------------------------- main */
 
-export default function CreateRelease({ company, draftId, onExit, onPublished, initialFile = null }) {
+export default function CreateRelease({ company, draftId, onExit, onPublished, onTakenDown, initialFile = null }) {
   // a03: publish / correct / take down are for owner, admin and publisher.
   // Editors draft and stop there. The routes and 0076 refuse the same.
   const canPublish = can(company?.role || "owner", "publishContent");
@@ -287,6 +289,12 @@ export default function CreateRelease({ company, draftId, onExit, onPublished, i
   const [dragOver, setDragOver] = useState(false);
   const [busy, setBusy] = useState("");
   const [err, setErr] = useState("");
+  // The release's images failed to load on reopen (see the draft effect).
+  const [assetsErr, setAssetsErr] = useState("");
+  // What failed, in words. The banner used to say "Couldn't publish" for a
+  // failed correction or take-down too.
+  const [errTitle, setErrTitle] = useState("Couldn't publish");
+  const fail = (title, message) => { setErrTitle(title); setErr(message); };
   const saveTimer = useRef(null);
 
   // ---- AI summary --------------------------------------------------------
@@ -339,6 +347,15 @@ export default function CreateRelease({ company, draftId, onExit, onPublished, i
   const [reviseMsg, setReviseMsg] = useState("");
   const [unpubBusy, setUnpubBusy] = useState(false);
   const [confirmUnpub, setConfirmUnpub] = useState(false);
+  // The passport publication's OWN status. updates.status stays 'published'
+  // after a take-down (unpublish_publication flips only the publication), so it
+  // cannot tell a live release from one that was taken down.
+  const [pubStatus, setPubStatus] = useState(null);
+  // The text investors currently see, so an edit on a live release reads as an
+  // unsaved correction rather than something already saved.
+  const [liveText, setLiveText] = useState(null);
+  // Facts MineIQ learned from this publication: kept after a take-down (a08).
+  const [factsLearned, setFactsLearned] = useState(null);
   // -1 = not publishing. 0..4 = how far the publish has actually got.
   const [pubStep, setPubStep] = useState(-1);
 
@@ -414,6 +431,10 @@ export default function CreateRelease({ company, draftId, onExit, onPublished, i
   useEffect(() => {
     if (!draftId) return;
     (async () => {
+      // Any failure while reopening lands on an explained error. A throw here
+      // (an expired session, a network drop) used to leave the "Preparing
+      // your release" screen up forever.
+      try {
       const d = await getDraft(draftId);
       if (!d) { setErr("That draft could not be opened."); setPhase("upload"); return; }
       setDraft(d);
@@ -434,31 +455,52 @@ export default function CreateRelease({ company, draftId, onExit, onPublished, i
         // for, so nothing can act on anything.
         if (import.meta.env && import.meta.env.DEV && isPortalDemo()) {
           setPubId(`demo-pub-${d.id}`);
+          setPubStatus("published");
           setRevisions([]);
         } else try {
           const h = await import("../../lib/supabase.js");
           const auth = await import("../../lib/auth.js");
           const hh = await auth.authHeaders();
           const pr = await fetch(
-            `${h.SUPABASE_URL}/rest/v1/publications?update_id=eq.${d.id}&destination_id=eq.passport&select=id,created_at&limit=1`,
+            `${h.SUPABASE_URL}/rest/v1/publications?update_id=eq.${d.id}&destination_id=eq.passport&select=id,created_at,status&limit=1`,
             { headers: hh });
           const prows = pr.ok ? await pr.json().catch(() => []) : [];
           const pid = prows[0] && prows[0].id;
-          if (pid) { setPubId(pid); setPubCreatedAt(prows[0].created_at || null); setRevisions(await listRevisions(pid)); }
-        } catch { /* correction UI simply will not offer itself */ }
+          if (pid) {
+            setPubId(pid); setPubCreatedAt(prows[0].created_at || null); setPubStatus(prows[0].status || null);
+            setRevisions(await listRevisions(pid));
+            factCountForPublication(pid).then(setFactsLearned).catch(() => {});
+          }
+        } catch { /* reported below: a live release with no publication record */ }
+        setLiveText({ headline: det.headline || "", text: d.body || "" });
       }
       let list = [];
       if (det.document_id) {
         list = await listMediaAssets(companyId, { sourceDocumentId: det.document_id });
         setAssets(list);
       }
-      // A draft saved before this rule existed - or edited elsewhere - can carry the
-      // id of an asset no browser can display. Publishing that is a silent failure:
-      // the release goes out referencing an image investors never see. Sanitise on
-      // load as well as on click, so the stored selection can only shrink to valid.
-      setPicked(sanitizeSelection(det.selected_asset_ids || [], list));
+      const saved = Array.isArray(det.selected_asset_ids) ? det.selected_asset_ids : [];
+      if (det.document_id && saved.length && !list.length) {
+        // The release HAS chosen images but none came back: the list failed
+        // (listMediaAssets answers [] for a failed read). Sanitising against
+        // an empty list would silently drop the company's selection and the
+        // next autosave would store that. Keep it, say so, and hold publishing
+        // until the images load.
+        setPicked(saved);
+        setAssetsErr("The images for this release could not be loaded, so your image selection can't be shown. It is kept as it was. Reload before publishing.");
+      } else {
+        // A draft saved before this rule existed - or edited elsewhere - can carry the
+        // id of an asset no browser can display. Publishing that is a silent failure:
+        // the release goes out referencing an image investors never see. Sanitise on
+        // load as well as on click, so the stored selection can only shrink to valid.
+        setPicked(sanitizeSelection(saved, list));
+      }
       setCaptions(det.asset_captions && typeof det.asset_captions === "object" ? det.asset_captions : {});
       setPhase("review");
+      } catch (e) {
+        setErr(e?.message || "That release could not be opened. Check your connection and try again.");
+        setPhase("upload");
+      }
     })();
   }, [draftId, companyId]);
 
@@ -688,12 +730,17 @@ export default function CreateRelease({ company, draftId, onExit, onPublished, i
     setReviseBusy("Saving correction…"); setReviseMsg(""); setErr("");
     try {
       const out = await reviseRelease({ publicationId: pubId, headline, body: text, reason: null });
+      // Keep the release's own row in step with what is now live. The live
+      // editor no longer autosaves text (an edit is not a correction until it
+      // is saved), and publishing again after a take-down publishes this row --
+      // without the sync it would quietly bring back the uncorrected text.
+      if (!out.unchanged) await syncLiveRow(headline, text);
       setRevisions(await listRevisions(pubId));
       setReviseMsg(out.unchanged
         ? "No change to the release text — nothing was recorded."
-        : `Saved as revision ${out.revision}. The feed and your profile timeline update in place; followers are not notified.`);
+        : `Saved as revision ${out.revision}. The feed, your profile timeline and MineIQ update in place; followers are not notified.`);
     } catch (e) {
-      setErr(e.message || "Could not save the correction.");
+      fail("Couldn't save the correction", e.message || "Could not save the correction.");
     } finally { setReviseBusy(""); }
   }
 
@@ -703,13 +750,21 @@ export default function CreateRelease({ company, draftId, onExit, onPublished, i
     try {
       const out = await restoreRevision({ publicationId: pubId, revision: rev });
       setText(rev.body); setHeadline(rev.headline || "");
+      if (!out.unchanged) await syncLiveRow(rev.headline || "", rev.body);
       setRevisions(await listRevisions(pubId));
       setReviseMsg(out.unchanged
         ? "That is already the current text."
         : `Restored as revision ${out.revision} — history is kept, nothing was deleted.`);
     } catch (e) {
-      setErr(e.message || "Could not restore that revision.");
+      fail("Couldn't restore that revision", e.message || "Could not restore that revision.");
     } finally { setReviseBusy(""); }
+  }
+
+  async function syncLiveRow(h, t) {
+    if (!draft) return;
+    const saved = await saveDraft(draft.id, { headline: h, text: t });
+    if (!saved) throw new Error("The correction is live, but this release's draft copy could not be updated. Reload before publishing it again.");
+    setLiveText({ headline: h, text: t });
   }
 
   async function unpublish() {
@@ -718,16 +773,19 @@ export default function CreateRelease({ company, draftId, onExit, onPublished, i
     try {
       await unpublishViaApi(pubId);
       setConfirmUnpub(false);
-      onExit && onExit();           // back to the library, which refetches
+      // Back to the library, which refetches -- and says what happened. It
+      // used to return to the grid in silence, with the card still badged Live.
+      if (onTakenDown) onTakenDown({ headline, facts: factsLearned });
+      else if (onExit) onExit();
     } catch (e) {
-      setErr(e.message || "Could not take this release down.");
+      fail("Couldn't take this release down", e.message || "Could not take this release down.");
     } finally {
       setUnpubBusy(false);
     }
   }
 
   async function publish() {
-    setErr(""); setBusy("Publishing…");
+    setErr(""); setErrTitle("Couldn't publish"); setBusy("Publishing…");
     // A determinate bar needs something real to measure. These are the four
     // round trips publishing actually makes, in order, and the bar advances
     // when one RETURNS -- it is a record of what has happened, not a timer
@@ -739,6 +797,10 @@ export default function CreateRelease({ company, draftId, onExit, onPublished, i
       // Anything still inside the autosave window is part of what the CEO
       // means by "publish this".
       await flushSave();
+      if (assetsErr) {
+        setErr("The images for this release did not load, so what would be published can't be checked. Reload the page, then publish.");
+        setBusy(""); setPubStep(-1); return;
+      }
       if (incomplete && !ackIncomplete) {
         setErr("Part of your document did not come through. Check the full release against your original, then confirm above.");
         setBusy(""); setPubStep(-1); return;
@@ -773,6 +835,17 @@ export default function CreateRelease({ company, draftId, onExit, onPublished, i
 
   /* ---------------- upload ---------------- */
   if (phase === "upload") {
+    // Reopening a saved release failed: say that, with the way back. The
+    // dropzone below would invite a new upload of something already stored.
+    if (draftId) {
+      return (
+        <div>
+          <Back onExit={onExit} />
+          <h1 className="text-[27px] font-extrabold leading-tight tracking-tight text-slate-900">Couldn't open this release</h1>
+          <div className="mt-5" data-release-open-error><Notice tone="rose" title="That didn't work" body={err || "That release could not be opened."} /></div>
+        </div>
+      );
+    }
     return (
       <div>
         <Back onExit={onExit} />
@@ -799,7 +872,20 @@ export default function CreateRelease({ company, draftId, onExit, onPublished, i
   }
 
   /* ---------------- processing ---------------- */
-  if (phase === "working" || phase === "loading") {
+  // Reopening a saved release has no upload steps to show. It used to render
+  // the upload checklist with "Uploading your file" and no active step.
+  if (phase === "loading") {
+    return (
+      <div>
+        <Back onExit={onExit} />
+        <p className="mt-6 flex items-center gap-2.5 text-[14px] font-semibold text-slate-500" role="status" data-release-loading>
+          <Loader2 size={16} className="animate-spin text-blue-500" /> Opening your release…
+        </p>
+      </div>
+    );
+  }
+
+  if (phase === "working") {
     // Only stages the pipeline actually reports. No invented progress.
     const steps = [
       { key: "uploading",        label: "Uploading your file" },
@@ -930,6 +1016,21 @@ export default function CreateRelease({ company, draftId, onExit, onPublished, i
   const dateMissing = !date;
   const problems = validateForPublish({ ...(draft || {}), body: text, published_on: date || null, detected: { headline } });
 
+  // Which release this is, from the publication itself (see pubStatus).
+  const rstate = releaseState({ updateStatus: draft && draft.status, publicationStatus: pubId ? pubStatus : null });
+  const isLive = rstate === "live";
+  const isDown = rstate === "down";
+  const pubMissing = rstate === "missing";
+  const dirtyCorrection = isLive && !!liveText && (headline !== liveText.headline || text !== liveText.text);
+  const leave = () => {
+    if (dirtyCorrection && !window.confirm("Your correction has not been saved. Investors still see the published text. Leave anyway?")) return;
+    onExit && onExit();
+  };
+  // Facts stay with MineIQ after a take-down. Said with the count when known.
+  const factsNote = factsLearned > 0
+    ? `MineIQ keeps the ${factsLearned} fact${factsLearned === 1 ? "" : "s"} it learned from this release`
+    : "MineIQ keeps any facts it learned from this release";
+
   // HOW MUCH OF THE DOCUMENT SURVIVED EXTRACTION.
   // Below this, the release on screen is materially shorter than the file the
   // company uploaded -- a missing table, a dropped page, an unreadable scan --
@@ -942,14 +1043,32 @@ export default function CreateRelease({ company, draftId, onExit, onPublished, i
 
   return (
     <div className="pb-16">
-      <Back onExit={onExit} />
+      <Back onExit={leave} />
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
-          <span className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-2.5 py-1 text-[10.5px] font-bold uppercase tracking-wider text-slate-500">
-            <Lock size={11} strokeWidth={2.6} /> Draft — not visible to investors
-          </span>
-          <h1 className="mt-3 text-[27px] font-extrabold leading-tight tracking-tight text-slate-900">Review your release</h1>
-          <p className="mt-1.5 text-[15px] text-slate-500">Here's what MineEx prepared. Edit anything before you publish.</p>
+          {/* The badge says what investors can see NOW. It used to read "Draft —
+              not visible to investors" on a release that was live. */}
+          {isLive ? (
+            <span className="inline-flex items-center gap-2 rounded-full bg-blue-600 px-2.5 py-1 text-[10.5px] font-bold uppercase tracking-wider text-white" data-release-state="live">
+              <span className="h-1 w-1 rounded-full bg-white" /> Live — visible to investors
+            </span>
+          ) : isDown ? (
+            <span className="inline-flex items-center gap-2 rounded-full bg-amber-100 px-2.5 py-1 text-[10.5px] font-bold uppercase tracking-wider text-amber-800" data-release-state="down">
+              <EyeOff size={11} strokeWidth={2.6} /> Taken down — not visible to investors
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-2.5 py-1 text-[10.5px] font-bold uppercase tracking-wider text-slate-500" data-release-state="draft">
+              <Lock size={11} strokeWidth={2.6} /> Draft — not visible to investors
+            </span>
+          )}
+          <h1 className="mt-3 text-[27px] font-extrabold leading-tight tracking-tight text-slate-900">
+            {isLive ? "Your published release" : isDown ? "A release you took down" : "Review your release"}
+          </h1>
+          <p className="mt-1.5 text-[15px] text-slate-500">
+            {isLive ? "Text changes are saved as a correction. Nothing changes for investors until you save one."
+              : isDown ? "Edit it if you need to, then publish it again to bring it back."
+              : "Here's what MineEx prepared. Edit anything before you publish."}
+          </p>
         </div>
         {!canPublish ? (
           <span className="max-w-[260px] rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-[12.5px] leading-relaxed text-slate-600" data-publish-locked>
@@ -959,7 +1078,15 @@ export default function CreateRelease({ company, draftId, onExit, onPublished, i
               ? "This release is live. Corrections and take-downs are made by an owner, admin or publisher."
               : "Your edits are saved to this draft. An owner, admin or publisher publishes it."}
           </span>
-        ) : draft && draft.status === "published" && pubId ? (
+        ) : pubMissing ? (
+          /* Published, but its publication record did not load. Offering
+             "Publish to MineEx" here would publish a live release a second
+             time; offering nothing would leave no way to act. Say so. */
+          <span className="max-w-[280px] rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-[12.5px] leading-relaxed text-rose-800" data-publication-missing>
+            This release is published, but its publication record could not be loaded, so it cannot be corrected or
+            taken down from here right now. Reload the page to try again.
+          </span>
+        ) : isLive ? (
           /* ALREADY LIVE. Text changes are corrections, not a re-publish: they
              append a revision and update the existing feed post and timeline
              entry in place. Publishing again would be a second announcement. */
@@ -969,9 +1096,15 @@ export default function CreateRelease({ company, draftId, onExit, onPublished, i
               {reviseBusy ? <Loader2 size={16} className="animate-spin" /> : <Check size={15} strokeWidth={2.4} />}
               {reviseBusy || "Save correction"}
             </button>
-            <span className="max-w-[260px] text-[11px] leading-relaxed text-slate-400">
-              Appends a new revision. The feed and your timeline update in place — followers are not notified.
-            </span>
+            {dirtyCorrection ? (
+              <span className="max-w-[260px] text-[11px] font-semibold leading-relaxed text-amber-700" data-unsaved-correction>
+                Unsaved correction. Investors still see the published text until you save it.
+              </span>
+            ) : (
+              <span className="max-w-[260px] text-[11px] leading-relaxed text-slate-400">
+                Appends a new revision. The feed and your timeline update in place — followers are not notified.
+              </span>
+            )}
 
             {/* View live, and take it down. "Delete" is deliberately not on
                 offer: /api/unpublish sets posts.removed_at, which hides the
@@ -992,6 +1125,11 @@ export default function CreateRelease({ company, draftId, onExit, onPublished, i
                   It disappears from your profile and the investor feed. Its revision history, the document you
                   uploaded and its engagement figures are all kept, and publishing it again brings it back.
                 </span>
+                {/* a08: fact retention on take-down is an open product decision.
+                    Until it is made the behaviour is unchanged, and this says so. */}
+                <span className="text-[11px] leading-relaxed text-amber-800" data-mineiq-retention>
+                  {factsNote}: they still inform MineIQ answers and drafts after the release comes down.
+                </span>
                 <span className="flex gap-2">
                   <button onClick={unpublish} disabled={unpubBusy}
                     className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-amber-600 px-3 py-2 text-[12.5px] font-bold text-white transition hover:bg-amber-700 disabled:opacity-50">
@@ -1011,11 +1149,18 @@ export default function CreateRelease({ company, draftId, onExit, onPublished, i
             )}
           </span>
         ) : (
-          <button onClick={publish} disabled={!!busy || problems.length > 0 || (incomplete && !ackIncomplete)}
-          title={problems[0] || undefined}
-          className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-5 py-3 text-[14px] font-bold text-white transition hover:bg-slate-800 disabled:opacity-40">
-          {busy ? <Loader2 size={16} className="animate-spin" /> : <Send size={15} strokeWidth={2.4} />} Publish to MineEx
-        </button>
+          <span className="inline-flex flex-col items-stretch gap-2">
+            <button onClick={publish} disabled={!!busy || problems.length > 0 || (incomplete && !ackIncomplete)}
+            title={problems[0] || undefined}
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-5 py-3 text-[14px] font-bold text-white transition hover:bg-slate-800 disabled:opacity-40">
+            {busy ? <Loader2 size={16} className="animate-spin" /> : <Send size={15} strokeWidth={2.4} />} {isDown ? "Publish again" : "Publish to MineEx"}
+          </button>
+          {isDown && (
+            <span className="max-w-[260px] text-[11px] leading-relaxed text-slate-400" data-mineiq-retention>
+              {factsNote} while it is down. Publishing again puts it back on your profile and in the feed.
+            </span>
+          )}
+          </span>
         )}
       </div>
 
@@ -1036,7 +1181,7 @@ export default function CreateRelease({ company, draftId, onExit, onPublished, i
           </Notice>
         </div>
       )}
-      {err && <div className="mt-5"><Notice tone="rose" title="Couldn't publish" body={err} /></div>}
+      {err && <div className="mt-5"><Notice tone="rose" title={errTitle} body={err} /></div>}
 
       {dupes.length > 0 && !dupeAck && (
         <div className="mt-5 flex flex-wrap items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4">
@@ -1110,7 +1255,7 @@ export default function CreateRelease({ company, draftId, onExit, onPublished, i
           <div className={`p-6 ${CARD}`}>
             <span className={LABEL}>Headline</span>
             <input value={headline}
-              onChange={(e) => { setHeadline(e.target.value); queueSave({ headline: e.target.value }); }}
+              onChange={(e) => { setHeadline(e.target.value); if (!isLive) queueSave({ headline: e.target.value }); }}
               placeholder="The headline investors will see"
               className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-[16px] font-bold tracking-tight text-slate-900 outline-none transition focus:border-blue-400" />
           </div>
@@ -1127,7 +1272,7 @@ export default function CreateRelease({ company, draftId, onExit, onPublished, i
               <span className="text-[11.5px] text-slate-400">{text.length.toLocaleString()} characters</span>
             </div>
             <textarea value={text} rows={18}
-              onChange={(e) => { setText(e.target.value); queueSave({ text: e.target.value }); }}
+              onChange={(e) => { setText(e.target.value); if (!isLive) queueSave({ text: e.target.value }); }}
               placeholder="The body of your press release"
               className="mt-2 w-full resize-y rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-[13.5px] leading-relaxed text-slate-700 outline-none transition focus:border-blue-400" />
             <p className="mt-2 text-[11.5px] leading-relaxed text-slate-400">
@@ -1403,7 +1548,9 @@ export default function CreateRelease({ company, draftId, onExit, onPublished, i
               <span className={LABEL}>Media</span>
               {assets.length > 0 && <span className="text-[11.5px] text-slate-400">{picked.length} of {assets.length} selected</span>}
             </div>
-            {!assets.length ? (
+            {assetsErr ? (
+              <p className="mt-3 rounded-xl bg-amber-50 px-3.5 py-2.5 text-[12.5px] font-semibold leading-relaxed text-amber-800" data-assets-error>{assetsErr}</p>
+            ) : !assets.length ? (
               <p className="mt-3 text-[13px] leading-relaxed text-slate-400">No images were found in this release.</p>
             ) : (
               <>
@@ -1420,7 +1567,15 @@ export default function CreateRelease({ company, draftId, onExit, onPublished, i
             )}
           </div>
 
-          {draft && draft.status === "published" && pubId && !String(pubId).startsWith("demo-") && (
+          {/* a06: profile changes this release discloses, for review. Only for
+              the roles that may save a profile draft; approved changes go to
+              the draft, never the live profile. */}
+          {draft && can(company?.role || "owner", "editProfileDraft") && String(text || "").trim() && (
+            <ProfileSuggestions company={company} draft={draft} text={text} headline={headline}
+              onBeforeRead={isLive ? undefined : flushSave} />
+          )}
+
+          {isLive && !String(pubId).startsWith("demo-") && (
             <div className={`p-6 ${CARD}`}>
               <span className={LABEL}>Publication</span>
               <p className="mt-2 flex items-center gap-2 text-[13.5px] text-slate-700">
@@ -1428,6 +1583,14 @@ export default function CreateRelease({ company, draftId, onExit, onPublished, i
                   <span className="h-1 w-1 rounded-full bg-white" /> Live
                 </span>
                 Published on your MineEx profile.
+              </p>
+              {/* Only text corrections reach the live release. The date and the
+                  image selection are read from this release when it is
+                  published, so changing them here changes nothing investors see
+                  until it is published again. Said, rather than discovered. */}
+              <p className="mt-2 text-[11.5px] leading-relaxed text-slate-400" data-live-presentation-note>
+                Corrections to the headline and text update the live release. Changes to the date or images apply
+                only if you take it down and publish it again.
               </p>
               {/* Re-keyed by a correction so its delivery is watched afresh. */}
               <DeliveryStatus key={reviseMsg || "initial"} publicationId={pubId} createdAt={pubCreatedAt} poll={!!reviseMsg} />
@@ -1461,7 +1624,9 @@ export default function CreateRelease({ company, draftId, onExit, onPublished, i
                         {new Date(r.created_at).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" })}
                       </span>
                     </span>
-                    {i > 0 && canPublish && (
+                    {/* Restore appends a revision, which the RPC allows only on a
+                        live release; a taken-down one would just be refused. */}
+                    {i > 0 && canPublish && isLive && (
                       <button onClick={() => onRestore(r)} disabled={!!reviseBusy}
                         className="shrink-0 rounded-lg border border-slate-200 px-2.5 py-1 text-[11.5px] font-bold text-slate-600 transition hover:border-slate-300 disabled:opacity-40">
                         Restore
