@@ -166,6 +166,42 @@ Also run the existing `publishing-live-test` and `audit-trail-live-test`.
    doesn't change. Left unchanged with fact retention; the UI wording covers
    facts. Worth deciding together.
 
+## Batch 2: S3's a28 review of S1 pages (all fixed)
+Commits: `c8e8fe8` Mine IQ history · `2a960e2` media page · `fe8a0af` release
+library and editor · `0daf4c4` draft page, profile editor and Content loader ·
+`164f9d7` test. Offline: `node scripts/s1-page-states-test.mjs`, **28/0**. It runs
+the lib changes against a stubbed network and checks the page wiring. Regression:
+`npm test` pass, build pass, grounding 47/0, release-edit 28/0, profile-suggestions 50/0.
+- High:
+  - (1) The Mine IQ probe now switches to local mode only on a 404 or a missing
+    table. Any other failure is an error, and the next call probes again.
+  - (2) The media page shows the load error with Try again.
+  - (3) The release library shows the load error with Try again; failed
+    `listDrafts`/`listPublished` reads now throw.
+  - (4) The reopen path is wrapped in try/catch, with an "Opening your release"
+    loader and an explained error.
+  - (5) Was already fixed in `a4510f8` (`pubMissing`).
+- Medium:
+  - Mine IQ "Try again" no longer duplicates the question.
+  - No error banner above an empty grid.
+  - A failed image list keeps the saved selection, says so, and blocks publishing.
+  - Drafting responses without text, and fact checks without findings, are handled.
+  - The profile editor loads by company ID, so a missing slug no longer blocks it.
+- Low:
+  - A turn with no saved answer is explained.
+  - No more "Photo · ".
+  - Reopening no longer shows the upload checklist.
+  - History with no list returned is an error; no more "saved by undefined".
+  - The Content loader now matches the other sections.
+
+Requests:
+- Add `node scripts/s1-page-states-test.mjs` to `npm test`.
+- `src/lib/mediaAssets.js` (not mine) answers `[]` for a failed read. I work
+  around that in the editor when a saved selection exists. A strict option, or
+  a throw, would let it tell an empty list from a failed read in every case.
+- `src/lib/mineiq.js knowledgeSummary` still turns failed list reads into 0
+  counts on the Mine IQ overview. Not in S3's list; I left it.
+
 ## Findings, not changed (out of scope)
 - `scripts/compose-test.mjs` is stale: it imports `callClaude`, which no longer
   exists. It only runs with an Anthropic key, so it never fails today.
