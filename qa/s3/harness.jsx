@@ -212,7 +212,13 @@ window.fetch = async (input, init = {}) => {
     ]);
   }
   if (p === "/company_notification_reads") return j([]);
-  if (p === "/activity_log" || p === "/company_activity") return j([]);
+  if (p === "/activity_log") {
+    if (fail === "activity") return j({ message: "boom" }, 500);
+    return j(data === "empty" ? [] : [
+      { id: "a1", actor_id: "u-owner", actor_kind: "member", action: "publish", entity: "release", source: "server", created_at: iso(now - 3600e3) },
+      { id: "a2", actor_id: null, actor_kind: "admin", action: "profile_updated", entity: null, source: "ui", created_at: data === "malformed" ? "bad" : iso(now - 864e5) },
+    ]);
+  }
   if (p === "/message_attachments") return j([]);
   // Default: an empty, successful answer, recorded so unmocked reads are visible.
   log.refused.push(`(empty) ${method} ${p}${url.search}`);

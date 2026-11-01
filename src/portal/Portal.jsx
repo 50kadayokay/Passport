@@ -6,13 +6,13 @@ import {
   ChevronDown, ChevronRight, CheckCircle2, AlertCircle, ArrowRight, Sparkles, Loader2,
   Plus, Trash2, Clock, TrendingUp, FileText, Radio as RadioIcon, Check, ArrowLeft,
   Megaphone, QrCode, HelpCircle, Copy, Download, Eye, Upload, Send, Mail, Bell,
-  Presentation, Brain, PenLine, Users,
+  Presentation, Brain, PenLine, Users, Globe,
 } from "lucide-react";
 import { getUser, signOut, authHeaders, updatePassword, updateEmail } from "../lib/auth.js";
 import { profileUrl, companyLogo, companyMonogram, placardLogo } from "../lib/brand.js";
 import { buildPlacardSvg, splitQrSvg, CARD_W, CARD_H, PLACARD_FONT } from "../lib/qrPlacard.js";
 import {
-  portalReadiness, listActivity, loadPortalCompany, updateCompanyProfile,
+  portalReadiness, loadPortalCompany, updateCompanyProfile,
   logActivity,
 } from "../lib/portal.js";
 import { listMembers } from "../lib/team.js";
@@ -21,6 +21,7 @@ import { visibleProfileSections } from "./profileNav.js";
 import OnboardingPanel from "./OnboardingPanel.jsx";
 import { can } from "../lib/companyRoles.js";
 import { checkoutReturn } from "../lib/billing.js";
+import { loadActivity } from "../lib/activityLog.js";
 const Content = React.lazy(() => import("./Content.jsx"));
 const Updates = React.lazy(() => import("./Updates.jsx"));
 import { MineExLockup, CompanyMark } from "./BrandMarks.jsx";
@@ -38,6 +39,7 @@ const Notifications = React.lazy(() => import("./Notifications.jsx"));      // f
 const Conference    = React.lazy(() => import("./Conference.jsx"));         // iPad booth: launch + status
 const MineIQ        = React.lazy(() => import("./MineIQ.jsx"));             // company memory, searchable
 const Services      = React.lazy(() => import("./Services.jsx"));           // MineEx services
+const Website       = React.lazy(() => import("./Website.jsx"));            // site selection + tokens (a14, S2)
 const Documents     = React.lazy(() => import("./Documents.jsx"));          // uploaded source files (company memory)
 const TeamView      = React.lazy(() => import("./TeamView.jsx"));           // members, roles, invitations (a03)
 const BillingView   = React.lazy(() => import("./Billing.jsx"));            // subscription + Stripe hand-offs (a20)
@@ -62,6 +64,10 @@ const NAV_GROUPS = [
     { id: "content",   label: "Content",         Icon: Megaphone },
     { id: "updates",   label: "Updates",         Icon: Bell },
     { id: "sharing",   label: "Conference",      Icon: Presentation },
+    // a14 (S2's page): what the company's own website pulls from MineEx. Shown
+    // to every member; the page says "No website connected" when there is
+    // none, and only owners/admins can change it (0068/0076).
+    { id: "website",   label: "Website",         Icon: Globe },
     { id: "mineiq",    label: "Mine IQ",         Icon: Brain },
     // The files Mine IQ answers from: open, download, upload, delete. Was
     // unreachable after Media dropped it (a28).
@@ -269,6 +275,7 @@ export default function Portal({ company: initial, switchCompany, adminMode = fa
               {section === "notifications" && <Suspense fallback={<SectionLoader />}><Notifications company={company} onSeen={() => setNotifCount(0)} /></Suspense>}
               {section === "services"  && <Suspense fallback={<SectionLoader />}><Services company={company} /></Suspense>}
               {section === "documents" && <Suspense fallback={<SectionLoader />}><Documents company={company} /></Suspense>}
+              {section === "website"   && <Suspense fallback={<SectionLoader />}><Website company={company} /></Suspense>}
               {section === "media"     && <Suspense fallback={<SectionLoader />}><MediaPage company={company} /></Suspense>}
               {section === "sharing"   && <ConferenceShareView company={company} tab={sharingTab} setTab={setSharingTab} />}
               {section === "calendar"  && <CalendarView company={company} setCompany={setCompany} />}
@@ -1070,7 +1077,14 @@ function ActivityView({ company, hideHeading = false }) {
   const [rows, setRows] = useState(null);
   const [who, setWho] = useState({});       // actor_id -> email (team list; former members show as "a former member")
   const [open, setOpen] = useState(null);
-  useEffect(() => { let alive = true; listActivity(company.id).then((r) => { if (alive) setRows(r); }); return () => { alive = false; }; }, [company.id]);
+  const [loadErr, setLoadErr] = useState(false);
+  const [attempt, setAttempt] = useState(0);
+  useEffect(() => {
+    let alive = true;
+    setRows(null);
+    loadActivity(company.id).then((r) => { if (!alive) return; setLoadErr(!r.ok); setRows(r.ok ? r.rows : []); });
+    return () => { alive = false; };
+  }, [company.id, attempt]);
   useEffect(() => {
     let alive = true;
     listMembers(company.id).then((m) => { if (alive && m && m.ok) setWho(Object.fromEntries((m.members || []).map((x) => [x.user_id, x.email]))); });
@@ -1086,6 +1100,11 @@ function ActivityView({ company, hideHeading = false }) {
       <div className={`overflow-hidden ${CARD}`}>
         {rows == null ? (
           <div className="p-6"><div className="h-4 w-1/3 animate-pulse rounded bg-slate-100" /></div>
+        ) : loadErr ? (
+          <div className="flex items-center justify-between gap-3 px-6 py-5" data-load-error>
+            <p className="text-[13.5px] font-semibold text-amber-800">Couldn't load the activity log. Nothing in it has changed.</p>
+            <button onClick={() => setAttempt((a) => a + 1)} className="shrink-0 text-[12.5px] font-bold text-amber-800 hover:underline">Retry</button>
+          </div>
         ) : rows.length === 0 ? (
           <div className="px-6 py-14 text-center">
             <ScrollText size={26} className="mx-auto text-slate-300" />
@@ -1266,9 +1285,10 @@ function Field({ label, value }) {
 
 const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 
+// new Date(bad) does not throw: it formats as "Invalid Date", which used to
+// print as "Invalid Date · Invalid Date" on a malformed row.
 function fmtDate(iso) {
-  try {
-    const d = new Date(iso);
-    return d.toLocaleDateString(undefined, { month: "short", day: "numeric" }) + " · " + d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
-  } catch { return ""; }
+  const d = new Date(iso);
+  if (!iso || Number.isNaN(d.getTime())) return "";
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" }) + " · " + d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
 }
