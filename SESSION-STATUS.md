@@ -149,6 +149,17 @@ Verified by code reading and in qa/s3 (`conf=active|off|featuresdown`, `draft=1`
   "could not be confirmed" + Try again. Loader can't hang.
 Conclusion: a16 states are right except the two S2 items (partial-failure → sales page; draft preview links).
 
+## Follow-ups for S4 (round 2)
+| Commit | Change | Evidence |
+|---|---|---|
+| `43415d7` | Mission Control nav "Service requests" → S2's ServiceRequests.jsx (admin only) | admin-app-links-test 11/0 |
+| `d8ec7b4` | DesktopOnly title/body; /portal: "The Company Portal is a desktop tool" | browser: /portal and /onboarding at 800px |
+| `6f09f78` | AuthGate requireAdmin: failed check → "Couldn't check access" + Retry (was loader forever offline, "Admins only" on 5xx) | browser: qa/s3 view=admin fail=down / fail=profiles |
+| `f3b8b5d` | memory.js listDocuments throws `documents_unavailable`; callers Documents, CompanyMemory handle it | s3-small-fixes-test |
+| `16722eb` | DeliveryOps labels site_content_v1 "Company website", conference_content_v1 "Conference booth" | s3-small-fixes-test 19/0 |
+Pending: Website nav entry for S2's Website.jsx — waiting for S4 to say portal-work has it.
+Note for S1: `lib/mineiq.js` knowledgeSummary still catches listDocuments → shows 0 documents on failure.
+
 ## Harness
 `qa/s3/index.html` + `harness.jsx`: the real AuthGate → PortalGate → Portal tree with every
 request answered in-page (Supabase and /api). Start with the stub URL so nothing can leak:
