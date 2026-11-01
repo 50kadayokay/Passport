@@ -315,8 +315,9 @@ export function formatCaptureRollback(captured, meta) {
     L.push("begin");
     for (const c of existed) {
       L.push(`  if md5(pg_get_functiondef(${lit(c.ident)}::regprocedure)) <> ${lit(c.defMd5)}`);
-      L.push(`     or (select string_agg((case when a.grantee = 0 then 'PUBLIC' else a.grantee::regrole::text end) || ':' || a.privilege_type || ':' || case when a.is_grantable then 'g' else '-' end, ',' order by 1 collate "C")`);
-      L.push(`           from pg_proc p, aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a where p.oid = ${lit(c.ident)}::regprocedure) is distinct from ${lit(c.aclKey.join(","))}`);
+      // order by the key itself: "order by 1" inside an aggregate is the integer 1, and collate on it fails
+      L.push(`     or (select string_agg(k, ',' order by k collate "C") from (select (case when a.grantee = 0 then 'PUBLIC' else a.grantee::regrole::text end) || ':' || a.privilege_type || ':' || case when a.is_grantable then 'g' else '-' end as k`);
+      L.push(`           from pg_proc p, aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a where p.oid = ${lit(c.ident)}::regprocedure) acl_keys) is distinct from ${lit(c.aclKey.join(","))}`);
       L.push(`     or (select pg_get_userbyid(proowner) from pg_proc where oid = ${lit(c.ident)}::regprocedure) <> ${lit(c.owner)} then`);
       L.push(`    raise exception 'capture rollback: % does not match the capture', ${lit(c.ident)};`);
       L.push("  end if;");
