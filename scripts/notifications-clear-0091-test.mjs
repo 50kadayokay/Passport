@@ -49,6 +49,9 @@ ok(/ROLLBACK: supabase\/rollbacks\/0091_notification_clear_no_platform_admin\.ro
 
 console.log("\n  THE STAGING CHECK");
 const chk = read("scripts/notifications-clear-0091-check.mjs");
+// pg_get_functiondef keeps comments, and 0091's comment names has_company_role(p_company...):
+// the check must tell the versions apart by code, never by that name alone.
+ok(/has_company_role\(p_company/.test(body(mig)) && /const is0091 = \(d\) => \/m\\\.role in/.test(chk) && !/\/has_company_role\\\(p_company\/\.test/.test(chk) && !/!\/has_company_role\/\.test/.test(chk), "the check identifies 0091 by its code (m.role in ...), not by a has_company_role match its comment would trip");
 ok(/await c\.query\("begin"\)/.test(chk) && /finally \{\s*await c\.query\("rollback"\);/.test(chk) && !/\bcommit\b/i.test(chk.replace(/^\/\/.*$/gm, "").replace(/strip = [^\n]*/, "")), "one transaction, always rolled back, never committed");
 for (const [label, re] of [
   ["platform admin, no membership: baseline allowed under 0090", /baseline: under 0090 a platform admin with no membership CAN clear/],

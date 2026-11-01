@@ -54,21 +54,23 @@ try {
   const CLEAR = `select public.mark_notifications_cleared($1) at`;
 
   // If 0091 is ever on staging, unwind it inside the transaction first (nothing is committed).
-  if (!/has_company_role\(p_company/.test(await def())) await c.query(strip(RB));
+  // Match code, not text: pg_get_functiondef keeps comments, and 0091's names 0090's check.
+  const is0091 = (d) => /m\.role in \('owner','admin'\)/.test(d);
+  if (is0091(await def())) await c.query(strip(RB));
   ok((await q(`select role from public.profiles where id = $1`, [U.ADMIN]))[0]?.role === "admin", "ISOLATION_ADMIN is a platform admin (profiles.role = 'admin')");
   const X = (await q(`insert into public.companies (slug, name, owner_id, status, tier) values ($1, 'A0091 Notifications', $2, 'published', 'pro') returning id`, [`zz-0091-${Date.now().toString(36)}`, U.COMPANY_A]))[0].id;
   for (const [k, role] of [["COADMIN", "admin"], ["EDITOR", "editor"], ["ANALYST", "analyst"], ["STAFF", "viewer"]]) await q(`insert into public.company_memberships (company_id, user_id, role, status) values ($1, $2, $3, 'active')`, [X, U[k], role]);
   ok(!(await q(`select 1 from public.company_memberships where company_id = $1 and user_id = $2`, [X, U.ADMIN])).length, "throwaway company with owner, admin, editor, analyst, viewer; the platform admin holds nothing in it");
 
   const before = await def();
-  ok(/has_company_role\(p_company, array\['owner','admin'\]\)/.test(before), "before 0091: mark_notifications_cleared checks has_company_role owner/admin (0090)");
+  ok(/if not public\.has_company_role\(p_company, array\['owner','admin'\]\) then/.test(before) && !is0091(before), "before 0091: mark_notifications_cleared checks has_company_role owner/admin (0090)");
   let r = await attempt("ADMIN", CLEAR, [X]);
   ok(r.ok, "baseline: under 0090 a platform admin with no membership CAN clear (has_company_role adds platform_admin)", r.msg);
   await reset();
 
   await c.query(strip(MIG));
   const after = await def();
-  ok(!/has_company_role/.test(after) && /m\.role in \('owner','admin'\)/.test(after), "0091 applies inside the transaction");
+  ok(is0091(after) && !/if not public\.has_company_role/.test(after), "0091 applies inside the transaction");
   const meta = await q(`select p.prosecdef, p.proconfig, pg_get_function_result(p.oid) res, has_function_privilege('anon', p.oid, 'execute') anon_x, has_function_privilege('authenticated', p.oid, 'execute') auth_x
                           from pg_proc p where p.oid = 'public.mark_notifications_cleared(uuid)'::regprocedure`);
   ok(meta[0].prosecdef && String(meta[0].proconfig) === "search_path=public, pg_temp" && meta[0].res === "timestamp with time zone" && !meta[0].anon_x && meta[0].auth_x,
