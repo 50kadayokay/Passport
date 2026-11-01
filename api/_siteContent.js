@@ -22,6 +22,7 @@
 
 import { serviceRest } from "./_service.js";
 import { CONTRACT_VERSION } from "../src/lib/siteManifest.js";
+import { selectCopy, visibleOnly } from "../src/lib/siteSelection.js";
 
 const MAX_POSTS = 200;
 
@@ -57,22 +58,25 @@ export async function buildSiteContent(companyId, { draft = false } = {}) {
     };
   }
 
+  // a14: what the site pulls is the company's choice (portal Website page). The
+  // blueprint is read first because it decides whether posts and media are
+  // fetched at all. Sections hidden there are dropped from the payload.
+  const site = await getSiteBlueprint(companyId, { draft });
+
   // Posts: live ones always; unpublished only under a draft token. `removed_at`
   // is a reversible unpublish, so a retired post is excluded from both.
   const postFilter = draft
     ? `company_id=eq.${companyId}&removed_at=is.null`
     : `company_id=eq.${companyId}&removed_at=is.null&published_at=lte.${encodeURIComponent(new Date().toISOString())}`;
-  const posts = (await getJson(
+  const posts = !site.include.posts ? [] : (await getJson(
     `posts?${postFilter}&select=id,title,summary,post_type,category,published_at,media_url,thumbnail_url,source_url,materiality_label` +
     `&order=published_at.desc&limit=${MAX_POSTS}`)) || [];
 
   // Public media only. `company-media-private` exists precisely so that private
   // assets are not in the public bucket, and a website is a public surface.
-  const media = (await getJson(
+  const media = !site.include.media ? [] : (await getJson(
     `media_assets?company_id=eq.${companyId}&previewable=is.true&select=id,storage_path,source_document_id,created_at` +
     `&order=created_at.desc&limit=200`)) || [];
-
-  const site = await getSiteBlueprint(companyId, { draft });
 
   return {
     ok: true, status: 200,
@@ -116,17 +120,22 @@ async function getSiteBlueprint(companyId, { draft }) {
     `&select=id,template_key,template_version,status,data,updated_at&order=updated_at.desc&limit=1`);
 
   const row = rows && rows[0];
-  if (!row) return { version: 0, payload: { key: null, version: null, pages: [], sections: {} } };
+  if (!row) return { version: 0, include: { posts: true, media: true }, payload: { key: null, version: null, pages: [], sections: {} } };
 
-  const data = row.data && typeof row.data === "object" ? row.data : {};
+  // Published: the snapshot frozen by the last "Publish to website" (or, for a
+  // blueprint from before a14, the approved working copy). Draft: the working
+  // copy. Either way, hidden sections never leave the server.
+  const copy = selectCopy(row.data, { draft });
+  const { pages, sections } = visibleOnly(copy);
   return {
     version: row.updated_at || 0,
+    include: copy.include,
     payload: {
       key: row.template_key || null,
       version: row.template_version || null,
       status: row.status,
-      pages: Array.isArray(data.pages) ? data.pages : [],
-      sections: data.sections && typeof data.sections === "object" ? data.sections : {},
+      pages,
+      sections,
     },
   };
 }
