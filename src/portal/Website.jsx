@@ -17,6 +17,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Globe, Loader2, Eye, EyeOff, KeyRound, Check, AlertTriangle } from "lucide-react";
 import { loadWebsite, saveWebsite, listSiteTokens, revokeSiteToken, canManageSite, tokenState, ConflictError } from "../lib/siteAdmin.js";
 import { selectCopy, visibleOnly, hasUnpublishedChanges, normaliseInclude } from "../lib/siteSelection.js";
+import { listDelivered } from "../lib/destinations.js";
 
 const CARD = "rounded-2xl border border-slate-100 bg-white shadow-[0_1px_2px_rgba(15,23,42,.04),0_12px_26px_-20px_rgba(15,23,42,.4)]";
 const LABEL = "text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400";
@@ -84,6 +85,36 @@ function Tokens({ companyId, manage }) {
       )}
       <p className="mt-2 text-[11.5px] text-slate-400">A token's value is shown once, when it is issued, and is never stored. To replace one, ask MineEx for a new token, then revoke the old one.</p>
     </div>
+  );
+}
+
+/* a15: releases the content fan-out delivered to the website (0088). Hidden
+   until that can be read; empty when the posts feed is switched off. */
+function DeliveredReleases({ companyId, feedOn }) {
+  const [rows, setRows] = useState(undefined);
+  useEffect(() => {
+    let live = true;
+    listDelivered(companyId, "website").then((r) => { if (live) setRows(r); });
+    return () => { live = false; };
+  }, [companyId]);
+  if (!rows) return null;
+  return (
+    <section className="mt-7 max-w-[836px]">
+      <h2 className="text-[16px] font-bold tracking-tight text-slate-900">Delivered to your website</h2>
+      <p className="mt-0.5 text-[13px] text-slate-500">
+        Each release you publish is sent to your website automatically.{!feedOn && " The press releases feed is switched off, so your site is not receiving them."}
+      </p>
+      {!rows.length ? <p className="mt-3 text-[13px] text-slate-400">Nothing delivered yet.</p> : (
+        <ul className={`mt-3 divide-y divide-slate-100 ${CARD}`}>
+          {rows.map((r) => (
+            <li key={r.publication_id} className="flex items-center gap-3 px-4 py-3">
+              <span className="min-w-0 flex-1 truncate text-[13.5px] font-semibold text-slate-900">{r.title}</span>
+              <span className="shrink-0 text-[11.5px] text-slate-400">{r.published_at ? new Date(r.published_at).toLocaleDateString() : ""}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }
 
@@ -221,6 +252,8 @@ export default function Website({ company }) {
           ) : (
             <p className="mt-5 text-[12.5px] text-slate-400">Owners and admins can change what the website shows.</p>
           )}
+
+          <DeliveredReleases companyId={companyId} feedOn={selectCopy((row && row.data) || {}, { draft: false }).include.posts} />
         </>
       )}
 

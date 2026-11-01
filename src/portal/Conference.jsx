@@ -40,6 +40,7 @@ import {
   CONFERENCE_TEMPLATES, CONFERENCE_THEMES, templateLabel, themeLabel, themeTone,
 } from "../lib/conferenceCatalog.js";
 import { getUser } from "../lib/auth.js";
+import { listDelivered, onBooth } from "../lib/destinations.js";
 
 const CARD = "rounded-2xl bg-white ring-1 ring-slate-200/80 shadow-[0_1px_2px_rgba(15,23,42,.04),0_1px_1px_rgba(15,23,42,.03)]";
 const LABEL = "text-[10.5px] font-bold uppercase tracking-[0.16em] text-slate-400";
@@ -404,6 +405,41 @@ function QrPanel({ company }) {
   );
 }
 
+/* a15: releases delivered to the booth by the content fan-out. Renders nothing
+   until 0088 can be read, so a company never sees an empty promise. */
+function BoothNews({ companyId }) {
+  const [rows, setRows] = useState(undefined);
+  useEffect(() => {
+    let live = true;
+    listDelivered(companyId, "conference").then((r) => { if (live) setRows(r); });
+    return () => { live = false; };
+  }, [companyId]);
+  if (!rows) return null;
+  const shown = new Set(onBooth(rows).map((r) => r.publication_id));
+  return (
+    <Section eyebrow="On the booth" title="Latest news"
+      sub="New releases reach your booth automatically. It shows the two newest from the last six months alongside your milestones; earlier ones stay in your profile.">
+      {!rows.length ? (
+        <p className="text-[13px] text-slate-400">Nothing delivered yet. Your next published release will appear here.</p>
+      ) : (
+        <ul className={`divide-y divide-slate-100 ${CARD}`}>
+          {rows.slice(0, 6).map((r) => (
+            <li key={r.publication_id} className="flex items-center gap-3 px-5 py-3">
+              <span className="min-w-0 flex-1 truncate text-[13.5px] font-semibold text-slate-900">{r.title}</span>
+              <span className="shrink-0 text-[11.5px] text-slate-400">
+                {r.published_at ? new Date(r.published_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : ""}
+              </span>
+              <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-bold ${shown.has(r.publication_id) ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"}`}>
+                {shown.has(r.publication_id) ? "On screen" : "Delivered"}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Section>
+  );
+}
+
 function ManageState({ company, companyId, hideHeading }) {
   const slug = company?.slug || "";
   const [record, setRecord] = useState(null);
@@ -493,6 +529,9 @@ function ManageState({ company, companyId, hideHeading }) {
           </div>
         </div>
       </Section>
+
+      {/* A2. NEWS ON THE BOOTH (a15) ---------------------------------------- */}
+      <BoothNews companyId={companyId} />
 
       {/* B. CHANGES ---------------------------------------------------------- */}
       <Section

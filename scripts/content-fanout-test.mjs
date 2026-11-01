@@ -177,5 +177,30 @@ console.log("\n  BOOTH RENDERING (liveConfig.withReleases -> the templates' mile
   ok(/profile=\{shownProfile\}/.test(booth) && /useMemo\(\(\) => withReleases\(profile, published && published\.releases/.test(booth), "the booth renders the merged profile, memoised on the record");
 }
 
+console.log("\n  PORTAL READ-BACK (src/lib/destinations.js)");
+{
+  const store = new Map();
+  globalThis.localStorage = { getItem: (k) => (store.has(k) ? store.get(k) : null), setItem: (k, v) => store.set(k, String(v)), removeItem: (k) => store.delete(k) };
+  store.set("pp.session", JSON.stringify({ access_token: "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ1MSJ9.x", refresh_token: "r", expires_at: Date.now() + 3600e3, user: { id: "u1" } }));
+  const ROWS = [{ publication_id: "p2", title: "Newest", published_at: "2026-10-30T00:00:00Z" }, { publication_id: "p1", title: "Older", published_at: "2026-10-01T00:00:00Z" }, { publication_id: "p0", title: "Ancient", published_at: "2025-01-01T00:00:00Z" }];
+  let mode = "ok", seenUrl = "";
+  globalThis.fetch = async (u) => {
+    seenUrl = String(u);
+    if (mode === "throw") throw new TypeError("network");
+    return { status: mode === "ok" ? 200 : 404, ok: mode === "ok", json: async () => ROWS };
+  };
+  const D = await import("../src/lib/destinations.js");
+  const rows = await D.listDelivered(CO, "conference");
+  ok(rows && rows.length === 3 && /destination=eq\.conference/.test(seenUrl) && /removed_at=is\.null/.test(seenUrl) && /company_id=eq\./.test(seenUrl), "reads the company's live conference copies (RLS-scoped, read only)");
+  ok((await D.listDelivered(CO, "linkedin")) === null && (await D.listDelivered(null, "website")) === null, "unknown destination / no company -> no request, null");
+  mode = "404"; ok((await D.listDelivered(CO, "website")) === null, "0088 not applied -> null (the page hides the section)");
+  mode = "throw"; ok((await D.listDelivered(CO, "website")) === null, "network error -> null, no throw");
+  const NOW = Date.parse("2026-10-31T12:00:00Z");
+  const portal = D.onBooth(rows, { now: NOW }).map((r) => r.publication_id);
+  const Lc = await import("../src/conference/liveConfig.js");
+  const booth = Lc.withReleases({ timeline: [] }, rows.map((r) => ({ id: r.publication_id, title: r.title, publishedAt: r.published_at })), { now: NOW }).timeline.map((t) => t.headline);
+  ok(JSON.stringify(portal) === JSON.stringify(["p2", "p1"]) && JSON.stringify(booth) === JSON.stringify(["Newest", "Older"]), "the portal's 'On screen' marks exactly what the booth shows (same rule)");
+}
+
 console.log(`\n  ${pass} passed, ${fail} failed\n`);
 process.exit(fail ? 1 : 0);
