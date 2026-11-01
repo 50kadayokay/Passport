@@ -107,7 +107,7 @@ current.
 It has no schema dependency. Checkpoint 2 is below.
 
 ### Step 5 · Phases 3 to 5b: migrations, one file at a time (you)
-Run them in the order of "Production migration order" below (28 rows; row 0 is
+Run them in the order of "Production migration order" below (30 rows; row 0 is
 never run). For each file:
 1. **Plan (connects to nothing):**
 
@@ -307,32 +307,33 @@ This is the authoritative list. `scripts/rollout-plan-manifest-test.mjs` (in `np
 | 0 | `0000_baseline.sql` | — | **do not run**: no-op, production already has these objects (SCHEMA-RECOVERY §2) | — | none (not run) |
 | 1 | `0058_close_public_insert.sql` | 3 | transaction; same runner session as 0077 | — | re-opens anon INSERT on forms |
 | 2 | `0077_listing_reports_installed_app_compat.sql` | 3 | transaction; immediately after 0058 | 0058 | clean |
-| 3 | `0061a_table_privilege_hardening.sql` | 3 | transaction | — | re-opens anon grants |
-| 4 | `0062_message_attachments.sql` | 4 | transaction | — | lossy: attachment rows (bucket kept) |
-| 5 | `0063_company_initiated_threads.sql` | 4 | transaction; only after Phase 1 messaging code | — | clean |
-| 6 | `0064_notification_clearing.sql` | 4 | transaction | — | clean (cleared_at dropped) |
-| 7 | `0065a_analytics_breakdown.sql` | 4 | transaction | — | clean |
-| 8 | `0065b_engagement_corrections.sql` | 4 | transaction | 0065a | clean (restores 0048 bodies) |
-| 9 | `0065c_analytics_indexes.sql` | 4 | outside a transaction (CONCURRENTLY), one statement at a time | 0065a | clean |
-| 10 | `0066_mineiq_conversations.sql` | 4 | transaction | — | lossy: Mine IQ history |
-| 11 | `0068_site_contract.sql` | 5 | transaction | — | lossy: website tokens, blueprint manifest |
-| 12 | `0069b_stripe_events.sql` | 5 | transaction | — | lossy: Stripe event ledger |
-| 13 | `0071_publishing_reliability.sql` | 5 | transaction; capture-on-apply (R1) | — | restores repo 0036/0008: same behaviour as production (R1); byte-exact via the captured rollback |
-| 14 | `0072_profile_drafts.sql` | 5 | transaction; capture-on-apply (R1) | — | lossy: unpublished drafts; restores 0035's company_go_live: same behaviour as production (R1) |
-| 15 | `0073a_impression_dedupe_index.sql` | 5 | outside a transaction (CONCURRENTLY) | — | clean |
-| 16 | `0073b_impression_tracking.sql` | 5 | transaction | — | clean |
-| 17 | `0073c_post_events_client_guard.sql` | 5 | transaction | — | clean |
-| 18 | `0074_profile_revision_history.sql` | 5 | transaction | 0072 | clean (snapshot rows kept) |
-| 19 | `0075_profile_versions_privileges.sql` | 5 | transaction | — | re-opens anon grants |
-| 20 | `0076_company_roles.sql` | 5 | transaction; capture-on-apply (R1) | 0072 | restores 0031's accept_company_invitation: same behaviour as production (R1); revokes pending member invitations |
-| 21 | `0078_storage_role_hardening.sql` | 5 | transaction (R4 cleared) | 0076 | re-opens storage writes (repo 0037/0040 policies; production's six match them exactly) |
-| 22 | `0080_mineiq_search_any_term.sql` | 5b | transaction | — | restores 0050a's mineiq_search; production-exact (R3 cleared) |
-| 23 | `0085_conference_booth_config.sql` | 5b | transaction | — | lossy: published booth looks |
-| 24 | `0086_service_requests.sql` | 5b | transaction | 0076 | lossy: service requests (export first) |
-| 25 | `0087_audience_events.sql` | 5b | transaction | 0071 | lossy: audience events |
-| 26 | `0088_content_fanout.sql` | 5b | transaction; deploy `api/_listeners.js` first (Phase 1) | 0071 | lossy: destination copies; **roll back before 0071** (R2) |
-| 27 | `0090_notification_clear_roles.sql` | 5b | transaction | 0064, 0076 | clean (restores 0064's body) |
-| 28 | `0091_notification_clear_no_platform_admin.sql` | 5b | transaction; right after 0090 | 0090 | clean (restores 0090's body) |
+| 3 | `0092_listing_reports_column_insert.sql` | 3 | transaction; immediately after 0077, same runner session (it narrows the door 0077 reopens) | 0077 | clean (restores the post-0077 table-level grants) |
+| 4 | `0061a_table_privilege_hardening.sql` | 3 | transaction | — | re-opens anon grants |
+| 5 | `0062_message_attachments.sql` | 4 | transaction | — | lossy: attachment rows (bucket kept) |
+| 6 | `0063_company_initiated_threads.sql` | 4 | transaction; only after Phase 1 messaging code | — | clean |
+| 7 | `0064_notification_clearing.sql` | 4 | transaction | — | clean (cleared_at dropped) |
+| 8 | `0065a_analytics_breakdown.sql` | 4 | transaction | — | clean |
+| 9 | `0065b_engagement_corrections.sql` | 4 | transaction | 0065a | clean (restores 0048 bodies) |
+| 10 | `0065c_analytics_indexes.sql` | 4 | outside a transaction (CONCURRENTLY), one statement at a time | 0065a | clean |
+| 11 | `0066_mineiq_conversations.sql` | 4 | transaction | — | lossy: Mine IQ history |
+| 12 | `0068_site_contract.sql` | 5 | transaction | — | lossy: website tokens, blueprint manifest |
+| 13 | `0069b_stripe_events.sql` | 5 | transaction | — | lossy: Stripe event ledger |
+| 14 | `0071_publishing_reliability.sql` | 5 | transaction; capture-on-apply (R1) | — | restores repo 0036/0008: same behaviour as production (R1); byte-exact via the captured rollback |
+| 15 | `0072_profile_drafts.sql` | 5 | transaction; capture-on-apply (R1) | — | lossy: unpublished drafts; restores 0035's company_go_live: same behaviour as production (R1) |
+| 16 | `0073a_impression_dedupe_index.sql` | 5 | outside a transaction (CONCURRENTLY) | — | clean |
+| 17 | `0073b_impression_tracking.sql` | 5 | transaction | — | clean |
+| 18 | `0073c_post_events_client_guard.sql` | 5 | transaction | — | clean |
+| 19 | `0074_profile_revision_history.sql` | 5 | transaction | 0072 | clean (snapshot rows kept) |
+| 20 | `0075_profile_versions_privileges.sql` | 5 | transaction | — | re-opens anon grants |
+| 21 | `0076_company_roles.sql` | 5 | transaction; capture-on-apply (R1) | 0072 | restores 0031's accept_company_invitation: same behaviour as production (R1); revokes pending member invitations |
+| 22 | `0078_storage_role_hardening.sql` | 5 | transaction (R4 cleared) | 0076 | re-opens storage writes (repo 0037/0040 policies; production's six match them exactly) |
+| 23 | `0080_mineiq_search_any_term.sql` | 5b | transaction | — | restores 0050a's mineiq_search; production-exact (R3 cleared) |
+| 24 | `0085_conference_booth_config.sql` | 5b | transaction | — | lossy: published booth looks |
+| 25 | `0086_service_requests.sql` | 5b | transaction | 0076 | lossy: service requests (export first) |
+| 26 | `0087_audience_events.sql` | 5b | transaction | 0071 | lossy: audience events |
+| 27 | `0088_content_fanout.sql` | 5b | transaction; deploy `api/_listeners.js` first (Phase 1) | 0071 | lossy: destination copies; **roll back before 0071** (R2) |
+| 28 | `0090_notification_clear_roles.sql` | 5b | transaction | 0064, 0076 | clean (restores 0064's body) |
+| 29 | `0091_notification_clear_no_platform_admin.sql` | 5b | transaction; right after 0090 | 0090 | clean (restores 0090's body) |
 <!-- migration-order:end -->
 
 **Already applied in production, not in the list:** 0053, 0054, 0056, 0057, 0059 (never run its rollback in production), 0060 and 0067.
@@ -346,6 +347,7 @@ This is the authoritative list. `scripts/rollout-plan-manifest-test.mjs` (in `np
   - Investor-app smoke passes (list below).
   - Public contact and demo go through `/api/submit`.
   - A listing report works from the web and from an installed 1.3.x build.
+  - A guest cannot set `id` or `created_at` on a listing report (0092).
   - A test sign-up creates exactly one profile.
 - **Phase 4, after 0066:**
   - Messaging works in both directions, including attachments.
@@ -506,7 +508,7 @@ No applied migration was edited, and no production-only migration is needed yet.
 
 ## Rollback summary
 
-All 27 migrations that run have a rollback file. The round trip passes on staging (`migration-rollback-roundtrip`). Lossy and security-reopening rollbacks are marked in the table above.
+All 29 migrations that run have a rollback file. The round trip passes on staging (`migration-rollback-roundtrip`). Lossy and security-reopening rollbacks are marked in the table above.
 
 Special cases:
 - **0059:** never in production; it is already applied there.
