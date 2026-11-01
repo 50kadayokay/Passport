@@ -159,7 +159,9 @@ export async function mineIqSearch(token, companyId, query, { limit = 12 } = {})
     const cap = PER_ROW[r.source] || 1000;
     const text = String(r.body || "").slice(0, cap);
     if (!text.trim()) continue;
-    if (spent + text.length > TOTAL_BUDGET) break;
+    // Skip, don't stop: one long release over budget must not hide the shorter
+    // rows ranked after it (a19).
+    if (spent + text.length > TOTAL_BUDGET) continue;
     spent += text.length;
 
     const when = r.occurred_on ? ` (${String(r.occurred_on).slice(0, 10)})` : "";

@@ -259,6 +259,14 @@ function Turn({ turn, onRetry }) {
                   Not found in your company record.
                 </p>
               )}
+              {/* Figures the server could not find in any source it supplied.
+                  Shown, never hidden or rewritten: the CEO decides. Not kept
+                  in history, so a reopened chat shows the answer alone. */}
+              {turn.unsupported && turn.unsupported.length > 0 && (
+                <p className="mt-2.5 text-[11.5px] font-semibold text-amber-700">
+                  Check before using: {turn.unsupported.slice(0, 6).join(", ")} {turn.unsupported.length === 1 ? "does" : "do"} not appear in the sources MineIQ used.
+                </p>
+              )}
               <Sources names={turn.sources} />
               <div className="-ml-1.5 mt-1 opacity-0 transition-opacity duration-150 focus-within:opacity-100 group-hover:opacity-100">
                 <CopyButton text={turn.answer} />
@@ -413,7 +421,8 @@ export default function MineIQ({ company }) {
     let done;
     try {
       const r = await ask({ question: text, companyId, companyName: company?.name || "", attachments: attached });
-      done = { ...asked, pending: false, answer: r.text, grounded: r.grounded, sources: (r.context && r.context.sources) || [] };
+      done = { ...asked, pending: false, answer: r.text, grounded: r.grounded, sources: (r.context && r.context.sources) || [],
+               unsupported: Array.isArray(r.unsupported_figures) ? r.unsupported_figures : [] };
     } catch (e) {
       done = { ...asked, pending: false, error: e.message || "MineIQ could not answer." };
     }

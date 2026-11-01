@@ -21,6 +21,7 @@ import { bearerToken } from "./_supabase.js";
 import { requireAiCaller, DRAFTING_ROLES, MEMBER_ROLES } from "./_aiGuard.js";
 import { userSelect } from "./_userDb.js";
 import { mineIqSearch } from "./_mineiqSearch.js";
+import { groundingChecks } from "./_mineiqGrounding.js";
 
 // Provider lives in the shared helper (_openaiExtract.js), not here. This file
 // owns prompts, grounding and refusal; it must not know which vendor answers.
@@ -429,7 +430,25 @@ export function buildUserMessage(mode, {
   throw new Error(`buildUserMessage: unknown mode "${mode}"`);
 }
 
-export { SYSTEM, FACT_TOOL, callModel };
+/**
+ * The user message for one Ask MineIQ question. Exported for the grounding
+ * harness (scripts/mineiq-grounding-eval.mjs), which grades answers against
+ * exactly the text the model was given.
+ */
+export function buildAskMessage({ who = "", question = "", ctx = null, attachBlock = "" } = {}) {
+  return [
+    `${who}Question from the company:`,
+    '"""',
+    String(question).slice(0, 2000),
+    '"""',
+    contextPrompt(ctx),
+    attachBlock,
+    "Answer from the company record above. If it does not contain the",
+    "answer, say that you could not find it.",
+  ].filter(Boolean).join("\n");
+}
+
+export { SYSTEM, FACT_TOOL, callModel, mineIqContext, contextPrompt };
 
 export default async function handler(req, res) {
   if (req.method !== "POST") return bad(res, 405, "POST only");
@@ -564,24 +583,23 @@ export default async function handler(req, res) {
         });
       }
 
+      const askUser = buildAskMessage({ who, question, ctx, attachBlock: askAttachBlock });
       const text = await callModel({
         system: ASK_SYSTEM,
         maxTokens: 1500, task: "ask",
-        user: [
-          `${who}Question from the company:`,
-          '"""',
-          question.slice(0, 2000),
-          '"""',
-          contextPrompt(ctx),
-          askAttachBlock,
-          "Answer from the company record above. If it does not contain the",
-          "answer, say that you could not find it.",
-        ].filter(Boolean).join("\n"),
+        user: askUser,
       });
+
+      // Mechanical checks on the answer (_mineiqGrounding.js). They report and
+      // never rewrite: a figure the sources do not contain is shown to the CEO
+      // as "check this", and an answer that says it found nothing is not
+      // labelled grounded just because the profile block was retrieved.
+      const checks = groundingChecks(text, askUser);
 
       return res.status(200).json({
         text,
-        grounded: ctx.blocks.length > 0,
+        grounded: ctx.blocks.length > 0 && !checks.refused,
+        unsupported_figures: checks.unsupported_figures,
         context: {
           available: ctx.available,
           // Attachments are named as sources so the reader can tell an answer
