@@ -76,7 +76,8 @@ async function storeLead(row) {
   return r.ok;
 }
 
-async function sendSupportEmail({ replyTo, subject, text }) {
+// Exported for api/service-request.js (a21), which notifies the same inbox.
+export async function sendSupportEmail({ replyTo, subject, text, fromName = "MineEx Conference Mode" }) {
   const token = process.env.POSTMARK_SERVER_TOKEN;
   const from = process.env.MESSAGES_FROM_EMAIL;
   if (!token || !from) return { emailed: false, reason: "email-not-configured" };
@@ -85,7 +86,7 @@ async function sendSupportEmail({ replyTo, subject, text }) {
       method: "POST",
       headers: { "content-type": "application/json", Accept: "application/json", "X-Postmark-Server-Token": token },
       body: JSON.stringify({
-        From: `MineEx Conference Mode <${from}>`,
+        From: `${fromName} <${from}>`,
         To: SUPPORT_TO,
         ReplyTo: replyTo,
         Subject: subject,

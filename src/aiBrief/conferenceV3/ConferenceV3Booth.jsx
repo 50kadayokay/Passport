@@ -7,11 +7,30 @@
 // profile (companies.profile), Supabase, investor auth or any investor-app API, so it runs fully offline
 // once its bundle is installed. A slug with no Conference package shows an explicit unavailable state.
 // Selection comes from the package's conference.studio; URL params override for A/B (&t= &theme= &accent=).
+// a17: a look published from Conference Studio (src/conference/liveConfig.js, migration 0085) overrides the
+// package's once it has been seen -- cached on the device, fetched in the background, never awaited, so the
+// booth still renders offline from cache or the compiled package exactly as before.
 import React, { useState, useEffect, useRef } from "react";
 import QRCode from "qrcode";
 import ConferenceV3 from "./ConferenceV3.jsx";
 import { conferenceProfile } from "../../conference/registry.js";
 import { CONFERENCE_WEB_ORIGIN } from "../../conference/config.js";
+import { readCached, fetchPublished, applyFetched, resolveStudio } from "../../conference/liveConfig.js";
+
+// The published look for this booth: cached record now, network answer when (if) it arrives.
+function useLiveStudio(slug, enabled) {
+  const [record, setRecord] = useState(() => (enabled ? readCached(slug) : null));
+  useEffect(() => {
+    if (!enabled) return undefined;
+    let live = true;
+    fetchPublished(slug).then((result) => {
+      if (!live) return;
+      setRecord((cur) => { const next = applyFetched(slug, cur, result); return next.changed ? next.record : cur; });
+    }).catch(() => {});
+    return () => { live = false; };
+  }, [slug, enabled]);
+  return record;
+}
 
 const screen = (msg, color) => (
   <div style={{ position: "fixed", inset: 0, display: "grid", placeItems: "center", background: "#0b0b0d", color, fontFamily: "system-ui,-apple-system,sans-serif", fontSize: 14, letterSpacing: ".02em" }}>{msg}</div>
@@ -160,14 +179,14 @@ export default function ConferenceV3Booth() {
   const attractSrc = profile ? ((profile.conference && profile.conference.attractVideo) || `/conference-media/${encodeURIComponent(slug)}/attract.mp4`) : "";
   const idleMs = (() => { const q = parseInt(params.get("idle"), 10); return q > 0 ? q * 1000 : 5 * 60 * 1000; })();
   const { attract, videoRef, onReady } = useAttractLoop(attractSrc, idleMs);
+  const published = useLiveStudio(slug, !!profile);
 
   if (!slug) return screen("No company specified for this booth.", "#8a8880");
   if (!profile) return screen("Conference profile unavailable.", "#8a8880");
 
-  // The package's saved template pick drives it; URL params override for A/B; sensible defaults.
-  const studio = (profile.conference && profile.conference.studio) || {};
-  const accParam = params.get("accent");
-  const tplKey = params.get("t") || studio.template || "monolith";
+  // URL params (A/B) > the published Studio look > the package's saved pick > sensible defaults.
+  const look = resolveStudio({ params, record: published, compiled: (profile.conference && profile.conference.studio) || {} });
+  const tplKey = look.template;
   // Terminal designs its own scan moment (the RESOLVE output) and its instrument HUD owns the bottom-right
   // corner, so the floating chip would cover the HUD counter — it is omitted for that template only.
   const showChip = params.get("qr") !== "0" && tplKey !== "terminal" && tplKey !== "filament" && tplKey !== "folio" && tplKey !== "crimson" && tplKey !== "tableau" && tplKey !== "gyre" && tplKey !== "beacon" && tplKey !== "lattice" && tplKey !== "relay" && tplKey !== "spectra" && tplKey !== "vista" && tplKey !== "cirrus" && !["terminal2","expedition","keynote","vein"].includes(tplKey);   // these design their own Resolve QR
@@ -179,8 +198,8 @@ export default function ConferenceV3Booth() {
       <ConferenceV3
         profile={profile}
         template={tplKey}
-        theme={params.get("theme") || studio.theme || "obsidian"}
-        accent={accParam ? "#" + accParam.replace(/^#/, "") : (studio.accent || "")}
+        theme={look.theme}
+        accent={look.accent}
         showBar={false}
         followUrl={follow}
       />

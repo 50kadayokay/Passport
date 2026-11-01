@@ -132,6 +132,13 @@ export const API_ROUTES = [
     req: (c, X) => post({ tier: "basic", companyId: c.id[X] }),
     passed: (r) => r.status === 200 && /stripe\.invalid/.test(JSON.stringify(r.body || "")),
     matrix: BILLING },
+  // a21 (S2): a bespoke-service request, created AS THE CALLER (RLS: drafting
+  // roles). 429 is the per-company daily cap, reached only after the role check.
+  { name: "service-request", methods: ["POST"], guard: "requireCompanyRole(owner, admin, editor, publisher); insert as the caller (0086 RLS)", source: /requireCompanyRole\(req, res, \{ companyId: b\.companyId, roles: REQUEST_ROLES \}\)/,
+    req: (c, X) => post({ companyId: c.id[X], service: "brand", details: "iso authz probe" }),
+    passed: (r) => r.status === 201 || r.status === 429,
+    matrix: DRAFT },
+
   { name: "stripe-portal", methods: ["POST"], guard: "requireCompanyRole(owner, admin); customer found by company metadata", source: /subscriptions\/search[\s\S]*requireCompanyRole\(req, res, \{ companyId, roles: BILLING_ROLES \}\)/,
     req: (c, X) => post({ companyId: c.id[X] }),
     // The mock has no subscription for the company, so an admitted caller gets
@@ -224,6 +231,10 @@ export const API_ROUTES = [
     req: () => ({ method: "GET", query: { id: uuid() } }) },
   { name: "contact", methods: ["POST"], guard: "public form; honeypot, spam check and durable per-IP throttle (lead:contact)", public: true, source: /guardLeadForm\(req, "lead:contact", data\)/,
     req: () => post({ name: "Iso Tester", email: "iso-tester@staging.invalid", company: "Iso Co", message: "iso" }) },
+  // a17 (S2): the booth's published look (template/theme/accent only), public
+  // like the booth itself. 204 when a company has no published config.
+  { name: "conference-config", methods: ["GET"], guard: "public (conference_booth_config RPC: studio look only)", public: true, source: /rpc\/conference_booth_config/,
+    req: (c) => ({ method: "GET", query: { c: c.slug.A } }) },
   { name: "conference-inquiry", methods: ["POST"], guard: "public form; honeypot, spam check and durable per-IP throttle (lead:conference)", public: true, source: /guardLeadForm\(req, "lead:conference", data\)/,
     req: () => post({ name: "Iso Tester", email: "iso-tester@staging.invalid", company: "Iso Co", message: "iso" }) },
   { name: "submit", methods: ["POST"], guard: "public form, honeypot + IP throttle", public: true, source: /checkThrottle\(formName, clientIp\(req\)\)/,
