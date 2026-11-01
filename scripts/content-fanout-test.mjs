@@ -155,5 +155,27 @@ console.log("\n  READERS");
   ok(out.ok && out.body.content.releases === null && r.code === 200 && r.body.releases === null, "0088 not applied -> releases null; site content and booth look still served");
 }
 
+console.log("\n  BOOTH RENDERING (liveConfig.withReleases -> the templates' milestones band)");
+{
+  const Lc = await import("../src/conference/liveConfig.js");
+  const NOW = Date.parse("2026-10-31T12:00:00Z");
+  const profile = { name: "Co A", timeline: [{ date: "2025", headline: "Option to acquire 100% of Almoloya", status: "COMPLETE" }, { date: "2026", headline: "Phase 2 drilling", status: "PLANNED" }] };
+  const rel = (title, publishedAt, summary = "") => ({ id: title, title, summary, publishedAt });
+  const R = [rel("Old news", "2025-01-01T00:00:00Z"), rel("KR-12 hits 410 g/t Ag", "2026-10-30T00:00:00Z", "Assays from hole KR-12."), rel("Financing closed", "2026-10-01T00:00:00Z"), rel("Third", "2026-09-01T00:00:00Z"), rel("Option to acquire 100% of Almoloya", "2026-10-29T00:00:00Z")];
+  const out = Lc.withReleases(profile, R, { now: NOW });
+  ok(out.timeline.length === 4 && out.timeline[0].headline === "KR-12 hits 410 g/t Ag" && out.timeline[1].headline === "Financing closed",
+    "the 2 newest recent releases lead the milestones band, newest first", JSON.stringify(out.timeline.map((t) => t.headline)));
+  ok(out.timeline[0].status === "NEWS" && out.timeline[0].date === "2026-10-30" && out.timeline[0].whyItMatters === "Assays from hole KR-12.", "shaped as a timeline entry: date, headline, summary, NEWS");
+  ok(out.timeline.slice(2).map((t) => t.headline).join("|") === profile.timeline.map((t) => t.headline).join("|"), "the package's milestones follow, untouched and in order");
+  ok(!out.timeline.slice(0, 2).some((t) => t.headline === "Old news" || t.headline.startsWith("Option")), "older than 180 days, or already a milestone -> not added");
+  ok(profile.timeline.length === 2, "the compiled package object is not mutated");
+  ok(Lc.withReleases(profile, null) === profile && Lc.withReleases(profile, []) === profile, "no releases (0088 unapplied, offline, none delivered) -> the SAME profile: renders as before");
+  ok(Lc.withReleases(profile, R, { now: NOW, params: new URLSearchParams("news=0") }) === profile, "&news=0 turns it off");
+  ok(Lc.withReleases(null, R) === null && Lc.withReleases({ name: "x" }, R, { now: NOW }).timeline.length === 2, "no profile -> null; a profile without a timeline gets one");
+  ok(Lc.withReleases(profile, [{ title: 5 }, null, { title: "x", publishedAt: "not a date" }], { now: NOW }) === profile, "malformed releases are ignored, never thrown");
+  const booth = fs.readFileSync("src/aiBrief/conferenceV3/ConferenceV3Booth.jsx", "utf8");
+  ok(/profile=\{shownProfile\}/.test(booth) && /useMemo\(\(\) => withReleases\(profile, published && published\.releases/.test(booth), "the booth renders the merged profile, memoised on the record");
+}
+
 console.log(`\n  ${pass} passed, ${fail} failed\n`);
 process.exit(fail ? 1 : 0);

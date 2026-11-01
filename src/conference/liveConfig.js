@@ -120,3 +120,33 @@ export function resolveStudio({ params, record, compiled, defaults = { template:
     version: record ? record.version : null,
   };
 }
+
+/**
+ * a15: show what the content fan-out delivered, through the slot every template
+ * already renders (`profile.timeline`, its milestones band). Restrained on
+ * purpose -- the timeline is a curated story, not a feed:
+ *   - at most `max` releases (default 2), published in the last `days` (180)
+ *   - placed first, marked status "NEWS"; the package's milestones follow, in
+ *     their own order
+ *   - a release whose headline is already a milestone is not repeated
+ *   - `&news=0` on the booth URL turns it off
+ * Returns the SAME profile object when there is nothing to add, so a booth
+ * without releases renders exactly as before.
+ */
+export function withReleases(profile, releases, { params, now = Date.now(), max = 2, days = 180 } = {}) {
+  try {
+    if (!profile || !Array.isArray(releases) || !releases.length) return profile;
+    if (params && params.get && params.get("news") === "0") return profile;
+    const norm = (s) => String(s || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+    const existing = Array.isArray(profile.timeline) ? profile.timeline : [];
+    const seen = new Set(existing.map((t) => norm(t && t.headline)));
+    const cutoff = now - days * 86400e3;
+    const add = releases
+      .filter((r) => r && r.title && Number.isFinite(Date.parse(r.publishedAt || "")) && Date.parse(r.publishedAt) >= cutoff && !seen.has(norm(r.title)))
+      .sort((a, b) => Date.parse(b.publishedAt) - Date.parse(a.publishedAt))
+      .slice(0, max)
+      .map((r) => ({ date: r.publishedAt.slice(0, 10), headline: r.title, whyItMatters: r.summary ? r.summary.slice(0, 160) : "", status: "NEWS" }));
+    if (!add.length) return profile;
+    return { ...profile, timeline: [...add, ...existing] };
+  } catch { return profile; }
+}

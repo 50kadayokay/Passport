@@ -10,12 +10,12 @@
 // a17: a look published from Conference Studio (src/conference/liveConfig.js, migration 0085) overrides the
 // package's once it has been seen -- cached on the device, fetched in the background, never awaited, so the
 // booth still renders offline from cache or the compiled package exactly as before.
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import QRCode from "qrcode";
 import ConferenceV3 from "./ConferenceV3.jsx";
 import { conferenceProfile } from "../../conference/registry.js";
 import { CONFERENCE_WEB_ORIGIN } from "../../conference/config.js";
-import { readCached, fetchPublished, applyFetched, resolveStudio } from "../../conference/liveConfig.js";
+import { readCached, fetchPublished, applyFetched, resolveStudio, withReleases } from "../../conference/liveConfig.js";
 
 // The published look for this booth: cached record now, network answer when (if) it arrives.
 function useLiveStudio(slug, enabled) {
@@ -180,6 +180,9 @@ export default function ConferenceV3Booth() {
   const idleMs = (() => { const q = parseInt(params.get("idle"), 10); return q > 0 ? q * 1000 : 5 * 60 * 1000; })();
   const { attract, videoRef, onReady } = useAttractLoop(attractSrc, idleMs);
   const published = useLiveStudio(slug, !!profile);
+  // a15: delivered releases join the template's milestones band (liveConfig.withReleases). Memoised so the
+  // template model is rebuilt only when the record changes, not on every attract-loop render.
+  const shownProfile = useMemo(() => withReleases(profile, published && published.releases, { params: new URLSearchParams(window.location.search) }), [profile, published]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!slug) return screen("No company specified for this booth.", "#8a8880");
   if (!profile) return screen("Conference profile unavailable.", "#8a8880");
@@ -196,7 +199,7 @@ export default function ConferenceV3Booth() {
   return (
     <>
       <ConferenceV3
-        profile={profile}
+        profile={shownProfile}
         template={tplKey}
         theme={look.theme}
         accent={look.accent}
