@@ -841,6 +841,13 @@ function QRShareView({ company, hideHeading = false }) {
             </button>
           </div>
           <p className="mt-3 text-center text-[12px] text-slate-400">SVG stays sharp at any size — use it for banners and large prints.</p>
+          {/* Same warning as the Conference QR panel: until the profile is
+              published the code resolves to a page the public can't see. */}
+          {company?.status !== "published" && (
+            <p className="mt-3 w-full rounded-xl bg-amber-50 px-3.5 py-3 text-[12px] leading-relaxed text-amber-800 ring-1 ring-inset ring-amber-100" data-qr-not-published>
+              <span className="font-bold">Not ready to print.</span> Your profile isn't published, so this code currently opens a page the public can't see. Publish it before the artwork goes to a printer.
+            </p>
+          )}
 
           {/* Placard logo — upload a dedicated print version if the profile one isn't right. */}
           <div className="mt-5 w-full border-t border-slate-100 pt-4">

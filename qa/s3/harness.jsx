@@ -25,6 +25,8 @@
 //   expired=1     stored token past expiry, refresh refused
 //   data=empty|malformed   portal page data shape
 //   company=<slug> (platform admin) open that company in admin mode
+//   conf=active|off|featuresdown   Conference Mode entitlement (a16)
+//   draft=1       Alpha's profile is a draft (not published)
 import "../../src/index.css";
 
 const Q = new URLSearchParams(location.search);
@@ -32,7 +34,7 @@ const SB = (import.meta.env.VITE_SUPABASE_URL || "").replace(/\/+$/, "");
 const ROLE_USERS = ["owner", "admin_m", "editor", "publisher", "analyst", "viewer"];
 const A = "aaaaaaaa-0000-4000-8000-00000000000a", B = "bbbbbbbb-0000-4000-8000-00000000000b";
 const CO = {
-  [A]: { id: A, slug: "alpha-gold", name: "Alpha Gold Corp.", status: "published", tier: "pro", owner_id: "u-owner", profile: { name: "Alpha Gold Corp." }, updated_at: "2026-10-30T10:00:00Z" },
+  [A]: { id: A, slug: "alpha-gold", name: "Alpha Gold Corp.", status: new URLSearchParams(location.search).get("draft") ? "draft" : "published", tier: "pro", owner_id: "u-owner", profile: { name: "Alpha Gold Corp." }, updated_at: "2026-10-30T10:00:00Z" },
   [B]: { id: B, slug: "beta-copper", name: "Beta Copper Ltd.", status: "draft", tier: "basic", owner_id: "u-x", profile: {}, updated_at: "2026-10-30T10:00:00Z" },
 };
 const who = Q.get("as") || "owner";
@@ -146,7 +148,8 @@ window.fetch = async (input, init = {}) => {
     if (fail === "features") return j({ message: "upstream" }, 503);
     const cid = body && body.cid;
     const entitled = u.role === "admin" || (member(cid) && cid === A && !Q.get("locked") && !["past_due", "cancelled", "lapsed", "none"].includes(sub));
-    return j(entitled ? ["portal_access", "passport_profile", "analytics", "company_memory"] : []);
+    if (Q.get("conf") === "featuresdown" && log.calls.filter((c) => c.includes("my_features")).length > 1) return j({ message: "upstream" }, 503);
+    return j(entitled ? ["portal_access", "passport_profile", "analytics", "company_memory", ...(Q.get("conf") === "active" || Q.get("conf") === "featuresdown" ? ["conference_mode"] : [])] : []);
   }
   if (p === "/companies") {
     const id = (url.searchParams.get("id") || "").replace(/^eq\./, "");
@@ -188,6 +191,7 @@ window.fetch = async (input, init = {}) => {
     if (conv) conv.company_read_at = iso(Date.now());
     return j(iso(Date.now()));
   }
+  if (p === "/company_features") return j(Q.get("conf") === "off" ? [{ enabled: false, note: "Paused at your request.", created_at: iso(now - 864e5 * 40) }] : []);
   if (p === "/rpc/company_conversation_senders") return j(SENDERS);
   if (p === "/rpc/portal_readiness") return j({ ready: true, missing: [] });
   if (p === "/rpc/list_members") return j({ ok: true, members: [{ user_id: "u-owner", email: "owner@alpha-gold.invalid", role: "owner", manageable: false }], grantable: [] });
