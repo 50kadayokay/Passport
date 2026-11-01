@@ -156,7 +156,11 @@ export async function mineIqSearch(token, companyId, query, { limit = 12 } = {})
     return legacyScan(token, companyId, query, limit);
   }
 
-  if (!Array.isArray(rows) || !rows.length) return out;
+  // Nothing matched. Before 0080, mineiq_search required EVERY word of the
+  // question, so a natural question ("what did we raise?") found nothing; the
+  // keyword scan matches ANY word, under the same RLS. It is also the safety
+  // net if 0080 is rolled back.
+  if (!Array.isArray(rows) || !rows.length) return legacyScan(token, companyId, query, limit);
 
   out.available = true;
 
