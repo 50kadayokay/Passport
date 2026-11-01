@@ -27,7 +27,7 @@
 import fs from "node:fs";
 import pg from "pg";
 
-const TEST_MARKERS = ["[d22-live]", "[0071-check]", "[d20-live]", "[d23-live]"];
+const TEST_MARKERS = ["[d22-live]", "[0071-check]", "[d20-live]", "[d23-live]", "[a07-live]"];
 const FIXTURE = "[d22-live] revision fixture";
 const APPLY = process.argv.includes("--apply");
 const INCLUDE_FIXTURE = process.argv.includes("--include-fixture");

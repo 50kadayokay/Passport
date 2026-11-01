@@ -30,6 +30,8 @@
 //     dispatcher; it is never silent. AI backfill is an explicit admin action
 //     (api/dispatch.js, action "backfill").
 
+import { revalidateSite } from "./_siteRevalidate.js";
+
 export const HISTORICAL_CUTOFF_HOURS = 72;
 export const FOLLOWER_CHUNK = 100;
 const PAGE = 1000;
@@ -585,7 +587,12 @@ export function destinationRow(pub) {
   };
 }
 
-function destinationListener(destination) {
+// The website listener also asks the company's site to refetch once its copy is
+// delivered (api/_siteRevalidate.js). A refused or failed hook throws, so the
+// delivery retries -- the copy is re-applied at the same version (idempotent)
+// and the hook called again. A newer version already delivered calls nothing:
+// that delivery revalidates for itself.
+function destinationListener(destination, { revalidate } = {}) {
   return async function deliver(event, db) {
     if (!FANOUT_EVENTS.includes(event.event_type)) return { skipped: "event type" };
     const pubs = await db.getRows(`publications?id=eq.${event.publication_id}&select=id,company_id,destination_id,status,content,external_url,published_at,publish_seq`);
@@ -606,9 +613,11 @@ function destinationListener(destination) {
     if (!r || !r.ok) throw new Error(`${destination} delivery failed (${r ? r.status : "no response"})`);
     const out = await r.json().catch(() => null);
     if (out && out.applied === false) return { skipped: removing ? "nothing to remove" : "newer version already delivered" };
+    // The copy was delivered: a company with no hook is done, not skipped.
+    if (revalidate) await revalidate(db, { event, pub, version });
   };
 }
-const siteContentV1 = destinationListener("website");
+const siteContentV1 = destinationListener("website", { revalidate: revalidateSite });
 const conferenceContentV1 = destinationListener("conference");
 
 export const LISTENERS = [
@@ -622,4 +631,4 @@ export const LISTENERS = [
 ];
 
 // Exported for direct unit testing.
-export { feedProjectionV1, inAppNotificationsV1, mineIqFactsV1, devicePushV1, profileTimelineV1, scoreFor, siteContentV1, conferenceContentV1 };
+export { feedProjectionV1, inAppNotificationsV1, mineIqFactsV1, devicePushV1, profileTimelineV1, scoreFor, siteContentV1, conferenceContentV1, destinationListener };
