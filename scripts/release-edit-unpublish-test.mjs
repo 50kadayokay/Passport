@@ -6,7 +6,7 @@
 // No network, no database. The state rule is executed; the editor's wiring is
 // checked in its source, as company-roles-ui-test.mjs does for role gates. The
 // live click-through (real publish, correction, take-down, publish again) is in
-// SESSION-STATUS.md for S4.
+// docs/status/S1.md for S4.
 import fs from "node:fs";
 import { releaseState, validateForPublish } from "../src/lib/publishDrafts.js";
 
