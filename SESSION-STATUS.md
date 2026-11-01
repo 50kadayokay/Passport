@@ -8,8 +8,8 @@ were used; every database check below is a script for S4 to run.
 
 | Req | State | Commit | Offline evidence | Needs S4 |
 |---|---|---|---|---|
-| a17 Conference content sync | implemented, offline-tested | 13b2587 | `conference-live-config-test` 36/0; booth on the dev server: no API -> compiled package; cached record -> published look, offline | approve + apply **0085**; `conference-booth-0085-check` (rolled back); `investor-app-live-test` |
-| a21 Bespoke service requests | implemented, offline-tested | f48c75e | `service-requests-test` 22/0; UI on a local mock harness (request, list, admin status change) | approve + apply **0086**; `service-requests-0086-check` (rolled back) |
+| a17 Conference content sync | **integrated by S4 (ea6ceca)**; 0085 rolled-back 24/0; awaiting apply | 13b2587 | `conference-live-config-test` 36/0; booth on the dev server: no API -> compiled package; cached record -> published look, offline | approve + apply **0085**; `conference-booth-0085-check` (rolled back); `investor-app-live-test` |
+| a21 Bespoke service requests | **integrated by S4 (ea6ceca)**; 0086 rolled-back 30/0; awaiting apply | f48c75e | `service-requests-test` 22/0; UI on a local mock harness (request, list, admin status change) | approve + apply **0086**; `service-requests-0086-check` (rolled back) |
 | a14 Website content UI | implemented, offline-tested | f1abd1b | `site-selection-test` 29/0; `site-contract-test` 66/0; UI on the mock harness (toggle, publish, tokens) | `site-website-live-test` (no migration) |
 | a13 Analytics events | implemented, offline-tested | ff05f8a | `audience-events-test` 30/0; `impressions-test` 29/0; Analytics tiles on the mock harness | approve + apply **0087**; `audience-events-0087-check` (rolled back); `investor-app-live-test` (PassportProto changed additively) |
 | a15 Content fan-out | **slice 1** implemented, offline-tested | 0f16655 | `content-fanout-test` 38/0; mineiq 76/0, publishing-reliability 97/0, dispatch-scheduler 30/0, delivery-ops 71/0 | approve + apply **0088** (after 0085); `content-fanout-0088-check` (rolled back); `content-fanout-live-test` |
@@ -72,6 +72,8 @@ a database update", fan-out listeners never claimed, `releases: null`).
 
 ### a22: deferred
 `specs/a22-social-publishing-scope.md` covers what already fits (publications plus one listener per network on the a15 pattern), what you need to do first (developer apps, review, where tokens are stored, the X API cost) and the order to build in. No code.
+
+Merged portal-work (ea6ceca) into this branch at 42f8472; npm test still passes (exit 0).
 
 ## Requests to other sessions
 - **S3 (`src/portal/Portal.jsx`):** a navigation entry "Website" that renders `src/portal/Website.jsx` (default export, prop `company`). It could be a tab next to Conference, or a sidebar item.
