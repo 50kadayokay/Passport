@@ -29,12 +29,24 @@ export function normaliseStudio(s) {
   return out;
 }
 
+/** a15: the latest releases delivered to Conference Mode (0088), kept with the
+    look so a booth that goes offline still has them. null = not provided. */
+export function normaliseReleases(list) {
+  if (!Array.isArray(list)) return null;
+  return list.slice(0, 20).filter((d) => d && typeof d === "object" && typeof d.title === "string").map((d) => ({
+    id: String(d.id || ""), kind: d.kind === "media" ? "media" : "press_release",
+    title: d.title.slice(0, 300), summary: typeof d.summary === "string" ? d.summary.slice(0, 600) : "",
+    category: typeof d.category === "string" ? d.category : null, image: typeof d.image === "string" ? d.image : null,
+    publishedAt: typeof d.publishedAt === "string" ? d.publishedAt : null, version: Number(d.version) || 0,
+  }));
+}
+
 /** The last published record this device saw for a slug, or null. */
 export function readCached(slug, storage = globalThis.localStorage) {
   try {
     const rec = JSON.parse(storage.getItem(cacheKey(slug)) || "null");
     if (!rec || rec.slug !== slug || !Number.isFinite(rec.version)) return null;
-    return { slug, studio: normaliseStudio(rec.studio), version: rec.version, publishedAt: rec.publishedAt || null };
+    return { slug, studio: normaliseStudio(rec.studio), version: rec.version, publishedAt: rec.publishedAt || null, releases: normaliseReleases(rec.releases) };
   } catch { return null; }
 }
 
@@ -64,7 +76,7 @@ export async function fetchPublished(slug, { fetchImpl = globalThis.fetch, timeo
     if (!r.ok) return { status: "unavailable" };
     const j = await r.json();
     if (!j || j.slug !== slug || !Number.isFinite(Number(j.version))) return { status: "unavailable" };
-    return { status: "found", record: { slug, studio: normaliseStudio(j.studio), version: Number(j.version), publishedAt: j.publishedAt || null } };
+    return { status: "found", record: { slug, studio: normaliseStudio(j.studio), version: Number(j.version), publishedAt: j.publishedAt || null, releases: normaliseReleases(j.releases) } };
   } catch {
     return { status: "unavailable" };
   } finally {
@@ -79,7 +91,8 @@ export async function fetchPublished(slug, { fetchImpl = globalThis.fetch, timeo
 export function applyFetched(slug, current, result, storage = globalThis.localStorage) {
   if (result.status === "found") {
     const rec = result.record;
-    if (!current || rec.version !== current.version || JSON.stringify(rec.studio) !== JSON.stringify(current.studio)) {
+    if (!current || rec.version !== current.version || JSON.stringify(rec.studio) !== JSON.stringify(current.studio)
+        || JSON.stringify(rec.releases || null) !== JSON.stringify(current.releases || null)) {
       writeCached(rec, storage);
       return { record: rec, changed: true };
     }
@@ -106,4 +119,34 @@ export function resolveStudio({ params, record, compiled, defaults = { template:
     source: record ? "published" : (Object.keys(pkg).length ? "package" : "default"),
     version: record ? record.version : null,
   };
+}
+
+/**
+ * a15: show what the content fan-out delivered, through the slot every template
+ * already renders (`profile.timeline`, its milestones band). Restrained on
+ * purpose -- the timeline is a curated story, not a feed:
+ *   - at most `max` releases (default 2), published in the last `days` (180)
+ *   - placed first, marked status "NEWS"; the package's milestones follow, in
+ *     their own order
+ *   - a release whose headline is already a milestone is not repeated
+ *   - `&news=0` on the booth URL turns it off
+ * Returns the SAME profile object when there is nothing to add, so a booth
+ * without releases renders exactly as before.
+ */
+export function withReleases(profile, releases, { params, now = Date.now(), max = 2, days = 180 } = {}) {
+  try {
+    if (!profile || !Array.isArray(releases) || !releases.length) return profile;
+    if (params && params.get && params.get("news") === "0") return profile;
+    const norm = (s) => String(s || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+    const existing = Array.isArray(profile.timeline) ? profile.timeline : [];
+    const seen = new Set(existing.map((t) => norm(t && t.headline)));
+    const cutoff = now - days * 86400e3;
+    const add = releases
+      .filter((r) => r && r.title && Number.isFinite(Date.parse(r.publishedAt || "")) && Date.parse(r.publishedAt) >= cutoff && !seen.has(norm(r.title)))
+      .sort((a, b) => Date.parse(b.publishedAt) - Date.parse(a.publishedAt))
+      .slice(0, max)
+      .map((r) => ({ date: r.publishedAt.slice(0, 10), headline: r.title, whyItMatters: r.summary ? r.summary.slice(0, 160) : "", status: "NEWS" }));
+    if (!add.length) return profile;
+    return { ...profile, timeline: [...add, ...existing] };
+  } catch { return profile; }
 }

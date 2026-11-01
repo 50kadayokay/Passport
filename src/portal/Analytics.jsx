@@ -9,12 +9,14 @@
 //
 //   null   we could not read it        -> "not available yet"
 //   0      we read it and it is zero   -> the number 0, plainly
-//   n/a    nothing records it at all   -> shares, said out loud
+//   n/a    nothing records it at all   -> said out loud
 //
-// Shares are in that third group: post_events' CHECK constraint allows
-// impression/open/save/unsave/dwell and nothing else, so a share count would
-// have to be invented. It is shown as untracked instead of omitted, because
-// silently dropping a metric someone asked for reads as zero.
+// a13: profile views, unique visitors, shares and video progress are recorded
+// from the investor app into company_events (0087) and read through
+// company_audience_summary / company_video_progress. Like impressions they
+// exist only from when recording began, and the page says from when; before
+// any is recorded they show as "not recorded yet", never as zero. Shares are
+// counted per company, not per post.
 
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
@@ -25,11 +27,14 @@ import {
 import {
   engagementTotals,
   engagementByType, followerGrowth, contentPerformance, unattributedEngagement,
-  impressionSummary, postImpressions, failureKind,
+  impressionSummary, postImpressions, failureKind, audienceSummary, videoProgress,
 } from "../lib/engagement.js";
 
 // Why a figure is missing, worded truthfully: an outage is not a pending update.
 const missingNote = (fn) => (failureKind(fn) === "failed" ? "Couldn't load just now" : "Needs a database update");
+// a13 tiles: loading, unavailable, not recorded yet, or the figure's own note.
+const audNote = (aud, ok) => (aud === undefined ? "Loading…" : aud === null ? missingNote("company_audience_summary")
+  : !aud.firstRecordedAt ? "Not recorded yet" : ok);
 
 const CARD = "rounded-2xl border border-slate-100 bg-white shadow-[0_1px_2px_rgba(15,23,42,.04),0_12px_26px_-20px_rgba(15,23,42,.4)]";
 
@@ -209,7 +214,7 @@ function ContentRow({ item, onOpen, short }) {
 /* The per-item view. Lifetime and recent side by side, and the metrics that
    are NOT collected for this kind of item are named rather than omitted --
    a missing row reads as zero, and zero is a claim. */
-function ItemDetail({ item, onBack, period, impr, recordedSince }) {
+function ItemDetail({ item, onBack, period, impr, recordedSince, video, audRecorded }) {
   const isMedia = item.postType === "media";
   return (
     <div className={`${CARD} overflow-hidden`}>
@@ -239,14 +244,27 @@ function ItemDetail({ item, onBack, period, impr, recordedSince }) {
             unavailable={impr === null} untracked={impr !== null && !recordedSince}
             note={impr === null ? missingNote("company_post_impressions") : !recordedSince ? "Not recorded yet"
                   : `Since ${fmtDay(recordedSince)} · ${(impr ? impr.impressionsRecent : 0).toLocaleString()} ${period.days === null ? "all time" : period.label.toLowerCase()}`} />
-          <Metric index={6} Icon={Share2} label="Shares" value={0} untracked note="Sharing isn't recorded" />
+          <Metric index={6} Icon={Share2} label="Shares" value={0} untracked note="Counted for the whole company, in section 02" />
           <Metric index={7} Icon={BarChart3} label={isMedia ? "Open rate" : "Read rate"} value={0} untracked
             note="Shown for all posts together, from when impressions began" />
         </div>
-        {isMedia && (
+        {isMedia && video && (
+          <div className={`mt-3 ${G4}`}>
+            {[25, 50, 75, 100].map((m, i) => (
+              <Metric key={m} index={i} Icon={TrendingUp} label={m === 100 ? "Watched to the end" : `Reached ${m}%`}
+                value={video[`r${m}`]} note={m === 25 ? "Viewers who started watching" : "Distinct viewers"} />
+            ))}
+          </div>
+        )}
+        {isMedia && video !== undefined && (
           <p className="mt-3 text-[11.5px] leading-relaxed text-slate-400">
-            Photos and videos share a single content type, so this post cannot be identified as one or the other.
-            Video-only measures — plays, watch time, completion — are therefore not reported for any media post.
+            {video
+              ? "Video progress counts distinct viewers who reached each point of this video, once per viewer per day."
+              : video === null
+                ? "Video progress needs a database update on this environment."
+                : audRecorded
+                  ? "No video progress recorded for this post — it is a photo, or nobody has watched it yet."
+                  : "Video progress has not been recorded yet. Photos never have any."}
           </p>
         )}
       </div>
@@ -299,6 +317,8 @@ export default function Analytics({ company }) {
   const [unattr, setUnattr] = useState(undefined);
   const [impr, setImpr] = useState(undefined);         // a12: undefined loading · null unavailable · {firstRecordedAt...}
   const [postImpr, setPostImpr] = useState(undefined);
+  const [aud, setAud] = useState(undefined);            // a13: undefined loading · null unavailable · {firstRecordedAt...}
+  const [vid, setVid] = useState(undefined);
   const [periodId, setPeriodId] = useState("30");
   const [windowBusy, setWindowBusy] = useState(false);
   const period = PERIODS.find((p) => p.id === periodId) || PERIODS[2];
@@ -338,6 +358,8 @@ export default function Analytics({ company }) {
       contentPerformance(companyId, days).then((c) => { if (alive) setContent(c); }),
       impressionSummary(companyId, days).then((x) => { if (alive) setImpr(x); }),
       postImpressions(companyId, days).then((x) => { if (alive) setPostImpr(x); }),
+      audienceSummary(companyId, days).then((x) => { if (alive) setAud(x); }),
+      videoProgress(companyId, days).then((x) => { if (alive) setVid(x); }),
     ]).finally(() => { if (alive) setWindowBusy(false); });
     return () => { alive = false; };
   }, [companyId, period.days, retryKey]);
@@ -463,17 +485,26 @@ export default function Analytics({ company }) {
               <Metric index={0} Icon={isAllTime ? Users : UserPlus}
                 label={isAllTime ? "Followers" : "New followers"}
                 value={isAllTime ? totals.followers : newFollowersInPeriod}
-                unavailable={!isAllTime && growth === null}
+                unavailable={!isAllTime && !growth}
                 note={isAllTime ? "Investors following this company"
-                      : growth === null ? missingNote("company_follower_growth") : "First-time follows, still following"} />
-              <Metric index={1} Icon={Eye} label="Profile views" value={0} untracked note="Not recorded yet — needs instrumentation" />
-              <Metric index={2} Icon={UserPlus} label="Unique visitors" value={0} untracked note="Not recorded yet — needs instrumentation" />
+                      : growth === undefined ? "Loading…" : growth === null ? missingNote("company_follower_growth") : "First-time follows, still following"} />
+              <Metric index={1} Icon={Eye} label="Profile views" value={aud ? aud.profileViews : 0}
+                unavailable={!aud} untracked={!!aud && !aud.firstRecordedAt}
+                note={audNote(aud, "Once per visitor per day")} />
+              <Metric index={2} Icon={UserPlus} label="Unique visitors" value={aud ? aud.uniqueVisitors : 0}
+                unavailable={!aud} untracked={!!aud && !aud.firstRecordedAt}
+                note={audNote(aud, aud ? `${aud.signedInVisitors.toLocaleString()} signed in` : "")} />
             </div>
             {/* Named, not hidden. A page that silently omits what it cannot
                 measure invites the reader to assume it measured everything. */}
             <p className="mt-2.5 text-[11.5px] leading-relaxed text-slate-400">
-              Profile views and unique visitors are not collected anywhere yet. They are shown as untracked rather
-              than as zero, because zero would be a claim that nobody looked.
+              A profile view is your profile opened in the MineEx app, counted once per visitor per day; a visitor
+              who is not signed in is counted by device, and nothing that identifies them is stored.{" "}
+              {aud && aud.firstRecordedAt
+                ? <>Recorded since {fmtDay(aud.firstRecordedAt)}; nothing earlier was recorded. These are engagement signals, not audited figures.</>
+                : aud === null
+                  ? (failureKind("company_audience_summary") === "failed" ? "These figures could not be loaded just now." : "These figures need a database update on this environment.")
+                  : "None has been recorded yet, so they are shown as not recorded rather than as zero."}
             </p>
           </Section>
 
@@ -482,18 +513,18 @@ export default function Analytics({ company }) {
             sub={periodSub("Everything investors did with your press releases and media")}>
             <div className={G4}>
               <Metric index={0} Icon={BookOpen} label="Post opens" value={reads}
-                unavailable={byType === null} note="Press releases and media combined" />
+                unavailable={!byType} note="Press releases and media combined" />
               <Metric index={1} Icon={FileText} label="Release opens" value={rel ? rel.reads : 0}
-                unavailable={byType === null} note={byType === null ? missingNote("company_engagement_by_type") : `${rel ? rel.posts : 0} release${rel && rel.posts === 1 ? "" : "s"} live`} />
+                unavailable={!byType} note={byType === undefined ? "Loading…" : byType === null ? missingNote("company_engagement_by_type") : `${rel ? rel.posts : 0} release${rel && rel.posts === 1 ? "" : "s"} live`} />
               <Metric index={2} Icon={ImageIcon} label="Media opens" value={med ? med.reads : 0}
-                unavailable={byType === null} note={byType === null ? missingNote("company_engagement_by_type") : `${med ? med.posts : 0} media post${med && med.posts === 1 ? "" : "s"} live`} />
+                unavailable={!byType} note={byType === undefined ? "Loading…" : byType === null ? missingNote("company_engagement_by_type") : `${med ? med.posts : 0} media post${med && med.posts === 1 ? "" : "s"} live`} />
               <Metric index={3} Icon={Clock} label="Avg. time" value={Math.round(avgDwell || 0)} suffix="s"
                 unavailable={avgDwell == null} note="Seconds spent reading a post" />
             </div>
             <div className={`mt-3 ${G4}`}>
-              <Metric index={4} Icon={Heart} label="Likes" value={likes} unavailable={byType === null}
+              <Metric index={4} Icon={Heart} label="Likes" value={likes} unavailable={!byType}
                 note="Investors who liked a post" />
-              <Metric index={5} Icon={Bookmark} label="Saves" value={saves} unavailable={byType === null}
+              <Metric index={5} Icon={Bookmark} label="Saves" value={saves} unavailable={!byType}
                 note={saveActions == null ? "Currently saved by an investor"
                       : `Still saved · ${saveActions.toLocaleString()} save${saveActions === 1 ? "" : "s"} pressed`} />
               <Metric index={6} Icon={Eye} label="Impressions" value={impr ? impr.impressions : 0}
@@ -502,7 +533,9 @@ export default function Analytics({ company }) {
                 note={impr === undefined ? "Loading…" : impr === null ? missingNote("company_impression_summary")
                       : !impr.firstRecordedAt ? "Not recorded yet"
                       : `Seen in a feed · ${impr.viewers.toLocaleString()} investor${impr.viewers === 1 ? "" : "s"}`} />
-              <Metric index={7} Icon={Share2} label="Shares" value={0} untracked note="Sharing isn't recorded" />
+              <Metric index={7} Icon={Share2} label="Shares" value={aud ? aud.shares : 0}
+                unavailable={!aud} untracked={!!aud && !aud.firstRecordedAt}
+                note={audNote(aud, "Profile and posts, from the app's share button")} />
             </div>
             <p className="mt-2.5 text-[11.5px] leading-relaxed text-slate-400" data-testid="impressions-note">
               An impression is a post shown in an investor's feed — at least half on screen for a second — counted
@@ -532,11 +565,20 @@ export default function Analytics({ company }) {
             sub={`Every live release and media post — lifetime, and ${period.label.toLowerCase()}.`}>
             {openItem ? (
               <ItemDetail item={openItem} onBack={() => setOpenItem(null)} period={period}
+                video={vid === undefined || vid === null ? vid : vid[openItem.id] || false} audRecorded={!!(aud && aud.firstRecordedAt)}
                 impr={postImpr === null ? null : (postImpr || {})[openItem.id] || { impressions: 0, impressionsRecent: 0 }}
                 recordedSince={impr ? impr.firstRecordedAt : null} />
+            ) : content === undefined ? (
+              <div className={`grid place-items-center px-5 py-10 ${CARD}`}>
+                <Loader2 size={18} className="animate-spin text-slate-300" aria-label="Loading content" />
+              </div>
             ) : content === null ? (
               <div className={`px-5 py-10 text-center ${CARD}`}>
-                <p className="text-[13px] text-slate-400">Per-item performance needs a database update.</p>
+                <p className="text-[13px] text-slate-400">
+                  {failureKind("company_content_performance") === "failed"
+                    ? "Per-item performance could not be loaded just now."
+                    : "Per-item performance needs a database update."}
+                </p>
               </div>
             ) : (
               <div className={`${CARD} overflow-hidden`}>

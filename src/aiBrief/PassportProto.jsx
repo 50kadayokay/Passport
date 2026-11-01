@@ -73,6 +73,7 @@ import { mockEnabled, buildMockNewsroom, disableMock } from "./mockNewsroom.js";
 import { fetchLiveNews } from "../lib/news.js"; // approved real news (public view)
 import { fetchCompanyFeedPosts, recordPostEvent } from "../lib/feed.js"; // company posts (press releases + media), server-ranked + engagement
 import { Seen } from "../lib/impressions.js"; // a12: a company post seen in the feed (once per investor per post per UTC day)
+import { trackProfileView, trackShare, videoProgressHandler } from "../lib/analytics.js"; // a13: guarded, queued, never throws
 import PullToRefresh from "./PullToRefresh.jsx"; // swipe-down refresh on the feed
 import { resolveWidgets, resolveProjectWidgets, widgetText } from "../lib/conferenceWidgets.js";
 import { ConferenceScenes } from "./ConferenceScenes.jsx";
@@ -2972,8 +2973,9 @@ function MediaViewer({ posts, start, onClose }) {
     // Android gets the native share sheet; iOS/web keep navigator.share. A
     // cancelled sheet ends here — it must NOT copy to the clipboard.
     const r = await shareContent(data);
+    if (r && r.status === "shared") trackShare({ company: slug, method: "sheet" });
     if (!shouldFallback(r)) return;
-    try { await navigator.clipboard.writeText(url); flash("Link copied"); } catch (_) { flash("Couldn’t share"); }
+    try { await navigator.clipboard.writeText(url); flash("Link copied"); trackShare({ company: slug, method: "copy" }); } catch (_) { flash("Couldn’t share"); }
   };
 
   const handle = (() => {
@@ -3014,7 +3016,8 @@ function MediaViewer({ posts, start, onClose }) {
               {/* media */}
               <div className="relative w-full bg-black">
                 {p.videoSrc ? (
-                  <video src={p.videoSrc} poster={img || undefined} muted loop playsInline className="w-full" />
+                  <video src={p.videoSrc} poster={img || undefined} muted loop playsInline className="w-full"
+                    onTimeUpdate={videoProgressHandler(currentSlug(), { postId: p.postId || "", mediaUrl: p.videoSrc })} />
                 ) : img ? (
                   <img src={img} alt="" className="w-full" />
                 ) : null}
@@ -6792,8 +6795,10 @@ function StoryReader({ it, onOpen, onClose }) {
     const title = (it && (it.headline || it.t)) || "MineEx";
     try {
       const r = await shareContent({ title, url });
+      const companyPost = it && it.postId && it.companyId;   // a13: company posts only; news is not a company's share
+      if (companyPost && r && r.status === "shared") trackShare({ company: it.companyId, postId: it.postId, method: "sheet" });
       if (!shouldFallback(r)) return;                       // shared, or cancelled -> done
-      if (navigator.clipboard && url) await navigator.clipboard.writeText(url);
+      if (navigator.clipboard && url) { await navigator.clipboard.writeText(url); if (companyPost) trackShare({ company: it.companyId, postId: it.postId, method: "copy" }); }
     } catch { /* user cancelled or unsupported */ }
   };
   if (!it) return null;
@@ -7092,8 +7097,9 @@ function Reels({ items, onOpen }) {
                     const url = companyShareUrl(it.companyId);
                     const title = it.co || it.company || "MineEx";
                     const r = await shareContent({ title, text: title, url });
+                    if (r && r.status === "shared") trackShare({ company: it.companyId, postId: it.postId, method: "sheet" });
                     if (!shouldFallback(r)) return;
-                    try { await navigator.clipboard.writeText(url); } catch (_) {}
+                    try { await navigator.clipboard.writeText(url); trackShare({ company: it.companyId, postId: it.postId, method: "copy" }); } catch (_) {}
                   }}
                   aria-label="Share"
                   className="flex flex-col items-center gap-1 active:scale-90"
@@ -11798,6 +11804,10 @@ export default function App({ guest = false } = {}) {
     if (curSlug()) { try { window.history.pushState({}, "", "/app"); } catch (_) {} }
   };
   const goNav = (n) => { leaveCompany(); setNav(n); };
+  // a13: a company profile on screen = one profile view (queued; the database keeps
+  // one per visitor/company/UTC day). Embedded, preview, booth and mock modes are
+  // excluded inside analytics.js.
+  useEffect(() => { if (inCompany) { const s = curSlug(); if (s) trackProfileView(s); } }, [inCompany, companyKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // EMBED-ONLY driver: lets the marketing site's phone (the Investor page) switch the
   // real shell's screens on scroll — window.__appDemoGo("today"|"explore"|"following"|

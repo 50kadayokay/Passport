@@ -112,8 +112,9 @@ function RequestForm({ kind, company, companyId, onSent, placeholder, cta }) {
               portal can read back. /api/conference-inquiry writes to a sales
               table the company's own session cannot query. */}
           <p className="mt-1 text-[12.5px] leading-relaxed text-slate-500">
-            The MineEx team has it and will be in touch. Sent from this browser on{" "}
-            {new Date(sent).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}.
+            The MineEx team has it and will be in touch.
+            {Number.isFinite(Date.parse(sent)) && <>{" "}Sent from this browser on{" "}
+              {new Date(sent).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}.</>}
           </p>
           <button onClick={() => setSent(null)}
             className="mt-2 text-[12.5px] font-bold text-blue-600 transition hover:text-blue-700">
@@ -186,7 +187,9 @@ function SalesState({ company, companyId }) {
                 className="inline-flex items-center gap-2 rounded-xl bg-white px-5 py-3 text-[14px] font-bold text-slate-900 transition hover:bg-slate-100">
                 Request Conference Mode <ArrowRight size={15} strokeWidth={2.6} />
               </a>
-              {slug && (
+              {/* A draft profile opens the booth's "unavailable" screen, so the
+                  link waits until there is something to show. */}
+              {slug && published && (
                 <a href={`/conference?c=${encodeURIComponent(slug)}`} target="_blank" rel="noreferrer"
                   className="inline-flex items-center gap-2 rounded-xl bg-white/10 px-4 py-3 text-[13.5px] font-bold text-white transition hover:bg-white/15">
                   <Presentation size={15} strokeWidth={2.4} /> See it with your data
@@ -316,14 +319,16 @@ function QrPanel({ company }) {
   const slug = company?.slug || "";
   const published = company?.status === "published";
   const [preview, setPreview] = useState("");
+  const [previewFailed, setPreviewFailed] = useState(false);
   const [busy, setBusy] = useState("");
   const [err, setErr] = useState("");
 
   useEffect(() => {
     let alive = true;
-    if (!slug) return undefined;
+    setPreview(""); setPreviewFailed(false);
+    if (!slug) { setPreviewFailed(true); return undefined; }
     qrSvg(slug).then((s) => { if (alive) setPreview(`data:image/svg+xml;utf8,${encodeURIComponent(s)}`); })
-      .catch(() => {});
+      .catch(() => { if (alive) setPreviewFailed(true); });
     return () => { alive = false; };
   }, [slug]);
 
@@ -349,6 +354,8 @@ function QrPanel({ company }) {
           <div className="grid aspect-square w-full place-items-center rounded-xl bg-white p-3 ring-1 ring-slate-200/80">
             {preview
               ? <img src={preview} alt={`QR code for ${company?.name || slug}`} className="h-full w-full" />
+              : previewFailed
+              ? <span className="px-2 text-center text-[11.5px] font-semibold text-slate-400">{slug ? "The QR preview could not be drawn." : "No profile address yet."}</span>
               : <Loader2 size={20} className="animate-spin text-slate-300" />}
           </div>
         </div>
@@ -464,10 +471,14 @@ function ManageState({ company, companyId, hideHeading }) {
               </div>
             </dl>
 
-            <a href={`/conference?c=${encodeURIComponent(slug)}`} target="_blank" rel="noreferrer"
-              className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-[13.5px] font-bold text-white transition hover:bg-slate-800">
-              <Presentation size={15} strokeWidth={2.4} /> Preview presentation
-            </a>
+            {company?.status === "published" ? (
+              <a href={`/conference?c=${encodeURIComponent(slug)}`} target="_blank" rel="noreferrer"
+                className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-[13.5px] font-bold text-white transition hover:bg-slate-800">
+                <Presentation size={15} strokeWidth={2.4} /> Preview presentation
+              </a>
+            ) : (
+              <span className="max-w-[220px] text-[12px] leading-snug text-slate-400">Publish your profile to preview the presentation.</span>
+            )}
           </div>
 
           <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-4">
@@ -543,6 +554,7 @@ export default function Conference({ company, hideHeading = false }) {
 
   const load = useCallback(async () => {
     if (!companyId) { setEnt({ state: STATE.NONE }); return; }
+    setEnt(null);   // "Try again" shows the spinner, so the retry is visibly happening
     setEnt(await conferenceEntitlement(companyId));
   }, [companyId]);
   useEffect(() => { load(); }, [load]);

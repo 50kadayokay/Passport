@@ -23,7 +23,6 @@
 import QRCode from "qrcode";
 import { SUPABASE_URL } from "./supabase.js";
 import { authHeaders } from "./auth.js";
-import { fetchFeatures } from "./features.js";
 import { profileUrl, companyLogo, companyMonogram } from "./brand.js";
 import { buildPlacardSvg, splitQrSvg } from "./qrPlacard.js";
 import { DEFAULTS } from "./conferenceCatalog.js";
@@ -45,10 +44,23 @@ export const STATE = { ACTIVE: "active", INACTIVE: "inactive", NONE: "none" };
 export async function conferenceEntitlement(companyId) {
   if (!companyId) return { state: STATE.NONE, error: "" };
 
+  // my_features read here rather than through fetchFeatures(), which turns a
+  // failed call into an empty list: indistinguishable from "not bought", so a
+  // paying customer whose lookup failed was shown the sales page with no notice
+  // (S3 a28 review). A failed call is now reported.
   let on = false;
+  let featuresFailed = false;
   try {
-    on = (await fetchFeatures(companyId)).includes(CONFERENCE_FEATURE);
-  } catch { /* fetchFeatures already denies on failure */ }
+    const h = await authHeaders();
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/my_features`, {
+      method: "POST", headers: { ...h, "content-type": "application/json" }, body: JSON.stringify({ cid: companyId }),
+    });
+    if (!res.ok) featuresFailed = true;
+    else {
+      const rows = await res.json();
+      on = (Array.isArray(rows) ? rows : []).map((x) => (typeof x === "string" ? x : x && x.my_features)).includes(CONFERENCE_FEATURE);
+    }
+  } catch { featuresFailed = true; }
 
   // The override row, for the distinction my_features cannot make. Absent is
   // the normal case and not an error: most companies have never bought it.
@@ -66,6 +78,7 @@ export async function conferenceEntitlement(companyId) {
     error = "Your Conference Mode status could not be confirmed.";
   }
 
+  if (featuresFailed && !error) error = "Your Conference Mode status could not be confirmed.";
   if (on) return { state: STATE.ACTIVE, note: row?.note || "", since: row?.created_at || null, error };
   if (row && row.enabled === false) {
     return { state: STATE.INACTIVE, note: row.note || "", since: row.created_at || null, error };

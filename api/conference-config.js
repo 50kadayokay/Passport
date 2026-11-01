@@ -24,6 +24,26 @@ function param(req, name) {
   try { return new URL(req?.url || "", "http://local").searchParams.get(name) || ""; } catch { return ""; }
 }
 
+// a15: the releases the content fan-out delivered to Conference Mode
+// (conference_content_v1 -> destination_content, 0088). Best effort: null when
+// 0088 is not applied or the read fails, and the look is served regardless.
+async function boothReleases(slug) {
+  try {
+    const r = await fetch(`${SB_URL}/rest/v1/rpc/conference_booth_releases`, {
+      method: "POST",
+      headers: { apikey: ANON_KEY, Authorization: `Bearer ${ANON_KEY}`, "content-type": "application/json" },
+      body: JSON.stringify({ p_slug: slug, p_limit: 5 }),
+    });
+    if (!r.ok) return null;
+    const rows = await r.json().catch(() => null);
+    return Array.isArray(rows) ? rows.map((d) => ({
+      id: d.publication_id, kind: d.post_type === "media" ? "media" : "press_release", title: String(d.title || "").slice(0, 300),
+      summary: String(d.summary || "").slice(0, 600), category: d.category || null, image: d.image_url || null,
+      publishedAt: d.published_at || null, version: Number(d.version) || 0,
+    })) : null;
+  } catch { return null; }
+}
+
 export default async function handler(req, res) {
   if (req.method !== "GET") {
     res.setHeader("Allow", "GET");
@@ -53,5 +73,6 @@ export default async function handler(req, res) {
     studio: normaliseStudio(row.studio),
     version: Number(row.version) || 1,
     publishedAt: row.published_at || null,
+    releases: await boothReleases(slug),
   });
 }
