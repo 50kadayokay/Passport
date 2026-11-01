@@ -13,7 +13,8 @@ import { ROLES, ROLE_SUMMARY } from "../lib/companyRoles.js";
 
 const CARD = "rounded-2xl border border-slate-200 bg-white";
 const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
-const day = (iso) => { try { return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" }); } catch { return ""; } };
+// toLocaleDateString does not throw on a bad date; it returns "Invalid Date".
+const day = (iso) => { const d = new Date(iso); return iso && !Number.isNaN(d.getTime()) ? d.toLocaleDateString(undefined, { month: "short", day: "numeric" }) : ""; };
 
 export default function TeamView({ company }) {
   const [data, setData] = useState(null);       // list_members result
@@ -39,7 +40,15 @@ export default function TeamView({ company }) {
   };
 
   if (!data) return <p className="flex items-center gap-2 text-[13px] text-slate-500"><Loader2 size={14} className="animate-spin" /> Loading team…</p>;
-  if (!data.ok) return <p className="text-[13px] font-semibold text-rose-500">{teamError(data.error)}</p>;
+  if (!data.ok) {
+    return (
+      <div className="flex items-center gap-3" data-team-error>
+        <p className="text-[13px] font-semibold text-rose-500">{teamError(data.error)}</p>
+        <button onClick={() => { setData(null); load(); }} className="text-[12.5px] font-bold text-slate-600 hover:underline">Retry</button>
+      </div>
+    );
+  }
+  const members = Array.isArray(data.members) ? data.members.filter((m) => m && m.user_id) : [];
 
   const grantable = data.grantable || [];
   const manager = grantable.length > 0;
@@ -60,7 +69,8 @@ export default function TeamView({ company }) {
       <section>
         <h2 className="mb-2 text-[15px] font-extrabold text-slate-900">Members</h2>
         <ul className={`${CARD} divide-y divide-slate-100`}>
-          {data.members.map((m) => (
+          {members.length === 0 && <li className="px-5 py-3 text-[13px] text-slate-500">No members to show.</li>}
+          {members.map((m) => (
             <MemberRow key={m.user_id} m={m} grantable={grantable}
               onRole={(role) => act(() => changeMemberRole(company.id, m.user_id, role, m.updated_at), `${m.email} is now ${cap(role)}.`)}
               onRemove={() => window.confirm(`Remove ${m.email} from ${company.name}? They lose access immediately.`) &&
@@ -75,7 +85,7 @@ export default function TeamView({ company }) {
           <section>
             <h2 className="mb-2 text-[15px] font-extrabold text-slate-900">Pending invitations</h2>
             {!invites ? null : !invites.ok ? <p className="text-[13px] text-rose-500">{teamError(invites.error)}</p>
-              : invites.invitations.length === 0 ? <p className="text-[13px] text-slate-500">No pending invitations.</p>
+              : !Array.isArray(invites.invitations) || invites.invitations.length === 0 ? <p className="text-[13px] text-slate-500">No pending invitations.</p>
               : (
                 <ul className={`${CARD} divide-y divide-slate-100`}>
                   {invites.invitations.map((i) => (
@@ -110,7 +120,7 @@ function MemberRow({ m, grantable, onRole, onRemove }) {
   return (
     <li className="flex flex-wrap items-center gap-3 px-5 py-3" data-member={m.email}>
       <div className="min-w-0 flex-1">
-        <p className="truncate text-[14px] font-semibold text-slate-900">{m.email}</p>
+        <p className="truncate text-[14px] font-semibold text-slate-900">{m.email || "Member (no email on file)"}</p>
         {why && <p className="text-[12px] text-slate-500">{why}</p>}
       </div>
       {m.manageable ? (
@@ -160,14 +170,19 @@ function InviteForm({ grantable, onInvite }) {
 
 function CopyLink({ link }) {
   const [copied, setCopied] = useState(false);
+  const [blocked, setBlocked] = useState(false);
   return (
+    <>
     <div className="mt-2 flex items-center gap-2">
       <input readOnly value={link} aria-label="Invitation link" onFocus={(e) => e.target.select()} className="flex-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-[12.5px] text-slate-700" />
-      <button type="button" onClick={async () => { try { await navigator.clipboard.writeText(link); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch {} }}
+      <button type="button" onClick={async () => { try { await navigator.clipboard.writeText(link); setBlocked(false); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch { setBlocked(true); } }}
         className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-[12.5px] font-bold text-slate-700">
         {copied ? <Check size={13} /> : <Copy size={13} />} {copied ? "Copied" : "Copy"}
       </button>
     </div>
+    {/* The browser can refuse clipboard access; say so rather than look copied. */}
+    {blocked && <p className="mt-1 text-[12px] text-slate-500">Your browser blocked copying. Select the link and copy it yourself.</p>}
+    </>
   );
 }
 
@@ -178,7 +193,7 @@ function InviteRow({ i, onRevoke }) {
       <div className="flex flex-wrap items-center gap-3">
         <div className="min-w-0 flex-1">
           <p className="truncate text-[14px] font-semibold text-slate-900">{i.email}</p>
-          <p className="text-[12px] text-slate-500">{cap(i.role)} · {i.expired ? "expired" : `expires ${day(i.expires_at)}`}</p>
+          <p className="text-[12px] text-slate-500">{[cap(i.role), i.expired ? "expired" : day(i.expires_at) && `expires ${day(i.expires_at)}`].filter(Boolean).join(" · ")}</p>
         </div>
         {!i.expired && <button type="button" onClick={() => setShow((s) => !s)} className="rounded-lg px-2.5 py-1.5 text-[12.5px] font-bold text-slate-700 hover:bg-slate-50">{show ? "Hide link" : "Show link"}</button>}
         {i.can_revoke && <button type="button" onClick={onRevoke} className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[12.5px] font-bold text-rose-600 hover:bg-rose-50"><X size={13} /> Revoke</button>}

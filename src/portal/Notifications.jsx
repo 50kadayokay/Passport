@@ -11,7 +11,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Bell, UserPlus, Heart, AlertCircle, Loader2, RefreshCw, CheckCheck, X } from "lucide-react";
 import {
-  listCompanyNotifications as listNotifications,
+  loadCompanyNotifications as loadNotifications,
   companyLastSeenAt as lastSeenAt,
   markCompanyNotificationsSeen as markNotificationsSeen,
   companyUnreadCount as unreadCount,
@@ -69,9 +69,11 @@ function Row({ item, fresh }) {
   );
 }
 
-export default function Notifications({ company, onSeen }) {
+export default function Notifications({ company, onSeen, hideHeading = false }) {
   const companyId = company?.id;
-  const [items, setItems] = useState(undefined);   // undefined = loading, null = unavailable
+  const [items, setItems] = useState(undefined);   // undefined = loading, null = not switched on (0049)
+  const [loadErr, setLoadErr] = useState(false);   // the last read failed (network, 5xx)
+  const [clearErr, setClearErr] = useState("");
   const [seen, setSeen] = useState(null);
   const [freshBefore, setFreshBefore] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -87,7 +89,12 @@ export default function Notifications({ company, onSeen }) {
 
   const load = useCallback(async () => {
     if (!companyId) return;
-    const [rows, at] = await Promise.all([listNotifications(companyId), lastSeenAt(companyId)]);
+    const [r, at] = await Promise.all([loadNotifications(companyId), lastSeenAt(companyId)]);
+    // A failed read keeps what is on screen (or shows "couldn't load"); only a
+    // missing 0049 is "not switched on yet".
+    if (!r.ok && !r.missing) { setLoadErr(true); setItems((prev) => (prev === undefined ? [] : prev)); return; }
+    setLoadErr(false);
+    const rows = r.ok ? r.rows : null;
     setItems(rows);
     setSeen(at);
     // Freeze the "new" boundary at the value from BEFORE this visit, so marking
@@ -113,8 +120,11 @@ export default function Notifications({ company, onSeen }) {
   const clearAll = async () => {
     setConfirming(false);
     setBusy(true);
+    setClearErr("");
     const at = await clearNotifications(companyId);
-    if (at) {
+    if (at && at.failed) {
+      setClearErr("Couldn't clear notifications. Nothing changed; try again.");
+    } else if (at) {
       setItems([]);
       setCleared(true);
     } else {
@@ -165,8 +175,8 @@ export default function Notifications({ company, onSeen }) {
       {confirmDialog}
       <div className="flex items-baseline justify-between gap-4">
         <div>
-          <h1 className="text-[22px] font-extrabold leading-tight tracking-tight text-slate-900">Notifications</h1>
-          <p className="mt-1 text-[14px] text-slate-500">
+          {!hideHeading && <h1 className="text-[22px] font-extrabold leading-tight tracking-tight text-slate-900">Notifications</h1>}
+          <p className={`${hideHeading ? "" : "mt-1 "}text-[14px] text-slate-500`}>
             {newCount > 0 ? `${newCount} new since you last looked.`
               : cleared ? "Cleared. New follows and likes will appear here."
               : "Follows and likes from investors."}
@@ -189,6 +199,17 @@ export default function Notifications({ company, onSeen }) {
         </div>
       </div>
 
+      {clearErr && <p className="mt-3 text-[12.5px] font-semibold text-rose-500" data-clear-error>{clearErr}</p>}
+
+      {loadErr && (
+        <div className="mt-6 flex items-center justify-between gap-3 rounded-2xl border border-amber-100 bg-amber-50 px-5 py-3.5" data-load-error>
+          <p className="text-[13px] font-semibold text-amber-800">
+            {items && items.length ? "Couldn't refresh. Showing what was loaded last." : "Couldn't load notifications."}
+          </p>
+          <button onClick={refresh} className="shrink-0 text-[12.5px] font-bold text-amber-800 hover:underline">Retry</button>
+        </div>
+      )}
+
       {items === undefined && (
         <div className="mt-8 grid place-items-center py-16"><Loader2 size={22} className="animate-spin text-blue-500" /></div>
       )}
@@ -206,7 +227,7 @@ export default function Notifications({ company, onSeen }) {
         </div>
       )}
 
-      {Array.isArray(items) && (
+      {Array.isArray(items) && !(loadErr && items.length === 0) && (
         items.length === 0 ? (
           <div className={`mt-6 grid place-items-center px-6 py-16 text-center ${CARD}`}>
             <span className="grid h-12 w-12 place-items-center rounded-2xl bg-slate-100 text-slate-400"><Bell size={22} strokeWidth={2.2} /></span>

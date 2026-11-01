@@ -38,6 +38,7 @@ const Notifications = React.lazy(() => import("./Notifications.jsx"));      // f
 const Conference    = React.lazy(() => import("./Conference.jsx"));         // iPad booth: launch + status
 const MineIQ        = React.lazy(() => import("./MineIQ.jsx"));             // company memory, searchable
 const Services      = React.lazy(() => import("./Services.jsx"));           // MineEx services
+const Documents     = React.lazy(() => import("./Documents.jsx"));          // uploaded source files (company memory)
 const TeamView      = React.lazy(() => import("./TeamView.jsx"));           // members, roles, invitations (a03)
 const BillingView   = React.lazy(() => import("./Billing.jsx"));            // subscription + Stripe hand-offs (a20)
 
@@ -62,6 +63,9 @@ const NAV_GROUPS = [
     { id: "updates",   label: "Updates",         Icon: Bell },
     { id: "sharing",   label: "Conference",      Icon: Presentation },
     { id: "mineiq",    label: "Mine IQ",         Icon: Brain },
+    // The files Mine IQ answers from: open, download, upload, delete. Was
+    // unreachable after Media dropped it (a28).
+    { id: "documents", label: "Documents",       Icon: FileText },
     { id: "services",  label: "Services",        Icon: Sparkles },
   ] },
 ];
@@ -264,6 +268,7 @@ export default function Portal({ company: initial, switchCompany, adminMode = fa
               {section === "messages"  && <Suspense fallback={<SectionLoader />}><Messages company={company} /></Suspense>}
               {section === "notifications" && <Suspense fallback={<SectionLoader />}><Notifications company={company} onSeen={() => setNotifCount(0)} /></Suspense>}
               {section === "services"  && <Suspense fallback={<SectionLoader />}><Services company={company} /></Suspense>}
+              {section === "documents" && <Suspense fallback={<SectionLoader />}><Documents company={company} /></Suspense>}
               {section === "media"     && <Suspense fallback={<SectionLoader />}><MediaPage company={company} /></Suspense>}
               {section === "sharing"   && <ConferenceShareView company={company} tab={sharingTab} setTab={setSharingTab} />}
               {section === "calendar"  && <CalendarView company={company} setCompany={setCompany} />}

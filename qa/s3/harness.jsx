@@ -192,7 +192,20 @@ window.fetch = async (input, init = {}) => {
   if (p === "/rpc/portal_readiness") return j({ ready: true, missing: [] });
   if (p === "/rpc/list_members") return j({ ok: true, members: [{ user_id: "u-owner", email: "owner@alpha-gold.invalid", role: "owner", manageable: false }], grantable: [] });
   if (p === "/rpc/list_invitations") return j({ ok: true, invitations: [] });
-  if (p === "/rpc/company_notifications") return j(data === "empty" ? [] : []);
+  if (p === "/rpc/company_notifications") {
+    if (fail === "notifications") return j({ message: "boom" }, 500);
+    return j(data === "empty" ? [] : [
+      { kind: "follow", actor_name: "Dana Whitfield", actor_role: "Portfolio Manager", actor_company: "Northgate Capital", subject: null, occurred_at: iso(now - 3600e3) },
+      { kind: "like", actor_name: data === "malformed" ? null : "Sam Ortiz", actor_role: null, actor_company: null, subject: "Alpha Gold intersects 12.4 g/t Au over 8 m", occurred_at: data === "malformed" ? "bad" : iso(now - 864e5 * 3) },
+    ]);
+  }
+  if (p === "/documents") {
+    if (fail === "documents") return j({ message: "boom" }, 500);
+    return j(data === "empty" ? [] : [
+      { id: "d1", filename: "NI 43-101 Technical Report — North Zone.pdf", mime: "application/pdf", bytes: 4200000, kind: "technical_report", doc_date: "2025-06-01", storage_path: "u/alpha/d1.pdf", extraction_status: "done", extracted_text: "Mineral resource estimate", created_at: iso(now - 864e5 * 30) },
+      { id: "d2", filename: data === "malformed" ? null : "Corporate deck Oct 2026.pdf", mime: "application/pdf", bytes: null, kind: "deck", doc_date: "not-a-date", storage_path: null, extraction_status: "pending", extracted_text: null, created_at: data === "malformed" ? null : iso(now - 864e5 * 2) },
+    ]);
+  }
   if (p === "/company_notification_reads") return j([]);
   if (p === "/activity_log" || p === "/company_activity") return j([]);
   if (p === "/message_attachments") return j([]);

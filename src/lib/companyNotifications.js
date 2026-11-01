@@ -32,13 +32,19 @@ const REST = `${SUPABASE_URL}/rest/v1`;
 const DEMO_CLEARED_KEY = "mineex-demo-notifications-cleared-at";
 const demoCleared = () => { try { return sessionStorage.getItem(DEMO_CLEARED_KEY); } catch { return null; } };
 
-export async function listCompanyNotifications(companyId, limit = 50) {
+/**
+ * The feed, with WHY it is missing when it is: { ok: true, rows } |
+ * { ok: false, missing: true } (0049 not applied: PostgREST answers 404 for
+ * an unknown function) | { ok: false } (anything else -- network, 5xx, junk).
+ * The page used to say "needs a database update" for all three.
+ */
+export async function loadCompanyNotifications(companyId, limit = 50) {
   if (import.meta.env && import.meta.env.DEV && isPortalDemo()) {
     const { NOTIFICATIONS } = await import("../portal/__fixtures/updatesDemo.js");
     const at = demoCleared();
-    return at ? NOTIFICATIONS.filter((n) => new Date(n.at).getTime() > new Date(at).getTime()) : NOTIFICATIONS;
+    return { ok: true, rows: at ? NOTIFICATIONS.filter((n) => new Date(n.at).getTime() > new Date(at).getTime()) : NOTIFICATIONS };
   }
-  if (!companyId) return null;
+  if (!companyId) return { ok: false };
   try {
     const h = await authHeaders();
     const res = await fetch(`${REST}/rpc/company_notifications`, {
@@ -46,20 +52,30 @@ export async function listCompanyNotifications(companyId, limit = 50) {
       headers: { ...h, "Content-Type": "application/json" },
       body: JSON.stringify({ p_company: companyId, p_limit: limit }),
     });
-    if (!res.ok) return null;
+    if (res.status === 404) return { ok: false, missing: true };
+    if (!res.ok) return { ok: false, status: res.status };
     const rows = await res.json().catch(() => null);
-    if (!Array.isArray(rows)) return null;
-    return rows.map((r) => ({
-      kind: r.kind,
-      name: (r.actor_name || "").trim() || "An investor",
-      role: (r.actor_role || "").trim(),
-      company: (r.actor_company || "").trim(),
-      subject: (r.subject || "").trim(),
-      at: r.occurred_at,
-    }));
+    if (!Array.isArray(rows)) return { ok: false };
+    return {
+      ok: true,
+      rows: rows.filter((r) => r && typeof r === "object").map((r) => ({
+        kind: r.kind,
+        name: String(r.actor_name || "").trim() || "An investor",
+        role: String(r.actor_role || "").trim(),
+        company: String(r.actor_company || "").trim(),
+        subject: String(r.subject || "").trim(),
+        at: r.occurred_at,
+      })),
+    };
   } catch {
-    return null;
+    return { ok: false };
   }
+}
+
+/** Rows, or null when they could not be read (the shell's badge: no badge). */
+export async function listCompanyNotifications(companyId, limit = 50) {
+  const r = await loadCompanyNotifications(companyId, limit);
+  return r.ok ? r.rows : null;
 }
 
 /** When this company last opened its notifications. Null = never. */
@@ -112,8 +128,9 @@ export function companyUnreadCount(items, seenAt) {
  * Anything new after this reappears, so clearing empties the page without
  * muting the company.
  *
- * Returns null when 0064 is not applied, so the caller can fall back to simply
- * dismissing the unread state rather than appearing to do nothing.
+ * Returns the cleared-at timestamp; null when 0064 is not applied, so the caller
+ * can fall back to simply dismissing the unread state; { failed: true } when
+ * the request itself failed, so the caller can say it did not clear.
  */
 export async function clearCompanyNotifications(companyId) {
   if (!companyId) return null;
@@ -129,9 +146,10 @@ export async function clearCompanyNotifications(companyId) {
       headers: { ...h, "Content-Type": "application/json" },
       body: JSON.stringify({ p_company: companyId }),
     });
-    if (!res.ok) return null;
-    return (await res.json().catch(() => null)) || null;
+    if (res.status === 404) return null;
+    if (!res.ok) return { failed: true };
+    return (await res.json().catch(() => null)) || { failed: true };
   } catch {
-    return null;
+    return { failed: true };
   }
 }

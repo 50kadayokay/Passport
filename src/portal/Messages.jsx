@@ -143,7 +143,7 @@ function Bubble({ msg, mine, otherName, attachments = [] }) {
   );
 }
 
-export default function Messages({ company }) {
+export default function Messages({ company, hideHeading = false }) {
   const slug = company?.slug;
   // a03: analysts and viewers read the inbox; sending is for owner, admin,
   // editor and publisher. 0076's policies and /api/messages refuse the rest.
@@ -391,9 +391,9 @@ export default function Messages({ company }) {
   if (ready === false) {
     return (
       <div>
-        <h1 className="text-[22px] font-extrabold leading-tight tracking-tight text-slate-900">Messages</h1>
-        <p className="mt-1 text-[14px] text-slate-500">Investor messages land here.</p>
-        <div className={`mt-6 flex items-start gap-3.5 px-5 py-5 ${CARD}`}>
+        {!hideHeading && <h1 className="text-[22px] font-extrabold leading-tight tracking-tight text-slate-900">Messages</h1>}
+        {!hideHeading && <p className="mt-1 text-[14px] text-slate-500">Investor messages land here.</p>}
+        <div className={`${hideHeading ? "" : "mt-6 "} flex items-start gap-3.5 px-5 py-5 ${CARD}`}>
           <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-amber-100 text-amber-600"><AlertCircle size={19} /></span>
           <div>
             <p className="text-[14.5px] font-bold text-slate-900">Messaging is not switched on yet</p>
@@ -412,8 +412,8 @@ export default function Messages({ company }) {
     <div>
       <div className="flex items-baseline justify-between gap-4">
         <div>
-          <h1 className="text-[22px] font-extrabold leading-tight tracking-tight text-slate-900">Messages</h1>
-          <p className="mt-1 text-[14px] text-slate-500">
+          {!hideHeading && <h1 className="text-[22px] font-extrabold leading-tight tracking-tight text-slate-900">Messages</h1>}
+          <p className={`${hideHeading ? "" : "mt-1 "}text-[14px] text-slate-500`}>
             {unreadCount > 0
               ? `${unreadCount} unread ${unreadCount === 1 ? "message" : "messages"} from investors.`
               : "Investor messages land here."}
