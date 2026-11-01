@@ -168,3 +168,7 @@ Apply 0080/0090 after approval, then rerun isolation and the live sweep.
   without test keys), webhook renews_at fix, security headers in vercel.json (offline 32/0, not deployed).
 - In progress: S1 production-mode migration runner (g06), S2 production-shape review + rollout plan (g02/g03).
 - Feature completion 91% (25 working, 3 partial, 1 missing); implemented 97%, integrated 97%, verified 86%. Launch readiness 36%.
+- Later on 2026-11-01: merged S1's production runner (plan-only by default, 114/0, never run), S2's rollout plan (27
+  migrations, plan = manifest 19/0) and 0071 rollback guard (staging 11/0), S3's CSP Report-Only (29/0). Round trip 73/0,
+  publishing-0071 46/0, npm test and build pass. Launch readiness 41% (g06 now partial). Open: the read-only production audit
+  query (R1/R3/R4) needs approval; S1 is fixing the browser-side Anthropic call in src/Onboarding.jsx.
