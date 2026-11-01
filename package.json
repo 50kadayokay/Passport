@@ -18,6 +18,8 @@
     "check:s1-a08-retrieval": "node scripts/mineiq-a08-retrieval-test.mjs",
     "check:s1-a08-staging": "node scripts/mineiq-a08-retrieval-check.mjs",
     "check:s1-a07-click-through": "node scripts/a07-click-through-live.mjs",
+    "check:s1-0080": "node scripts/mineiq-search-0080-test.mjs",
+    "check:s1-0080-staging": "node scripts/mineiq-search-0080-check.mjs",
     "check:s3-gate": "node scripts/portal-gate-test.mjs",
     "check:s3-billing": "node scripts/billing-ui-test.mjs",
     "check:s3-messaging": "node scripts/messaging-ui-test.mjs",
