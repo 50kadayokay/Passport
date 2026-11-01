@@ -125,13 +125,21 @@ create policy "member_read" on public.facts for select to authenticated using (p
 create policy "admin_write" on public.facts for all to authenticated using (public.is_admin()) with check (public.is_admin());
 
 -- brand_kits (policies TO public, as before; delete stays admin-only)
-drop policy if exists "brand_kits_edit" on public.brand_kits;
-drop policy if exists "brand_kits_write" on public.brand_kits;
-create policy "brand_kits_edit" on public.brand_kits for update
-  using (public.has_company_role(company_id, array['owner','admin','editor','publisher']))
-  with check (public.has_company_role(company_id, array['owner','admin','editor','publisher']));
-create policy "brand_kits_write" on public.brand_kits for insert
-  with check (public.has_company_role(company_id, array['owner','admin','editor','publisher']));
+-- Guarded: brand_kits comes from 0028 (story studio), which production has never
+-- applied. Where the table is absent these policies are skipped (nothing to protect).
+do $g$
+begin
+  if to_regclass('public.brand_kits') is not null then
+    execute $s$drop policy if exists "brand_kits_edit" on public.brand_kits$s$;
+    execute $s$drop policy if exists "brand_kits_write" on public.brand_kits$s$;
+    execute $s$create policy "brand_kits_edit" on public.brand_kits for update
+      using (public.has_company_role(company_id, array['owner','admin','editor','publisher']))
+      with check (public.has_company_role(company_id, array['owner','admin','editor','publisher']))$s$;
+    execute $s$create policy "brand_kits_write" on public.brand_kits for insert
+      with check (public.has_company_role(company_id, array['owner','admin','editor','publisher']))$s$;
+  end if;
+end
+$g$;
 
 -- company_destinations, company_blueprints
 drop policy if exists "owner_all" on public.company_destinations;
@@ -146,16 +154,24 @@ create policy "blueprint_company_write" on public.company_blueprints for all to 
 
 -- story_projects: company rows need a drafting role to write; personal rows
 -- (company_id null) and reads unchanged.
-drop policy if exists "story_projects_del" on public.story_projects;
-drop policy if exists "story_projects_edit" on public.story_projects;
-drop policy if exists "story_projects_write" on public.story_projects;
-create policy "story_projects_del" on public.story_projects for delete
-  using (public.is_admin() or (company_id is not null and public.has_company_role(company_id, array['owner','admin','editor','publisher'])) or (company_id is null and created_by = auth.uid()));
-create policy "story_projects_edit" on public.story_projects for update
-  using (public.is_admin() or (company_id is not null and public.has_company_role(company_id, array['owner','admin','editor','publisher'])) or (company_id is null and created_by = auth.uid()))
-  with check (public.is_admin() or (company_id is not null and public.has_company_role(company_id, array['owner','admin','editor','publisher'])) or (company_id is null and created_by = auth.uid()));
-create policy "story_projects_write" on public.story_projects for insert
-  with check (created_by = auth.uid() and (company_id is null or public.has_company_role(company_id, array['owner','admin','editor','publisher'])));
+-- Guarded: story_projects comes from 0028 (story studio), which production has never
+-- applied. Where the table is absent these policies are skipped (nothing to protect).
+do $g$
+begin
+  if to_regclass('public.story_projects') is not null then
+    execute $s$drop policy if exists "story_projects_del" on public.story_projects$s$;
+    execute $s$drop policy if exists "story_projects_edit" on public.story_projects$s$;
+    execute $s$drop policy if exists "story_projects_write" on public.story_projects$s$;
+    execute $s$create policy "story_projects_del" on public.story_projects for delete
+      using (public.is_admin() or (company_id is not null and public.has_company_role(company_id, array['owner','admin','editor','publisher'])) or (company_id is null and created_by = auth.uid()))$s$;
+    execute $s$create policy "story_projects_edit" on public.story_projects for update
+      using (public.is_admin() or (company_id is not null and public.has_company_role(company_id, array['owner','admin','editor','publisher'])) or (company_id is null and created_by = auth.uid()))
+      with check (public.is_admin() or (company_id is not null and public.has_company_role(company_id, array['owner','admin','editor','publisher'])) or (company_id is null and created_by = auth.uid()))$s$;
+    execute $s$create policy "story_projects_write" on public.story_projects for insert
+      with check (created_by = auth.uid() and (company_id is null or public.has_company_role(company_id, array['owner','admin','editor','publisher'])))$s$;
+  end if;
+end
+$g$;
 
 -- site_credentials: token hashes, labels, usage. Owner/admin only, read AND revoke.
 drop policy if exists "site_credentials_read" on public.site_credentials;

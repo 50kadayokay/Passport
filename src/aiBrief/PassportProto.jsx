@@ -9663,6 +9663,21 @@ function ReportListingSheet({ slug, name, onClose }) {
     if (state === "sending") return;
     setState("sending"); haptic();
     let uid = null; try { uid = getUser()?.id || null; } catch (_) {}
+    // Through /api/submit (validated, throttled, written by the server; the
+    // reporter's id comes from the verified session, not from this client).
+    // If that route is not deployed yet, or unreachable, fall back to the
+    // original direct insert, which production keeps open for installed app
+    // versions (migration 0077) -- so this works in every production state.
+    try {
+      let token = null; try { token = await getAccessToken(); } catch (_) {}
+      const r = await fetch(`${API_BASE}/api/submit?form=listing_report`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ form: "listing_report", company_slug: slug, company_name: name, kind, message: message.trim(), contact: contact.trim() }),
+      });
+      if (r.ok) { setState("done"); return; }
+      if (r.status !== 404 && r.status < 500) { setState("error"); return; }   // a real refusal (400/413/429): do not resubmit
+    } catch (_) { /* network: fall back */ }
     try {
       const r = await fetch(`${SUPABASE_URL}/rest/v1/listing_reports`, {
         method: "POST",

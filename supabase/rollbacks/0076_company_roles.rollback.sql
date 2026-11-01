@@ -89,14 +89,20 @@ create policy "owner_all" on public.facts as permissive for all to authenticated
   using (can_touch_company(company_id))
   with check (can_touch_company(company_id));
 
-drop policy if exists "brand_kits_edit" on public.brand_kits;
-create policy "brand_kits_edit" on public.brand_kits as permissive for update to public
-  using (can_touch_company(company_id))
-  with check (can_touch_company(company_id));
-
-drop policy if exists "brand_kits_write" on public.brand_kits;
-create policy "brand_kits_write" on public.brand_kits as permissive for insert to public
-  with check (can_touch_company(company_id));
+-- Guarded: brand_kits (0028) does not exist in production; skipped where absent.
+do $g$
+begin
+  if to_regclass('public.brand_kits') is not null then
+    execute $s$drop policy if exists "brand_kits_edit" on public.brand_kits$s$;
+    execute $s$create policy "brand_kits_edit" on public.brand_kits as permissive for update to public
+      using (can_touch_company(company_id))
+      with check (can_touch_company(company_id))$s$;
+    execute $s$drop policy if exists "brand_kits_write" on public.brand_kits$s$;
+    execute $s$create policy "brand_kits_write" on public.brand_kits as permissive for insert to public
+      with check (can_touch_company(company_id))$s$;
+  end if;
+end
+$g$;
 
 drop policy if exists "owner_all" on public.company_destinations;
 create policy "owner_all" on public.company_destinations as permissive for all to authenticated
@@ -108,18 +114,23 @@ create policy "blueprint_company_write" on public.company_blueprints as permissi
   using (can_touch_company(company_id))
   with check (can_touch_company(company_id));
 
-drop policy if exists "story_projects_del" on public.story_projects;
-create policy "story_projects_del" on public.story_projects as permissive for delete to public
-  using ((is_admin() OR ((company_id IS NOT NULL) AND can_touch_company(company_id)) OR ((company_id IS NULL) AND (created_by = auth.uid()))));
-
-drop policy if exists "story_projects_edit" on public.story_projects;
-create policy "story_projects_edit" on public.story_projects as permissive for update to public
-  using ((is_admin() OR ((company_id IS NOT NULL) AND can_touch_company(company_id)) OR ((company_id IS NULL) AND (created_by = auth.uid()))))
-  with check ((is_admin() OR ((company_id IS NOT NULL) AND can_touch_company(company_id)) OR ((company_id IS NULL) AND (created_by = auth.uid()))));
-
-drop policy if exists "story_projects_write" on public.story_projects;
-create policy "story_projects_write" on public.story_projects as permissive for insert to public
-  with check (((created_by = auth.uid()) AND ((company_id IS NULL) OR can_touch_company(company_id))));
+-- Guarded: story_projects (0028) does not exist in production; skipped where absent.
+do $g$
+begin
+  if to_regclass('public.story_projects') is not null then
+    execute $s$drop policy if exists "story_projects_del" on public.story_projects$s$;
+    execute $s$create policy "story_projects_del" on public.story_projects as permissive for delete to public
+      using ((is_admin() OR ((company_id IS NOT NULL) AND can_touch_company(company_id)) OR ((company_id IS NULL) AND (created_by = auth.uid()))))$s$;
+    execute $s$drop policy if exists "story_projects_edit" on public.story_projects$s$;
+    execute $s$create policy "story_projects_edit" on public.story_projects as permissive for update to public
+      using ((is_admin() OR ((company_id IS NOT NULL) AND can_touch_company(company_id)) OR ((company_id IS NULL) AND (created_by = auth.uid()))))
+      with check ((is_admin() OR ((company_id IS NOT NULL) AND can_touch_company(company_id)) OR ((company_id IS NULL) AND (created_by = auth.uid()))))$s$;
+    execute $s$drop policy if exists "story_projects_write" on public.story_projects$s$;
+    execute $s$create policy "story_projects_write" on public.story_projects as permissive for insert to public
+      with check (((created_by = auth.uid()) AND ((company_id IS NULL) OR can_touch_company(company_id))))$s$;
+  end if;
+end
+$g$;
 
 drop policy if exists "site_credentials_read" on public.site_credentials;
 create policy "site_credentials_read" on public.site_credentials as permissive for select to authenticated

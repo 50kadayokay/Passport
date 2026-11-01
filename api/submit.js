@@ -14,6 +14,7 @@
 // in the window between. See docs/PHASE3-PUBLIC-SUBMISSIONS.md.
 
 import { serviceRest, serviceConfigured } from "./_service.js";
+import { bearerToken, verifyBearer } from "./_supabase.js";
 import {
   FORMS, MAX_BODY_BYTES, HONEYPOT_FIELD, THROTTLE_LIMITS,
   validate, looksLikeSpam, checkThrottle, clientIp,
@@ -65,6 +66,13 @@ export default async function handler(req, res) {
   }
 
   const row = buildRow(formName, v.data);
+  // A listing report from a signed-in investor is attributed to them -- from
+  // the VERIFIED session only; a user_id in the body is never read (the form
+  // does not declare it, so validate() already dropped it).
+  if (formName === "listing_report") {
+    const token = bearerToken(req);
+    if (token) { const vb = await verifyBearer(token).catch(() => null); if (vb && vb.ok && vb.user && vb.user.id) row.user_id = vb.user.id; }
+  }
   const r = await serviceRest(FORMS[formName].table, {
     method: "POST", prefer: "return=minimal", body: row,
   }).catch(() => null);
