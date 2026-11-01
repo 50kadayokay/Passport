@@ -1,0 +1,55 @@
+# Production environment audit: names only (2026-11-01)
+
+Built from every `process.env.*` read in `api/` and every `import.meta.env.VITE_*` read in `src/` on
+`portal-work`. Production's actual Vercel variable list has **not** been seen (no CLI login, no dashboard
+access from this session). Compare it in Vercel → Project → Settings → Environment Variables →
+Production, reading **names only**. Never reveal or copy a value.
+
+Every risky flag below is **off unless its value is exactly `"true"`** (or `"1"` where noted), so a
+missing variable is always the safe state.
+
+## A. Must be present for the pilot
+
+| Name | Used by | Note |
+|---|---|---|
+| `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` | web bundle and API | already in production (the app works today) |
+| `SUPABASE_SERVICE_ROLE_KEY` (or legacy `SUPABASE_SERVICE_KEY`) | API | already present; server only |
+| `SUBMISSION_SALT` | `/api/submit`, AI counters | **must exist before 0058** |
+| `SITE_REVALIDATE_SECRET` | `api/_siteRevalidate.js` | **new**; server only, never a `VITE_` copy; before 0088 |
+| `STRIPE_WEBHOOK_SECRET`, `STRIPE_SECRET_KEY` | billing | keep; pilot companies are invoiced by hand, but the webhook must verify |
+| `MESSAGES_INBOUND_SECRET`, `POSTMARK_SERVER_TOKEN`, `POSTMARK_INBOUND_HASH`, `MESSAGES_FROM_EMAIL` | messaging email | keep unchanged |
+| `OPENAI_API_KEY` (and/or `ANTHROPIC_API_KEY`) | Mine IQ and AI drafting | already present if Mine IQ works in production today |
+| `NEWS_PULL_SECRET`, `EODHD_API_KEY`, `JINA_API_KEY`, `NEWS_PROXY_URL` | existing news crons | existing behaviour; unchanged by the pilot |
+| `CONTACT_TO`, `CONFERENCE_INQUIRY_TO` | public forms | existing |
+
+## B. Must be ABSENT (or not "true") in production
+
+| Name | Why |
+|---|---|
+| `MINEEX_ENV` | `staging` turns on the egress guard and makes the website revalidate a mock |
+| `STAGING_CRON_SECRET`, `STAGING_EGRESS_LOG`, `STAGING_SELF_HOSTS` | staging-only |
+| `PUSH_ENABLED` | `news-push-send` sends nothing unless `"true"`; push stays off for the pilot (0055 deferred) |
+| `VITE_ANDROID_PUSH_ENABLED` | Android push registration only when `"true"` |
+| `NEWS_AUTOCREATE_ENABLED`, `NEWS_AUTO_APPROVE_ENABLED` | news auto-create / auto-approve only when `"true"`; if set today, that is existing behaviour, but confirm it is intended |
+| `VITE_NEWS_FIXTURES`, `VITE_STUDIO_MOCK` | dev fixtures / mock extraction (`"1"`) |
+| `VITE_STUDIO_API_BASE` | dev-only Studio API override |
+| any `VITE_*REVALIDATE*` | would put the revalidate secret in the browser bundle (`check:s2-revalidate-bundle` refuses it) |
+| `CRON_SECRET`, `DISPATCH_HEALTH_TOKEN`, `DELIVERY_EPOCH` | Phase 6 (scheduled delivery) only; not for the pilot |
+
+## C. Optional, safe defaults (set only to override)
+
+`AI_MODEL*`, `ANTHROPIC_MODEL*`, `TEXT_MODEL`, `COMMS_MODEL`, `BATCH_MODEL`, `STUDIO_EXTRACT_MODEL`,
+`AI_TIMEOUT_MS`, `AI_USER_DAILY_CAP`, `AI_COMPANY_DAILY_CAP`, `AI_CALLS_PER_WINDOW`, `AI_DAILY_USD_LIMIT`,
+`AI_PRICING_VERIFIED` (`"1"`), `DISPATCH_BUDGET_MS`, `NEWS_CRON_PROCESS_LIMIT`, `NEWS_CHAIN_LIMIT`,
+`PUBLIC_BASE_URL`, `PUBLIC_APP_URL`, `OPS_ALERT_TO`, `STRIPE_PRICE_BASIC`, `STRIPE_PRICE_PRO`,
+`VITE_GOOGLE_WEB_CLIENT_ID`.
+
+Spend and kill switches, off by default: `AI_PAID_ENABLED` (website builder; no paid AI unless `"true"`),
+`AI_VISION_ENABLED` (`"true"`), `AI_ENDPOINTS_DISABLED` (`"true"` disables AI endpoints).
+
+`DISPATCH_SECRET` guards manual `/api/dispatch` calls; keep it if present. `FCM_*` and `APNS_*` are push
+credentials; harmless while `PUSH_ENABLED` is off. `VERCEL_URL` and `VERCEL_REGION` are set by Vercel.
+
+## D. No longer read (remove only after Phase 1 is confirmed)
+
+`MINEEX_BRIEF_API_KEY`, `MINEEX_BRIEF_MODEL`.
