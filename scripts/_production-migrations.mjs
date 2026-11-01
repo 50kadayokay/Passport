@@ -132,7 +132,7 @@ export function markerFor(file, q01Markers) {
 export const markerSelect = (m) => `select coalesce((${m.sql}), false) as applied`;
 
 const num = (f) => f.slice(0, 4);
-const isConcurrently = (sql) => /\b(create|drop|reindex)\b[\s\S]{0,120}?\bconcurrently\b/i.test(stripSqlComments(sql));
+export const isConcurrently = (sql) => /\b(create|drop|reindex)\b[\s\S]{0,120}?\bconcurrently\b/i.test(stripSqlComments(sql));
 // Never disable triggers -- not with ALTER TABLE, not with the replica role
 // that silences every one of them at once.
 const DISABLES_TRIGGERS = /\bdisable\s+trigger\b|\bsession_replication_role\b/i;
@@ -148,10 +148,31 @@ export function readLog(logFile) {
 export function unresolved(log) {
   const open = new Map();
   for (const e of log) {
-    if (e.status === "started" || e.status === "failed") open.set(e.file, e);
-    else if (["applied", "applied-manually", "reviewed"].includes(e.status)) open.delete(e.file);
+    if (["started", "failed", "rollback-started", "rollback-failed"].includes(e.status)) open.set(e.file, e);
+    else if (["applied", "applied-manually", "reviewed", "rolled_back"].includes(e.status)) open.delete(e.file);
   }
   return [...open.values()];
+}
+
+/** Files this runner applied (or recorded as applied by hand) and has not
+ *  since rolled back, in the order they were applied: the rollback stack. */
+export function appliedStack(log, ref) {
+  const stack = [];
+  for (const e of log.filter((x) => x.ref === ref)) {
+    if (e.status === "applied" || e.status === "applied-manually") { if (!stack.includes(e.file)) stack.push(e.file); }
+    else if (e.status === "rolled_back") { const i = stack.lastIndexOf(e.file); if (i >= 0) stack.splice(i, 1); }
+  }
+  return stack;
+}
+export const appliedByLog = (log, ref) => new Set(appliedStack(log, ref));
+/** Files whose LAST runner entry is a rollback: file -> that entry. */
+export function lastRollbacks(log, ref) {
+  const last = new Map();
+  for (const e of log.filter((x) => x.ref === ref)) {
+    if (["applied", "applied-manually"].includes(e.status)) last.delete(e.file);
+    else if (e.status === "rolled_back") last.set(e.file, e);
+  }
+  return last;
 }
 
 /**
@@ -168,7 +189,10 @@ export function buildPlan({ files, record, log = [], q01Markers, dir = "supabase
   if (Object.keys(manifest.UNVERIFIED || {}).length) refuse(`the manifest has UNVERIFIED migrations (${Object.keys(manifest.UNVERIFIED).join(", ")}): no production plan until they are checked`);
   for (const f of Object.keys(record.q01)) if (!files.includes(f)) refuse(`the audit record names ${f}, which is not in ${dir}`);
 
-  const doneByLog = new Set(log.filter((e) => e.ref === record.project_ref && (e.status === "applied" || e.status === "applied-manually")).map((e) => e.file));
+  const doneByLog = appliedByLog(log, record.project_ref);
+  for (const [f, e] of lastRollbacks(log, record.project_ref)) {
+    if (record.q01[f] === "applied") refuse(`the audit says production has ${f}, but this runner rolled it back at ${e.at}: the audit predates the rollback. Re-run the read-only audit before planning`);
+  }
   const firstQ01 = Object.keys(record.q01).map(num).sort()[0] || "9999";
   const applied = [], deferred = [], skipped = [], pending = [];
   for (const f of [...files].sort()) {
@@ -290,11 +314,13 @@ export function formatPlan(plan, record) {
 
 // ---- the apply request ------------------------------------------------------------
 export function parseArgs(argv) {
-  const a = { apply: false, only: [], ref: null, approvedBy: null, audit: DEFAULT_AUDIT, recordManual: null, reviewed: null, unknown: [] };
+  const a = { apply: false, rollback: false, acceptDataLoss: null, only: [], ref: null, approvedBy: null, audit: DEFAULT_AUDIT, recordManual: null, reviewed: null, unknown: [] };
   for (let i = 0; i < argv.length; i++) {
     const x = argv[i];
     const val = (name) => (x.startsWith(`${name}=`) ? x.slice(name.length + 1) : argv[++i]);
     if (x === "--apply") a.apply = true;
+    else if (x === "--rollback") a.rollback = true;
+    else if (x === "--accept-data-loss" || x.startsWith("--accept-data-loss=")) a.acceptDataLoss = val("--accept-data-loss") ?? "";
     else if (x === "--only" || x.startsWith("--only=")) a.only.push(...String(val("--only") ?? "").split(",").map((s) => s.trim()).filter(Boolean));
     else if (x === "--ref" || x.startsWith("--ref=")) a.ref = val("--ref") ?? "";
     else if (x === "--approved-by" || x.startsWith("--approved-by=")) a.approvedBy = val("--approved-by") ?? "";
@@ -313,8 +339,9 @@ export function parseArgs(argv) {
  */
 export function checkRequest(args, plan, log, { kind = "apply", read } = {}) {
   if (args.unknown.length) refuse(`unknown argument(s): ${args.unknown.join(" ")}`);
-  const modes = [args.apply, !!args.recordManual, !!args.reviewed].filter(Boolean).length;
-  if (modes > 1) refuse("choose one of --apply, --record-manual, --reviewed");
+  const modes = [args.apply, !!args.rollback, !!args.recordManual, !!args.reviewed].filter(Boolean).length;
+  if (modes > 1) refuse("choose one of --apply, --rollback, --record-manual, --reviewed");
+  if (args.acceptDataLoss != null && kind !== "rollback") refuse("--accept-data-loss is only for --rollback");
   if (kind === "apply" && !args.apply) refuse("applying needs --apply (without it this prints the plan)");
   const approved = String(args.approvedBy ?? "").trim();
   if (approved.length < 8) refuse('applying needs --approved-by="<who approved it, and where>" (at least 8 characters); it is written to the log');
@@ -324,6 +351,8 @@ export function checkRequest(args, plan, log, { kind = "apply", read } = {}) {
 
   const pending = unresolved(log);
   if (kind !== "reviewed" && pending.length) refuse(`the apply log has an unresolved run: ${pending.map((e) => `${e.file} (${e.status})`).join(", ")}. Inspect production, then record it with --reviewed <file>`);
+
+  if (kind === "rollback") return { file: null };   // the rest is checkRollback's (_production-rollback.mjs)
 
   if (kind === "reviewed") {
     const target = args.reviewed;

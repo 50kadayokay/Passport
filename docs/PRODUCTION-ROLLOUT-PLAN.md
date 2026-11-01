@@ -170,33 +170,33 @@ needs its own approval.
 **Order.** Strictly reverse: only the most recently applied file, then the one
 before it. Never jump past a file that is still applied.
 
-**Commands.** Run from the repo, with the `pg_service.conf` entry:
-- **Every file:** run its committed rollback. The rollback files manage their own
-  transaction, and the two CONCURRENTLY ones run outside one. Do not add `-1`:
+**Command.** The runner does it, with the same flags, exact ref, typed
+confirmation and DSN file as an apply:
 
   ```
-  psql "service=mineex_prod" -v ON_ERROR_STOP=1 -f supabase/rollbacks/<file>.rollback.sql
+  PRODUCTION_DSN_FILE=<path outside the repo> node scripts/apply-migrations-production.mjs \
+      --rollback --only <file> --ref=<production ref> --approved-by="<who approved, and where>" \
+      [--accept-data-loss="<the decision, and who made it>"]
   ```
 
-- **Then, only if the runner wrote a capture file for it:** run that file to put
-  production's own function text back. Functions that did not exist before the
-  migration are left to the committed rollback:
-
-  ```
-  psql "service=mineex_prod" -v ON_ERROR_STOP=1 -f supabase/audit/results/apply-capture-<file>-<time>.sql
-  ```
-
-  Without the capture file, 0071, 0072 and 0076 still restore the same behaviour
-  (R1); only formatting differs.
+- It refuses anything but the file it applied most recently, and every case
+  under **Never** below. A lossy rollback needs `--accept-data-loss`.
+- Transaction files: the marker must read applied, then a pre-snapshot. One
+  transaction runs the committed rollback, then the capture file that apply
+  wrote (production's own function text), if there is one. The marker must then
+  read NOT applied, or nothing is committed. Then a post-snapshot and diff.
+- The CONCURRENTLY files (0065c, 0073a) run their `DROP INDEX CONCURRENTLY`
+  statements one at a time, outside a transaction.
+- It logs `rolled_back`, so the plan offers the file again. The plan's ROLLBACK
+  section shows which file is next.
 
 **Afterwards.**
-1. Check the file's marker reads NOT applied (the runner's plan prints the marker
-   SQL).
-2. Re-run the read-only audit.
-3. Record the rollback in the runner's log, so the plan offers the file again.
-   The runner has no rollback-record mode yet (asked of S1). Until it has one,
-   S4 marks it by hand in `supabase/production-log/` with you, before anything
-   is re-applied.
+1. Re-run the read-only audit.
+2. If the runner refused, failed or was interrupted, nothing more runs until
+   `--reviewed <file>` is recorded after inspection. The manual commands
+   (`psql "service=mineex_prod" -v ON_ERROR_STOP=1 -f supabase/rollbacks/<file>.rollback.sql`,
+   then the capture file; no `-1`) are for when the runner itself cannot
+   connect. Decide that with S4.
 
 **Never:**
 - **0071 while 0088 is applied.** Its rollback refuses (R2); roll back 0088 first.
