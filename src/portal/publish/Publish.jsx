@@ -61,7 +61,10 @@ export default function Publish({ company, startIn = null, go = () => {}, view =
       const [d, p] = await Promise.all([listDrafts(companyId), listPublished(companyId)]);
       setDrafts(d); setPublished(p);
     } catch (e) {
-      setDrafts([]); setPublished([]);
+      // Not [] -- an empty library under the error banner said "No press
+      // releases yet" about a library that failed to load. The grid is
+      // replaced by the banner and its Try again.
+      setDrafts(null); setPublished(null);
       setLoadErr(e?.message || "Your releases could not be loaded.");
     }
   }, [companyId]);
@@ -148,6 +151,7 @@ export default function Publish({ company, startIn = null, go = () => {}, view =
             <div>
               <p className="text-[14px] font-bold text-amber-900">Couldn't load your releases</p>
               <p className="text-[13px] text-amber-700">{loadErr}</p>
+              <button onClick={refresh} className="mt-1.5 text-[12.5px] font-bold text-amber-900 underline-offset-2 hover:underline">Try again</button>
             </div>
           </div>
         )}
@@ -207,7 +211,7 @@ export default function Publish({ company, startIn = null, go = () => {}, view =
           <span className="h-px flex-1 bg-slate-200" />
         </div>
 
-        <div className="mt-5">
+        {!loadErr && <div className="mt-5">
           <ReleaseLibrary
             drafts={drafts}
             published={published}
@@ -216,7 +220,7 @@ export default function Publish({ company, startIn = null, go = () => {}, view =
             onDraft={canDraft ? () => setTab("draft") : undefined}
             onOpen={(item) => setEditing(item.id)}
           />
-        </div>
+        </div>}
       </div>
     );
   }

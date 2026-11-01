@@ -289,6 +289,8 @@ export default function CreateRelease({ company, draftId, onExit, onPublished, o
   const [dragOver, setDragOver] = useState(false);
   const [busy, setBusy] = useState("");
   const [err, setErr] = useState("");
+  // The release's images failed to load on reopen (see the draft effect).
+  const [assetsErr, setAssetsErr] = useState("");
   // What failed, in words. The banner used to say "Couldn't publish" for a
   // failed correction or take-down too.
   const [errTitle, setErrTitle] = useState("Couldn't publish");
@@ -429,6 +431,10 @@ export default function CreateRelease({ company, draftId, onExit, onPublished, o
   useEffect(() => {
     if (!draftId) return;
     (async () => {
+      // Any failure while reopening lands on an explained error. A throw here
+      // (an expired session, a network drop) used to leave the "Preparing
+      // your release" screen up forever.
+      try {
       const d = await getDraft(draftId);
       if (!d) { setErr("That draft could not be opened."); setPhase("upload"); return; }
       setDraft(d);
@@ -473,13 +479,28 @@ export default function CreateRelease({ company, draftId, onExit, onPublished, o
         list = await listMediaAssets(companyId, { sourceDocumentId: det.document_id });
         setAssets(list);
       }
-      // A draft saved before this rule existed - or edited elsewhere - can carry the
-      // id of an asset no browser can display. Publishing that is a silent failure:
-      // the release goes out referencing an image investors never see. Sanitise on
-      // load as well as on click, so the stored selection can only shrink to valid.
-      setPicked(sanitizeSelection(det.selected_asset_ids || [], list));
+      const saved = Array.isArray(det.selected_asset_ids) ? det.selected_asset_ids : [];
+      if (det.document_id && saved.length && !list.length) {
+        // The release HAS chosen images but none came back: the list failed
+        // (listMediaAssets answers [] for a failed read). Sanitising against
+        // an empty list would silently drop the company's selection and the
+        // next autosave would store that. Keep it, say so, and hold publishing
+        // until the images load.
+        setPicked(saved);
+        setAssetsErr("The images for this release could not be loaded, so your image selection can't be shown. It is kept as it was. Reload before publishing.");
+      } else {
+        // A draft saved before this rule existed - or edited elsewhere - can carry the
+        // id of an asset no browser can display. Publishing that is a silent failure:
+        // the release goes out referencing an image investors never see. Sanitise on
+        // load as well as on click, so the stored selection can only shrink to valid.
+        setPicked(sanitizeSelection(saved, list));
+      }
       setCaptions(det.asset_captions && typeof det.asset_captions === "object" ? det.asset_captions : {});
       setPhase("review");
+      } catch (e) {
+        setErr(e?.message || "That release could not be opened. Check your connection and try again.");
+        setPhase("upload");
+      }
     })();
   }, [draftId, companyId]);
 
@@ -776,6 +797,10 @@ export default function CreateRelease({ company, draftId, onExit, onPublished, o
       // Anything still inside the autosave window is part of what the CEO
       // means by "publish this".
       await flushSave();
+      if (assetsErr) {
+        setErr("The images for this release did not load, so what would be published can't be checked. Reload the page, then publish.");
+        setBusy(""); setPubStep(-1); return;
+      }
       if (incomplete && !ackIncomplete) {
         setErr("Part of your document did not come through. Check the full release against your original, then confirm above.");
         setBusy(""); setPubStep(-1); return;
@@ -810,6 +835,17 @@ export default function CreateRelease({ company, draftId, onExit, onPublished, o
 
   /* ---------------- upload ---------------- */
   if (phase === "upload") {
+    // Reopening a saved release failed: say that, with the way back. The
+    // dropzone below would invite a new upload of something already stored.
+    if (draftId) {
+      return (
+        <div>
+          <Back onExit={onExit} />
+          <h1 className="text-[27px] font-extrabold leading-tight tracking-tight text-slate-900">Couldn't open this release</h1>
+          <div className="mt-5" data-release-open-error><Notice tone="rose" title="That didn't work" body={err || "That release could not be opened."} /></div>
+        </div>
+      );
+    }
     return (
       <div>
         <Back onExit={onExit} />
@@ -836,7 +872,20 @@ export default function CreateRelease({ company, draftId, onExit, onPublished, o
   }
 
   /* ---------------- processing ---------------- */
-  if (phase === "working" || phase === "loading") {
+  // Reopening a saved release has no upload steps to show. It used to render
+  // the upload checklist with "Uploading your file" and no active step.
+  if (phase === "loading") {
+    return (
+      <div>
+        <Back onExit={onExit} />
+        <p className="mt-6 flex items-center gap-2.5 text-[14px] font-semibold text-slate-500" role="status" data-release-loading>
+          <Loader2 size={16} className="animate-spin text-blue-500" /> Opening your release…
+        </p>
+      </div>
+    );
+  }
+
+  if (phase === "working") {
     // Only stages the pipeline actually reports. No invented progress.
     const steps = [
       { key: "uploading",        label: "Uploading your file" },
@@ -1499,7 +1548,9 @@ export default function CreateRelease({ company, draftId, onExit, onPublished, o
               <span className={LABEL}>Media</span>
               {assets.length > 0 && <span className="text-[11.5px] text-slate-400">{picked.length} of {assets.length} selected</span>}
             </div>
-            {!assets.length ? (
+            {assetsErr ? (
+              <p className="mt-3 rounded-xl bg-amber-50 px-3.5 py-2.5 text-[12.5px] font-semibold leading-relaxed text-amber-800" data-assets-error>{assetsErr}</p>
+            ) : !assets.length ? (
               <p className="mt-3 text-[13px] leading-relaxed text-slate-400">No images were found in this release.</p>
             ) : (
               <>

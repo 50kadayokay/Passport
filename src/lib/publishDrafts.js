@@ -167,6 +167,15 @@ export async function getDraft(updateId) {
   return rows[0] || null;
 }
 
+// A failed read THROWS. Returning [] made an outage look like "No press
+// releases yet" -- an empty library that was not empty.
+async function listRows(r, what) {
+  if (!r.ok) throw new Error(`Your ${what} could not be loaded (${r.status}). Try again shortly.`);
+  const rows = await r.json().catch(() => null);
+  if (!Array.isArray(rows)) throw new Error(`Your ${what} could not be loaded. Try again shortly.`);
+  return rows;
+}
+
 /** Everything not yet published, newest first. */
 export async function listDrafts(companyId) {
   if (import.meta.env && import.meta.env.DEV && isPortalDemo()) {
@@ -181,7 +190,7 @@ export async function listDrafts(companyId) {
     `${SUPABASE_URL}/rest/v1/updates?company_id=eq.${companyId}&status=in.(draft,review,failed)${NOT_MEDIA}&select=*&order=updated_at.desc`,
     { headers: h }
   );
-  return r.ok ? await r.json().catch(() => []) : [];
+  return listRows(r, "drafts");
 }
 
 /**
@@ -196,7 +205,7 @@ export async function listPublished(companyId) {
     `${SUPABASE_URL}/rest/v1/updates?company_id=eq.${companyId}&status=eq.published${NOT_MEDIA}&select=*,publications(id,destination_id,status,published_at,external_url,created_at)&order=published_on.desc.nullslast`,
     { headers: h }
   );
-  return r.ok ? await r.json().catch(() => []) : [];
+  return listRows(r, "published releases");
 }
 
 /**
