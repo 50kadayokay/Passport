@@ -12,6 +12,9 @@ const CARD = "rounded-2xl border border-slate-200 bg-white";
 const LISTENERS = {
   feed_projection_v1: "Investor feed", profile_timeline_v1: "Pro Profile timeline",
   in_app_notifications_v1: "Follower notifications", mineiq_facts_v1: "MineIQ", device_push_v1: "Mobile push",
+  // S2's content fan-out (api/_listeners.js, 0088): the same record to the
+  // company's website and to its Conference booth.
+  site_content_v1: "Company website", conference_content_v1: "Conference booth",
 };
 const EVENTS = { PUBLICATION_PUBLISHED: "Published", PUBLICATION_REVISED: "Corrected", PUBLICATION_UNPUBLISHED: "Unpublished" };
 const STATUS_UI = {
