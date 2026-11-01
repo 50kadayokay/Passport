@@ -197,6 +197,16 @@ for (const k of ["A", "B"]) {
     made.push("service request");
   }
 
+  // a15 (0088): one delivered website item per company, on its seeded publication.
+  if ((await c.query(`select to_regclass('public.destination_content') is not null x`)).rows[0].x) {
+    const pub = (await c.query(`select id from public.publications where company_id=$1 order by created_at limit 1`, [cid])).rows[0];
+    if (pub) {
+      await c.query(`insert into public.destination_content (company_id, destination, publication_id, title) values ($1, 'website', $2, $3) on conflict (destination, publication_id) do nothing`,
+        [cid, pub.id, `iso-delivered-${k}`]);
+      made.push("destination content");
+    }
+  }
+
   const ma = await c.query(`select count(*)::int n from public.media_assets where company_id=$1`, [cid]);
   if (ma.rows[0].n === 0) await c.query(`insert into public.media_assets (company_id) values ($1)`, [cid]);
   made.push("media asset");

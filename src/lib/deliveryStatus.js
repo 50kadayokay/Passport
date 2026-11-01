@@ -39,6 +39,13 @@ export const DESTINATIONS = {
   in_app_notifications_v1: "Follower notifications",
   mineiq_facts_v1: "MineIQ knowledge",
   device_push_v1: "Mobile push",
+  // S2's fan-out (0088). Labels only, deliberately NOT added to EXPECTED: they
+  // subscribe from 0088's active_from, so a release published before it (or on
+  // a database without 0088) has no such delivery, and listing them as
+  // expected would show it "pending" for ever. When the database reports a
+  // row, it is shown under these names.
+  site_content_v1: "Company website",
+  conference_content_v1: "Conference booth",
 };
 
 export const EVENT_LABEL = {

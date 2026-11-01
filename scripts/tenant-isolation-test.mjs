@@ -272,11 +272,25 @@ async function main() {
   for (const [k, v] of Object.entries(tok)) if (v) UID[k] = subjectOf(v);
 
   mark("1-6 table and RPC probes");
+  // Tables declared in a migration that is not applied on THIS database (e.g. a
+  // feature migration awaiting approval) are reported once as SKIP and left out
+  // of every probe below: their 404 must never count as a denial. The inventory
+  // check above still requires them to be listed.
+  const LIVE_SCOPED = [];
+  for (const entry of COMPANY_SCOPED) {
+    const [table] = entry;
+    const p = await rest(`${table}?select=*&limit=0`, { token: tok.companyA });
+    if (p.status === 404 || (p.body && /PGRST205|Could not find the table/.test(JSON.stringify(p.body)))) {
+      record("suite", "table present", table, "present", "table not on this database", "SKIP", "migration not applied here yet");
+      continue;
+    }
+    LIVE_SCOPED.push(entry);
+  }
   // ===================== 1. POSITIVE CONTROLS ============================
   // Run FIRST and deliberately. If company A cannot read its own rows, every
   // denial below is meaningless -- a fully broken database passes a
   // denial-only suite perfectly.
-  for (const [table, col] of COMPANY_SCOPED) {
+  for (const [table, col] of LIVE_SCOPED) {
     if (WRITE_ONLY.has(table)) continue;        // insert-only by design; see _isolation-targets
     const val = col === "company_slug" ? SLUG_A : ID_A;
     const { status, body } = await rest(`${table}?${col}=eq.${val}&select=${colsFor(table)}&limit=1`, { token: tok.companyA });
@@ -349,7 +363,7 @@ async function main() {
   }
 
   // ===================== 2. CROSS-TENANT READ ============================
-  for (const [table, col] of COMPANY_SCOPED) {
+  for (const [table, col] of LIVE_SCOPED) {
     const val = col === "company_slug" ? SLUG_B : ID_B;
     if (PUBLIC_BY_DESIGN.has(table)) {
       // Public read by design: assert the HIDDEN subset stays hidden instead.
@@ -378,7 +392,7 @@ async function main() {
   }
 
   // ===================== 3. CROSS-TENANT WRITE ===========================
-  for (const [table, col] of COMPANY_SCOPED) {
+  for (const [table, col] of LIVE_SCOPED) {
     const val = col === "company_slug" ? SLUG_B : ID_B;
     const ins = await rest(table, { token: tok.companyA, method: "POST",
       body: { [col]: val }, prefer: "return=representation" });
@@ -431,7 +445,7 @@ async function main() {
 
   // ===================== 5. ADMIN RETAINS ACCESS =========================
   if (tok.admin) {
-    for (const [table, col] of COMPANY_SCOPED.slice(0, 8)) {
+    for (const [table, col] of LIVE_SCOPED.slice(0, 8)) {
       const val = col === "company_slug" ? SLUG_B : ID_B;
       const { status, body } = await rest(`${table}?${col}=eq.${val}&select=${colsFor(table)}&limit=1`, { token: tok.admin });
       expectAllowed("admin", "SELECT any", table, status, body, "staff access must survive remediation");
@@ -464,6 +478,18 @@ async function main() {
   for (const [name, extra, cls, staffOwn] of COMPANY_SCOPED_RPCS) {
     const own   = { p_company: ID_A, ...extra };
     const other = { p_company: ID_B, ...extra };
+
+    // A member function the owner should be ADMITTED to answers 404/PGRST202
+    // only when it does not exist here (its migration is not applied): one SKIP,
+    // never a pass. Internal / admin-only functions are excluded -- there a 404
+    // could hide a refusal, so they stay strict.
+    if ((cls === "company-read" || cls === "company-write") && tok.companyA) {
+      const probe = await rpc(name, own, tok.companyA);
+      if (probe.status === 404 && /PGRST202|Could not find the function/i.test(JSON.stringify(probe.body || ""))) {
+        record("suite", "RPC present", name, "present", "function not on this database", "SKIP", "migration not applied here yet");
+        continue;
+      }
+    }
 
     // 0076 team functions (a03): role-guarded, platform admins admitted, and
     // refusals come back as data. See _isolation-targets.mjs.
