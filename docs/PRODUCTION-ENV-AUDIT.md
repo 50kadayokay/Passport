@@ -21,6 +21,7 @@ missing variable is always the safe state.
 | `OPENAI_API_KEY` (and/or `ANTHROPIC_API_KEY`) | Mine IQ and AI drafting | already present if Mine IQ works in production today |
 | `NEWS_PULL_SECRET`, `EODHD_API_KEY`, `JINA_API_KEY`, `NEWS_PROXY_URL` | existing news crons | existing behaviour; unchanged by the pilot |
 | `CONTACT_TO`, `CONFERENCE_INQUIRY_TO` | public forms | existing |
+| `DISPATCH_SECRET` | publish, unpublish, revise and Ops replay nudge `/api/dispatch` with it | **required for the pilot**: unset, publishing never runs the feed, timeline, Mine IQ facts or website projections (no cron drains them). Confirm the name exists; keep its value |
 
 ## B. Must be ABSENT (or not "true") in production
 
@@ -28,7 +29,7 @@ missing variable is always the safe state.
 |---|---|
 | `MINEEX_ENV` | `staging` turns on the egress guard and makes the website revalidate a mock |
 | `STAGING_CRON_SECRET`, `STAGING_EGRESS_LOG`, `STAGING_SELF_HOSTS` | staging-only |
-| `PUSH_ENABLED` | `news-push-send` sends nothing unless `"true"`; push stays off for the pilot (0055 deferred) |
+| `PUSH_ENABLED` | `news-push-send` sends nothing unless `"true"`; push stays off for the pilot (0055 deferred). **Never switch it on without first clearing `notification_outbox`:** `news-notify` keeps queuing follower pushes as pending, and the first run would send the oldest 200 per hour, possibly weeks-old news (procedure in docs/PILOT-DISABLED-DELIVERY.md) |
 | `VITE_ANDROID_PUSH_ENABLED` | Android push registration only when `"true"` |
 | `NEWS_AUTOCREATE_ENABLED`, `NEWS_AUTO_APPROVE_ENABLED` | news auto-create / auto-approve only when `"true"`; if set today, that is existing behaviour, but confirm it is intended |
 | `VITE_NEWS_FIXTURES`, `VITE_STUDIO_MOCK` | dev fixtures / mock extraction (`"1"`) |
@@ -47,7 +48,7 @@ missing variable is always the safe state.
 Spend and kill switches, off by default: `AI_PAID_ENABLED` (website builder; no paid AI unless `"true"`),
 `AI_VISION_ENABLED` (`"true"`), `AI_ENDPOINTS_DISABLED` (`"true"` disables AI endpoints).
 
-`DISPATCH_SECRET` guards manual `/api/dispatch` calls; keep it if present. `FCM_*` and `APNS_*` are push
+`FCM_*` and `APNS_*` are push
 credentials; harmless while `PUSH_ENABLED` is off. `VERCEL_URL` and `VERCEL_REGION` are set by Vercel.
 
 ## D. No longer read (remove only after Phase 1 is confirmed)
