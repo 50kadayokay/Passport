@@ -89,9 +89,20 @@ try {
   ok((await unfollow(W.INVESTOR_B)).status === 204 && (await follow(W.INVESTOR_B)).status === 201, "an investor unfollows and follows again");
   r = await list(W.COMPANY_A);
   ok(Array.isArray(r.body) && r.body.length === 1 && r.body[0].kind === "follow", "only the new follow is listed", JSON.stringify(r.body).slice(0, 160));
-  r = await rpc(W.STAFF, "mark_notifications_cleared", { p_company: X });
-  const viewerCleared = r.status === 200;
-  console.log(`  (observed: a viewer ${viewerCleared ? "CAN" : "cannot"} clear the company's notifications -- ${r.status})`);
+
+  console.log("\n  4. ONLY OWNERS AND ADMINS CLEAR (0090, through the app's own RPC call)");
+  const clearedBefore = String((await one(`select cleared_at from public.company_notification_reads where company_id = $1`, [X])).cleared_at);
+  for (const [who, label] of [["STAFF", "viewer"], ["ANALYST", "analyst"], ["EDITOR", "editor"]]) {
+    r = await rpc(W[who], "mark_notifications_cleared", { p_company: X });
+    const now = String((await one(`select cleared_at from public.company_notification_reads where company_id = $1`, [X])).cleared_at);
+    ok(r.status === 403 && now === clearedBefore, `a company ${label} is refused (403) and cleared_at is unchanged`, `${r.status} ${JSON.stringify(r.body).slice(0, 120)}`);
+  }
+  r = await list(W.STAFF);
+  ok(Array.isArray(r.body) && r.body.length === 1, "...so the new follow is still listed for every member");
+  r = await rpc(W.COADMIN, "mark_notifications_cleared", { p_company: X });
+  ok(r.status === 200 && typeof r.body === "string", "a company admin clears all", `${r.status} ${JSON.stringify(r.body)}`);
+  r = await list(W.STAFF);
+  ok(Array.isArray(r.body) && r.body.length === 0, "the admin's clear empties the list for the viewer too");
   r = await rpc(W.COMPANY_A, "mark_notifications_seen", { p_company: X });
   ok(r.status === 200, "mark seen still works after a clear");
 } catch (e) {

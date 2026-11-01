@@ -48,6 +48,8 @@ try {
   const clearedAt = async () => (await q(`select cleared_at from public.company_notification_reads where company_id = $1`, [X]))[0]?.cleared_at ?? null;
   const CLEAR = `select public.mark_notifications_cleared($1) at`;
 
+  // 0090 is on staging since 2026-11-01: unwind it inside the transaction first (nothing is committed).
+  if (/has_company_role\(p_company/.test(await def())) await c.query(strip(RB));
   const X = (await q(`insert into public.companies (slug, name, owner_id, status, tier) values ($1, 'A0090 Notifications', $2, 'published', 'pro') returning id`, [`zz-0090-${Date.now().toString(36)}`, U.COMPANY_A]))[0].id;
   for (const [k, role] of [["COADMIN", "admin"], ["EDITOR", "editor"], ["ANALYST", "analyst"], ["STAFF", "viewer"]]) await q(`insert into public.company_memberships (company_id, user_id, role, status) values ($1, $2, $3, 'active')`, [X, U[k], role]);
   ok(true, "throwaway company with owner, admin, editor, analyst, viewer (inside the transaction)");

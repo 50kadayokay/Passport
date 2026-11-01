@@ -53,8 +53,12 @@ const ids = (rows, source) => rows.filter((r) => r.source === source).map((r) =>
 
 const T = `a80zq${Date.now().toString(36)}`;   // one word only this run's rows contain
 const QUESTION = `What did ${T} raise?`;      // S4's a07 question: "raise" is not in the text
+// 0080 is on staging since 2026-11-01: unwind it inside the transaction first, so the
+// before/apply/rollback sequence below still runs against 0050a. Nothing is committed.
+const LIVE0080 = (await one(`select position('plainto_tsquery' in pg_get_functiondef('public.mineiq_search(uuid, text, integer)'::regprocedure)) > 0 as on`)).on;
 await c.query("begin");
 try {
+  if (LIVE0080) await c.query(strip(RB));
   const UA = await uid("COMPANY_A"), UB = await uid("COMPANY_B");
   const release = async (company, author, body, pubStatus) => {
     const u = (await one(`insert into public.updates (company_id, author_id, body, status, published_on, detected) values ($1, $2, $3, 'published', '2026-10-28', $4::jsonb) returning id`,
@@ -119,7 +123,7 @@ try {
 await asPostgres().catch(() => {});
 const left = await one(`select (select count(*) from public.updates where body like $1)::int u, (select count(*) from public.facts where quote like $1)::int f,
   position('plainto_tsquery' in pg_get_functiondef('public.mineiq_search(uuid, text, integer)'::regprocedure)) > 0 as still0080`, [`${T}%`]);
-ok(left.u === 0 && left.f === 0 && !left.still0080, "nothing persisted: no rows from this run, and staging's mineiq_search is unchanged", JSON.stringify(left));
+ok(left.u === 0 && left.f === 0 && left.still0080 === LIVE0080, "nothing persisted: no rows from this run, and staging's mineiq_search is unchanged", JSON.stringify(left));
 await c.end();
 console.log(`\n  mineiq-search-0080 (staging, rolled back): ${pass} passed, ${fail} failed\n`);
 process.exit(fail ? 1 : 0);

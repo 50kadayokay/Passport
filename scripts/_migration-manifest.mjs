@@ -103,9 +103,9 @@ export const PENDING = {
   "0088_content_fanout.sql":
     "a15: destination_content plus the site_content_v1 and conference_content_v1 listeners (active_from = now(), nothing historical replays). Deploy api/_listeners.js with it. Applied to staging 2026-11-01.",
   "0080_mineiq_search_any_term.sql":
-    "a19: mineiq_search ORs the question's significant words (was AND), so natural questions retrieve context. Same signature, owns_company guard and supersession rule. NOT applied to staging yet.",
+    "a19: mineiq_search ORs the question's significant words (was AND), so natural questions retrieve context. Same signature, owns_company guard and supersession rule. Applied to staging 2026-11-01.",
   "0090_notification_clear_roles.sql":
-    "Company-wide \"Clear all\" notifications limited to owner/admin (and platform admins) via has_company_role; was any member. Needs 0064 and 0076. NOT applied to staging yet.",
+    "Company-wide \"Clear all\" notifications limited to owner/admin (and platform admins) via has_company_role; was any member. Needs 0064 and 0076. Applied to staging 2026-11-01.",
   "0061a_table_privilege_hardening.sql":
     "Revokes the default all-7 grant on company_follows/post_events/post_likes/user_company_relationships; re-grants only what traced call sites need. anon gets nothing. NO code deploy required.",
 
