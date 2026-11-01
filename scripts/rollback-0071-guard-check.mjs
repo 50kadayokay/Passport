@@ -68,7 +68,7 @@ try {
   }
 
   console.log("\n  REVERSE ORDER: 0088 first, then 0071");
-  await c.query("savepoint order");
+  await c.query("savepoint rb_order");
   try {
     const a = await attempt(RB_0088);
     ok(a.ok, "0088's rollback runs", a.msg);
@@ -76,7 +76,7 @@ try {
     ok(b.ok, "then 0071's rollback runs (0087 still applied: it does not depend on active_from)", b.msg);
     const s2 = await state();
     ok(s2.active_from === 0 && !s2.dispatcher_runs && s2.claim !== s0.claim && s2.audience_0087, "active_from and dispatcher_runs are gone, claim_deliveries is 0008's, 0087 untouched", JSON.stringify(s2));
-  } finally { await c.query("rollback to savepoint order"); }
+  } finally { await c.query("rollback to savepoint rb_order"); }
 
   ok(JSON.stringify(await state()) === JSON.stringify(s0), "staging is exactly as it started (before the transaction's final ROLLBACK)");
 } catch (e) {

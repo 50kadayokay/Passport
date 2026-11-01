@@ -107,7 +107,9 @@ try {
   const subs = await q(`select listener, event_type, active_from from public.listener_subscriptions order by 1, 2`);
   const unsub = subs.find((s) => s.listener === "profile_timeline_v1" && s.event_type === "PUBLICATION_UNPUBLISHED");
   ok(unsub && unsub.active_from && (APPLIED || Date.now() - new Date(unsub.active_from).getTime() < 10 * 60 * 1000), `profile_timeline_v1 subscribes to UNPUBLISHED from its application time (active_from ${unsub && unsub.active_from && new Date(unsub.active_from).toISOString()})`);
-  ok(subs.filter((s) => s !== unsub).every((s) => s.active_from === null), "every existing subscription keeps active_from NULL (= today's behaviour)");
+  // 0088 (applied later) adds site_content_v1 / conference_content_v1 with active_from = its application time, by design.
+  const LATER = new Set(["site_content_v1", "conference_content_v1"]);
+  ok(subs.filter((s) => s !== unsub && !LATER.has(s.listener)).every((s) => s.active_from === null), "every pre-0071 subscription keeps active_from NULL (= today's behaviour; 0088's listeners start at their own application time)");
   const oldAt = new Date(Date.now() - 30 * 86400e3).toISOString();
   const oldUn = (await one(`insert into public.events (event_type, publication_id, company_id, payload, idempotency_key, occurred_at) values ('PUBLICATION_UNPUBLISHED', $1, $2, '{}', $3, $4) returning id`, [pubId, A, `chk-old-un:${pubId}`, oldAt])).id;
   const newUn = (await one(`insert into public.events (event_type, publication_id, company_id, payload, idempotency_key) values ('PUBLICATION_UNPUBLISHED', $1, $2, '{}', $3) returning id`, [pubId, A, `chk-new-un:${pubId}`])).id;
