@@ -15,6 +15,14 @@
 //   writeCaptureFile         writes it: gitignored dir only, mode 600, never overwrites
 // Bodies are never printed. secretFindings() reports secret-like strings in a
 // body by kind and count only.
+//
+// Proven two ways: offline with a fake client (scripts/apply-capture-test.mjs,
+// which cannot run SQL) and for real on STAGING by S4's
+// scripts/capture-rollback-staging-check.mjs (one transaction, always rolled
+// back): it plants production's four drifted bodies, captures before
+// 0071/0072/0076, applies, runs the captured rollback and checks production's
+// digest comes back exactly. That check found the verify block's
+// `order by 1 collate "C"` (the integer 1 inside an aggregate), fixed in 93fe52f.
 
 import crypto from "node:crypto";
 import fs from "node:fs";
