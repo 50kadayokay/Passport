@@ -149,6 +149,10 @@ export const PREREQUISITES = {
   "0078_storage_role_hardening.sql": ["0076_company_roles.sql"],
   "0086_service_requests.sql": ["0076_company_roles.sql"],
   "0080_mineiq_search_any_term.sql": ["0050a_mineiq_and_publication_push.sql"],
+  // S2 production-shape review R2: rolling 0071 back under 0087/0088 drops listener_subscriptions.active_from and
+  // restores 0008's claim_deliveries, so their listeners would replay every historical event (incl. signed revalidates).
+  "0087_audience_events.sql": ["0071_publishing_reliability.sql"],
+  "0088_content_fanout.sql": ["0071_publishing_reliability.sql"],
   "0090_notification_clear_roles.sql": ["0064_notification_clearing.sql", "0076_company_roles.sql"],
 };
 
