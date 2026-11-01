@@ -4,7 +4,8 @@
 // No network: every CLI run here is under scripts/fixtures/no-network-preload.mjs,
 // which makes any socket, DNS lookup or fetch throw. Nothing has a credential;
 // the DSNs below are made up, in temporary files outside the repo.
-//   PLAN      the real 2026-11-01 audit record -> the exact 27-step order;
+//   PLAN      the real 2026-11-01 audit record -> the exact order (its length
+//             derived from the manifest);
 //             a fixture audit -> the plan that follows from it; the apply log
 //             subtracts; unknown production state refuses
 //   REFUSALS  missing flags, wrong / staging ref, several files, out of order,
@@ -23,6 +24,7 @@ import {
   markerFor, markerSelect, buildPlan, parseArgs, checkRequest, readDsn, confirmRef, unresolved, applyOne, diffSnapshots,
 } from "./_production-migrations.mjs";
 import { runnerBody } from "./_db-egress.mjs";
+import { PENDING } from "./_migration-manifest.mjs";
 
 let pass = 0, fail = 0;
 const ok = (c, m, d = "") => { if (c) { pass++; console.log(`  ✓ ${m}`); } else { fail++; console.error(`  ✗ ${m}${d ? `\n      ${d}` : ""}`); } };
@@ -67,8 +69,13 @@ const EXPECTED = ["0058_close_public_insert", "0077_listing_reports_installed_ap
   "0066_mineiq_conversations", "0068_site_contract", "0069b_stripe_events", "0071_publishing_reliability", "0072_profile_drafts",
   "0073a_impression_dedupe_index", "0073b_impression_tracking", "0073c_post_events_client_guard", "0074_profile_revision_history",
   "0075_profile_versions_privileges", "0076_company_roles", "0078_storage_role_hardening", "0080_mineiq_search_any_term",
-  "0085_conference_booth_config", "0086_service_requests", "0087_audience_events", "0088_content_fanout", "0090_notification_clear_roles"].map((f) => `${f}.sql`);
-ok(JSON.stringify(P.items.map((i) => i.file)) === JSON.stringify(EXPECTED), `27 steps in the rollout plan's order (0058, then 0077 immediately, then 0061a, ...)`, P.items.map((i) => i.file).join(" "));
+  "0085_conference_booth_config", "0086_service_requests", "0087_audience_events", "0088_content_fanout", "0090_notification_clear_roles", "0091_notification_clear_no_platform_admin"].map((f) => `${f}.sql`);
+// What the manifest says production needs, given an audit record: its PENDING
+// files, minus what is not for production and what that audit found applied.
+const needs = (record) => Object.keys(PENDING).filter((f) => !record.not_for_production?.[f] && record.q01[f] !== "applied");
+const N = needs(RECORD).length, N_AFTER = needs(RECORD).filter((f) => !(f in RECORD.q01)).length, N_FIXTURE = needs(FIXTURE).length;
+ok(JSON.stringify([...EXPECTED].sort()) === JSON.stringify(needs(RECORD).sort()), `the expected order holds exactly the ${N} files the manifest says production needs`);
+ok(JSON.stringify(P.items.map((i) => i.file)) === JSON.stringify(EXPECTED), `${N} steps in the rollout plan's order (0058, then 0077 immediately, then 0061a, ...)`, P.items.map((i) => i.file).join(" "));
 ok(P.items.every((i) => i.rollback && fs.existsSync(i.rollback)), "every step names an existing rollback file");
 ok(P.items.every((i) => i.marker && /^select coalesce\(\(/.test(i.checkpoint)), "every step has a read-only checkpoint");
 ok(P.items.filter((i) => i.mode === "concurrently").map((i) => i.file).join() === "0065c_analytics_indexes.sql,0073a_impression_dedupe_index.sql", "0065c and 0073a are marked CONCURRENTLY (by hand)");
@@ -78,20 +85,33 @@ ok(P.skipped.some((s) => s.file === "0000_baseline.sql") && !P.items.some((i) =>
 ok(P.items.find((i) => i.file === "0090_notification_clear_roles.sql").prerequisites.map((p) => `${p.file}:${p.status}`).join() === "0064_notification_clearing.sql:step 6,0076_company_roles.sql:step 20",
    "prerequisites are shown with where they are satisfied (0090: 0064 step 6, 0076 step 20)");
 ok(P.items.find((i) => i.file === "0080_mineiq_search_any_term.sql").prerequisites[0].status === "applied", "...or that production already has them (0080 needs 0050a: applied)");
-ok(P.items.filter((i) => i.source === "written after the audit").length === 8, "the 8 files written after the audit are planned and labelled so");
+ok(P.items.filter((i) => i.source === "written after the audit").length === N_AFTER, `the ${N_AFTER} files written after the audit are planned and labelled so`);
+ok(P.items.find((i) => i.file === "0091_notification_clear_no_platform_admin.sql").prerequisites.map((p) => `${p.file}:${p.status}`).join() === `0090_notification_clear_roles.sql:step ${EXPECTED.indexOf("0090_notification_clear_roles.sql") + 1}`,
+   "0091 runs after 0090, its prerequisite");
+{
+  // The 0090 / 0091 markers against each version's body, with and without its
+  // comments (pg_get_functiondef keeps them, so a marker must match code).
+  const pattern = (f) => { const m = /~ '((?:[^']|'')*)' from pg_proc/.exec(POST_AUDIT_MARKERS[f]); return new RegExp(m[1].replace(/''/g, "'")); };
+  const body = (f) => { const s = fs.readFileSync(path.join(DIR, f), "utf8"); const st = s.slice(s.search(/create or replace function public\.mark_notifications_cleared/i));
+    const q = /\bas\s+(\$[a-z_]*\$)/i.exec(st); return st.slice(q.index + q[0].length, st.indexOf(q[1], q.index + q[0].length)); };
+  const V = ["0064_notification_clearing.sql", "0090_notification_clear_roles.sql", "0091_notification_clear_no_platform_admin.sql"];
+  const table = (f) => V.map((v) => [body(v), body(v).replace(/--[^\n]*/g, "")].map((b) => (pattern(f).test(b) ? 1 : 0)).join("")).join(" ");
+  ok(table("0090_notification_clear_roles.sql") === "00 11 11", "0090's marker: false under 0064, true under 0090 AND 0091, comments or not (0090 is never re-applied over 0091)", table("0090_notification_clear_roles.sql"));
+  ok(table("0091_notification_clear_no_platform_admin.sql") === "00 00 11", "0091's marker: true only under 0091, comments or not", table("0091_notification_clear_no_platform_admin.sql"));
+}
 ok(P.warnings.length === 0, "no warnings against the real record", P.warnings.join("; "));
 
 console.log("\n  PLAN: a fixture audit (0058, 0061a, 0062 applied; 0077 not)");
 const PF = plan(FIXTURE);
-ok(PF.items.length === 24 && PF.items[0].file === "0077_listing_reports_installed_app_compat.sql" && PF.items[1].file === "0063_company_initiated_threads.sql",
-   "24 steps; 0077 goes FIRST because its partner 0058 is already applied", PF.items.slice(0, 3).map((i) => i.file).join(" "));
+ok(PF.items.length === N_FIXTURE && PF.items[0].file === "0077_listing_reports_installed_app_compat.sql" && PF.items[1].file === "0063_company_initiated_threads.sql",
+   `${N_FIXTURE} steps; 0077 goes FIRST because its partner 0058 is already applied`, PF.items.slice(0, 3).map((i) => i.file).join(" "));
 ok(PF.warnings.some((w) => /0077.*FIRST/.test(w)) && PF.warnings.filter((w) => /manifest still lists it PENDING/.test(w)).length === 3, "it warns about that, and that the manifest still lists 0058/0061a/0062 as pending");
 ok(PF.items.find((i) => i.file === "0077_listing_reports_installed_app_compat.sql").prerequisites[0].status === "applied", "0077's prerequisite (0058) reads applied");
 {
   const log = [{ ref: PROD, file: "0077_listing_reports_installed_app_compat.sql", status: "applied" }, { ref: PROD, file: "0063_company_initiated_threads.sql", status: "applied" },
                { ref: STAGING, file: "0064_notification_clearing.sql", status: "applied" }];
   const PL = plan(FIXTURE, { log });
-  ok(PL.items[0].file === "0064_notification_clearing.sql" && PL.items.length === 22, "the apply log subtracts what this runner applied (and ignores entries for another ref)");
+  ok(PL.items[0].file === "0064_notification_clearing.sql" && PL.items.length === N_FIXTURE - 2, "the apply log subtracts what this runner applied (and ignores entries for another ref)");
 }
 ok(JSON.stringify(plan(RECORD).items.map((i) => i.file)) === JSON.stringify(EXPECTED), "planning has no side effects (same plan twice)");
 
@@ -201,10 +221,10 @@ const cli = (args, env = {}) => spawnSync(process.execPath, ["--import", "./scri
   { env: { PATH: process.env.PATH, HOME: process.env.HOME, PRODUCTION_LOG_DIR: LOGDIR, ...env }, encoding: "utf8", input: "", timeout: 20000 });
 {
   const r = cli([]);
-  ok(r.status === 0 && /nothing was connected to/.test(r.stdout) && /27 to apply/.test(r.stdout) && /0077_listing_reports_installed_app_compat\.sql\n\s+sha256/.test(r.stdout),
-     "no arguments: prints the 27-step plan and exits 0", `${r.status} ${r.stderr.slice(0, 200)}`);
+  ok(r.status === 0 && /nothing was connected to/.test(r.stdout) && new RegExp(`${N} to apply`).test(r.stdout) && /0077_listing_reports_installed_app_compat\.sql\n\s+sha256/.test(r.stdout),
+     `no arguments: prints the ${N}-step plan and exits 0`, `${r.status} ${r.stderr.slice(0, 200)}`);
   const f = cli(["--audit", "scripts/fixtures/production-audit-fixture.json"]);
-  ok(f.status === 0 && /24 to apply/.test(f.stdout) && /! 0077_listing_reports_installed_app_compat\.sql goes FIRST/.test(f.stdout), "--audit <fixture>: that audit's plan, with its warnings");
+  ok(f.status === 0 && new RegExp(`${N_FIXTURE} to apply`).test(f.stdout) && /! 0077_listing_reports_installed_app_compat\.sql goes FIRST/.test(f.stdout), "--audit <fixture>: that audit's plan, with its warnings");
 }
 const cliRefuses = (args, env, re, m) => { const r = cli(args, env); ok(r.status === 2 && re.test(r.stderr) && !fs.existsSync(path.join(LOGDIR, "apply-log.jsonl")), m, `${r.status} ${r.stderr.slice(0, 220)}`); return r; };
 cliRefuses([...OK_ARGS.split(" ").filter((x) => x !== "--apply")], {}, /needs --apply/, "CLI: missing --apply -> exit 2, nothing logged");

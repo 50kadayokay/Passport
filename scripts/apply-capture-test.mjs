@@ -57,6 +57,8 @@ console.log("\n  PARSER: the pending files");
     "0072_profile_drafts.sql": ["public.company_go_live(uuid, text)"],
     "0076_company_roles.sql": ["public.accept_company_invitation(text)"],
     "0080_mineiq_search_any_term.sql": ["public.mineiq_search(uuid, text, integer)"],
+    "0090_notification_clear_roles.sql": ["public.mark_notifications_cleared(uuid)"],
+    "0091_notification_clear_no_platform_admin.sql": ["public.mark_notifications_cleared(uuid)"],
   };
   for (const [f, want] of Object.entries(DRIFTED)) ok(want.every((s) => sigs(f).includes(s)), `${f} captures ${want.map((s) => s.replace(/\(.*/, "")).join(", ")}`, sigs(f).join("; "));
   const t76 = functionTargets(read("0076_company_roles.sql"));

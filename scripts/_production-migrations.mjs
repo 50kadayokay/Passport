@@ -50,8 +50,14 @@ export const POST_AUDIT_MARKERS = {
     `to_regclass('public.company_events') is not null and to_regprocedure('public.record_company_events(jsonb)') is not null`,
   "0088_content_fanout.sql":
     `to_regclass('public.destination_content') is not null`,
+  // 0090 and 0091 both replace mark_notifications_cleared, and pg_get_functiondef
+  // keeps comments, so each marker matches CODE only that version (or a later
+  // one) has. 0090's reads true under 0091 too: otherwise the runner, which
+  // only requires "marker false", could re-apply 0090 over 0091 (S3's finding).
   "0090_notification_clear_roles.sql":
-    `coalesce((select pg_get_functiondef(p.oid) ~ 'has_company_role' from pg_proc p where p.oid = to_regprocedure('public.mark_notifications_cleared(uuid)')), false)`,
+    `coalesce((select pg_get_functiondef(p.oid) ~ 'has_company_role\\(p_company|m\\.role in \\(''owner'',''admin''\\)' from pg_proc p where p.oid = to_regprocedure('public.mark_notifications_cleared(uuid)')), false)`,
+  "0091_notification_clear_no_platform_admin.sql":
+    `coalesce((select pg_get_functiondef(p.oid) ~ 'm\\.role in \\(''owner'',''admin''\\)' from pg_proc p where p.oid = to_regprocedure('public.mark_notifications_cleared(uuid)')), false)`,
 };
 
 // Q01 markers the audit itself got wrong. 0061a's tested a table that never had
