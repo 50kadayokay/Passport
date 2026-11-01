@@ -15,6 +15,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { DEFERRED, PENDING, UNVERIFIED, PREREQUISITES, NEEDS_SUPERUSER } from "./_migration-manifest.mjs";
 import { stripSqlComments, scanMigrationSql, runnerBody, sha256, inspectDatabase, newEgress } from "./_db-egress.mjs";
+import { functionTargets, captureFunctions, verifyCaptureUnchanged } from "./_function-capture.mjs";
 
 // The same ref apply-migrations.mjs refuses. Exactly one; a typed --ref must
 // equal it character for character.
@@ -212,6 +213,8 @@ export function buildPlan({ files, record, log = [], q01Markers, dir = "supabase
     });
     const rb = f.replace(/\.sql$/, ".rollback.sql");
     const marker = markerFor(f, q01Markers);
+    let captures = null, captureError = null;
+    try { captures = functionTargets(sql); } catch (e) { captureError = e.message; }
     return {
       step: i + 1, file: f, sha256: sha256(sql), why: p.why, source: p.source,
       after: IMMEDIATELY_AFTER[f] || null,
@@ -220,6 +223,7 @@ export function buildPlan({ files, record, log = [], q01Markers, dir = "supabase
       mode: isConcurrently(sql) ? "concurrently" : "transaction",
       needsSuperuser: manifest.NEEDS_SUPERUSER[f] || null,
       marker, checkpoint: marker ? markerSelect(marker) : null,
+      captures, captureError,
     };
   });
   return { items, applied, deferred, skipped, warnings };
@@ -239,6 +243,11 @@ export function formatPlan(plan, record) {
     if (it.after) L.push(`      run IMMEDIATELY after ${it.after}; nothing in between`);
     L.push(`      needs: ${it.prerequisites.length ? it.prerequisites.map((p) => `${p.file} (${p.status})`).join(", ") : "nothing beyond the files before it"}`);
     L.push(`      rollback: ${it.rollback || "MISSING -- this step cannot be applied"}`);
+    if (it.mode !== "concurrently") {
+      L.push(it.captureError ? `      capture: AMBIGUOUS -- this step cannot be applied (${it.captureError})`
+        : it.captures.length ? `      capture: ${it.captures.length} function(s) read from production first, for a production-exact rollback: ${it.captures.map((c) => c.name).join(", ")}`
+        : "      capture: none (the file touches no function)");
+    }
     L.push(`      checkpoint: ${it.checkpoint || "NO MARKER -- this step cannot be applied"}   -- must return true`);
     L.push(`                  then re-run the read-only audit and diff it against the expected change`);
   }
@@ -301,6 +310,7 @@ export function checkRequest(args, plan, log, { kind = "apply", read } = {}) {
   if (item.step !== 1) refuse(`${file} is step ${item.step}; step 1 is ${plan.items[0].file}. Steps run in order`);
   if (!item.rollback) refuse(`${file} has no rollback file in supabase/rollbacks/`);
   if (!item.marker) refuse(`${file} has no checkpoint marker; add one before it can be applied`);
+  if (item.mode !== "concurrently" && item.captureError) refuse(`${file}: cannot tell exactly which functions it replaces, so production's current definitions cannot be captured first (${item.captureError})`);
   if (item.needsSuperuser) refuse(`${file} needs a superuser role (${item.needsSuperuser}); this runner connects as postgres only`);
 
   if (kind === "record-manual") {
@@ -425,17 +435,36 @@ export function formatDiff(d) {
 /**
  * Apply ONE plan item over an open client. The caller has already passed
  * checkRequest, readDsn and confirmRef. Order: role check -> marker must be
- * false -> pre-snapshot -> one transaction (body, egress check, marker must be
+ * false -> CAPTURE (read-only; every function the file touches) -> the capture
+ * file is written, or nothing runs -> pre-snapshot -> one transaction (the
+ * captured functions must be unchanged, body, egress check, marker must be
  * true) -> commit -> post-snapshot and diff. Any error rolls back and throws;
  * nothing after it runs. Triggers are never disabled.
+ *   writeCapture(captured) -> the path it wrote; required when the file touches
+ *   any function. It must not print bodies (they never reach `say`).
  */
-export async function applyOne(client, item, sql, { say = () => {} } = {}) {
+export async function applyOne(client, item, sql, { say = () => {}, writeCapture = null } = {}) {
   const who = (await client.query(`select current_user::text u, (select rolsuper from pg_roles where rolname = current_user) su, current_setting('server_version') v`)).rows[0];
   if (who.u !== "postgres") throw new Refusal(`connected as '${who.u}', not postgres`);
   if (who.su) throw new Refusal("the connected role is a superuser; use the project's postgres role (least privilege)");
 
   const isApplied = async () => (await client.query(markerSelect(item.marker))).rows[0].applied === true;
   if (await isApplied()) throw new Refusal(`${item.file}: its marker already reads applied on production. The audit record or log is out of date; nothing was run`);
+
+  if (item.captureError || !Array.isArray(item.captures)) throw new Refusal(`${item.file}: no exact list of the functions it touches (${item.captureError || "not parsed"}); nothing was run`);
+  let captured = [], capturePath = null;
+  if (item.captures.length) {
+    if (typeof writeCapture !== "function") throw new Refusal(`${item.file} touches ${item.captures.length} function(s) and no capture writer was given; nothing was run`);
+    say(`   capture: reading ${item.captures.length} function(s) from production ...`);
+    try {
+      captured = await captureFunctions(client, item.captures);
+      capturePath = await writeCapture(captured);
+      if (!capturePath) throw new Error("the capture writer returned no path");
+    } catch (e) {
+      throw new Refusal(`${item.file}: the capture of production's current functions failed, so nothing was applied (${e.message})`);
+    }
+    say(`   capture: ${captured.filter((c) => c.existed).length} existing, ${captured.filter((c) => !c.existed).length} new -> ${capturePath}`);
+  }
 
   say("   pre-snapshot ...");
   const pre = await snapshot(client);
@@ -445,6 +474,7 @@ export async function applyOne(client, item, sql, { say = () => {} } = {}) {
   try {
     await client.query("set local statement_timeout = '120s'");
     await client.query("set local lock_timeout = '5s'");
+    if (captured.length) await verifyCaptureUnchanged(client, captured);
     await client.query(runnerBody(sql));
     if (!(await isApplied())) throw new Error(`${item.file} ran, but its checkpoint marker still reads not applied; rolled back`);
     const added = newEgress(egressBefore, await inspectDatabase(client, { inTransaction: true }));
@@ -453,12 +483,13 @@ export async function applyOne(client, item, sql, { say = () => {} } = {}) {
   } catch (e) {
     try { await client.query("rollback"); } catch { /* already aborted */ }
     e.pre = pre;
+    e.capturePath = capturePath;
     throw e;
   }
   say("   post-snapshot ...");
   const post = await snapshot(client);
   const checkpoint = await isApplied();
-  return { pre, post, diff: diffSnapshots(pre, post), checkpoint, serverVersion: who.v };
+  return { pre, post, diff: diffSnapshots(pre, post), checkpoint, serverVersion: who.v, capturePath, captured: captured.length };
 }
 
 export function appendLog(logFile, entry) {

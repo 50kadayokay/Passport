@@ -32,7 +32,14 @@
 // AND (before connecting): the DSN file inside the repo, readable by others,
 // naming staging or another host, or connecting as anything but `postgres`.
 //
-// EACH APPLY: the marker must read NOT applied; pre-snapshot (functions,
+// CAPTURE FIRST: before the file's transaction, every function it creates,
+// replaces, alters, drops or re-grants is read from production (definition,
+// owner, ACL) and written to supabase/audit/results/apply-capture-<file>-<time>.sql
+// (gitignored, mode 600): a rollback that restores PRODUCTION's text, which
+// can differ from the repo's. A file whose functions cannot be pinned exactly
+// is refused; if the capture fails, nothing is applied. Bodies are never printed.
+//
+// EACH APPLY: the marker must read NOT applied; capture; pre-snapshot (functions,
 // policies, tables, triggers, indexes, row counts); one transaction holding the
 // file; inside it the marker must read applied and no egress may appear; commit;
 // post-snapshot and diff. Any error rolls back and stops. Everything -- who
@@ -47,6 +54,7 @@ import {
   DEFAULT_LOG_DIR, Refusal, redact, loadRecord, parseQ01Markers, readLog, buildPlan, formatPlan,
   parseArgs, checkRequest, readDsn, confirmRef, applyOne, formatDiff, appendLog,
 } from "./_production-migrations.mjs";
+import { CAPTURE_DIR, gitIgnores, writeCaptureFile } from "./_function-capture.mjs";
 
 const DIR = process.env.MIGRATIONS_DIR || "supabase/migrations";
 const LOG_DIR = process.env.PRODUCTION_LOG_DIR || DEFAULT_LOG_DIR;
@@ -90,6 +98,8 @@ if (kind !== "apply") {
   process.exit(0);
 }
 
+if (item.captures.length && !gitIgnores(path.join(CAPTURE_DIR, "apply-capture-probe.sql"))) fail(2, `${CAPTURE_DIR} is not gitignored; the capture of production's functions must never be committable`);
+
 let conn;
 try { conn = readDsn(process.env, args.ref); } catch (e) { fail(2, e.message); }
 secrets.push(conn.dsn, conn.password);
@@ -111,7 +121,13 @@ const snapBase = path.join(LOG_DIR, `${stamp}_${item.file.replace(/\.sql$/, "")}
 appendLog(LOG, { ...base, status: "started", role: "postgres" });
 console.log(`\n  Applying ${item.file} (step 1 of ${plan.items.length}); approved by: ${base.approved_by}`);
 try {
-  const r = await applyOne(client, item, sql, { say: (m) => console.log(m) });
+  let capture = null;
+  const writeCapture = (captured) => {
+    capture = writeCaptureFile(captured, { file: item.file, sha256: item.sha256, ref: args.ref, at: new Date().toISOString() }, { say: (m) => console.log(m) });
+    appendLog(LOG, { ...base, status: "captured", capture: capture.path, capture_sha256: capture.sha256, functions: captured.length });
+    return capture.path;
+  };
+  const r = await applyOne(client, item, sql, { say: (m) => console.log(m), writeCapture });
   fs.writeFileSync(`${snapBase}.pre.json`, JSON.stringify(r.pre, null, 1));
   fs.writeFileSync(`${snapBase}.post.json`, JSON.stringify(r.post, null, 1));
   appendLog(LOG, { ...base, status: "applied", checkpoint: r.checkpoint, server_version: r.serverVersion, diff: r.diff, snapshots: `${snapBase}.{pre,post}.json` });
@@ -119,11 +135,12 @@ try {
   console.log("  What changed:");
   console.log(formatDiff(r.diff));
   console.log(`\n  Compare that with the step's intended change, then re-run the read-only audit.`);
-  console.log(`  Rollback if needed: ${item.rollback}\n`);
+  console.log(`  Rollback if needed: ${item.rollback}${r.capturePath ? `\n  then, for production's own function text and grants: ${r.capturePath}` : ""}\n`);
 } catch (e) {
   if (e.pre) fs.writeFileSync(`${snapBase}.pre.json`, JSON.stringify(e.pre, null, 1));
   appendLog(LOG, { ...base, status: "failed", error: redact(e.message, secrets), code: e.code || null });
   console.error(`\n  FAILED: ${item.file} -- rolled back, nothing after it ran.`);
+  if (e.capturePath) console.error(`  The capture taken before it is kept: ${e.capturePath}`);
   console.error(`  ${e.severity || "ERROR"}: ${redact(e.message, secrets)}`);
   if (e.detail) console.error(`  detail: ${redact(e.detail, secrets)}`);
   if (e.hint) console.error(`  hint:   ${redact(e.hint, secrets)}`);
