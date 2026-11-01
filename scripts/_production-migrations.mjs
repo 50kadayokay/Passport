@@ -16,6 +16,7 @@ import path from "node:path";
 import { DEFERRED, PENDING, UNVERIFIED, PREREQUISITES, NEEDS_SUPERUSER } from "./_migration-manifest.mjs";
 import { stripSqlComments, scanMigrationSql, runnerBody, sha256, inspectDatabase, newEgress } from "./_db-egress.mjs";
 import { functionTargets, captureFunctions, verifyCaptureUnchanged } from "./_function-capture.mjs";
+import { parseConcurrentFile, validitySql, runConcurrentSteps, TIMEOUTS } from "./_concurrent-indexes.mjs";
 
 // The same ref apply-migrations.mjs refuses. Exactly one; a typed --ref must
 // equal it character for character.
@@ -218,15 +219,34 @@ export function buildPlan({ files, record, log = [], q01Markers, dir = "supabase
       refuse(`${f} needs ${r}, which is neither applied nor earlier in the plan`);
     });
     const rb = f.replace(/\.sql$/, ".rollback.sql");
-    const marker = markerFor(f, q01Markers);
+    const mode = isConcurrently(sql) ? "concurrently" : "transaction";
+    let marker = markerFor(f, q01Markers);
     let captures = null, captureError = null;
     try { captures = functionTargets(sql); } catch (e) { captureError = e.message; }
+    // A CONCURRENTLY file runs statement by statement with no transaction. Its
+    // checkpoint adds "every index it builds is valid and ready", and its
+    // rollback must be no-transaction too (DROP INDEX CONCURRENTLY only).
+    let concurrent = null, concurrentError = null;
+    if (mode === "concurrently") {
+      try {
+        concurrent = parseConcurrentFile(sql);
+        if (marker) marker = { ...marker, sql: `(${marker.sql}) and ${validitySql(concurrent)}`, from: `${marker.from} + every index valid` };
+        const rbPath = path.join(rollbacksDir, rb);
+        if (fs.existsSync(rbPath)) {
+          const back = parseConcurrentFile(fs.readFileSync(rbPath, "utf8"));
+          if (back.some((x) => x.kind === "create")) throw new Error(`its rollback ${rbPath} builds an index; a rollback here only drops`);
+          const dropped = new Set(back.filter((x) => x.kind === "drop").map((x) => x.index));
+          const missing = concurrent.filter((x) => x.kind === "create" && !dropped.has(x.index)).map((x) => x.index);
+          if (missing.length) throw new Error(`its rollback does not drop ${missing.join(", ")}`);
+        }
+      } catch (e) { concurrent = null; concurrentError = e.message; }
+    }
     return {
       step: i + 1, file: f, sha256: sha256(sql), why: p.why, source: p.source,
       after: IMMEDIATELY_AFTER[f] || null,
       prerequisites: prereqs,
       rollback: fs.existsSync(path.join(rollbacksDir, rb)) ? path.join(rollbacksDir, rb) : null,
-      mode: isConcurrently(sql) ? "concurrently" : "transaction",
+      mode, concurrent, concurrentError,
       needsSuperuser: manifest.NEEDS_SUPERUSER[f] || null,
       marker, checkpoint: marker ? markerSelect(marker) : null,
       captures, captureError,
@@ -243,13 +263,17 @@ export function formatPlan(plan, record) {
   for (const w of plan.warnings) L.push(`  ! ${w}`);
   if (plan.warnings.length) L.push("");
   for (const it of plan.items) {
-    L.push(`  ${String(it.step).padStart(2)}. ${it.file}${it.mode === "concurrently" ? "   [CONCURRENTLY: by hand, not this runner]" : ""}`);
+    L.push(`  ${String(it.step).padStart(2)}. ${it.file}${it.mode === "concurrently" ? "   [CONCURRENTLY: runner, no transaction]" : ""}`);
     L.push(`      sha256 ${it.sha256.slice(0, 16)}  (${it.source})`);
     L.push(`      why: ${it.why}`);
     if (it.after) L.push(`      run IMMEDIATELY after ${it.after}; nothing in between`);
     L.push(`      needs: ${it.prerequisites.length ? it.prerequisites.map((p) => `${p.file} (${p.status})`).join(", ") : "nothing beyond the files before it"}`);
     L.push(`      rollback: ${it.rollback || "MISSING -- this step cannot be applied"}`);
-    if (it.mode !== "concurrently") {
+    if (it.mode === "concurrently") {
+      L.push(it.concurrentError ? `      no-transaction run: REFUSED -- this step cannot be applied (${it.concurrentError})`
+        : `      no-transaction run: ${it.concurrent.length} statement(s) one at a time (${it.concurrent.map((x) => `${x.kind}${x.index ? ` ${x.index}` : ""}`).join(", ")}); lock_timeout ${TIMEOUTS.lock}; each index must read valid`);
+      L.push(`      rollback runs the same way: DROP INDEX CONCURRENTLY, outside a transaction`);
+    } else {
       L.push(it.captureError ? `      capture: AMBIGUOUS -- this step cannot be applied (${it.captureError})`
         : it.captures.length ? `      capture: ${it.captures.length} function(s) read from production first, for a production-exact rollback: ${it.captures.map((c) => c.name).join(", ")}`
         : "      capture: none (the file touches no function)");
@@ -323,14 +347,14 @@ export function checkRequest(args, plan, log, { kind = "apply", read } = {}) {
     if (item.mode !== "concurrently") refuse(`--record-manual is only for CONCURRENTLY files; ${file} is applied with --apply`);
     return item;
   }
-  if (item.mode === "concurrently") refuse(`${file} uses CREATE INDEX CONCURRENTLY, which cannot run inside a transaction. This runner applies one transaction per file and nothing else. Run its statements by hand, one at a time, check its marker, then record it with --record-manual ${file}`);
+  if (item.mode === "concurrently" && (item.concurrentError || !item.concurrent)) refuse(`${file} runs without a transaction, and only CREATE/DROP INDEX CONCURRENTLY and ANALYZE may do that: ${item.concurrentError || "not parsed"}`);
 
   const sql = (read || ((f) => fs.readFileSync(path.join("supabase/migrations", f), "utf8")))(file);
   if (sha256(sql) !== item.sha256) refuse(`${file} changed after the plan was built`);
   if (DISABLES_TRIGGERS.test(stripSqlComments(sql))) refuse(`${file} disables triggers (DISABLE TRIGGER / session_replication_role); refused, never run that way`);
   const egress = scanMigrationSql(sql);
   if (egress.length) refuse(`${file} contains database egress (${[...new Set(egress.map((h) => h.kind))].join(", ")}); not by this runner`);
-  try { runnerBody(sql); } catch (e) { refuse(`${file}: ${e.message}`); }
+  if (item.mode !== "concurrently") { try { runnerBody(sql); } catch (e) { refuse(`${file}: ${e.message}`); } }
   return item;
 }
 
@@ -496,6 +520,37 @@ export async function applyOne(client, item, sql, { say = () => {}, writeCapture
   const post = await snapshot(client);
   const checkpoint = await isApplied();
   return { pre, post, diff: diffSnapshots(pre, post), checkpoint, serverVersion: who.v, capturePath, captured: captured.length };
+}
+
+/**
+ * Apply ONE CONCURRENTLY plan item: no transaction, statement by statement
+ * (_concurrent-indexes.mjs). Same order and checks as applyOne otherwise:
+ * role check -> marker must be false -> pre-snapshot -> the statements, each
+ * with its own timeouts and an index-validity check -> marker (which includes
+ * "every index valid") must be true -> post-snapshot and diff. There is
+ * nothing to roll back automatically: a stop names the index to drop.
+ */
+export async function applyConcurrent(client, item, sql, { say = () => {} } = {}) {
+  if (item.mode !== "concurrently" || !item.concurrent) throw new Refusal(`${item.file} is not a parsed no-transaction file`);
+  const who = (await client.query(`select current_user::text u, (select rolsuper from pg_roles where rolname = current_user) su, current_setting('server_version') v`)).rows[0];
+  if (who.u !== "postgres") throw new Refusal(`connected as '${who.u}', not postgres`);
+  if (who.su) throw new Refusal("the connected role is a superuser; use the project's postgres role (least privilege)");
+  const isApplied = async () => (await client.query(markerSelect(item.marker))).rows[0].applied === true;
+  if (await isApplied()) throw new Refusal(`${item.file}: its marker already reads applied on production. The audit record or log is out of date; nothing was run`);
+  if (sha256(sql) !== item.sha256) throw new Refusal(`${item.file} changed after the plan was built`);
+
+  say("   pre-snapshot ...");
+  const pre = await snapshot(client);
+  try {
+    await runConcurrentSteps(client, item.concurrent, { say });
+    if (!(await isApplied())) throw new Error(`${item.file} ran, but its checkpoint (every index present and valid) still reads not applied`);
+  } catch (e) {
+    e.pre = pre;
+    throw e;
+  }
+  say("   post-snapshot ...");
+  const post = await snapshot(client);
+  return { pre, post, diff: diffSnapshots(pre, post), checkpoint: await isApplied(), serverVersion: who.v, capturePath: null, captured: 0 };
 }
 
 export function appendLog(logFile, entry) {

@@ -9,7 +9,7 @@
 //             a fixture audit -> the plan that follows from it; the apply log
 //             subtracts; unknown production state refuses
 //   REFUSALS  missing flags, wrong / staging ref, several files, out of order,
-//             CONCURRENTLY, triggers disabled, egress, unresolved run, the DSN
+//             a mixed CONCURRENTLY file, triggers disabled, egress, unresolved run, the DSN
 //             file (inside the repo, world-readable, staging, wrong host, wrong
 //             role, transaction pooler), no TTY, a mistyped ref
 //   APPLY     applyOne over a fake client: the order of operations, the marker
@@ -78,7 +78,7 @@ ok(JSON.stringify([...EXPECTED].sort()) === JSON.stringify(needs(RECORD).sort())
 ok(JSON.stringify(P.items.map((i) => i.file)) === JSON.stringify(EXPECTED), `${N} steps in the rollout plan's order (0058, then 0077 immediately, then 0061a, ...)`, P.items.map((i) => i.file).join(" "));
 ok(P.items.every((i) => i.rollback && fs.existsSync(i.rollback)), "every step names an existing rollback file");
 ok(P.items.every((i) => i.marker && /^select coalesce\(\(/.test(i.checkpoint)), "every step has a read-only checkpoint");
-ok(P.items.filter((i) => i.mode === "concurrently").map((i) => i.file).join() === "0065c_analytics_indexes.sql,0073a_impression_dedupe_index.sql", "0065c and 0073a are marked CONCURRENTLY (by hand)");
+ok(P.items.filter((i) => i.mode === "concurrently").map((i) => i.file).join() === "0065c_analytics_indexes.sql,0073a_impression_dedupe_index.sql", "0065c and 0073a are marked CONCURRENTLY (the runner's no-transaction path)");
 ok(["0053", "0054", "0056", "0057", "0059", "0060", "0067"].every((n) => !P.items.some((i) => i.file.startsWith(n))), "what the audit found applied (0053/54/56/57/59/60/67) is not planned; 0059's rollback is never offered");
 ok(["0011", "0027", "0028", "0029", "0055", "0061b"].every((n) => P.deferred.some((d) => d.file.startsWith(n))) && !P.items.some((i) => /^(0011|0027|0028|0029|0055|0061b)/.test(i.file)), "deferred files (0011, 0027, 0028, 0029, 0055, 0061b) are never planned");
 ok(P.skipped.some((s) => s.file === "0000_baseline.sql") && !P.items.some((i) => i.file === "0000_baseline.sql"), "0000_baseline is not for production (its objects exist there)");
@@ -152,9 +152,10 @@ is(refusal(check(`${OK_ARGS} --force`), /unknown argument/), "an unknown flag (n
   const log = EXPECTED.slice(0, 8).map((file) => ({ ref: PROD, file, status: "applied" }));
   const P9 = plan(RECORD, { log });
   ok(P9.items[0].file === "0065c_analytics_indexes.sql", "(with steps 1-8 logged, 0065c is step 1)");
-  is(refusal(check(`--apply --only 0065c_analytics_indexes.sql --ref=${PROD} --approved-by=user-in-chat`, log, P9), /CONCURRENTLY/), "a CONCURRENTLY file, even when it is next");
+  const it = checkRequest(A(`--apply --only 0065c_analytics_indexes.sql --ref=${PROD} --approved-by=user-in-chat`), P9, log);
+  ok(it.file === "0065c_analytics_indexes.sql" && it.mode === "concurrently" && it.concurrent.length === 3, "a CONCURRENTLY file that is next passes the request checks (it runs with no transaction)");
   ok(checkRequest(A(`--record-manual 0065c_analytics_indexes.sql --ref=${PROD} --approved-by=user-in-chat`), P9, log, { kind: "record-manual" }).file === "0065c_analytics_indexes.sql",
-     "...which is run by hand and then logged with --record-manual (no connection)");
+     "...and --record-manual stays for one run by hand anyway (no connection)");
   is(refusal(check(`--record-manual 0058_close_public_insert.sql --ref=${PROD} --approved-by=user-in-chat`, [], P, { kind: "record-manual" }), /only for CONCURRENTLY/), "--record-manual for an ordinary file");
 }
 {

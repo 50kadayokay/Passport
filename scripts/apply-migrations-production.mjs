@@ -11,7 +11,7 @@
 //       Applies ONE file. Every one of these is required, and the ref must also
 //       be TYPED at an interactive prompt.
 //
-//   --record-manual <file>   a CONCURRENTLY file was run by hand; log it (no connection)
+//   --record-manual <file>   a CONCURRENTLY file was run by hand anyway; log it (no connection)
 //   --reviewed <file>        a failed or interrupted run was inspected; log it (no connection)
 //   --audit <record.json>    a newer audit record (default: the 2026-11-01 one)
 //   PRODUCTION_DB_CA_FILE    Supabase's CA certificate, to verify the server
@@ -26,7 +26,8 @@
 // REFUSES (before the DSN is read or anything connects)
 //   no --apply / --approved-by / --ref; a ref that is not PRODUCTION_REFS
 //   exactly; the staging ref; zero or several files; a file that is not the
-//   next step; a CONCURRENTLY file; a file without a rollback or a checkpoint
+//   next step; a CONCURRENTLY file holding anything but CREATE/DROP INDEX
+//   CONCURRENTLY and ANALYZE; a file without a rollback or a checkpoint
 //   marker; a file that disables triggers or adds database egress; an
 //   unresolved earlier run; a non-interactive confirmation or a mistyped ref.
 // AND (before connecting): the DSN file inside the repo, readable by others,
@@ -38,6 +39,13 @@
 // (gitignored, mode 600): a rollback that restores PRODUCTION's text, which
 // can differ from the repo's. A file whose functions cannot be pinned exactly
 // is refused; if the capture fails, nothing is applied. Bodies are never printed.
+//
+// CONCURRENTLY FILES (0065c, 0073a) run with NO transaction: statement by
+// statement, each with its own statement_timeout and a 3s lock_timeout (so it
+// fails rather than queue in front of the investor app), and after each CREATE
+// pg_index must read the index valid. An INVALID index stops the run and the
+// recovery is printed: DROP INDEX CONCURRENTLY IF EXISTS <name>, then retry.
+// Their checkpoint includes "every index valid". See _concurrent-indexes.mjs.
 //
 // EACH APPLY: the marker must read NOT applied; capture; pre-snapshot (functions,
 // policies, tables, triggers, indexes, row counts); one transaction holding the
@@ -51,7 +59,7 @@ import path from "node:path";
 import readline from "node:readline";
 import pg from "pg";
 import {
-  DEFAULT_LOG_DIR, Refusal, redact, loadRecord, parseQ01Markers, readLog, buildPlan, formatPlan,
+  DEFAULT_LOG_DIR, Refusal, redact, applyConcurrent, loadRecord, parseQ01Markers, readLog, buildPlan, formatPlan,
   parseArgs, checkRequest, readDsn, confirmRef, applyOne, formatDiff, appendLog,
 } from "./_production-migrations.mjs";
 import { CAPTURE_DIR, gitIgnores, writeCaptureFile } from "./_function-capture.mjs";
@@ -127,7 +135,9 @@ try {
     appendLog(LOG, { ...base, status: "captured", capture: capture.path, capture_sha256: capture.sha256, functions: captured.length });
     return capture.path;
   };
-  const r = await applyOne(client, item, sql, { say: (m) => console.log(m), writeCapture });
+  const r = item.mode === "concurrently"
+    ? await applyConcurrent(client, item, sql, { say: (m) => console.log(m) })
+    : await applyOne(client, item, sql, { say: (m) => console.log(m), writeCapture });
   fs.writeFileSync(`${snapBase}.pre.json`, JSON.stringify(r.pre, null, 1));
   fs.writeFileSync(`${snapBase}.post.json`, JSON.stringify(r.post, null, 1));
   appendLog(LOG, { ...base, status: "applied", checkpoint: r.checkpoint, server_version: r.serverVersion, diff: r.diff, snapshots: `${snapBase}.{pre,post}.json` });
@@ -135,11 +145,12 @@ try {
   console.log("  What changed:");
   console.log(formatDiff(r.diff));
   console.log(`\n  Compare that with the step's intended change, then re-run the read-only audit.`);
-  console.log(`  Rollback if needed: ${item.rollback}${r.capturePath ? `\n  then, for production's own function text and grants: ${r.capturePath}` : ""}\n`);
+  console.log(`  Rollback if needed: ${item.rollback}${item.mode === "concurrently" ? " -- statement by statement, OUTSIDE a transaction" : ""}${r.capturePath ? `\n  then, for production's own function text and grants: ${r.capturePath}` : ""}\n`);
 } catch (e) {
   if (e.pre) fs.writeFileSync(`${snapBase}.pre.json`, JSON.stringify(e.pre, null, 1));
   appendLog(LOG, { ...base, status: "failed", error: redact(e.message, secrets), code: e.code || null });
-  console.error(`\n  FAILED: ${item.file} -- rolled back, nothing after it ran.`);
+  console.error(item.mode === "concurrently" ? `\n  FAILED: ${item.file} -- stopped; no statement after it ran (no transaction: what ran before it stays).` : `\n  FAILED: ${item.file} -- rolled back, nothing after it ran.`);
+  if (e.recovery) console.error(`  RECOVER: ${e.recovery}   (then record --reviewed and retry)`);
   if (e.capturePath) console.error(`  The capture taken before it is kept: ${e.capturePath}`);
   console.error(`  ${e.severity || "ERROR"}: ${redact(e.message, secrets)}`);
   if (e.detail) console.error(`  detail: ${redact(e.detail, secrets)}`);
