@@ -662,7 +662,13 @@ export default function ProfileEditor({ company, injectedProfile, navTab, navSte
       setTier(String((company && company.tier) || prof.tier || "").toLowerCase());
       return;
     }
-    if (!slug || !company?.id) return;
+    // The draft is loaded by company id; the slug is not needed. Requiring it
+    // left a company without one on "Loading profile…" for ever.
+    if (!company?.id) {
+      setDenied("This company's profile could not be identified. Reload the page, and contact MineEx if it keeps happening.");
+      setProfile({}); setPp({}); setDebPp({});
+      return;
+    }
     let ok = true;
     (async () => {
       // The live profile plus this company's draft, through the server: drafts
@@ -924,7 +930,8 @@ export default function ProfileEditor({ company, injectedProfile, navTab, navSte
   const openHistory = async () => {
     setHistOpen(true); setVersions(undefined);
     const out = await listProfileVersions(company.id);
-    setVersions(out.ok ? out.versions : { error: messageFor(out) });
+    // `ok` with no list is not "still loading": it used to spin for ever.
+    setVersions(out.ok ? (Array.isArray(out.versions) ? out.versions : { error: "Profile history came back empty-handed. Try again." }) : { error: messageFor(out) });
   };
   const previewVersion = async (v) => {
     setHistBusy(v.id);
@@ -1602,7 +1609,7 @@ export default function ProfileEditor({ company, injectedProfile, navTab, navSte
                     <li key={v.id} data-version={v.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 0", borderTop: "1px solid #f1f5f9" }}>
                       <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, color: "#334155" }}>
                         <b>{new Date(v.created_at).toLocaleString()}</b>
-                        <span style={{ color: "#94a3b8" }}> · {v.kind === "publish" ? `replaced when ${v.by_label} published` : `saved by ${v.by_label}`}</span>
+                        <span style={{ color: "#94a3b8" }}> · {v.kind === "publish" ? `replaced when ${v.by_label || "a team member"} published` : `saved by ${v.by_label || "a team member"}`}</span>
                       </span>
                       <button onClick={() => previewVersion(v)} disabled={!!histBusy}
                         style={{ border: "1px solid #e2e8f0", background: previewVer && previewVer.id === v.id ? "#eff6ff" : "#fff", borderRadius: 8, padding: "5px 9px", fontSize: 11.5, fontWeight: 700, color: "#475569", cursor: "pointer" }}>Preview</button>
