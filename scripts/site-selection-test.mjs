@@ -60,6 +60,7 @@ globalThis.fetch = async (url, o = {}) => {
   if (u.includes("/rest/v1/companies?")) return J(200, [{ id: CO, slug: "co-a", name: "Co A", status: "published", profile: { name: "Co A" }, updated_at: "2026-10-01T00:00:00Z" }]);
   if (u.includes("/rest/v1/posts?")) return J(200, [{ id: "p1", title: "Drill results", post_type: "press_release" }]);
   if (u.includes("/rest/v1/media_assets?")) return J(200, [{ id: "m1", storage_path: "x.jpg" }]);
+  if (u.includes("/rest/v1/destination_content?")) return J(404, { message: "relation does not exist" });   // 0088 not applied (a15 has its own test)
   if (u.includes("/rest/v1/company_blueprints?") && m === "GET") {
     if (!DBROW) return J(200, []);
     if (u.includes("status=eq.approved") && DBROW.status !== "approved") return J(200, []);
@@ -82,6 +83,7 @@ console.log("\n  API PAYLOAD (/api/site-content)");
   let out = await buildSiteContent(CO, { draft: false });
   ok(out.ok && out.body.content.posts.length === 1 && out.body.content.media.length === 1 && out.body.site.sections && Object.keys(out.body.site.sections).length === 0,
     "no website blueprint -> canonical content only, every feed on (unchanged)");
+  ok(out.body.content.releases === null && out.body.version.releases === null, "0088 not applied -> releases null (not provisioned), everything else unchanged");
   DBROW = { id: "bp1", template_key: "kingsmen-site", template_version: "1.4.0", status: "approved", data: { pages: WORKING.pages, sections: { "hero-1": WORKING.sections["hero-1"], "geo-1": { type: "geo-map", values: {} } } }, updated_at: "2026-10-30T00:00:00Z" };
   out = await buildSiteContent(CO, { draft: false });
   ok(out.ok && Object.keys(out.body.site.sections).length === 2 && out.body.content.media.length === 1, "pre-a14 approved blueprint -> served exactly as before");

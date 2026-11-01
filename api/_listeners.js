@@ -556,13 +556,70 @@ async function profileTimelineV1(event, db) {
   if (!r.ok) throw new Error(`timeline upsert failed (${r.status})`);
 }
 
+// a15 -- CONTENT FAN-OUT. One published record (the publication), one listener
+// per destination, each with its own delivery state, retries and dead letter
+// (event_deliveries). The investor feed is feed_projection_v1 above; these two
+// deliver the same record to the company's website and its Conference booth,
+// into destination_content (migration 0088), read by /api/site-content and
+// /api/conference-config. Subscribed only from 0088's active_from, so nothing
+// historical is replayed. Without 0088 they are never claimed (no subscription).
+//
+// Same rules as the feed: the PUBLICATION is re-read and its CURRENT status
+// wins over the event type (deliveries can run out of order), and the write
+// carries publish_seq so the database refuses to let an older delivery
+// overwrite a newer one. A failed read or write throws -> retried with backoff.
+export const FANOUT_EVENTS = ["PUBLICATION_PUBLISHED", "PUBLICATION_REVISED", "PUBLICATION_UNPUBLISHED"];
+
+/** The destination copy of a publication: the record's own fields, nothing derived. */
+export function destinationRow(pub) {
+  const content = pub.content || {};
+  const media = String(content.post_type || "") === "media";
+  return {
+    post_type: media ? "media" : "press_release",
+    title: (content.headline && String(content.headline).trim()) || "Company update",
+    summary: content.body || null,
+    category: content.category ? String(content.category) : null,
+    image_url: content.thumbnail_url || (media ? null : content.media_url) || null,
+    source_url: content.source_url || pub.external_url || null,
+    published_at: pub.published_at || null,
+  };
+}
+
+function destinationListener(destination) {
+  return async function deliver(event, db) {
+    if (!FANOUT_EVENTS.includes(event.event_type)) return { skipped: "event type" };
+    const pubs = await db.getRows(`publications?id=eq.${event.publication_id}&select=id,company_id,destination_id,status,content,external_url,published_at,publish_seq`);
+    const pub = pubs[0];
+    if (!pub) return { skipped: "publication gone" };
+    if (pub.destination_id !== "passport") return { skipped: "not a profile publication" };
+    const payloadSeq = event.payload && Number.isFinite(Number(event.payload.publish_seq)) ? Number(event.payload.publish_seq) : null;
+    const version = payloadSeq != null ? payloadSeq : Number(pub.publish_seq || 0);
+
+    const removing = event.event_type === "PUBLICATION_UNPUBLISHED";
+    if (removing && pub.status === "published") return { skipped: "published again" };
+    if (!removing && pub.status !== "published") return { skipped: "not published" };
+
+    const r = await db.rpc("deliver_destination_content", {
+      p_destination: destination, p_publication: pub.id, p_company: pub.company_id,
+      p_version: version, p_removed: removing, p_row: removing ? {} : destinationRow(pub),
+    });
+    if (!r || !r.ok) throw new Error(`${destination} delivery failed (${r ? r.status : "no response"})`);
+    const out = await r.json().catch(() => null);
+    if (out && out.applied === false) return { skipped: removing ? "nothing to remove" : "newer version already delivered" };
+  };
+}
+const siteContentV1 = destinationListener("website");
+const conferenceContentV1 = destinationListener("conference");
+
 export const LISTENERS = [
   { name: "feed_projection_v1", handle: feedProjectionV1 },
   { name: "in_app_notifications_v1", handle: inAppNotificationsV1 },
   { name: "mineiq_facts_v1", handle: mineIqFactsV1 },
   { name: "device_push_v1", handle: devicePushV1 },
   { name: "profile_timeline_v1", handle: profileTimelineV1 },
+  { name: "site_content_v1", handle: siteContentV1 },
+  { name: "conference_content_v1", handle: conferenceContentV1 },
 ];
 
 // Exported for direct unit testing.
-export { feedProjectionV1, inAppNotificationsV1, mineIqFactsV1, devicePushV1, profileTimelineV1, scoreFor };
+export { feedProjectionV1, inAppNotificationsV1, mineIqFactsV1, devicePushV1, profileTimelineV1, scoreFor, siteContentV1, conferenceContentV1 };

@@ -74,6 +74,15 @@ export async function buildSiteContent(companyId, { draft = false } = {}) {
 
   // Public media only. `company-media-private` exists precisely so that private
   // assets are not in the public bucket, and a website is a public surface.
+  // a15: what the content fan-out delivered to this website (site_content_v1 ->
+  // destination_content, migration 0088). Same records as `posts`, delivered
+  // through the outbox with their own state and retries; null when 0088 is not
+  // applied, so a site can tell "not provisioned" from "nothing delivered".
+  const delivered = !site.include.posts ? [] : await getJson(
+    `destination_content?company_id=eq.${companyId}&destination=eq.website&removed_at=is.null` +
+    `&select=publication_id,post_type,title,summary,category,image_url,source_url,published_at,version,delivered_at` +
+    `&order=published_at.desc.nullslast&limit=${MAX_POSTS}`);
+
   const media = !site.include.media ? [] : (await getJson(
     `media_assets?company_id=eq.${companyId}&previewable=is.true&select=id,storage_path,source_document_id,created_at` +
     `&order=created_at.desc&limit=200`)) || [];
@@ -91,6 +100,8 @@ export async function buildSiteContent(companyId, { draft = false } = {}) {
       version: {
         content: company.updated_at || null,
         site: site.version,
+        releases: Array.isArray(delivered) && delivered.length
+          ? delivered.reduce((m, d) => (d.delivered_at > m ? d.delivered_at : m), "") : null,
       },
       content: {
         // The profile is served as stored: canonical source AND the compiled
@@ -98,6 +109,7 @@ export async function buildSiteContent(companyId, { draft = false } = {}) {
         // that is a design decision, and design is the site's business.
         profile: company.profile || {},
         posts: posts.map(shapePost),
+        releases: Array.isArray(delivered) ? delivered.map(shapeDelivered) : null,
         media,
       },
       site: site.payload,
@@ -137,6 +149,21 @@ async function getSiteBlueprint(companyId, { draft }) {
       pages,
       sections,
     },
+  };
+}
+
+/* One fan-out delivery (a15), in the same shape as a post. */
+function shapeDelivered(d) {
+  return {
+    id: d.publication_id,
+    kind: d.post_type === "media" ? "media" : "press_release",
+    title: d.title || "",
+    summary: d.summary || "",
+    category: d.category || null,
+    publishedAt: d.published_at || null,
+    image: d.image_url || null,
+    sourceUrl: d.source_url || null,
+    version: d.version,
   };
 }
 
