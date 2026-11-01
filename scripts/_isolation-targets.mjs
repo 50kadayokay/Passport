@@ -28,6 +28,9 @@ export const WRITE_ONLY = new Set(["listing_reports"]);
 // suite reports SKIP, never a pass.
 export const SERVICE_ONLY = [
   ["stripe_events", "company_id"],
+  // a13 (0087): audience events. Written only through record_company_events();
+  // only platform admins read rows -- companies see aggregates via the RPCs.
+  ["company_events", "company_id"],
   // 0072 (a04/d28): unpublished profile drafts. Reached only through
   // api/profile-draft.js (service role, after a role check); never public.
   ["company_profile_drafts", "company_id", () => ({ company_id: process.env.ISOLATION_COMPANY_A_ID, draft: { pp: {}, projects: [] }, base_fingerprint: "probe" })],
@@ -57,6 +60,8 @@ export const COMPANY_SCOPED = [
   // a17 / a21 (0085, 0086; added 2026-11-01 when the inventory reported them).
   ["conference_booth_configs", "company_id"],
   ["service_requests", "company_id"],
+  // a15 slice 1 (0088): what each destination received; members read.
+  ["destination_content", "company_id"],
   ["mineiq_messages", "company_id"],
   ["site_credentials", "company_id"],
   ["activity_log", "company_id"],
@@ -229,6 +234,9 @@ export const COMPANY_SCOPED_RPCS = [
   // 0073b (a12): impressions, member-only like 0065a.
   ["company_impression_summary",    { p_days: null },           "company-read"],
   ["company_post_impressions",      { p_days: 30 },             "company-read"],
+  // 0087 (a13): audience aggregates, member-only.
+  ["company_audience_summary",      { p_days: null },           "company-read"],
+  ["company_video_progress",        { p_days: 30 },             "company-read"],
   ["company_engagement_unattributed", {},                       "company-read"],
   ["company_notifications",         { p_limit: 5 },             "company-read"],
   ["mark_notifications_seen",       {},                         "company-write"],
