@@ -49,7 +49,9 @@ export default function CompanyMemory({ company, onSaved }) {
   const load = useCallback(() => {
     if (!companyId) { setDocs([]); return; }
     setDocs(null);
-    listDocuments(companyId).then(setDocs);
+    // listDocuments throws when the file can't be read; say so instead of
+    // showing an empty file.
+    listDocuments(companyId).then(setDocs).catch((e) => { setDocs([]); setErr(e.message || "Couldn't load your documents."); });
     unreflectedDocuments(companyId).then((u) => setNewCount(u.length)).catch(() => {});
   }, [companyId]);
   useEffect(() => { load(); }, [load]);
@@ -235,7 +237,7 @@ export default function CompanyMemory({ company, onSaved }) {
         {/* the file */}
         <div className="mt-4 space-y-2">
           {docs === null && <div className="flex justify-center py-10"><Loader2 size={22} className="animate-spin text-slate-300" /></div>}
-          {docs && docs.length === 0 && (
+          {docs && docs.length === 0 && !err && (
             <div className="rounded-2xl border border-dashed border-slate-200 py-12 text-center">
               <FileText size={22} className="mx-auto text-slate-300" />
               <p className="mt-2 text-[13.5px] font-medium text-slate-400">No documents on file yet. Everything you add is kept forever.</p>

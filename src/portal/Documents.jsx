@@ -17,24 +17,9 @@ import {
   FileText, Upload, Loader2, Trash2, Search, ExternalLink, Download, AlertTriangle,
   Folder, ArrowDownUp,
 } from "lucide-react";
-import { storeDocuments, deleteDocument, signedDocUrl } from "../lib/memory.js";
+import { listDocuments, storeDocuments, deleteDocument, signedDocUrl } from "../lib/memory.js";
 import { logActivity } from "../lib/portal.js";
-import { SUPABASE_URL } from "../lib/supabase.js";
-import { authHeaders } from "../lib/auth.js";
 import { can } from "../lib/companyRoles.js";
-
-// lib/memory.js listDocuments() answers [] for every failure, which this page
-// would show as "No documents yet". Same query, but a failed read says so.
-async function loadDocuments(companyId) {
-  try {
-    const h = await authHeaders();
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/documents?company_id=eq.${encodeURIComponent(companyId)}&select=id,filename,mime,bytes,kind,doc_date,storage_path,extraction_status,extracted_text,created_at&order=created_at.desc`, { headers: h });
-    if (!res.ok) return null;
-    const rows = await res.json().catch(() => null);
-    if (!Array.isArray(rows)) return null;
-    return rows.filter((r) => r && r.id).map((r) => ({ ...r, textPreview: String(r.extracted_text || "").slice(0, 160), extracted_text: undefined, hasText: !!(r.extracted_text && String(r.extracted_text).trim()) }));
-  } catch { return null; }
-}
 
 // Category catalogue — order defines how groups are stacked. `match` keys map the
 // documents.kind values (and a couple of synonyms) onto these buckets.
@@ -77,7 +62,10 @@ export default function Documents({ company }) {
   const load = useCallback(() => {
     if (!companyId) { setDocs([]); return; }
     setDocs(null);
-    loadDocuments(companyId).then((rows) => { setLoadErr(rows === null); setDocs(rows || []); });
+    // listDocuments throws when the list can't be read; [] means none.
+    listDocuments(companyId)
+      .then((rows) => { setLoadErr(false); setDocs(rows); })
+      .catch(() => { setLoadErr(true); setDocs([]); });
   }, [companyId]);
   useEffect(() => { load(); }, [load]);
 
