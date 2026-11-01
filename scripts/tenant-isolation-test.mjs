@@ -476,7 +476,7 @@ async function main() {
            bHasData ? "" : "seed company B in supabase/staging/seed.sql");
   }
 
-  for (const [name, extra, cls, staffOwn] of COMPANY_SCOPED_RPCS) {
+  for (const [name, extra, cls, staffOwn, adminAny = "allowed"] of COMPANY_SCOPED_RPCS) {
     const own   = { p_company: ID_A, ...extra };
     const other = { p_company: ID_B, ...extra };
 
@@ -511,7 +511,8 @@ async function main() {
       }
       if (tok.admin) {
         const r = await rpc(name, other, tok.admin);
-        record("admin", "RPC any", name, "admitted (platform admin)", show(r), r.status === 200 && !refused(r) ? "PASS" : "FAIL", "profile_actor_role admits platform admins");
+        if (adminAny === "refused") record("admin", "RPC any", name, "refused (platform admin, no membership)", show(r), refused(r) ? "PASS" : "FAIL", "needs the caller's own owner/admin membership");
+        else record("admin", "RPC any", name, "admitted (platform admin)", show(r), r.status === 200 && !refused(r) ? "PASS" : "FAIL", "profile_actor_role admits platform admins");
       }
       for (const who of ["companyA", "staff", "investor", "anon"]) {
         if (who !== "anon" && !tok[who]) continue;

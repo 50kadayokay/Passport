@@ -32,7 +32,7 @@ const signIn = async (key) => {
   return j ? { token: j.access_token, id: j.user.id } : null;
 };
 const W = {};
-for (const k of ["COMPANY_A", "COADMIN", "EDITOR", "ANALYST", "STAFF", "COMPANY_B", "INVESTOR", "INVESTOR_B"]) W[k] = await signIn(k);
+for (const k of ["COMPANY_A", "COADMIN", "EDITOR", "ANALYST", "STAFF", "COMPANY_B", "INVESTOR", "INVESTOR_B", "ADMIN"]) W[k] = await signIn(k);
 if (Object.values(W).some((v) => !v)) { console.error("  fixture sign-in failed"); process.exit(3); }
 const rest = async (u, path, init = {}) => {
   const r = await fetch(`${SB}/rest/v1/${path}`, { ...init, headers: { apikey: ANON, "content-type": "application/json", Authorization: `Bearer ${u ? u.token : ANON}`, ...(init.headers || {}) } });
@@ -103,6 +103,25 @@ try {
   ok(r.status === 200 && typeof r.body === "string", "a company admin clears all", `${r.status} ${JSON.stringify(r.body)}`);
   r = await list(W.STAFF);
   ok(Array.isArray(r.body) && r.body.length === 0, "the admin's clear empties the list for the viewer too");
+
+  console.log("\n  5. PLATFORM ADMINS NEED THEIR OWN OWNER/ADMIN MEMBERSHIP (0091)");
+  const clearedNow = async () => String((await one(`select cleared_at from public.company_notification_reads where company_id = $1`, [X])).cleared_at);
+  let before = await clearedNow();
+  r = await rpc(W.ADMIN, "mark_notifications_cleared", { p_company: X });
+  ok(r.status === 403 && (await clearedNow()) === before, "a platform admin with no membership is refused (403), cleared_at unchanged", `${r.status} ${JSON.stringify(r.body).slice(0, 120)}`);
+  await q(`insert into public.company_memberships (company_id, user_id, role, status) values ($1, $2, 'editor', 'active')`, [X, W.ADMIN.id]);
+  r = await rpc(W.ADMIN, "mark_notifications_cleared", { p_company: X });
+  ok(r.status === 403 && (await clearedNow()) === before, "...with an editor membership: still refused", `${r.status}`);
+  await q(`update public.company_memberships set role = 'admin' where company_id = $1 and user_id = $2`, [X, W.ADMIN.id]);
+  await new Promise((res) => setTimeout(res, 1100));
+  r = await rpc(W.ADMIN, "mark_notifications_cleared", { p_company: X });
+  ok(r.status === 200 && (await clearedNow()) !== before, "...with an active admin membership of this company: clears", `${r.status} ${JSON.stringify(r.body).slice(0, 120)}`);
+  await q(`delete from public.company_memberships where company_id = $1 and user_id = $2`, [X, W.ADMIN.id]);
+  before = await clearedNow();
+  r = await rpc(W.ADMIN, "mark_notifications_cleared", { p_company: X });
+  ok(r.status === 403 && (await clearedNow()) === before, "...membership removed: refused again", `${r.status}`);
+  r = await rpc(W.COMPANY_A, "mark_notifications_cleared", { p_company: X });
+  ok(r.status === 200, "the owner still clears", `${r.status}`);
   r = await rpc(W.COMPANY_A, "mark_notifications_seen", { p_company: X });
   ok(r.status === 200, "mark seen still works after a clear");
 } catch (e) {

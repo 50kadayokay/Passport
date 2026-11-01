@@ -107,7 +107,7 @@ export const PENDING = {
   "0090_notification_clear_roles.sql":
     "Company-wide \"Clear all\" notifications limited to owner/admin (and platform admins) via has_company_role; was any member. Needs 0064 and 0076. Applied to staging 2026-11-01.",
   "0091_notification_clear_no_platform_admin.sql":
-    "\"Clear all\" admits only the company's owner_id or an active owner/admin membership; platform admins no longer pass by being platform admins (user decision 2026-11-01). Replaces 0090's check only; same signature and grants. MUST follow 0090.",
+    "\"Clear all\" admits only the company's owner_id or an active owner/admin membership; platform admins no longer pass by being platform admins (user decision 2026-11-01). Replaces 0090's check only; same signature and grants. MUST follow 0090. Applied to staging 2026-11-01.",
   "0061a_table_privilege_hardening.sql":
     "Revokes the default all-7 grant on company_follows/post_events/post_likes/user_company_relationships; re-grants only what traced call sites need. anon gets nothing. NO code deploy required.",
 
