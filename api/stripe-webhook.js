@@ -88,6 +88,12 @@ export function validEvent(evt) {
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const cid = (v) => (typeof v === "string" && UUID.test(v) ? v : null);
 const tierOf = (v) => (v && Object.prototype.hasOwnProperty.call(TIER_PLAN, v) ? v : null);
+// The period end moved from the subscription to its items in Stripe API
+// 2025-03-31; nothing here pins an API version, so both places are read.
+const periodEndIso = (sub) => {
+  const end = sub && (sub.current_period_end || (sub.items && Array.isArray(sub.items.data) && sub.items.data[0] && sub.items.data[0].current_period_end));
+  return Number.isInteger(end) && end > 0 ? new Date(end * 1000).toISOString() : null;
+};
 const portalStatus = (s) => (s === "active" || s === "trialing" ? "active" : s === "past_due" ? "past_due" : "cancelled");
 
 async function stripeGet(path) {
@@ -112,7 +118,7 @@ export async function interpret(evt) {
     const subscription = typeof obj.subscription === "string" ? obj.subscription : (obj.subscription && obj.subscription.id) || null;
     if (subscription) {
       const sub = await stripeGet(`subscriptions/${encodeURIComponent(subscription)}`);
-      if (sub) { stripeStatus = sub.status || "active"; if (sub.current_period_end) renewsAt = new Date(sub.current_period_end * 1000).toISOString(); }
+      if (sub) { stripeStatus = sub.status || "active"; renewsAt = periodEndIso(sub); }
     }
     return { kind: "bind", company, subscription, status: portalStatus(stripeStatus), stripeStatus, tier: tierOf(obj.metadata && obj.metadata.tier), renewsAt };
   }
@@ -120,7 +126,7 @@ export async function interpret(evt) {
     const company = cid(obj.metadata && obj.metadata.company_id);
     if (!company) return { kind: "ignore", why: "no-company" };
     return { kind: "sync", company, subscription: obj.id || null, status: portalStatus(obj.status), stripeStatus: obj.status || null,
-      tier: tierOf(obj.metadata && obj.metadata.tier), renewsAt: obj.current_period_end ? new Date(obj.current_period_end * 1000).toISOString() : null };
+      tier: tierOf(obj.metadata && obj.metadata.tier), renewsAt: periodEndIso(obj) };
   }
   if (t === "customer.subscription.deleted") {
     const company = cid(obj.metadata && obj.metadata.company_id);
