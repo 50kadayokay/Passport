@@ -144,10 +144,12 @@ Feature completion **53% -> 61%** (12 working, 11 partial, 4 missing, 1 unverifi
   refresh (S2, no browser credentials, no outbound call on staging), notification Clear all owner/admin only
   (S3, 0090 written, rolled-back check 21/0, NOT applied). a28 pass on new screens (S3) and 11 fixes (S2).
 - New defect found and fixed: mineiq_search ANDed every question word (S1 0080, rolled-back check 16/0, NOT applied).
-- Feature completion **90%** (24 working, 4 partial, 1 missing). Implemented 97%, integrated 97%,
-  verified (implemented + tested + integrated) 83%. Launch readiness unchanged at 36%.
+- a07 verified live: S1 click-through 18/18 on staging. Live sweep: 24 suites green after three test-drift
+  fixes (publishing settles the 0088 listeners; impressions ignores deleted investors; 0078 check unwinds).
+- Feature completion **91%** (25 working, 3 partial, 1 missing). Implemented 97%, integrated 97%,
+  verified (implemented + tested + integrated) 86%. Launch readiness unchanged at 36%.
 - Blockers: apply 0080 and 0090 to staging (approval); a19 real-model run has no real OpenAI key on staging;
   a20 Stripe test keys; a26 disposable project; a22 deferred.
 
 ## Next
-Apply 0080/0090 after approval, rerun a07 click-through and isolation, mark a07 working.
+Apply 0080/0090 after approval, then rerun isolation and the live sweep.
