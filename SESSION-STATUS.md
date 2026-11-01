@@ -12,7 +12,7 @@ were used; every database check below is a script for S4 to run.
 | a21 Bespoke service requests | **integrated by S4 (ea6ceca)**; 0086 rolled-back 30/0; awaiting apply | f48c75e | `service-requests-test` 22/0; UI on a local mock harness (request, list, admin status change) | approve + apply **0086**; `service-requests-0086-check` (rolled back) |
 | a14 Website content UI | implemented, offline-tested | f1abd1b | `site-selection-test` 29/0; `site-contract-test` 66/0; UI on the mock harness (toggle, publish, tokens) | `site-website-live-test` (no migration) |
 | a13 Analytics events | implemented, offline-tested | ff05f8a | `audience-events-test` 30/0; `impressions-test` 29/0; Analytics tiles on the mock harness | approve + apply **0087**; `audience-events-0087-check` (rolled back); `investor-app-live-test` (PassportProto changed additively) |
-| a15 Content fan-out | **slice 1** implemented, offline-tested | 0f16655 | `content-fanout-test` 38/0; mineiq 76/0, publishing-reliability 97/0, dispatch-scheduler 30/0, delivery-ops 71/0 | approve + apply **0088** (after 0085); `content-fanout-0088-check` (rolled back); `content-fanout-live-test` |
+| a15 Content fan-out | **slices 1–2** implemented, offline-tested | 0f16655, 6b421d9 | `content-fanout-test` 48/0; mineiq 76/0, publishing-reliability 97/0, dispatch-scheduler 30/0, delivery-ops 71/0 | approve + apply **0088** (after 0085); `content-fanout-0088-check` (rolled back); `content-fanout-live-test` |
 | a22 Social publishing | deferred, scope note only | (this commit) | `specs/a22-social-publishing-scope.md` | none |
 
 Whole branch: `npm test` passes (exit 0), `vite build` passes, `check:imports` ok,
@@ -65,7 +65,7 @@ a database update", fan-out listeners never claimed, `releases: null`).
 - Subscriptions are `active_from now()`, so no history is replayed.
 
 **Left (precise):**
-1. **Booth rendering.** The templates do not show `record.releases` yet. It needs a small "Latest news" strip in `ConferenceV3.jsx` and a template decision. The data is already cached on the device.
+1. ~~Booth rendering~~ **done in 6b421d9.** The 2 newest releases from the last 180 days join `profile.timeline`, which is every template's milestones band. They are marked NEWS and de-duplicated. `&news=0` turns them off. Each template applies its own order.
 2. **Website revalidate hook.** This is Site Contract §5: a POST to the site's registered hook URL on delivery, from `site_content_v1`. It needs a place for the hook URL (`company_destinations` row, `destination_id='website'`) and a staging egress allowlist entry. That is an outbound call to customer infrastructure, so it needs your approval.
 3. **Portal display of per-destination state.** Map the listener names to "Investor feed / Website / Conference" wherever `publication_delivery_status` is shown (S1's publish UI, S3's DeliveryOps label map). The data is there now.
 4. **Media posts on the booth.** Videos are fanned out with their thumbnail only. Playing them on the booth is a template decision.
@@ -75,12 +75,25 @@ a database update", fan-out listeners never claimed, `releases: null`).
 
 Merged portal-work (ea6ceca) into this branch at 42f8472; npm test still passes (exit 0).
 
+## S3 a28 review: defects in S2 pages, fixed
+- 1a58255 (Conference):
+  - A failed `my_features` call is now reported instead of silently showing the sales page.
+  - The QR preview no longer spins forever.
+  - The preview links only show for a published profile.
+  - No more "Invalid Date".
+  - "Try again" resets the entitlement, so the retry is visible.
+  - Evidence: `conference-entitlement-test` 7/0 (new; needs adding to `npm test`), qr-check and catalog-check ok.
+- 1680542 (Analytics):
+  - The content list shows a spinner while loading, and an outage now says "could not be loaded" instead of "needs a database update".
+  - The tiles show "—" and "Loading…" while loading instead of 0.
+  - Evidence: impressions-test 29/0.
+
 ## Requests to other sessions
 - **S3 (`src/portal/Portal.jsx`):** a navigation entry "Website" that renders `src/portal/Website.jsx` (default export, prop `company`). It could be a tab next to Conference, or a sidebar item.
 - **S3 (`src/admin/Admin.jsx`):** an admin nav entry "Service requests" that renders `src/admin/ServiceRequests.jsx` (no props).
 - **S3 (`src/admin/DeliveryOps.jsx`):** add these labels to `LISTENERS`: `site_content_v1: "Website"`, `conference_content_v1: "Conference booth"`.
 - **S1 (publish UI):** the same labels wherever `publication_delivery_status` rows are shown.
-- **S4 (`package.json`):** add to `npm test`:
+- **S4 (`package.json`):** add `conference-entitlement-test` to `npm test`, plus:
   - `conference-live-config-test`
   - `service-requests-test`
   - `site-selection-test`
