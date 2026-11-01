@@ -221,3 +221,29 @@ export async function postImpressions(companyId, days = 30) {
   if (!Array.isArray(rows)) return null;
   return Object.fromEntries(rows.map((r) => [r.post_id, { impressions: Number(r.impressions || 0), impressionsRecent: Number(r.impressions_recent || 0) }]));
 }
+
+/* ── a13 audience events (migration 0087) ─────────────────────────────────── */
+
+/** Profile views, unique visitors, shares, video progress for the window, or
+    null when 0087 is not applied / the call is refused. Same window rules as
+    impressionSummary; `firstRecordedAt` null = nothing recorded yet. */
+export async function audienceSummary(companyId, days = null) {
+  if (!companyId) return null;
+  const rows = await rpc("company_audience_summary", { p_company: companyId, p_days: days });
+  if (!Array.isArray(rows) || !rows.length) return null;
+  const r = rows[0];
+  const n = (v) => Number(v || 0);
+  return {
+    firstRecordedAt: r.first_recorded_at || null,
+    profileViews: n(r.profile_views), uniqueVisitors: n(r.unique_visitors), signedInVisitors: n(r.signed_in_visitors),
+    shares: n(r.shares), videoViewers: n(r.video_viewers), videoCompletions: n(r.video_completions),
+  };
+}
+
+/** { [postId]: { r25, r50, r75, r100 } } distinct viewers per milestone, or null. */
+export async function videoProgress(companyId, days = null) {
+  if (!companyId) return null;
+  const rows = await rpc("company_video_progress", { p_company: companyId, p_days: days });
+  if (!Array.isArray(rows)) return null;
+  return Object.fromEntries(rows.map((r) => [r.post_id, { r25: Number(r.reached_25 || 0), r50: Number(r.reached_50 || 0), r75: Number(r.reached_75 || 0), r100: Number(r.reached_100 || 0) }]));
+}
