@@ -15,7 +15,7 @@
 
 import { SUPABASE_URL } from "./supabase.js";
 import { isPortalDemo } from "./demoMode.js";
-import { authHeaders, apiHeaders } from "./auth.js";
+import { authHeaders, apiHeaders, writeHeaders } from "./auth.js";
 
 const REST = `${SUPABASE_URL}/rest/v1`;
 
@@ -28,9 +28,9 @@ const REST = `${SUPABASE_URL}/rest/v1`;
 // see through the isPortalDemo() call on its own, and with the call first the
 // branch survives and the fixtures ship as a real chunk. Verified by grepping
 // dist/ for a fixture string after building.
-export async function listConversations(companySlug, companyId = null) {
-  if (!companySlug) return [];
-  if (import.meta.env && import.meta.env.DEV && isPortalDemo()) return (await import("../portal/__fixtures/updatesDemo.js")).CONVERSATIONS;
+export async function loadConversations(companySlug, companyId = null) {
+  if (!companySlug) return { ok: true, rows: [] };
+  if (import.meta.env && import.meta.env.DEV && isPortalDemo()) return { ok: true, rows: (await import("../portal/__fixtures/updatesDemo.js")).CONVERSATIONS };
   try {
     const h = await authHeaders();
     const res = await fetch(
@@ -45,18 +45,27 @@ export async function listConversations(companySlug, companyId = null) {
         `&order=last_message_at.desc&limit=200`,
       { headers: h }
     );
-    if (!res.ok) return [];
-    const rows = await res.json().catch(() => []);
-    return Array.isArray(rows) ? rows : [];
+    if (!res.ok) return { ok: false, status: res.status };
+    const rows = await res.json().catch(() => null);
+    if (!Array.isArray(rows)) return { ok: false };
+    return { ok: true, rows: rows.filter((r) => r && r.id) };
   } catch {
-    return [];
+    return { ok: false };
   }
 }
 
+// The badge in the portal shell wants a list and nothing else: a failed read
+// is simply no badge. The inbox itself uses loadConversations(), so a failed
+// read there says so instead of looking like an empty inbox.
+export async function listConversations(companySlug, companyId = null) {
+  const r = await loadConversations(companySlug, companyId);
+  return r.ok ? r.rows : [];
+}
+
 /** Every message in one thread, oldest first (reading order). */
-export async function listMessages(conversationId) {
-  if (!conversationId) return [];
-  if (import.meta.env && import.meta.env.DEV && isPortalDemo()) return (await import("../portal/__fixtures/updatesDemo.js")).MESSAGES[conversationId] || [];
+export async function loadMessages(conversationId) {
+  if (!conversationId) return { ok: true, rows: [] };
+  if (import.meta.env && import.meta.env.DEV && isPortalDemo()) return { ok: true, rows: (await import("../portal/__fixtures/updatesDemo.js")).MESSAGES[conversationId] || [] };
   try {
     const h = await authHeaders();
     const res = await fetch(
@@ -66,12 +75,18 @@ export async function listMessages(conversationId) {
         `&order=created_at.asc&limit=500`,
       { headers: h }
     );
-    if (!res.ok) return [];
-    const rows = await res.json().catch(() => []);
-    return Array.isArray(rows) ? rows : [];
+    if (!res.ok) return { ok: false, status: res.status };
+    const rows = await res.json().catch(() => null);
+    if (!Array.isArray(rows)) return { ok: false };
+    return { ok: true, rows: rows.filter((m) => m && m.id) };
   } catch {
-    return [];
+    return { ok: false };
   }
+}
+
+export async function listMessages(conversationId) {
+  const r = await loadMessages(conversationId);
+  return r.ok ? r.rows : [];
 }
 
 /**
@@ -108,29 +123,38 @@ export async function latestByConversation(conversationIds) {
 }
 
 /**
- * The company's reply. `sender` is pinned to 'company' here AND in 0047's WITH
- * CHECK — the policy is the real guarantee; this is just the honest client.
+ * The company's reply. `side` is which side of the thread the company is on:
+ * "company" when an investor (or another company) wrote to it, "investor" --
+ * positional, "the initiating side" -- in a thread it STARTED (0063). Each is
+ * pinned by its own 0076 WITH CHECK (msg_insert_company / msg_insert_sender_
+ * company); the policies are the real guarantee, this is just the honest client.
+ * Replying to a company-started thread as 'company' is refused by both, which
+ * is why those threads could not be continued from the portal.
  *
  * Throws on failure: a reply that silently vanishes is worse than an error,
  * because the person believes they answered an investor.
  */
-export async function sendCompanyReply(conversationId, body) {
+export async function sendCompanyReply(conversationId, body, { side = "company" } = {}) {
   const text = String(body || "").trim();
   if (!conversationId) throw new Error("No conversation selected.");
   if (!text) throw new Error("Message is empty.");
+  if (side !== "company" && side !== "investor") throw new Error("Unknown conversation side.");
 
-  const h = await authHeaders();
+  // writeHeaders, not authHeaders: with no session the request would go out
+  // as anon and come back 401, which read as "no access" instead of "signed out".
+  const h = await writeHeaders();
   const res = await fetch(`${REST}/messages`, {
     method: "POST",
     headers: { ...h, "Content-Type": "application/json", Prefer: "return=representation" },
-    body: JSON.stringify({ conversation_id: conversationId, sender: "company", body: text }),
+    body: JSON.stringify({ conversation_id: conversationId, sender: side, body: text }),
   });
   if (!res.ok) {
-    const detail = await res.text().catch(() => "");
     throw new Error(
-      res.status === 401 || res.status === 403
-        ? "You do not have access to this conversation."
-        : `Could not send the message.${detail ? ` (${res.status})` : ""}`
+      res.status === 401
+        ? "Your session has expired. Sign out and sign in again to continue."
+        : res.status === 403
+          ? "This message wasn't sent: your role can't send messages for this company, or you no longer have access to this conversation."
+          : `Could not send the message (${res.status}). Nothing was sent; try again.`
     );
   }
   const rows = await res.json().catch(() => []);
@@ -222,9 +246,18 @@ export function senderSubtitle(conv, senders) {
   return [s.investor_role, s.investor_company].map((x) => (x || "").trim()).filter(Boolean).join(" \u00b7 ");
 }
 
-/** Unread = the investor has written since the company last opened the thread. */
-export function isUnread(conv) {
+/**
+ * Unread = the investor has written since the company last opened the thread.
+ *
+ * Only for threads written TO this company. company_read_at is the
+ * recipient's receipt (0047's mark_conversation_read refuses anyone else), so
+ * in a thread this company started it belongs to the other company, and
+ * counting it made every thread we sent show as unread to us, forever. There
+ * is no sender-side receipt yet, so those threads are never "unread".
+ */
+export function isUnread(conv, myCompanyId = null) {
   if (!conv || !conv.last_message_at) return false;
+  if (myCompanyId && isOutbound(conv, myCompanyId)) return false;
   if (!conv.company_read_at) return true;
   return new Date(conv.last_message_at).getTime() > new Date(conv.company_read_at).getTime();
 }
@@ -310,4 +343,34 @@ export async function startCompanyThread({ fromCompanyId, toSlug, body, clientMe
 /** Did WE start this thread? Drives direction in the inbox. */
 export function isOutbound(conv, myCompanyId) {
   return !!(conv && conv.sender_company_id && myCompanyId && conv.sender_company_id === myCompanyId);
+}
+
+/**
+ * Which `sender` value is US in this thread. Positional (0063): the side that
+ * started a thread writes as 'investor', the side written to as 'company'. So
+ * in a thread this company started, our own messages are 'investor' and the
+ * other company's replies are 'company' -- the reverse of the inbox.
+ */
+export function mySide(conv, myCompanyId) {
+  return isOutbound(conv, myCompanyId) ? "investor" : "company";
+}
+
+/** Is this message one we sent? */
+export function isMine(msg, conv, myCompanyId) {
+  return !!msg && msg.sender === mySide(conv, myCompanyId);
+}
+
+/**
+ * The other party's name for a thread: the investor who wrote to us, or, for a
+ * thread we started, the company we wrote to (conversations.company_name).
+ * senderName() alone named our OWN user (or "Investor") on those threads.
+ */
+export function threadName(conv, senders, myCompanyId) {
+  if (isOutbound(conv, myCompanyId)) return String((conv && (conv.company_name || conv.company_slug)) || "").trim() || "Company";
+  return senderName(conv, senders);
+}
+
+export function threadSubtitle(conv, senders, myCompanyId) {
+  if (isOutbound(conv, myCompanyId)) return "Company · you started this conversation";
+  return senderSubtitle(conv, senders);
 }
