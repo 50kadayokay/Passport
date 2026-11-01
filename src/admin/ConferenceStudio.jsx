@@ -8,7 +8,8 @@ import React, { useMemo, useState, useEffect } from "react";
 import { Presentation, Check, Loader2, ExternalLink } from "lucide-react";
 import { updateCompany } from "../lib/supabase.js";
 import { authHeaders } from "../lib/auth.js";
-import { fetchBoothRecord, publishBoothLook } from "../lib/conference.js";
+import { readBoothRecord, publishBoothLook } from "../lib/conference.js";
+import { formatDateTime } from "../lib/dates.js";
 import { TEMPLATE_LIST, THEME_LIST } from "../aiBrief/conferenceV3/ConferenceV3.jsx";
 
 const THEMES = THEME_LIST.map((t) => ({ key: t.key, label: t.label, chip: t.dot }));
@@ -25,14 +26,16 @@ export default function ConferenceStudio({ companies = [], reload }) {
   const [accent, setAccent] = useState("");     // "" = theme default
   const [busy, setBusy] = useState(false); const [saved, setSaved] = useState(false); const [err, setErr] = useState("");
   const [published, setPublished] = useState(null);   // the booth record: { version, published_at } | null
+  const [recordState, setRecordState] = useState("loading");   // loading | published | none | failed
 
   // load the company's saved selection when it changes
   useEffect(() => {
     const s = (company && company.profile && company.profile.conference && company.profile.conference.studio) || {};
     setTemplate(s.template || "monolith"); setTheme(s.theme || "obsidian"); setAccent(s.accent || ""); setSaved(false); setErr("");
-    setPublished(null);
+    setPublished(null); setRecordState("loading");
     let live = true;
-    if (company && company.id) fetchBoothRecord(company.id).then((r) => { if (live) setPublished(r); });
+    if (company && company.id) readBoothRecord(company.id).then((r) => { if (live) { setPublished(r.record); setRecordState(r.state); } });
+    else setRecordState("none");
     return () => { live = false; };
   }, [slug]); // eslint-disable-line
 
@@ -51,7 +54,7 @@ export default function ConferenceStudio({ companies = [], reload }) {
       company.profile = profile;
       // Publish to booths. The profile save above already succeeded, so a failure here is reported as
       // exactly that rather than as a failed save.
-      try { setPublished(await publishBoothLook(company.id, { template, theme, accent })); }
+      try { setPublished(await publishBoothLook(company.id, { template, theme, accent })); setRecordState("published"); }
       catch (e) { setErr(`Saved, but not published to booths: ${String(e.message || e)}`); }
       setSaved(true); reload && reload();
     } catch (e) { setErr(String(e.message || e)); }
@@ -69,7 +72,8 @@ export default function ConferenceStudio({ companies = [], reload }) {
 
         <label className="block">
           <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400">Company</span>
-          <select value={slug} onChange={(e) => setSlug(e.target.value)} className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-[13.5px] font-semibold text-slate-800 outline-none focus:border-slate-300 focus:bg-white">
+          <select value={slug} onChange={(e) => setSlug(e.target.value)} disabled={!sorted.length} className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-[13.5px] font-semibold text-slate-800 outline-none focus:border-slate-300 focus:bg-white">
+            {!sorted.length && <option value="">No companies with a preview link</option>}
             {sorted.map((c) => <option key={c.slug} value={c.slug}>{c.name || c.slug}{(c.status || "").toLowerCase() === "published" ? " · live" : " · draft"}</option>)}
           </select>
         </label>
@@ -109,7 +113,9 @@ export default function ConferenceStudio({ companies = [], reload }) {
           {err && <p className="mb-2 text-[12px] font-semibold text-rose-600">{err}</p>}
           <p className="mb-2 text-[11.5px] text-slate-400">
             {published
-              ? `Live on booths · version ${published.version} · ${new Date(published.published_at).toLocaleString()}`
+              ? `Live on booths · version ${published.version}${formatDateTime(published.published_at, "") ? ` · ${formatDateTime(published.published_at)}` : ""}`
+              : recordState === "failed" ? "Could not check what booths are showing. Saving still publishes this look."
+              : recordState === "loading" ? "Checking what booths are showing…"
               : "Not published to booths yet — they run the bundled presentation."}
           </p>
           <button onClick={save} disabled={busy || !company} className="flex w-full items-center justify-center gap-2 rounded-full bg-slate-900 py-3 text-[14.5px] font-bold text-white transition active:scale-[0.99] disabled:opacity-40">
@@ -123,7 +129,15 @@ export default function ConferenceStudio({ companies = [], reload }) {
       <div className="min-w-0 flex-1 bg-slate-100 p-4">
         {company ? (
           <iframe key={previewSrc} src={previewSrc} title="Conference preview" className="h-full w-full rounded-2xl border border-slate-200 bg-white shadow-sm" />
-        ) : <div className="grid h-full place-items-center text-[13px] text-slate-400">Select a company to preview.</div>}
+        ) : (
+          <div className="grid h-full place-items-center px-8 text-center text-[13px] text-slate-400">
+            {sorted.length
+              ? "Select a company to preview."
+              : companies.length
+                ? "The company list arrived without preview links, so nothing can be previewed or styled here. Every company has one, so reload; if this persists, check you are signed in as a platform admin."
+                : "No companies to show."}
+          </div>
+        )}
       </div>
     </div>
   );

@@ -117,13 +117,27 @@ export function boothLook(company, record = null) {
    published" -- booths then run their compiled package, as they always have. */
 
 export async function fetchBoothRecord(companyId) {
-  if (!companyId) return null;
+  return (await readBoothRecord(companyId)).record;
+}
+
+/**
+ * The booth record with WHY it is absent, for screens that must not show a
+ * failed read as "not published":
+ *   { state: "published", record }   a look is live on booths
+ *   { state: "none", record: null }   nothing published (or 0085 not applied: booths run the bundle)
+ *   { state: "failed", record: null } the read failed; nothing is known
+ */
+export async function readBoothRecord(companyId) {
+  if (!companyId) return { state: "none", record: null };
   try {
     const r = await fetch(`${SUPABASE_URL}/rest/v1/conference_booth_configs?company_id=eq.${companyId}` +
       "&select=studio,version,published_at&limit=1", { headers: await authHeaders() });
-    if (!r.ok) return null;
-    return (await r.json().catch(() => []))[0] || null;
-  } catch { return null; }
+    if (r.status === 404) return { state: "none", record: null };
+    if (!r.ok) return { state: "failed", record: null };
+    const rows = await r.json().catch(() => null);
+    if (!Array.isArray(rows)) return { state: "failed", record: null };
+    return rows[0] ? { state: "published", record: rows[0] } : { state: "none", record: null };
+  } catch { return { state: "failed", record: null }; }
 }
 
 /** Platform admins only (RLS refuses everyone else). Returns the stored row. */
