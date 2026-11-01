@@ -22,6 +22,7 @@ import {
   listCompanyRequests, createRequest, canRequest, NotProvisioned,
   STATUSES, STATUS_LABEL, SERVICE_LABEL, MAX_DETAILS,
 } from "../lib/serviceRequests.js";
+import { formatDate, isValidDate } from "../lib/dates.js";
 
 const CARD = "rounded-2xl border border-slate-100 bg-white shadow-[0_1px_2px_rgba(15,23,42,.04),0_12px_26px_-20px_rgba(15,23,42,.4)]";
 
@@ -121,7 +122,7 @@ function RequestForm({ service, companyName, onCancel, onSent }) {
   );
 }
 
-const fmt = (iso) => { try { return new Date(iso).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }); } catch { return ""; } };
+const fmt = (iso) => formatDate(iso);
 
 function StatusSteps({ status }) {
   const at = STATUSES.indexOf(status);
@@ -147,7 +148,7 @@ function RequestList({ requests }) {
         <li key={r.id} className={`p-4 ${CARD}`}>
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <span className="text-[14.5px] font-bold text-slate-900">{SERVICE_LABEL[r.service] || r.service}</span>
-            <span className="text-[11.5px] text-slate-400">Requested {fmt(r.created_at)} · updated {fmt(r.status_changed_at)}</span>
+            <span className="text-[11.5px] text-slate-400">Requested {fmt(r.created_at)}{isValidDate(r.status_changed_at) ? ` · updated ${fmt(r.status_changed_at)}` : ""}</span>
           </div>
           <div className="mt-2.5"><StatusSteps status={r.status} /></div>
           {r.details && <p className="mt-2.5 whitespace-pre-wrap text-[13px] leading-snug text-slate-500">{r.details}</p>}

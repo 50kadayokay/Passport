@@ -18,10 +18,11 @@ import { Globe, Loader2, Eye, EyeOff, KeyRound, Check, AlertTriangle } from "luc
 import { loadWebsite, saveWebsite, listSiteTokens, revokeSiteToken, canManageSite, tokenState, ConflictError } from "../lib/siteAdmin.js";
 import { selectCopy, visibleOnly, hasUnpublishedChanges, normaliseInclude } from "../lib/siteSelection.js";
 import { listDelivered } from "../lib/destinations.js";
+import { formatDate, formatDateTime, isValidDate } from "../lib/dates.js";
 
 const CARD = "rounded-2xl border border-slate-100 bg-white shadow-[0_1px_2px_rgba(15,23,42,.04),0_12px_26px_-20px_rgba(15,23,42,.4)]";
 const LABEL = "text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400";
-const when = (iso) => (iso ? new Date(iso).toLocaleString() : "never");
+const when = (iso) => formatDateTime(iso, "never");
 const FEED_LABEL = { posts: ["Press releases & media posts", "Published releases and media posts, newest first"], media: ["Media library", "Public photos and videos from your library"] };
 
 function Toggle({ on, disabled, onChange, label }) {
@@ -38,7 +39,8 @@ function Tokens({ companyId, manage }) {
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState("");
   const load = useCallback(async () => {
-    try { setRows(await listSiteTokens(companyId)); setErr(""); } catch (e) { setRows([]); setErr(String(e.message || e)); }
+    setErr("");
+    try { setRows(await listSiteTokens(companyId)); } catch (e) { setRows(false); setErr(String(e.message || e)); }
   }, [companyId]);
   useEffect(() => { if (manage) load(); }, [load, manage]);
 
@@ -52,6 +54,15 @@ function Tokens({ companyId, manage }) {
 
   if (!manage) return <p className="mt-3 text-[13px] text-slate-400">Website tokens are visible to owners and admins.</p>;
   if (rows === null) return <div className="mt-3 text-slate-300"><Loader2 size={16} className="animate-spin" /></div>;
+  // A failed read is not "no tokens": say it failed and offer a retry.
+  if (rows === false) {
+    return (
+      <div className="mt-3 flex flex-wrap items-center gap-3">
+        <p className="text-[12.5px] font-semibold text-rose-600">{err || "Your website tokens could not be loaded."}</p>
+        <button onClick={() => { setRows(null); load(); }} className="text-[12.5px] font-bold text-slate-600 underline-offset-2 hover:underline">Retry</button>
+      </div>
+    );
+  }
   return (
     <div className="mt-3">
       {err && <p className="mb-2 text-[12.5px] font-semibold text-rose-600">{err}</p>}
@@ -109,7 +120,7 @@ function DeliveredReleases({ companyId, feedOn }) {
           {rows.map((r) => (
             <li key={r.publication_id} className="flex items-center gap-3 px-4 py-3">
               <span className="min-w-0 flex-1 truncate text-[13.5px] font-semibold text-slate-900">{r.title}</span>
-              <span className="shrink-0 text-[11.5px] text-slate-400">{r.published_at ? new Date(r.published_at).toLocaleDateString() : ""}</span>
+              <span className="shrink-0 text-[11.5px] text-slate-400">{formatDate(r.published_at, "")}</span>
             </li>
           ))}
         </ul>
@@ -121,7 +132,7 @@ function DeliveredReleases({ companyId, feedOn }) {
 export default function Website({ company }) {
   const companyId = company?.id || "";
   const manage = canManageSite(company?.role || "owner");
-  const [row, setRow] = useState(undefined);   // undefined = loading, null = no website
+  const [row, setRow] = useState(undefined);   // undefined = loading, null = no website, false = could not be read
   const [data, setData] = useState({});
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState("");
@@ -130,7 +141,7 @@ export default function Website({ company }) {
   const load = useCallback(async () => {
     setErr("");
     try { const r = await loadWebsite(companyId); setRow(r); setData((r && r.data) || {}); }
-    catch (e) { setRow(null); setErr(String(e.message || e)); }
+    catch (e) { setRow(false); setErr(String(e.message || e)); }
   }, [companyId]);
   useEffect(() => { load(); }, [load]);
 
@@ -161,17 +172,22 @@ export default function Website({ company }) {
   };
 
   const sectionIds = Object.keys(working.sections);
-  const pageOf = (id) => (working.pages.find((p) => Array.isArray(p.sections) && p.sections.includes(id)) || {}).title;
+  const pageOf = (id) => (working.pages.find((p) => p && Array.isArray(p.sections) && p.sections.includes(id)) || {}).title;
 
   return (
     <div>
       <h1 className="text-[22px] font-extrabold leading-tight tracking-tight text-slate-900">Website</h1>
       <p className="mt-1 text-[14px] text-slate-500">Choose what your website shows from MineEx, publish it, and manage the tokens it reads with.</p>
 
-      {err && <p className="mt-4 text-[13px] font-semibold text-rose-600">{err}</p>}
+      {row === false ? (
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <p className="text-[13px] font-semibold text-rose-600">{err || "Your website settings could not be loaded."}</p>
+          <button onClick={() => { setRow(undefined); load(); }} className="text-[13px] font-bold text-slate-600 underline-offset-2 hover:underline">Retry</button>
+        </div>
+      ) : err && <p className="mt-4 text-[13px] font-semibold text-rose-600">{err}</p>}
       {row === undefined && <div className="mt-8 text-slate-300"><Loader2 size={18} className="animate-spin" /></div>}
 
-      {row === null && !err && (
+      {row === null && (
         <div className={`mt-5 max-w-[836px] p-6 ${CARD}`}>
           <div className="flex items-center gap-3">
             <span className="grid h-10 w-10 place-items-center rounded-xl bg-slate-100 text-slate-500"><Globe size={19} /></span>
@@ -188,7 +204,7 @@ export default function Website({ company }) {
           <div className={`mt-5 flex max-w-[836px] flex-wrap items-center gap-x-8 gap-y-3 p-5 ${CARD}`}>
             <div><div className={LABEL}>Site</div><div className="mt-1 text-[14px] font-bold text-slate-900">{row.template_key || "Bespoke site"}{row.template_version ? ` · build ${row.template_version}` : ""}</div></div>
             <div><div className={LABEL}>Live content</div><div className="mt-1 text-[14px] font-bold text-slate-900">
-              {row.status === "approved" ? `Published ${working.publishedAt ? when(working.publishedAt) : ""}` : "Not published yet"}</div></div>
+              {row.status === "approved" ? `Published${isValidDate(working.publishedAt) ? ` ${when(working.publishedAt)}` : ""}` : "Not published yet"}</div></div>
             <div><div className={LABEL}>On the live site</div><div className="mt-1 text-[14px] font-bold text-slate-900">{Object.keys(live.sections).length} section{Object.keys(live.sections).length === 1 ? "" : "s"}</div></div>
             {unpublished && <span className="ml-auto inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1.5 text-[12px] font-bold text-amber-700"><AlertTriangle size={13} /> Unpublished changes</span>}
           </div>
@@ -258,7 +274,7 @@ export default function Website({ company }) {
       )}
 
       {/* Tokens can exist before the site has uploaded a manifest, so they do not wait for one. */}
-      {row !== undefined && (
+      {row !== undefined && row !== false && (
         <section className="mt-9 max-w-[836px]">
           <h2 className="text-[16px] font-bold tracking-tight text-slate-900">Website tokens</h2>
           <p className="mt-0.5 text-[13px] text-slate-500">Your website reads from MineEx with these. Revoke one you no longer use, or one that may have leaked.</p>

@@ -9,13 +9,14 @@ import { Loader2, RefreshCw, Save } from "lucide-react";
 import {
   listAllRequests, updateRequest, NotProvisioned, STATUSES, STATUS_LABEL, SERVICE_LABEL, MAX_NOTE,
 } from "../lib/serviceRequests.js";
+import { formatDateTime } from "../lib/dates.js";
 
 const CARD = "rounded-2xl border border-slate-200 bg-white";
 const TONE = {
   requested: "bg-amber-50 text-amber-700", in_review: "bg-blue-50 text-blue-700", quoted: "bg-violet-50 text-violet-700",
   in_progress: "bg-sky-50 text-sky-700", done: "bg-emerald-50 text-emerald-700",
 };
-const when = (iso) => (iso ? new Date(iso).toLocaleString() : "—");
+const when = (iso) => formatDateTime(iso);
 
 function Row({ r, onSaved }) {
   const [status, setStatus] = useState(r.status);
@@ -23,6 +24,7 @@ function Row({ r, onSaved }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const dirty = status !== r.status || note !== (r.admin_note || "");
+  const history = Array.isArray(r.history) ? r.history.filter((h) => h && typeof h === "object") : [];
   const save = async () => {
     setBusy(true); setErr("");
     try { onSaved(await updateRequest(r.id, { status, admin_note: note })); }
@@ -52,9 +54,9 @@ function Row({ r, onSaved }) {
         </button>
       </div>
       {err && <p className="mt-2 text-[12px] font-semibold text-rose-600">{err}</p>}
-      {Array.isArray(r.history) && r.history.length > 0 && (
+      {history.length > 0 && (
         <p className="mt-2 text-[11.5px] text-slate-400">
-          {r.history.map((h) => `${STATUS_LABEL[h.status] || h.status} ${when(h.at)}`).join("  →  ")}
+          {history.map((h) => `${STATUS_LABEL[h.status] || h.status || "?"} ${when(h.at)}`).join("  →  ")}
         </p>
       )}
     </li>
