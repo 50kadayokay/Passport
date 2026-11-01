@@ -240,7 +240,8 @@ export const COMPANY_SCOPED_RPCS = [
   ["company_engagement_unattributed", {},                       "company-read"],
   ["company_notifications",         { p_limit: 5 },             "company-read"],
   ["mark_notifications_seen",       {},                         "company-write"],
-  ["mark_notifications_cleared",    {},                         "company-write"],
+  // 0090: role-guarded (owner/admin; platform admins admitted per 0076). A viewer is refused.
+  ["mark_notifications_cleared",    {},                         "company-role", "refused"],
   ["mineiq_search",                 { p_query: "drill", p_limit: 3 }, "company-read"],
   ["upsert_timeline_entry",         { p_entry: {} },            "internal"],
   // 0071 (proposed, D22): service-role only, like upsert_timeline_entry.
