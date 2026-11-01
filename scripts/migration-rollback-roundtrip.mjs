@@ -34,7 +34,7 @@ const ORDER = ["0053_phase3_0041_privilege_hardening", "0054_phase3_0041_immutab
   "0077_listing_reports_installed_app_compat", "0078_storage_role_hardening",
   "0085_conference_booth_config", "0086_service_requests", "0087_audience_events", "0088_content_fanout"];
 // 0077, 0078, 0085, 0086 applied to staging 2026-11-01; 0087/0088 until their apply.
-const NOT_ON_STAGING = new Set(["0055_enable_device_push", "0087_audience_events", "0088_content_fanout"]);
+const NOT_ON_STAGING = new Set(["0055_enable_device_push"]);
 const DEFERRED = new Set(["0055_enable_device_push"]);
 
 const prep = (sql) => {

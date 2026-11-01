@@ -52,6 +52,9 @@ try {
     finally { await asPostgres(); }
   };
 
+  // Applied on staging since 2026-11-01: unwind it inside this transaction first,
+  // so the check still exercises a clean apply, the behaviour and the rollback.
+  if ((await q(`select to_regclass('public.destination_content') t`))[0].t !== null) { await c.query(strip(RB)); ok(true, "0088 already applied here: its rollback runs inside the transaction"); }
   ok((await q(`select to_regclass('public.destination_content') t`))[0].t === null, "0088 not present before the check");
   const evBefore = (await q(`select count(*)::int n from public.events`))[0].n;
   await c.query(strip(MIG));

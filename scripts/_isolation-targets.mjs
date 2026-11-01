@@ -30,7 +30,7 @@ export const SERVICE_ONLY = [
   ["stripe_events", "company_id"],
   // a13 (0087): audience events. Written only through record_company_events();
   // only platform admins read rows -- companies see aggregates via the RPCs.
-  ["company_events", "company_id"],
+  ["company_events", "company_id", () => ({ company_id: process.env.ISOLATION_COMPANY_A_ID, kind: "profile_view", visitor: "a:iso-probe" })],
   // 0072 (a04/d28): unpublished profile drafts. Reached only through
   // api/profile-draft.js (service role, after a role check); never public.
   ["company_profile_drafts", "company_id", () => ({ company_id: process.env.ISOLATION_COMPANY_A_ID, draft: { pp: {}, projects: [] }, base_fingerprint: "probe" })],
@@ -245,6 +245,8 @@ export const COMPANY_SCOPED_RPCS = [
   ["upsert_timeline_entry",         { p_entry: {} },            "internal"],
   // 0071 (proposed, D22): service-role only, like upsert_timeline_entry.
   ["remove_timeline_entry",         { p_key: "pub:probe" },     "internal"],
+  // 0088 (a15): the dispatcher's only write into destination_content; service-role only.
+  ["deliver_destination_content",   { p_destination: "website", p_publication: NIL_UUID, p_version: 1, p_removed: false, p_row: {} }, "internal"],
   ["actor_can_publish",             { p_actor: NIL_UUID },      "internal"],
   // 0072 (a04/d28): service-role only; api/profile-draft.js passes the verified
   // caller as p_actor and each function re-checks that actor's role.

@@ -99,12 +99,13 @@ function assertNotProduction() {
 
 // ------------------------------------------------------------- the ledger ----
 const rows = [];
-let pass = 0, fail = 0, skip = 0;
+let pass = 0, fail = 0, skip = 0, unverified = 0;
 
 function record(identity, op, target, expected, actual, verdict, note) {
   rows.push({ identity, op, target, expected, actual, verdict, note: note || "" });
   if (verdict === "PASS") pass++;
   else if (verdict === "FAIL") fail++;
+  else if (verdict === "UNVERIFIED") unverified++;
   else skip++;
 }
 
@@ -273,7 +274,7 @@ async function main() {
 
   mark("1-6 table and RPC probes");
   // Tables declared in a migration that is not applied on THIS database (e.g. a
-  // feature migration awaiting approval) are reported once as SKIP and left out
+  // feature migration awaiting approval) are reported once as UNVERIFIED and left out
   // of every probe below: their 404 must never count as a denial. The inventory
   // check above still requires them to be listed.
   const LIVE_SCOPED = [];
@@ -281,7 +282,7 @@ async function main() {
     const [table] = entry;
     const p = await rest(`${table}?select=*&limit=0`, { token: tok.companyA });
     if (p.status === 404 || (p.body && /PGRST205|Could not find the table/.test(JSON.stringify(p.body)))) {
-      record("suite", "table present", table, "present", "table not on this database", "SKIP", "migration not applied here yet");
+      record("suite", "table present", table, "present", "table not on this database", "UNVERIFIED", "migration not applied here yet");
       continue;
     }
     LIVE_SCOPED.push(entry);
@@ -350,7 +351,7 @@ async function main() {
     const probe = await rest(`${table}?select=${col}&limit=1`, { token: null });
     // PostgREST answers PGRST205 / 404 for a table that is not in its schema.
     const absent = probe.status === 404 || (probe.body && /PGRST205|Could not find the table/.test(JSON.stringify(probe.body)));
-    if (absent) { record("suite", "SELECT (service-only)", table, "refused", "table not on this database", "SKIP", "migration not applied here yet"); continue; }
+    if (absent) { record("suite", "SELECT (service-only)", table, "refused", "table not on this database", "UNVERIFIED", "migration not applied here yet"); continue; }
     for (const who of ["anon", "companyA", "investor", "staff"]) {
       const r = await rest(`${table}?${col}=eq.${ID_A}&select=*`, { token: who === "anon" ? null : tok[who] });
       expectDenied(who, "SELECT (service-only)", table, r.status, r.body, "no end user may read the ledger, even for their own company");
@@ -480,13 +481,13 @@ async function main() {
     const other = { p_company: ID_B, ...extra };
 
     // A member function the owner should be ADMITTED to answers 404/PGRST202
-    // only when it does not exist here (its migration is not applied): one SKIP,
+    // only when it does not exist here (its migration is not applied): one UNVERIFIED,
     // never a pass. Internal / admin-only functions are excluded -- there a 404
     // could hide a refusal, so they stay strict.
     if ((cls === "company-read" || cls === "company-write") && tok.companyA) {
       const probe = await rpc(name, own, tok.companyA);
       if (probe.status === 404 && /PGRST202|Could not find the function/i.test(JSON.stringify(probe.body || ""))) {
-        record("suite", "RPC present", name, "present", "function not on this database", "SKIP", "migration not applied here yet");
+        record("suite", "RPC present", name, "present", "function not on this database", "UNVERIFIED", "migration not applied here yet");
         continue;
       }
     }
@@ -499,7 +500,7 @@ async function main() {
       const show = (r) => `${r.status} ${summarise(r.body)}`;
       const first = tok.companyA ? await rpc(name, own, tok.companyA) : null;
       if (first && first.status === 404 && /PGRST202|Could not find the function/i.test(JSON.stringify(first.body || ""))) {
-        record("companyA", "RPC own", name, "allowed", "function not on this database", "SKIP", "migration 0076 not applied here");
+        record("companyA", "RPC own", name, "allowed", "function not on this database", "UNVERIFIED", "migration 0076 not applied here");
         continue;
       }
       if (first) record("companyA", "RPC own", name, "admitted (owner)", show(first), first.status === 200 && !refused(first) ? "PASS" : "FAIL", "control: the owner passes the role guard");
@@ -696,12 +697,15 @@ async function main() {
   for (const r of rows) if (r.verdict === "FAIL")
     console.error(`  ✗ ${r.identity} ${r.op} ${r.target} — expected ${r.expected}, got ${r.actual}${r.note ? ` (${r.note})` : ""}`);
 
-  console.log(`\n  ${pass} passed, ${fail} failed, ${skip} skipped  (${rows.length} assertions)`);
+  for (const r of rows) if (r.verdict === "UNVERIFIED")
+    console.error(`  ? UNVERIFIED ${r.op} ${r.target} -- ${r.actual}; its permissions were not tested`);
+  console.log(`\n  ${pass} passed, ${fail} failed, ${unverified} unverified, ${skip} skipped  (${rows.length} assertions)`);
+  if (unverified) console.log("  NOTE: an UNVERIFIED target is absent from this database, so its permissions are untested. It is not a pass.");
   if (skip) console.log("  NOTE: a run with any SKIP is not a proof of isolation.");
-  console.log(fail === 0 && skip === 0
+  console.log(fail === 0 && skip === 0 && unverified === 0
     ? "  TENANT ISOLATION DEMONSTRATED for every target in _isolation-targets.mjs."
     : "  NOT a proof. Resolve failures and skips, then re-run.");
-  process.exit(fail ? 1 : 0);
+  process.exit(fail ? 1 : unverified ? 3 : 0);
 }
 
 main().catch((e) => { console.error("  suite crashed:", e); process.exit(1); });

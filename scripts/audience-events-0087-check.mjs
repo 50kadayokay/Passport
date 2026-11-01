@@ -56,6 +56,9 @@ try {
     return r.ok ? r.rows[0].n : r;
   };
 
+  // Applied on staging since 2026-11-01: unwind it inside this transaction first,
+  // so the check still exercises a clean apply, the behaviour and the rollback.
+  if ((await q(`select to_regclass('public.company_events') t`))[0].t !== null) { await c.query(strip(RB)); ok(true, "0087 already applied here: its rollback runs inside the transaction"); }
   ok((await q(`select to_regclass('public.company_events') t`))[0].t === null, "0087 not present before the check");
   await c.query(strip(MIG));
   ok(true, "0087 applies inside the transaction");

@@ -98,6 +98,10 @@ export const PENDING = {
     "a17: the booth's look (template/theme/accent) as a published record the booth fetches and caches; public read via conference_booth_config(slug). Applied to staging 2026-11-01.",
   "0086_service_requests.sql":
     "a21: bespoke-service requests with status history; drafting roles create, platform admins update. Needs 0076's has_company_role. Applied to staging 2026-11-01.",
+  "0087_audience_events.sql":
+    "a13: company_events (profile views, unique visitors, shares, video progress) written only through record_company_events(); members-only aggregates. Additive; no installed-app table touched. Applied to staging 2026-11-01.",
+  "0088_content_fanout.sql":
+    "a15: destination_content plus the site_content_v1 and conference_content_v1 listeners (active_from = now(), nothing historical replays). Deploy api/_listeners.js with it. Applied to staging 2026-11-01.",
   "0061a_table_privilege_hardening.sql":
     "Revokes the default all-7 grant on company_follows/post_events/post_likes/user_company_relationships; re-grants only what traced call sites need. anon gets nothing. NO code deploy required.",
 
