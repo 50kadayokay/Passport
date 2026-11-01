@@ -715,7 +715,9 @@ function AppRoot() {
         try {
           const h = { apikey: SUPABASE_ANON, Authorization: `Bearer ${SUPABASE_ANON}` };
           const cols = embeddedProfile ? DIR_COLS : `${DIR_COLS.replace(",ctier:tier", "")},pr:profile->pp->PR_YEARS,ctier:tier`;
-          const base = `${SUPABASE_URL}/rest/v1/companies?status=eq.published&select=${cols}&order=name`;
+          // order=name,slug: name alone is not unique, and an unstable order across
+          // pages can repeat or skip a company at a page boundary.
+          const base = `${SUPABASE_URL}/rest/v1/companies?status=eq.published&select=${cols}&order=name,slug`;
           const PAGE = 1000;
           const first = await fetch(`${base}&limit=${PAGE}`, { headers: { ...h, Prefer: "count=exact" } });
           const head = await first.json().catch(() => []);

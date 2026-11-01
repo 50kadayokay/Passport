@@ -207,6 +207,7 @@ export const API_ROUTES = [
   // ---------------------------------------------- publishing (ordered, special)
   { name: "publish", methods: ["POST"], guard: "verifyUser + RLS read + my_features + actor_can_publish", special: "publishing", source: /serviceRpc\("publish_publication", rpcArgs\)/ },
   { name: "unpublish", methods: ["POST"], guard: "verifyUser + RLS read + actor_can_publish", special: "publishing", source: /serviceRpc\("unpublish_publication"/ },
+  { name: "media-delete", methods: ["POST"], guard: "RLS read as caller + requireCompanyRole(owner, admin, publisher)", special: "publishing", source: /requireCompanyRole\(req, res, \{ companyId: pub\.company_id, roles: DELETE_ROLES \}\)/ },
   { name: "revise-release", methods: ["POST"], guard: "verifyUser + caller-RLS read + actor_can_publish", special: "publishing", source: /serviceRpc\("revise_publication"/ },
 
   // ------------------------------------------------------------ messaging ----

@@ -46,6 +46,11 @@ const j = (h) => ({ ...h, "content-type": "application/json" });
  * the original file remains available; the text is a convenience, not a
  * replacement.
  */
+// Media posts are `updates` too (detected.post_type = 'media', created with
+// status 'review' and never moved on), so without this every photo and video
+// also appeared in the press-release library as a "Draft · Date needed".
+const NOT_MEDIA = "&or=(detected.is.null,detected->>post_type.is.null,detected->>post_type.neq.media)";
+
 export async function createDraft(companyId, {
   headline = "", text = "", releaseDate = null, documentId = null,
   ingestStatus = null, assetIds = [], warnings = [], blocks = [],
@@ -172,7 +177,7 @@ export async function listDrafts(companyId) {
   if (!companyId) return [];
   const h = await writeHeaders();
   const r = await fetch(
-    `${SUPABASE_URL}/rest/v1/updates?company_id=eq.${companyId}&status=in.(draft,review,failed)&select=*&order=updated_at.desc`,
+    `${SUPABASE_URL}/rest/v1/updates?company_id=eq.${companyId}&status=in.(draft,review,failed)${NOT_MEDIA}&select=*&order=updated_at.desc`,
     { headers: h }
   );
   return r.ok ? await r.json().catch(() => []) : [];
@@ -187,7 +192,7 @@ export async function listPublished(companyId) {
   if (!companyId) return [];
   const h = await writeHeaders();
   const r = await fetch(
-    `${SUPABASE_URL}/rest/v1/updates?company_id=eq.${companyId}&status=eq.published&select=*,publications(id,destination_id,status,published_at,external_url,created_at)&order=published_on.desc.nullslast`,
+    `${SUPABASE_URL}/rest/v1/updates?company_id=eq.${companyId}&status=eq.published${NOT_MEDIA}&select=*,publications(id,destination_id,status,published_at,external_url,created_at)&order=published_on.desc.nullslast`,
     { headers: h }
   );
   return r.ok ? await r.json().catch(() => []) : [];

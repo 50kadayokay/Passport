@@ -26,3 +26,6 @@ async function call(path, publicationId) {
 
 export const publishViaApi = (publicationId) => call("/api/publish", publicationId);
 export const unpublishViaApi = (publicationId) => call("/api/unpublish", publicationId);
+// Permanent delete of a media post that is already down: its stored file(s) and
+// its place in the library (api/media-delete.js).
+export const deleteMediaViaApi = (publicationId) => call("/api/media-delete", publicationId);

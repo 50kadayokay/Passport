@@ -19,12 +19,12 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
   ImagePlus, Film, X, Loader2, CheckCircle2, Plus, Sparkles, Play,
-  AlertCircle, Image as ImageIcon, ArrowLeft, Upload, ExternalLink, EyeOff, Lock,
+  AlertCircle, Image as ImageIcon, ArrowLeft, Upload, ExternalLink, EyeOff, Lock, Trash2,
 } from "lucide-react";
 import { listMediaPosts, publishMediaPost } from "../lib/mediaPosts.js";
 import { can } from "../lib/companyRoles.js";
 import { generateCaption } from "../lib/compose.js";
-import { unpublishViaApi } from "../lib/publishClient.js";
+import { unpublishViaApi, deleteMediaViaApi } from "../lib/publishClient.js";
 import { profileUrl } from "../lib/brand.js";
 
 const CARD = "rounded-2xl border border-slate-100 bg-white shadow-[0_1px_2px_rgba(15,23,42,.04),0_12px_26px_-20px_rgba(15,23,42,.4)]";
@@ -68,7 +68,7 @@ function MediaCube({ post, onOpen }) {
         )}
         {!post.live && (
           <span className="absolute right-2.5 top-2.5 rounded-full bg-white/95 px-2 py-0.5 text-[10.5px] font-bold text-slate-600 shadow-sm">
-            Processing
+            {post.takenDown ? "Taken down" : "Processing"}
           </span>
         )}
       </div>
@@ -84,6 +84,19 @@ function MediaDetail({ post, company, onBack, onChanged }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const poster = post.thumbnailUrl || post.mediaUrl;
+
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  async function deleteForGood() {
+    if (!post.publicationId) { setErr("This post has no publication to delete."); return; }
+    setBusy(true); setErr("");
+    try {
+      await deleteMediaViaApi(post.publicationId);
+      onChanged();
+      onBack();
+    } catch (e) {
+      setErr(e.message || "Could not delete this post.");
+    } finally { setBusy(false); }
+  }
 
   async function takeDown() {
     if (!post.publicationId) { setErr("This post has no publication to take down yet."); return; }
@@ -121,7 +134,7 @@ function MediaDetail({ post, company, onBack, onChanged }) {
             </p>
             <p className="mt-2 text-[11.5px] text-slate-400">
               {post.isVideo ? "Video" : "Photo"} · {fmtDay(post.publishedAt)}
-              {post.live ? "" : " · not live yet"}
+              {post.live ? "" : post.takenDown ? " · taken down" : " · not live yet"}
             </p>
           </div>
         </div>
@@ -147,16 +160,44 @@ function MediaDetail({ post, company, onBack, onChanged }) {
             <p className="mt-1 text-[11.5px] leading-relaxed text-slate-500">
               {post.live
                 ? "Published posts are locked from the portal. To change this caption, take the post down and post it again."
-                : "This post is not live yet. Its caption is set when it publishes."}
+                : post.takenDown
+                  ? "This post is down: investors no longer see it. Post the file again to bring it back, or delete it permanently."
+                  : "This post is not live yet. Its caption is set when it publishes."}
             </p>
           </div>
 
-          {!can(company?.role || "owner", "publishContent") ? null : confirm ? (
+          {/* DELETE. Only once the post is down: taking down stays the reversible
+              step; this removes the stored file for good (api/media-delete.js). */}
+          {!post.live && can(company?.role || "owner", "publishContent") && (confirmDelete ? (
+            <div className="rounded-xl border border-rose-200 bg-rose-50 p-3">
+              <p className="text-[12px] font-bold text-rose-900">Delete this post permanently?</p>
+              <p className="mt-1 text-[11px] leading-relaxed text-rose-800">
+                The {post.isVideo ? "video" : "photo"} file is deleted and the post leaves your media library. This can't be undone.
+              </p>
+              <div className="mt-2.5 flex gap-2">
+                <button onClick={deleteForGood} disabled={busy}
+                  className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-rose-600 px-3 py-2 text-[12.5px] font-bold text-white transition hover:bg-rose-700 disabled:opacity-50">
+                  {busy ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} strokeWidth={2.4} />} Delete
+                </button>
+                <button onClick={() => setConfirmDelete(false)} disabled={busy}
+                  className="rounded-lg px-3 py-2 text-[12.5px] font-bold text-rose-800 transition hover:bg-rose-100">
+                  Keep it
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button onClick={() => setConfirmDelete(true)}
+              className="flex w-full items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-[13px] font-bold text-slate-400 transition hover:bg-rose-50 hover:text-rose-700">
+              <Trash2 size={14} strokeWidth={2.4} /> Delete permanently
+            </button>
+          ))}
+
+          {post.takenDown || !can(company?.role || "owner", "publishContent") ? null : confirm ? (
             <div className="rounded-xl border border-amber-200 bg-amber-50 p-3">
               <p className="text-[12px] font-bold text-amber-900">Take this post down?</p>
               <p className="mt-1 text-[11px] leading-relaxed text-amber-800">
-                It disappears from your profile and your followers' feed. The file itself is kept, and posting it
-                again brings it back.
+                It disappears from your profile and your followers' feed. The file itself is kept until you delete
+                the post permanently.
               </p>
               <div className="mt-2.5 flex gap-2">
                 <button onClick={takeDown} disabled={busy}

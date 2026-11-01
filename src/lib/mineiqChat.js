@@ -182,8 +182,11 @@ export async function saveTurn(companyId, thread, turn) {
     return next;
   }
   const h = await writeHeaders();
+  // Every row carries the SAME keys: PostgREST refuses a batch insert whose
+  // objects differ ("All object keys must match", PGRST102), and the question
+  // row used to omit sources/grounded -- so no answered turn was ever saved.
   const rows = [
-    { thread_id: thread.id, company_id: companyId, role: "user", body: turn.question },
+    { thread_id: thread.id, company_id: companyId, role: "user", body: turn.question, sources: [], grounded: null },
   ];
   if (turn.answer) {
     rows.push({
@@ -199,7 +202,9 @@ export async function saveTurn(companyId, thread, turn) {
   // Touch the thread so the drawer orders by real activity, and give it a title
   // the first time there is a question to take one from.
   const patch = { updated_at: now() };
-  if (!thread.title) patch.title = titleFrom([...(thread.turns || []), turn]);
+  // createThread stores the placeholder "New chat", so treat it as untitled too
+  // (otherwise every saved conversation stays "New chat").
+  if (!thread.title || thread.title === "New chat") patch.title = titleFrom([...(thread.turns || []), turn]);
   await fetch(`${SUPABASE_URL}/rest/v1/mineiq_threads?id=eq.${thread.id}`, {
     method: "PATCH", headers: { ...h, "content-type": "application/json", Prefer: "return=minimal" },
     body: JSON.stringify(patch),

@@ -10,6 +10,7 @@
 // This endpoint never creates posts or notifications — those are dispatcher listeners.
 
 import { SB_URL, ANON_KEY, serviceConfigured, serviceRpc, serviceRest, bearer, verifyUser, invokeDispatchBestEffort } from "./_service.js";
+import { recordActivity, kindOf } from "./_audit.js";
 
 function bad(res, code, msg, extra) { res.status(code).json({ error: msg, ...(extra || {}) }); }
 
@@ -31,7 +32,7 @@ export default async function handler(req, res) {
   //    stranger can't even learn it exists.
   let pub = null;
   try {
-    const r = await fetch(`${SB_URL}/rest/v1/publications?id=eq.${publicationId}&select=id,company_id,destination_id,status,update_id`, {
+    const r = await fetch(`${SB_URL}/rest/v1/publications?id=eq.${publicationId}&select=id,company_id,destination_id,status,update_id,content`, {
       headers: { apikey: ANON_KEY, Authorization: `Bearer ${token}` },
     });
     if (r.ok) { const rows = await r.json().catch(() => []); pub = rows[0] || null; }
@@ -104,7 +105,14 @@ export default async function handler(req, res) {
     return bad(res, map[result?.error] || 400, result?.error || "Publish failed.", { detail: result });
   }
 
-  // 5) Best-effort immediate dispatch (never blocks or fails the response).
+  // 5) Audit trail (a25): who published what, when. Not for an idempotent repeat.
+  if (!result.already) {
+    const c = pub.content || {};
+    await recordActivity({ companyId: pub.company_id, actorId: user.id, action: `${kindOf(c)}_published`, entity: "publication",
+      oldValue: { status: pub.status }, newValue: { status: "published", publication_id: publicationId, destination: pub.destination_id, headline: c.headline || null, published_at: result.published_at || null } });
+  }
+
+  // 6) Best-effort immediate dispatch (never blocks or fails the response).
   await invokeDispatchBestEffort();   // target from trusted config only (F5)
 
   return res.status(200).json({ ok: true, publicationId, published_at: result.published_at, already: !!result.already });

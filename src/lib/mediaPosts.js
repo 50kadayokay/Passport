@@ -28,6 +28,7 @@ export async function listMediaPosts(companyId) {
       `${SUPABASE_URL}/rest/v1/updates` +
         `?company_id=eq.${companyId}` +
         `&detected->>post_type=eq.media` +
+        `&status=neq.deleted` +   // permanently deleted via /api/media-delete
         `&select=id,body,status,created_at,published_on,publications(id,status,content,published_at)` +
         `&order=created_at.desc&limit=200`,
       { headers: h }
@@ -55,9 +56,13 @@ function shape(row) {
     caption: (content.headline || row.body || "").trim(),
     mediaUrl: url,
     thumbnailUrl: content.thumbnail_url || "",
-    isVideo: /\.(mp4|mov|webm|m4v)(\?|$)/i.test(url) || !!content.thumbnail_url,
+    // publishMediaPost sets thumbnail_url on EVERY post (a photo's is its own
+    // URL), so only a DIFFERENT poster frame marks a video.
+    isVideo: /\.(mp4|mov|webm|m4v)(\?|$)/i.test(url) || !!(content.thumbnail_url && content.thumbnail_url !== url),
     status: row.status,
     live: !!(pub && pub.status === "published"),
+    // unpublish_publication returns a post to 'draft' but keeps published_at.
+    takenDown: !!(pub && pub.status !== "published" && pub.published_at),
     createdAt: row.created_at,
     publishedAt: (pub && pub.published_at) || row.published_on || row.created_at,
   };

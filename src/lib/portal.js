@@ -323,7 +323,7 @@ export async function listActivity(companyId, limit = 50) {
   try {
     const h = await authHeaders();
     const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/activity_log?company_id=eq.${companyId}&select=id,actor_kind,action,entity,reason,source,created_at&order=created_at.desc&limit=${limit}`,
+      `${SUPABASE_URL}/rest/v1/activity_log?company_id=eq.${companyId}&select=id,actor_id,actor_kind,action,entity,old_value,new_value,reason,source,created_at&order=created_at.desc&limit=${limit}`,
       { headers: h }
     );
     if (!res.ok) return [];

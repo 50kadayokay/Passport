@@ -271,6 +271,13 @@ export async function runApiSuite({ api, tok, env, record, headers: extraHeaders
       ["unpublish", P.liveA, "staff", "deny", [], "viewer may not unpublish"],
       ["unpublish", P.liveA, "companyB", "deny", [], "another company's release"],
       ["unpublish", P.liveA, "companyA", "allow", [], "owner unpublishes own release"],
+      // media-delete (a09): the fixtures are releases, not media posts, so only
+      // refusals are checked here; the owner/admin/publisher path is
+      // scripts/media-library-live-test.mjs.
+      ["media-delete", P.liveA, "staff", "deny", [], "viewer may not delete media"],
+      ["media-delete", P.liveA, "editor", "deny", [], "editor may not delete media (publish roles only)"],
+      ["media-delete", P.liveA, "companyB", "deny", [], "another company's post"],
+      ["media-delete", P.liveA, "investor", "deny", [], "investor"],
     ];
     if (!P.draftA || !P.liveA) record("suite", "publishing", "fixtures", "seeded", "missing", "SKIP", "run scripts/seed-isolation-fixtures.mjs");
     else for (const [route, id, who, expect, extra, label] of steps) {
@@ -285,7 +292,7 @@ export async function runApiSuite({ api, tok, env, record, headers: extraHeaders
     // publication route, for another company's owner, an investor and anonymous
     // callers. A malformed id must also get one answer for everybody.
     if (P.liveA) {
-      for (const route of ["revise-release", "publish", "unpublish"]) {
+      for (const route of ["revise-release", "publish", "unpublish", "media-delete"]) {
         for (const who of ["companyB", "investor", "anon"]) {
           if (who !== "anon" && !tok[who]) continue;
           const t = who === "anon" ? null : tok[who];

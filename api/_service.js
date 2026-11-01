@@ -38,6 +38,13 @@ export async function serviceRest(path, { method = "GET", body, prefer } = {}) {
   return fetch(`${SB}/rest/v1/${path}`, { method, headers, body: body ? JSON.stringify(body) : undefined });
 }
 
+// A service-role Storage call (e.g. DELETE an object). Returns the raw fetch Response.
+export async function serviceStorage(path, { method = "GET" } = {}) {
+  // No content-type: Storage refuses a JSON content-type with an empty body (400).
+  const { "content-type": _ct, ...headers } = serviceHeaders();
+  return fetch(`${SB}/storage/v1/${path}`, { method, headers });
+}
+
 // The service-role data accessor injected into dispatcher listeners.
 export function serviceDb() {
   return {

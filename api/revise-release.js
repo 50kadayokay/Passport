@@ -14,6 +14,7 @@
 // are ordinary patches to the draft/publication content and create no revision.
 
 import { SB_URL, ANON_KEY, serviceConfigured, serviceRpc, serviceRest, bearer, verifyUser, invokeDispatchBestEffort } from "./_service.js";
+import { recordActivity } from "./_audit.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -85,6 +86,13 @@ export default async function handler(req, res) {
     }
   }
 
+  // The text being replaced, for the audit trail (a25): the latest revision.
+  let before = null;
+  try {
+    const br = await serviceRest(`release_revisions?publication_id=eq.${publicationId}&select=headline,body,revision&order=revision.desc&limit=1`);
+    before = br.ok ? (await br.json().catch(() => []))[0] || null : null;
+  } catch { /* the correction proceeds; the trail records what is known */ }
+
   const out = await serviceRpc("revise_publication", {
     p_publication_id: publicationId,
     p_headline: headline,
@@ -110,7 +118,13 @@ export default async function handler(req, res) {
   // be called without the request it then read, threw inside its own try, and
   // never dispatched). Awaited, like publish: an un-awaited fetch is not
   // guaranteed to run once a serverless function has responded.
-  if (!result.unchanged) await invokeDispatchBestEffort();
+  if (!result.unchanged) {
+    await recordActivity({ companyId: pub.company_id, actorId: user.id, action: "release_corrected", entity: "publication",
+      oldValue: before ? { headline: before.headline, body: before.body, revision: before.revision } : null,
+      newValue: { headline: headline ?? (before && before.headline) ?? null, body: text, revision: result.revision ?? null, publication_id: publicationId },
+      reason });
+    await invokeDispatchBestEffort();
+  }
 
   return res.status(200).json(result);
 }

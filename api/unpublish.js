@@ -5,6 +5,7 @@
 // Same auth/authorization/entitlement guards as /api/publish.
 
 import { SB_URL, ANON_KEY, serviceConfigured, serviceRpc, bearer, verifyUser, invokeDispatchBestEffort } from "./_service.js";
+import { recordActivity, kindOf } from "./_audit.js";
 
 function bad(res, code, msg, extra) { res.status(code).json({ error: msg, ...(extra || {}) }); }
 
@@ -24,7 +25,7 @@ export default async function handler(req, res) {
   // Confirm the caller can see (and therefore touch) this publication.
   let pub = null;
   try {
-    const r = await fetch(`${SB_URL}/rest/v1/publications?id=eq.${publicationId}&select=id,company_id,status`, {
+    const r = await fetch(`${SB_URL}/rest/v1/publications?id=eq.${publicationId}&select=id,company_id,status,content`, {
       headers: { apikey: ANON_KEY, Authorization: `Bearer ${token}` },
     });
     if (r.ok) { const rows = await r.json().catch(() => []); pub = rows[0] || null; }
@@ -40,6 +41,13 @@ export default async function handler(req, res) {
   if (!result || result.ok !== true) {
     const map = { forbidden: 403, not_found: 404 };
     return bad(res, map[result?.error] || 400, result?.error || "Unpublish failed.", { detail: result });
+  }
+
+  // Audit trail (a25): who took what down, when. Not for an idempotent repeat.
+  if (!result.already) {
+    const c = pub.content || {};
+    await recordActivity({ companyId: pub.company_id, actorId: user.id, action: `${kindOf(c)}_unpublished`, entity: "publication",
+      oldValue: { status: "published" }, newValue: { status: "draft", publication_id: publicationId, headline: c.headline || null } });
   }
 
   await invokeDispatchBestEffort();   // target from trusted config only (F5)

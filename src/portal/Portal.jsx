@@ -15,6 +15,7 @@ import {
   portalReadiness, listActivity, loadPortalCompany, updateCompanyProfile,
   logActivity,
 } from "../lib/portal.js";
+import { listMembers } from "../lib/team.js";
 import { fetchPlan, fetchFeatures } from "../lib/features.js";
 import { uploadCompanyLogo } from "../lib/storage.js";
 import { visibleProfileSections } from "./profileNav.js";
@@ -123,6 +124,7 @@ export default function Portal({ company: initial, switchCompany, adminMode = fa
       share:         ["sharing", "qr"],
       billing:       ["settings", "billing"],
       team:          ["settings", "team"],
+      activity:      ["settings", "activity"],
     }[id];
     if (mapped) {
       const [dest, tab] = mapped;
@@ -979,15 +981,69 @@ const ACTION_LABEL = {
   media_uploaded: "Media uploaded",
   documents_analyzed: "Documents analyzed",
   company_created: "Company created",
+  // Recorded by the server (a25).
+  release_published: "Release published",
+  release_unpublished: "Release taken down",
+  release_corrected: "Release corrected",
+  media_published: "Media posted",
+  media_unpublished: "Media taken down",
+  media_post_deleted: "Media deleted permanently",
+  profile_published: "Profile published",
+  profile_draft_discarded: "Profile draft discarded",
+  profile_version_restored_to_draft: "Earlier version restored to draft",
+  member_invited: "Member invited",
+  member_joined: "Member joined",
+  member_removed: "Member removed",
+  member_role_changed: "Member role changed",
+  invitation_revoked: "Invitation revoked",
 };
 
-function ActivityView({ company }) {
+// What changed, as short "before -> after" lines, from a row's old/new values.
+// Long text (a corrected release body) is shown in full only when expanded.
+function changeLines(r) {
+  const o = r.old_value && typeof r.old_value === "object" ? r.old_value : {};
+  const n = r.new_value && typeof r.new_value === "object" ? r.new_value : {};
+  const keys = [...new Set([...Object.keys(o), ...Object.keys(n)])].filter((k) => !/(_id|^id)$/.test(k));
+  const show = (v) => (v == null || v === "" ? "—" : typeof v === "object" ? JSON.stringify(v) : String(v));
+  return keys.filter((k) => show(o[k]) !== show(n[k])).map((k) => ({ k: k.replace(/_/g, " "), before: k in o ? show(o[k]) : null, after: k in n ? show(n[k]) : null }));
+}
+
+function ActivityRowDetail({ r }) {
+  const lines = changeLines(r);
+  if (!lines.length) return null;
+  return (
+    <dl className="mt-2 space-y-1.5 rounded-lg bg-slate-50 px-3 py-2.5 text-[12px]">
+      {lines.map((l) => (
+        <div key={l.k}>
+          <dt className="font-bold uppercase tracking-wide text-[10px] text-slate-400">{l.k}</dt>
+          <dd className="whitespace-pre-wrap break-words text-slate-600">
+            {l.before != null && <span className="text-slate-400 line-through decoration-slate-300">{l.before}</span>}
+            {l.before != null && l.after != null && <span className="text-slate-300"> → </span>}
+            {l.after != null && <span>{l.after}</span>}
+          </dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+function ActivityView({ company, hideHeading = false }) {
   const [rows, setRows] = useState(null);
+  const [who, setWho] = useState({});       // actor_id -> email (team list; former members show as "a former member")
+  const [open, setOpen] = useState(null);
   useEffect(() => { let alive = true; listActivity(company.id).then((r) => { if (alive) setRows(r); }); return () => { alive = false; }; }, [company.id]);
+  useEffect(() => {
+    let alive = true;
+    listMembers(company.id).then((m) => { if (alive && m && m.ok) setWho(Object.fromEntries((m.members || []).map((x) => [x.user_id, x.email]))); });
+    return () => { alive = false; };
+  }, [company.id]);
+  const actorName = (r) => (r.actor_kind === "admin" ? "MineEx" : r.actor_id ? who[r.actor_id] || "A former member" : r.actor_kind === "system" ? "System" : "");
 
   return (
     <div>
-      <PageTitle title="Activity log" sub="An append-only record of every change. History can't be rewritten — members can add to it but never erase it." />
+      {hideHeading
+        ? <p className="mb-4 text-[13.5px] text-slate-500">An append-only record of every change: who made it, when, and what changed. History can't be rewritten.</p>
+        : <PageTitle title="Activity log" sub="An append-only record of every change. History can't be rewritten — members can add to it but never erase it." />}
       <div className={`overflow-hidden ${CARD}`}>
         {rows == null ? (
           <div className="p-6"><div className="h-4 w-1/3 animate-pulse rounded bg-slate-100" /></div>
@@ -995,16 +1051,23 @@ function ActivityView({ company }) {
           <div className="px-6 py-14 text-center">
             <ScrollText size={26} className="mx-auto text-slate-300" />
             <p className="mt-3 text-[14px] font-semibold text-slate-500">No activity yet</p>
-            <p className="mt-1 text-[13px] text-slate-400">Edits, uploads and broadcasts will appear here as you use the portal.</p>
+            <p className="mt-1 text-[13px] text-slate-400">Publishing, corrections, take-downs, profile changes and team changes will appear here.</p>
           </div>
         ) : (
           <ul className="divide-y divide-slate-100">
             {rows.map((r) => (
-              <li key={r.id} className="flex items-center gap-4 px-5 py-3.5">
+              <li key={r.id} className="flex items-start gap-4 px-5 py-3.5">
                 <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg ${r.actor_kind === "admin" ? "bg-indigo-50 text-indigo-500" : "bg-slate-100 text-slate-500"}`}><ScrollText size={15} /></span>
                 <span className="min-w-0 flex-1">
                   <span className="block text-[13.5px] font-semibold text-slate-800">{ACTION_LABEL[r.action] || r.action}{r.entity ? <span className="font-normal text-slate-400"> · {r.entity}</span> : null}</span>
+                  {actorName(r) && <span className="block truncate text-[12.5px] text-slate-500">by {actorName(r)}</span>}
                   {r.reason && <span className="block truncate text-[12.5px] text-slate-400">{r.reason}</span>}
+                  {changeLines(r).length > 0 && (
+                    <button onClick={() => setOpen(open === r.id ? null : r.id)} className="mt-1 inline-flex items-center gap-1 text-[12px] font-bold text-blue-600 hover:text-blue-700">
+                      {open === r.id ? <ChevronDown size={12} strokeWidth={2.6} /> : <ChevronRight size={12} strokeWidth={2.6} />} What changed
+                    </button>
+                  )}
+                  {open === r.id && <ActivityRowDetail r={r} />}
                 </span>
                 {r.actor_kind === "admin" && <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-bold uppercase text-indigo-500">MineEx</span>}
                 {/* a03 / 0076: source 'ui' is reserved for entries a member's browser
@@ -1179,9 +1242,10 @@ function SettingsView({ company, tab = "general", setTab, go, goProfile, onPubli
     return () => { alive = false; };
   }, [company.id]);
 
-  const active = tab === "billing" || tab === "team" ? tab : "general";
+  const active = tab === "billing" || tab === "team" || tab === "activity" ? tab : "general";
   const TABS = [{ id: "general", label: "General", Icon: SettingsIcon },
                 { id: "team", label: "Team", Icon: Users },
+                { id: "activity", label: "Activity log", Icon: ScrollText },
                 { id: "billing", label: "Billing", Icon: CreditCard }];
 
   return (
@@ -1209,6 +1273,9 @@ function SettingsView({ company, tab = "general", setTab, go, goProfile, onPubli
 
       {active === "billing" && <BillingView company={company} hideHeading />}
       {active === "team" && <Suspense fallback={<SectionLoader />}><TeamView company={company} /></Suspense>}
+      {/* a25: the audit trail was rendered only for section "activity", which no
+          navigation reached. It belongs beside the team who make the changes. */}
+      {active === "activity" && <ActivityView company={company} hideHeading />}
 
       {active === "general" && (<>
 
