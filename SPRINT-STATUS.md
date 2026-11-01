@@ -153,3 +153,18 @@ Feature completion **53% -> 61%** (12 working, 11 partial, 4 missing, 1 unverifi
 
 ## Next
 Apply 0080/0090 after approval, then rerun isolation and the live sweep.
+
+## Batch 6: 0080/0090 on staging, launch preparation (2026-11-01)
+- 0080 + 0090 applied to staging (approved). Preflight: target jmljfovtfxcdhjmtlnva; each changes one function; a rolled-back
+  apply-then-rollback restored the live definition, ACL and SECURITY DEFINER exactly; no table, policy, other function or row
+  count changed. Applied from a directory holding only those two files, so 0085-0088 were not re-run. Post-diff identical apart
+  from the two functions.
+- Mine IQ: live mineiq_search answers natural questions, still refuses other companies, investors and anon
+  (mineiq-search-0080-live-check 8/0; a07 click-through 18/0; rolled-back 16/0).
+- Notifications: viewer, analyst and editor get 403 from Clear all, owner and admin clear (notifications-clear-live 26/0).
+  Platform admins are admitted per the 0076 role model; isolation now classes the RPC as role-guarded (stricter for viewers).
+- Isolation 1077/0/0 unverified/0 skipped; API authz 435/0; round trip 73/0; 25 live suites green; npm test and build pass.
+- Merged S3: read-only production smoke (staging 40/0, page and header checks need a deploy), Stripe test-mode check (SKIPs
+  without test keys), webhook renews_at fix, security headers in vercel.json (offline 32/0, not deployed).
+- In progress: S1 production-mode migration runner (g06), S2 production-shape review + rollout plan (g02/g03).
+- Feature completion 91% (25 working, 3 partial, 1 missing); implemented 97%, integrated 97%, verified 86%. Launch readiness 36%.
