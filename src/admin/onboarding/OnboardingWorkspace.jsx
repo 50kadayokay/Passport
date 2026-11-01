@@ -15,8 +15,8 @@ import { flushProfileAssets, uploadCompanyLogo } from "../../lib/storage.js";
 import { mapProfileToPP } from "../../lib/profileToPP.js";
 import ProfileEditor from "../ProfileEditor.jsx";
 import { createInvitation } from "../../lib/portal.js";
+import { appCompanyUrl } from "../appLinks.js";
 
-const PASSPORT_BASE = "https://passport-xi-five.vercel.app";
 const slugify = (s) => String(s || "").toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60);
 const hostOf = (u) => { try { return new URL(/^https?:\/\//.test(u) ? u : "https://" + u).hostname.replace(/^www\./, ""); } catch { return ""; } };
 const arr = (v) => (Array.isArray(v) ? v : []);
@@ -425,8 +425,8 @@ function PublishedScreen({ draft, onBack }) {
       <h1 className="mt-4 text-[26px] font-extrabold tracking-tight text-slate-900">{c.name || draft.slug} is live</h1>
       <p className="mt-1.5 text-center text-[14px] text-slate-500">The company is published to the MineEx app and Conference Mode.</p>
       <div className="mt-7 grid w-full grid-cols-1 gap-2.5">
-        <a href={`${PASSPORT_BASE}/app?c=${encodeURIComponent(draft.slug)}`} target="_blank" rel="noreferrer" className="flex items-center justify-center gap-2 rounded-full bg-slate-900 py-3 text-[15px] font-bold text-white"><Eye size={16} /> View Company</a>
-        <a href={`${PASSPORT_BASE}/app?c=${encodeURIComponent(draft.slug)}&ipad=1`} target="_blank" rel="noreferrer" className="flex items-center justify-center gap-2 rounded-full border border-slate-200 bg-white py-3 text-[15px] font-bold text-slate-700"><Presentation size={16} /> Open Conference Mode</a>
+        <a href={appCompanyUrl(draft.slug)} target="_blank" rel="noreferrer" className="flex items-center justify-center gap-2 rounded-full bg-slate-900 py-3 text-[15px] font-bold text-white"><Eye size={16} /> View Company</a>
+        <a href={appCompanyUrl(draft.slug, "&ipad=1")} target="_blank" rel="noreferrer" className="flex items-center justify-center gap-2 rounded-full border border-slate-200 bg-white py-3 text-[15px] font-bold text-slate-700"><Presentation size={16} /> Open Conference Mode</a>
         <InviteButton company={draft} />
       </div>
       <button onClick={onBack} className="mt-6 text-[13px] font-bold text-slate-400 hover:text-slate-700">Add another company</button>

@@ -82,8 +82,9 @@ export default function Updates({
 
       <div className="mt-6">
         <Suspense fallback={<Loader />}>
-          {active === "messages"      && <Messages company={company} />}
-          {active === "notifications" && <Notifications company={company} onSeen={onNotificationsSeen} />}
+          {/* One page heading ("Updates"); the tabs carry the rest, as on Content and Conference. */}
+          {active === "messages"      && <Messages company={company} hideHeading />}
+          {active === "notifications" && <Notifications company={company} onSeen={onNotificationsSeen} hideHeading />}
           {active === "analytics"     && <Analytics company={company} />}
         </Suspense>
       </div>

@@ -56,8 +56,8 @@ function setProfilePath(obj, path, value) {
 }
 import { ingestFiles, listInventory, fetchDocsText, buildTextBundle } from "../lib/onboarding/documentStore.js";
 import { DOC_TYPE_LABELS } from "../lib/onboarding/classify.js";
+import { appCompanyUrl } from "./appLinks.js";
 
-const PASSPORT_BASE = "https://passport-xi-five.vercel.app";
 
 /* ---------- data helpers ---------- */
 const get = (obj, path) => {
@@ -1111,14 +1111,14 @@ export default function BlueprintReview({ companies = [], onReload, mode = "conf
               </button>
             )}
             {company && isApp && (
-              <a href={`${PASSPORT_BASE}/app?c=${encodeURIComponent(slug)}${company.preview_token ? `&preview=${company.preview_token}` : ""}`}
+              <a href={appCompanyUrl(slug, company.preview_token ? `&preview=${company.preview_token}` : "")}
                 target="_blank" rel="noreferrer"
                 className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-[13.5px] font-bold text-white hover:bg-indigo-700">
                 Preview App Mode ↗
               </a>
             )}
             {company && !isApp && (
-              <a href={`${PASSPORT_BASE}/app?c=${encodeURIComponent(slug)}&ipad=1&scene=1${company.preview_token ? `&preview=${company.preview_token}` : ""}`}
+              <a href={appCompanyUrl(slug, `&ipad=1&scene=1${company.preview_token ? `&preview=${company.preview_token}` : ""}`)}
                 target="_blank" rel="noreferrer"
                 className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-[13.5px] font-bold text-white hover:bg-indigo-700">
                 Preview Conference Mode ↗

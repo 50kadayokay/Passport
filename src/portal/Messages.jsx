@@ -6,10 +6,10 @@
 //
 // Shaped like a modern mail client because that is what it is -- a list of
 // people on the left, the conversation on the right -- but stripped of the parts
-// a company does not need here: no folders, no labels, no compose. A company
-// never starts a thread; it answers investors who wrote first. So the primary
-// action is Reply, and there is deliberately no "New message" button to imply
-// otherwise.
+// a company does not need here: no folders, no labels. The primary action is
+// Reply. Since 0063 a company can also START a thread with another company
+// ("New"); those threads read from the other side -- see mySide() in
+// lib/messages.js -- and are named after the company written to.
 //
 // Everything on screen is real. When migration 0047 has not been applied the
 // queries cannot see anything, and rather than render a convincing empty inbox
@@ -19,10 +19,10 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import { can } from "../lib/companyRoles.js";
 import { Mail, Search, Send, Loader2, AlertCircle, ArrowLeft, RefreshCw, Paperclip, X, FileText, Download, PenSquare, Building2, ArrowUpRight } from "lucide-react";
 import {
-  listConversations, listMessages, sendCompanyReply, markConversationRead,
-  searchCompanies, startCompanyThread, isOutbound,
+  loadConversations, loadMessages, sendCompanyReply, markConversationRead,
+  searchCompanies, startCompanyThread, isOutbound, mySide, isMine,
   conversationSenders, latestByConversation, messagingReady,
-  isUnread, senderName, senderSubtitle,
+  isUnread, threadName, threadSubtitle,
 } from "../lib/messages.js";
 import {
   listAttachments, uploadAttachment, signedUrl, describeRejection, prettySize, isImage,
@@ -123,28 +123,27 @@ function Attachment({ a, mine }) {
   );
 }
 
-function Bubble({ msg, attachments = [] }) {
-  const mine = msg.sender === "company";
+function Bubble({ msg, mine, otherName, attachments = [] }) {
   return (
     <div className={`flex ${mine ? "justify-end" : "justify-start"}`}>
       <div className="max-w-[78%]">
         <div className={`whitespace-pre-wrap break-words rounded-2xl px-4 py-2.5 text-[13.5px] leading-relaxed
                          ${mine ? "bg-blue-600 text-white" : "border border-slate-200 bg-white text-slate-800"}`}>
-          {msg.body}
+          {msg.body || <span className="italic opacity-70">(no text)</span>}
           {/* INSIDE the bubble, not after it. The company variant is styled for
               a blue backdrop (white at 10%), so sitting on the thread's grey
               background rendered it almost invisible. */}
           {attachments.map((a) => <Attachment key={a.id} a={a} mine={mine} />)}
         </div>
         <p className={`mt-1 text-[11px] text-slate-400 ${mine ? "text-right" : ""}`}>
-          {mine ? "You" : "Investor"} · {fmtFullTime(msg.created_at)}
+          {[mine ? "You" : otherName, fmtFullTime(msg.created_at)].filter(Boolean).join(" · ")}
         </p>
       </div>
     </div>
   );
 }
 
-export default function Messages({ company }) {
+export default function Messages({ company, hideHeading = false }) {
   const slug = company?.slug;
   // a03: analysts and viewers read the inbox; sending is for owner, admin,
   // editor and publisher. 0076's policies and /api/messages refuse the rest.
@@ -152,6 +151,8 @@ export default function Messages({ company }) {
 
   const [ready, setReady] = useState(null);       // null = still checking
   const [convs, setConvs] = useState(null);
+  const [inboxErr, setInboxErr] = useState(false);   // last inbox read failed
+  const [threadErr, setThreadErr] = useState(false); // last thread read failed
   const [senders, setSenders] = useState({});
   const [latest, setLatest] = useState({});
   const [openId, setOpenId] = useState(null);
@@ -175,17 +176,23 @@ export default function Messages({ company }) {
   const [composeErr, setComposeErr] = useState("");
 
   // ---- inbox ---------------------------------------------------------------
+  // A failed read keeps what is already on screen and says so. It used to
+  // replace the inbox with "No messages yet", which reads as "no investor has
+  // ever written to us".
   const loadInbox = useCallback(async () => {
     if (!slug) return;
-    const rows = await listConversations(slug, company?.id);
+    const r = await loadConversations(slug, company?.id);
+    if (!r.ok) { setInboxErr(true); setConvs((c) => c || []); return; }
+    setInboxErr(false);
+    const rows = r.rows;
     setConvs(rows);
     const [s, l] = await Promise.all([
       conversationSenders(slug),
-      latestByConversation(rows.map((r) => r.id)),
+      latestByConversation(rows.map((x) => x.id)),
     ]);
     setSenders(s);
     setLatest(l);
-  }, [slug]);
+  }, [slug, company?.id]);
 
   useEffect(() => {
     let alive = true;
@@ -206,26 +213,34 @@ export default function Messages({ company }) {
   }, [ready, loadInbox]);
 
   // ---- open thread ---------------------------------------------------------
-  const openThread = useCallback(async (id) => {
+  const openThread = useCallback(async (id, conv = null) => {
     setOpenId(id);
     setThread(null);
     setErr("");
     setDraft("");
-    const msgs = await listMessages(id);
-    setThread(msgs);
+    setStaged([]);
+    const r = await loadMessages(id);
+    setThreadErr(!r.ok);
+    setThread(r.ok ? r.rows : []);
     // Mark read, then reflect it locally so the dot clears without a round trip.
+    // Not for a thread we started: company_read_at is the RECIPIENT's receipt,
+    // and 0047 refuses anyone else.
+    if (conv && isOutbound(conv, company?.id)) return;
     const at = await markConversationRead(id);
     if (at) {
       setConvs((cs) => (cs || []).map((c) => (c.id === id ? { ...c, company_read_at: at } : c)));
     }
-  }, []);
+  }, [company?.id]);
 
   // Poll the open thread too, so a reply arriving mid-conversation shows up.
   useEffect(() => {
     if (!ready || !openId) return undefined;
     const t = setInterval(async () => {
-      const msgs = await listMessages(openId);
-      setThread((prev) => (prev && prev.length === msgs.length ? prev : msgs));
+      const r = await loadMessages(openId);
+      // A failed poll leaves the thread as it is; it used to blank it.
+      if (!r.ok) return;
+      setThreadErr(false);
+      setThread((prev) => (prev && prev.length === r.rows.length ? prev : r.rows));
     }, POLL_MS);
     return () => clearInterval(t);
   }, [ready, openId]);
@@ -237,7 +252,11 @@ export default function Messages({ company }) {
   const onRefresh = async () => {
     setRefreshing(true);
     await loadInbox();
-    if (openId) setThread(await listMessages(openId));
+    if (openId) {
+      const r = await loadMessages(openId);
+      setThreadErr(!r.ok);
+      if (r.ok) setThread(r.rows);
+    }
     setRefreshing(false);
   };
 
@@ -247,11 +266,13 @@ export default function Messages({ company }) {
     setSending(true);
     setErr("");
     try {
-      const row = await sendCompanyReply(openId, body || `Sent ${staged.length} file${staged.length > 1 ? "s" : ""}.`);
+      const text = body || `Sent ${staged.length} file${staged.length > 1 ? "s" : ""}.`;
+      const side = mySide(openConv, company?.id);
+      const row = await sendCompanyReply(openId, text, { side });
       setDraft("");
       // Show it immediately; the poll will reconcile with the server's copy.
       setThread((t) => [...(t || []), row || {
-        id: `local-${Date.now()}`, sender: "company", body, created_at: new Date().toISOString(),
+        id: `local-${Date.now()}`, sender: side, body: text, created_at: new Date().toISOString(),
       }]);
 
       // Files go AFTER the message, because an attachment row needs a real
@@ -334,7 +355,9 @@ export default function Messages({ company }) {
       introKey.current = null;
       closeCompose();
       await loadInbox();
-      if (conv && conv.id) setOpenId(conv.id);
+      // Open it properly (messages loaded), not just selected: setOpenId alone
+      // left the new thread on a spinner until the next 20 s poll.
+      if (conv && conv.id) openThread(conv.id, { ...conv, sender_company_id: conv.sender_company_id || company?.id });
     } catch (e) {
       setComposeErr(e.message || "Could not start the conversation.");
     } finally {
@@ -349,15 +372,15 @@ export default function Messages({ company }) {
     if (!needle) return rows;
     return rows.filter((c) => {
       const hay = [
-        senderName(c, senders),
-        senderSubtitle(c, senders),
+        threadName(c, senders, company?.id),
+        threadSubtitle(c, senders, company?.id),
         snippetOf(latest[c.id]),
       ].join(" ").toLowerCase();
       return hay.includes(needle);
     });
-  }, [convs, senders, latest, q]);
+  }, [convs, senders, latest, q, company?.id]);
 
-  const unreadCount = useMemo(() => (convs || []).filter(isUnread).length, [convs]);
+  const unreadCount = useMemo(() => (convs || []).filter((c) => isUnread(c, company?.id)).length, [convs, company?.id]);
   const openConv = useMemo(() => (convs || []).find((c) => c.id === openId) || null, [convs, openId]);
 
   // ---- states --------------------------------------------------------------
@@ -368,9 +391,9 @@ export default function Messages({ company }) {
   if (ready === false) {
     return (
       <div>
-        <h1 className="text-[22px] font-extrabold leading-tight tracking-tight text-slate-900">Messages</h1>
-        <p className="mt-1 text-[14px] text-slate-500">Investor messages land here.</p>
-        <div className={`mt-6 flex items-start gap-3.5 px-5 py-5 ${CARD}`}>
+        {!hideHeading && <h1 className="text-[22px] font-extrabold leading-tight tracking-tight text-slate-900">Messages</h1>}
+        {!hideHeading && <p className="mt-1 text-[14px] text-slate-500">Investor messages land here.</p>}
+        <div className={`${hideHeading ? "" : "mt-6 "} flex items-start gap-3.5 px-5 py-5 ${CARD}`}>
           <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-amber-100 text-amber-600"><AlertCircle size={19} /></span>
           <div>
             <p className="text-[14.5px] font-bold text-slate-900">Messaging is not switched on yet</p>
@@ -389,8 +412,8 @@ export default function Messages({ company }) {
     <div>
       <div className="flex items-baseline justify-between gap-4">
         <div>
-          <h1 className="text-[22px] font-extrabold leading-tight tracking-tight text-slate-900">Messages</h1>
-          <p className="mt-1 text-[14px] text-slate-500">
+          {!hideHeading && <h1 className="text-[22px] font-extrabold leading-tight tracking-tight text-slate-900">Messages</h1>}
+          <p className={`${hideHeading ? "" : "mt-1 "}text-[14px] text-slate-500`}>
             {unreadCount > 0
               ? `${unreadCount} unread ${unreadCount === 1 ? "message" : "messages"} from investors.`
               : "Investor messages land here."}
@@ -509,10 +532,18 @@ export default function Messages({ company }) {
           </div>
 
           <div className="min-h-0 flex-1 overflow-y-auto">
+            {inboxErr && (
+              <div className="flex items-center justify-between gap-2 border-b border-amber-100 bg-amber-50 px-4 py-2.5" data-inbox-error>
+                <p className="text-[12.5px] font-semibold text-amber-700">
+                  {(convs || []).length ? "Couldn't refresh. Showing what was loaded last." : "Couldn't load your messages."}
+                </p>
+                <button onClick={onRefresh} className="shrink-0 text-[12px] font-bold text-amber-800 hover:underline">Retry</button>
+              </div>
+            )}
             {convs === null ? (
               <div className="grid h-full place-items-center"><Loader2 size={20} className="animate-spin text-blue-500" /></div>
             ) : filtered.length === 0 ? (
-              <div className="px-6 py-16 text-center">
+              inboxErr && !q.trim() ? null : <div className="px-6 py-16 text-center">
                 <Mail size={22} className="mx-auto text-slate-300" />
                 <p className="mt-2 text-[13.5px] font-semibold text-slate-500">
                   {q.trim() ? "No matching messages" : "No messages yet"}
@@ -526,12 +557,12 @@ export default function Messages({ company }) {
                 <ThreadRow
                   key={c.id}
                   conv={c}
-                  name={senderName(c, senders)}
-                  subtitle={senderSubtitle(c, senders)}
-                  snippet={snippetOf(latest[c.id])}
-                  unread={isUnread(c)}
+                  name={threadName(c, senders, company?.id)}
+                  subtitle={threadSubtitle(c, senders, company?.id)}
+                  snippet={latest[c.id] ? (snippetOf(latest[c.id]) || "(no text)") : ""}
+                  unread={isUnread(c, company?.id)}
                   active={c.id === openId}
-                  onClick={() => openThread(c.id)}
+                  onClick={() => openThread(c.id, c)}
                 />
               ))
             )}
@@ -557,23 +588,30 @@ export default function Messages({ company }) {
                   <ArrowLeft size={16} />
                 </button>
                 <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-slate-100 text-[12px] font-bold text-slate-500">
-                  {initials(senderName(openConv, senders))}
+                  {initials(threadName(openConv, senders, company?.id))}
                 </span>
                 <div className="min-w-0">
-                  <p className="truncate text-[14px] font-bold text-slate-900">{senderName(openConv, senders)}</p>
-                  {senderSubtitle(openConv, senders) && (
-                    <p className="truncate text-[12px] text-slate-400">{senderSubtitle(openConv, senders)}</p>
+                  <p className="truncate text-[14px] font-bold text-slate-900">{threadName(openConv, senders, company?.id)}</p>
+                  {threadSubtitle(openConv, senders, company?.id) && (
+                    <p className="truncate text-[12px] text-slate-400">{threadSubtitle(openConv, senders, company?.id)}</p>
                   )}
                 </div>
               </div>
 
               <div className="min-h-0 flex-1 space-y-3 overflow-y-auto bg-slate-50/60 px-5 py-5">
+                {threadErr && (
+                  <p className="rounded-xl bg-amber-50 px-3 py-2 text-[12.5px] font-semibold text-amber-700" data-thread-error>
+                    Couldn't load this conversation. Refresh to try again.
+                  </p>
+                )}
                 {thread === null ? (
                   <div className="grid h-full place-items-center"><Loader2 size={20} className="animate-spin text-blue-500" /></div>
                 ) : thread.length === 0 ? (
-                  <p className="pt-8 text-center text-[13px] text-slate-400">No messages in this conversation yet.</p>
+                  !threadErr && <p className="pt-8 text-center text-[13px] text-slate-400">No messages in this conversation yet.</p>
                 ) : (
-                  thread.map((m) => <Bubble key={m.id} msg={m} attachments={attachMap[m.id] || []} />)
+                  thread.map((m) => <Bubble key={m.id} msg={m} mine={isMine(m, openConv, company?.id)}
+                    otherName={isOutbound(openConv, company?.id) ? threadName(openConv, senders, company?.id) : "Investor"}
+                    attachments={attachMap[m.id] || []} />)
                 )}
                 <div ref={bottomRef} />
               </div>

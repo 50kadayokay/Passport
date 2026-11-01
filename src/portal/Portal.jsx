@@ -16,11 +16,11 @@ import {
   logActivity,
 } from "../lib/portal.js";
 import { listMembers } from "../lib/team.js";
-import { fetchPlan, fetchFeatures } from "../lib/features.js";
 import { uploadCompanyLogo } from "../lib/storage.js";
 import { visibleProfileSections } from "./profileNav.js";
 import OnboardingPanel from "./OnboardingPanel.jsx";
 import { can } from "../lib/companyRoles.js";
+import { checkoutReturn } from "../lib/billing.js";
 const Content = React.lazy(() => import("./Content.jsx"));
 const Updates = React.lazy(() => import("./Updates.jsx"));
 import { MineExLockup, CompanyMark } from "./BrandMarks.jsx";
@@ -38,7 +38,9 @@ const Notifications = React.lazy(() => import("./Notifications.jsx"));      // f
 const Conference    = React.lazy(() => import("./Conference.jsx"));         // iPad booth: launch + status
 const MineIQ        = React.lazy(() => import("./MineIQ.jsx"));             // company memory, searchable
 const Services      = React.lazy(() => import("./Services.jsx"));           // MineEx services
+const Documents     = React.lazy(() => import("./Documents.jsx"));          // uploaded source files (company memory)
 const TeamView      = React.lazy(() => import("./TeamView.jsx"));           // members, roles, invitations (a03)
+const BillingView   = React.lazy(() => import("./Billing.jsx"));            // subscription + Stripe hand-offs (a20)
 
 // The Company Portal shell. ONE app; the resolved company arrives from PortalGate.
 // Every navigation item is a real page: Home, Broadcast, Company Profile, Media,
@@ -61,6 +63,9 @@ const NAV_GROUPS = [
     { id: "updates",   label: "Updates",         Icon: Bell },
     { id: "sharing",   label: "Conference",      Icon: Presentation },
     { id: "mineiq",    label: "Mine IQ",         Icon: Brain },
+    // The files Mine IQ answers from: open, download, upload, delete. Was
+    // unreachable after Media dropped it (a28).
+    { id: "documents", label: "Documents",       Icon: FileText },
     { id: "services",  label: "Services",        Icon: Sparkles },
   ] },
 ];
@@ -93,20 +98,45 @@ const SectionLoader = () => (
 // company cannot restore a section belonging to the previous one.
 const SECTION_KEY = (companyId) => `mineex.portal.section.${companyId || "none"}`;
 
+// Stripe's return URLs land on Settings -> Billing (see billingNotice in Portal).
+function billingReturn() {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    return !!checkoutReturn(window.location.search) || params.get("section") === "billing";
+  } catch { return false; }
+}
+
 function readSection(companyId) {
   try { return sessionStorage.getItem(SECTION_KEY(companyId)) || "home"; }
   catch { return "home"; }       // private mode or blocked storage
 }
 
 export default function Portal({ company: initial, switchCompany, adminMode = false, injectedProfile = null, devFeatures = null }) {
-  const [section, setSectionRaw] = useState(() => readSection(initial && initial.id));
+  const [section, setSectionRaw] = useState(() => (billingReturn() ? "settings" : readSection(initial && initial.id)));
   // Tabs live HERE, not in the containers, so leaving Content for MineIQ and
   // coming back returns you to the tab you were on.
   const [contentTab, setContentTab] = useState("releases");
   const [contentTakeover, setContentTakeover] = useState(null);
   const [updatesTab, setUpdatesTab] = useState("messages");
   const [sharingTab, setSharingTab] = useState("conference");
-  const [settingsTab, setSettingsTab] = useState("general");
+  const [settingsTab, setSettingsTab] = useState(() => (billingReturn() ? "billing" : "general"));
+
+  // Back from Stripe (api/stripe-checkout.js success_url / cancel_url, and the
+  // Billing Portal's return_url ?section=billing). These used to be ignored:
+  // the reader landed on whatever section they had last, with no word on
+  // whether the payment went through. Read once, then strip from the URL so a
+  // refresh does not repeat the notice.
+  const [billingNotice] = useState(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const notice = checkoutReturn(window.location.search);
+      if (!notice && params.get("section") !== "billing") return null;
+      params.delete("checkout"); params.delete("section");
+      const qs = params.toString();
+      window.history.replaceState(null, "", window.location.pathname + (qs ? `?${qs}` : ""));
+      return notice || "return";
+    } catch { return null; }
+  });
 
   // Publish / Press Releases / Media / Messages / Notifications / Analytics are
   // no longer sidebar destinations, but internal callers still navigate by those
@@ -177,7 +207,7 @@ export default function Portal({ company: initial, switchCompany, adminMode = fa
       try {
         const mm = await import("../lib/messages.js");
         const convs = await mm.listConversations(initial.slug);
-        if (alive) setMsgCount((convs || []).filter((c) => mm.isUnread(c)).length);
+        if (alive) setMsgCount((convs || []).filter((c) => mm.isUnread(c, initial.id)).length);
       } catch (_) { /* messaging not provisioned -- leave at 0 */ }
     };
     tick();
@@ -238,12 +268,14 @@ export default function Portal({ company: initial, switchCompany, adminMode = fa
               {section === "messages"  && <Suspense fallback={<SectionLoader />}><Messages company={company} /></Suspense>}
               {section === "notifications" && <Suspense fallback={<SectionLoader />}><Notifications company={company} onSeen={() => setNotifCount(0)} /></Suspense>}
               {section === "services"  && <Suspense fallback={<SectionLoader />}><Services company={company} /></Suspense>}
+              {section === "documents" && <Suspense fallback={<SectionLoader />}><Documents company={company} /></Suspense>}
               {section === "media"     && <Suspense fallback={<SectionLoader />}><MediaPage company={company} /></Suspense>}
               {section === "sharing"   && <ConferenceShareView company={company} tab={sharingTab} setTab={setSharingTab} />}
               {section === "calendar"  && <CalendarView company={company} setCompany={setCompany} />}
               {section === "analytics" && <Suspense fallback={<SectionLoader />}><Analytics company={company} /></Suspense>}
               {section === "activity"  && <ActivityView company={company} />}
-              {section === "settings"  && <SettingsView company={company} tab={settingsTab} setTab={setSettingsTab} go={setSection} goProfile={goProfile} onPublished={() => setCompany((c) => ({ ...c, status: "published" }))} />}
+              {section === "settings"  && <SettingsView company={company} tab={settingsTab} setTab={setSettingsTab} go={setSection} goProfile={goProfile} onPublished={() => setCompany((c) => ({ ...c, status: "published" }))}
+                  billingNotice={billingNotice === "return" ? null : billingNotice} />}
             </div>
           </div>
         )}
@@ -809,6 +841,13 @@ function QRShareView({ company, hideHeading = false }) {
             </button>
           </div>
           <p className="mt-3 text-center text-[12px] text-slate-400">SVG stays sharp at any size — use it for banners and large prints.</p>
+          {/* Same warning as the Conference QR panel: until the profile is
+              published the code resolves to a page the public can't see. */}
+          {company?.status !== "published" && (
+            <p className="mt-3 w-full rounded-xl bg-amber-50 px-3.5 py-3 text-[12px] leading-relaxed text-amber-800 ring-1 ring-inset ring-amber-100" data-qr-not-published>
+              <span className="font-bold">Not ready to print.</span> Your profile isn't published, so this code currently opens a page the public can't see. Publish it before the artwork goes to a printer.
+            </p>
+          )}
 
           {/* Placard logo — upload a dedicated print version if the profile one isn't right. */}
           <div className="mt-5 w-full border-t border-slate-100 pt-4">
@@ -1083,154 +1122,9 @@ function ActivityView({ company, hideHeading = false }) {
   );
 }
 
-/* ---------------------------------------------------------------- Billing */
-
-function BillingView({ company, hideHeading = false }) {
-  const [plan, setPlan] = useState(undefined); // undefined = loading
-  const [feats, setFeats] = useState(null);
-  useEffect(() => {
-    let alive = true;
-    fetchPlan(company.id).then((p) => { if (alive) setPlan(p); });
-    fetchFeatures(company.id).then((f) => { if (alive) setFeats(f); });
-    return () => { alive = false; };
-  }, [company.id]);
-
-  const status = plan?.status || "—";
-  const statusTone = status === "active" ? "accent" : status === "past_due" ? "rose" : "slate";
-
-  const [busy, setBusy] = useState("");
-  const [payErr, setPayErr] = useState("");
-  const startCheckout = async (tier) => {
-    setPayErr(""); setBusy(tier);
-    try {
-      const h = await authHeaders();
-      const res = await fetch("/api/stripe-checkout", {
-        method: "POST", headers: { ...h, "Content-Type": "application/json" },
-        body: JSON.stringify({ tier, companyId: company.id }),
-      });
-      const j = await res.json().catch(() => null);
-      if (res.ok && j && j.url) { window.location.href = j.url; return; }
-      setPayErr((j && j.error) || "Couldn't start checkout. Please try again.");
-    } catch (_) { setPayErr("Couldn't reach the payment service."); }
-    finally { setBusy(""); }
-  };
-  const manageBilling = async () => {
-    setPayErr(""); setBusy("manage");
-    try {
-      const h = await authHeaders();
-      // The billing portal is for THIS company (F2): the server finds its Stripe
-      // customer by company and checks the caller's role in it.
-      const res = await fetch("/api/stripe-portal", { method: "POST", headers: { ...h, "Content-Type": "application/json" }, body: JSON.stringify({ companyId: company.id }) });
-      const j = await res.json().catch(() => null);
-      if (res.ok && j && j.url) { window.location.href = j.url; return; }
-      setPayErr(res.status === 404 ? "No card subscription on file — you're on a manual/invoiced plan." : ((j && j.error) || "Couldn't open billing."));
-    } catch (_) { setPayErr("Couldn't reach the billing service."); }
-    finally { setBusy(""); }
-  };
-  const PLANS = [
-    { tier: "basic", name: "Basic", perMo: "$299", perYr: "$3,588", planIds: ["passport"], blurb: "Edit your profile + publish press releases to the MineEx feed." },
-    { tier: "pro", name: "Pro", perMo: "$799", perYr: "$9,588", planIds: ["passport_managed"], blurb: "Everything: projects, capital, team, media, external channels, analytics." },
-  ];
-  const currentPlanId = plan?.plan_id;
-  // Billing is for owners and company admins (F2). The server enforces it; this
-  // only spares other members a button that would refuse them. company.role is
-  // the caller's own role (lib/portal.js); "owner" when absent, as elsewhere here.
-  const canManageBilling = can(company?.role || "owner", "manageBilling");
-
-  return (
-    <div>
-      {!hideHeading && <PageTitle title="Billing" sub="Your MineEx subscription and what it includes." />}
-
-      <div className={`p-6 ${CARD}`}>
-        {plan === undefined ? (
-          <div className="h-6 w-40 animate-pulse rounded bg-slate-100" />
-        ) : plan === null ? (
-          <div className="flex items-center gap-3">
-            <AlertCircle size={20} className="text-amber-500" />
-            <p className="text-[14.5px] text-slate-600">No active subscription found. Contact MineEx to activate your plan.</p>
-          </div>
-        ) : (
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="text-[12px] font-bold uppercase tracking-wide text-slate-400">Current plan</p>
-              <p className="mt-1 text-[22px] font-extrabold tracking-tight text-slate-900">{plan.plans?.label || plan.plan_id}</p>
-              {plan.renews_at && <p className="mt-1 text-[13px] text-slate-500">Renews {fmtDate(plan.renews_at)}</p>}
-            </div>
-            <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[12.5px] font-bold ${
-              statusTone === "accent" ? "bg-blue-50 text-blue-600" : statusTone === "rose" ? "bg-rose-50 text-rose-600" : "bg-slate-100 text-slate-500"
-            }`}>
-              <span className={`h-1.5 w-1.5 rounded-full ${statusTone === "accent" ? "bg-blue-500" : statusTone === "rose" ? "bg-rose-500" : "bg-slate-400"}`} /> {cap(status)}
-            </span>
-          </div>
-        )}
-      </div>
-
-      {feats && feats.length > 0 && (
-        <div className={`mt-5 p-6 ${CARD}`}>
-          <p className="text-[12px] font-bold uppercase tracking-[0.12em] text-slate-400">Included in your plan</p>
-          <ul className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
-            {feats.map((f) => (
-              <li key={f} className="flex items-center gap-2 text-[13.5px] font-semibold text-slate-700">
-                <CheckCircle2 size={15} className="text-blue-500" /> {FEATURE_LABEL[f] || f}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {/* Plans — pay/upgrade by card (annual). */}
-      <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
-        {PLANS.map((p) => {
-          const isCurrent = currentPlanId && p.planIds.includes(currentPlanId) && status === "active";
-          return (
-            <div key={p.tier} className={`p-6 ${CARD} ${isCurrent ? "!ring-2 !ring-blue-300" : ""}`}>
-              <div className="flex items-baseline justify-between">
-                <p className="text-[17px] font-extrabold tracking-tight text-slate-900">{p.name}</p>
-                {isCurrent && <span className="rounded-full bg-blue-50 px-2.5 py-0.5 text-[11px] font-bold text-blue-600">Current</span>}
-              </div>
-              <p className="mt-1 text-[22px] font-extrabold tracking-tight text-slate-900">{p.perMo}<span className="text-[13px] font-semibold text-slate-400">/mo</span></p>
-              <p className="text-[12px] text-slate-400">{p.perYr} billed annually</p>
-              <p className="mt-2 text-[13px] leading-snug text-slate-600">{p.blurb}</p>
-              <button onClick={() => startCheckout(p.tier)} disabled={!!busy || isCurrent || !canManageBilling}
-                className={`mt-4 w-full rounded-xl px-4 py-2.5 text-[14px] font-bold transition ${isCurrent ? "cursor-default bg-slate-100 text-slate-400" : "bg-slate-900 text-white hover:bg-slate-800 active:scale-[.99]"}`}>
-                {isCurrent ? "Active" : busy === p.tier ? "Redirecting…" : "Pay by card"}
-              </button>
-            </div>
-          );
-        })}
-      </div>
-      {payErr && <p className="mt-3 text-[13px] font-semibold text-rose-600">{payErr}</p>}
-      {!canManageBilling && (
-        <p className="mt-3 text-[13px] text-slate-500">Only an owner or admin of {company?.name || "this company"} can change billing. Ask one of them to upgrade or manage the subscription.</p>
-      )}
-      {status === "active" && canManageBilling && (
-        <button onClick={manageBilling} disabled={!!busy}
-          className="mt-4 inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-4 py-2.5 text-[13.5px] font-bold text-slate-600 hover:border-slate-300 hover:text-slate-900">
-          <CreditCard size={15} /> {busy === "manage" ? "Opening…" : "Manage / cancel card"}
-        </button>
-      )}
-      <p className="mt-4 text-[13px] text-slate-400">Prefer e-transfer or wire? <span className="font-semibold text-slate-500">Contact us and we'll invoice you.</span> Managed plans are arranged directly with MineEx.</p>
-    </div>
-  );
-}
-
-const FEATURE_LABEL = {
-  portal_access: "Company Portal access",
-  passport_profile: "MineEx investor profile",
-  company_memory: "Company memory (documents)",
-  communications_center: "Communications Center",
-  website_publish: "Website publishing",
-  linkedin_publish: "LinkedIn publishing",
-  x_publish: "X publishing",
-  newsletter_publish: "Investor newsletter",
-  push_publish: "Push notifications",
-  analytics: "Investor analytics",
-  custom_website: "Managed website",
-};
-
 /* ---------------------------------------------------------------- Settings */
 
-function SettingsView({ company, tab = "general", setTab, go, goProfile, onPublished }) {
+function SettingsView({ company, tab = "general", setTab, go, goProfile, onPublished, billingNotice = null }) {
   // Readiness moved off Home. A missing owner or absent entitlement is a
   // CONFIGURATION problem, so it belongs with the configuration -- not as a
   // permanent yellow band above the controls someone came here to use. The
@@ -1271,7 +1165,9 @@ function SettingsView({ company, tab = "general", setTab, go, goProfile, onPubli
         })}
       </div>
 
-      {active === "billing" && <BillingView company={company} hideHeading />}
+      {/* Billing is for owners and company admins (F2); the server enforces it. */}
+      {active === "billing" && <Suspense fallback={<SectionLoader />}><BillingView company={company} hideHeading notice={billingNotice}
+          canManage={can(company?.role || "owner", "manageBilling")} /></Suspense>}
       {active === "team" && <Suspense fallback={<SectionLoader />}><TeamView company={company} /></Suspense>}
       {/* a25: the audit trail was rendered only for section "activity", which no
           navigation reached. It belongs beside the team who make the changes. */}

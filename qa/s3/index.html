@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>S3 portal harness (offline)</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <!-- Dev-server only (vite serves any .html under the root; `vite build`
+         builds index.html alone, so this never ships). Every request the
+         portal makes is answered in-page by harness.jsx; see its header. -->
+    <script type="module" src="./harness.jsx"></script>
+  </body>
+</html>
