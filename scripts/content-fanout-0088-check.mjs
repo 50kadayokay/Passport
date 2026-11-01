@@ -31,6 +31,9 @@ await c.connect();
 const q = async (s, a) => (await c.query(s, a)).rows;
 
 await c.query("begin");
+// Status changes on companies are admin-managed (company_owner_guard); this
+// transaction-local flag is how the fixture tooling is allowed to make them.
+await c.query("select set_config('app.provisioning', 'on', true)");
 try {
   const uid = async (k) => (await q(`select id from auth.users where email = $1`, [iso[`ISOLATION_${k}_EMAIL`]]))[0].id;
   const U = {};
