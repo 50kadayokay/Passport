@@ -11,7 +11,7 @@
 // detail surfaces only when something genuinely needs attention.
 
 import React, { useState, useEffect, useCallback } from "react";
-import { AlertCircle, Sparkles, Upload, Image as ImageIcon, FileText } from "lucide-react";
+import { AlertCircle, Sparkles, Upload, Image as ImageIcon, FileText, EyeOff, X } from "lucide-react";
 import { supportedKind } from "../../lib/ingestRelease.js";
 import LaunchTile from "../LaunchTile.jsx";
 import { listDrafts, listPublished } from "../../lib/publishDrafts.js";
@@ -42,6 +42,8 @@ export default function Publish({ company, startIn = null, go = () => {}, view =
   const [drafts, setDrafts] = useState(null);
   const [published, setPublished] = useState(null);
   const [editing, setEditing] = useState(null);      // draft id being reviewed
+  // What the last take-down did, said on the library it returns to.
+  const [takenDown, setTakenDown] = useState(null);
 
   const companyId = company?.id;
 
@@ -86,6 +88,7 @@ export default function Publish({ company, startIn = null, go = () => {}, view =
         draftId={editing}
         initialFile={editing ? null : handoff}
         onExit={() => { setEditing(null); setTab(null); setHandoff(null); refresh(); }}
+        onTakenDown={(info) => { setTakenDown(info || {}); setEditing(null); setTab(null); setHandoff(null); refresh(); }}
         onPublished={(id) => {
           if (id) setJustPublished((prev) => (prev.includes(id) ? prev : [...prev, id]));
           setEditing(null); setTab(null); setHandoff(null); refresh(); go("releases");
@@ -116,6 +119,28 @@ export default function Publish({ company, startIn = null, go = () => {}, view =
       <div>
         <h1 className="text-[27px] font-extrabold leading-tight tracking-tight text-slate-900">Press Releases</h1>
         <p className="mt-1.5 text-[15px] text-slate-500">Everything you have published, and everything still in progress.</p>
+
+        {takenDown && (
+          <div className="mt-5 flex items-start gap-3 rounded-2xl border border-slate-200 bg-white px-5 py-4" role="status" data-taken-down-notice>
+            <EyeOff size={19} className="mt-0.5 shrink-0 text-slate-500" />
+            <div className="min-w-0 flex-1">
+              <p className="text-[14px] font-bold text-slate-900">
+                Taken down{takenDown.headline ? `: ${takenDown.headline}` : ""}
+              </p>
+              <p className="mt-0.5 text-[13px] leading-relaxed text-slate-600">
+                It is no longer on your profile or in the investor feed. Its history and source document are kept, and
+                you can open it below to publish it again.{" "}
+                {takenDown.facts > 0
+                  ? `MineIQ keeps the ${takenDown.facts} fact${takenDown.facts === 1 ? "" : "s"} it learned from it.`
+                  : "MineIQ keeps any facts it learned from it."}
+              </p>
+            </div>
+            <button onClick={() => setTakenDown(null)} aria-label="Dismiss"
+              className="grid h-7 w-7 shrink-0 place-items-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700">
+              <X size={14} />
+            </button>
+          </div>
+        )}
 
         {loadErr && (
           <div className="mt-5 flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4">

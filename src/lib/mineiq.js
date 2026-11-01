@@ -41,6 +41,17 @@ export async function factCount(companyId) {
   return countOf(`facts?company_id=eq.${companyId}&select=id`);
 }
 
+/**
+ * How many facts MineIQ learned from ONE publication (facts.publication_id,
+ * 0050a). Used by the take-down flow to say plainly what stays behind: taking a
+ * release down does not remove its facts (a08 -- retention is an open product
+ * decision, and the behaviour is unchanged until it is made). `null` = unknown.
+ */
+export async function factCountForPublication(publicationId) {
+  if (!publicationId || String(publicationId).startsWith("demo-")) return null;
+  return countOf(`facts?publication_id=eq.${encodeURIComponent(publicationId)}&select=id`);
+}
+
 /** Facts grouped the way a person thinks about a company, not by table. */
 const CATEGORY_KINDS = {
   company:        ["other"],
