@@ -404,7 +404,10 @@ export default function MineIQ({ company }) {
     el.style.height = `${Math.min(el.scrollHeight, 200)}px`;
   }, [q]);
 
-  const send = useCallback(async (question, attached = attachments) => {
+  // `base` lets "Try again" send from the thread WITHOUT the failed turn. It
+  // used to filter that turn out through setThread and then send from the
+  // stale closure, so the question appeared twice.
+  const send = useCallback(async (question, attached = attachments, base = thread) => {
     const text = String(question || "").trim();
     if (!text || busy) return;
     setQ(""); setAttachments([]); setAttachErr(""); setBusy(true);
@@ -412,7 +415,7 @@ export default function MineIQ({ company }) {
 
     const id = `t-${Date.now()}`;
     const asked = { id, question: text, attachments: attached.map((a) => ({ name: a.name })), pending: true };
-    let working = { ...thread, turns: [...thread.turns, asked] };
+    let working = { ...base, turns: [...base.turns, asked] };
     setThread(working);
 
     try { working = { ...(await ensureThread(companyId, working)), turns: working.turns }; }
@@ -440,9 +443,8 @@ export default function MineIQ({ company }) {
   }, [attachments, busy, thread, companyId, company, refreshThreads]);
 
   const retry = useCallback((turn) => {
-    setThread((t) => ({ ...t, turns: t.turns.filter((x) => x.id !== turn.id) }));
-    send(turn.question, []);
-  }, [send]);
+    send(turn.question, [], { ...thread, turns: thread.turns.filter((x) => x.id !== turn.id) });
+  }, [send, thread]);
 
   const openThread = async (t) => {
     setMobileDrawer(false);
@@ -594,6 +596,7 @@ export default function MineIQ({ company }) {
       <p className="px-5 py-3 text-[10.5px] leading-relaxed text-slate-400">
         {mode === "supabase" ? "Saved to your MineEx account."
           : mode === "local" ? "Kept in this browser only."
+          : histErr ? "Couldn't confirm where chats are saved."
           : "Checking where chats are saved…"}
       </p>
     </div>
