@@ -92,6 +92,19 @@ console.log("\n  MINE IQ OVERVIEW COUNTS (mineiq.js knowledgeSummary)");
   ok(ok2.documents === 0 && ok2.releases === 0 && ok2.unavailable.length === 0, "a real empty company is 0 with nothing unavailable");
 }
 
+console.log("\n  DELIVERY LABELS (deliveryStatus.js, S2 fan-out 0088)");
+{
+  const ds = await import("../src/lib/deliveryStatus.js");
+  const rows = ["feed_projection_v1", "profile_timeline_v1", "in_app_notifications_v1", "mineiq_facts_v1", "site_content_v1", "conference_content_v1"]
+    .map((l) => ({ event_type: "PUBLICATION_PUBLISHED", listener: l, state: "delivered", attempts: 1 }));
+  const s = ds.summarise(rows);
+  const label = (l) => (s.destinations.find((d) => d.listener === l) || {}).label;
+  ok(label("site_content_v1") === "Company website" && label("conference_content_v1") === "Conference booth" && s.state === "delivered",
+     "the website and booth deliveries show under their names");
+  const old = ds.summarise(rows.slice(0, 4));
+  ok(old.state === "delivered" && old.destinations.length === 4, "a release with no website/booth delivery (before 0088) is still delivered, not pending");
+}
+
 console.log("\n  DRAFTING CLIENT (compose.js)");
 {
   const c = await import("../src/lib/compose.js");
