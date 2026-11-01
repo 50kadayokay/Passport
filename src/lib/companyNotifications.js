@@ -130,7 +130,9 @@ export function companyUnreadCount(items, seenAt) {
  *
  * Returns the cleared-at timestamp; null when 0064 is not applied, so the caller
  * can fall back to simply dismissing the unread state; { failed: true } when
- * the request itself failed, so the caller can say it did not clear.
+ * the request itself failed, so the caller can say it did not clear;
+ * { failed: true, denied: true } when the caller's role may not clear (0090:
+ * owner and admin only -- the page is shared, so one clear empties it for all).
  */
 export async function clearCompanyNotifications(companyId) {
   if (!companyId) return null;
@@ -147,6 +149,7 @@ export async function clearCompanyNotifications(companyId) {
       body: JSON.stringify({ p_company: companyId }),
     });
     if (res.status === 404) return null;
+    if (res.status === 403) return { failed: true, denied: true };
     if (!res.ok) return { failed: true };
     return (await res.json().catch(() => null)) || { failed: true };
   } catch {

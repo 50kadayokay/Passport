@@ -25,6 +25,7 @@ export const PERMISSIONS = {
   viewAnalytics:    ALL,
   manageBilling:    MANAGERS,
   manageSiteTokens: MANAGERS,                       // read + revoke website tokens
+  clearNotifications: MANAGERS,                     // company-wide "Clear all" (0090)
   viewTeam:         ALL,
   manageTeam:       MANAGERS,                       // invite / change / remove (within grantable)
 };

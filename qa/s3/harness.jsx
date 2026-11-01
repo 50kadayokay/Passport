@@ -212,6 +212,8 @@ window.fetch = async (input, init = {}) => {
     ]);
   }
   if (p === "/company_notification_reads") return j([]);
+  // 0090: owner/admin (and platform admins) only
+  if (p === "/rpc/mark_notifications_cleared") return ["owner", "admin_m", "platform"].includes(who) ? j(iso(now)) : j({ code: "42501", message: "not authorized to clear this company's notifications" }, 403);
   if (p === "/activity_log") {
     if (fail === "activity") return j({ message: "boom" }, 500);
     return j(data === "empty" ? [] : [
