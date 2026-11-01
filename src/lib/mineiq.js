@@ -101,30 +101,53 @@ export async function listFacts(companyId, { kinds = null, limit = 100 } = {}) {
 /**
  * What MineIQ holds overall. Counts come from the real tables; `facts` is
  * reported separately because it is the one that may legitimately be unavailable.
+ *
+ * A list that FAILED to load is `null`, never 0, and is named in `unavailable`
+ * (with its message in `errors`). These used to be caught to [] and reported as
+ * "0 documents" -- a count of nothing for a read that never happened.
+ * listDocuments throws code "documents_unavailable" (S3, f3b8b5d); the release
+ * and media lists throw too (a28 round).
  */
+const LABEL_OF = { documents: "documents", releases: "published releases", drafts: "draft releases", media: "media posts" };
+
 export async function knowledgeSummary(companyId, profile) {
   const prof = profile || {};
+  const errors = {};
+  const settle = (key, p) => p.then((v) => (Array.isArray(v) ? v : null), (e) => {
+    errors[key] = (e && e.message) || `Your ${LABEL_OF[key]} could not be loaded.`;
+    return null;
+  });
   const [docs, published, drafts, media, facts, byCat] = await Promise.all([
-    listDocuments(companyId).catch(() => []),
-    listPublished(companyId).catch(() => []),
-    listDrafts(companyId).catch(() => []),
-    listMediaPosts(companyId).catch(() => []),
+    settle("documents", listDocuments(companyId)),
+    settle("releases", listPublished(companyId)),
+    settle("drafts", listDrafts(companyId)),
+    settle("media", listMediaPosts(companyId)),
     factCount(companyId),
     factsByCategory(companyId),
   ]);
+  const count = (list) => (Array.isArray(list) ? list.length : null);
   return {
-    documents: (docs || []).length,
-    releases: (published || []).length,
-    drafts: (drafts || []).length,
+    documents: count(docs),
+    releases: count(published),
+    drafts: count(drafts),
     projects: Array.isArray(prof.projects) ? prof.projects.length : 0,
     milestones: Array.isArray(prof.timeline) ? prof.timeline.length : 0,
     team: Array.isArray(prof.team) ? prof.team.length : 0,
-    media: (media || []).length,
+    media: count(media),
     facts,                 // null = knowledge layer not switched on
     byCategory: byCat,
+    unavailable: Object.keys(errors),
+    errors,
     _docs: docs || [],
     _published: published || [],
   };
+}
+
+/** "3 documents", or what could not be loaded. Never "0" for a failed read. */
+export function countLabel(summary, key, noun) {
+  const n = summary && summary[key];
+  if (n == null) return `${noun[0].toUpperCase()}${noun.slice(1)} couldn't be loaded`;
+  return `${n} ${noun}`;
 }
 
 /**
@@ -197,6 +220,16 @@ export async function recentlyLearned(companyId, summary, limit = 6) {
 export function attentionItems(summary, profile) {
   const items = [];
   const prof = profile || {};
+
+  // Said first: everything below is computed from what DID load.
+  (summary.unavailable || []).forEach((key) => {
+    items.push({
+      id: `unavailable-${key}`,
+      title: `Your ${LABEL_OF[key] || key} couldn't be loaded`,
+      body: (summary.errors && summary.errors[key]) || "Try again shortly. Nothing has been lost.",
+      action: null, to: null,
+    });
+  });
 
   if (summary.drafts > 0) {
     items.push({

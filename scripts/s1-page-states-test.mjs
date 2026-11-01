@@ -69,6 +69,29 @@ console.log("\n  LISTS THROW ON A FAILED READ");
   ok((await pd.listDrafts("co-1")).length === 0 && (await mp.listMediaPosts("co-1")).length === 0, "a real empty list is still []");
 }
 
+console.log("\n  MINE IQ OVERVIEW COUNTS (mineiq.js knowledgeSummary)");
+{
+  const mi = await import("../src/lib/mineiq.js");
+  route = (u) => (u.pathname.endsWith("/facts") ? json([]) : json({ message: "boom" }, 500));
+  const sum = await mi.knowledgeSummary("co-1", {});
+  ok(sum.releases === null && sum.drafts === null && sum.media === null, "failed release, draft and media reads are null, not 0");
+  ok(["releases", "drafts", "media"].every((k) => sum.unavailable.includes(k) && sum.errors[k]), "...named in `unavailable`, with their messages");
+  // listDocuments throws "documents_unavailable" from S3's f3b8b5d; before that
+  // reaches this branch it still answers [] for a failure.
+  if (/documents_unavailable/.test(read("src/lib/memory.js"))) {
+    ok(sum.documents === null && sum.unavailable.includes("documents"), "a failed documents read is null and named, not '0 documents'");
+  } else {
+    console.log("  - documents: pending S3 f3b8b5d (memory.js on this branch still answers [] on failure); checked after integration");
+  }
+  ok(mi.countLabel(sum, "releases", "published releases") === "Published releases couldn't be loaded" && mi.countLabel({ media: 0 }, "media", "media posts") === "0 media posts",
+     "the count label says 'couldn't be loaded' for null and keeps a real 0");
+  const att = mi.attentionItems(sum, {});
+  ok(att[0] && /couldn't be loaded/.test(att[0].title) && !att.some((a) => a.id === "drafts"), "the overview leads with what could not be loaded, and invents no draft count");
+  route = (u) => json([]);
+  const ok2 = await mi.knowledgeSummary("co-1", {});
+  ok(ok2.documents === 0 && ok2.releases === 0 && ok2.unavailable.length === 0, "a real empty company is 0 with nothing unavailable");
+}
+
 console.log("\n  DRAFTING CLIENT (compose.js)");
 {
   const c = await import("../src/lib/compose.js");

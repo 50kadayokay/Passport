@@ -199,8 +199,16 @@ Requests:
 - `src/lib/mediaAssets.js` (not mine) answers `[]` for a failed read. I work
   around that in the editor when a saved selection exists. A strict option, or
   a throw, would let it tell an empty list from a failed read in every case.
-- `src/lib/mineiq.js knowledgeSummary` still turns failed list reads into 0
-  counts on the Mine IQ overview. Not in S3's list; I left it.
+- ~~`knowledgeSummary` 0 counts~~: fixed in batch 2b (below).
+
+## Batch 2b: Mine IQ overview counts (S3 request, with S3 f3b8b5d)
+`knowledgeSummary` now reports a failed documents, releases, drafts or media
+read as `null`, never 0. Each failed list is named in `unavailable`, with its
+message in `errors`. `attentionItems` leads with "Your documents couldn't be
+loaded". `countLabel()` gives the display text. `s1-page-states-test` is
+**33/0** on this branch; the documents case is skipped because `memory.js` here
+still returns []. With S3's `memory.js` swapped in temporarily, it is **34/0**,
+including "a failed documents read is null and named".
 
 ## Findings, not changed (out of scope)
 - `scripts/compose-test.mjs` is stale: it imports `callClaude`, which no longer
