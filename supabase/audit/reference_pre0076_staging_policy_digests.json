@@ -1,0 +1,296 @@
+[
+ {
+  "tablename": "activity_log",
+  "policyname": "admin_all",
+  "cmd": "ALL",
+  "roles": "{authenticated}",
+  "digest": "92b0e93050c850cba4f619235af27ee0"
+ },
+ {
+  "tablename": "activity_log",
+  "policyname": "insert_touchable",
+  "cmd": "INSERT",
+  "roles": "{authenticated}",
+  "digest": "34b9c87fd171bf80a976727dfb0bd7c4"
+ },
+ {
+  "tablename": "activity_log",
+  "policyname": "read_touchable",
+  "cmd": "SELECT",
+  "roles": "{authenticated}",
+  "digest": "82334465828ed2012ad3f37f27d09479"
+ },
+ {
+  "tablename": "brand_kits",
+  "policyname": "brand_kits_del",
+  "cmd": "DELETE",
+  "roles": "{public}",
+  "digest": "2335146ef01383b7e0a321727e3789e3"
+ },
+ {
+  "tablename": "brand_kits",
+  "policyname": "brand_kits_edit",
+  "cmd": "UPDATE",
+  "roles": "{public}",
+  "digest": "b2798ac48e0af298e8573cdfeef435b0"
+ },
+ {
+  "tablename": "brand_kits",
+  "policyname": "brand_kits_read",
+  "cmd": "SELECT",
+  "roles": "{public}",
+  "digest": "49fa925d40c6a7458ea3bf23273acf2f"
+ },
+ {
+  "tablename": "brand_kits",
+  "policyname": "brand_kits_write",
+  "cmd": "INSERT",
+  "roles": "{public}",
+  "digest": "078d1a8c7e5692dd1b24b4bb4de555e0"
+ },
+ {
+  "tablename": "companies",
+  "policyname": "admin_delete",
+  "cmd": "DELETE",
+  "roles": "{authenticated}",
+  "digest": "a5857f8db9af3ec132599208b0166549"
+ },
+ {
+  "tablename": "companies",
+  "policyname": "auth_insert",
+  "cmd": "INSERT",
+  "roles": "{authenticated}",
+  "digest": "5d02336eb117186e9ba37797f46daa6a"
+ },
+ {
+  "tablename": "companies",
+  "policyname": "auth_read",
+  "cmd": "SELECT",
+  "roles": "{authenticated}",
+  "digest": "e0525034cc0b7692d466922ca77f74e1"
+ },
+ {
+  "tablename": "companies",
+  "policyname": "auth_update",
+  "cmd": "UPDATE",
+  "roles": "{authenticated}",
+  "digest": "8dd7fb6cc478ff0d6881acdfff9dc05e"
+ },
+ {
+  "tablename": "companies",
+  "policyname": "public_read_published",
+  "cmd": "SELECT",
+  "roles": "{anon}",
+  "digest": "b3ee5b9478899a600ef95d5122ffcb93"
+ },
+ {
+  "tablename": "company_blueprints",
+  "policyname": "blueprint_company_read",
+  "cmd": "SELECT",
+  "roles": "{authenticated}",
+  "digest": "82334465828ed2012ad3f37f27d09479"
+ },
+ {
+  "tablename": "company_blueprints",
+  "policyname": "blueprint_company_write",
+  "cmd": "ALL",
+  "roles": "{authenticated}",
+  "digest": "979bd318cff78030ba9e9b4ba744635e"
+ },
+ {
+  "tablename": "company_destinations",
+  "policyname": "owner_all",
+  "cmd": "ALL",
+  "roles": "{authenticated}",
+  "digest": "979bd318cff78030ba9e9b4ba744635e"
+ },
+ {
+  "tablename": "company_invitations",
+  "policyname": "admin_all",
+  "cmd": "ALL",
+  "roles": "{authenticated}",
+  "digest": "92b0e93050c850cba4f619235af27ee0"
+ },
+ {
+  "tablename": "company_memberships",
+  "policyname": "admin_write",
+  "cmd": "ALL",
+  "roles": "{authenticated}",
+  "digest": "92b0e93050c850cba4f619235af27ee0"
+ },
+ {
+  "tablename": "company_memberships",
+  "policyname": "read_own_or_touchable",
+  "cmd": "SELECT",
+  "roles": "{authenticated}",
+  "digest": "4229f92c0bfa219def916093b0421be8"
+ },
+ {
+  "tablename": "conversations",
+  "policyname": "conv_insert_company",
+  "cmd": "INSERT",
+  "roles": "{authenticated}",
+  "digest": "06b94f1396a4166ee8358ef88150ecad"
+ },
+ {
+  "tablename": "conversations",
+  "policyname": "conv_select",
+  "cmd": "SELECT",
+  "roles": "{public}",
+  "digest": "3224b4eac2baa9e7f0356020d9b1356a"
+ },
+ {
+  "tablename": "conversations",
+  "policyname": "conv_select_company",
+  "cmd": "SELECT",
+  "roles": "{public}",
+  "digest": "11dda29b4910efb7b9750253125c25e5"
+ },
+ {
+  "tablename": "documents",
+  "policyname": "owner_all",
+  "cmd": "ALL",
+  "roles": "{authenticated}",
+  "digest": "979bd318cff78030ba9e9b4ba744635e"
+ },
+ {
+  "tablename": "facts",
+  "policyname": "owner_all",
+  "cmd": "ALL",
+  "roles": "{authenticated}",
+  "digest": "979bd318cff78030ba9e9b4ba744635e"
+ },
+ {
+  "tablename": "media_asset_sources",
+  "policyname": "owner_all",
+  "cmd": "ALL",
+  "roles": "{authenticated}",
+  "digest": "979bd318cff78030ba9e9b4ba744635e"
+ },
+ {
+  "tablename": "media_assets",
+  "policyname": "owner_all",
+  "cmd": "ALL",
+  "roles": "{authenticated}",
+  "digest": "979bd318cff78030ba9e9b4ba744635e"
+ },
+ {
+  "tablename": "messages",
+  "policyname": "msg_insert_company",
+  "cmd": "INSERT",
+  "roles": "{public}",
+  "digest": "cfb6f4606b18472fb06fe4b3726361a3"
+ },
+ {
+  "tablename": "messages",
+  "policyname": "msg_insert_sender_company",
+  "cmd": "INSERT",
+  "roles": "{authenticated}",
+  "digest": "b635eaed95034306b8c3e2674149be23"
+ },
+ {
+  "tablename": "messages",
+  "policyname": "msg_select",
+  "cmd": "SELECT",
+  "roles": "{public}",
+  "digest": "3d04b01ceff0f6a02760643f5695af4c"
+ },
+ {
+  "tablename": "messages",
+  "policyname": "msg_select_company",
+  "cmd": "SELECT",
+  "roles": "{public}",
+  "digest": "f576f5910d6b40121f1d88243cc64eeb"
+ },
+ {
+  "tablename": "publication_media",
+  "policyname": "owner_all",
+  "cmd": "ALL",
+  "roles": "{authenticated}",
+  "digest": "4f2a688cca747f4df3880c7e9b9a38ba"
+ },
+ {
+  "tablename": "publications",
+  "policyname": "pub_delete",
+  "cmd": "DELETE",
+  "roles": "{authenticated}",
+  "digest": "73be47164e982911b83334e5b5be4ffb"
+ },
+ {
+  "tablename": "publications",
+  "policyname": "pub_insert",
+  "cmd": "INSERT",
+  "roles": "{authenticated}",
+  "digest": "a5b575432ecd6b47dbd5ec8005a8c920"
+ },
+ {
+  "tablename": "publications",
+  "policyname": "pub_select",
+  "cmd": "SELECT",
+  "roles": "{authenticated}",
+  "digest": "82334465828ed2012ad3f37f27d09479"
+ },
+ {
+  "tablename": "publications",
+  "policyname": "pub_update",
+  "cmd": "UPDATE",
+  "roles": "{authenticated}",
+  "digest": "e6b861f81cecf4ef824754b29cd06156"
+ },
+ {
+  "tablename": "site_credentials",
+  "policyname": "site_credentials_read",
+  "cmd": "SELECT",
+  "roles": "{authenticated}",
+  "digest": "82334465828ed2012ad3f37f27d09479"
+ },
+ {
+  "tablename": "site_credentials",
+  "policyname": "site_credentials_revoke",
+  "cmd": "UPDATE",
+  "roles": "{authenticated}",
+  "digest": "53d3f52fa2873b5be512d7191eb21d1f"
+ },
+ {
+  "tablename": "story_projects",
+  "policyname": "story_projects_del",
+  "cmd": "DELETE",
+  "roles": "{public}",
+  "digest": "eaa35fbbd438ea7520a47b534104d579"
+ },
+ {
+  "tablename": "story_projects",
+  "policyname": "story_projects_edit",
+  "cmd": "UPDATE",
+  "roles": "{public}",
+  "digest": "8c4a899f757c07c538dd6fe0570c098b"
+ },
+ {
+  "tablename": "story_projects",
+  "policyname": "story_projects_read",
+  "cmd": "SELECT",
+  "roles": "{public}",
+  "digest": "5362c2d8ef93b4252930d03224dae157"
+ },
+ {
+  "tablename": "story_projects",
+  "policyname": "story_projects_write",
+  "cmd": "INSERT",
+  "roles": "{public}",
+  "digest": "842b36f9fb7906137deb9195665e5eda"
+ },
+ {
+  "tablename": "update_documents",
+  "policyname": "owner_all",
+  "cmd": "ALL",
+  "roles": "{authenticated}",
+  "digest": "aa35e59b939d7c19ee2c16a4b020be3d"
+ },
+ {
+  "tablename": "updates",
+  "policyname": "owner_all",
+  "cmd": "ALL",
+  "roles": "{authenticated}",
+  "digest": "979bd318cff78030ba9e9b4ba744635e"
+ }
+]

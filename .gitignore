@@ -46,3 +46,6 @@ supabase/staging/egress.log
 # project-scoped VERCEL_OIDC_TOKEN. Never commit either.
 tools/header-probe/.vercel
 tools/header-probe/.env*
+
+# Production audit outputs: never commit
+supabase/audit/results/
