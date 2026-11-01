@@ -22,6 +22,7 @@ import DeliveryStatus from "./DeliveryStatus.jsx";
 import { listRevisions, reviseRelease, restoreRevision } from "../../lib/releaseRevisions.js";
 import { unpublishViaApi } from "../../lib/publishClient.js";
 import { factCountForPublication } from "../../lib/mineiq.js";
+import ProfileSuggestions from "./ProfileSuggestions.jsx";
 import { structureRelease, refineRelease } from "../../lib/structureReleases.js";
 import { isPortalDemo } from "../../lib/demoMode.js";
 import { normalizeKeyResults } from "../../lib/keyResults.js";
@@ -1514,6 +1515,14 @@ export default function CreateRelease({ company, draftId, onExit, onPublished, o
               </>
             )}
           </div>
+
+          {/* a06: profile changes this release discloses, for review. Only for
+              the roles that may save a profile draft; approved changes go to
+              the draft, never the live profile. */}
+          {draft && can(company?.role || "owner", "editProfileDraft") && String(text || "").trim() && (
+            <ProfileSuggestions company={company} draft={draft} text={text} headline={headline}
+              onBeforeRead={isLive ? undefined : flushSave} />
+          )}
 
           {isLive && !String(pubId).startsWith("demo-") && (
             <div className={`p-6 ${CARD}`}>

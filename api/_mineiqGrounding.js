@@ -18,35 +18,11 @@
 // Shared by api/compose.js and scripts/mineiq-grounding-eval.mjs so the harness
 // grades with exactly the rules the product ships.
 
-// Numbers as people write them: 12.4, 1,250,000, 0.85, 2026. Comma grouping is
-// stripped before comparison so "1,250,000" in the answer matches "1250000" in a
-// source and vice versa -- that is formatting, not a different figure.
-const NUM = /\d[\d,]*(?:\.\d+)?/g;
-
-const normNum = (s) => String(s).replace(/,(?=\d{3}\b)/g, "").replace(/,$/, "").replace(/\.$/, "");
-
-/** Figures in a text worth checking. Single digits are skipped: list numbers,
- *  days of the month and "2 releases" are noise, not disclosures. */
-export function figuresIn(text) {
-  const out = [];
-  for (const m of String(text || "").matchAll(NUM)) {
-    const n = normNum(m[0]);
-    if (!/\d/.test(n)) continue;
-    if (/^\d$/.test(n)) continue;
-    if (!out.includes(n)) out.push(n);
-  }
-  return out;
-}
-
-/** The figures in `answer` that appear nowhere in `sourceText`. */
-export function unsupportedFigures(answer, sourceText) {
-  const have = new Set(figuresIn(sourceText));
-  // A source written "12.40" supports an answer written "12.4" and the reverse;
-  // trailing zeros after a decimal point are formatting.
-  const trim = (n) => (n.includes(".") ? n.replace(/0+$/, "").replace(/\.$/, "") : n);
-  const haveTrim = new Set([...have].map(trim));
-  return figuresIn(answer).filter((n) => !have.has(n) && !haveTrim.has(trim(n)));
-}
+// The figure checks live in src/portal/publish/figures.js so the portal can
+// import them too (the dev server routes every /api/* URL to a handler, so a
+// browser module cannot be loaded from api/). Re-exported: one implementation.
+import { figuresIn, unsupportedFigures } from "../src/portal/publish/figures.js";
+export { figuresIn, unsupportedFigures };
 
 // How the shipped prompt asks the model to refuse, plus the common paraphrases.
 const REFUSAL = /\b(?:couldn['’]?t|could not|can['’]?t|cannot|unable to) (?:find|locate|see|answer)\b|\bnot (?:found )?in (?:your|the) (?:company['’]?s? )?record\b|\bno (?:record|information|mention|disclosure)s? (?:of|about|on|for|that)\b|\b(?:record|sources?) (?:does|do)(?: not|n['’]t) (?:contain|include|say|state|mention)\b/i;
