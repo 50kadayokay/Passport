@@ -14,8 +14,27 @@
 -- and the Phase 1 route treats an existing revision 1 correctly.
 -- AFTER ROLLING BACK: redeploy listener code without the UNPUBLISHED branch, or
 -- keep it -- with the subscription gone it receives no unpublish events.
+--
+-- REFUSES WHILE 0088 IS APPLIED (R2, docs/PRODUCTION-ROLLOUT-PLAN.md). 0088's
+-- site_content_v1 / conference_content_v1 subscriptions rely on active_from;
+-- dropping it and restoring 0008's claim_deliveries would offer both listeners
+-- every historical publication (and a signed revalidate per event to every
+-- configured website). Roll back in strict reverse order: 0088 first. 0087 does
+-- not read active_from and is unaffected (posts.media_url is kept).
 
 begin;
+
+do $$
+begin
+  if exists (select 1 from public.listener_subscriptions where listener in ('site_content_v1', 'conference_content_v1'))
+     or to_regclass('public.destination_content') is not null
+     or to_regprocedure('public.deliver_destination_content(text, uuid, uuid, integer, boolean, jsonb)') is not null
+     or to_regprocedure('public.conference_booth_releases(text, integer)') is not null then
+    raise exception '0071 rollback refused: 0088_content_fanout is still applied'
+      using detail = 'Its listeners depend on listener_subscriptions.active_from, which this rollback drops; they would replay every historical publication.',
+            hint = 'Roll back in reverse order: run supabase/rollbacks/0088_content_fanout.rollback.sql first, then this file.';
+  end if;
+end $$;
 
 -- 0008's claim_deliveries, verbatim
 create or replace function public.claim_deliveries(p_listener text, p_worker text, p_limit integer default 10, p_lease_seconds integer default 120)

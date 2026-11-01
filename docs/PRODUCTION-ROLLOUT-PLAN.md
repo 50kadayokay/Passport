@@ -281,8 +281,8 @@ No applied migration was edited, and no production-only migration is needed yet.
 - `site_content_v1` has no 72-hour guard (by design: `active_from` is the guard).
 - Mitigations:
   - Always roll back 0088 before 0071.
-  - Add `"0088_content_fanout.sql": ["0071_publishing_reliability.sql"]` (and the same for 0087, which reads `posts.media_url`) to `PREREQUISITES`. That is S4's file; the new test enforces the order in the meantime.
-  - Optionally, make 0071's rollback refuse to run while `site_content_v1` subscriptions exist.
+  - `PREREQUISITES` records that 0087 and 0088 need 0071 (S4, f65ff7c).
+  - **Done (2026-11-01):** 0071's rollback now refuses while any 0088 object exists (its subscriptions, `destination_content`, or either function), and its hint names the order. `check:s2-rollback-0071` (offline, in `npm test`) checks this; `check:s2-rollback-0071-staging` (S4 runs it, rolled back) proves it live. 0087 does not read `active_from` and needs no guard.
 
 **R3 · Replaced functions whose production body was never digested.** The audit's Q10 did not cover these, and each rollback restores the repo's version:
 - `claim_deliveries` (0071 replaces it, rollback restores 0008);
