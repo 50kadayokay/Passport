@@ -18,6 +18,7 @@ import BlueprintReview from "./BlueprintReview.jsx";
 import AccountManagement from "./AccountManagement.jsx";
 import DeliveryOps from "./DeliveryOps.jsx";
 import ServiceRequests from "./ServiceRequests.jsx";   // a21 (S2): company service requests, status + note
+import SectionBoundary from "../portal/SectionBoundary.jsx";   // a28: one section's crash stays in that section
 import Blueprints from "./blueprints/Blueprints.jsx";  // full Conference Blueprint workbench (pools/evidence/approval)
 
 // Sidebar organized into business areas. `ready` = wired to live data; the rest
@@ -137,6 +138,7 @@ export default function MissionControl() {
         </header>
 
         <div className="min-h-0 flex-1 overflow-hidden">
+          <SectionBoundary resetKey={section}>
           {section === "companies" ? <Admin /> : section === "onboard" ? (
             <div className="h-full"><OnboardingWorkspace companies={companies} reload={loadData} go={go} /></div>
           ) : section === "conf-studio" ? (
@@ -163,6 +165,7 @@ export default function MissionControl() {
               {!READY.has(section) && <Stub id={section} />}
             </div>
           )}
+          </SectionBoundary>
         </div>
       </div>
     </div>

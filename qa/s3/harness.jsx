@@ -27,6 +27,8 @@
 //   company=<slug> (platform admin) open that company in admin mode
 //   conf=active|off|featuresdown   Conference Mode entitlement (a16)
 //   draft=1       Alpha's profile is a draft (not published)
+//   fail=website|tokens|delivered|requests|booth   a28 pass on the S1/S2 screens
+//   view=screen&screen=service-requests|conference-studio   mount that admin screen alone
 import "../../src/index.css";
 
 const Q = new URLSearchParams(location.search);
@@ -212,6 +214,32 @@ window.fetch = async (input, init = {}) => {
     ]);
   }
   if (p === "/company_notification_reads") return j([]);
+  // a28 pass: Website (a14/a15), Services (a21), Conference Studio (a17)
+  if (p === "/company_blueprints") {
+    if (fail === "website") return j({ message: "boom" }, 500);
+    const sec = { hero: { type: "hero" }, news: { type: "news", hidden: true } };
+    const d = { pages: data === "malformed" ? [null, { title: "Home", sections: ["hero", "news"] }] : [{ title: "Home", sections: ["hero", "news"] }], sections: sec, include: { posts: true, media: false } };
+    return j(data === "empty" ? [] : [{ id: "bp1", company_id: A, template_key: "Alpha investor site", template_version: "3", status: "approved",
+      data: { ...d, published: d, published_at: iso(now - 864e5) }, manifest: { sections: [{ type: "hero", label: "Hero" }, { type: "news", label: "News" }] }, updated_at: iso(now - 864e5) }]);
+  }
+  if (p === "/site_credentials") {
+    if (fail === "tokens") return j({ message: "boom" }, 500);
+    return j(data === "empty" ? [] : [{ id: "t1", kind: "site", label: "Production site", expires_at: null, revoked_at: null, last_used_at: iso(now - 3600e3), created_at: iso(now - 864e5 * 20) }]);
+  }
+  if (p === "/destination_content") {
+    if (fail === "delivered") return j({ message: "boom" }, 500);
+    return j(data === "empty" ? [] : [{ publication_id: "pub1", post_type: "release", title: "Alpha Gold intersects 12.4 g/t Au over 8 m", published_at: iso(now - 864e5 * 3), delivered_at: iso(now - 864e5 * 3), version: 1 }]);
+  }
+  if (p === "/service_requests") {
+    if (fail === "requests") return j({ message: "boom" }, 500);
+    if (method === "PATCH") return j([{ id: "sr1", status: "in_review", admin_note: "" }]);
+    return j(data === "empty" ? [] : [{ id: "sr1", company_id: A, companies: { name: "Alpha Gold Corp.", slug: "alpha-gold" }, service: "websites", details: "We'd like a quote for an investor site.",
+      status: "requested", admin_note: data === "malformed" ? null : "", history: data === "malformed" ? [null, { status: "requested", at: "bad" }] : [{ status: "requested", at: iso(now - 864e5) }], created_at: iso(now - 864e5), status_changed_at: data === "malformed" ? null : iso(now - 864e5) }]);
+  }
+  if (p === "/conference_booth_configs") {
+    if (fail === "booth") return j({ message: "boom" }, 500);
+    return j(data === "empty" ? [] : [{ studio: { template: "monolith", theme: "obsidian", accent: "" }, version: 2, published_at: iso(now - 864e5) }]);
+  }
   // 0090: owner/admin (and platform admins) only
   if (p === "/rpc/mark_notifications_cleared") return ["owner", "admin_m", "platform"].includes(who) ? j(iso(now)) : j({ code: "42501", message: "not authorized to clear this company's notifications" }, 403);
   if (p === "/activity_log") {
@@ -233,8 +261,18 @@ const ReactDOM = (await import("react-dom/client")).default;
 const AuthGate = (await import("../../src/auth/AuthGate.jsx")).default;
 const PortalGate = (await import("../../src/portal/PortalGate.jsx")).default;
 const Portal = (await import("../../src/portal/Portal.jsx")).default;
+const SectionBoundary = (await import("../../src/portal/SectionBoundary.jsx")).default;
 
-const tree = Q.get("view") === "admin"
+const SCREENS = {
+  "service-requests": async () => React.createElement((await import("../../src/admin/ServiceRequests.jsx")).default),
+  "conference-studio": async () => React.createElement((await import("../../src/admin/ConferenceStudio.jsx")).default,
+    { companies: data === "empty" ? [] : [{ ...CO[A], preview_token: "pt-stub" }], reload: () => {} }),
+};
+const screen = Q.get("view") === "screen" && SCREENS[Q.get("screen")] ? await SCREENS[Q.get("screen")]() : null;
+const tree = screen
+  ? React.createElement(AuthGate, { requireAdmin: true, title: "Sign in to Admin", subtitle: "MineEx operations console" },
+      React.createElement("div", { style: { height: "100vh" } }, React.createElement(SectionBoundary, { resetKey: Q.get("screen") }, screen)))
+  : Q.get("view") === "admin"
   ? React.createElement(AuthGate, { requireAdmin: true, title: "Sign in to Admin", subtitle: "MineEx operations console" },
       React.createElement("div", { "data-admin-ok": "1", style: { padding: 40 } }, "Mission Control would render here"))
   : React.createElement(AuthGate, { title: "Sign in to your Company Portal", subtitle: "Manage your company on MineEx" },
