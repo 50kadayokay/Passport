@@ -227,6 +227,8 @@ section("EACH ROLE'S VISIBLE CONTROLS (shell)");
   // and, in the browser, by /qa/s3.
   const portal = fs.readFileSync("src/portal/Portal.jsx", "utf8");
   ok(/can\(role, "draftContent"\) && \{ id: "pr"/.test(portal) && /can\(role, "publishContent"\) && \{ id: "media"/.test(portal) && /can\(role, "draftContent"\) && \{ id: "draft"/.test(portal), "Home tiles: Publish/Draft Press Release need draftContent, Publish Media needs publishContent");
+  ok(/\{ id: "website",   label: "Website"/.test(portal) && /section === "website"   && <Suspense fallback=\{<SectionLoader \/>\}><Website company=\{company\} \/>/.test(portal), "Sidebar: Website (S2's a14 page) is reachable");
+  ok(/\{ id: "documents", label: "Documents"/.test(portal) && /section === "documents" && <Suspense fallback=\{<SectionLoader \/>\}><Documents company=\{company\} \/>/.test(portal), "Sidebar: Documents is reachable (a28)");
   ok(/canManage=\{can\(company\?\.role \|\| "owner", "manageBilling"\)\}/.test(portal), "Settings -> Billing: billing controls only for manageBilling");
   const expect = {
     owner:     { pr: true, media: true, draft: true, billing: true, send: true, team: true },
