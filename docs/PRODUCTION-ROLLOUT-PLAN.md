@@ -69,7 +69,7 @@ Every piece of Phase 1 code runs on the current production schema. Features whos
 | Policy and function digests (Q08, Q10, Q17) | production matches the state each rollback restores, or rollbacks adjusted and re-verified |
 | Listing-reports decision | approve 0077 (keep the anon path for installed builds) |
 | Rollbacks | all verified by `migration-rollback-roundtrip` on staging; privilege rollbacks compared with production's current grants **[audit]** (R5) |
-| Function drift (R1) | `production_function_source_four_2026_11_01.sql` run (approved: the four definitions and their metadata only); each body diffed locally with `scripts/function-drift-diff.mjs`; production-only behaviour worth keeping written into 0071 / 0072 / 0076 as our own code, or recorded as intentionally dropped; capture-on-apply rollback procedure tested on staging. No production source in git, chat or shared logs |
+| Function drift (R1) | **Resolved (2026-11-01):** the four drifted functions are token-identical to the repo state before the pending migrations (formatting only). Capture-on-apply stays mandatory for byte-exact restores (staging check 15/0) |
 | Replaced functions and storage policies (R3, R4) | **Done (2026-11-01):** `production_replaced_functions_2026_11_01.sql` run (approved). `mineiq_search` and all six storage policies 0078 replaces match the repo; the two other drifted functions moved to R1 |
 | `SITE_REVALIDATE_SECRET` | set (server only) before Phase 1 ends |
 | Staging evidence current | investor-app suite, messaging-schema check, 0077 check, all live suites, combined isolation: all pass |
@@ -125,14 +125,14 @@ This is the authoritative list. `scripts/rollout-plan-manifest-test.mjs` (in `np
 | 10 | `0066_mineiq_conversations.sql` | 4 | transaction | — | lossy: Mine IQ history |
 | 11 | `0068_site_contract.sql` | 5 | transaction | — | lossy: website tokens, blueprint manifest |
 | 12 | `0069b_stripe_events.sql` | 5 | transaction | — | lossy: Stripe event ledger |
-| 13 | `0071_publishing_reliability.sql` | 5 | transaction; **[open] blocked by finding R1** | — | restores repo 0036/0008, NOT production's drifted publish_publication and claim_deliveries (R1) |
-| 14 | `0072_profile_drafts.sql` | 5 | transaction; **[open] blocked by finding R1** | — | lossy: unpublished drafts; restores 0035's company_go_live, NOT production's drifted one (R1) |
+| 13 | `0071_publishing_reliability.sql` | 5 | transaction; capture-on-apply (R1) | — | restores repo 0036/0008: same behaviour as production (R1); byte-exact via the captured rollback |
+| 14 | `0072_profile_drafts.sql` | 5 | transaction; capture-on-apply (R1) | — | lossy: unpublished drafts; restores 0035's company_go_live: same behaviour as production (R1) |
 | 15 | `0073a_impression_dedupe_index.sql` | 5 | outside a transaction (CONCURRENTLY) | — | clean |
 | 16 | `0073b_impression_tracking.sql` | 5 | transaction | — | clean |
 | 17 | `0073c_post_events_client_guard.sql` | 5 | transaction | — | clean |
 | 18 | `0074_profile_revision_history.sql` | 5 | transaction | 0072 | clean (snapshot rows kept) |
 | 19 | `0075_profile_versions_privileges.sql` | 5 | transaction | — | re-opens anon grants |
-| 20 | `0076_company_roles.sql` | 5 | transaction; **[open] blocked by finding R1** | 0072 | restores 0031's accept_company_invitation, NOT production's (R1); revokes pending member invitations |
+| 20 | `0076_company_roles.sql` | 5 | transaction; capture-on-apply (R1) | 0072 | restores 0031's accept_company_invitation: same behaviour as production (R1); revokes pending member invitations |
 | 21 | `0078_storage_role_hardening.sql` | 5 | transaction (R4 cleared) | 0076 | re-opens storage writes (repo 0037/0040 policies; production's six match them exactly) |
 | 22 | `0080_mineiq_search_any_term.sql` | 5b | transaction | — | restores 0050a's mineiq_search; production-exact (R3 cleared) |
 | 23 | `0085_conference_booth_config.sql` | 5b | transaction | — | lossy: published booth looks |
@@ -268,26 +268,23 @@ The review was offline and read every file from 0071 to 0090 and every rollback.
 
 No applied migration was edited, and no production-only migration is needed yet.
 
-**R1 · Function drift: three migrations replace four production functions whose bodies differ from the repo (blocks 0071, 0072 and 0076).**
+**R1 · Function drift in four functions 0071, 0072 and 0076 replace. Resolved (2026-11-01): formatting only.**
 
-| Function | Replaced by | Its rollback restores | Found by |
-|---|---|---|---|
-| `publish_publication(uuid, uuid, timestamptz)` | 0071 | 0036 | audit Q10 (2026-10-31) |
-| `claim_deliveries(text, text, integer, integer)` | 0071 | 0008 | replaced-function digests (2026-11-01) |
-| `company_go_live(uuid, text)` | 0072 | 0035 | replaced-function digests (2026-11-01) |
-| `accept_company_invitation(text)` | 0076 | 0031 | audit Q10 (2026-10-31) |
+| Function | Replaced by | Production equals (token for token) |
+|---|---|---|
+| `publish_publication(uuid, uuid, timestamptz)` | 0071 | 0036 |
+| `claim_deliveries(text, text, integer, integer)` | 0071 | 0008 |
+| `company_go_live(uuid, text)` | 0072 | 0035 |
+| `accept_company_invitation(text)` | 0076 | 0031 |
 
-- Production's bodies match no repo version. SECURITY DEFINER and execute grants are the same as the repo's for all four (S4's comparison, `scripts/production-shape-compare.mjs`, fdc89ea).
-- `revise_publication` has drifted too (Q10), but no pending migration replaces it. It is a SCHEMA-RECOVERY item, not a blocker.
-- The rollbacks of 0071, 0072 and 0076 restore the repo's text, not production's. Rolling back would change production's behaviour (for example its first-owner handoff or its delivery claiming) rather than restore it.
-- **Reading the drift.** The user approved reading only these four definitions plus the metadata needed to compare them: `supabase/audit/production_function_source_four_2026_11_01.sql` (S4; read-only, Q01 only). `revise_publication` is not read. The result stays in the gitignored `supabase/audit/results/` folder. `scripts/function-drift-diff.mjs` diffs each body against every repo version on the local machine, redacting anything secret-shaped first, and names the pending migration that would overwrite it. Its terminal output is a summary only (changed-line counts, nearest version); the diffs go to the gitignored results folder, and `--show` prints them in a terminal of the reader's own, never in a session (`check:s2-function-drift`, offline, in `npm test`).
-- **Constraint (user, 2026-11-01): production function source stays out of git, chat and shared logs.** That includes the raw results file, the redacted diffs, and any rollback file that would contain a production body. Findings are reported as descriptions of behaviour ("production also does X"), never as source.
-- **Production-exact rollbacks are therefore not committed.** They are generated locally at apply time by S1's capture-on-apply step. Immediately before 0071, 0072 or 0076 runs, it saves the live definitions of the functions that migration replaces into a local, gitignored rollback, and that rollback is what restores production if the migration is backed out. The committed rollbacks (repo 0036 / 0008 / 0035 / 0031 text) stay as they are, for staging and for any database that matches the repo.
-- **Staging test procedure (before production):** on staging, in a transaction that is rolled back, plant a marker body for each of the four functions, run capture-on-apply, apply the migration, run the captured rollback, and check that each function's digest equals the marker's. That proves the capture and restore path end to end without any production source.
-- **Production-only behaviour worth keeping goes forward, as our own code.** If the diff shows behaviour production needs (for example a different first-owner handoff), it is reimplemented in the forward migration (0071, 0072 or 0076, which are not yet applied anywhere in production, or a new pending file numbered by S4), written from a description of the behaviour, not copied from the production body. Behaviour not worth keeping is recorded as intentionally dropped.
-- Until the diff has been read and each function decided, 0071, 0072 and 0076 cannot be applied.
-
-**Forward risk: applying 0071, 0072 or 0076 overwrites the drift.** Each replaces its function with `create or replace`. Whatever production-only behaviour the drifted body holds (a hand fix, a hotfix never committed) is silently lost the moment the migration runs, and no rollback brings it back. So the drift must be read and diffed *before* those three apply, not only for rollback. Capture-on-apply makes a backout possible, but it does not keep the behaviour once the migration is in. For each function, either carry the production-only behaviour forward as our own code (above), or record that dropping it is intended.
+- **What was found.** The digest audits (Q10 on 2026-10-31, then the replaced-function digests on 2026-11-01) showed these four bodies differ byte-for-byte from the repo. The second read-only production audit (`supabase/audit/production_function_source_four_2026_11_01.sql`, approved by the user, run by S4) showed every one is token-identical to the repo version that applied before the pending migrations. Only whitespace and line breaks differ. SECURITY DEFINER, `search_path` and execute grants match.
+- **What it means.**
+  - Production has no behaviour of its own in these functions, so 0071, 0072 and 0076 overwrite nothing meaningful. They are **no longer blocked**.
+  - The committed rollbacks (0036, 0008, 0035 and 0031 text) restore behaviour identical to production's today.
+  - No forward migration needs to carry production-only behaviour.
+- **Capture-on-apply stays mandatory** for these three files in production. Just before each runs, the production runner (S1, `scripts/_function-capture.mjs`) saves the live definitions, owner and grants of every function the file touches into a gitignored, mode-600 rollback under `supabase/audit/results/`, and that file restores production byte for byte. `scripts/capture-rollback-staging-check.mjs` (S4) proves it on staging, in one transaction that is always rolled back. It plants production's exact bodies, applies 0071, 0072 and 0076, runs each captured rollback, and compares digests: 15/0, after S4's fix to its verify step. In production, back out with the captured rollback; the committed file is the fallback and gives the same behaviour.
+- **Constraint (user, 2026-11-01): production function source stays out of git, chat and shared logs.** Findings are described as behaviour, never as source. The audit results, the redacted diffs from `scripts/function-drift-diff.mjs` (summary on the terminal; `--show` only in a terminal of the reader's own) and every captured rollback stay in the gitignored results folder, and none of them is committed.
+- `revise_publication` also differed in Q10. No pending migration replaces it and it was not read; it stays a SCHEMA-RECOVERY item, not a blocker.
 
 **R2 · Rolling back 0071 while 0088 is applied replays history into websites (rollback order).**
 - 0088's subscriptions rely on `listener_subscriptions.active_from = now()`.
@@ -301,7 +298,7 @@ No applied migration was edited, and no production-only migration is needed yet.
 
 **R3 · Replaced functions whose production body was never digested. Closed (2026-11-01).** `production_replaced_functions_2026_11_01.sql` ran on production (approved; 3/3 answered, 0 errors, output scan clean) and S4 compared it with the repo state before the pending migrations (built on staging, then rolled back):
 - `mineiq_search` (0080, rollback restores 0050a) **matches** the repo, so 0080's rollback is production-exact.
-- `claim_deliveries` (0071) and `company_go_live` (0072) **differ**: they moved to R1.
+- `claim_deliveries` (0071) and `company_go_live` (0072) **differ** byte for byte: they moved to R1, which found the difference is formatting only.
 
 **R4 · storage.objects policies in production (0078). Closed (2026-11-01).**
 - All six policies 0078 drops and recreates match the repo exactly, and production has no extra permissive INSERT, UPDATE or DELETE policy, so 0078 closes the hole as intended.
@@ -322,7 +319,7 @@ All 27 migrations that run have a rollback file. The round trip passes on stagin
 Special cases:
 - **0059:** never in production; it is already applied there.
 - **0067:** cascades Conference Mode removal, and is already applied.
-- **0071, 0072 and 0076:** see R1. The committed rollbacks restore the repo's bodies, not production's drifted ones; in production, back out with the local rollback that capture-on-apply saved.
+- **0071, 0072 and 0076:** see R1. In production, back out with the rollback capture-on-apply saved (byte-exact). The committed rollbacks restore the same behaviour, differing only in formatting.
 - **0071 under 0088:** see R2.
 
 ---
