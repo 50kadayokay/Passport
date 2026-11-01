@@ -24,6 +24,10 @@ import { callerCompanyRole, MESSAGING_ROLES, UUID as UUID_RE } from "./_roles.js
 
 function bad(res, code, msg) { res.status(code).json({ ok: false, error: msg }); }
 
+// Only a published company can be found by investors (0001's RLS), so only a
+// published one can be written to for the first time.
+export const isPublished = (company) => !!company && company.status === "published";
+
 // ---- SEND helpers ---------------------------------------------------------
 async function authUser(token) {
   if (!token) return null;
@@ -72,9 +76,15 @@ async function handleSend(req, res) {
   if (!text) return bad(res, 400, "empty-message");
   if (text.length > 5000) return bad(res, 400, "too-long");
 
-  const compR = await serviceRest(`companies?slug=eq.${encodeURIComponent(slug)}&select=name,profile&limit=1`);
+  const compR = await serviceRest(`companies?slug=eq.${encodeURIComponent(slug)}&select=name,profile,status&limit=1`);
   const comp = compR.ok ? (await compR.json().catch(() => []))[0] : null;
   if (!comp) return bad(res, 404, "company-not-found");
+  // An unpublished company (a draft, the production smoke's test company) gets
+  // no NEW thread: the service role sees every row, so without this a guessed
+  // slug opened a thread with a company no investor can see. It answers exactly
+  // like an unknown slug, so a draft's existence is not revealed. A thread that
+  // already exists (the company was unpublished later) keeps working.
+  const listed = isPublished(comp);
 
   // NO TIER GATE, deliberately. An investor may write to ANY published company,
   // claimed or not. The message is stored against the slug here and becomes
@@ -114,8 +124,9 @@ async function handleSend(req, res) {
     match: (c) => c.sender_company_id == null,
     query: `investor_id=eq.${encodeURIComponent(user.id)}&company_slug=eq.${encodeURIComponent(slug)}`,
     insert: { investor_id: user.id, company_slug: slug, company_name: companyName, ceo_email: ceoEmail || null },
+    create: listed,
   });
-  if (!found.conv) return bad(res, 500, "conversation-failed");
+  if (!found.conv) return listed ? bad(res, 500, "conversation-failed") : bad(res, 404, "company-not-found");
   const conv = found.conv;
   // The upsert used to refresh these on every send; keep doing so, so a CEO
   // address added after the first message still gets the notifications.
@@ -179,13 +190,15 @@ async function handleSend(req, res) {
 async function readRows(r) { return r.ok ? r.json().catch(() => []) : []; }
 
 /** Find the one thread matching `query` + `match`, or create it from `insert`. */
-export async function findOrCreateThread({ query, match, insert }) {
+// create: false finds an existing thread only (an unpublished company: see handleSend).
+export async function findOrCreateThread({ query, match, insert, create = true }) {
   const find = async () => {
     const rows = await readRows(await serviceRest(`conversations?${query}&select=*&order=created_at.asc`));
     return (Array.isArray(rows) ? rows : []).find(match) || null;
   };
   const existing = await find();
   if (existing) return { conv: existing, created: false };
+  if (!create) return { conv: null, created: false };
   const ins = await serviceRest("conversations", { method: "POST", prefer: "return=representation", body: insert });
   if (ins.ok) {
     const row = (await readRows(ins))[0];
@@ -283,16 +296,18 @@ async function handleStart(req, res) {
   const fromR = await readRows(await serviceRest(`companies?id=eq.${encodeURIComponent(fromCompanyId)}&select=slug&limit=1`));
   const fromSlug = String((fromR[0] && fromR[0].slug) || "").toLowerCase();
   if (fromSlug && fromSlug === toSlug) return bad(res, 400, "cannot-message-self");
-  const toR = await readRows(await serviceRest(`companies?slug=eq.${encodeURIComponent(toSlug)}&select=name&limit=1`));
+  const toR = await readRows(await serviceRest(`companies?slug=eq.${encodeURIComponent(toSlug)}&select=name,status&limit=1`));
   if (!toR[0]) return bad(res, 404, "company-not-found");
   const toName = toR[0].name || toSlug;
+  const listed = isPublished(toR[0]);   // as in handleSend: no new thread with an unpublished company
 
   const found = await findOrCreateThread({
     query: `sender_company_id=eq.${encodeURIComponent(fromCompanyId)}&company_slug=eq.${encodeURIComponent(toSlug)}`,
     match: (c) => c.sender_company_id === fromCompanyId,
     insert: { investor_id: who.user.id, sender_company_id: fromCompanyId, company_slug: toSlug, company_name: toName },
+    create: listed,
   });
-  if (!found.conv) return bad(res, 500, "conversation-failed");
+  if (!found.conv) return listed ? bad(res, 500, "conversation-failed") : bad(res, 404, "company-not-found");
   const stored = await insertMessageOnce({ convId: found.conv.id, sender: "investor", text, clientMessageId: body.clientMessageId });
   if (!stored.msg) return stored.keyReused ? bad(res, 409, "idempotency-key-reused") : bad(res, 500, "message-failed");
   res.status(200).json({ ok: true, conversation: found.conv, created: found.created, message: stored.msg, duplicate: stored.duplicate });

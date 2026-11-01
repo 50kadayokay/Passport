@@ -10,6 +10,7 @@
 //   company  -> investor       the portal's own browser insert (sendCompanyReply), under RLS
 //   company  -> company        POST /api/messages action "start", and the recipient's reply
 //   refusals                   cross-company, unauthorised, anonymous, self-message
+//   unpublished company        no new thread (404 like an unknown slug); an existing one keeps working
 //   concurrency and retries    parallel first messages / starts / keyed retries
 // and checks every outcome in the database itself (service-role reads), not
 // only in the HTTP status.
@@ -18,7 +19,8 @@
 // into the seeded fixture threads; and three test-owned threads it recreates
 // each run so the creation race is exercised every time:
 //   investor B -> company A (investor thread), company A -> company B,
-//   company B -> company A.
+//   company B -> company A. And one throwaway DRAFT company (iso-zz-draft-<run>)
+// with its thread, both deleted before the run ends.
 // Before deleting one of those it checks that EVERY message in it carries the
 // marker -- a thread with anything else in it is left alone and the run stops.
 // Seeded fixture threads are never deleted.
@@ -275,6 +277,37 @@ console.log("\n  COMPANY START: CONCURRENCY AND RETRIES (company B -> company A,
   const rr = await Promise.all(Array.from({ length: 5 }, () => start(who.COMPANY_B, B.id, A.slug, T("B keyed retry"), { clientMessageId: k })));
   ok(rr.every((r) => r.status === 200) && (await msgsIn(t[0].id, `&body=eq.${encodeURIComponent(T("B keyed retry"))}`)).length === 1, "5 CONCURRENT retries of one start (same key): stored once");
   ok((await companyThreads(A.id, B.slug)).length === 1 && (await companyThreads(B.id, A.slug)).length === 1, "A->B and B->A remain two separate threads, one each");
+}
+
+console.log("\n  UNPUBLISHED COMPANY: no new thread, answered like an unknown slug (throwaway draft company)");
+{
+  // A draft company of this run's own, created and removed with the service role.
+  const slug = `iso-zz-draft-${RUN}`;
+  const ins = await db("companies", { method: "POST", headers: { Prefer: "return=representation" }, body: JSON.stringify({ slug, name: `Iso Draft ${RUN}`, status: "draft" }) });
+  const D = Array.isArray(ins.body) && ins.body[0];
+  ok(ins.status === 201 && D && D.status === "draft", "a throwaway draft company exists for this run", `${ins.status}`);
+  if (D) {
+    try {
+      const unknown = await send(who.INVESTOR, "iso-no-such-company", T("to nobody"));
+      let r = await send(who.INVESTOR, slug, T("to a draft"));
+      ok(r.status === 404 && JSON.stringify(r.body) === JSON.stringify(unknown.body), "investor -> draft: 404, the same answer as an unknown slug", `${r.status} ${JSON.stringify(r.body)}`);
+      r = await start(who.COMPANY_A, A.id, slug, T("A to a draft"));
+      ok(r.status === 404 && r.body.error === "company-not-found", "company A -> draft: 404 company-not-found", `${r.status} ${JSON.stringify(r.body)}`);
+      ok((await rows(`conversations?company_slug=eq.${slug}&select=id`)).length === 0, "database: no thread with the draft");
+
+      await db(`companies?id=eq.${D.id}`, { method: "PATCH", body: JSON.stringify({ status: "published" }) });
+      const first = await send(who.INVESTOR, slug, T("while published"));
+      await db(`companies?id=eq.${D.id}`, { method: "PATCH", body: JSON.stringify({ status: "draft" }) });
+      const later = await send(who.INVESTOR, slug, T("after unpublishing"));
+      ok(first.status === 200 && later.status === 200 && later.body.conversationId === first.body.conversationId, "an EXISTING thread keeps working after the company is unpublished (same thread)", `${first.status}/${later.status}`);
+      r = await send(who.INVESTOR_B, slug, T("new investor to the draft"));
+      ok(r.status === 404 && (await rows(`conversations?company_slug=eq.${slug}&select=id`)).length === 1, "...while another investor still gets 404 and no new thread");
+    } finally {
+      await dropTestThread("investor -> draft", await rows(`conversations?company_slug=eq.${slug}&select=id`));
+      const del = await db(`companies?id=eq.${D.id}`, { method: "DELETE" });
+      ok(del.status === 204 && (await rows(`companies?slug=eq.${slug}&select=id`)).length === 0, "the throwaway company and its thread are removed");
+    }
+  }
 }
 
 // ================================================================ egress ==

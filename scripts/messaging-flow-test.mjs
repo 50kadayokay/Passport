@@ -26,7 +26,7 @@ delete process.env.MINEEX_ENV;
 
 // ---------------------------------------------------------------- fixtures --
 const U = (n) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
-const CO_A = U(101), CO_B = U(102);
+const CO_A = U(101), CO_B = U(102), CO_D = U(104);
 const USERS = {
   investor: { id: U(1), email: "investor@staging.invalid" },
   ownerA:   { id: U(2), email: "owner-a@staging.invalid" },
@@ -42,8 +42,10 @@ const USERS = {
 const ROLES = { [`${USERS.ownerA.id}|${CO_A}`]: "owner", [`${USERS.viewerA.id}|${CO_A}`]: "viewer", [`${USERS.ownerB.id}|${CO_B}`]: "owner",
   [`${USERS.editorA.id}|${CO_A}`]: "editor", [`${USERS.publisherA.id}|${CO_A}`]: "publisher", [`${USERS.analystA.id}|${CO_A}`]: "analyst", [`${USERS.adminA.id}|${CO_A}`]: "admin" };
 const COMPANIES = [
-  { id: CO_A, slug: "iso-alpha", name: "Iso Alpha", profile: { pp: { CONTACT: { email: "ceo@iso-alpha.invalid" } } } },
-  { id: CO_B, slug: "iso-beta", name: "Iso Beta", profile: {} },
+  { id: CO_A, slug: "iso-alpha", name: "Iso Alpha", status: "published", profile: { pp: { CONTACT: { email: "ceo@iso-alpha.invalid" } } } },
+  { id: CO_B, slug: "iso-beta", name: "Iso Beta", status: "published", profile: {} },
+  // a draft (e.g. the production smoke's test company): invisible to investors
+  { id: CO_D, slug: "iso-draft", name: "Iso Draft", status: "draft", profile: { pp: { CONTACT: { email: "ceo@iso-draft.invalid" } } } },
 ];
 
 let schema = "post0063";       // or "pre0063"
@@ -440,6 +442,37 @@ reset("post0063");
   ok(r.res.body.conversationId === legacy.id && conversations.length === 1, "a pre-existing thread is found and reused, not duplicated");
   ok(messages.filter((m) => m.conversation_id === legacy.id).length === 3 && messages.some((m) => m.email_id === "pm-1"), "its history (including an emailed CEO reply) is untouched");
   ok(r.calls.every((c) => !(c.path === "/rest/v1/conversations" && c.method === "DELETE") && !(c.path === "/rest/v1/messages" && c.method !== "GET" && c.method !== "POST")), "no conversation or message is deleted or rewritten");
+}
+
+// ================================================ unpublished companies ==
+console.log("\n  UNPUBLISHED COMPANIES: no new thread, answered like an unknown slug");
+reset("post0063");
+{
+  const unknown = await send(USERS.investor, "no-such-co", "hello");
+  const draft = await send(USERS.investor, "iso-draft", "hello");
+  ok(draft.res.statusCode === 404 && convWrites(draft.calls) === 0 && msgWrites(draft.calls) === 0 && mailed(draft.calls) === 0, "investor -> a draft company: 404, no thread, no message, nobody emailed");
+  ok(JSON.stringify(draft.res.body) === JSON.stringify(unknown.res.body) && draft.res.statusCode === unknown.res.statusCode, "...and the answer is byte-for-byte the unknown-slug answer (a draft's existence is not revealed)", `${JSON.stringify(draft.res.body)} vs ${JSON.stringify(unknown.res.body)}`);
+  const st = await start(USERS.ownerA, CO_A, "iso-draft", "hello");
+  const stUnknown = await start(USERS.ownerA, CO_A, "no-such-co", "hello");
+  ok(st.res.statusCode === 404 && convWrites(st.calls) === 0 && msgWrites(st.calls) === 0 && JSON.stringify(st.res.body) === JSON.stringify(stUnknown.res.body), "company A starting a thread with a draft: 404 like an unknown slug, nothing written");
+  const fromDraft = await start(USERS.ownerA, CO_A, "iso-beta", "published recipient");
+  ok(fromDraft.res.statusCode === 200, "(a published recipient is unaffected)");
+  ok(conversations.length === 1 && messages.length === 1, "after the refusals: only the published thread exists");
+
+  // A thread that already exists keeps working after the company is unpublished.
+  reset("post0063");
+  const d = COMPANIES.find((c) => c.id === CO_D);
+  d.status = "published";
+  const first = await send(USERS.investor, "iso-draft", "while published");
+  const started = await start(USERS.ownerA, CO_A, "iso-draft", "company thread while published");
+  d.status = "draft";
+  const later = await send(USERS.investor, "iso-draft", "after unpublishing");
+  const laterStart = await start(USERS.ownerA, CO_A, "iso-draft", "company follow-up");
+  ok(first.res.statusCode === 200 && later.res.statusCode === 200 && later.res.body.conversationId === first.res.body.conversationId, "an investor's EXISTING thread with a now-unpublished company keeps working (same thread)");
+  ok(started.res.statusCode === 200 && laterStart.res.statusCode === 200 && laterStart.res.body.conversation.id === started.res.body.conversation.id && laterStart.res.body.created === false, "a company's EXISTING thread with it keeps working too");
+  const other = await send(USERS.outsider, "iso-draft", "new investor");
+  ok(other.res.statusCode === 404 && convWrites(other.calls) === 0, "...but another investor still cannot open a NEW one");
+  ok(conversations.length === 2 && messages.length === 4, "two threads, four messages: nothing created for the refusal");
 }
 
 // ======================================================== no egress ==
