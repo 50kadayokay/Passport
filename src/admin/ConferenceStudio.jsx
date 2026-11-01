@@ -1,11 +1,14 @@
 // ConferenceStudio — admin section to set a company's Conference Mode look: pick a TEMPLATE, THEME
 // and ACCENT, preview it live on the company's real data, and save the choice to
 // profile.conference.studio. Reuses the V3 renderer via the /confv3demo preview route (dev) and the
-// canonical companies table + updateCompany — no second store, no new publish path.
+// canonical companies table + updateCompany. a17: the same save also PUBLISHES the look to
+// conference_booth_configs (migration 0085), which booths fetch and cache, so the change reaches an
+// iPad without a redeploy. profile.conference.studio is still written so nothing reading it changes.
 import React, { useMemo, useState, useEffect } from "react";
 import { Presentation, Check, Loader2, ExternalLink } from "lucide-react";
 import { updateCompany } from "../lib/supabase.js";
 import { authHeaders } from "../lib/auth.js";
+import { fetchBoothRecord, publishBoothLook } from "../lib/conference.js";
 import { TEMPLATE_LIST, THEME_LIST } from "../aiBrief/conferenceV3/ConferenceV3.jsx";
 
 const THEMES = THEME_LIST.map((t) => ({ key: t.key, label: t.label, chip: t.dot }));
@@ -21,11 +24,16 @@ export default function ConferenceStudio({ companies = [], reload }) {
   const [theme, setTheme] = useState("obsidian");
   const [accent, setAccent] = useState("");     // "" = theme default
   const [busy, setBusy] = useState(false); const [saved, setSaved] = useState(false); const [err, setErr] = useState("");
+  const [published, setPublished] = useState(null);   // the booth record: { version, published_at } | null
 
   // load the company's saved selection when it changes
   useEffect(() => {
     const s = (company && company.profile && company.profile.conference && company.profile.conference.studio) || {};
     setTemplate(s.template || "monolith"); setTheme(s.theme || "obsidian"); setAccent(s.accent || ""); setSaved(false); setErr("");
+    setPublished(null);
+    let live = true;
+    if (company && company.id) fetchBoothRecord(company.id).then((r) => { if (live) setPublished(r); });
+    return () => { live = false; };
   }, [slug]); // eslint-disable-line
 
   const previewSrc = company
@@ -40,7 +48,12 @@ export default function ConferenceStudio({ companies = [], reload }) {
       profile.conference = { ...(profile.conference || {}), studio: { template, theme, accent } };
       const updated = await updateCompany(company.slug, { profile }, await authHeaders());
       if (!updated) throw new Error("Save returned no rows.");
-      company.profile = profile; setSaved(true); reload && reload();
+      company.profile = profile;
+      // Publish to booths. The profile save above already succeeded, so a failure here is reported as
+      // exactly that rather than as a failed save.
+      try { setPublished(await publishBoothLook(company.id, { template, theme, accent })); }
+      catch (e) { setErr(`Saved, but not published to booths: ${String(e.message || e)}`); }
+      setSaved(true); reload && reload();
     } catch (e) { setErr(String(e.message || e)); }
     finally { setBusy(false); }
   };
@@ -94,8 +107,13 @@ export default function ConferenceStudio({ companies = [], reload }) {
 
         <div className="mt-auto">
           {err && <p className="mb-2 text-[12px] font-semibold text-rose-600">{err}</p>}
+          <p className="mb-2 text-[11.5px] text-slate-400">
+            {published
+              ? `Live on booths · version ${published.version} · ${new Date(published.published_at).toLocaleString()}`
+              : "Not published to booths yet — they run the bundled presentation."}
+          </p>
           <button onClick={save} disabled={busy || !company} className="flex w-full items-center justify-center gap-2 rounded-full bg-slate-900 py-3 text-[14.5px] font-bold text-white transition active:scale-[0.99] disabled:opacity-40">
-            {busy ? <Loader2 size={16} className="animate-spin" /> : saved ? <><Check size={16} /> Saved</> : "Save look"}
+            {busy ? <Loader2 size={16} className="animate-spin" /> : saved ? <><Check size={16} /> Saved</> : "Save & publish to booths"}
           </button>
           {company && <a href={previewSrc.replace("&bar=0", "")} target="_blank" rel="noreferrer" className="mt-2 flex items-center justify-center gap-1.5 text-[12px] font-bold text-slate-400 hover:text-slate-700"><ExternalLink size={12} /> Open full preview</a>}
         </div>

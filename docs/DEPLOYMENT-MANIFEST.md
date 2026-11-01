@@ -149,3 +149,17 @@ means this manifest has drifted and is no longer the ledger.
 
 `npm run check:deps` proves every reference in the set resolves in order. It does
 **not** prove the set was applied — only a snapshot diff does that.
+
+## Correction from the production read-only audit (2026-11-01)
+
+The audit (`supabase/audit/production_readiness_2026_10_31.sql`, results in the
+gitignored `supabase/audit/results/`) verified production directly:
+
+- **Applied:** 0053, 0054, 0056, 0057, 0059, 0060, 0067. 0059's trigger is
+  identical to staging, so never run its rollback in production.
+- **Pending, previously misclassified as applied by the derived default:**
+  0069b, 0071, 0072, 0073a/b/c, 0074, 0075, 0076, plus the new 0077 and 0078. All
+  are now in `PENDING` in `scripts/_migration-manifest.mjs`, with ordering in
+  `PREREQUISITES`: 0076 after 0072, 0077 after 0058, 0078 after 0076.
+- **Still pending as before:** 0058, 0061a, 0062, 0063, 0064, 0065a/b/c, 0066, 0068.
+- **Deferred:** 0011, 0027, 0028, 0029, 0055, 0061b.
