@@ -136,6 +136,7 @@ window.fetch = async (input, init = {}) => {
   if (url.pathname === "/auth/v1/token") return j({ error: "invalid_grant" }, 400);
   if (url.pathname === "/auth/v1/logout") return new Response(null, { status: 204 });
   if (fail === "down") return Promise.reject(new TypeError("Failed to fetch"));
+  if (fail === "profiles" && url.pathname === "/rest/v1/profiles") return j({ message: "upstream" }, 503);
   if (fail === "revoked") return j({ message: "JWT expired" }, 401);
   const u = me;
   if (!u) return j({ message: "anon" }, 401);

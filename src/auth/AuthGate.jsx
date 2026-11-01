@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { Loader2, ShieldAlert } from "lucide-react";
 import { useAuth } from "./useAuth.js";
-import { getMyRole, signOut } from "../lib/auth.js";
+import { signOut } from "../lib/auth.js";
+import { loadPlatformRole } from "../lib/portalGate.js";
 import { peekInvitation } from "../lib/portal.js";
 import LoginScreen from "./LoginScreen.jsx";
 
@@ -14,12 +15,22 @@ const Loader = () => (
 // Renders the login screen until authenticated; optionally requires role=admin.
 export default function AuthGate({ children, title, subtitle, requireAdmin = false }) {
   const { signedIn, ready } = useAuth();
-  const [role, setRole] = useState(undefined); // undefined = checking
+  const [role, setRole] = useState(undefined); // undefined = checking, "error" = the check itself failed
+  const [attempt, setAttempt] = useState(0);
   const [invite, setInvite] = useState(null);  // peeked ?invite → brand the login as a company account
 
+  // A failed check is not "not an admin". getMyRole() threw when offline
+  // (the loader stayed up forever) and answered null for a 5xx (a real admin
+  // was told "Admins only"); loadPlatformRole() says which happened.
   useEffect(() => {
-    if (signedIn && requireAdmin) { setRole(undefined); getMyRole().then((r) => setRole(r || "company")); }
-  }, [signedIn, requireAdmin]);
+    if (!signedIn || !requireAdmin) return undefined;
+    let alive = true;
+    setRole(undefined);
+    loadPlatformRole()
+      .then((r) => { if (alive) setRole(r.ok ? (r.role || "company") : "error"); })
+      .catch(() => { if (alive) setRole("error"); });
+    return () => { alive = false; };
+  }, [signedIn, requireAdmin, attempt]);
 
   // When a handoff link is open and the user isn't signed in yet, peek the invite (no accept)
   // so the sign-in card is company-branded with the email prefilled + locked. The DB still
@@ -43,6 +54,21 @@ export default function AuthGate({ children, title, subtitle, requireAdmin = fal
 
   if (requireAdmin) {
     if (role === undefined) return <Loader />;
+    if (role === "error") {
+      return (
+        <div className="grid min-h-[100dvh] place-items-center bg-slate-50 px-6" data-gate-title="Couldn't check access">
+          <div className="max-w-sm text-center">
+            <div className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-2xl bg-slate-100 text-slate-500"><ShieldAlert size={28} /></div>
+            <h1 className="text-[22px] font-extrabold text-slate-900">Couldn't check access</h1>
+            <p className="mt-2 text-[14px] text-slate-500">We couldn't reach MineEx to confirm this account's access. Check your connection and try again.</p>
+            <div className="mt-6 flex items-center justify-center gap-3">
+              <button onClick={() => setAttempt((a) => a + 1)} className="rounded-full bg-slate-900 px-5 py-2.5 text-[14px] font-bold text-white">Retry</button>
+              <button onClick={() => signOut()} className="rounded-full border border-slate-200 bg-white px-5 py-2.5 text-[14px] font-bold text-slate-700">Sign out</button>
+            </div>
+          </div>
+        </div>
+      );
+    }
     if (role !== "admin") {
       return (
         <div className="grid min-h-[100dvh] place-items-center bg-slate-50 px-6">

@@ -159,7 +159,7 @@ section("'ADMINS ONLY' AT /admin FOR A COMPANY USER");
   as("owner");
   ok((await M.getMyRole()) === "company", "company owner's platform role is 'company'");
   const ag = fs.readFileSync("src/auth/AuthGate.jsx", "utf8");
-  ok(/if \(requireAdmin\) \{\s*if \(role === undefined\) return <Loader \/>;\s*if \(role !== "admin"\)/.test(ag) && /Admins only/.test(ag), "AuthGate requireAdmin: any role other than 'admin' gets 'Admins only' (browser-checked in /qa/s3)");
+  ok(/if \(requireAdmin\) \{\s*if \(role === undefined\) return <Loader \/>;\s*if \(role === "error"\) \{[\s\S]*?\}\s*if \(role !== "admin"\)/.test(ag) && /Admins only/.test(ag), "AuthGate requireAdmin: any role other than 'admin' gets 'Admins only'; a failed check gets 'Couldn't check access' (browser-checked in /qa/s3)");
   ok(/<AuthGate requireAdmin title="Sign in to Admin"/.test(fs.readFileSync("src/main.jsx", "utf8")), "/admin is wrapped in AuthGate requireAdmin");
 }
 
