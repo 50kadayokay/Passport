@@ -246,3 +246,32 @@ export function applyProposals(pp = {}, approved = []) {
   }
   return next;
 }
+
+/**
+ * The review panel's per-suggestion edit steps, kept pure so they are tested by
+ * execution. An item is a diffed proposal plus { decision, edit }.
+ *
+ *   startEdit   opens the editor on the current value and remembers the
+ *               decision it had, so Cancel can put it back.
+ *   cancelEdit  discards the edit: value, date and decision are as before
+ *               (an undecided suggestion stays pending). Nothing is approved.
+ *   keepEdit    "Use this": takes the edited value and approves it.
+ */
+export function startEdit(p) {
+  return { ...p, edit: { value: p.value, date: p.date || "", before: p.decision ?? null } };
+}
+
+export function cancelEdit(p) {
+  if (!p.edit) return p;
+  return { ...p, edit: null, decision: p.edit.before ?? null };
+}
+
+export function keepEdit(p) {
+  if (!p.edit) return p;
+  const date = p.edit.date || null;
+  return {
+    ...p, value: p.edit.value, date,
+    edited: p.edited || p.edit.value !== p.value || date !== p.date,
+    edit: null, decision: "approve",
+  };
+}

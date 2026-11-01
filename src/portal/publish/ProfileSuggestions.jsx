@@ -13,7 +13,7 @@
 
 import React, { useState } from "react";
 import { Loader2, Check, X, Pencil, Sparkles, AlertCircle, CheckCircle2 } from "lucide-react";
-import { KINDS, diffProposals, applyProposals, validateProposals } from "./profileSuggestions.js";
+import { KINDS, diffProposals, applyProposals, validateProposals, startEdit as openEdit, cancelEdit as dropEdit, keepEdit as useEdit } from "./profileSuggestions.js";
 import { loadProfileDraft, saveProfileDraft, editorStart, messageFor } from "../../lib/profileDraft.js";
 import { buildCanonicalProfile } from "../../lib/ppToProfile.js";
 import { apiHeaders } from "../../lib/auth.js";
@@ -78,11 +78,12 @@ export default function ProfileSuggestions({ company, draft, text, headline, onB
   }
 
   const decide = (id, decision) => setItems((cur) => cur.map((p) => (p.id === id ? { ...p, decision: p.decision === decision ? null : decision } : p)));
-  const startEdit = (id) => setItems((cur) => cur.map((p) => (p.id === id ? { ...p, edit: { value: p.value, date: p.date || "" } } : p)));
+  const startEdit = (id) => setItems((cur) => cur.map((p) => (p.id === id ? openEdit(p) : p)));
   const setEdit = (id, patch) => setItems((cur) => cur.map((p) => (p.id === id ? { ...p, edit: { ...p.edit, ...patch } } : p)));
-  const keepEdit = (id) => setItems((cur) => cur.map((p) => (p.id === id
-    ? { ...p, value: p.edit.value, date: p.edit.date || null, edited: p.edited || p.edit.value !== p.value || (p.edit.date || null) !== p.date, edit: null, decision: "approve" }
-    : p)));
+  const keepEdit = (id) => setItems((cur) => cur.map((p) => (p.id === id ? useEdit(p) : p)));
+  // Cancel discards the edit and approves nothing (S3's review: "Use this" was
+  // the only way out of the editor, and it approves).
+  const cancelEdit = (id) => setItems((cur) => cur.map((p) => (p.id === id ? dropEdit(p) : p)));
 
   const approved = items.filter((p) => p.decision === "approve" && !p.edit);
 
@@ -160,7 +161,7 @@ export default function ProfileSuggestions({ company, draft, text, headline, onB
                 ? "Your profile already matches what this release says. Nothing to change."
                 : "MineEx found nothing in this release that changes your profile."}
             </p>
-          ) : items.map((p) => <Suggestion key={p.id} p={p} onDecide={decide} onEdit={startEdit} onEditChange={setEdit} onKeep={keepEdit} />)}
+          ) : items.map((p) => <Suggestion key={p.id} p={p} onDecide={decide} onEdit={startEdit} onEditChange={setEdit} onKeep={keepEdit} onCancel={cancelEdit} />)}
 
           {(hiddenSame > 0 && items.length > 0) && (
             <p className="text-[11.5px] text-slate-400">{hiddenSame} more already match your profile and are not shown.</p>
@@ -209,7 +210,7 @@ export default function ProfileSuggestions({ company, draft, text, headline, onB
   );
 }
 
-function Suggestion({ p, onDecide, onEdit, onEditChange, onKeep }) {
+function Suggestion({ p, onDecide, onEdit, onEditChange, onKeep, onCancel }) {
   const meta = KINDS[p.kind] || { label: p.kind, section: "" };
   const tone = p.decision === "approve" ? "border-emerald-200 bg-emerald-50/40"
     : p.decision === "reject" ? "border-slate-100 bg-slate-50 opacity-60" : "border-slate-200 bg-white";
@@ -242,6 +243,8 @@ function Suggestion({ p, onDecide, onEdit, onEditChange, onKeep }) {
               <div className="flex gap-2">
                 <button onClick={() => onKeep(p.id)} disabled={!String(p.edit.value || "").trim()}
                   className="rounded-lg bg-slate-900 px-2.5 py-1 text-[11.5px] font-bold text-white disabled:bg-slate-200">Use this</button>
+                <button onClick={() => onCancel(p.id)} data-edit-cancel
+                  className="rounded-lg border border-slate-200 px-2.5 py-1 text-[11.5px] font-bold text-slate-600 transition hover:border-slate-300">Cancel</button>
               </div>
             </div>
           ) : (

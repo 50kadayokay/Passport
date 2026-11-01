@@ -189,6 +189,24 @@ ok(/saveProfileDraft\(/.test(panel) && !/publishProfileDraft/.test(panel), "appr
 ok(/expectedVersion: start\.version/.test(panel) && /baseFingerprint: start\.version == null \? out\.live_fingerprint : null/.test(panel), "the save is compare-and-set against a fresh load");
 ok(/decision === "approve" && !p\.edit/.test(panel), "only approved (and not mid-edit) changes are saved");
 ok(/data-provenance/.test(panel) && /Line \$\{p\.source\.line\}/.test(panel), "each change shows its quote and line");
+
+console.log("\n  EDIT, CANCEL, USE THIS (S3: Edit had no way out but approving)");
+{
+  const base = { id: "x", kind: "cash", value: "C$3.4 million", date: "2026-09-30", decision: null, edit: null };
+  const editing = { ...S.startEdit(base), edit: { ...S.startEdit(base).edit, value: "C$9.9 million", date: "2026-10-01" } };
+  const cancelled = S.cancelEdit(editing);
+  ok(cancelled.edit === null && cancelled.decision === null && cancelled.value === "C$3.4 million" && cancelled.date === "2026-09-30" && !cancelled.edited,
+     "Cancel discards the edit and leaves an undecided suggestion pending (not approved)");
+  const wasApproved = S.cancelEdit({ ...S.startEdit({ ...base, decision: "approve" }), edit: { ...S.startEdit({ ...base, decision: "approve" }).edit, value: "C$1" } });
+  ok(wasApproved.decision === "approve" && wasApproved.value === "C$3.4 million", "Cancel on a suggestion approved before editing puts back its approval and its value");
+  const rejected = S.cancelEdit(S.startEdit({ ...base, decision: "reject" }));
+  ok(rejected.decision === "reject", "...and a rejected one stays rejected");
+  const kept = S.keepEdit(editing);
+  ok(kept.decision === "approve" && kept.value === "C$9.9 million" && kept.date === "2026-10-01" && kept.edited && kept.edit === null, "Use this takes the edited value and approves it");
+  ok(S.cancelEdit(base) === base, "Cancel with no edit open changes nothing");
+  ok(/onClick=\{\(\) => onCancel\(p\.id\)\}[^>]*data-edit-cancel[\s\S]{0,200}>Cancel<\/button>/.test(panel) && /onCancel=\{cancelEdit\}/.test(panel)
+     && /\? dropEdit\(p\)/.test(panel) && /\? useEdit\(p\)/.test(panel), "the panel's editor has Cancel beside Use this, wired to these steps");
+}
 const cr = fs.readFileSync("src/portal/publish/CreateRelease.jsx", "utf8");
 ok(/can\(company\?\.role \|\| "owner", "editProfileDraft"\) && String\(text \|\| ""\)\.trim\(\) && \(\s*<ProfileSuggestions/.test(cr), "offered only to roles that may edit the profile draft");
 const pd = fs.readFileSync("api/extract-profile-updates.js", "utf8");
