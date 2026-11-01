@@ -35,7 +35,7 @@ section("memory.js listDocuments");
     ok(e && e.code === "documents_unavailable" && /Couldn't load your documents/.test(e.message), `${m}: throws documents_unavailable (was: [] -> "No documents yet")`);
   }
   mode = "ok";
-  const callers = { "src/portal/Documents.jsx": /listDocuments\(companyId\)\s*\.then\([^)]*\)[^]*?\.catch\(\(\) => \{ setLoadErr\(true\)/, "src/console/CompanyMemory.jsx": /listDocuments\(companyId\)\.then\(setDocs\)\.catch\(/, "src/lib/mineiq.js": /listDocuments\(companyId\)\.catch\(/ };
+  const callers = { "src/portal/Documents.jsx": /listDocuments\(companyId\)\s*\.then\([^)]*\)[^]*?\.catch\(\(\) => \{ setLoadErr\(true\)/, "src/console/CompanyMemory.jsx": /listDocuments\(companyId\)\.then\(setDocs\)\.catch\(/, "src/lib/mineiq.js": /listDocuments\(companyId\)\.catch\(|const settle = \(key, p\) => p\.then\([^]*?\(e\) => \{[^]*?settle\("documents", listDocuments\(companyId\)\)/ };   // S1 (afbbd9a) collects the rejection in settle()
   for (const [f, re] of Object.entries(callers)) ok(re.test(fs.readFileSync(f, "utf8")), `caller ${f} handles the throw`);
   const users = fs.readFileSync("src/lib/memory.js", "utf8").match(/listDocuments\(/g).length;
   ok(users === 1, "memory.js itself does not call listDocuments (no hidden caller)");

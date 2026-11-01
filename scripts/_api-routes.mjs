@@ -163,6 +163,16 @@ export const API_ROUTES = [
   // discard are exercised by scripts/profile-draft-live-test.mjs. Before 0072 is
   // applied an admitted caller gets 503 (the database function is missing) --
   // reached only AFTER the role gate.
+  // a06 (S1): AI-proposed profile updates from a release, for the profile-draft
+  // roles (publishers excluded, as for drafts). A random release id reaches the
+  // RLS read only AFTER the guard, which answers "could not be found".
+  { name: "extract-profile-updates", methods: ["POST"], guard: "requireAiCaller(portal_access, profile-draft roles: owner, admin, editor)",
+    source: /requireAiCaller\(req, res, \{\s*label: "extract-profile-updates", feature: "portal_access", roles: DRAFT_ROLES/,
+    req: (c, X) => post({ companyId: c.id[X], updateId: uuid() }),
+    passed: afterGuard(/That release could not be found/),
+    matrix: { "anon": "deny", "companyA>A": "allow", "coadmin>A": "allow", "editor>A": "allow", "admin>B": "allow",
+              "publisher>A": "deny", "staff>A": "deny", "investor>A": "deny", "companyA>B": "deny", "coadmin>B": "deny" } },
+
   { name: "profile-draft", methods: ["POST"], guard: "verifyBearer + my_company_role in (owner, admin, editor) [publish: owner, admin] or platform admin; then 0072 functions re-check",
     source: /const allowed = action === "publish" \? PUBLISH_ROLES : DRAFT_ROLES;[\s\S]*callerIsPlatformAdmin\(token\)/,
     req: (c, X) => post({ action: "load", companyId: c.id[X] }),
