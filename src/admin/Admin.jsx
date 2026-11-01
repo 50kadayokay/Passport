@@ -13,14 +13,17 @@ import { UPDATE_PROMPT, PASSES, promptForPass, QA_PROMPT, CONFERENCE_PROMPT } fr
 import FactCheck, { splitAuditRow } from "./FactCheck.jsx";
 import PressReleases from "./PressReleases.jsx";
 import ProfileEditor from "./ProfileEditor.jsx";
+import { appCompanyUrl } from "./appLinks.js";
 
 const RESERVED = "kingsmen-resources";
 // The canonical public base URL a QR code points at. This is what makes a printed QR
 // PERMANENT — it must never change once codes are printed. If you move to a custom domain,
 // set it (and add a redirect from the old one) BEFORE printing at scale.
-const PASSPORT_BASE = "https://passport-xi-five.vercel.app";
+// Printed QR codes keep the fixed public app origin (see appLinks.js for why
+// on-screen links do not).
+const PRINT_BASE = "https://passport-xi-five.vercel.app";
 // A scanned QR opens the profile in "card" mode (?qr=1) — full profile, no bottom nav.
-const publicUrlFor = (slug) => `${PASSPORT_BASE}/app?c=${encodeURIComponent(slug)}&qr=1`;
+const publicUrlFor = (slug) => `${PRINT_BASE}/app?c=${encodeURIComponent(slug)}&qr=1`;
 const isPublished = (c) => (c.status || "").toLowerCase() === "published";
 
 // Turn a company name into a URL slug — the DB's unique key, so it's also our dedup key.
@@ -1356,7 +1359,7 @@ export default function Admin() {
                       className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-4 py-2.5 text-[14px] font-bold text-slate-600 hover:border-slate-900 hover:text-slate-900">
                       <QrCode size={15} /> QR code
                     </button>
-                    <a href={`${PASSPORT_BASE}/app?c=${encodeURIComponent(sel.slug)}&ipad=1`} target="_blank" rel="noreferrer" title="Full-screen landscape iPad / conference booth view"
+                    <a href={appCompanyUrl(sel.slug, "&ipad=1")} target="_blank" rel="noreferrer" title="Full-screen landscape iPad / conference booth view"
                       className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-4 py-2.5 text-[14px] font-bold text-slate-600 hover:border-slate-900 hover:text-slate-900">
                       <Tablet size={15} /> iPad view <ExternalLink size={13} />
                     </a>
