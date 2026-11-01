@@ -34,11 +34,17 @@ const investor = (await q(`select id from auth.users where email like 'iso-inves
 
 console.log("\n  STATIC");
 ok(scanMigrationSql(MIG).length === 0 && scanMigrationSql(RB).length === 0, "0077 and its rollback contain no database egress");
-const S0 = await state();
+const LIVE = await state();
+let S0 = LIVE;
 const rows0 = (await q(`select count(*)::int n from public.listing_reports`))[0].n;
 try {
   await c.query("begin");
-  console.log("\n  TODAY ON STAGING (0058 applied): the installed app's report is refused");
+  // 0077 is on staging since 2026-11-01: unwind it inside the transaction first, so the
+  // 0058 -> 0077 -> rollback sequence below still starts from 0058. Nothing is committed.
+  if ((await q(`select 1 from pg_policies where schemaname = 'public' and tablename = 'listing_reports' and policyname = 'listing_reports_insert'`)).length) {
+    await q(runnerBody(RB)); S0 = await state();
+  }
+  console.log("\n  0058 STATE (0077 unwound if present): the installed app's report is refused");
   await as("anon");
   let r = await appInsert(null);
   ok(!r.ok && r.code === "42501", "anon insert, as installed builds send it -> refused (this is the break)", r.code);
@@ -81,7 +87,7 @@ try {
 }
 await c.query("reset role").catch(() => {});
 console.log("\n  AFTER ROLLBACK");
-ok((await state()) === S0 && (await q(`select count(*)::int n from public.listing_reports`))[0].n === rows0, "nothing persisted: privileges, policies and rows unchanged");
+ok((await state()) === LIVE && (await q(`select count(*)::int n from public.listing_reports`))[0].n === rows0, "nothing persisted: privileges, policies and rows unchanged");
 await c.end();
 console.log(`\n  listing-reports-compat (0077, staging, rolled back): ${pass} passed, ${fail} failed\n`);
 process.exit(fail ? 1 : 0);
