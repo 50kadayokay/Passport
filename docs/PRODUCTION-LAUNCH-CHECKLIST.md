@@ -1,7 +1,8 @@
 # Production launch checklist: controlled pilot (2026-11-01)
 
-The short version of `docs/PRODUCTION-ROLLOUT-PLAN.md`, which holds the detail (migration table,
-checkpoints, rollback summary). Nothing here has been done in production. Each **[you]** item is an
+The short version of `docs/PRODUCTION-ROLLOUT-PLAN.md`. The plan holds the detail: the ordered
+**Runbook** with exact commands, who runs each step, rollbacks, "never" rules and stop conditions; the
+migration table; and the checkpoints. Nothing here has been done in production. Each **[you]** item is an
 approval or a step only you can take; nothing past "Ready" starts without it.
 
 ## Ready (verified on staging, no production change)
@@ -29,20 +30,23 @@ approval or a step only you can take; nothing past "Ready" starts without it.
    - `STRIPE_WEBHOOK_SECRET`: before 0069b is used. Keep `MESSAGES_INBOUND_SECRET` unchanged.
    - Must NOT be set: `MINEEX_ENV`, `STAGING_*`, any `VITE_*REVALIDATE*`, `PUSH_ENABLED=true`.
 3. **Cron**: confirm outbox-drain and any dispatch cron stay off for the pilot (Phase 6 is separate).
-4. **0077**: confirm it keeps the anonymous listing-report path open for installed 1.3.x apps.
-5. **Push** `portal-work` and **approve the rollout** below. Each production migration run also records
+   The offline proof is `docs/PILOT-DISABLED-DELIVERY.md` (`check:s2-pilot-disabled`).
+4. **Backup** (before step 3 below): confirm a fresh daily backup in Supabase (Database → Backups;
+   Pro). PITR is an optional paid add-on, and a restore is the last resort after rollbacks (Runbook Step 2).
+5. **0077**: confirm it keeps the anonymous listing-report path open for installed 1.3.x apps.
+6. **Push** `portal-work` and **approve the rollout** below. Each production migration run also records
    your approval text (`--approved-by`).
 
-## Rollout (after approval, in this order)
+## Rollout (after approval, in this order; commands in the plan's Runbook)
 
 | Step | What | Stop if |
 |---|---|---|
 | 1 | Deploy API and web (Vercel). New features stay inert until their migrations. | any Checkpoint 1 item fails: Vercel instant rollback, no DB state to undo |
 | 2 | Read-only smoke against the deploy: `production-smoke.mjs --production` (pages, security headers, CSP Report-Only, investor feed/profile, role refusals). | any FAIL |
 | 3 | Phase 3: 0058, 0077, 0061a (runner, one file each). | checkpoint fails: run that file's rollback |
-| 4 | Phase 4: 0062–0066; 0065c by hand (CONCURRENTLY, outside a transaction). | same |
-| 5 | Phase 5: 0068–0078; 0073a by hand; 0071/0072/0076 with capture-on-apply. | same; capture file restores production exactly |
-| 6 | Phase 5b: 0080, 0085–0088, 0090, 0091. | same; never roll back 0071 while 0088 is applied |
+| 4 | Phase 4: 0062–0066; 0065c through the runner's no-transaction mode (CONCURRENTLY). | same; if the runner still refuses 0065c, wait |
+| 5 | Phase 5: 0068–0078; 0073a through the runner's no-transaction mode; 0071/0072/0076 with capture-on-apply. | same; capture file restores production exactly |
+| 6 | Phase 5b: 0080, 0085–0088, 0090, 0091. | same; never roll back 0071 while 0088 is applied, and never run 0059's rollback |
 | 7 | Smoke again plus investor-app checks (feed, profile, send/inbox, listing report); 24 h with no 5xx rise. | any investor-app regression: stop, roll back the last phase |
 | 8 | Open the portal to 2–3 pilot companies (owner accounts). | |
 

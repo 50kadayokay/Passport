@@ -29,14 +29,206 @@ Staging (`jmljfovtfxcdhjmtlnva`) has every migration below applied (0080 and
 - **Rollbacks run in strict reverse order of application.** Never roll back an
   earlier migration while a later one that depends on it is applied (see the
   "Needs" column; 0071 under 0088 is the dangerous case, finding R2).
-- Every migration runs through the guarded runner with an egress check, one file
-  per transaction (CONCURRENTLY index files outside a transaction, one statement
-  at a time).
-  The runner currently targets STAGING only; a production mode (same guards,
-  production DSN supplied by you, never stored) must be built and reviewed
-  first. Not built. **[open]**
+- Every migration runs through the production runner
+  (`scripts/apply-migrations-production.mjs`, S1): one file per run, one
+  transaction per file, an egress check, capture-on-apply for every function the
+  file touches, and a pre/post snapshot diff. The two CONCURRENTLY files (0065c,
+  0073a) also go through the runner, in its no-transaction mode (S1, being
+  added). Until that mode lands, the runner refuses them and the rollout waits
+  at that step; nothing is run by hand. The production DSN is supplied by you
+  and never stored in the repo.
 - After every phase: re-run the read-only audit and diff it against the
   expected state.
+
+## Runbook: the order to run it, and who runs each step
+
+One ordered list for the whole launch. `docs/PRODUCTION-LAUNCH-CHECKLIST.md` is
+the one-page summary of it. **Who:** *you* means the user. Only you hold
+production access, approve, and type every production command. *S4* coordinates,
+holds the staging evidence and reviews each step's output with you. No session
+connects to production.
+
+Shared settings for the commands below (in your own shell, never in chat or git):
+- `PRODUCTION_DSN_FILE`: a file outside the repo, mode 600, holding the production
+  connection string as `postgres`; the runner refuses anything else. Optional:
+  `PRODUCTION_DB_CA_FILE` (Supabase's CA certificate).
+- For the rollback commands, a `pg_service.conf` entry named `mineex_prod` outside
+  the repo, so the connection string never appears on a command line.
+- `SMOKE_INVESTOR_*`, `SMOKE_OWNER_*` and optionally `SMOKE_VIEWER_*`: the
+  production test accounts (gate g07).
+
+### Step 1 · Preconditions (you, with S4)
+Every row of "Phase 0" below passes. `npm test` and the build are green on the
+commit being deployed, and the staging evidence in the launch checklist is
+current.
+
+### Step 2 · Backup (you), before Phase 3
+1. In Supabase, open the production project, then Database → Backups. Confirm the
+   newest daily backup completed and note its time.
+2. **What Pro gives you (as of 2026; confirm on that page):**
+   - **Daily backups** are automatic, kept for 7 days and restored from that page.
+     There is no "back up now" button for them, so a backup "taken just before"
+     Phase 3 means one of two things:
+     - schedule Phase 3 soon after a fresh daily backup has completed; or
+     - also take your own logical dump to storage outside the repo, for
+       example `supabase db dump` or `pg_dump` against the same connection.
+       That is an extra copy, not the restore path Supabase supports.
+   - **Point-in-time recovery (PITR)** is a paid add-on. It needs at least the
+     Small compute size, and it replaces daily backups with restore to any
+     second within its retention (7, 14 or 28 days). It would let a restore land
+     just before the bad step instead of at the last daily backup. Enabling it
+     is your decision and a cost; this plan does not require it.
+3. **A restore is the last resort, after rollbacks.**
+   - Restoring rewinds the whole database. Every investor action after the
+     restore point is lost: sign-ups, follows, messages, listing reports and news
+     processing.
+   - The project is unavailable while it runs.
+   - Use it only if a step's rollback fails or cannot undo the damage, such as
+     data loss outside the step's scope.
+   - Every migration has a verified rollback, and the functions also have
+     capture-on-apply rollbacks, so a rollback is always tried first.
+
+### Step 3 · Phase 1: deploy the API and web (you, in Vercel)
+1. Set the variables under "Environment variables" below that are needed before
+   Phase 1. Leave everything under "Must NOT be set" unset, including
+   `PUSH_ENABLED`.
+2. Push `portal-work` and deploy it to production.
+3. **Checkpoint:**
+
+   ```
+   node scripts/production-smoke.mjs --app <production web URL> --supabase https://rvptronniomlqumjhyrr.supabase.co --production
+   ```
+
+   Then the manual items of Checkpoint 1 below.
+4. **Stop if:** any FAIL, or a 5xx rise. **Rollback:** Vercel instant rollback to
+   the previous deployment. There is no database state to undo.
+
+### Step 4 · Phase 2: native build (you, store review), in parallel
+It has no schema dependency. Checkpoint 2 is below.
+
+### Step 5 · Phases 3 to 5b: migrations, one file at a time (you)
+Run them in the order of "Production migration order" below (28 rows; row 0 is
+never run). For each file:
+1. **Plan (connects to nothing):**
+
+   ```
+   node scripts/apply-migrations-production.mjs
+   ```
+
+   The next step must be this file. Read its "needs", its "capture" line and its
+   checkpoint SQL.
+2. **Apply:**
+
+   ```
+   node scripts/apply-migrations-production.mjs --apply --only <file> --ref=rvptronniomlqumjhyrr --approved-by="<your name, date, and where you approved>"
+   ```
+
+   Type the ref again at the prompt. Before connecting, the runner refuses:
+   - a file that is not the next step;
+   - a file with no rollback;
+   - a file whose functions it cannot capture;
+   - staging, or anything not connected as `postgres`.
+
+   Then, in order:
+   1. It captures production's current function definitions to
+      `supabase/audit/results/apply-capture-<file>-<time>.sql` (gitignored, mode
+      600, never shown).
+   2. It applies the file in one transaction and checks the file's marker inside
+      it.
+   3. It commits, then prints the pre/post diff and logs it to
+      `supabase/production-log/`.
+3. **0065c and 0073a** (CONCURRENTLY) use the same command; the runner runs them
+   in its no-transaction mode (S1). If the runner still refuses them, stop and
+   wait for that mode.
+4. **0058, then 0077,** in the same session, with nothing in between.
+5. **Per-file checkpoint:** the runner's marker reads "applied", and its diff
+   shows only the file's intended objects. Anything else is a stop.
+6. **After the last file of each phase (0061a, 0066, 0078, 0091):**
+   1. Re-run the read-only audit and diff it against the expected state:
+
+      ```
+      PRODUCTION_DATABASE_URL=... node scripts/production-audit-run.mjs --target production supabase/audit/production_readiness_2026_10_31.sql supabase/audit/results/after-phase-<n>.json
+      ```
+
+      Results stay in the gitignored folder.
+   2. Run the smoke command from Step 3.
+   3. Work through the phase's items under "Checkpoints" and "Post-launch smoke list".
+   4. You approve the next phase.
+
+### Step 6 · Smoke and observe (you)
+After 0091: the smoke command, the investor-app checks, and 24 h with no rise in
+5xx or client errors.
+
+### Step 7 · Open the pilot (you)
+Give the portal to 2–3 pilot companies through their owner accounts.
+
+Scheduled delivery, the outbox drain and push stay off throughout; see
+`docs/PILOT-DISABLED-DELIVERY.md`, checked by `check:s2-pilot-disabled`. Phase 6
+needs its own approval.
+
+### Rolling back a migration (you, with S4)
+**Order.** Strictly reverse: only the most recently applied file, then the one
+before it. Never jump past a file that is still applied.
+
+**Commands.** Run from the repo, with the `pg_service.conf` entry:
+- **Every file:** run its committed rollback. The rollback files manage their own
+  transaction, and the two CONCURRENTLY ones run outside one. Do not add `-1`:
+
+  ```
+  psql "service=mineex_prod" -v ON_ERROR_STOP=1 -f supabase/rollbacks/<file>.rollback.sql
+  ```
+
+- **Then, only if the runner wrote a capture file for it:** run that file to put
+  production's own function text back. Functions that did not exist before the
+  migration are left to the committed rollback:
+
+  ```
+  psql "service=mineex_prod" -v ON_ERROR_STOP=1 -f supabase/audit/results/apply-capture-<file>-<time>.sql
+  ```
+
+  Without the capture file, 0071, 0072 and 0076 still restore the same behaviour
+  (R1); only formatting differs.
+
+**Afterwards.**
+1. Check the file's marker reads NOT applied (the runner's plan prints the marker
+   SQL).
+2. Re-run the read-only audit.
+3. Record the rollback in the runner's log, so the plan offers the file again.
+   The runner has no rollback-record mode yet (asked of S1). Until it has one,
+   S4 marks it by hand in `supabase/production-log/` with you, before anything
+   is re-applied.
+
+**Never:**
+- **0071 while 0088 is applied.** Its rollback refuses (R2); roll back 0088 first.
+- **0059's rollback, in production, ever.** 0059 is already applied there (it is
+  not in the list), and its rollback drops `on_auth_user_created`, which would
+  break investor sign-up.
+- **0000_baseline.** Never run; it has no rollback.
+- **0067's rollback.** It is already applied and cascades Conference Mode
+  removal; it is not part of this rollout.
+- **A lossy rollback without a decision.** The Rollback column marks them (for
+  example 0072 drops unpublished drafts). Before running one, decide with S4
+  whether the loss is acceptable or a forward fix is better.
+
+### Stop conditions (any one: stop, do not continue, tell S4)
+- **The runner refuses, errors or is interrupted.** Nothing more runs until
+  `--reviewed <file>` is recorded after inspection.
+- **Capture-on-apply fails.** The runner applies nothing; leave it that way.
+- **The marker** does not read "applied" after commit, or the pre/post diff
+  shows anything outside the file's intended change.
+- **The read-only audit** after a phase differs from the expected state.
+- **Any smoke failure, or any investor-app regression.** That covers feed,
+  profile, follow, messaging, listing report and sign-up (exactly one profile).
+- **A rise in API 5xx** or client error reports.
+- **Any data change outside the step's scope.**
+- **Anything about delivery.** A website revalidate call, a push, or a scheduled
+  job appears that `docs/PILOT-DISABLED-DELIVERY.md` says cannot happen.
+
+On a stop:
+1. Roll back that file (above), or the deploy for Phase 1.
+2. Re-run the audit.
+3. Report before doing anything else.
+4. Restoring a backup comes only after rollbacks (Step 2).
 
 ## Deploy order
 
@@ -215,7 +407,7 @@ The following have safe defaults, so set them only to override: `AI_MODEL_ASK`, 
 - `news-notify`
 - `news-push-send` (inert while `PUSH_ENABLED` is off)
 
-No dispatch cron is added by this rollout.
+No dispatch cron is added by this rollout. The proof, with `file:line` evidence, is `docs/PILOT-DISABLED-DELIVERY.md` (`check:s2-pilot-disabled`, in `npm test`).
 
 **pg_cron.** The audit (Q15) found it absent in production. The `outbox-drain` job (0011, deferred) does not exist there and **stays inactive until it is explicitly approved**:
 - No migration in the list schedules a job.
