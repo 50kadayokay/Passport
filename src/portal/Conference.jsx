@@ -32,7 +32,7 @@ import {
   Layers, CheckCircle2, Clock,
 } from "lucide-react";
 import {
-  conferenceEntitlement, STATE, boothUrl, boothLook, qrTarget, qrSvg,
+  conferenceEntitlement, STATE, boothUrl, boothLook, fetchBoothRecord, qrTarget, qrSvg,
   qrPngDataUrl, placardSvg, download, qrFilename, placardFilename,
   submitConferenceRequest, markRequested, requestedAt,
 } from "../lib/conference.js";
@@ -399,7 +399,13 @@ function QrPanel({ company }) {
 
 function ManageState({ company, companyId, hideHeading }) {
   const slug = company?.slug || "";
-  const look = boothLook(company);
+  const [record, setRecord] = useState(null);
+  useEffect(() => {
+    let live = true;
+    fetchBoothRecord(companyId).then((r) => { if (live) setRecord(r); });
+    return () => { live = false; };
+  }, [companyId]);
+  const look = boothLook(company, record);
   const [copied, setCopied] = useState(false);
 
   const copy = async () => {
@@ -449,7 +455,9 @@ function ManageState({ company, companyId, hideHeading }) {
               <div>
                 <dt className="text-[11.5px] text-slate-400">Status</dt>
                 <dd className="mt-0.5 inline-flex items-center gap-1.5 text-[14.5px] font-bold text-slate-900">
-                  {look.chosen
+                  {look.published
+                    ? <>Live on booths</>
+                    : look.chosen
                     ? <>Configured</>
                     : <><Clock size={13} className="text-amber-500" /> Using defaults</>}
                 </dd>

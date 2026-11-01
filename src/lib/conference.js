@@ -81,15 +81,51 @@ export const BOOTH_ORIGIN = "https://mineex.ca";
     which would hand a localhost or preview URL to someone at a trade show. */
 export const boothUrl = (slug) => `${BOOTH_ORIGIN}/conference?c=${encodeURIComponent(slug || "")}`;
 
-/** The company's saved booth look, with the booth's own fallbacks. */
-export function boothLook(company) {
-  const studio = (company?.profile && company.profile.conference && company.profile.conference.studio) || {};
+/** The company's saved booth look, with the booth's own fallbacks. A published
+    record (a17, below) is what booths actually run, so it wins when present. */
+export function boothLook(company, record = null) {
+  const studio = (record && record.studio)
+    || (company?.profile && company.profile.conference && company.profile.conference.studio) || {};
   return {
     template: studio.template || DEFAULTS.template,
     theme: studio.theme || DEFAULTS.theme,
     accent: studio.accent || "",
     chosen: !!(studio.template || studio.theme),   // false = still on defaults
+    published: record ? { version: record.version, at: record.published_at } : null,
   };
+}
+
+/* ── the published booth look (a17, migration 0085) ──────────────────────────
+
+   Conference Studio publishes a company's look to `conference_booth_configs`;
+   booths fetch it through /api/conference-config and cache it (see
+   src/conference/liveConfig.js). Members read their own row (RLS); only
+   platform admins write. A missing table (0085 not applied) reads as "not
+   published" -- booths then run their compiled package, as they always have. */
+
+export async function fetchBoothRecord(companyId) {
+  if (!companyId) return null;
+  try {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/conference_booth_configs?company_id=eq.${companyId}` +
+      "&select=studio,version,published_at&limit=1", { headers: await authHeaders() });
+    if (!r.ok) return null;
+    return (await r.json().catch(() => []))[0] || null;
+  } catch { return null; }
+}
+
+/** Platform admins only (RLS refuses everyone else). Returns the stored row. */
+export async function publishBoothLook(companyId, { template, theme, accent }) {
+  guardDemoWrite("Publishing a booth look");
+  const r = await fetch(`${SUPABASE_URL}/rest/v1/conference_booth_configs?on_conflict=company_id`, {
+    method: "POST",
+    headers: { ...(await authHeaders()), "content-type": "application/json", Prefer: "resolution=merge-duplicates,return=representation" },
+    body: JSON.stringify({ company_id: companyId, studio: { template, theme, accent: accent || "" } }),
+  });
+  if (!r.ok) {
+    if (r.status === 404) throw new Error("Booth publishing is not enabled on this deployment (migration 0085).");
+    throw new Error(`The booth look could not be published (${r.status}).`);
+  }
+  return (await r.json().catch(() => []))[0] || null;
 }
 
 /* ── QR artwork ───────────────────────────────────────────────────────────── */
