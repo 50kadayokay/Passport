@@ -63,6 +63,10 @@ const grantState = async () => JSON.stringify(await q(`select grantee, privilege
   where grantee in ('anon', 'authenticated') order by 1, 2, 3`));
 const grantsBefore = await grantState();
 await c.query("begin");
+// If 0093 (rate limit) is on staging, lift its limits inside this transaction:
+// this check probes grants and policy with many inserts, not the rate limit
+// (that is listing-reports-0093-check.mjs). Rolled back with everything else.
+if ((await q(`select to_regclass('public.listing_report_limits') t`))[0].t) await q(`update public.listing_report_limits set per_client = 100000, global_per_window = 100000`);
 try {
   const hasAnonPolicy = async () => (await q(`select 1 from pg_policies where schemaname = 'public' and tablename = 'listing_reports' and 'anon' = any(roles)`)).length > 0;
   if (!(await hasAnonPolicy())) { await q(runnerBody(MIG)); console.log("  (0077 is not on staging: applied inside the transaction)"); }
@@ -72,11 +76,13 @@ try {
   const priv = async (role) => Object.fromEntries((await q(`select p, has_table_privilege($1, 'public.listing_reports', p) h from unnest(array['SELECT','INSERT','UPDATE','DELETE','TRUNCATE','REFERENCES','TRIGGER']) p`, [role])).map((r) => [r.p, r.h]));
   for (const role of ["anon", "authenticated"]) {
     const p = await priv(role);
-    ok(p.INSERT && Object.entries(p).every(([k, v]) => k === "INSERT" || !v), `${role}: INSERT and nothing else on listing_reports`, JSON.stringify(p));
+    // After 0092 the INSERT is per column (the six the app sends), so the table-level check is false.
+    const colIns = (await q(`select has_column_privilege($1, 'public.listing_reports', 'company_slug', 'INSERT') h`, [role]))[0].h;
+    ok((p.INSERT || colIns) && Object.entries(p).every(([k, v]) => k === "INSERT" || !v), `${role}: INSERT (table or 0092's columns) and nothing else on listing_reports`, JSON.stringify({ ...p, colIns }));
   }
   const pols = await q(`select policyname, cmd, roles::text r from pg_policies where schemaname = 'public' and tablename = 'listing_reports'`);
   ok(pols.length === 1 && pols[0].cmd === "INSERT", "one policy, INSERT only: no SELECT/UPDATE/DELETE policy exists", JSON.stringify(pols));
-  ok((await q(`select 1 from pg_trigger where tgrelid = 'public.listing_reports'::regclass and not tgisinternal`)).length === 0, "no trigger on listing_reports (an insert sets nothing else in motion)");
+  ok((await q(`select 1 from pg_trigger where tgrelid = 'public.listing_reports'::regclass and not tgisinternal and tgname <> 'listing_reports_guard'`)).length === 0, "no trigger on listing_reports apart from 0093's rate-limit guard (an insert sets nothing else in motion)");
 
   console.log("\n  THE INSTALLED BUILD'S REPORT");
   let r = await anon(APP_INSERT, appRow());
