@@ -51,9 +51,12 @@ Spend and kill switches, off by default: `AI_PAID_ENABLED` (website builder; no 
 `FCM_*` and `APNS_*` are push
 credentials; harmless while `PUSH_ENABLED` is off. `VERCEL_URL` and `VERCEL_REGION` are set by Vercel.
 
-## D. No longer read (remove only after Phase 1 is confirmed)
+## D. Investor Briefs generator (prod-v1.3.2)
 
-`MINEEX_BRIEF_API_KEY`, `MINEEX_BRIEF_MODEL`.
+`MINEEX_BRIEF_API_KEY` (and optional `MINEEX_BRIEF_MODEL`) power `/api/brief-generate`, the portal's
+Investor Briefs page. Absent in production today, so that page answers "not configured". Set it only if
+the pilot should generate Briefs; the route sits behind the shared AI guard (drafting roles, rate limits,
+daily spend cap).
 
 ## E. Production as seen in Vercel (names only, 2026-11-01, from the user's screenshots)
 

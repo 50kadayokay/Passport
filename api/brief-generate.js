@@ -10,7 +10,7 @@
 // Authorization + account separation reuse requireFeature() (verifies the session AND that this user
 // may act for this company), exactly like comms-generate.js.
 
-import { requireFeature } from "./_entitlement.js";
+import { requireAiCaller, DRAFTING_ROLES } from "./_aiGuard.js";
 import { generateBrief, briefToV2, BRIEF_MODEL } from "./_briefGen.js";
 import { validateBrief } from "./_briefValidate.js";
 
@@ -18,7 +18,6 @@ function bad(res, code, msg) { res.status(code).json({ error: msg }); }
 
 export default async function handler(req, res) {
   if (req.method !== "POST") return bad(res, 405, "Method not allowed");
-  if (!process.env.MINEEX_BRIEF_API_KEY) return bad(res, 500, "Server not configured: MINEEX_BRIEF_API_KEY is missing.");
 
   let body = req.body;
   if (typeof body === "string") { try { body = JSON.parse(body); } catch { return bad(res, 400, "Invalid JSON body"); } }
@@ -27,9 +26,12 @@ export default async function handler(req, res) {
   if (!companyId) return bad(res, 400, "companyId is required.");
   if (!sourceText || String(sourceText).trim().length < 40) return bad(res, 400, "Provide the press-release text (at least a short paragraph).");
 
-  // Server-side authz + strict company separation (same gate the comms engine uses).
-  const auth = await requireFeature(req, res, { companyId, feature: "communications_center" });
+  // Server-side authz + strict company separation, through the shared AI guard like comms-generate:
+  // sign-in, entitlement, drafting role, per-user/company rate limits and the daily spend cap.
+  const auth = await requireAiCaller(req, res, { label: "brief-generate", feature: "communications_center", roles: DRAFTING_ROLES });
   if (!auth) return;
+  // After the guard, so an unauthorised caller learns nothing about configuration.
+  if (!process.env.MINEEX_BRIEF_API_KEY) return bad(res, 500, "Server not configured: MINEEX_BRIEF_API_KEY is missing.");
 
   const model = process.env.MINEEX_BRIEF_MODEL || BRIEF_MODEL();
   try {

@@ -39,7 +39,9 @@ const SB = (iso.ISOLATION_SUPABASE_URL || "").replace(/\/+$/, ""), ANON = iso.IS
 if (!SB || /rvptronniomlqumjhyrr/.test(SB) || !/jmljfovtfxcdhjmtlnva/.test(SB)) { console.error("  refusing: not the staging project"); process.exit(2); }
 if (!SERVICE) { console.error("  STAGING_SUPABASE_SERVICE_ROLE_KEY missing from supabase/staging/.api-env"); process.exit(3); }
 const STAGING_HOST = new URL(SB).host;
-const CLIENT_DEFAULT_HOST = "rvptronniomlqumjhyrr.supabase.co";   // rewritten, never contacted
+// The client's default when VITE_SUPABASE_URL is unset: the non-production .invalid host since
+// 2026-11-01 (src/lib/supabase.js), formerly the production project. Both are rewritten, never contacted.
+const CLIENT_DEFAULT_HOSTS = new Set(["supabase-url-not-configured.invalid", "rvptronniomlqumjhyrr.supabase.co"]);
 const A = iso.ISOLATION_COMPANY_A_ID, B_SLUG = iso.ISOLATION_COMPANY_B_SLUG, A_SLUG = iso.ISOLATION_COMPANY_A_SLUG;
 const MARK = "[d23-live]";
 
@@ -75,7 +77,7 @@ globalThis.fetch = async (input, init = {}) => {
     return r;
   }
   const u = new URL(raw);
-  if (u.host === CLIENT_DEFAULT_HOST) {
+  if (CLIENT_DEFAULT_HOSTS.has(u.host)) {
     // Host AND the client's built-in publishable key: both name the default
     // project, so both are swapped for staging's. The user's own bearer token
     // (a staging session) is left exactly as the client set it.

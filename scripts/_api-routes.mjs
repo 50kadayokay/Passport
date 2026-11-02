@@ -75,6 +75,11 @@ export const API_ROUTES = [
     passed: okOrProvider, matrix: DRAFT },
 
   // ------------------------------------------------------- requireFeature ---
+  // prod-v1.3.2 (Investor Briefs). Its key check answers 500 "not configured" first when
+  // MINEEX_BRIEF_API_KEY is unset (staging), which never reaches a provider; the guard is pinned by source.
+  { name: "brief-generate", methods: ["POST"], guard: "requireAiCaller(communications_center, drafting roles)", source: aiGuardPin("brief-generate", ', feature: "communications_center", roles: DRAFTING_ROLES \\}'),
+    req: (c, X) => post({ companyId: c.id[X], sourceText: "Iso Alpha Resources announces drilling results from its flagship project, with several intercepts." }),
+    passed: (r) => okOrProvider(r) || (r.status === 500 && /MINEEX_BRIEF_API_KEY/.test(JSON.stringify(r.body || ""))), matrix: DRAFT },
   { name: "comms-generate", methods: ["POST"], guard: "requireAiCaller(communications_center, drafting roles)", source: aiGuardPin("comms-generate", ', feature: "communications_center", roles: DRAFTING_ROLES \\}'),
     req: (c, X) => post({ companyId: c.id[X], update: "Iso drill program begins.", destinations: ["passport"] }),
     passed: okOrProvider, matrix: DRAFT },
