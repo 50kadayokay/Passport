@@ -22,14 +22,14 @@ const F = "0093_listing_reports_rate_limit";
 const MIG = read(`supabase/migrations/${F}.sql`), RB = read(`supabase/rollbacks/${F}.rollback.sql`);
 const m = code(MIG), rb = code(RB);
 const fn = (name) => (new RegExp(`create or replace function public\\.${name}\\([\\s\\S]*?\\$\\$;`).exec(m) || [""])[0];
-const guard = fn("listing_reports_guard"), ipfn = fn("listing_report_client_ip"), netfn = fn("listing_report_network"), keyfn = fn("listing_report_key");
+const guard = fn("listing_reports_guard"), ipfn = fn("listing_report_client_ip"), netfn = fn("listing_report_network"), keyfn = fn("listing_report_key"), canfn = fn("listing_report_canonical_ip");
 
 console.log("\n  SHAPE");
 ok(/^begin;$/m.test(MIG) && /^commit;$/m.test(MIG) && !!runnerBody(MIG) && !!runnerBody(RB), "migration and rollback are one transaction each (the runner accepts them)");
 ok(scanMigrationSql(MIG).length === 0 && scanMigrationSql(RB).length === 0, "no database egress in either");
 ok(/create trigger listing_reports_guard\s+after insert on public\.listing_reports\s+referencing new table as new_rows\s+for each statement execute function public\.listing_reports_guard\(\);/.test(m),
   "ONE statement-level AFTER INSERT trigger with the statement's rows as a transition table (runs once per request, sees every row)");
-ok([guard, ipfn, keyfn].every((f) => f && /security definer set search_path = public, pg_temp/.test(f)) && netfn && /immutable set search_path = public, pg_temp/.test(netfn), "the guard and helpers are security definer (the network helper: pure, immutable) with search_path public, pg_temp");
+ok([guard, ipfn, keyfn].every((f) => f && /security definer set search_path = public, pg_temp/.test(f)) && [netfn, canfn].every((f) => f && /immutable set search_path = public, pg_temp/.test(f)), "the guard and helpers are security definer (the network helper: pure, immutable) with search_path public, pg_temp");
 
 console.log("\n  WHO IS LIMITED");
 ok(/v_role\s+text := coalesce\(nullif\(current_setting\('request\.jwt\.claims', true\), ''\)::json ->> 'role',\s*current_setting\('role', true\)\);/.test(guard), "the request role: PostgREST's claims, else the session's role");
@@ -66,7 +66,10 @@ ok(/j ->> 'cf-connecting-ip'/.test(ipfn) && ipfn.indexOf("cf-connecting-ip") < i
 ok(/string_to_array\(coalesce\(j ->> 'x-forwarded-for', ''\), ','\)/.test(ipfn) && /hops\[array_length\(hops, 1\)\]/.test(ipfn) && !/split_part|hops\[1\]/.test(ipfn), "fallback: the LAST x-forwarded-for hop (the gateway appends the real one), never the first");
 ok(!/x-real-ip|true-client-ip/.test(ipfn) && !/x-real-ip|true-client-ip/.test(guard), "x-real-ip and true-client-ip are never read");
 ok((ipfn.match(/regexp_replace\([^\n]*'\^\\s\+\|\\s\+\$', '', 'g'\)/g) || []).length === 2 && !/btrim\(/.test(ipfn), "every candidate is trimmed of all surrounding whitespace (tabs, newlines), not just spaces");
-ok(/if family\(v\) = 6 and v <<= '::ffff:0:0\/96'::inet then\s*v := '0\.0\.0\.0'::inet \+ \(v - '::ffff:0\.0\.0\.0'::inet\);/.test(netfn), "an IPv4-mapped IPv6 address is converted to IPv4 before grouping (S2: its /48 would be all of IPv4)");
+const UNMAP = /if family\(v\) = 6 and v <<= '::ffff:0:0\/96'::inet then\s*v := '0\.0\.0\.0'::inet \+ \(v - '::ffff:0\.0\.0\.0'::inet\);/;
+ok(UNMAP.test(netfn), "network: an IPv4-mapped IPv6 address is converted to IPv4 before grouping (its /48 would be all of IPv4)");
+ok(UNMAP.test(canfn) && /return host\(v\);/.test(canfn) && /exception when others then return p_ip;/.test(canfn), "client key: the same unmapping, and one normalized text form per address (a non-address is left as it is)");
+ok(/v_ip  := public\.listing_report_canonical_ip\(public\.listing_report_client_ip\(\)\);/.test(guard), "the guard keys the client and its network on the canonical address");
 ok(/begin v := p_ip::inet; exception when others then return null; end;/.test(netfn) && /set_masklen\(v, case when family\(v\) = 4 then 24 else 48 end\)/.test(netfn), "network: /24 for IPv4, /48 for IPv6; not an address -> none");
 ok(/case p_kind when 'network' then 'ln:' else 'lr:' end/.test(keyfn) && /left\(encode\(sha256\(convert_to\(s\.salt \|\| case p_kind when 'network' then '\|net\|' else '\|' end \|\| p_value, 'UTF8'\)\), 'hex'\), 32\)/.test(keyfn), "stored keys: 'lr:' / 'ln:' + 32 hex of SHA-256(salt | value)");
 ok(/values \(true, replace\(gen_random_uuid\(\)::text \|\| gen_random_uuid\(\)::text, '-', ''\)\)/.test(m), "the salt is generated in the migration (two v4 UUIDs, core PostgreSQL)");
@@ -76,7 +79,7 @@ console.log("\n  NOTHING NEW TO READ");
 for (const t of ["listing_report_limits", "submission_throttle_salt"]) {
   ok(new RegExp(`alter table public\\.${t} enable row level security;`).test(m) && new RegExp(`revoke all on public\\.${t} from public, anon, authenticated;`).test(m) && !new RegExp(`create policy[^;]*${t}`).test(m), `${t}: RLS on, no policy, no client grant`);
 }
-for (const f of ["listing_report_client_ip\\(\\)", "listing_report_network\\(text\\)", "listing_report_key\\(text, text\\)", "listing_reports_guard\\(\\)"]) ok(new RegExp(`revoke all on function public\\.${f} from public, anon, authenticated;`).test(m), `${f.replace(/\\/g, "")}: not executable by clients`);
+for (const f of ["listing_report_client_ip\\(\\)", "listing_report_canonical_ip\\(text\\)", "listing_report_network\\(text\\)", "listing_report_key\\(text, text\\)", "listing_reports_guard\\(\\)"]) ok(new RegExp(`revoke all on function public\\.${f} from public, anon, authenticated;`).test(m), `${f.replace(/\\/g, "")}: not executable by clients`);
 ok(!/grant /i.test(m) && !/listing_reports_insert|alter policy|drop policy/.test(m), "no grant anywhere, and 0077's policy / 0092's grants untouched");
 
 console.log("\n  REFUSALS THE INSTALLED APP SHOWS");
@@ -89,7 +92,7 @@ ok(/if \(r\.status !== 404 && r\.status < 500\) \{ setState\("error"\); return; 
 
 console.log("\n  ROLLBACK");
 for (const [what, re] of [["the trigger", /drop trigger if exists listing_reports_guard on public\.listing_reports;/], ["the guard", /drop function if exists public\.listing_reports_guard\(\);/],
-  ["the helpers", /drop function if exists public\.listing_report_key\(text, text\);\s*drop function if exists public\.listing_report_network\(text\);\s*drop function if exists public\.listing_report_client_ip\(\);/],
+  ["the helpers", /drop function if exists public\.listing_report_key\(text, text\);\s*drop function if exists public\.listing_report_network\(text\);\s*drop function if exists public\.listing_report_canonical_ip\(text\);\s*drop function if exists public\.listing_report_client_ip\(\);/],
   ["the salt table", /drop table if exists public\.submission_throttle_salt;/], ["the limits table", /drop table if exists public\.listing_report_limits;/], ["its counters only", /delete from public\.submission_throttle where form in \('listing_report_db_global', 'listing_report_db_network', 'listing_report_db_client'\);/]]) ok(re.test(rb), `rollback removes ${what}`);
 ok(!/submission_throttle[^_]/.test(rb.replace(/delete from public\.submission_throttle where form in[^;]*;/, "")) && !/drop table if exists public\.submission_throttle;/.test(rb), "...and leaves 0057's table and /api/submit's counters alone");
 
@@ -111,6 +114,7 @@ for (const [label, re] of [
   ["window reset", /window reset: with the counter moved into the previous window/],
   ["per-client separation", /per-client separation/],
   ["the per-network limit", /a NEW address in that \/24 -> refused PT429/],
+  ["IPv4-mapped: 25 /24s are 25 networks; one client key", /25 IPv4-mapped clients from 25 different \/24s are 25 network buckets[\s\S]*alternating the two forms shares one limit/],
   ["the last-hop fallback", /the LAST x-forwarded-for hop/],
   ["a forged first hop never changes the bucket", /a forged FIRST hop \(or extra hops\) never changes the bucket/],
   ["true-client-ip and x-real-ip ignored", /true-client-ip and x-real-ip are never read/],

@@ -72,11 +72,11 @@ const report = (who, slug = TAG) => attempt(who, APP, [slug, who.uid || null]);
 const cf = (n, net) => ({ headers: { "cf-connecting-ip": ip(n, net) } });
 // What the guard would key on, for a given set of headers (as postgres, which may call the helpers).
 const ipFor = async (headers) => { await c.query(`select set_config('request.headers', $1, true)`, [JSON.stringify(headers)]); const r = (await q(`select public.listing_report_client_ip() a`))[0].a; await c.query(`select set_config('request.headers', '', true)`); return r; };
-const keyFor = async (headers) => (await q(`select public.listing_report_key('client', coalesce($1, 'unknown')) k`, [await ipFor(headers)]))[0].k;
+const keyFor = async (headers) => (await q(`select public.listing_report_key('client', coalesce(public.listing_report_canonical_ip($1), 'unknown')) k`, [await ipFor(headers)]))[0].k;
 const netOf = async (addr) => (await q(`select public.listing_report_network($1) n`, [addr]))[0].n;
 const state = async () => JSON.stringify({
   triggers: await q(`select tgname from pg_trigger where tgrelid = 'public.listing_reports'::regclass and not tgisinternal order by 1`),
-  fns: await q(`select p.proname from pg_proc p where p.pronamespace = 'public'::regnamespace and p.proname in ('listing_reports_guard', 'listing_report_client_ip', 'listing_report_network', 'listing_report_key', 'listing_report_client_key') order by 1`),
+  fns: await q(`select p.proname from pg_proc p where p.pronamespace = 'public'::regnamespace and p.proname in ('listing_reports_guard', 'listing_report_client_ip', 'listing_report_canonical_ip', 'listing_report_network', 'listing_report_key', 'listing_report_client_key') order by 1`),
   tables: await q(`select c.relname from pg_class c where c.relnamespace = 'public'::regnamespace and c.relname in ('listing_report_limits', 'submission_throttle_salt') order by 1`),
   counters: (await q(`select count(*)::int n from public.submission_throttle where form in ${FORMS}`))[0].n,
   grants: await q(`select grantee, privilege_type from information_schema.role_table_grants where table_schema = 'public' and table_name = 'listing_reports' and grantee in ('anon','authenticated') order by 1, 2`),
@@ -141,6 +141,20 @@ try {
   ok((await netOf("2001:db8:aa:1::5")) === "2001:db8:aa::/48" && (await netOf("2001:db8:aa:ffff::9")) === "2001:db8:aa::/48" && (await netOf("2001:db8:ab::1")) === "2001:db8:ab::/48", "IPv6 is grouped by /48");
   ok((await netOf("not-an-address")) === null && (await netOf(null)) === null, "a non-address has no network (only the client and global limits apply)");
   ok((await netOf("::ffff:198.51.100.7")) === "198.51.100.0/24" && (await netOf("::ffff:198.51.101.7")) === "198.51.101.0/24", "an IPv4-mapped IPv6 address is grouped as its IPv4 /24 (not one bucket for all of ::ffff:0:0/96)");
+  {
+    // 25 different IPv4 /24s, all arriving IPv4-mapped: 25 networks, not one.
+    const nets = new Set();
+    for (let i = 0; i < 25; i++) nets.add(await netOf(`::ffff:198.51.${130 + i}.9`));
+    ok(nets.size === 25, "25 IPv4-mapped clients from 25 different /24s are 25 network buckets (not one shared /48)", `${nets.size}`);
+  }
+  ok((await keyFor({ "cf-connecting-ip": "::ffff:198.51.100.77" })) === (await keyFor({ "cf-connecting-ip": "198.51.100.77" })), "the client key unmaps too: ::ffff:a.b.c.d and a.b.c.d are ONE client bucket");
+  await q(`update public.listing_report_limits set per_client = 2, per_network = 1000`);
+  r = await report({ headers: { "cf-connecting-ip": "::ffff:198.51.100.88" } });
+  const r2m = await report({ headers: { "cf-connecting-ip": "198.51.100.88" } });
+  const r3m = await report({ headers: { "cf-connecting-ip": "::ffff:198.51.100.88" } });
+  ok(r.ok && r2m.ok && !r3m.ok && r3m.code === "PT429", "...so alternating the two forms shares one limit (2 allowed, the 3rd refused)", `${r.ok}/${r2m.ok}/${r3m.code}`);
+  ok((await q(`select public.listing_report_canonical_ip('2001:DB8:0:0::1') a, public.listing_report_canonical_ip('not-an-ip') b`))[0].a === "2001:db8::1", "any other address is normalized (one text form per address); a non-address is left as it is");
+  await q(`update public.listing_report_limits set per_client = 3, per_network = 1000`);
   await q(`update public.listing_report_limits set per_client = 1000, per_network = 4`);
   for (let i = 0; i < 4; i++) { r = await report(cf(60 + i, 102)); ok(r.ok, `network 198.51.102.0/24, address ${i + 1} -> stored`, r.msg); }
   r = await report(cf(99, 102));
@@ -207,7 +221,7 @@ try {
     const res = [];
     for (const s of [
       `select * from public.submission_throttle limit 1`, `select * from public.listing_report_limits`, `select * from public.submission_throttle_salt`,
-      `select public.listing_report_client_ip()`, `select public.listing_report_key('client', 'x')`, `select public.listing_report_network('198.51.100.1')`, `select * from public.listing_reports limit 1`,
+      `select public.listing_report_client_ip()`, `select public.listing_report_key('client', 'x')`, `select public.listing_report_network('198.51.100.1')`, `select public.listing_report_canonical_ip('198.51.100.1')`, `select * from public.listing_reports limit 1`,
     ]) res.push(await attempt({ ...cf(40), role, uid: role === "authenticated" ? inv : null }, s));   // one connection: one at a time
     ok(res.every((x) => !x.ok && x.code === "42501"), `${role}: cannot read the throttle, the limits or the salt, cannot call any helper, and still cannot read reports (all 42501)`, res.map((x) => x.code).join(","));
   }
