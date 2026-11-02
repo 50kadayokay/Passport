@@ -54,3 +54,22 @@ credentials; harmless while `PUSH_ENABLED` is off. `VERCEL_URL` and `VERCEL_REGI
 ## D. No longer read (remove only after Phase 1 is confirmed)
 
 `MINEEX_BRIEF_API_KEY`, `MINEEX_BRIEF_MODEL`.
+
+## E. Production as seen in Vercel (names only, 2026-11-01, from the user's screenshots)
+
+- Present for Production: `SUBMISSION_SALT`, `DISPATCH_SECRET`, `SUPABASE_SERVICE_ROLE_KEY`,
+  `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `STRIPE_SECRET_KEY`,
+  `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_BASIC`, `STRIPE_PRICE_PRO`, `POSTMARK_SERVER_TOKEN` (Vercel shows
+  "Needs Attention"), `MESSAGES_FROM_EMAIL`, `CRON_SECRET`, `NEWS_PULL_SECRET`, `JINA_API_KEY`,
+  `NEWS_CRON_PROCESS_LIMIT`, `NEWS_CHAIN_LIMIT`, `AI_PAID_ENABLED`, `AI_DAILY_USD_LIMIT`,
+  `NEWS_AUTOCREATE_ENABLED`, `NEWS_AUTO_APPROVE_ENABLED`, `FCM_*`, `APNS_*`.
+- Absent, as required: `MINEEX_ENV`, `STAGING_*`, any secret `VITE_*`. `PUSH_ENABLED` exists for Preview only.
+- To add: `SITE_REVALIDATE_SECRET`.
+- Absent, acceptable for the pilot: `POSTMARK_INBOUND_HASH` (investor messages are not emailed to the company;
+  they appear in the portal inbox), `MESSAGES_INBOUND_SECRET` (inbound email replies refused with 503, fail
+  closed), `CONTACT_TO` / `CONFERENCE_INQUIRY_TO` (default support@mineex.ca), `EODHD_API_KEY` (manual
+  market pull only), `NEWS_PROXY_URL`.
+- Values unknown, existing behaviour, confirm intended: `AI_PAID_ENABLED` (website builder paid AI, capped by
+  `AI_DAILY_USD_LIMIT`), `NEWS_AUTOCREATE_ENABLED`, `NEWS_AUTO_APPROVE_ENABLED`.
+- Preview scope holds production `SUPABASE_SERVICE_ROLE_KEY`, `DISPATCH_SECRET`, Supabase URL and anon key:
+  turn preview builds off before any push (checklist 3b).
