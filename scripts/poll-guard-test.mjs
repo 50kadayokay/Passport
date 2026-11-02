@@ -7,9 +7,11 @@
 //      native apps). Dev, --mode development, a local `vite preview` on http,
 //      and plain node get an unresolvable host. An explicit VITE_SUPABASE_URL
 //      always wins; the staging tripwire is unchanged.
-//   2. Real Vite builds (env unset): the development bundle contains neither the
+//   2. Real Vite builds (env unset): the development bundle AND a Vercel-preview
+//      build (VERCEL_ENV=preview, production mode) contain neither the
 //      production origin nor its publishable key as a value; the production
-//      bundle still does (the control).
+//      bundle still does (the control). api/_supabase.js: the production default
+//      only with VERCEL_ENV=production.
 //   3. The portal's background polls (lib/portalBadges.js, Messages.jsx): no
 //      request without a session; a 401/403 stops them for good; a 5xx does not.
 // Nothing here reaches a network: fetch answers from a stub, builds are local.
@@ -76,7 +78,20 @@ for (const [label, opts, want] of [
 }
 delete globalThis.location;
 const vc = fs.readFileSync("vite.config.js", "utf8");
-ok(/__MINEEX_PRODUCTION_BUILD__: JSON\.stringify\(command === "build" && mode === "production"\)/.test(vc), "vite.config.js defines __MINEEX_PRODUCTION_BUILD__ true only for `vite build` in production mode");
+ok(/__MINEEX_PRODUCTION_BUILD__: JSON\.stringify\(productionDefault\(command, mode\)\)/.test(vc), "vite.config.js defines __MINEEX_PRODUCTION_BUILD__ from productionDefault()");
+{
+  const { productionDefault } = await import("../vite.config.js");
+  for (const [label, args, want] of [
+    ["Vercel PRODUCTION deploy (VERCEL_ENV=production)", ["build", "production", "production"], true],
+    ["Vercel PREVIEW deploy (production mode, VERCEL_ENV=preview)", ["build", "production", "preview"], false],
+    ["Vercel development (VERCEL_ENV=development)", ["build", "production", "development"], false],
+    ["an unknown VERCEL_ENV", ["build", "production", "staging-ish"], false],
+    ["local `vite build`, no VERCEL_ENV (the native apps)", ["build", "production", undefined], true],
+    ["local `vite build --mode development`", ["build", "development", undefined], false],
+    ["`vite` dev server", ["serve", "development", undefined], false],
+    ["`vite` dev server on Vercel production env", ["serve", "production", "production"], false],
+  ]) ok(productionDefault(...args) === want, `${label}: ${want ? "may" : "may NOT"} default to production`);
+}
 
 // ---------------------------------------------------------------- 2 -------
 section("2. REAL VITE BUILDS, env unset");
@@ -104,12 +119,35 @@ const runBuild = (args, dir) => spawnSync(process.execPath, ["node_modules/vite/
   fs.rmSync(dir, { recursive: true, force: true });
 }
 {
+  const dir = out("preview");
+  const pe = { ...env, VERCEL_ENV: "preview" };
+  const b = spawnSync(process.execPath, ["node_modules/vite/bin/vite.js", "build", "--outDir", dir, "--emptyOutDir", "--logLevel", "error"], { encoding: "utf8", env: pe, timeout: 300000 });
+  ok(b.status === 0, "`vite build` with VERCEL_ENV=preview (what a Vercel preview runs) builds", (b.stderr || "").slice(0, 300));
+  const s = b.status === 0 ? scan(dir) : {};
+  ok(s.files > 5 && !s.asValue && !s.key && s.notConfigured, "the PREVIEW bundle has no production default either (production mode, but not a production deploy)");
+  fs.rmSync(dir, { recursive: true, force: true });
+}
+{
   const dir = out("prod");
   const b = runBuild([], dir);
   ok(b.status === 0, "`vite build` (production) builds", (b.stderr || "").slice(0, 300));
   const s = b.status === 0 ? scan(dir) : {};
   ok(s.asValue && s.key, "the production bundle still carries the fallback (the web deploy and the native apps are unchanged)");
   fs.rmSync(dir, { recursive: true, force: true });
+}
+
+section("2b. THE SERVER SIDE (api/_supabase.js), by VERCEL_ENV, no URL configured");
+for (const [label, vercel, want] of [["production deploy", "production", "prod"], ["preview deploy", "preview", "none"], ["development", "development", "none"], ["no VERCEL_ENV (`vite` dev's /api routes, node)", undefined, "none"]]) {
+  const e = { PATH: process.env.PATH, ...(vercel ? { VERCEL_ENV: vercel } : {}) };
+  const r = spawnSync(process.execPath, ["--input-type=module", "-e", `const m = await import("./api/_supabase.js"); console.log(JSON.stringify({ url: m.SB_URL, key: m.ANON_KEY }));`], { encoding: "utf8", env: e, timeout: 20000 });
+  const got = (() => { try { return JSON.parse(r.stdout.trim().split("\n").pop()); } catch { return {}; } })();
+  if (want === "prod") ok(got.url === PROD_URL && got.key === PROD_KEY, `${label}: the production default (unchanged)`, r.stderr.slice(0, 200));
+  else ok(got.url === NOT_CONFIGURED && got.key !== PROD_KEY && /no fallback/.test(r.stderr), `${label}: no production default, and it says so`, `${got.url} ${r.stderr.slice(0, 160)}`);
+}
+{
+  const e = { PATH: process.env.PATH, VERCEL_ENV: "preview", VITE_SUPABASE_URL: "https://someproject.supabase.co", VITE_SUPABASE_ANON_KEY: "sb_publishable_someprojectkey000" };
+  const r = spawnSync(process.execPath, ["--input-type=module", "-e", `const m = await import("./api/_supabase.js"); console.log(m.SB_URL);`], { encoding: "utf8", env: e, timeout: 20000 });
+  ok(r.stdout.trim() === "https://someproject.supabase.co", "an explicitly configured URL still wins on a preview (so a preview with production values set still reaches production: fix that in Vercel's env scoping)");
 }
 
 // ---------------------------------------------------------------- 3 -------
