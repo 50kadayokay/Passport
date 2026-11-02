@@ -21,6 +21,7 @@
     "check:s1-0080": "node scripts/mineiq-search-0080-test.mjs",
     "check:s1-0080-staging": "node scripts/mineiq-search-0080-check.mjs",
     "check:s1-prod-runner": "node scripts/apply-migrations-production-test.mjs && node --import ./scripts/fixtures/no-network-preload.mjs scripts/apply-capture-test.mjs && node --import ./scripts/fixtures/no-network-preload.mjs scripts/apply-concurrent-test.mjs && node --import ./scripts/fixtures/no-network-preload.mjs scripts/apply-rollback-test.mjs",
+    "check:s1-prod-markers-staging": "node scripts/production-markers-staging-check.mjs",
     "check:s1-no-browser-ai": "node scripts/onboarding-no-browser-ai-test.mjs",
     "check:s3-gate": "node scripts/portal-gate-test.mjs",
     "check:s3-billing": "node scripts/billing-ui-test.mjs",
