@@ -1,5 +1,6 @@
 // Every checkpoint the PRODUCTION runner will check, read on STAGING, where
-// every pending migration is applied: each must read true. READ ONLY.
+// every pending migration is applied: each must read true, except a file
+// listed in NOT_ON_STAGING, which must read false. READ ONLY.
 //   node scripts/production-markers-staging-check.mjs
 //
 // The runner refuses a file whose marker already reads applied and rolls back
@@ -18,6 +19,11 @@ const record = loadRecord(DEFAULT_AUDIT);
 const plan = buildPlan({ files: fs.readdirSync("supabase/migrations").filter((f) => f.endsWith(".sql")), record, log: [],
   q01Markers: parseQ01Markers(fs.readFileSync(record.query.split(" ")[0], "utf8")) });
 
+// Pending files NOT yet on staging: their checkpoint must read false there
+// (true would mean staging was changed without the record). Remove a file from
+// this set once S4 applies it to staging.
+const NOT_ON_STAGING = new Set(["0094_company_follows_upsert_grant.sql"]);
+
 let pass = 0, fail = 0;
 const ok = (c, m, d = "") => { if (c) { pass++; console.log(`  ✓ ${m}`); } else { fail++; console.error(`  ✗ ${m}${d ? `\n      ${d}` : ""}`); } };
 const c = new pg.Client({ connectionString: url, ssl: { rejectUnauthorized: false }, application_name: "production-markers-staging-check" });
@@ -25,10 +31,11 @@ await c.connect();
 try {
   await c.query("begin read only");
   await c.query("set local statement_timeout = '30s'");
-  console.log(`\n  ${plan.items.length} runner checkpoints on staging (every pending migration applied there)`);
+  console.log(`\n  ${plan.items.length} runner checkpoints on staging (${NOT_ON_STAGING.size} pending file(s) not applied there yet)`);
   for (const it of plan.items) {
     if (!it.checkpoint) { ok(false, `${it.step}. ${it.file}: no checkpoint`); continue; }
-    try { const v = (await c.query(it.checkpoint)).rows[0].applied; ok(v === true, `${it.step}. ${it.file} reads applied`, `read ${v}`); }
+    const want = !NOT_ON_STAGING.has(it.file);
+    try { const v = (await c.query(it.checkpoint)).rows[0].applied; ok(v === want, `${it.step}. ${it.file} reads ${want ? "applied" : "NOT applied (not on staging yet)"}`, `read ${v}`); }
     catch (e) { ok(false, `${it.step}. ${it.file}`, e.message); }
   }
 } finally {

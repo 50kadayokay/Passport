@@ -64,7 +64,7 @@ is(refusal(() => loadRecord(path.join(tmp, "missing.json")), /cannot read the au
 
 console.log("\n  PLAN: the recorded 2026-11-01 audit");
 const P = plan();
-const EXPECTED = ["0058_close_public_insert", "0077_listing_reports_installed_app_compat", "0092_listing_reports_column_insert", "0093_listing_reports_rate_limit", "0061a_table_privilege_hardening", "0062_message_attachments",
+const EXPECTED = ["0058_close_public_insert", "0077_listing_reports_installed_app_compat", "0092_listing_reports_column_insert", "0093_listing_reports_rate_limit", "0061a_table_privilege_hardening", "0094_company_follows_upsert_grant", "0062_message_attachments",
   "0063_company_initiated_threads", "0064_notification_clearing", "0065a_analytics_breakdown", "0065b_engagement_corrections", "0065c_analytics_indexes",
   "0066_mineiq_conversations", "0068_site_contract", "0069b_stripe_events", "0071_publishing_reliability", "0072_profile_drafts",
   "0073a_impression_dedupe_index", "0073b_impression_tracking", "0073c_post_events_client_guard", "0074_profile_revision_history",
@@ -125,22 +125,41 @@ ok(P.items.find((i) => i.file === "0091_notification_clear_no_platform_admin.sql
   const M = ["0077_listing_reports_installed_app_compat.sql", "0092_listing_reports_column_insert.sql"];
   const rows = [];
   for (const f of ["0017_listing_reports.sql", "0058_close_public_insert.sql", ...M, "0093_listing_reports_rate_limit.sql"]) { replay(f); rows.push(M.map((m) => (evalMarker(POST_AUDIT_MARKERS[m]) ? 1 : 0)).join("")); }
+  {
+    // 0094 the same way: authenticated's UPDATE on company_follows from production's default table-wide grant.
+    const f = { table: true, cols: new Set() };
+    const replay = (file) => {
+      for (const s of fs.readFileSync(file, "utf8").replace(/--[^\n]*/g, "").split(";").map((x) => x.replace(/\s+/g, " ").trim())) {
+        if (/^revoke all on public\.company_follows from [^;]*\bauthenticated\b/i.test(s)) { f.table = false; f.cols.clear(); }
+        const g = /^(grant|revoke) update \(([^)]*)\) on public\.company_follows (to|from) [^;]*\bauthenticated\b/i.exec(s);
+        if (g) g[2].split(",").map((c) => c.trim()).forEach((c) => (g[1].toLowerCase() === "grant" ? f.cols.add(c) : f.cols.delete(c)));
+      }
+    };
+    const marker = () => (Function(`return (${POST_AUDIT_MARKERS["0094_company_follows_upsert_grant.sql"]
+      .replace(/has_column_privilege\('authenticated', 'public\.company_follows', '([a-z_]+)', 'UPDATE'\)/g, (_, c) => String(f.table || f.cols.has(c)))
+      .replace(/has_table_privilege\('authenticated', 'public\.company_follows', 'UPDATE'\)/g, String(f.table))
+      .replace(/\band\b/g, "&&").replace(/\bnot\b/g, "!")});`)() ? 1 : 0);
+    const seq = [marker()];
+    for (const file of [path.join(DIR, "0061a_table_privilege_hardening.sql"), path.join(DIR, "0094_company_follows_upsert_grant.sql"), "supabase/rollbacks/0094_company_follows_upsert_grant.rollback.sql"]) { replay(file); seq.push(marker()); }
+    ok(seq.join("") === "0010", "0094's marker: false under the table-wide grant and under 0061a alone, true after 0094, false after its rollback", seq.join(""));
+    ok(EXPECTED.indexOf("0094_company_follows_upsert_grant.sql") === EXPECTED.indexOf("0061a_table_privilege_hardening.sql") + 1, "0094 right after 0061a");
+  }
   ok(rows.join(" ") === "00 00 10 11 11", "listing_reports markers after 0017 / 0058 / 0077 / 0092 / 0093: 0077's stays true under 0092 and 0093 (0077 is never re-applied over 0092), 0092's true only from 0092", rows.join(" "));
 }
 ok(P.warnings.length === 0, "no warnings against the real record", P.warnings.join("; "));
 
 console.log("\n  PLAN: a fixture audit (0058, 0061a, 0062 applied; 0077 not)");
 const PF = plan(FIXTURE);
-ok(PF.items.length === N_FIXTURE && PF.items[0].file === "0077_listing_reports_installed_app_compat.sql" && PF.items[1].file === "0092_listing_reports_column_insert.sql" && PF.items[2].file === "0093_listing_reports_rate_limit.sql" && PF.items[3].file === "0063_company_initiated_threads.sql",
-   `${N_FIXTURE} steps; 0077 goes FIRST because its partner 0058 is already applied; 0092 and 0093 right behind it`, PF.items.slice(0, 3).map((i) => i.file).join(" "));
-ok(PF.warnings.some((w) => /0077.*FIRST/.test(w)) && PF.warnings.filter((w) => /manifest still lists it PENDING/.test(w)).length === 3, "it warns about that, and that the manifest still lists 0058/0061a/0062 as pending");
+ok(PF.items.length === N_FIXTURE && PF.items[0].file === "0094_company_follows_upsert_grant.sql" && PF.items[1].file === "0077_listing_reports_installed_app_compat.sql" && PF.items[2].file === "0092_listing_reports_column_insert.sql" && PF.items[3].file === "0093_listing_reports_rate_limit.sql" && PF.items[4].file === "0063_company_initiated_threads.sql",
+   `${N_FIXTURE} steps; 0094 and 0077 go FIRST because their partners 0061a and 0058 are already applied; 0092 and 0093 right behind 0077`, PF.items.slice(0, 5).map((i) => i.file).join(" "));
+ok(PF.warnings.some((w) => /0077.*FIRST/.test(w)) && PF.warnings.some((w) => /0094.*FIRST/.test(w)) && PF.warnings.filter((w) => /manifest still lists it PENDING/.test(w)).length === 3, "it warns about that, and that the manifest still lists 0058/0061a/0062 as pending");
 ok(PF.items.find((i) => i.file === "0077_listing_reports_installed_app_compat.sql").prerequisites[0].status === "applied", "0077's prerequisite (0058) reads applied");
 {
   const log = [{ ref: PROD, file: "0077_listing_reports_installed_app_compat.sql", status: "applied" }, { ref: PROD, file: "0063_company_initiated_threads.sql", status: "applied" },
                { ref: STAGING, file: "0064_notification_clearing.sql", status: "applied" }];
   const PL = plan(FIXTURE, { log });
-  ok(PL.items[0].file === "0092_listing_reports_column_insert.sql" && PL.items[1].file === "0093_listing_reports_rate_limit.sql" && PL.items[2].file === "0064_notification_clearing.sql" && PL.items.length === N_FIXTURE - 2,
-     "the apply log subtracts what this runner applied (and ignores entries for another ref); 0092 goes first, its partner 0077 being applied", PL.items.slice(0, 2).map((i) => i.file).join(" "));
+  ok(PL.items[0].file === "0094_company_follows_upsert_grant.sql" && PL.items[1].file === "0092_listing_reports_column_insert.sql" && PL.items[2].file === "0093_listing_reports_rate_limit.sql" && PL.items[3].file === "0064_notification_clearing.sql" && PL.items.length === N_FIXTURE - 2,
+     "the apply log subtracts what this runner applied (and ignores entries for another ref); 0094 and 0092 go first, their partners 0061a and 0077 being applied", PL.items.slice(0, 3).map((i) => i.file).join(" "));
 }
 ok(JSON.stringify(plan(RECORD).items.map((i) => i.file)) === JSON.stringify(EXPECTED), "planning has no side effects (same plan twice)");
 

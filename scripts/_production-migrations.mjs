@@ -37,6 +37,8 @@ export const IMMEDIATELY_AFTER = {
   "0092_listing_reports_column_insert.sql": "0077_listing_reports_installed_app_compat.sql",
   // 0093 rate-limits the same door (direct listing_reports inserts): same session, right after 0092.
   "0093_listing_reports_rate_limit.sql": "0092_listing_reports_column_insert.sql",
+  // 0094 restores the one privilege installed apps' follow() needs after 0061a: right after it.
+  "0094_company_follows_upsert_grant.sql": "0061a_table_privilege_hardening.sql",
 };
 
 // Read-only markers for the files the 2026-11-01 audit predates. Each is TRUE
@@ -58,6 +60,10 @@ export const POST_AUDIT_MARKERS = {
   // Depends only on objects 0093 creates: false before it, false after its rollback.
   "0093_listing_reports_rate_limit.sql":
     `to_regclass('public.listing_report_limits') is not null and exists (select 1 from pg_trigger where tgrelid = 'public.listing_reports'::regclass and tgname = 'listing_reports_guard' and not tgisinternal)`,
+  // False with the table-level UPDATE production has before 0061a, false under
+  // 0061a alone (no UPDATE), true only under 0094's column grant.
+  "0094_company_follows_upsert_grant.sql":
+    `has_column_privilege('authenticated', 'public.company_follows', 'user_id', 'UPDATE') and not has_table_privilege('authenticated', 'public.company_follows', 'UPDATE')`,
   "0078_storage_role_hardening.sql":
     `to_regprocedure('public.can_upload_company_assets()') is not null`,
   "0080_mineiq_search_any_term.sql":
