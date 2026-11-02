@@ -41,7 +41,7 @@ Nothing here has been done in production. Pilot scope: 2–3 companies.
 | 4b | Read-only smoke (`production-smoke.mjs --production`): pages, headers, CSP Report-Only, investor feed and profile. | any FAIL |
 | 5a | Phase 3: 0058, 0077, 0092, 0093, 0061a | a checkpoint fails: the runner's `--rollback` for that file |
 | 5b | Phase 4: 0062–0066 (0065c in no-transaction mode) | same |
-| 5c | Phase 5: 0068–0078 (0073a no-transaction; 0071/0072/0076 capture-on-apply) | same |
+| 5c | Phase 5: 0068–0076, 0078 (0073a no-transaction; functions captured before every file that replaces one) | same |
 | 5d | Phase 5b: 0080, 0085–0088, 0090, 0091 | same; never roll back 0071 while 0088 is applied |
 | 6 | **You**: create the draft test company, hand it to the test owner, invite the viewer. Then the full smoke and investor-app checks; delete the connection file. | any investor-app regression: stop, roll back the last phase |
 | 7 | After 24 h with no 5xx rise: **you** hand off the portal to 2–3 pilot companies. | |

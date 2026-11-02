@@ -117,9 +117,20 @@ Then smoke stage `phase5b` and `final` (section 3).
 
 ## 3. Smoke checks (read-only, in your terminal)
 
-Commands are filled in from S2's prod-check script (see the morning handoff). Stages: `deploy`, `phase3`,
-`phase4`, `phase5`, `phase5b`, `final`. Each prompts for test-user passwords (hidden) and reads the
-database only in read-only transactions.
+One command per stage (`scripts/prod-check.mjs`). It prompts, hidden, for the test investor, owner, optional
+viewer, optional platform admin, and the owner's company slug; reads the database only inside READ ONLY
+transactions; submits nothing. Exit 0 PASS, 1 FAIL, 3 INCOMPLETE. Checks that need a later phase print NOT YET.
+
+```bash
+PRODUCTION_DSN_FILE=~/.mineex-prod-dsn node scripts/prod-check.mjs --stage=deploy    # after the Vercel deploy
+PRODUCTION_DSN_FILE=~/.mineex-prod-dsn node scripts/prod-check.mjs --stage=phase3    # after Phase 3
+PRODUCTION_DSN_FILE=~/.mineex-prod-dsn node scripts/prod-check.mjs --stage=phase4
+PRODUCTION_DSN_FILE=~/.mineex-prod-dsn node scripts/prod-check.mjs --stage=phase5
+PRODUCTION_DSN_FILE=~/.mineex-prod-dsn node scripts/prod-check.mjs --stage=phase5b
+PRODUCTION_DSN_FILE=~/.mineex-prod-dsn node scripts/prod-check.mjs --stage=final     # after the test company exists
+```
+
+Before Phase 5 the owner and viewer role checks read NOT YET (they need 0076); that is expected.
 
 ## 4. After Phase 5 — you
 
