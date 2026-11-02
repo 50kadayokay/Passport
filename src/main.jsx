@@ -928,6 +928,7 @@ function AppRoot() {
               if (mayManage) {
                 window.__PP__.COMPANY_ACCOUNT = true;
                 window.__CO_ID__ = rows[0].id; window.__CO_SLUG__ = slug; window.__CO_ROLE__ = coRole;
+                window.__CO_OWNER_ID__ = rows[0].owner_id || null;   // the editor's role check needs it (an owner may have no membership row)
                 // Snapshot the owner's OWN company context. Browsing other companies in-app
                 // swaps their data into window.__PP__; the app restores from this when the owner
                 // returns to their Profile, so manage mode persists while they navigate.
