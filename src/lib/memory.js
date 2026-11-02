@@ -192,16 +192,24 @@ export async function saveDocumentText(docId, text) {
 
 // The company's whole file — every document ever filed, newest first. This is
 // the record the Memory view shows and future cross-company intelligence reads.
+//
+// THROWS when the list could not be read (network, non-2xx, unreadable body),
+// with e.code = "documents_unavailable". It used to answer [] for every
+// failure, which each page showed as "No documents yet" -- a confident, false
+// statement about the company's file. [] now means the company has none.
 export async function listDocuments(companyId) {
   if (!companyId) return [];
+  const fail = (why) => { const e = new Error(`Couldn't load your documents${why ? ` (${why})` : ""}.`); e.code = "documents_unavailable"; return e; };
+  let res;
   try {
     const h = await authHeaders();
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/documents?company_id=eq.${companyId}&select=id,filename,mime,bytes,kind,doc_date,storage_path,extraction_status,extracted_text,created_at&order=created_at.desc`, { headers: h });
-    if (!res.ok) return [];
-    const rows = await res.json().catch(() => []);
-    // Trim extracted_text to a preview so the list isn't huge; the full text stays in the row.
-    return (Array.isArray(rows) ? rows : []).map((r) => ({ ...r, textPreview: (r.extracted_text || "").slice(0, 160), extracted_text: undefined, hasText: !!(r.extracted_text && r.extracted_text.trim()) }));
-  } catch { return []; }
+    res = await fetch(`${SUPABASE_URL}/rest/v1/documents?company_id=eq.${encodeURIComponent(companyId)}&select=id,filename,mime,bytes,kind,doc_date,storage_path,extraction_status,extracted_text,created_at&order=created_at.desc`, { headers: h });
+  } catch { throw fail(""); }
+  if (!res.ok) throw fail(String(res.status));
+  const rows = await res.json().catch(() => null);
+  if (!Array.isArray(rows)) throw fail("unreadable answer");
+  // Trim extracted_text to a preview so the list isn't huge; the full text stays in the row.
+  return rows.filter((r) => r && r.id).map((r) => ({ ...r, textPreview: String(r.extracted_text || "").slice(0, 160), extracted_text: undefined, hasText: !!(r.extracted_text && String(r.extracted_text).trim()) }));
 }
 
 // Remove a document from the file (row + best-effort blob). Owner/admin only (RLS).

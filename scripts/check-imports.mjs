@@ -18,6 +18,12 @@
  * Deliberately narrow: only src/lib exports. A general no-undef pass needs a real
  * linter and a real config; this needs neither and covers the shared helpers that
  * every portal write path depends on.
+ *
+ * It also checks JSX COMPONENT NAMES, which are the same bug wearing a different
+ * hat: `<X size={13} />` with no `X` in scope builds clean and throws
+ * `X is not defined` the moment React renders that branch -- and because it is a
+ * branch, the crash can hide behind a conditional until a user reaches it. That is
+ * exactly how an unimported lucide icon reached the review screen.
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -91,10 +97,66 @@ for (const f of walk(SRC)) {
   }
 }
 
+// 3. JSX component names: every `<Capitalised ...>` must be bound in its file.
+//    Lowercase tags are HTML; dotted tags are checked on their root object.
+const jsxProblems = [];
+for (const f of walk(SRC)) {
+  if (!f.endsWith(".jsx")) continue;
+  const rel = path.relative(ROOT, f);
+
+  // BINDINGS COME FROM THE RAW SOURCE, usages from the stripped source.
+  // strip() is a regex approximation: an apostrophe in a trailing comment
+  // ("the company's") opens a phantom string literal that swallows whatever
+  // follows, so a declaration inside a swallowed region would look missing.
+  // Over-binding only costs a detection; under-binding invents a failure, so
+  // every asymmetry here leans toward silence.
+  const raw = fs.readFileSync(f, "utf8");
+  const src = strip(raw);
+
+  const bound = new Set(["React", "Fragment"]);
+  for (const m of raw.matchAll(/import\s+([\s\S]*?)\s+from\s*["']/g)) {
+    for (const n of m[1].matchAll(/([A-Za-z_$][\w$]*)(?:\s+as\s+([A-Za-z_$][\w$]*))?/g)) {
+      bound.add(n[2] || n[1]);
+    }
+  }
+  for (const m of raw.matchAll(/(?:function|const|let|var|class)\s+([A-Za-z_$][\w$]*)/g)) bound.add(m[1]);
+  // Destructured bindings, including component props: `({ Icon, Row })`.
+  for (const m of raw.matchAll(/\{([^{}]*)\}/g)) {
+    for (const n of m[1].matchAll(/([A-Za-z_$][\w$]*)\s*(?::\s*([A-Za-z_$][\w$]*))?/g)) {
+      bound.add(n[2] || n[1]);
+    }
+  }
+  // Array destructuring: `const [App, setApp] = useState(null)` binds a
+  // component just as legitimately as an import does.
+  for (const m of raw.matchAll(/\[([^\[\]]*)\]\s*=/g)) {
+    for (const n of m[1].matchAll(/([A-Za-z_$][\w$]*)/g)) bound.add(n[1]);
+  }
+  // Arrow parameters: `PANELS.map((P, k) => <P ... />)` binds the component
+  // for the length of the callback.
+  for (const m of raw.matchAll(/\(([^()]*)\)\s*=>/g)) {
+    for (const n of m[1].matchAll(/([A-Za-z_$][\w$]*)/g)) bound.add(n[1]);
+  }
+
+  const seen = new Set();
+  for (const m of src.matchAll(/<([A-Z][\w$]*)\b/g)) {
+    const name = m[1];
+    if (bound.has(name) || seen.has(name)) continue;
+    seen.add(name);
+    jsxProblems.push({ file: rel, name });
+  }
+}
+
+if (jsxProblems.length) {
+  console.error("\n  JSX component used but not in scope:\n");
+  for (const p of jsxProblems) console.error(`    ${p.file}  renders  <${p.name} />  — not imported or declared`);
+  console.error(`\n  ${jsxProblems.length} problem(s). This builds clean and throws at render.\n`);
+  process.exit(1);
+}
+
 if (problems.length) {
   console.error("\n  Used but not imported:\n");
   for (const p of problems) console.error(`    ${p.file}  calls  ${p.name}()  — exported by ${p.origin}`);
   console.error(`\n  ${problems.length} problem(s). Add the import.\n`);
   process.exit(1);
 }
-console.log(`check:imports — ok (${exported.size} src/lib exports checked)`);
+console.log(`check:imports — ok (${exported.size} src/lib exports, plus JSX component names)`);

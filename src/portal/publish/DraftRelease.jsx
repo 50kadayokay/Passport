@@ -211,7 +211,7 @@ export default function DraftRelease({ company, onExit, onSaved }) {
     setErr(""); setBusy("Checking facts…");
     try {
       const r = await checkFacts({ current: text, attachments, companyId, companyName });
-      setFacts(r.findings || []);
+      setFacts(Array.isArray(r.findings) ? r.findings : []);
       setContext(r.context || context);
     } catch (e) {
       setErr(e.message || "Could not check the draft.");

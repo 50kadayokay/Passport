@@ -3,7 +3,7 @@
   "configurations": [
     {
       "name": "portal-dev-5180",
-      "runtimeExecutable": "/Users/leifer/Claude Projects/Passport V1/.node/node-v24.18.0-darwin-arm64/bin/node",
+      "runtimeExecutable": "node",
       "runtimeArgs": [
         "node_modules/vite/bin/vite.js",
         "--host",
@@ -14,7 +14,7 @@
     },
     {
       "name": "passport-dev",
-      "runtimeExecutable": "/Users/leifer/Claude Projects/Passport V1/.node/node-v24.18.0-darwin-arm64/bin/node",
+      "runtimeExecutable": "node",
       "runtimeArgs": [
         "node_modules/vite/bin/vite.js",
         "--host",
@@ -24,8 +24,14 @@
       "port": 5173
     },
     {
-      "name": "passport-preview",
+      "name": "appupdate-dev",
       "runtimeExecutable": "/Users/leifer/Claude Projects/Passport V1/.node/node-v24.18.0-darwin-arm64/bin/node",
+      "runtimeArgs": ["node_modules/vite/bin/vite.js", "--host", "--port", "5191"],
+      "port": 5191
+    },
+    {
+      "name": "passport-preview",
+      "runtimeExecutable": "node",
       "runtimeArgs": [
         "node_modules/vite/bin/vite.js",
         "preview",
@@ -37,7 +43,7 @@
     },
     {
       "name": "confv4-dev",
-      "runtimeExecutable": "/Users/leifer/Claude Projects/Passport V1/.node/node-v24.18.0-darwin-arm64/bin/node",
+      "runtimeExecutable": "node",
       "runtimeArgs": [
         "/Users/leifer/Claude Projects/Passport-ConfV4/node_modules/vite/bin/vite.js",
         "--host",
@@ -48,6 +54,16 @@
         "/Users/leifer/Claude Projects/Passport-ConfV4"
       ],
       "port": 5180
+    },
+    {
+      "name": "qr-banner-preview",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "/private/tmp/claude-501/-Users-leifer-Claude-Projects-Passport-Portal/4c906611-8eea-45a5-b562-470e59ad687e/scratchpad/spa-serve.mjs",
+        "/private/tmp/claude-501/-Users-leifer-Claude-Projects-Passport-Portal/4c906611-8eea-45a5-b562-470e59ad687e/scratchpad/web-banner",
+        "4211"
+      ],
+      "port": 4211
     }
   ]
 }

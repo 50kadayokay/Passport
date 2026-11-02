@@ -4,25 +4,28 @@
 // A company's releases are a body of work they browse and look back through,
 // not a queue they process, so this is a grid with filters rather than rows.
 //
-// The filters deliberately reuse the SAME vocabulary as the investor app:
-// `TIMELINE_CATEGORIES` and `dateParts` both come from lib/structureReleases.js,
-// which is what the app's timeline is built from. A category the app can display
-// is therefore always a category this page can filter by. Nothing is redefined
-// here -- if the app's list grows, this page's filter grows with it.
+// The filter is the app's, not a portal dialect of it: one row of pills reading
+// All · Milestones · 2026 · 2025 · …, matching the timeline's own year selector
+// in aiBrief/PassportProto.jsx, where pressing a year leaves the milestone view
+// and vice versa. Milestones are judged by /api/structure-release during upload
+// (`suggestedKey`), which is the same flag the app reads as `it.key` -- so a
+// release that is a milestone in one place is a milestone in the other.
 //
 // Only values that actually occur are offered: a company with three releases in
-// 2026 does not get a year dropdown running back to 2015.
+// 2026 gets one year pill, not a list running back to 2015.
 
 import React, { useState, useEffect, useMemo } from "react";
 import {
-  FileText, Search, X, Image as ImageIcon,
+  FileText, Search, X, Image as ImageIcon, Gem,
 } from "lucide-react";
-import { TIMELINE_CATEGORIES, dateParts } from "../../lib/structureReleases.js";
+import { dateParts } from "../../lib/structureReleases.js";
+import { releaseState } from "../../lib/publishDrafts.js";
 import { listMediaAssets, signedMediaUrl } from "../../lib/mediaAssets.js";
+import { fetchManyDeliveryStatuses, passportPublication } from "../../lib/deliveryStatus.js";
+import { DeliveryChip } from "./DeliveryStatus.jsx";
 
 const CARD = "rounded-2xl border border-slate-100 bg-white shadow-[0_1px_2px_rgba(15,23,42,.04),0_12px_26px_-20px_rgba(15,23,42,.4)]";
 
-const QUARTERS = ["Q1", "Q2", "Q3", "Q4"];
 const UNCATEGORISED = "Uncategorised";
 
 const fmtDate = (d) => {
@@ -42,15 +45,27 @@ const fmtDate = (d) => {
 function normalise(row, isDraft) {
   const det = row.detected || {};
   const { year, quarter } = dateParts(row.published_on);
+  // THE SAME JUDGMENT THE APP USES. /api/structure-release decides three things
+  // separately -- category, impact tier, and whether a release belongs in the
+  // curated Key Milestones view -- and the third is `suggestedKey`, which the
+  // investor app reads as `it.key` to build its milestone filter. The portal
+  // reads the identical flag rather than inventing a second definition of
+  // "significant", so a release that is a milestone here is a milestone there.
+  const cls = (det.analysis && det.analysis.classification) || {};
   return {
     id: row.id,
     headline: det.headline || "Untitled release",
     date: row.published_on || null,
     year, quarter,
+    isMilestone: !!cls.suggestedKey,
     category: (det.category || "").trim() || UNCATEGORISED,
     documentId: det.document_id || null,
     hasSummary: !!(det.summary || "").trim(),
     isDraft,
+    // A taken-down release keeps updates.status = 'published' (only the
+    // publication flips), so the badge reads the publication (releaseState).
+    // Rows without a publications embed (the demo) stay Live, as before.
+    isDown: !isDraft && releaseState({ updateStatus: row.status, publications: row.publications }) === "down",
     needsDate: isDraft && !row.published_on,
     updatedAt: row.updated_at || row.created_at,
     raw: row,
@@ -92,23 +107,43 @@ function Thumb({ asset, category }) {
   );
 }
 
-function ReleaseCard({ item, asset, onOpen }) {
+/* `isNew` marks a release published in THIS session, so the card it just
+   became is findable in a grid of near-identical cards. It is session state on
+   purpose -- held in Publish.jsx, never written to the database -- so leaving
+   the page and coming back shows an ordinary card. A "new" flag that persisted
+   would need a per-viewer read receipt to ever clear, which is a feature, not
+   a highlight. */
+// Delivery is shown on a card only when there is something to know: pending,
+// retrying or failed. "Delivered" (and "no record", for releases from before
+// tracking) stay quiet here; the release itself shows the full breakdown.
+const CARD_DELIVERY = new Set(["pending", "retrying", "failed"]);
+const DELIVERY_CARDS = 60;
+
+function ReleaseCard({ item, asset, onOpen, isNew = false, delivery = null }) {
   return (
     <button
       onClick={() => onOpen(item)}
       className={`group flex flex-col overflow-hidden text-left transition-all duration-[170ms] ease-out
-                  hover:-translate-y-0.5 hover:border-slate-200
-                  focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 ${CARD}`}
+                  hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 ${CARD}
+                  ${isNew ? "border-blue-300 ring-2 ring-blue-500/25" : "hover:border-slate-200"}`}
     >
       <span className="relative block aspect-[4/3] w-full overflow-hidden bg-slate-100">
         <Thumb asset={asset} category={item.category} />
         <span className="absolute left-3 top-3 flex gap-1.5">
           {item.isDraft ? (
             <span className="rounded-full bg-white/95 px-2 py-0.5 text-[10.5px] font-bold text-slate-600 shadow-sm">Draft</span>
+          ) : item.isDown ? (
+            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10.5px] font-bold text-amber-800 shadow-sm" data-card-state="down">Taken down</span>
           ) : (
             <span className="inline-flex items-center gap-1 rounded-full bg-blue-600 px-2 py-0.5 text-[10.5px] font-bold text-white shadow-sm">
               <span className="h-1 w-1 rounded-full bg-white" /> Live
             </span>
+          )}
+          {isNew && (
+            <span className="rounded-full bg-blue-600 px-2 py-0.5 text-[10.5px] font-bold uppercase tracking-wider text-white shadow-sm">New</span>
+          )}
+          {!item.isDraft && delivery && delivery.ok && CARD_DELIVERY.has(delivery.state) && (
+            <DeliveryChip state={delivery.state} />
           )}
           {item.needsDate && (
             <span className="rounded-full bg-amber-500 px-2 py-0.5 text-[10.5px] font-bold text-white shadow-sm">Date needed</span>
@@ -134,34 +169,52 @@ function ReleaseCard({ item, asset, onOpen }) {
   );
 }
 
-/** A filter dropdown. Native select: keyboard, mobile and screen readers for free. */
-function Filter({ label, value, onChange, options, allLabel }) {
-  const on = value !== "";
+/* Filter pills, styled to match the investor app exactly.
+   The class string and both style objects below are copied verbatim from the
+   timeline's year selector in aiBrief/PassportProto.jsx -- a company switching
+   between the portal and their own app profile should be pressing the same
+   control, not a portal dialect of it. The app itself is untouched; this is a
+   copy, not a shared component, because extracting one would mean editing the
+   app to import it.
+   #2563eb is the app's EM blue, written as a literal there and so here.
+
+   Values are generated only from what occurs: a company with three releases in
+   2026 gets one year pill, not a decade of empty ones, and a dimension with
+   nothing to choose between renders nothing at all.
+
+   NO QUARTER ROW. Quarters were a portal invention -- the app offers milestones
+   and years, and nothing else -- so the portal now offers the same two. */
+/* One pill. Milestones sits apart from the years on the right of the row, so
+   both sides render this rather than a grouped list -- they are still ONE
+   choice, and pressing Milestones deselects the year exactly as it does in the
+   app. */
+function Pill({ id, label, value, onChange, children }) {
+  const on = value === id;
   return (
-    <label className="relative inline-flex items-center">
-      <span className="sr-only">{label}</span>
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className={`cursor-pointer appearance-none rounded-xl border py-2 pl-3.5 pr-8 text-[12.5px] font-bold transition focus:outline-none focus:ring-2 focus:ring-blue-500/25
-                    ${on ? "border-blue-200 bg-blue-50 text-blue-700" : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"}`}
-      >
-        <option value="">{allLabel}</option>
-        {options.map((o) => <option key={o} value={o}>{o}</option>)}
-      </select>
-      <span className={`pointer-events-none absolute right-3 text-[9px] ${on ? "text-blue-500" : "text-slate-400"}`}>▼</span>
-    </label>
+    <button
+      onClick={() => onChange(id)}
+      aria-pressed={on}
+      className="inline-flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[12px] font-bold tabular-nums tracking-tight transition active:scale-95"
+      style={on
+        ? { background: "#2563eb", color: "#fff", boxShadow: "0 4px 12px -5px rgba(37,99,235,0.7)" }
+        : { background: "#fff", color: "#64748b", border: "1px solid #e2e8f0" }}
+    >
+      {children}
+      {label}
+    </button>
   );
 }
 
-export default function ReleaseLibrary({ drafts, published, onCreate, onDraft, onOpen }) {
+export default function ReleaseLibrary({ drafts, published, onCreate, onDraft, onOpen, justPublishedIds = [] }) {
   const [companyAssets, setCompanyAssets] = useState([]);
-  const [cat, setCat] = useState("");
-  const [year, setYear] = useState("");
-  const [quarter, setQuarter] = useState("");
-  const [status, setStatus] = useState("");
+  // ONE filter, not four. Milestones and years are alternatives to each other
+  // in the app -- pressing a year leaves the milestone view -- so they are one
+  // choice here too, rather than four dimensions that can be combined into
+  // states no one asked for.
+  const [pick, setPick] = useState("all");
   const [q, setQ] = useState("");
 
+  const fresh = useMemo(() => new Set(justPublishedIds || []), [justPublishedIds]);
   const items = useMemo(() => [
     ...(drafts || []).map((r) => normalise(r, true)),
     ...(published || []).map((r) => normalise(r, false)),
@@ -189,28 +242,43 @@ export default function ReleaseLibrary({ drafts, published, onCreate, onDraft, o
     return by;
   }, [companyAssets]);
 
-  // Offer only what exists, in the app's own order.
-  const years = useMemo(
-    () => [...new Set(items.map((i) => i.year).filter(Boolean))].sort((a, b) => b - a).map(String),
-    [items]
-  );
-  const cats = useMemo(() => {
-    const present = new Set(items.map((i) => i.category));
-    const known = TIMELINE_CATEGORIES.filter((c) => present.has(c));
-    return present.has(UNCATEGORISED) ? [...known, UNCATEGORISED] : known;
+  // Delivery status of the most recent published releases (one small RPC each,
+  // four at a time). Older releases are long settled; opening one shows it.
+  const [delivery, setDelivery] = useState({});
+  useEffect(() => {
+    const targets = (published || []).map((r) => ({ updateId: r.id, pub: passportPublication(r) }))
+      .filter((x) => x.pub).slice(0, DELIVERY_CARDS);
+    if (!targets.length) return undefined;
+    const byPub = Object.fromEntries(targets.map((x) => [x.pub.id, x.updateId]));
+    return fetchManyDeliveryStatuses(
+      targets.map((x) => ({ publicationId: x.pub.id, createdAt: x.pub.created_at || null })),
+      (pid, st) => setDelivery((m) => ({ ...m, [byPub[pid]]: st })),
+    );
+  }, [published]);
+
+  // All · Milestones · each year that actually has a release, newest first.
+  // Nothing offered that would return an empty grid: a company with three
+  // releases in 2026 gets one year pill, and Milestones appears only once the
+  // uploader has actually judged something significant.
+  const options = useMemo(() => {
+    const years = [...new Set(items.map((i) => i.year).filter(Boolean))].sort((a, b) => b - a);
+    return [
+      { id: "all", label: "All" },
+      ...years.map((y) => ({ id: `y${y}`, label: String(y) })),
+    ];
   }, [items]);
-  const quarters = useMemo(
-    () => QUARTERS.filter((qq) => items.some((i) => i.quarter === qq)),
-    [items]
-  );
+
+  // Rendered on the right of the row, beside the search box, rather than in
+  // line with the years -- it is a different question ("what mattered?" vs
+  // "when?"), and the app separates it too, with a divider before its diamond.
+  const hasMilestones = useMemo(() => items.some((i) => i.isMilestone), [items]);
 
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
     return items
-      .filter((i) => (cat ? i.category === cat : true))
-      .filter((i) => (year ? String(i.year) === year : true))
-      .filter((i) => (quarter ? i.quarter === quarter : true))
-      .filter((i) => (status === "draft" ? i.isDraft : status === "published" ? !i.isDraft : true))
+      .filter((i) => (pick === "all" ? true
+                    : pick === "milestones" ? i.isMilestone
+                    : String(i.year) === pick.slice(1)))
       .filter((i) => (needle ? i.headline.toLowerCase().includes(needle) : true))
       // Newest first, undated drafts at the top — they are the ones needing work.
       .sort((a, b) => {
@@ -219,10 +287,10 @@ export default function ReleaseLibrary({ drafts, published, onCreate, onDraft, o
         if (!b.date) return 1;
         return String(b.date).localeCompare(String(a.date));
       });
-  }, [items, cat, year, quarter, status, q]);
+  }, [items, pick, q]);
 
-  const anyFilter = cat || year || quarter || status || q.trim();
-  const clearAll = () => { setCat(""); setYear(""); setQuarter(""); setStatus(""); setQ(""); };
+  const anyFilter = pick !== "all" || q.trim();
+  const clearAll = () => { setPick("all"); setQ(""); };
 
   const loading = drafts === null || published === null;
 
@@ -231,28 +299,35 @@ export default function ReleaseLibrary({ drafts, published, onCreate, onDraft, o
       {/* No Create/Draft buttons here any more: the page above this opens with
           those as tiles, and a second, smaller copy of the same two actions on
           the same screen just splits the reader's attention. */}
+      {/* Search left, filters right, one row above the grid. */}
       <div className="flex flex-wrap items-center gap-3">
-        <div className="ml-auto flex flex-wrap items-center gap-2">
-          <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2">
-            <Search size={14} className="shrink-0 text-slate-400" />
-            <input
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder="Search releases"
-              className="w-40 bg-transparent text-[12.5px] text-slate-700 placeholder:text-slate-400 focus:outline-none"
-            />
-          </div>
-          <Filter label="Milestone" allLabel="All milestones" value={cat} onChange={setCat} options={cats} />
-          <Filter label="Year" allLabel="All years" value={year} onChange={setYear} options={years} />
-          <Filter label="Quarter" allLabel="All quarters" value={quarter} onChange={setQuarter} options={quarters} />
-          <Filter label="Status" allLabel="All statuses" value={status} onChange={setStatus}
-            options={["draft", "published"]} />
-          {anyFilter ? (
-            <button onClick={clearAll}
-              className="inline-flex items-center gap-1 rounded-xl px-2.5 py-2 text-[12.5px] font-bold text-slate-400 transition hover:bg-slate-100 hover:text-slate-600">
-              <X size={13} /> Clear
-            </button>
-          ) : null}
+        <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3.5 py-1.5">
+          <Search size={13} className="shrink-0 text-slate-400" />
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Search releases"
+            className="w-44 bg-transparent text-[12px] font-semibold text-slate-700 placeholder:font-bold placeholder:text-slate-400 focus:outline-none"
+          />
+        </div>
+
+        {anyFilter ? (
+          <button onClick={clearAll}
+            className="inline-flex items-center gap-1 rounded-xl px-2.5 py-2 text-[12.5px] font-bold text-slate-400 transition hover:bg-slate-100 hover:text-slate-600">
+            <X size={13} /> Clear
+          </button>
+        ) : null}
+
+        <div role="group" aria-label="Filter releases"
+             className="ml-auto flex flex-wrap items-center gap-2">
+          {options.map((o) => (
+            <Pill key={o.id} id={o.id} label={o.label} value={pick} onChange={setPick} />
+          ))}
+          {hasMilestones && (
+            <Pill id="milestones" label="Milestones" value={pick} onChange={setPick}>
+              <Gem size={12} strokeWidth={2.6} />
+            </Pill>
+          )}
         </div>
       </div>
 
@@ -288,15 +363,16 @@ export default function ReleaseLibrary({ drafts, published, onCreate, onDraft, o
               Clear filters
             </button>
           ) : (
-            <button onClick={onCreate} className="mt-4 rounded-xl bg-slate-900 px-4 py-2.5 text-[13px] font-bold text-white">
+            onCreate ? <button onClick={onCreate} className="mt-4 rounded-xl bg-slate-900 px-4 py-2.5 text-[13px] font-bold text-white">
               Create new
-            </button>
+            </button> : null
           )}
         </div>
       ) : (
         <div className="mt-3 grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-4">
           {filtered.map((item) => (
-            <ReleaseCard key={item.id} item={item} asset={assetByDoc[item.documentId]} onOpen={onOpen} />
+            <ReleaseCard key={item.id} item={item} asset={assetByDoc[item.documentId]} onOpen={onOpen}
+              isNew={fresh.has(item.id)} delivery={delivery[item.id] || null} />
           ))}
         </div>
       )}

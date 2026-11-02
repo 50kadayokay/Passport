@@ -15,6 +15,21 @@
 import { SUPABASE_URL } from "./supabase.js";
 import { writeHeaders } from "./auth.js";
 import { publishViaApi } from "./publishClient.js";
+import { isPortalDemo } from "./demoMode.js";
+
+// DEMO HARNESS ONLY. /portaldemo has no session, so both list calls below threw
+// and the library rendered an expired-session banner over an empty grid --
+// hiding the card design and the milestone/year/quarter tabs, which is the one
+// thing the demo exists to show. import.meta.env.DEV is a literal false in a
+// production build and MUST lead the condition: Rollup cannot see through the
+// isPortalDemo() call on its own, and with the call first the branch survives
+// and the fixtures ship as a real chunk.
+//
+// The `import.meta.env &&` in front of it is for plain node: several of these
+// modules are imported directly by the test scripts, where import.meta.env is
+// undefined and reading .DEV off it throws. Vite still substitutes the literal
+// `import.meta.env.DEV`, so the branch is pruned from the bundle as before.
+const demo = () => import("../portal/__fixtures/updatesDemo.js");
 
 export const MINEEX_DESTINATION = "passport";   // the destination id in the DB
 
@@ -31,11 +46,26 @@ const j = (h) => ({ ...h, "content-type": "application/json" });
  * the original file remains available; the text is a convenience, not a
  * replacement.
  */
+// Media posts are `updates` too (detected.post_type = 'media', created with
+// status 'review' and never moved on), so without this every photo and video
+// also appeared in the press-release library as a "Draft · Date needed".
+const NOT_MEDIA = "&or=(detected.is.null,detected->>post_type.is.null,detected->>post_type.neq.media)";
+
 export async function createDraft(companyId, {
   headline = "", text = "", releaseDate = null, documentId = null,
   ingestStatus = null, assetIds = [], warnings = [], blocks = [],
 } = {}) {
+  // `body` is editable from the moment the draft exists, so by the time anyone
+  // asks "what did the document actually say?" the answer is gone. The source
+  // FILE is preserved, but rendering it needs a signed URL and a viewer; this
+  // keeps the extracted text as it arrived, written once at creation and never
+  // patched afterwards (saveDraft merges `detected` and never touches this key),
+  // so the review screen can show an unedited original beside the edited one.
   if (!companyId) throw new Error("companyId is required");
+  if (import.meta.env && import.meta.env.DEV && isPortalDemo()) {
+    const { demoCreateDraft } = await import("./demoPublish.js");
+    return demoCreateDraft(companyId, { headline, text, releaseDate, documentId, ingestStatus, assetIds, warnings, blocks });
+  }
   const h = await writeHeaders();
   const res = await fetch(`${SUPABASE_URL}/rest/v1/updates`, {
     method: "POST",
@@ -57,6 +87,8 @@ export async function createDraft(companyId, {
         // Presentation metadata: which body lines are headings, and at what level.
         // Stored beside the text so styling never requires altering it.
         blocks: Array.isArray(blocks) ? blocks : [],
+        // The extracted text, exactly as ingestion produced it. Write-once.
+        source_text: text || "",
       },
     }),
   });
@@ -75,9 +107,20 @@ export async function createDraft(companyId, {
   return row;
 }
 
-/** Patch a draft. `detected` is merged, never replaced, so nothing is silently dropped. */
+/**
+ * Patch a draft. `detected` is merged, never replaced, so nothing is silently
+ * dropped -- which is also what keeps `source_text` intact: callers patch
+ * headline/analysis/selection, and a merge leaves every key they do not name.
+ */
 export async function saveDraft(updateId, { headline, text, releaseDate, status, detectedPatch } = {}) {
   if (!updateId) return null;
+  if (import.meta.env && import.meta.env.DEV && isPortalDemo()) {
+    const { demoSaveDraft } = await import("./demoPublish.js");
+    // The demo company id is not passed here, so it is recovered from the id's
+    // own namespace -- demo drafts are the only ones with this prefix.
+    const cid = (typeof window !== "undefined" && window.__mineexDemoCompanyId) || "demo";
+    return demoSaveDraft(cid, updateId, { headline, text, releaseDate, status, detectedPatch });
+  }
   const h = await writeHeaders();
 
   let detected = null;
@@ -105,6 +148,18 @@ export async function saveDraft(updateId, { headline, text, releaseDate, status,
 
 export async function getDraft(updateId) {
   if (!updateId) return null;
+  if (import.meta.env && import.meta.env.DEV && isPortalDemo()) {
+    const { demoGetDraft } = await import("./demoPublish.js");
+    const cid = (typeof window !== "undefined" && window.__mineexDemoCompanyId) || "demo";
+    // Session drafts first, then the fixtures. Without the fallback, clicking
+    // any fixture card in the library opened the review screen and immediately
+    // reported "that draft could not be opened" -- the fixture lookup used to
+    // sit in a second demo branch that the first one always returned before.
+    const local = demoGetDraft(cid, updateId);
+    if (local) return local;
+    const d = await demo();
+    return [...d.RELEASE_PUBLISHED, ...d.RELEASE_DRAFTS].find((r) => r.id === updateId) || null;
+  }
   const h = await writeHeaders();
   const r = await fetch(`${SUPABASE_URL}/rest/v1/updates?id=eq.${updateId}&select=*`, { headers: h });
   if (!r.ok) return null;
@@ -112,15 +167,30 @@ export async function getDraft(updateId) {
   return rows[0] || null;
 }
 
+// A failed read THROWS. Returning [] made an outage look like "No press
+// releases yet" -- an empty library that was not empty.
+async function listRows(r, what) {
+  if (!r.ok) throw new Error(`Your ${what} could not be loaded (${r.status}). Try again shortly.`);
+  const rows = await r.json().catch(() => null);
+  if (!Array.isArray(rows)) throw new Error(`Your ${what} could not be loaded. Try again shortly.`);
+  return rows;
+}
+
 /** Everything not yet published, newest first. */
 export async function listDrafts(companyId) {
+  if (import.meta.env && import.meta.env.DEV && isPortalDemo()) {
+    // Fixture drafts PLUS anything drafted in this session, so a release left
+    // half-finished is still there after a reload.
+    const { demoListDrafts } = await import("./demoPublish.js");
+    return [...demoListDrafts(companyId), ...(await demo()).RELEASE_DRAFTS];
+  }
   if (!companyId) return [];
   const h = await writeHeaders();
   const r = await fetch(
-    `${SUPABASE_URL}/rest/v1/updates?company_id=eq.${companyId}&status=in.(draft,review,failed)&select=*&order=updated_at.desc`,
+    `${SUPABASE_URL}/rest/v1/updates?company_id=eq.${companyId}&status=in.(draft,review,failed)${NOT_MEDIA}&select=*&order=updated_at.desc`,
     { headers: h }
   );
-  return r.ok ? await r.json().catch(() => []) : [];
+  return listRows(r, "drafts");
 }
 
 /**
@@ -128,13 +198,14 @@ export async function listDrafts(companyId) {
  * see, not the order they were uploaded.
  */
 export async function listPublished(companyId) {
+  if (import.meta.env && import.meta.env.DEV && isPortalDemo()) return (await demo()).RELEASE_PUBLISHED;
   if (!companyId) return [];
   const h = await writeHeaders();
   const r = await fetch(
-    `${SUPABASE_URL}/rest/v1/updates?company_id=eq.${companyId}&status=eq.published&select=*,publications(id,destination_id,status,published_at,external_url)&order=published_on.desc.nullslast`,
+    `${SUPABASE_URL}/rest/v1/updates?company_id=eq.${companyId}&status=eq.published${NOT_MEDIA}&select=*,publications(id,destination_id,status,published_at,external_url,created_at)&order=published_on.desc.nullslast`,
     { headers: h }
   );
-  return r.ok ? await r.json().catch(() => []) : [];
+  return listRows(r, "published releases");
 }
 
 /**
@@ -174,10 +245,40 @@ export async function releasesForDocument(companyId, documentId, exceptUpdateId 
 }
 
 export async function deleteDraft(updateId) {
+  if (import.meta.env && import.meta.env.DEV && isPortalDemo()) {
+    const { demoDeleteDraft } = await import("./demoPublish.js");
+    const cid = (typeof window !== "undefined" && window.__mineexDemoCompanyId) || "demo";
+    demoDeleteDraft(cid, updateId); return true;
+  }
   if (!updateId) return false;
   const h = await writeHeaders();
   const r = await fetch(`${SUPABASE_URL}/rest/v1/updates?id=eq.${updateId}`, { method: "DELETE", headers: h });
   return r.ok;
+}
+
+/**
+ * What investors can see of a release, from the PUBLICATION, not the update.
+ *
+ * unpublish_publication() flips only publications.status; the updates row keeps
+ * status 'published' after a take-down. Reading updates.status alone is why a
+ * taken-down release kept its Live badge and reopened with "Save correction"
+ * (which the RPC then refused as not_published).
+ *
+ *   draft    never published (updates.status is not 'published')
+ *   live     the passport publication is published
+ *   down     it was published and the publication no longer is (taken down)
+ *   missing  published, but no publication record could be read
+ */
+export function releaseState({ updateStatus, publications = null, publicationStatus = undefined } = {}) {
+  if (updateStatus !== "published") return "draft";
+  let st = publicationStatus;
+  if (st === undefined && Array.isArray(publications)) {
+    const mine = publications.filter((p) => p && p.destination_id === MINEEX_DESTINATION);
+    if (!mine.length) return "missing";
+    st = mine.some((p) => p.status === "published") ? "published" : mine[0].status;
+  }
+  if (st === undefined || st === null) return "missing";
+  return st === "published" ? "live" : "down";
 }
 
 /** What still has to be true before this draft can go out. */
@@ -201,6 +302,37 @@ export function validateForPublish(draft) {
  * reads and passes to the RPC, so a 2025 release lands in 2025.
  */
 export async function publishDraftToMineEx(companyId, draft) {
+  // DEMO. The real path emits an outbox event that five listeners act on: a
+  // feed post, follower notifications, device pushes, MineIQ fact extraction
+  // and the profile timeline. Only the last of those belongs in a demo, so the
+  // demo publisher writes the timeline entry locally and stops there. A demo
+  // that queued a push would wake somebody's phone.
+  if (import.meta.env && import.meta.env.DEV && isPortalDemo()) {
+    const { publishToDemo, demoMarkPublished, demoGetDraft } = await import("./demoPublish.js");
+    // Publish what was SAVED, not what the caller happens to be holding. The
+    // real path does the same for the same reason: the API reads the updates
+    // row server-side rather than trusting a browser object, and the browser's
+    // copy of `detected` is stale by construction -- the AI analysis is written
+    // by autosave and never read back into the editor's draft state.
+    const stored = (draft && draft.id && demoGetDraft(companyId, draft.id)) || null;
+    const merged = stored
+      ? {
+          ...stored, ...draft,
+          detected: {
+            ...(stored.detected || {}),
+            ...((draft && draft.detected) || {}),
+            // Autosave owns the analysis and publish() has just flushed it, so
+            // the stored copy is never behind the client's.
+            ...(stored.detected && stored.detected.analysis
+              ? { analysis: stored.detected.analysis }
+              : null),
+          },
+        }
+      : draft;
+    const entry = publishToDemo(companyId, merged);
+    if (draft && draft.id) demoMarkPublished(companyId, draft.id);
+    return { ok: true, demo: true, publicationId: `demo-pub-${entry.id}`, entry };
+  }
   const problems = validateForPublish(draft);
   if (problems.length) throw new Error(problems[0]);
 

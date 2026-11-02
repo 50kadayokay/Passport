@@ -25,6 +25,13 @@ function fakeDb({ rows = {}, onWrite = () => {} } = {}) {
       }
       return [];
     },
+    // The strict reader listeners use since D22: same data, throws on failure.
+    async getRows(path) {
+      for (const [prefix, val] of Object.entries(rows)) {
+        if (path.startsWith(prefix)) { const v = typeof val === "function" ? val(path) : val; if (v instanceof Error) throw v; return v || []; }
+      }
+      return [];
+    },
     async rpc(fn, body) {
       writes.push({ path: `rpc:${fn}`, body });
       onWrite(`rpc:${fn}`, { body });
@@ -93,13 +100,21 @@ console.log("\n=== B. company_id comes from the publication, not the event ===")
 // ---- C. idempotency ------------------------------------------------------
 console.log("\n=== C. replaying the event writes nothing twice ===");
 {
-  const db = fakeDb({ rows: { "publications?": PUB, "updates?": UPD, "companies?": CO }, onWrite: () => [] });
-  // The claim insert returns [] → another worker (or an earlier delivery) owns
-  // this publication, so nothing further is written.
-  await mineIqFactsV1({ event_type: "PUBLICATION_PUBLISHED", publication_id: "pub-1" }, db);
+  // The claim insert returns [] and the existing claim is FINISHED
+  // (facts_written >= 0): an earlier delivery did the work, so this is a no-op.
+  const db = fakeDb({ rows: { "publications?": PUB, "updates?": UPD, "companies?": CO, "mineiq_ingestions?": [{ facts_written: 3, ingested_at: new Date().toISOString() }] }, onWrite: () => [] });
+  const r = await mineIqFactsV1({ event_type: "PUBLICATION_PUBLISHED", publication_id: "pub-1" }, db);
   const afterClaim = db.writes.filter((w) => !w.path.startsWith("mineiq_ingestions"));
-  ok(afterClaim.length === 0, "a lost claim writes no facts");
+  ok(afterClaim.length === 0 && r && r.skipped === "already extracted", "a finished claim: no facts written, reported 'already extracted'");
   ok(db.writes[0] && db.writes[0].prefer.includes("ignore-duplicates"), "the claim uses ignore-duplicates");
+}
+{
+  // A FRESH claim still running elsewhere (facts_written = -1): retry later,
+  // do not complete (completing is how facts used to be lost).
+  const db = fakeDb({ rows: { "publications?": PUB, "updates?": UPD, "companies?": CO, "mineiq_ingestions?": [{ facts_written: -1, ingested_at: new Date().toISOString() }] }, onWrite: () => [] });
+  let threw = false;
+  try { await mineIqFactsV1({ event_type: "PUBLICATION_PUBLISHED", publication_id: "pub-1" }, db); } catch { threw = true; }
+  ok(threw && db.writes.filter((w) => w.path.startsWith("facts")).length === 0, "a claim in progress elsewhere -> throws (retry), writes no facts");
 }
 
 // ---- D. scope ------------------------------------------------------------
@@ -203,7 +218,8 @@ console.log("\n=== H. an older release cannot roll knowledge backwards ===");
   // No API key → extraction returns [] → nothing written. Assert the RULE is in
   // the code rather than asserting on a run that cannot happen here.
   const src = (await import("node:fs")).readFileSync("api/_listeners.js", "utf8");
-  const fn = src.slice(src.indexOf("async function mineIqFactsV1"), src.indexOf("async function devicePushV1"));
+  // From the claim helper (D22) through the listener.
+  const fn = src.slice(src.indexOf("async function claimIngestion"), src.indexOf("async function devicePushV1"));
   ok(/newWhen <= oldWhen/.test(fn), "a fact disclosed no later than the prior one does not supersede it");
   ok(/superseded_by=is\.null/.test(fn), "the supersede patch is itself guarded against races");
   ok(/on_conflict=company_id,fact_key/.test(fn), "facts are written with a conflict-safe upsert");
@@ -240,8 +256,11 @@ console.log("\n=== I. device push is queued, deduped and preference-aware ===");
 }
 {
   const db = fakeDb({ rows: { "posts?": [] } });
-  await devicePushV1({ event_type: "PUBLICATION_PUBLISHED", publication_id: "pub-x" }, db);
-  ok(db.writes.length === 0, "no post yet → nothing queued, retried on the next drain");
+  let threw = false;
+  try { await devicePushV1({ event_type: "PUBLICATION_PUBLISHED", publication_id: "pub-x" }, db); } catch { threw = true; }
+  // D22: it THROWS, so the delivery is retried. It used to return, which
+  // completed the delivery and dropped the push for good.
+  ok(threw && db.writes.length === 0, "no post yet → nothing queued, and the delivery is RETRIED (throws)");
 }
 {
   const db = fakeDb({ rows: { "posts?": [{ id: "p", company_id: "co-A", removed_at: "2026-09-30T00:00:00Z" }] } });
@@ -348,7 +367,7 @@ console.log("\n=== L. facts are traceable to the exact revision ===");
 }
 {
   const src = (await import("node:fs")).readFileSync("api/_listeners.js", "utf8");
-  const fn = src.slice(src.indexOf("async function mineIqFactsV1"), src.indexOf("async function devicePushV1"));
+  const fn = src.slice(src.indexOf("async function claimIngestion"), src.indexOf("async function devicePushV1"));
   ok(/on_conflict=publication_id,revision/.test(fn), "each revision is claimed separately → a correction is reconciled once");
   ok(/release_revisions\?id=eq/.test(fn), "a correction reads the REVISION's body, not the working draft");
   ok(/nowKeys\.has\(f\.content_key\)/.test(fn), "facts are diffed by content_key across revisions");

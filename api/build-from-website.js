@@ -6,7 +6,7 @@
 // Reuses: _websiteCorpus (ingest), _extractProfile (OpenAI extraction + mapping), profileToPP
 // (mergeExtraction + mapProfileToPP — the SAME canonical pipeline as the portal/admin), _service
 // (service-role DB), _aiUsage (cost ledger). Gated by AI_PAID_ENABLED so no accidental spend.
-import { requireAdmin } from "./_entitlement.js";
+import { requireAiCaller } from "./_aiGuard.js";
 import { serviceRest } from "./_service.js";
 import { buildCorpus } from "./_websiteCorpus.js";
 import { runWebsiteExtraction, mapExtractionToSources } from "./_extractProfile.js";
@@ -21,7 +21,9 @@ const bad = (res, code, error, extra = {}) => res.status(code).json({ error, ...
 
 export default async function handler(req, res) {
   if (req.method !== "POST") return bad(res, 405, "POST only");
-  if (!(await requireAdmin(req, res))) return; // admin-only; sends its own 401/403
+  // Admin-only, now through the full AI guard (F4): kill switch, size ceiling and
+  // per-user limits as well as the admin check. Sends its own 401/403/429/503.
+  if (!(await requireAiCaller(req, res, { label: "build-from-website", adminOnly: true }))) return;
 
   // Paid-AI safety gate — mirrors the news pipeline so nothing spends unless explicitly enabled.
   if (process.env.AI_PAID_ENABLED !== "true") {

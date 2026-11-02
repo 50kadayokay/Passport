@@ -4,7 +4,7 @@ import {
   BarChart3, Sparkles, Radio, Star, Bell, Briefcase, CreditCard, LifeBuoy,
   FolderOpen, Search, Activity, ScrollText, Settings,
   LogOut, Loader2, Circle, CheckCircle2, ExternalLink, Plus, ArrowRight, RefreshCw, AlertTriangle, Inbox, Link2, Film,
-  Presentation, Smartphone, UserCog,
+  Presentation, Smartphone, UserCog, Send, ClipboardList,
 } from "lucide-react";
 import { fetchCompanies, updateCompany, SUPABASE_URL } from "../lib/supabase.js";
 import { authHeaders, getUser, signOut } from "../lib/auth.js";
@@ -16,6 +16,9 @@ import OnboardingWorkspace from "./onboarding/OnboardingWorkspace.jsx";
 import ConferenceStudio from "./ConferenceStudio.jsx";
 import BlueprintReview from "./BlueprintReview.jsx";
 import AccountManagement from "./AccountManagement.jsx";
+import DeliveryOps from "./DeliveryOps.jsx";
+import ServiceRequests from "./ServiceRequests.jsx";   // a21 (S2): company service requests, status + note
+import SectionBoundary from "../portal/SectionBoundary.jsx";   // a28: one section's crash stays in that section
 import Blueprints from "./blueprints/Blueprints.jsx";  // full Conference Blueprint workbench (pools/evidence/approval)
 
 // Sidebar organized into business areas. `ready` = wired to live data; the rest
@@ -44,11 +47,13 @@ const NAV = [
   ]},
   { group: "Business", items: [
     { id: "accounts", label: "Account Management", Icon: UserCog, ready: true },
+    { id: "service-requests", label: "Service requests", Icon: ClipboardList, ready: true },
     { id: "crm", label: "CRM", Icon: Briefcase, need: "a leads/pipeline table" },
     { id: "billing", label: "Billing", Icon: CreditCard, need: "Stripe (Phase 5)" },
     { id: "support", label: "Support", Icon: LifeBuoy, need: "a tickets table" },
   ]},
   { group: "System", items: [
+    { id: "deliveries", label: "Delivery Operations", Icon: Send, ready: true },
     { id: "content", label: "Content Library", Icon: FolderOpen, need: "Supabase Storage buckets" },
     { id: "index", label: "Search Index", Icon: Search, need: "the search/embeddings jobs" },
     { id: "health", label: "API Health", Icon: Activity, need: "external service monitors" },
@@ -56,7 +61,7 @@ const NAV = [
     { id: "settings", label: "Settings", Icon: Settings, need: "a platform-config table" },
   ]},
 ];
-const READY = new Set(["home", "onboard", "conf-studio", "publish", "card", "companies", "review-conference", "review-app", "onboarding", "users", "operations", "pulse", "accounts"]);
+const READY = new Set(["home", "onboard", "conf-studio", "publish", "card", "companies", "review-conference", "review-app", "onboarding", "users", "operations", "pulse", "accounts", "service-requests", "deliveries"]);
 const flat = (id) => NAV.flatMap((g) => g.items).find((i) => i.id === id) || {};
 
 const isPublished = (c) => (c.status || "").toLowerCase() === "published";
@@ -133,6 +138,7 @@ export default function MissionControl() {
         </header>
 
         <div className="min-h-0 flex-1 overflow-hidden">
+          <SectionBoundary resetKey={section}>
           {section === "companies" ? <Admin /> : section === "onboard" ? (
             <div className="h-full"><OnboardingWorkspace companies={companies} reload={loadData} go={go} /></div>
           ) : section === "conf-studio" ? (
@@ -154,9 +160,12 @@ export default function MissionControl() {
               {section === "accounts" && <AccountManagement companies={companies} loading={loading} reload={loadData} />}
               {section === "notifications" && <NotificationsSection />}
               {section === "sales" && <SalesEmpty />}
+              {section === "deliveries" && <DeliveryOps companies={companies} />}
+              {section === "service-requests" && <ServiceRequests />}
               {!READY.has(section) && <Stub id={section} />}
             </div>
           )}
+          </SectionBoundary>
         </div>
       </div>
     </div>

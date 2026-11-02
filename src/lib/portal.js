@@ -36,6 +36,44 @@ export async function myPortalCompanies() {
   }
 }
 
+// Follower COUNT for a company (public RPC company_follower_count, SECURITY DEFINER —
+// migration 0009). Any authenticated caller gets the number; the raw follow rows stay
+// private via RLS. Shown to the OWNER only (we never render this on the public profile).
+export async function companyFollowerCount(companyId) {
+  if (!companyId) return 0;
+  try {
+    const h = await authHeaders();
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/company_follower_count`, {
+      method: "POST",
+      headers: { ...h, "Content-Type": "application/json" },
+      body: JSON.stringify({ cid: companyId }),
+    });
+    if (!res.ok) return 0;
+    const n = await res.json().catch(() => 0);
+    return typeof n === "number" ? n : 0;
+  } catch { return 0; }
+}
+
+// The PROFILES that follow a company — OWNER-ONLY list. Needs a SECURITY DEFINER RPC
+// (company_followers_list) that verifies owns_company() before returning follower
+// identities, because company_follows RLS hides other users' rows from an owner.
+// NOT YET ADDED (pending approval for the owner-scoped function) → resolves to [] so
+// the UI shows a clean empty state rather than erroring.
+export async function companyFollowers(companyId) {
+  if (!companyId) return [];
+  try {
+    const h = await authHeaders();
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/company_followers_list`, {
+      method: "POST",
+      headers: { ...h, "Content-Type": "application/json" },
+      body: JSON.stringify({ cid: companyId }),
+    });
+    if (!res.ok) return [];
+    const rows = await res.json().catch(() => []);
+    return Array.isArray(rows) ? rows : [];
+  } catch { return []; }
+}
+
 // A single company's full record for the portal (includes the profile JSON).
 export async function loadPortalCompany(companyId) {
   if (!companyId) return null;
@@ -120,6 +158,16 @@ export async function logActivity(companyId, entry = {}) {
 // by pages that own a slice of the profile (e.g. Calendar → profile.catalysts)
 // without going through the full onboarding builder. Returns the saved profile or
 // null. Logs nothing itself — the caller decides what to record.
+// What a PATCH of companies.profile actually did. PostgREST answers a refused
+// update (RLS: only the account owner and platform admins may write companies)
+// with 200 and ZERO rows, not an error -- so "no rows" must mean "not saved".
+// Returns the stored profile, or null for any refusal or failure.
+export function savedProfileFromResponse(status, rows, nextProfile) {
+  if (!(status >= 200 && status < 300)) return null;
+  if (!Array.isArray(rows) || rows.length === 0) return null;
+  return rows[0].profile ?? nextProfile;
+}
+
 export async function updateCompanyProfile(companyId, nextProfile) {
   if (!companyId) return null;
   try {
@@ -129,9 +177,8 @@ export async function updateCompanyProfile(companyId, nextProfile) {
       headers: { ...h, "content-type": "application/json", Prefer: "return=representation" },
       body: JSON.stringify({ profile: nextProfile }),
     });
-    if (!res.ok) return null;
-    const rows = await res.json().catch(() => []);
-    return rows[0]?.profile ?? nextProfile;
+    const rows = res.ok ? await res.json().catch(() => null) : null;
+    return savedProfileFromResponse(res.status, rows, nextProfile);
   } catch {
     return null;
   }
@@ -314,7 +361,7 @@ export async function listActivity(companyId, limit = 50) {
   try {
     const h = await authHeaders();
     const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/activity_log?company_id=eq.${companyId}&select=id,actor_kind,action,entity,reason,source,created_at&order=created_at.desc&limit=${limit}`,
+      `${SUPABASE_URL}/rest/v1/activity_log?company_id=eq.${companyId}&select=id,actor_id,actor_kind,action,entity,old_value,new_value,reason,source,created_at&order=created_at.desc&limit=${limit}`,
       { headers: h }
     );
     if (!res.ok) return [];

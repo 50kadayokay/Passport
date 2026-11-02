@@ -11,7 +11,8 @@
 //
 // Reads the corpus server-side from Supabase so the caller only sends a slug.
 
-import { requireFeature, companyIdFromSlug, requireAdmin } from "./_entitlement.js";
+import { companyIdFromSlug } from "./_entitlement.js";
+import { requireAiCaller, DRAFTING_ROLES } from "./_aiGuard.js";
 // Config from the shared resolver — see api/_supabase.js. Reading process.env
 // here is what let the server target a different (or unusable) project than the
 // browser, surfacing as an auth error rather than a configuration one.
@@ -174,6 +175,13 @@ export const config = { maxDuration: 300 };
 
 export default async function handler(req, res) {
   if (req.method !== "POST") return bad(res, 405, "Method not allowed");
+  // F4: the full AI guard -- kill switch, size ceiling, company + entitlement +
+  // ROLE (drafting roles only), or a platform admin when no company is named
+  // (the onboarding concierge), then per-user and per-company limits. Runs
+  // before the API-key check, so configuration is never disclosed to a caller
+  // who is not allowed in (F10).
+  const caller = await requireAiCaller(req, res, { label: "extract-projects", feature: "company_memory", adminWhenNoCompany: true, roles: DRAFTING_ROLES });
+  if (!caller) return;
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key) return bad(res, 500, "Server not configured: ANTHROPIC_API_KEY is missing.");
 
@@ -202,25 +210,26 @@ export default async function handler(req, res) {
     if (!Array.isArray(releases) || !releases.length) {
       return bad(res, 400, "Provide `companyId`, or a `slug` you can access, or inline `releases` (admin).");
     }
-    const admin = await requireAdmin(req, res);
-    if (!admin) return;   // 401/403 already sent
+    // admin already verified by requireAiCaller (no company named)
   } else {
-    const auth = await requireFeature(req, res, { companyId, feature: "company_memory" });
-    if (!auth) return;    // 401/403 already sent
+    // company, entitlement and role already verified by requireAiCaller
   }
 
   // Either take the corpus inline, or fetch a published company's from Supabase.
   let name = company, docs = [];
   if (Array.isArray(releases) && releases.length) {
     docs = releases.filter((r) => r && r.date && r.text);
-  } else if (slug) {
+  } else if (companyId) {
     if (!supabaseConfigured()) return bad(res, 500, "Server not configured: Supabase env is missing.");
-    const r = await fetch(`${SB}/rest/v1/companies?slug=eq.${encodeURIComponent(slug)}&select=name,profile`, {
-      headers: { apikey: ANON, Authorization: `Bearer ${ANON}` },
+    // By the AUTHORISED company's id (D23), read as the caller -- never by a
+    // separately supplied slug, and no longer as anon (which could only ever
+    // see a published company's profile).
+    const r = await fetch(`${SB}/rest/v1/companies?id=eq.${encodeURIComponent(companyId)}&select=name,profile`, {
+      headers: { apikey: ANON, Authorization: `Bearer ${token}` },
     });
     if (!r.ok) return bad(res, 502, `Could not read company (${r.status}).`);
     const rows = await r.json().catch(() => []);
-    if (!rows.length) return bad(res, 404, `No company '${slug}'.`);
+    if (!rows.length) return bad(res, 404, "Company not found.");
     name = name || rows[0].name || slug;
     const FULL = ((rows[0].profile || {}).pp || {}).FULL || {};
     docs = Object.keys(FULL).sort().map((d) => ({ date: d, text: FULL[d] }));

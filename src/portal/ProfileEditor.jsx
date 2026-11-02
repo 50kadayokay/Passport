@@ -6,22 +6,27 @@
 // shows ONLY the fields for the page currently in the phone, and switching either side switches
 // the other. Tapping any widget in the phone jumps the editor to that exact field.
 import React, { useState, useEffect, useRef, useMemo } from "react";
+import DevicePhone from "./DevicePhone.jsx";
 import { ArrowLeft, ArrowRight, Check } from "lucide-react";
-import { SUPABASE_URL } from "../lib/supabase.js";
-import { authHeaders } from "../lib/auth.js";
 import { uploadCompanyMedia } from "../lib/storage.js";
 import { buildCompanyIdentity } from "../aiBrief/proHighlights.js";
 import { buildCanonicalProfile } from "../lib/ppToProfile.js";
+import { isPortalDemo } from "../lib/demoMode.js";
+import { withDemoReleases } from "../lib/demoPublish.js";
+import { mapProfileToPP } from "../lib/profileToPP.js";
+import { loadProfileDraft, saveProfileDraft, publishProfileDraft, discardProfileDraft, editorStart, messageFor,
+  listProfileVersions, getProfileVersion, restoreProfileVersion } from "../lib/profileDraft.js";
 
 // Renders the REAL app profile from a `pp` object. Cards portal into `popupEl` (a panel to the
 // RIGHT of the phone). Tab is CONTROLLED by the parent so the editor and the phone stay in sync.
 function AppPreview({ pp, popupEl, tab, onTab, tier }) {
   const [mod, setMod] = useState(null);
   const [ver, setVer] = useState(0);
+  const navRef = useRef(null);
   useEffect(() => {
     let ok = true;
     import("../aiBrief/PassportProto.jsx")
-      .then((m) => { if (ok) { if (m.setPpPreviewLive) m.setPpPreviewLive(true); setMod({ Profile: m.CompanyProfile, applyPP: m.applyPP, setPpFrame: m.setPpFrame }); } })
+      .then((m) => { if (ok) { if (m.setPpPreviewLive) m.setPpPreviewLive(true); setMod({ Profile: m.CompanyProfile, applyPP: m.applyPP, setPpFrame: m.setPpFrame, StatusBar: m.StatusBar, BottomNav: m.BottomNav }); } })
       .catch(() => {});
     return () => { ok = false; };
   }, []);
@@ -33,15 +38,58 @@ function AppPreview({ pp, popupEl, tab, onTab, tier }) {
     mod.setPpFrame(popupEl || null);
     return () => mod.setPpFrame(null);
   }, [mod, popupEl]);
+  // `inert` takes the nav out of the tab order and the hit-testing entirely.
+  // pointer-events alone does NOT stop keyboard focus -- the five buttons would
+  // still be tabbable and Enter would fire their handlers.
+  useEffect(() => { const el = navRef.current; if (el) { try { el.inert = true; } catch (_) {} } }, [mod, ver]);
+
   if (!mod) return <div style={{ height: "100%", display: "grid", placeItems: "center", color: "#94a3b8", fontSize: 13, fontWeight: 600 }}>Loading preview…</div>;
-  const P = mod.Profile;
+  const P = mod.Profile, StatusBar = mod.StatusBar, BottomNav = mod.BottomNav;
+
   // Remount on each change so EVERY widget reflects the edit; the preview-live flag skips the
   // intro, and this scoped CSS disables the app's mount animations (pp-view/pp-fade/…) so the
   // remount is seamless — no washed-out re-animation, no reload feel, text updates live.
+  //
+  // The chrome: the SAME StatusBar and BottomNav the investor app uses, taken from the same
+  // module instance the profile itself comes from — not a lookalike, and not a second copy of
+  // anything. Laid out the way the real shell lays them out (App.jsx): status bar in flow at
+  // the top, profile filling the rest, nav absolutely pinned to the bottom over it.
+  //
+  // THE NAV IS DELIBERATELY DEAD. Three independent reasons it cannot navigate:
+  //   1. `setNav` is a no-op, so even a synthetic click runs nothing.
+  //   2. `inert` removes it from hit-testing AND the tab order.
+  //   3. pointer-events: none, so a press never reaches the buttons and the
+  //      active:scale-90 feedback never fires — it does not even feel tappable.
+  // `nav={null}` is what the real app passes while you are inside a company
+  // profile, so no icon reads as the current tab. That is why none is highlighted.
   return (
-    <div className="pp-editor-preview" style={{ position: "relative", width: "100%", height: "100%", overflow: "hidden" }}>
-      <style>{`.pp-editor-preview .pp-view,.pp-editor-preview .pp-fade,.pp-editor-preview .pp-slide-up,.pp-editor-preview .pp-pop,.pp-editor-preview .pp-wordfade,.pp-editor-preview .pp-glow,.pp-editor-preview .pp-breathe{animation:none!important;opacity:1!important}`}</style>
-      <P key={ver} tab={tab} onTabChange={(t) => onTab && onTab(t)} onBack={() => {}} onScan={() => {}} />
+    <div className="pp-editor-preview" style={{ position: "relative", width: "100%", height: "100%", overflow: "hidden", display: "flex", flexDirection: "column", background: "#fff" }}>
+      <style>{`.pp-editor-preview .pp-bottomnav{position:static!important}.pp-editor-preview .pp-view,.pp-editor-preview .pp-fade,.pp-editor-preview .pp-slide-up,.pp-editor-preview .pp-pop,.pp-editor-preview .pp-wordfade,.pp-editor-preview .pp-glow,.pp-editor-preview .pp-breathe{animation:none!important;opacity:1!important}`}</style>
+      {StatusBar && <div data-preview-chrome="1" style={{ flexShrink: 0 }}><StatusBar /></div>}
+      <div style={{ flex: 1, minHeight: 0, position: "relative" }}>
+        <P key={ver} tab={tab} onTabChange={(t) => onTab && onTab(t)} onBack={() => {}} onScan={() => {}} />
+      </div>
+      {BottomNav && (
+        // The outer layer ABSORBS the click; the inner layer is inert.
+        //
+        // pointer-events:none alone was wrong: a press on the nav fell THROUGH
+        // to the profile content behind it, and the editor's own click-to-edit
+        // then routed somewhere arbitrary -- tapping the dead nav jumped the
+        // editor to another section. So the wrapper is hit-testable and
+        // swallows the event before handlePreviewClick (which is a capture
+        // listener further up) ever sees it.
+        <div
+          aria-hidden="true"
+          data-preview-chrome="1"
+          onClickCapture={(e) => { e.preventDefault(); e.stopPropagation(); }}
+          onPointerDownCapture={(e) => { e.preventDefault(); e.stopPropagation(); }}
+          style={{ position: "absolute", left: 0, right: 0, bottom: 0, zIndex: 40, cursor: "default" }}
+        >
+          <div ref={navRef}>
+            <BottomNav nav={null} setNav={() => {}} />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -331,6 +379,22 @@ export default function ProfileEditor({ company, injectedProfile, navTab, navSte
   const [pp, setPp] = useState(null);
   const [debPp, setDebPp] = useState(null);
   const [save, setSave] = useState("idle");
+  // a04 / d28: the editor works on a DRAFT (api/profile-draft.js, migration
+  // 0072). Investors keep seeing the live profile until an owner, company admin
+  // or MineEx admin publishes. `draft` is what the server last told us:
+  // { version, baseFingerprint, canPublish, role, stale }.
+  const [draft, setDraft] = useState(null);
+  const [unsaved, setUnsaved] = useState(false);
+  const [notice, setNotice] = useState(null);          // { tone: "ok" | "error" | "info", text }
+  const [denied, setDenied] = useState("");            // the server refused to open the editor
+  const [publishing, setPublishing] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
+  // a05: revision history. Versions are snapshots of what was LIVE before each
+  // publish. Previewing never saves; restoring puts a version INTO THE DRAFT.
+  const [histOpen, setHistOpen] = useState(false);
+  const [versions, setVersions] = useState(undefined);   // undefined loading · {error} · []
+  const [previewVer, setPreviewVer] = useState(null);    // { id, created_at, pp } shown in the phone, not saved
+  const [histBusy, setHistBusy] = useState("");
   const [busyImg, setBusyImg] = useState("");
   const [activeProj, setActiveProj] = useState(null);   // Projects editor: the one project being edited
   const [openSec, setOpenSec] = useState("images");     // Projects editor: which accordion subsection is expanded
@@ -561,27 +625,71 @@ export default function ProfileEditor({ company, injectedProfile, navTab, navSte
     // would otherwise come straight back through this handler as if the USER had tapped the
     // phone, and route the editor somewhere else entirely.
     if (syntheticClickRef.current) return;
+    // The iOS chrome is scenery, not company content. Without this, tapping the
+    // dead bottom nav routed the editor to whatever the resolver made of it.
+    if (e.target && e.target.closest && e.target.closest("[data-preview-chrome]")) return;
     const tgt = resolvePreviewTarget(e.target);
     if (tgt.projectKey) { setActiveProj(tgt.projectKey); setOpenSec("images"); }
     setTimeout(() => jump(tgt.tab, tgt.field, tgt.selector), 0);
   };
 
   useEffect(() => {
-    if (injectedProfile) { const prof = injectedProfile || {}; setProfile(prof); setPp(prof.pp || {}); setDebPp(prof.pp || {}); setTier(String((company && company.tier) || prof.tier || "").toLowerCase()); return; }
-    if (!slug) return;
+    if (injectedProfile) {
+      let prof = injectedProfile || {};
+      // DEMO: fold in anything published from the demo, then RECOMPILE the pp
+      // rather than using the stored one.
+      //
+      // Recompiling is the point. The stored pp was produced before the V2 key
+      // results and takeaway were carried through mapTimeline, so a stored pp
+      // renders old releases with the canned takeaway no matter what the
+      // profile says. Compiling here means the preview shows what the fixed
+      // pipeline produces -- for the release just published AND for every
+      // historical one.
+      let compiled = prof.pp || {};
+      if (isPortalDemo()) {
+        try {
+          prof = withDemoReleases(prof, company?.id);
+          compiled = mapProfileToPP(prof);
+        } catch (e) {
+          // Never block the editor on a preview -- but never swallow it either.
+          // A silent fallback here looks exactly like "the release did not
+          // publish", which cost real time to track down.
+          compiled = prof.pp || {};
+          if (import.meta.env.DEV) console.warn("[demo] preview recompile failed:", e);
+        }
+      }
+      setProfile(prof); setPp(compiled); setDebPp(compiled);
+      setTier(String((company && company.tier) || prof.tier || "").toLowerCase());
+      return;
+    }
+    // The draft is loaded by company id; the slug is not needed. Requiring it
+    // left a company without one on "Loading profile…" for ever.
+    if (!company?.id) {
+      setDenied("This company's profile could not be identified. Reload the page, and contact MineEx if it keeps happening.");
+      setProfile({}); setPp({}); setDebPp({});
+      return;
+    }
     let ok = true;
     (async () => {
-      try {
-        const h = await authHeaders();
-        const res = await fetch(`${SUPABASE_URL}/rest/v1/companies?slug=eq.${encodeURIComponent(slug)}&select=profile,tier`, { headers: h });
-        const rows = await res.json().catch(() => []);
-        if (!ok) return;
-        const prof = (rows[0] && rows[0].profile) || {};
-        setProfile(prof); setPp(prof.pp || {}); setDebPp(prof.pp || {}); setTier(String((rows[0] && rows[0].tier) || "").toLowerCase());
-      } catch (_) { if (ok) { setProfile({}); setPp({}); setDebPp({}); } }
+      // The live profile plus this company's draft, through the server: drafts
+      // are not readable by any browser role. A refusal is shown, never a blank
+      // editor whose saves would go nowhere (d28).
+      const out = await loadProfileDraft(company.id);
+      if (!ok) return;
+      if (!out.ok) {
+        setDenied(messageFor(out)); setProfile({}); setPp({}); setDebPp({});
+        return;
+      }
+      const start = editorStart(out);
+      setDenied("");
+      setProfile(start.profile); setPp(start.pp); setDebPp(start.pp);
+      setTier(String((company && company.tier) || "").toLowerCase());
+      setDraft({ version: start.version, baseFingerprint: out.live_fingerprint, canPublish: !!out.can_publish, role: out.role, stale: start.stale, updatedAt: start.updatedAt });
+      setUnsaved(false); setSave("idle");
+      if (start.stale) setNotice({ tone: "error", text: messageFor({ error: "live_changed" }) });
     })();
     return () => { ok = false; };
-  }, [slug, injectedProfile]);
+  }, [slug, injectedProfile, company?.id, reloadKey]);
 
   useEffect(() => { const t = setTimeout(() => setDebPp(pp), 90); return () => clearTimeout(t); }, [pp]);
 
@@ -607,7 +715,7 @@ export default function ProfileEditor({ company, injectedProfile, navTab, navSte
   }, [tier, activeTab]);
 
   /* ---------------- setters ---------------- */
-  const dirty = () => setSave("idle");
+  const dirty = () => { setSave("idle"); setUnsaved(true); };
   const setCo = (k, v) => { dirty(); setPp((p) => ({ ...p, COMPANY: { ...(p.COMPANY || {}), [k]: v } })); };
   const setKey = (k, v) => { dirty(); setPp((p) => ({ ...p, [k]: v })); };
 
@@ -785,22 +893,87 @@ export default function ProfileEditor({ company, injectedProfile, navTab, navSte
 
   // Phase 4B canonical save lives in ../lib/ppToProfile.js (buildCanonicalProfile) so the exact
   // same transform is exercised by the persisted-row validation tests, not a drifting copy.
+  // SAVE = save the DRAFT. Never the live profile; reported saved only when the
+  // server says so (a refusal is shown with its reason, d28).
   const doSave = async () => {
     if (injectedProfile) { setSave("saved"); return; } // harness: no DB write
-    setSave("saving");
-    try {
-      const nextProfile = buildCanonicalProfile(profile || {}, pp);
-      const h = await authHeaders();
-      const res = await fetch(`${SUPABASE_URL}/rest/v1/companies?slug=eq.${encodeURIComponent(slug)}`, {
-        method: "PATCH", headers: { ...h, "Content-Type": "application/json", Prefer: "return=minimal" },
-        body: JSON.stringify({ profile: nextProfile }),
-      });
-      setSave(res.ok ? "saved" : "error");
-      if (res.ok) { setProfile(nextProfile); setPp(nextProfile.pp); setDebPp(nextProfile.pp); }
-    } catch (_) { setSave("error"); }
+    if (!draft || denied) return;
+    setSave("saving"); setNotice(null);
+    const nextProfile = buildCanonicalProfile(profile || {}, pp);
+    const out = await saveProfileDraft({
+      companyId: company.id,
+      draft: { projects: nextProfile.projects ?? null, pp: nextProfile.pp },
+      expectedVersion: draft.version,
+      baseFingerprint: draft.version == null ? draft.baseFingerprint : null,
+    });
+    if (out.ok) {
+      setDraft((d) => ({ ...d, version: out.version, updatedAt: out.updated_at }));
+      setProfile(nextProfile); setPp(nextProfile.pp); setDebPp(nextProfile.pp);
+      setUnsaved(false); setSave("saved");
+    } else {
+      setSave("error"); setNotice({ tone: "error", text: messageFor(out), reload: out.status === 409 });
+    }
+  };
+
+  // PUBLISH = the server copies the saved draft to the live profile in one
+  // transaction (snapshot + audit), or refuses with a reason.
+  const doPublish = async () => {
+    if (!draft || !draft.version || unsaved || publishing) return;
+    if (!window.confirm("Publish these changes to your live MineEx profile? Investors will see them straight away.")) return;
+    setPublishing(true); setNotice(null);
+    const out = await publishProfileDraft({ companyId: company.id, expectedVersion: draft.version });
+    setPublishing(false);
+    if (out.ok) { setNotice({ tone: "ok", text: "Published. Investors now see these changes." }); setReloadKey((k) => k + 1); }
+    else setNotice({ tone: "error", text: messageFor(out), reload: out.status === 409 });
+  };
+
+  const openHistory = async () => {
+    setHistOpen(true); setVersions(undefined);
+    const out = await listProfileVersions(company.id);
+    // `ok` with no list is not "still loading": it used to spin for ever.
+    setVersions(out.ok ? (Array.isArray(out.versions) ? out.versions : { error: "Profile history came back empty-handed. Try again." }) : { error: messageFor(out) });
+  };
+  const previewVersion = async (v) => {
+    setHistBusy(v.id);
+    const out = await getProfileVersion(company.id, v.id);
+    setHistBusy("");
+    if (out.ok) setPreviewVer({ id: v.id, created_at: v.created_at, pp: out.fields.pp || {} });
+    else setNotice({ tone: "error", text: messageFor(out) });
+  };
+  const restoreVersion = async (v) => {
+    const when = new Date(v.created_at).toLocaleString();
+    if (!window.confirm(`Restore the version from ${when} into your draft?\n\n${unsaved ? "Your unsaved changes on this page will be replaced. " : ""}${hasDraftNow() ? "It replaces the current draft. " : ""}Nothing goes live until the draft is published.`)) return;
+    setHistBusy(v.id);
+    const out = await restoreProfileVersion({ companyId: company.id, versionId: v.id, expectedVersion: draft ? draft.version : null });
+    setHistBusy("");
+    if (out.ok) {
+      setPreviewVer(null); setHistOpen(false);
+      setNotice({ tone: "ok", text: `Restored the version from ${when} into your draft. Review it, then ${draft && draft.canPublish ? "publish it" : "ask the owner or an admin to publish it"}.` });
+      setReloadKey((k) => k + 1);
+    } else setNotice({ tone: "error", text: messageFor(out), reload: out.status === 409 });
+  };
+  const hasDraftNow = () => !!(draft && draft.version);
+
+  const doDiscard = async () => {
+    if (!draft || !draft.version) return;
+    if (!window.confirm("Discard this draft? Your live profile stays exactly as it is.")) return;
+    setNotice(null);
+    const out = await discardProfileDraft({ companyId: company.id, expectedVersion: draft.version });
+    if (out.ok) { setNotice({ tone: "info", text: "Draft discarded. You are editing the live profile again (changes save as a new draft)." }); setReloadKey((k) => k + 1); }
+    else setNotice({ tone: "error", text: messageFor(out), reload: out.status === 409 });
   };
 
   if (!pp) return <div style={{ display: "grid", placeItems: "center", height: "100%", color: "#94a3b8", fontSize: 13 }}>Loading profile…</div>;
+  if (denied) return (
+    <div data-testid="profile-denied" style={{ display: "grid", placeItems: "center", height: "100%", padding: 32 }}>
+      <div style={{ maxWidth: 460, textAlign: "center" }}>
+        <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: "#0f172a" }}>You can't edit this profile</h2>
+        <p style={{ margin: "8px 0 0", fontSize: 13.5, lineHeight: 1.55, color: "#64748b" }}>{denied}</p>
+      </div>
+    </div>
+  );
+  const hasDraft = !!(draft && draft.version);
+  const pending = hasDraft || unsaved;     // something investors cannot see yet
   const co = pp.COMPANY || {};
 
   /* ---------------- per-tab field panels ---------------- */
@@ -1313,32 +1486,142 @@ export default function ProfileEditor({ company, injectedProfile, navTab, navSte
       </nav>
       )}
 
+      {/* LEFT — the live preview, in the same photoreal titanium iPhone the
+          sales page uses. The phone and the editor both hold their position
+          while you interact with the preview: the card the app portals out of
+          itself now overlays the screen instead of sliding a panel in beside
+          it, so nothing reflows mid-edit.
+
+          Everything behind the glass is unchanged -- the same AppPreview, the
+          same previewRef, the same click-to-edit routing and the same pp
+          bindings. Only the frame around it is new. */}
+      {showPreview && (
+        <div style={{ flexShrink: 0, width: "clamp(340px, 40%, 620px)", borderRight: "1px solid #eef2f7", background: "#f6f8fb",
+          // Spacing gives way before the device does. At 1024 the fixed 20/18 padding
+          // was costing the phone 36px of the little width it had, so the gutters scale
+          // with the viewport and the device keeps as much of the column as possible.
+          // The app viewport behind the glass stays 393x852 regardless -- only the
+          // scale factor changes, so the investor app never reflows to a width no
+          // phone actually has.
+          padding: "clamp(12px, 1.4vw, 22px) clamp(10px, 1.2vw, 20px)", minWidth: 0 }}>
+          {!injectedProfile && (
+            <div data-testid="preview-label" style={{ textAlign: "center", fontSize: 11, fontWeight: 800, letterSpacing: "0.04em", textTransform: "uppercase", marginBottom: 8, color: pending ? "#b45309" : "#047857" }}>
+              {previewVer ? `Version from ${new Date(previewVer.created_at).toLocaleDateString()} — preview only` : pending ? "Draft preview — not public" : "Live profile preview"}
+            </div>
+          )}
+          {previewVer && (
+            <div style={{ textAlign: "center", marginBottom: 8 }}>
+              <button onClick={() => setPreviewVer(null)} style={{ border: "none", background: "transparent", color: "#2563eb", fontSize: 11.5, fontWeight: 700, cursor: "pointer" }}>Back to your draft</button>
+            </div>
+          )}
+          <DevicePhone screenRef={previewRef} onClickCapture={handlePreviewClick}
+            overlay={<div ref={setPopupEl} style={{ position: "absolute", inset: 0, pointerEvents: popupActive ? "auto" : "none" }} />}>
+            <AppPreview pp={previewVer ? previewVer.pp : debPp} popupEl={popupEl} tab={activeTab} tier={tier}
+              onTab={(t) => { lastTabRef.current = t; setNav(PROFILE_TO_EDITOR[t] || "overview", 0); }} />
+          </DevicePhone>
+        </div>
+      )}
+
       {/* CENTER — the editor form (primary focus) */}
       <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", minHeight: 0 }}>
         {/* header: breadcrumb + heading + Save / Hide preview */}
-        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, maxWidth: 832, padding: "22px 32px 16px", flexShrink: 0, borderBottom: "1px solid #f1f5f9" }}>
-          <div style={{ minWidth: 0 }}>
+        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "flex-start", justifyContent: "space-between", gap: 12, maxWidth: 832, padding: "22px 32px 16px", flexShrink: 0, borderBottom: "1px solid #f1f5f9" }}>
+          {/* The draft controls (status, Discard, Save draft, Publish) wrap below
+              the title on narrow screens rather than squeezing it to one word a line. */}
+          <div style={{ minWidth: 220, flex: "1 1 260px" }}>
             <div style={{ fontSize: 11.5, fontWeight: 700, color: "#94a3b8" }}>{sectionLabel}{cur.title ? ` · ${cur.title}` : ""}</div>
             <h2 style={{ margin: "3px 0 0", fontSize: 21, fontWeight: 800, letterSpacing: "-0.02em", color: "#0f172a" }}>{cur.title}</h2>
             <p style={{ margin: "4px 0 0", fontSize: 13, color: "#64748b", maxWidth: 560 }}>{STEP_DESC[cur.key] || ""}</p>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
-            {/* Phase 6B: unmistakable "this is live" cue — a published profile's Save is instantly public. */}
-            {company && company.status === "published" && (
-              <span title="This profile is live on MineEx. Saved changes appear immediately." style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 10px", borderRadius: 999, background: "#ecfdf5", color: "#047857", fontSize: 11.5, fontWeight: 800, whiteSpace: "nowrap" }}>
-                <span style={{ width: 7, height: 7, borderRadius: 999, background: "#10b981" }} /> Live — changes publish immediately
+          <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "flex-end", gap: 8 }}>
+            {/* a04: what investors see vs what is on this page. Saving never
+                changes the live profile; only Publish does. */}
+            {!injectedProfile && (
+              <span data-testid="profile-state" data-state={pending ? "draft" : "live"}
+                title={pending ? "Investors still see the live profile. These changes are visible only here until they are published." : "This is what investors see. Edits are saved as a draft first."}
+                style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 10px", borderRadius: 999, background: pending ? "#fffbeb" : "#ecfdf5", color: pending ? "#b45309" : "#047857", fontSize: 11.5, fontWeight: 800, whiteSpace: "nowrap" }}>
+                <span style={{ width: 7, height: 7, borderRadius: 999, background: pending ? "#f59e0b" : "#10b981" }} />
+                {unsaved ? "Unsaved changes" : hasDraft ? "Unpublished draft" : "Live profile"}
               </span>
+            )}
+            {!injectedProfile && draft && (
+              <button onClick={() => (histOpen ? (setHistOpen(false), setPreviewVer(null)) : openHistory())} aria-pressed={histOpen}
+                style={{ padding: "9px 12px", borderRadius: 10, border: "1px solid #e2e8f0", background: histOpen ? "#f1f5f9" : "#fff", color: "#64748b", fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>
+                History
+              </button>
             )}
             <button onClick={() => setShowPreview((v) => !v)}
               style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "9px 12px", borderRadius: 10, border: "1px solid #e2e8f0", background: "#fff", color: "#64748b", fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>
               {showPreview ? "Hide preview" : "Show preview"}
             </button>
-            <button onClick={doSave} disabled={save === "saving"}
-              style={{ background: save === "saved" ? "#eef1f4" : "#0f172a", color: save === "saved" ? "#0f172a" : "#fff", border: "none", borderRadius: 10, padding: "10px 22px", fontSize: 13.5, fontWeight: 700, cursor: save === "saving" ? "default" : "pointer" }}>
-              {save === "saving" ? "Saving…" : save === "saved" ? "Saved ✓" : save === "error" ? "Retry" : (company && company.status === "published" ? "Save changes" : "Save")}
+            {hasDraft && !injectedProfile && (
+              <button onClick={doDiscard} disabled={save === "saving" || publishing}
+                style={{ padding: "9px 12px", borderRadius: 10, border: "1px solid #e2e8f0", background: "#fff", color: "#64748b", fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>
+                Discard draft
+              </button>
+            )}
+            <button onClick={doSave} disabled={save === "saving" || (!injectedProfile && !unsaved && save !== "error")}
+              style={{ background: save === "saved" || (!unsaved && save !== "error") ? "#eef1f4" : "#0f172a", color: save === "saved" || (!unsaved && save !== "error") ? "#0f172a" : "#fff", border: "none", borderRadius: 10, padding: "10px 18px", fontSize: 13.5, fontWeight: 700, cursor: save === "saving" ? "default" : "pointer" }}>
+              {save === "saving" ? "Saving…" : save === "saved" ? "Draft saved ✓" : save === "error" ? "Retry save" : "Save draft"}
             </button>
+            {draft && draft.canPublish && !injectedProfile && (
+              <button onClick={doPublish} disabled={!hasDraft || unsaved || publishing}
+                title={unsaved ? "Save the draft first" : !hasDraft ? "Nothing to publish" : "Publish the saved draft to your live profile"}
+                style={{ background: hasDraft && !unsaved ? "#2563eb" : "#e2e8f0", color: hasDraft && !unsaved ? "#fff" : "#94a3b8", border: "none", borderRadius: 10, padding: "10px 18px", fontSize: 13.5, fontWeight: 700, cursor: hasDraft && !unsaved && !publishing ? "pointer" : "default" }}>
+                {publishing ? "Publishing…" : "Publish changes"}
+              </button>
+            )}
           </div>
         </div>
+
+        {(notice || (draft && !draft.canPublish && hasDraft)) && (
+          <div style={{ maxWidth: 832, padding: "10px 32px 0", flexShrink: 0 }}>
+            {notice && (
+              <div role={notice.tone === "error" ? "alert" : "status"} data-testid="profile-notice"
+                style={{ display: "flex", gap: 10, alignItems: "flex-start", borderRadius: 10, padding: "10px 12px", fontSize: 12.5, lineHeight: 1.5, fontWeight: 600,
+                  background: notice.tone === "error" ? "#fef2f2" : notice.tone === "ok" ? "#ecfdf5" : "#eff6ff", color: notice.tone === "error" ? "#b91c1c" : notice.tone === "ok" ? "#047857" : "#1d4ed8" }}>
+                <span style={{ flex: 1 }}>{notice.text}</span>
+                {notice.reload && <button onClick={() => { setNotice(null); setReloadKey((k) => k + 1); }} style={{ border: "none", background: "transparent", color: "inherit", fontWeight: 800, cursor: "pointer", textDecoration: "underline" }}>Reload</button>}
+                <button onClick={() => setNotice(null)} aria-label="Dismiss" style={{ border: "none", background: "transparent", color: "inherit", cursor: "pointer" }}>×</button>
+              </div>
+            )}
+            {draft && !draft.canPublish && hasDraft && !notice && (
+              <div data-testid="profile-needs-approval" style={{ borderRadius: 10, padding: "10px 12px", fontSize: 12.5, lineHeight: 1.5, background: "#f8fafc", color: "#475569" }}>
+                Draft saved. The company's owner or an admin can review and publish it; investors see the live profile until then.
+              </div>
+            )}
+          </div>
+        )}
+
+        {histOpen && (
+          <div data-testid="profile-history" style={{ maxWidth: 832, padding: "10px 32px 0", flexShrink: 0 }}>
+            <div style={{ border: "1px solid #e2e8f0", borderRadius: 12, padding: "12px 14px" }}>
+              <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "baseline", gap: "2px 12px" }}>
+                <span style={{ fontSize: 12.5, fontWeight: 800, color: "#0f172a", whiteSpace: "nowrap" }}>Revision history</span>
+                <span style={{ fontSize: 11.5, color: "#94a3b8" }}>Each entry is what was live before a publish. Restoring puts it into your draft.</span>
+              </div>
+              {versions === undefined && <p style={{ margin: "10px 0 2px", fontSize: 12.5, color: "#94a3b8" }}>Loading history…</p>}
+              {versions && versions.error && <p role="alert" style={{ margin: "10px 0 2px", fontSize: 12.5, color: "#b91c1c" }}>{versions.error}</p>}
+              {Array.isArray(versions) && versions.length === 0 && <p style={{ margin: "10px 0 2px", fontSize: 12.5, color: "#64748b" }}>No earlier versions yet. One is kept every time the profile is published.</p>}
+              {Array.isArray(versions) && versions.length > 0 && (
+                <ul style={{ listStyle: "none", margin: "8px 0 0", padding: 0, maxHeight: 220, overflow: "auto" }}>
+                  {versions.map((v) => (
+                    <li key={v.id} data-version={v.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 0", borderTop: "1px solid #f1f5f9" }}>
+                      <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, color: "#334155" }}>
+                        <b>{new Date(v.created_at).toLocaleString()}</b>
+                        <span style={{ color: "#94a3b8" }}> · {v.kind === "publish" ? `replaced when ${v.by_label || "a team member"} published` : `saved by ${v.by_label || "a team member"}`}</span>
+                      </span>
+                      <button onClick={() => previewVersion(v)} disabled={!!histBusy}
+                        style={{ border: "1px solid #e2e8f0", background: previewVer && previewVer.id === v.id ? "#eff6ff" : "#fff", borderRadius: 8, padding: "5px 9px", fontSize: 11.5, fontWeight: 700, color: "#475569", cursor: "pointer" }}>Preview</button>
+                      <button onClick={() => restoreVersion(v)} disabled={!!histBusy}
+                        style={{ border: "none", background: "#0f172a", color: "#fff", borderRadius: 8, padding: "5px 9px", fontSize: 11.5, fontWeight: 700, cursor: "pointer" }}>{histBusy === v.id ? "…" : "Restore as draft"}</button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* scrolling form — constrained to a comfortable reading width, aligned left */}
         <div key={activeTab + "-" + step} ref={scrollWrapRef} onFocusCapture={onEditorFocus} className="ed-scroll" style={{ flex: 1, overflow: "auto", padding: "24px 32px 40px", display: "flex", flexDirection: "column", gap: 30 }}>
@@ -1358,23 +1641,6 @@ export default function ProfileEditor({ company, injectedProfile, navTab, navSte
         </div>
       </div>
 
-      {/* RIGHT — live phone preview (sticky column). Kept verbatim: same AppPreview, popupEl,
-          click-to-edit routing and data bindings — only its placement changed. */}
-      {showPreview && (
-        <div style={{ flexShrink: 0, borderLeft: "1px solid #eef2f7", background: "#f6f8fb", padding: "24px 20px", display: "flex", alignItems: "flex-start", justifyContent: "center", gap: 16, overflow: "hidden" }}>
-          <div ref={previewRef} onClickCapture={handlePreviewClick} style={{ width: 372, height: 806, maxHeight: "calc(100vh - 48px)", aspectRatio: "393 / 852", background: "#fff", borderRadius: 42,
-            overflow: "hidden", border: "1px solid #e9eef5", boxShadow: "0 40px 90px -30px rgba(15,23,42,0.4)", transform: "translateZ(0)", flexShrink: 0 }}>
-            <AppPreview pp={debPp} popupEl={popupEl} tab={activeTab} tier={tier}
-              onTab={(t) => { lastTabRef.current = t; setNav(PROFILE_TO_EDITOR[t] || "overview", 0); }} />
-          </div>
-          <div style={{ width: popupActive ? 360 : 0, height: 806, maxHeight: "calc(100vh - 48px)", flexShrink: 0, overflow: "hidden", transition: "width .32s cubic-bezier(0.16,1,0.3,1)" }}>
-            <div onClickCapture={handlePreviewClick} style={{ position: "relative", width: 360, height: "100%", borderRadius: 30, overflow: "hidden",
-              border: popupActive ? "1px solid #e9eef5" : "none", background: popupActive ? "#fff" : "transparent", boxShadow: popupActive ? "0 40px 90px -30px rgba(15,23,42,0.35)" : "none" }}>
-              <div ref={setPopupEl} style={{ position: "absolute", inset: 0 }} />
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

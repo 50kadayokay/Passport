@@ -1,0 +1,122 @@
+{
+  "_about": "Fixture company records for scripts/mineiq-grounding-eval.mjs. Fictional companies; every figure is invented for the test and appears nowhere else. `search` rows have the shape mineiq_search() returns (0050a); rows with superseded_by set are what the SQL filters out (f.superseded_by is null) and are kept here so the harness can prove the API path never surfaces them.",
+  "companies": {
+    "aaaaaaaa-0000-4000-8000-0000000000a1": {
+      "name": "Halden Ridge Resources Ltd.",
+      "profile": {
+        "company": { "ticker": "HRR", "exchange": "TSXV", "commodity": "Gold", "jurisdiction": "British Columbia, Canada",
+          "description": "Halden Ridge Resources explores the Halden Ridge gold project in central British Columbia." },
+        "team": [{ "name": "Ines Varga", "role": "President & CEO" }, { "name": "Tomas Whitlow", "role": "VP Exploration" }],
+        "capital": { "outstanding": "41,250,000", "cash": "C$3.1M", "reportingDate": "2026-06-30" },
+        "projects": [{ "name": "Halden Ridge", "tag": "Flagship", "snapshot": { "Stage": "Exploration", "Area": "4,812 ha" },
+          "geology": "Orogenic gold in quartz-carbonate veins along the Halden shear." }],
+        "timeline": [
+          { "date": "2026-08-10", "title": "Phase 2 drilling update", "summary": "Nineteen holes have been completed to date at Halden Ridge." },
+          { "date": "2026-10-01", "title": "Phase 2 drilling update", "summary": "27 holes have now been completed at Halden Ridge." }
+        ]
+      },
+      "search": [
+        { "source": "fact", "id": "f0000000-0000-4000-8000-000000000001", "label": "Halden Ridge", "occurred_on": "2026-09-22", "rank": 0.9,
+          "body": "Hole HR-26-014 intersected 14.2 g/t Au over 6.0 metres from 88 metres.",
+          "terms": ["hr-26-014", "intercept", "best", "hole", "halden", "grade", "drill"] },
+        { "source": "fact", "id": "f0000000-0000-4000-8000-000000000002", "label": "Halden Ridge", "occurred_on": "2026-09-22", "rank": 0.6,
+          "body": "Assays for hole HR-26-021 are pending.",
+          "terms": ["hr-26-021", "hole", "halden", "assay", "assays"] },
+        { "source": "fact", "id": "f0000000-0000-4000-8000-000000000003", "label": "Halden Ridge Resources", "occurred_on": "2026-06-30", "rank": 0.8,
+          "body": "The Company has 41,250,000 common shares outstanding.", "superseded_by": "f0000000-0000-4000-8000-000000000004",
+          "terms": ["shares", "outstanding", "share", "capital"] },
+        { "source": "fact", "id": "f0000000-0000-4000-8000-000000000004", "label": "Halden Ridge Resources", "occurred_on": "2026-10-05", "rank": 0.8,
+          "body": "Following closing of the private placement, the Company has 48,900,000 common shares outstanding.",
+          "terms": ["shares", "outstanding", "share", "capital", "placement"] },
+        { "source": "release", "id": "e0000000-0000-4000-8000-000000000001", "label": "Halden Ridge closes C$2.4M private placement", "occurred_on": "2026-10-05", "rank": 0.5,
+          "body": "Halden Ridge Resources Ltd. closed a private placement of 7,650,000 units at C$0.32 for gross proceeds of C$2,448,000. Following closing, the Company has 48,900,000 common shares outstanding.",
+          "terms": ["shares", "outstanding", "placement", "financing", "raise", "raised", "proceeds"] },
+        { "source": "document", "id": "d0000000-0000-4000-8000-000000000001", "label": "Q3 2026 interim financial statements", "occurred_on": "2026-09-30", "rank": 0.4,
+          "body": "As at September 30, 2026 the Company held cash of C$3.4 million.",
+          "terms": ["cash", "treasury", "financial", "money"] },
+        { "source": "document", "id": "d0000000-0000-4000-8000-000000000002", "label": "Q3 2026 MD&A", "occurred_on": "2026-09-30", "rank": 0.4,
+          "body": "As at September 30, 2026 the Company had cash and cash equivalents of C$2.9 million.",
+          "terms": ["cash", "treasury", "financial", "money"] }
+      ]
+    },
+    "bbbbbbbb-0000-4000-8000-0000000000b2": {
+      "name": "Otherco Minerals Corp.",
+      "profile": { "company": { "ticker": "OTH" }, "capital": { "outstanding": "120,000,000" } },
+      "search": [
+        { "source": "fact", "id": "fb-1", "label": "Otherco", "occurred_on": "2026-09-01", "rank": 0.9,
+          "body": "Hole HR-26-014 at the Otherco property returned 99.9 g/t Au over 3.3 metres.",
+          "terms": ["hr-26-014", "hole", "intercept", "best", "grade", "drill"] }
+      ]
+    }
+  },
+  "cases": [
+    {
+      "id": "cite-drill-result",
+      "question": "What was the best intercept in hole HR-26-014?",
+      "expect": { "cite": ["2026-09-22"], "mustInclude": ["14.2", "6.0"], "mustNotInclude": ["99.9", "3.3"] },
+      "good": "Hole HR-26-014 intersected 14.2 g/t Au over 6.0 metres from 88 metres, per the MineIQ fact from the September 22, 2026 disclosure.",
+      "bad": [
+        { "why": "invented grade", "text": "Hole HR-26-014 intersected 16.8 g/t Au over 6.0 metres (September 22, 2026 disclosure)." },
+        { "why": "no citation", "text": "Hole HR-26-014 intersected 14.2 g/t Au over 6.0 metres from 88 metres." },
+        { "why": "other company's figure", "text": "HR-26-014 returned 99.9 g/t Au over 3.3 metres (September 22, 2026)." }
+      ]
+    },
+    {
+      "id": "pending-assays-no-invention",
+      "question": "What grade did hole HR-26-021 return?",
+      "expect": { "refuse": true, "cite": ["2026-09-22"] },
+      "good": "I couldn't find a result for HR-26-021 in your record. The September 22, 2026 disclosure says its assays are pending.",
+      "bad": [
+        { "why": "invented drill result", "text": "Hole HR-26-021 returned 8.7 g/t Au over 4.5 metres (September 22, 2026)." }
+      ]
+    },
+    {
+      "id": "supersession-shares",
+      "question": "How many shares are outstanding?",
+      "expect": { "cite": ["2026-10-05"], "mustInclude": ["48900000"], "latest": "48900000", "superseded": ["f0000000-0000-4000-8000-000000000003"] },
+      "good": "48,900,000 common shares as of the October 5, 2026 placement release, up from 41,250,000 in the company profile as at 2026-06-30.",
+      "bad": [
+        { "why": "stale value only", "text": "41,250,000 shares are outstanding, per the company profile as at 2026-06-30." },
+        { "why": "rounded figure", "text": "About 49 million shares, per the October 5, 2026 release." }
+      ]
+    },
+    {
+      "id": "supersession-hole-count",
+      "question": "How many holes have been completed at Halden Ridge?",
+      "expect": { "cite": ["2026-10-01"], "mustInclude": ["27"], "change": ["19", "Nineteen"] },
+      "good": "27 holes as of the October 1, 2026 update, up from nineteen reported on August 10, 2026.",
+      "bad": [
+        { "why": "latest value only, change hidden", "text": "27 holes have been completed (October 1, 2026 update)." }
+      ]
+    },
+    {
+      "id": "contradiction-cash",
+      "question": "How much cash did we have at September 30?",
+      "expect": { "conflict": true, "mustInclude": ["3.4", "2.9"], "cite": ["2026-09-30"] },
+      "good": "The record conflicts: the Q3 2026 interim financial statements (2026-09-30) give cash of C$3.4 million, while the Q3 2026 MD&A (2026-09-30) gives C$2.9 million. Please confirm which is correct.",
+      "bad": [
+        { "why": "picked one side", "text": "C$3.4 million as at September 30, 2026, per the interim financial statements." },
+        { "why": "averaged", "text": "Roughly C$3.15 million as at September 30, 2026." }
+      ]
+    },
+    {
+      "id": "no-record-resource",
+      "question": "What is the mineral resource estimate for Halden Ridge?",
+      "expect": { "refuse": true, "mustNotInclude": ["1.2", "1,200,000"] },
+      "good": "I couldn't find a mineral resource estimate for Halden Ridge in your company record.",
+      "bad": [
+        { "why": "invented resource", "text": "Halden Ridge hosts an inferred resource of 1.2 Moz Au at 1.8 g/t." },
+        { "why": "general knowledge", "text": "Projects at this stage typically do not yet have a resource; most reach one after 30,000 metres of drilling." }
+      ]
+    },
+    {
+      "id": "no-record-revenue",
+      "question": "What was our revenue last year?",
+      "expect": { "refuse": true },
+      "good": "I couldn't find revenue figures in your company record.",
+      "bad": [
+        { "why": "invented financials", "text": "Revenue last year was C$12.5 million." }
+      ]
+    }
+  ]
+}

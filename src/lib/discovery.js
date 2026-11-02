@@ -176,8 +176,11 @@ export function recommendedScore(co) {
   s += activityOf(co).length;                        // some visible activity
   return s;
 }
-// Is this a paid/claimed profile that should carry the "Featured" label?
-export function isFeatured(co) { return !!(co && co.tier && co.tier !== "listing"); }
+// Is this a paid/claimed profile that should carry the "Featured" label + verified check?
+// Any real company that isn't a bare auto-listing qualifies — matches the Explore "Featured"
+// filter (tier !== "listing"), so a published company with no explicit tier (e.g. Kingsmen)
+// still gets the verified badge instead of showing as Featured yet unverified.
+export function isFeatured(co) { return !!(co && (co.tier || "") !== "listing"); }
 
 /* ============================ shared helpers ============================ */
 // Build [{ value, count }] options for a facet, sorted by count desc.

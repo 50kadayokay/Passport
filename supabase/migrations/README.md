@@ -51,29 +51,34 @@ Deliberately **not** applied — both only needed before push is turned on:
 
 Apply them in that order, and only when you intend investors' phones to buzz.
 
-`main`'s two were checked after the merge: **both were unapplied.**
+**CORRECTION.** An earlier version of this file said both of `main`'s migrations
+were unapplied. That conclusion came from a check query that tested the wrong
+objects:
 
-`0042_push_token_ownership` has since been applied. It closes a live privacy
-bug: a device token stayed attached to an account after sign-out, so the next
-person to sign in on that device also received the previous user's
-notifications. `src/lib/auth.js` had been calling `release_push_token` on every
-sign-out and silently swallowing the failure, because the function did not
-exist. At the time of applying, 6 tokens existed and 0 were shared, so the leak
-had not yet occurred.
+* it looked for a TABLE `outbox_claim_lease` — `0041` creates no such table. It
+  defines the functions `claim_notification_outbox` and
+  `finish_notification_outbox`.
+* it looked for a COLUMN `push_tokens.company_id` — `0042` adds no such column.
+  It defines `claim_push_token` and `release_push_token`.
 
-`0041_outbox_claim_lease` is still unapplied. It is **a hard prerequisite for
-`0055`**: without it two overlapping sender runs claim the same pending rows and
-deliver the same notification twice. Not urgent while push is off; required
-before it is turned on.
+Both tests were written from the migration FILENAMES rather than their contents,
+so neither could return anything but "not applied" regardless of the truth.
+`0041` is in fact applied in production.
 
-To re-check either:
+`0042` was then re-applied on the strength of that bad reading. No harm done —
+every statement in it is `create or replace function`, so it is idempotent — but
+the reasoning was wrong and the conclusion was unfounded.
+
+To check either correctly, test the functions they actually define:
 
 ```sql
 select
-  to_regclass('public.outbox_claim_lease') is not null as "0041 applied?",
-  exists (select 1 from information_schema.columns
-           where table_schema='public' and table_name='push_tokens'
-             and column_name='company_id')             as "0042 applied?";
+  case when exists (select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+                     where n.nspname='public' and p.proname='claim_notification_outbox')
+       then 'APPLIED' else 'not applied' end as "0041",
+  case when exists (select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+                     where n.nspname='public' and p.proname='claim_push_token')
+       then 'APPLIED' else 'not applied' end as "0042";
 ```
 
 ## Applying one

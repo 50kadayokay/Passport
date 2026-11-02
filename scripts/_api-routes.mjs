@@ -1,0 +1,261 @@
+// Every serverless route, the guard it ACTUALLY has, and a VALID request for it.
+//
+// Replaces ENDPOINTS, which had three faults that let a route with no guard at
+// all score a PASS:
+//   1. one fixed body {companyId, company_slug, publicationId} for every route,
+//      so most routes answered 400 "malformed" before reaching their guard --
+//      and 400 was counted as "denied";
+//   2. POST only, with 405 counted as "denied" (site-content is GET-only);
+//   3. the guard was declared, not read: 9 of 34 declarations were wrong, and
+//      site-content, site-manifest and submit were missing.
+//
+// Here every route has a request the RIGHT caller would succeed with, so the
+// same request from the wrong caller is a real test. Each entry was written by
+// reading the handler; `source` pins that reading -- if the guard call changes,
+// the static check in api-authz-test.mjs fails and this table must be revisited.
+//
+// matrix keys: "anon", or "<identity>><target company>" (A or B).
+//   allow -- the guard must ADMIT this caller (positive control)
+//   deny  -- the guard must REFUSE this caller
+// known: a probe expected to FAIL today, keyed to a finding in
+//   docs/STAGING-API-PLAN.md. Proposed policy, not yet approved -- the probe
+//   asserts the proposed secure behaviour and is reported as a KNOWN failure.
+//
+// `passed(r)` is the evidence that the guard admitted the caller, for routes
+// where a 2xx is not reachable with a fixture (e.g. a document parser handed a
+// stub). Each one names a message or a provider call that occurs only AFTER the
+// guard in the handler's source. r = { status, body, egress: { provider, mail, blocked } }.
+
+const uuid = () => crypto.randomUUID();
+const post = (body, extra = {}) => ({ method: "POST", body, ...extra });
+const afterGuard = (re) => (r) => r.status === 200 || (r.status !== 401 && r.status !== 403 && re.test(JSON.stringify(r.body || "")));
+const providerCalled = (r) => r.egress.provider > 0;
+const okOrProvider = (r) => (r.status >= 200 && r.status < 300) || providerCalled(r);
+
+// Company routes: owner and members of their OWN company admitted; another
+// company, investors and anon refused.
+const COMPANY = {
+  "anon": "deny", "companyA>A": "allow", "companyA>B": "deny", "staff>A": "allow",
+  "staff>B": "deny", "investor>A": "deny", "companyB>B": "allow",
+};
+// F4 (Batch C): AI drafting / content creation. Drafting roles of THAT company
+// (owner, admin, editor, publisher) and platform admins. `staff` is the fixture
+// viewer -- a read-only role -- and is refused, as are investors and other companies.
+const DRAFT = {
+  "anon": "deny", "companyA>A": "allow", "publisher>A": "allow", "admin>A": "allow", "companyB>B": "allow",
+  "staff>A": "deny", "companyA>B": "deny", "staff>B": "deny", "investor>A": "deny",
+};
+// Mine IQ ask: any member role of that company, viewer included.
+const MEMBER = {
+  "anon": "deny", "companyA>A": "allow", "publisher>A": "allow", "staff>A": "allow", "admin>A": "allow",
+  "companyA>B": "deny", "staff>B": "deny", "investor>A": "deny",
+};
+// Platform-admin tools: nobody else, whatever company they name.
+const ADMIN_TOOL = { "anon": "deny", "companyA>A": "deny", "publisher>A": "deny", "investor>A": "deny", "admin>A": "allow" };
+// F2: billing.
+const BILLING = {
+  "anon": "deny", "companyA>A": "allow", "coadmin>A": "allow", "admin>B": "allow", "companyB>B": "allow",
+  "editor>A": "deny", "publisher>A": "deny", "staff>A": "deny", "investor>A": "deny", "companyA>B": "deny", "coadmin>B": "deny",
+};
+const aiGuardPin = (label, extra) => new RegExp(`requireAiCaller\\(req, res, \\{ label: "${label}"${extra}`);
+
+// One marker per process, so the stored contact row can be found and removed.
+export const SUBMIT_RUN = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+
+export const API_ROUTES = [
+  // ------------------------------------------------------------- AI guard ---
+  { name: "audience-card", methods: ["POST"], guard: "requireAiCaller(company_memory, drafting roles)", source: aiGuardPin("audience-card", ', feature: "company_memory", roles: DRAFTING_ROLES \\}'),
+    req: (c, X) => post({ companyId: c.id[X], timeline: [{ date: "2026-01-01", title: "iso" }] }),
+    passed: okOrProvider, matrix: DRAFT },
+  { name: "structure-release", methods: ["POST"], guard: "requireAiCaller(company_memory, drafting roles)", source: aiGuardPin("structure-release", ', feature: "company_memory", allowOnboarding: true, roles: DRAFTING_ROLES \\}'),
+    req: (c, X) => post({ companyId: c.id[X], text: "Iso Resources intersects 31.4 m of 4.8 g/t gold." }),
+    passed: okOrProvider, matrix: DRAFT },
+  { name: "synthesize-profile", methods: ["POST"], guard: "requireAiCaller(company_memory, drafting roles)", source: aiGuardPin("synthesize-profile", ', feature: "company_memory", allowOnboarding: true, roles: DRAFTING_ROLES \\}'),
+    req: (c, X) => post({ companyId: c.id[X], timeline: [{ date: "2026-01-01", title: "iso" }] }),
+    passed: okOrProvider, matrix: DRAFT },
+
+  // ------------------------------------------------------- requireFeature ---
+  // prod-v1.3.2 (Investor Briefs). Its key check answers 500 "not configured" first when
+  // MINEEX_BRIEF_API_KEY is unset (staging), which never reaches a provider; the guard is pinned by source.
+  { name: "brief-generate", methods: ["POST"], guard: "requireAiCaller(communications_center, drafting roles)", source: aiGuardPin("brief-generate", ', feature: "communications_center", roles: DRAFTING_ROLES \\}'),
+    req: (c, X) => post({ companyId: c.id[X], sourceText: "Iso Alpha Resources announces drilling results from its flagship project, with several intercepts." }),
+    passed: (r) => okOrProvider(r) || (r.status === 500 && /MINEEX_BRIEF_API_KEY/.test(JSON.stringify(r.body || ""))), matrix: DRAFT },
+  { name: "comms-generate", methods: ["POST"], guard: "requireAiCaller(communications_center, drafting roles)", source: aiGuardPin("comms-generate", ', feature: "communications_center", roles: DRAFTING_ROLES \\}'),
+    req: (c, X) => post({ companyId: c.id[X], update: "Iso drill program begins.", destinations: ["passport"] }),
+    passed: okOrProvider, matrix: DRAFT },
+  { name: "extract-docx", methods: ["POST"], guard: "requireFeature(company_memory)", source: /requireFeature\(req, res, \{ companyId, feature: "company_memory" \}\)/,
+    // A non-empty stub: the parser fails AFTER the guard, which is the evidence.
+    req: (c, X) => post({ companyId: c.id[X], docx: Buffer.from("PK iso stub").toString("base64") }),
+    passed: (r) => r.status !== 401 && r.status !== 403 && r.status !== 404 && !/companyId or slug|Provide `docx`|Invalid JSON/.test(JSON.stringify(r.body || "")) && r.status < 500,
+    matrix: COMPANY },
+  { name: "verify-source", methods: ["POST"], guard: "requireFeature(company_memory) + userRpc", source: /requireFeature\(req, res, \{ companyId, feature: "company_memory" \}\)/,
+    req: (c, X) => post({ companyId: c.id[X], docx: Buffer.from("PK iso stub").toString("base64"), documentId: uuid(), transcriptId: uuid() }),
+    passed: (r) => r.status !== 401 && r.status !== 403 && !/companyId or slug|Provide `docx`|documentId is required|transcriptId is required|Invalid JSON/.test(JSON.stringify(r.body || "")) && r.status < 500,
+    matrix: COMPANY },
+
+  // ------------------------------------------ admin, or feature with companyId
+  { name: "extract-company", methods: ["POST"], guard: "requireAiCaller(company_memory, drafting roles; platform admin when no company)", source: aiGuardPin("extract-company", ', feature: "company_memory", adminWhenNoCompany: true, roles: DRAFTING_ROLES \\}'),
+    req: (c, X) => post({ companyId: c.id[X] }),
+    passed: (r) => okOrProvider(r) || afterGuard(/No document text found/)(r), matrix: DRAFT },
+  { name: "extract-projects", methods: ["POST"], guard: "requireAiCaller(company_memory, drafting roles; platform admin when no company)", source: aiGuardPin("extract-projects", ', feature: "company_memory", adminWhenNoCompany: true, roles: DRAFTING_ROLES \\}'),
+    req: (c, X) => post({ companyId: c.id[X] }),
+    // Both messages are emitted only after the guard (extract-projects.js:228-230);
+    // the pre-guard one reads "Provide `companyId`, or a `slug` you can access".
+    passed: (r) => okOrProvider(r) || afterGuard(/No release text found|Provide `slug` or `releases`/)(r), matrix: DRAFT },
+  { name: "extract-text", methods: ["POST"], guard: "requireAiCaller(company_memory, drafting roles; platform admin when no company)", source: aiGuardPin("extract-text", ', feature: "company_memory", adminWhenNoCompany: true, roles: DRAFTING_ROLES \\}'),
+    req: (c, X) => post({ companyId: c.id[X], text: "Iso Resources intersects 31.4 m of 4.8 g/t gold." }),
+    passed: okOrProvider, matrix: DRAFT },
+  { name: "structure-batch", methods: ["POST"], guard: "requireAiCaller(company_memory, drafting roles; platform admin when no company)", source: aiGuardPin("structure-batch", ', feature: "company_memory", adminWhenNoCompany: true, roles: DRAFTING_ROLES \\}'),
+    req: (c, X) => post({ companyId: c.id[X], releases: [{ id: "iso-1", text: "Iso Resources intersects 31.4 m of 4.8 g/t gold." }] }),
+    passed: okOrProvider, matrix: DRAFT },
+
+  // ----------------------------------------------- authentication only (F4) --
+  // Proposed policy: AI drafting / company-content creation is for authorized
+  // company users acting for their own company, not investors.
+  { name: "compose", methods: ["POST"], guard: "requireAiCaller(portal_access, drafting roles) for draft/revise/check_facts/caption", source: /mode === "ask"\s*\? \{ label: "compose-ask", feature: "portal_access", roles: MEMBER_ROLES \}\s*: \{ label: "compose", feature: "portal_access", roles: DRAFTING_ROLES \}/,
+    req: (c, X) => post({ mode: "draft", companyId: c.id[X], details: "Iso drill program begins." }),
+    passed: okOrProvider, matrix: DRAFT },
+  { name: "compose", key: "compose-ask", methods: ["POST"], guard: "requireAiCaller(portal_access, any member role) for Mine IQ ask", source: /label: "compose-ask", feature: "portal_access", roles: MEMBER_ROLES/,
+    req: (c, X) => post({ mode: "ask", companyId: c.id[X], question: "What did we drill?" }),
+    passed: okOrProvider, matrix: MEMBER },
+  { name: "story-extract", methods: ["POST"], guard: "requireAiCaller(adminOnly): Story Studio", source: aiGuardPin("story-extract", ", adminOnly: true \\}"),
+    req: () => post({ text: "Iso Resources intersects 31.4 m of 4.8 g/t gold." }),
+    passed: okOrProvider, matrix: ADMIN_TOOL },
+  { name: "story-fetch", methods: ["POST"], guard: "requireAiCaller(adminOnly): Story Studio URL ingest", source: aiGuardPin("story-fetch", ", adminOnly: true \\}"),
+    // example.com resolves publicly, so the SSRF check passes and the fetch is
+    // attempted -- and stopped by the egress guard. The attempt is the evidence.
+    req: () => post({ url: "https://example.com/iso-release" }),
+    passed: (r) => r.status === 200 || r.egress.blocked > 0, matrix: ADMIN_TOOL },
+
+  // ----------------------------------------------------------- Stripe (F2) --
+  // Proposed policy: checkout for a company is for its owners and platform
+  // admins. The code admits anyone who can READ the company row -- everyone.
+  // F2 (Batch D): billing is for owners and COMPANY admins of that company (and
+  // platform admins). Editors, publishers and viewers of the same company are
+  // refused, as are investors and other companies.
+  { name: "stripe-checkout", methods: ["POST"], guard: "requireCompanyRole(owner, admin) + fixed return origin", source: /requireCompanyRole\(req, res, \{ companyId, roles: BILLING_ROLES \}\)[\s\S]*const origin = appOrigin\(\);/,
+    req: (c, X) => post({ tier: "basic", companyId: c.id[X] }),
+    passed: (r) => r.status === 200 && /stripe\.invalid/.test(JSON.stringify(r.body || "")),
+    matrix: BILLING },
+  // a21 (S2): a bespoke-service request, created AS THE CALLER (RLS: drafting
+  // roles). 429 is the per-company daily cap, reached only after the role check.
+  { name: "service-request", methods: ["POST"], guard: "requireCompanyRole(owner, admin, editor, publisher); insert as the caller (0086 RLS)", source: /requireCompanyRole\(req, res, \{ companyId: b\.companyId, roles: REQUEST_ROLES \}\)/,
+    req: (c, X) => post({ companyId: c.id[X], service: "brand", details: "iso authz probe" }),
+    passed: (r) => r.status === 201 || r.status === 429,
+    matrix: DRAFT },
+
+  { name: "stripe-portal", methods: ["POST"], guard: "requireCompanyRole(owner, admin); customer found by company metadata", source: /subscriptions\/search[\s\S]*requireCompanyRole\(req, res, \{ companyId, roles: BILLING_ROLES \}\)/,
+    req: (c, X) => post({ companyId: c.id[X] }),
+    // The mock has no subscription for the company, so an admitted caller gets
+    // 404 "No card subscription" -- reached only after the role check and a
+    // Stripe lookup BY COMPANY.
+    passed: (r) => r.egress.provider > 0 && (r.status === 404 || r.status === 200),
+    matrix: BILLING },
+
+  // ------------------------------------------------- Company Memory save (D23) --
+  // Approved: owners and COMPANY admins (and platform admins) save a rebuild;
+  // editors, publishers, viewers, investors and other companies may not. The
+  // probe omits baseUpdatedAt, so an ADMITTED caller gets 400
+  // "baseUpdatedAt-required" -- returned only after the role check -- and
+  // nothing is ever written by this suite. The write path is exercised by
+  // memory-ai-live-test.mjs.
+  { name: "memory-save", methods: ["POST"], guard: "verifyBearer + my_company_role in (owner, admin) or platform admin; allowlisted rebuild fields; compare-and-set write",
+    source: /REBUILD_SAVE_ROLES\.includes\(role \|\| ""\)[\s\S]*callerIsPlatformAdmin\(token\)[\s\S]*validateFields\(fields\)[\s\S]*updated_at=eq\./,
+    req: (c, X) => post({ companyId: c.id[X], fields: { companyStatus: { statusHeadline: "iso probe" } } }),
+    passed: (r) => r.status === 400 && r.body && r.body.error === "baseUpdatedAt-required",
+    matrix: BILLING },
+  // a04 / d28 (0072): profile drafts. Read-only probe (load); saves, publish and
+  // discard are exercised by scripts/profile-draft-live-test.mjs. Before 0072 is
+  // applied an admitted caller gets 503 (the database function is missing) --
+  // reached only AFTER the role gate.
+  // a06 (S1): AI-proposed profile updates from a release, for the profile-draft
+  // roles (publishers excluded, as for drafts). A random release id reaches the
+  // RLS read only AFTER the guard, which answers "could not be found".
+  { name: "extract-profile-updates", methods: ["POST"], guard: "requireAiCaller(portal_access, profile-draft roles: owner, admin, editor)",
+    source: /requireAiCaller\(req, res, \{\s*label: "extract-profile-updates", feature: "portal_access", roles: DRAFT_ROLES/,
+    req: (c, X) => post({ companyId: c.id[X], updateId: uuid() }),
+    passed: afterGuard(/That release could not be found/),
+    matrix: { "anon": "deny", "companyA>A": "allow", "coadmin>A": "allow", "editor>A": "allow", "admin>B": "allow",
+              "publisher>A": "deny", "staff>A": "deny", "investor>A": "deny", "companyA>B": "deny", "coadmin>B": "deny" } },
+
+  { name: "profile-draft", methods: ["POST"], guard: "verifyBearer + my_company_role in (owner, admin, editor) [publish: owner, admin] or platform admin; then 0072 functions re-check",
+    source: /const allowed = action === "publish" \? PUBLISH_ROLES : DRAFT_ROLES;[\s\S]*callerIsPlatformAdmin\(token\)/,
+    req: (c, X) => post({ action: "load", companyId: c.id[X] }),
+    passed: (r) => (r.status === 200 && r.body && r.body.ok === true) || (r.status === 503 && /0072/.test(JSON.stringify(r.body || ""))),
+    matrix: { "anon": "deny", "companyA>A": "allow", "coadmin>A": "allow", "editor>A": "allow", "admin>B": "allow",
+              "publisher>A": "deny", "staff>A": "deny", "investor>A": "deny", "companyA>B": "deny", "coadmin>B": "deny" } },
+
+  // ------------------------------------------------------------- admin only --
+  { name: "build-from-website", methods: ["POST"], guard: "requireAiCaller(adminOnly)", source: aiGuardPin("build-from-website", ", adminOnly: true \\}"),
+    req: (c, X) => post({ companyId: c.id[X] }),
+    // AI_PAID_ENABLED is unset on staging, so an admitted admin stops at the
+    // paid-build switch -- which is checked only after requireAdmin.
+    passed: (r) => okOrProvider(r) || afterGuard(/AI_PAID_ENABLED|No website URL/)(r),
+    matrix: ADMIN_TOOL },
+  // D22 Phase 4: delivery operations. Read-only probe (the summary view); the
+  // replay and alert writes are exercised by scripts/delivery-ops-live-test.mjs.
+  { name: "ops", methods: ["GET", "POST"], guard: "requireAdmin", source: /const admin = await requireAdmin\(req, res\);   \/\/ 401 \/ 403 \/ 502 sent on refusal/,
+    req: () => ({ method: "GET", query: { view: "summary" } }),
+    passed: (r) => r.status === 200 && !!(r.body && r.body.health),
+    matrix: { ...ADMIN_TOOL, "coadmin>A": "deny", "staff>A": "deny", "companyB>B": "deny" } },
+  { name: "news-review", methods: ["POST"], guard: "requireAdmin", source: /const admin = await requireAdmin\(req, res\)/,
+    req: () => post({ action: "reject", id: uuid() }),
+    passed: (r) => r.status !== 401 && r.status !== 403 && r.status !== 400 && r.status < 500,
+    matrix: { "anon": "deny", "companyA>A": "deny", "investor>A": "deny", "admin>A": "allow" } },
+  { name: "news-usage", methods: ["GET", "POST"], guard: "requireAdmin (any method)", source: /const admin = await requireAdmin\(req, res\)/,
+    req: () => ({ method: "GET" }),
+    passed: (r) => r.status === 200,
+    matrix: { "anon": "deny", "companyA>A": "deny", "investor>A": "deny", "admin>A": "allow" } },
+
+  // ------------------------------------------------- secret, or secret+admin --
+  { name: "news-broadcast", methods: ["POST"], guard: "news/cron secret OR requireAdmin", secret: "news", source: /if \(!checkNewsAuth\(req\)\) \{\s*const admin = await requireAdmin\(req, res\)/,
+    req: () => post({ news_item_id: uuid() }),
+    passed: (r) => r.status !== 401 && r.status !== 403 && r.status < 500,
+    matrix: { "anon": "deny", "companyA>A": "deny", "investor>A": "deny", "admin>A": "allow" } },
+  { name: "dispatch", methods: ["POST", "GET"], guard: "POST: x-dispatch-secret; GET: Vercel Cron bearer (CRON_SECRET / staging STAGING_CRON_SECRET) or ?health with DISPATCH_HEALTH_TOKEN", secret: "dispatch", source: /if \(!checkDispatchSecret\(req\)\) return res\.status\(401\)/,
+    req: () => post({ trigger: "iso-suite" }), passed: (r) => r.status === 200, matrix: { "anon": "deny", "companyA>A": "deny" } },
+  { name: "market-pull", methods: ["GET", "POST"], guard: "news/cron secret", secret: "news", source: /if \(!checkNewsAuth\(req\)\) return res\.status\(401\)/,
+    req: () => post({}), passed: (r) => r.status === 200, matrix: { "anon": "deny", "companyA>A": "deny" } },
+  { name: "news-notify", methods: ["GET", "POST"], guard: "news/cron secret", secret: "news", source: /if \(!checkNewsAuth\(req\)\) return res\.status\(401\)/,
+    req: () => post({}), passed: (r) => r.status === 200, matrix: { "anon": "deny", "companyA>A": "deny" } },
+  { name: "news-process", methods: ["GET", "POST"], guard: "news/cron secret", secret: "news", source: /if \(!checkNewsAuth\(req\)\) return res\.status\(401\)/,
+    req: () => post({}), passed: (r) => r.status === 200, matrix: { "anon": "deny", "companyA>A": "deny" } },
+  { name: "news-pull", methods: ["GET", "POST"], guard: "news/cron secret", secret: "news", source: /if \(!checkNewsAuth\(req\)\) return res\.status\(401\)/,
+    req: () => post({}), passed: (r) => r.status === 200, matrix: { "anon": "deny", "companyA>A": "deny" } },
+  { name: "news-push-send", methods: ["GET", "POST"], guard: "news/cron secret + PUSH_ENABLED", secret: "news", source: /if \(!checkNewsAuth\(req\)\) return res\.status\(401\)/,
+    req: () => post({}), passed: (r) => r.status === 200, matrix: { "anon": "deny", "companyA>A": "deny" } },
+  { name: "stripe-webhook", methods: ["POST"], guard: "Stripe HMAC signature", special: "stripe-webhook", source: /verifySig\(raw, req\.headers\["stripe-signature"\], process\.env\.STRIPE_WEBHOOK_SECRET\)/ },
+
+  // ---------------------------------------------- publishing (ordered, special)
+  { name: "publish", methods: ["POST"], guard: "verifyUser + RLS read + my_features + actor_can_publish", special: "publishing", source: /serviceRpc\("publish_publication", rpcArgs\)/ },
+  { name: "unpublish", methods: ["POST"], guard: "verifyUser + RLS read + actor_can_publish", special: "publishing", source: /serviceRpc\("unpublish_publication"/ },
+  { name: "media-delete", methods: ["POST"], guard: "RLS read as caller + requireCompanyRole(owner, admin, publisher)", special: "publishing", source: /requireCompanyRole\(req, res, \{ companyId: pub\.company_id, roles: DELETE_ROLES \}\)/ },
+  { name: "revise-release", methods: ["POST"], guard: "verifyUser + caller-RLS read + actor_can_publish", special: "publishing", source: /serviceRpc\("revise_publication"/ },
+
+  // ------------------------------------------------------------ messaging ----
+  { name: "messages", methods: ["POST"], guard: "send: any signed-in user; start (body.action=\"start\"): signed in AND an active member/owner of fromCompanyId (my_company_role as the caller), not to itself; inbound (selected by ?secret only): MESSAGES_INBOUND_SECRET required (>=16 chars, else 503), constant-time match, sender must equal the thread's ceo_email", special: "messages", source: /if \(!inboundSecretMatches\(req\.query\.secret, configured\)\) return res\.status\(401\)[\s\S]*const isInbound = req\.query && req\.query\.secret !== undefined;/ },
+
+  // ------------------------------------------------------- Site Contract ----
+  { name: "site-content", methods: ["GET"], guard: "site/draft token (company from token)", special: "site", source: /verifySiteToken\(siteToken\(req\), \{ kind: draft \? "draft" : "site" \}\)/ },
+  { name: "site-manifest", methods: ["GET", "PUT"], guard: "site token (company from token)", special: "site", source: /verifySiteToken\(siteToken\(req\), \{ kind: "site" \}\)/ },
+
+  // ------------------------------------------------------- public by design --
+  { name: "share-news", methods: ["GET"], guard: "public (news_public view)", public: true, source: /news_public\?id=eq\./,
+    req: () => ({ method: "GET", query: { id: uuid() } }) },
+  { name: "og-news", methods: ["GET"], guard: "public (news_public view)", public: true, source: /news_public\?id=eq\./,
+    req: () => ({ method: "GET", query: { id: uuid() } }) },
+  { name: "contact", methods: ["POST"], guard: "public form; honeypot, spam check and durable per-IP throttle (lead:contact)", public: true, source: /guardLeadForm\(req, "lead:contact", data\)/,
+    req: () => post({ name: "Iso Tester", email: "iso-tester@staging.invalid", company: "Iso Co", message: "iso" }) },
+  // a17 (S2): the booth's published look (template/theme/accent only), public
+  // like the booth itself. 204 when a company has no published config.
+  { name: "conference-config", methods: ["GET"], guard: "public (conference_booth_config RPC: studio look only)", public: true, source: /rpc\/conference_booth_config/,
+    req: (c) => ({ method: "GET", query: { c: c.slug.A } }) },
+  { name: "conference-inquiry", methods: ["POST"], guard: "public form; honeypot, spam check and durable per-IP throttle (lead:conference)", public: true, source: /guardLeadForm\(req, "lead:conference", data\)/,
+    req: () => post({ name: "Iso Tester", email: "iso-tester@staging.invalid", company: "Iso Co", message: "iso" }) },
+  { name: "submit", methods: ["POST"], guard: "public form, honeypot + IP throttle", public: true, source: /checkThrottle\(formName, clientIp\(req\)\)/,
+    // D21: one VALID contact submission per run (the throttle allows 5 per IP per
+    // 10 min). A unique message identifies the stored row; notes / created_at /
+    // id are columns the client must not set and must be dropped.
+    req: () => post({ form: "contact", name: "Iso Tester", email: "iso-tester@staging.invalid", message: `iso d21 ${SUBMIT_RUN}`,
+                      notes: "must be dropped", created_at: "2001-01-01T00:00:00Z", id: 1 }) },
+];

@@ -25,17 +25,33 @@
 // --------------
 //   1. Resolves config once, VALIDATING it rather than trusting truthiness, and
 //      falling back to the same project the browser falls back to — so client and
-//      server can never disagree about which project a token belongs to.
+//      server can never disagree about which project a token belongs to. On a
+//      production deployment only (see FALLBACK_URL below).
 //   2. Says so loudly, once, at startup.
 //   3. Verifies a bearer token in ONE place, returning a structured result with a
 //      SAFE diagnostic. The token is never logged, and is scrubbed from any error
 //      text before it is surfaced.
 
+// FIRST, before anything can make a request: on staging (MINEEX_ENV=staging)
+// this validates the configuration and throws on anything that could reach
+// production, then installs the outbound allowlist. Every route reaches this
+// module, so every route gets both. On production both are inert.
+import "./_stagingEgress.js";
+import { IS_STAGING, STAGING } from "./_stagingEnv.js";
+
 // Mirrors the fallbacks in src/lib/supabase.js. Both values are public by design —
 // the project URL and the publishable ("anon") key are shipped in the browser
 // bundle. The service-role key is NOT here and must never be.
-const FALLBACK_URL = "https://rvptronniomlqumjhyrr.supabase.co";
-const FALLBACK_ANON = "sb_publishable_NNxikHZSGZ0CYnzN7jckLg_vPvrRCTl";
+//
+// They are the default ONLY on a production deployment (VERCEL_ENV=production).
+// A preview or development deployment, `vite` dev's /api routes and a node
+// script get an unresolvable host instead: a Vercel preview runs new code, and
+// a local dev server must not reach production by accident (2026-11-01).
+// Explicitly configured env vars still win everywhere.
+export const PRODUCTION_DEPLOY = process.env.VERCEL_ENV === "production";
+export const NOT_CONFIGURED_URL = "https://supabase-url-not-configured.invalid";
+const FALLBACK_URL = PRODUCTION_DEPLOY ? "https://rvptronniomlqumjhyrr.supabase.co" : NOT_CONFIGURED_URL;
+const FALLBACK_ANON = PRODUCTION_DEPLOY ? "sb_publishable_NNxikHZSGZ0CYnzN7jckLg_vPvrRCTl" : "sb_publishable_not_configured";
 
 const looksLikeUrl = (v) => {
   try { const u = new URL(String(v)); return u.protocol === "https:" || u.protocol === "http:"; }
@@ -54,14 +70,19 @@ function resolve(name, raw, valid, fallback, warnings) {
   return fallback;
 }
 
+// On staging there is no fallback: _stagingEnv.js has already validated these
+// or thrown, so the production values below are unreachable.
 const warnings = [];
-export const SB_URL = resolve("VITE_SUPABASE_URL", process.env.VITE_SUPABASE_URL, looksLikeUrl, FALLBACK_URL, warnings);
-export const ANON_KEY = resolve("VITE_SUPABASE_ANON_KEY", process.env.VITE_SUPABASE_ANON_KEY, looksLikeAnonKey, FALLBACK_ANON, warnings);
+export const SB_URL = IS_STAGING ? STAGING.url
+  : resolve("VITE_SUPABASE_URL", process.env.VITE_SUPABASE_URL, looksLikeUrl, FALLBACK_URL, warnings);
+export const ANON_KEY = IS_STAGING ? STAGING.anon
+  : resolve("VITE_SUPABASE_ANON_KEY", process.env.VITE_SUPABASE_ANON_KEY, looksLikeAnonKey, FALLBACK_ANON, warnings);
 
 // One line at startup beats a 502 at runtime. Values are never printed.
 if (warnings.length) {
-  console.warn(`[supabase] ${warnings.join("; ")} — using the built-in project fallback. ` +
-               `Set these in the environment to target a different project.`);
+  (PRODUCTION_DEPLOY ? console.warn : console.error)(PRODUCTION_DEPLOY
+    ? `[supabase] ${warnings.join("; ")} — using the built-in project fallback. Set these in the environment to target a different project.`
+    : `[supabase] ${warnings.join("; ")} — not a production deployment (VERCEL_ENV=${process.env.VERCEL_ENV || "unset"}), so there is no fallback: requests go to an unresolvable host. Set them to the project you mean.`);
 }
 
 // Exported for tests: the validators that decide whether env config is usable.
@@ -70,7 +91,9 @@ export const _looksLikeAnonKey = looksLikeAnonKey;
 
 /** True when this process has a usable Supabase URL + publishable key. */
 export function supabaseConfigured() {
-  return looksLikeUrl(SB_URL) && looksLikeAnonKey(ANON_KEY);
+  // Outside a production deployment with no URL set, SB_URL is the
+  // unresolvable placeholder: not configured, so routes fail closed and say so.
+  return SB_URL !== NOT_CONFIGURED_URL && looksLikeUrl(SB_URL) && looksLikeAnonKey(ANON_KEY);
 }
 
 /** Read the bearer token off a request. One parser, so no route invents its own. */
@@ -105,6 +128,9 @@ export function scrubSecrets(text) {
  */
 export async function verifyBearer(token) {
   if (!token) return { ok: false, user: null, status: 401, error: "Sign in required.", detail: "no bearer token" };
+  if (SB_URL === NOT_CONFIGURED_URL) {
+    return { ok: false, user: null, status: 500, error: "Server not configured: Supabase env is missing.", detail: "no VITE_SUPABASE_URL outside a production deployment (no fallback)" };
+  }
 
   let r;
   try {

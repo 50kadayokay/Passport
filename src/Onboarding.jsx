@@ -4130,7 +4130,6 @@ const OB_THEME = {
   team:     { key: "Team",     t: "#1e3a8a", c: "#1e3a8a", soft: "#eef2ff" },
   media:    { key: "Media",    t: "#e11d48", c: "#e11d48", soft: "#fff1f2" },
 };
-const PROV = { "company-confirmed": "#3b82f6", "ai-extracted": "#7c3aed", "ai-derived": "#2563eb", "company-upload": "#64748b" };
 
 function EmptyTabScaffold({ kicker, title, note, onClick, tone = "#94a3b8" }) {
   return (
@@ -4336,54 +4335,18 @@ const SEED_FIELDS = {
 const BLANK_FIELDS = Object.fromEntries(Object.entries(SEED_FIELDS).map(([k, arr]) => [k, arr.map(blankOf)]));
 
 const fmt = (b) => (b < 1024 ? b + " B" : b < 1048576 ? (b / 1024).toFixed(0) + " KB" : (b / 1048576).toFixed(1) + " MB");
-async function callModel(system, content) {
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ model: "claude-sonnet-4-6", max_tokens: 1000, system, messages: [{ role: "user", content }] }),
-  });
-  const d = await res.json();
-  return (d.content || []).map((b) => (b.type === "text" ? b.text : "")).join("").trim();
-}
-const parseJSON = (t) => { try { return JSON.parse(t.replace(/```json|```/g, "").trim()); } catch { return null; } };
+// NO MODEL CALLS FROM THE BROWSER. callModel() used to POST to the provider's API
+// from here with no key (it could only fail) for an unrendered field editor and two
+// autofills nothing called. AI proposals for this builder come from the server:
+// /api/synthesize-profile (Company Status + Brief) and /api/structure-release, both
+// behind requireAiCaller (sign-in, drafting role, entitlement, rate limit, kill switch).
 
 /* ============================================================================
-   COMPANY STATUS — AI AUTOFILL (Task 2)
-   Scans uploaded documents and populates the single `profile.companyStatus`
-   object from Task 1. Shape, card UI, and editor layout are unchanged; this
-   only proposes values, which the user then reviews/edits in the existing
-   right-side "Edit Company Status" panel before publishing.
+   COMPANY STATUS — normalizing AI proposals (Task 2)
+   The proposals themselves come from /api/synthesize-profile. These coerce a
+   proposal into the single `profile.companyStatus` object and its per-field
+   review, which the user reviews/edits in the "Edit Company Status" panel.
    ============================================================================ */
-const COMPANY_STATUS_EXTRACTION_SYSTEM = `You extract the "Company Status" fields for a junior mining company's investor profile from the uploaded documents. You are precise, factual, and never promotional.
-
-SOURCE PRIORITY (highest first): 1) most recent news release, 2) MD&A, 3) investor presentation, 4) technical report, 5) company website content, 6) other uploaded notes. If sources conflict, use the newest reliable source. Judge recency from dates inside the documents and from the filenames provided.
-
-ABSOLUTE RULES:
-- Never invent information, numbers, or dates. Use only facts stated in the documents.
-- Never infer or estimate exact dates or timing.
-- Never use investment-advice or buy / sell / hold language.
-- Never use promotional words (e.g. "undervalued", "moonshot", "explosive", "game-changing", "massive upside", "bullish", "huge", "skyrocket").
-- Keep every field factual and educational.
-
-FIELDS:
-- statusHeadline: the company's current PRIMARY operational activity. 2-5 words, factual, present tense, non-promotional. Do NOT copy a press-release title. Examples: "26-Hole Drill Campaign", "Phase 2 Drilling", "Resource Expansion", "Permitting Underway", "Feasibility Study". If not determinable from the documents, "".
-- statusHeadlineSubtext: ONE factual sentence explaining the current status. Max 25 words. Do not repeat the headline. Example: "Phase 1 diamond drilling is actively underway at Las Coloradas." If not determinable, "".
-- latestUpdate: the NEWEST COMPLETED milestone. Max 15 words. No future events. Examples: "Three drill holes submitted to the lab.", "Closed C$13M financing.", "Mobilized second drill rig." If not determinable, "".
-- nextCatalyst: the next meaningful FUTURE milestone. Choose ONE only. Examples: "Assay Results", "Phase 2 Drilling", "Resource Estimate", "Permit Approval", "Metallurgical Results". If none is found, "Not Disclosed".
-- expected: the expected timing for nextCatalyst. Never estimate timing. Examples: "July 2026", "Q3 2026", "H2 2026", "7-9 Weeks". If not found, "Not Disclosed".
-- investmentImpact: ONE plain-English, EDUCATIONAL sentence explaining why the nextCatalyst matters. Max 20 words. Not promotional, no price/return language. Good: "Tests whether mineralization continues beyond known zones.", "Defines the project's first mineral resource.", "Advances the project toward permitting." If not determinable, "".
-- progressBar: enable ONLY if the documents contain measurable, countable progress (e.g. "14 of 26 holes completed", "1,200 of 2,500 metres drilled", "3 of 5 permits received"). If found: {"enabled":true,"label":"<short label>","current":<number>,"total":<number>,"unit":"<unit>"}. Never invent numbers. If no measurable progress is found: {"enabled":false,"label":"","current":null,"total":null,"unit":""}. Do NOT output a percentage — it is always computed from current / total.
-
-OUTPUT: Return ONLY a single JSON object, no markdown fences, no commentary. It has two parts — the extracted "status" values and a per-field "review". Exact shape:
-{"status":{"statusHeadline":"","statusHeadlineSubtext":"","latestUpdate":"","nextCatalyst":"","expected":"","investmentImpact":"","progressBar":{"enabled":false,"label":"","current":null,"total":null,"unit":""}},"review":{"statusHeadline":{"confidence":"high","reason":"","sourcesUsed":[],"howToImprove":""},"statusHeadlineSubtext":{"confidence":"high","reason":"","sourcesUsed":[],"howToImprove":""},"latestUpdate":{"confidence":"high","reason":"","sourcesUsed":[],"howToImprove":""},"nextCatalyst":{"confidence":"high","reason":"","sourcesUsed":[],"howToImprove":""},"expected":{"confidence":"high","reason":"","sourcesUsed":[],"howToImprove":""},"investmentImpact":{"confidence":"high","reason":"","sourcesUsed":[],"howToImprove":""},"progressBar":{"confidence":"high","reason":"","sourcesUsed":[],"howToImprove":""}}}
-
-REVIEW — for EACH of the seven fields, judge your own confidence honestly:
-- confidence "high": value explicitly stated, appears in multiple recent documents that agree, no interpretation required.
-- confidence "medium": value in only one reliable source, minor interpretation required, document slightly outdated, or some details missing.
-- confidence "low": no strong source, documents conflict, value inferred, source outdated, OR the field was filled with "Not Disclosed" / progress not found.
-- reason: short and SPECIFIC, max 20 words. Not generic. Good: "Found in the latest news release and May investor presentation." / "Timing not found in uploaded documents." / "Conflicting catalyst timing between presentation and news release." Bad: "AI was unsure." / "Confidence is low."
-- sourcesUsed: array of source strings, each "<Document type> — <Title if available> — <Date if available>" (e.g. "News Release — June 18, 2026", "Investor Presentation — May 2026", "MD&A — Q1 2026"). Empty array [] if no source supports the value.
-- howToImprove: one specific, actionable step (e.g. "Upload the latest investor presentation.", "Upload the newest MD&A.", "Manually confirm the expected timing.", "Add a source document confirming drill progress.").`;
-
 // Coerce a model response into the exact companyStatus shape. Never fabricates:
 // empty in → empty out. nextCatalyst/expected fall back to "Not Disclosed" per spec.
 // The progress bar is enabled only when current/total are real numbers with total > 0.
@@ -4415,37 +4378,14 @@ function normalizeCompanyStatus(raw) {
   };
 }
 
+
+// A dropped file as base64 (scanned PDFs go to the server extractor this way).
 const fileToBase64 = (file) => new Promise((res, rej) => {
   const fr = new FileReader();
   fr.onload = () => res(String(fr.result).split(",")[1]);
   fr.onerror = rej;
   fr.readAsDataURL(file);
 });
-
-// Build the multimodal message content: PDFs as document blocks, text/notes as
-// text blocks, plus a filename manifest so the model can weigh source priority.
-// `instruction` names the extraction task (defaults to Company Status) so the same
-// uploaded documents can be reused for other extractions (e.g. the Company Brief).
-async function buildStatusExtractionContent(files, pasteText, instruction) {
-  const content = [];
-  const names = [];
-  for (const file of files || []) {
-    if (!file) continue;
-    names.push(file.name);
-    const isPdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name || "");
-    if (isPdf) {
-      try { content.push({ type: "document", source: { type: "base64", media_type: "application/pdf", data: await fileToBase64(file) } }); } catch { /* skip unreadable */ }
-    } else {
-      try { const t = await file.text(); if (t && t.trim()) content.push({ type: "text", text: `Document "${file.name}":\n${t.slice(0, 12000)}` }); } catch { /* skip */ }
-    }
-  }
-  if (pasteText && pasteText.trim()) content.push({ type: "text", text: `Pasted notes:\n${pasteText.slice(0, 12000)}` });
-  if (!content.length) return null;
-  const task = instruction || "extract the Company Status fields";
-  const manifest = names.length ? `Uploaded files (use their dates and types to judge recency and source priority): ${names.join(", ")}.\n\n` : "";
-  content.push({ type: "text", text: `${manifest}From the documents above, ${task}. Return ONLY the JSON object described in the system instructions.` });
-  return content;
-}
 
 // Confidence display metadata (editor-only; never rendered on the card/profile).
 const STATUS_REVIEW_KEYS = ["statusHeadline", "statusHeadlineSubtext", "latestUpdate", "nextCatalyst", "expected", "investmentImpact", "progressBar"];
@@ -4488,51 +4428,15 @@ function normalizeCompanyStatusReview(rawReview, status) {
   return out;
 }
 
-// Full pipeline: build content → call model → parse → normalize. Returns
-// { status, review } (both normalized), or null if nothing to read / parse failed.
-async function extractCompanyStatus(files, pasteText) {
-  const content = await buildStatusExtractionContent(files, pasteText);
-  if (!content) return null;
-  const raw = parseJSON(await callModel(COMPANY_STATUS_EXTRACTION_SYSTEM, content));
-  if (!raw || typeof raw !== "object") return null;
-  const status = normalizeCompanyStatus(raw.status);
-  if (!status) return null;
-  const review = normalizeCompanyStatusReview(raw.review, status);
-  return { status, review };
-}
 
 /* ============================================================================
    COMPANY BRIEF — AI AUTOFILL (Task 5)
    Same architecture as Company Status: a single `profile.companyBrief` object,
-   filled from the SAME uploaded documents (reusing buildStatusExtractionContent),
+   proposed by /api/synthesize-profile from the same releases,
    with a per-field confidence review. The brief DESCRIBES THE COMPANY — never the
    investment case — and carries no buy/sell, price, or promotional language.
    ============================================================================ */
 const BRIEF_REVIEW_KEYS = ["headline", "shortSummary", "businessDescription", "keyPoints"];
-const COMPANY_BRIEF_EXTRACTION_SYSTEM = `You write a plain-language "Company Brief" for a junior mining company's investor profile, using ONLY the uploaded documents. The brief DESCRIBES THE COMPANY — what it is and what it does — it is NOT the investment case.
-
-ABSOLUTE RULES:
-- Never invent information. Use only facts stated in the documents.
-- Describe the company; do NOT argue why to invest.
-- No buy / sell / hold language. No price targets. No promotional claims. No "undervalued". No speculative upside or expected-return language. No hype words.
-- Neutral and factual throughout.
-
-FIELDS (in "brief"):
-- headline: 3-7 words naming what the company is. Factual, non-promotional. Example: "Silver-Gold Explorer in Mexico". If not determinable, "".
-- shortSummary: ONE sentence, max 25 words, describing the company. If not determinable, "".
-- businessDescription: max 90 words describing the business factually — commodity, jurisdiction, projects, stage, strategy. If not determinable, "".
-- keyPoints: up to 5 short, FACTUAL bullet points about the company (assets, jurisdiction, stage, funding, etc.). Each a plain statement of fact, not a selling point. Fewer than 5 is fine. [] if none.
-
-REVIEW — for EACH field (headline, shortSummary, businessDescription, keyPoints), judge confidence honestly:
-- "high": explicitly stated, appears in multiple recent documents that agree, no interpretation required.
-- "medium": one reliable source, minor interpretation, slightly outdated, or some details missing.
-- "low": no strong source, documents conflict, inferred, outdated, or the field was left empty.
-- reason: short and SPECIFIC, max 20 words. Not generic.
-- sourcesUsed: array of "<Document type> — <Title if available> — <Date if available>" strings; [] if none.
-- howToImprove: one specific, actionable step.
-
-OUTPUT: Return ONLY a single JSON object, no markdown fences, no commentary, exactly:
-{"brief":{"headline":"","shortSummary":"","businessDescription":"","keyPoints":[]},"review":{"headline":{"confidence":"high","reason":"","sourcesUsed":[],"howToImprove":""},"shortSummary":{"confidence":"high","reason":"","sourcesUsed":[],"howToImprove":""},"businessDescription":{"confidence":"high","reason":"","sourcesUsed":[],"howToImprove":""},"keyPoints":{"confidence":"high","reason":"","sourcesUsed":[],"howToImprove":""}}}`;
 
 // Coerce a model response into the exact companyBrief shape. Never fabricates.
 // keyPoints capped at 5, factual strings only.
@@ -4570,148 +4474,6 @@ function normalizeCompanyBriefReview(rawReview, brief) {
   return out;
 }
 
-// Full pipeline: reuse the uploaded docs → call model → parse → normalize.
-// Returns { brief, review } (both normalized) or null.
-async function extractCompanyBrief(files, pasteText) {
-  const content = await buildStatusExtractionContent(files, pasteText, "write the Company Brief (headline, short summary, business description, and up to 5 factual key points) that describes the company");
-  if (!content) return null;
-  const raw = parseJSON(await callModel(COMPANY_BRIEF_EXTRACTION_SYSTEM, content));
-  if (!raw || typeof raw !== "object") return null;
-  const brief = normalizeCompanyBrief(raw.brief);
-  if (!brief) return null;
-  const review = normalizeCompanyBriefReview(raw.review, brief);
-  return { brief, review };
-}
-
-/* ---------- right-side field editor (ported from onboarding-v2) ---------- */
-function Editor({ field, th, onUpdate }) {
-  const [text, setText] = useState(field.value || "");
-  const [prompt, setPrompt] = useState("");
-  const [busy, setBusy] = useState(null);
-  const [proposal, setProposal] = useState(null);
-  const [err, setErr] = useState(null);
-  const [src, setSrc] = useState(false);
-  const fileRef = useRef(null);
-
-  const runPrompt = async () => {
-    if (!prompt.trim()) return;
-    setBusy("prompt"); setErr(null); setProposal(null);
-    try {
-      const out = await callModel(
-        "You revise ONE field on a regulated mining investor profile. Return ONLY JSON {\"value\":\"...\"}. Facts only, no promotion, no invented figures, concise.",
-        `Field: ${field.label}\nCurrent: ${field.value || "(blank)"}\nInstruction: ${prompt}`);
-      const j = parseJSON(out) || { value: out };
-      setProposal({ value: j.value, via: "prompt", provenance: "ai-derived" });
-    } catch { setErr("Couldn't reach the model. Edit manually below."); }
-    setBusy(null);
-  };
-  const runFile = async (file) => {
-    setBusy("file"); setErr(null); setProposal(null);
-    try {
-      const system = `Extract the value for "${field.label}". Return ONLY JSON {"value":"...","source_quote":"<=15 words verbatim","confidence":0-1}. If absent, value null.`;
-      let content;
-      if (file.type === "application/pdf") {
-        const b64 = await new Promise((r, j) => { const fr = new FileReader(); fr.onload = () => r(fr.result.split(",")[1]); fr.onerror = j; fr.readAsDataURL(file); });
-        content = [{ type: "document", source: { type: "base64", media_type: "application/pdf", data: b64 } }, { type: "text", text: `Extract: ${field.label}` }];
-      } else { content = `Document:\n${(await file.text()).slice(0, 12000)}\n\nExtract: ${field.label}`; }
-      const j = parseJSON(await callModel(system, content));
-      if (j && j.value) setProposal({ value: j.value, source_quote: j.source_quote, source_doc: file.name, confidence: j.confidence ?? 0.7, via: "file", provenance: "ai-extracted" });
-      else setErr("Couldn't find that field in the file.");
-    } catch { setErr("Couldn't read that file. PDFs and .txt work best."); }
-    setBusy(null);
-  };
-  const accept = () => {
-    setText(proposal.value);
-    onUpdate({ value: proposal.value, state: "pending", provenance: proposal.provenance,
-      ...(proposal.source_quote ? { source_quote: proposal.source_quote, source_doc: proposal.source_doc, confidence: proposal.confidence } : {}) });
-    setProposal(null); setPrompt("");
-  };
-  const eyebrow = { fontSize: 11, fontWeight: 800, letterSpacing: ".16em", textTransform: "uppercase", color: "#94a3b8", display: "flex", alignItems: "center", gap: 7, marginBottom: 9 };
-
-  return (
-    <div style={{ maxWidth: 560 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-        <div>
-          <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: ".16em", textTransform: "uppercase", color: th.t }}>{field.label}</span>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
-            <span style={{ fontSize: 10.5, fontWeight: 700, padding: "3px 8px", borderRadius: 6, background: `${PROV[field.provenance]}18`, color: PROV[field.provenance] }}>{field.provenance}</span>
-            {field.confidence > 0 && <span style={{ fontSize: 11, color: "#94a3b8", fontWeight: 600 }}>confidence {Math.round(field.confidence * 100)}%</span>}
-          </div>
-        </div>
-        {field.state === "approved" && <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, fontWeight: 700, color: "#1d4ed8" }}><Check size={14} strokeWidth={3} /> approved</span>}
-      </div>
-
-      {field.conflict && (
-        <div style={{ marginTop: 14, borderRadius: 12, border: "1px solid #fcd9a6", background: "#fffbeb", padding: "11px 13px", fontSize: 12.5, color: "#b45309", display: "flex", gap: 9 }}>
-          <AlertTriangle size={15} style={{ flexShrink: 0, marginTop: 1 }} /><span>{field.conflict}</span>
-        </div>
-      )}
-
-      {field.source_quote && (
-        <div style={{ marginTop: 14 }}>
-          <button onClick={() => setSrc((v) => !v)} style={{ background: "none", border: "none", cursor: "pointer", color: "#64748b", fontSize: 11.5, fontWeight: 700, display: "flex", alignItems: "center", gap: 6, padding: 0 }}>
-            <ChevronDown size={13} style={{ transform: src ? "none" : "rotate(-90deg)", transition: "transform .15s" }} /> SOURCE
-          </button>
-          {src && (
-            <div style={{ marginTop: 8, borderLeft: `2px solid ${th.c}`, paddingLeft: 12 }}>
-              <p style={{ fontSize: 13, fontStyle: "italic", color: "#334155", margin: 0, lineHeight: 1.5 }}>&ldquo;{field.source_quote}&rdquo;</p>
-              <p style={{ fontSize: 11, color: "#94a3b8", marginTop: 6, fontWeight: 600 }}>{field.source_doc}</p>
-            </div>
-          )}
-        </div>
-      )}
-
-      <div style={{ marginTop: 22 }}>
-        <label style={eyebrow}><Type size={12} /> edit text</label>
-        <textarea value={text} onChange={(e) => setText(e.target.value)} style={{ width: "100%", minHeight: 84, resize: "vertical", background: "#fff", border: "1px solid #e2e8f0", borderRadius: 12, padding: "12px 14px", color: "#0f172a", fontSize: 14, lineHeight: 1.5, boxSizing: "border-box", fontFamily: "inherit" }} />
-        {text !== (field.value || "") && (
-          <button onClick={() => onUpdate({ value: text, state: "pending", provenance: "company-confirmed" })} style={{ marginTop: 8, fontSize: 13, fontWeight: 700, padding: "8px 14px", borderRadius: 9, border: "none", background: th.c, color: "#fff", cursor: "pointer" }}>Save text</button>
-        )}
-      </div>
-
-      <div style={{ marginTop: 22 }}>
-        <label style={eyebrow}><Sparkles size={12} /> tell the assistant what to change</label>
-        <div style={{ display: "flex", gap: 8 }}>
-          <input value={prompt} onChange={(e) => setPrompt(e.target.value)} onKeyDown={(e) => e.key === "Enter" && runPrompt()} placeholder="e.g. tighten to one line, or add the closing date"
-            style={{ flex: 1, background: "#fff", border: "1px solid #e2e8f0", borderRadius: 12, padding: "11px 13px", color: "#0f172a", fontSize: 13, boxSizing: "border-box", fontFamily: "inherit" }} />
-          <button onClick={runPrompt} disabled={busy || !prompt.trim()} style={{ padding: "0 15px", borderRadius: 12, border: "none", background: busy === "prompt" ? "#e2e8f0" : th.c, color: "#fff", cursor: prompt.trim() ? "pointer" : "not-allowed", display: "flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 700 }}>
-            {busy === "prompt" ? <Loader2 size={14} className="pp-spin" /> : <Sparkles size={14} />} Apply
-          </button>
-        </div>
-      </div>
-
-      <div style={{ marginTop: 22 }}>
-        <label style={eyebrow}><FileUp size={12} /> drop a document for this field</label>
-        <div onClick={() => fileRef.current?.click()} onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); if (e.dataTransfer.files?.[0]) runFile(e.dataTransfer.files[0]); }}
-          style={{ cursor: "pointer", borderRadius: 12, border: "1.5px dashed #e2e8f0", padding: 16, textAlign: "center", background: "#f8fafc", fontSize: 12.5, color: "#94a3b8", fontWeight: 600 }}>
-          {busy === "file" ? <span style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}><Loader2 size={14} className="pp-spin" /> reading…</span> : "drop a PDF or .txt — extractor refills this field"}
-          <input ref={fileRef} type="file" accept=".pdf,.txt" style={{ display: "none" }} onChange={(e) => { if (e.target.files?.[0]) runFile(e.target.files[0]); e.target.value = ""; }} />
-        </div>
-      </div>
-
-      {err && <p style={{ marginTop: 12, fontSize: 12.5, color: "#dc2626" }}>{err}</p>}
-
-      {proposal && (
-        <div style={{ marginTop: 16, borderRadius: 14, border: `1px solid ${th.c}`, background: th.soft, padding: "14px 15px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 8 }}><Sparkles size={13} color={th.c} /><span style={{ fontSize: 11, fontWeight: 700, color: th.t }}>proposed via {proposal.via}</span></div>
-          <p style={{ fontSize: 14, lineHeight: 1.5, margin: 0, color: "#0f172a" }}>{proposal.value}</p>
-          {proposal.source_quote && <p style={{ fontSize: 12, fontStyle: "italic", color: "#64748b", marginTop: 8 }}>&ldquo;{proposal.source_quote}&rdquo; — {proposal.source_doc}</p>}
-          <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-            <button onClick={accept} style={{ fontSize: 13, fontWeight: 700, padding: "8px 14px", borderRadius: 9, border: "none", background: th.c, color: "#fff", cursor: "pointer" }}>Use this</button>
-            <button onClick={() => setProposal(null)} style={{ fontSize: 13, fontWeight: 600, padding: "8px 14px", borderRadius: 9, border: "1px solid #e2e8f0", background: "#fff", color: "#64748b", cursor: "pointer" }}>Discard</button>
-          </div>
-        </div>
-      )}
-
-      <div style={{ marginTop: 28, paddingTop: 18, borderTop: "1px solid #eef2f6", display: "flex", alignItems: "center", gap: 10 }}>
-        {field.state === "approved"
-          ? <button onClick={() => onUpdate({ state: "pending" })} style={{ fontSize: 13, fontWeight: 600, padding: "10px 16px", borderRadius: 10, border: "1px solid #e2e8f0", background: "#fff", color: "#64748b", cursor: "pointer", display: "flex", alignItems: "center", gap: 7 }}><RotateCcw size={14} /> Un-approve</button>
-          : <button onClick={() => onUpdate({ state: "approved" })} disabled={!text} style={{ fontSize: 14, fontWeight: 700, padding: "11px 22px", borderRadius: 10, border: "none", background: text ? "#3b82f6" : "#e2e8f0", color: text ? "#fff" : "#94a3b8", cursor: text ? "pointer" : "not-allowed", display: "flex", alignItems: "center", gap: 8 }}><Check size={16} strokeWidth={2.6} /> Approve field</button>}
-        <span style={{ fontSize: 11, color: "#94a3b8", fontWeight: 500 }}>approving is what lets it publish</span>
-      </div>
-    </div>
-  );
-}
 
 /* ---------- error boundary so un-wired tabs never white-screen ---------- */
 class Safe extends React.Component {
@@ -6345,24 +6107,6 @@ export default function Onboarding({ embedded = false, companySlug = null }) {
       }
     }
   };
-  // AI autofill: scan uploaded docs/notes → populate the companyStatus source of
-  // truth, its per-field confidence review, and the AI baseline (for edit detection).
-  // Failure (e.g. model unreachable) leaves everything empty for manual entry.
-  const autofillCompanyStatus = async () => {
-    try {
-      const res = await extractCompanyStatus(files.map((f) => f.file).filter(Boolean), paste);
-      if (res && res.status) setProfile((p) => ({ ...p, companyStatus: res.status, companyStatusReview: res.review, companyStatusAI: JSON.parse(JSON.stringify(res.status)) }));
-      return res;
-    } catch { return null; }
-  };
-  // Brief autofill reuses the SAME uploaded documents — no re-upload, no new inputs.
-  const autofillCompanyBrief = async () => {
-    try {
-      const res = await extractCompanyBrief(files.map((f) => f.file).filter(Boolean), paste);
-      if (res && res.brief) setProfile((p) => ({ ...p, companyBrief: res.brief, companyBriefReview: res.review, companyBriefAI: JSON.parse(JSON.stringify(res.brief)) }));
-      return res;
-    } catch { return null; }
-  };
   // Read each dropped file into a release item (PDF -> base64 for native reading,
   // else plain text) plus any pasted text, then run the AI batch extractor and drop
   // the results straight into the timeline. Lands the user in the builder on the
@@ -6421,6 +6165,12 @@ export default function Onboarding({ embedded = false, companySlug = null }) {
     if (items.length) {
       try {
         const out = await extractCorpus(items, {
+          // Authorization subject for the AI endpoints: the company being
+          // edited. On ?new=1 there is no row yet, so savedSlug is null and
+          // `onboarding` declares the exception EXPLICITLY — the server will
+          // not substitute a company on its own. See api/_aiGuard.js.
+          slug: savedSlug,
+          onboarding: true,
           token,
           context: companyName ? { company: { name: companyName } } : {},
           onProgress: (done, total) => setExtractMsg(`Analyzing releases ${done} of ${total}…`),
@@ -6451,7 +6201,10 @@ export default function Onboarding({ embedded = false, companySlug = null }) {
         // Layer 2 — synthesize the Overview (status card + brief) from the chronology.
         if (out.timeline && out.timeline.length) {
           setExtractMsg("Writing the company overview…");
-          const ov = await synthesizeProfile({ company: { name: companyName }, timeline: out.timeline });
+          const ov = await synthesizeProfile(
+            { company: { name: companyName }, timeline: out.timeline },
+            { slug: savedSlug, onboarding: true },
+          );
           if (ov) setProfile((p) => ({
             ...p,
             companyStatus: { ...(p.companyStatus || {}), ...(ov.companyStatus || {}) },
@@ -6474,7 +6227,9 @@ export default function Onboarding({ embedded = false, companySlug = null }) {
         if (corpus.length) {
           try {
             setExtractMsg("Reading company details, capital and leadership…");
-            const co = await extractCompany(corpus, { token });
+            // Same authorisation subject as the timeline above (D23): the
+            // company being edited, or the onboarding exception for a new one.
+            const co = await extractCompany(corpus, { token, slug: savedSlug, onboarding: true });
             if (co) {
               const id = co.identity || {};
               // Identity → profile.company (drives preview + save) AND the editor
@@ -6504,7 +6259,7 @@ export default function Onboarding({ embedded = false, companySlug = null }) {
           try {
             setExtractMsg("Extracting projects — this takes a few minutes…");
             const pj = await extractProjects(corpus, {
-              token,
+              token, slug: savedSlug, onboarding: true,
               onProgress: (done, total, label) => setExtractMsg(`Building projects: ${label} (${done}/${total})…`),
             });
             if (pj.projects && pj.projects.length) {
@@ -6611,7 +6366,7 @@ export default function Onboarding({ embedded = false, companySlug = null }) {
   }, [profile, savedSlug, screen]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // dev/test seam: lets the verification harness read and patch the live profile.
-  useEffect(() => { if (typeof window !== "undefined") { window.__ppProfile = { get: () => profile, set: setProfile, status }; window.__ppStatusAI = { normalizeCompanyStatus, normalizeCompanyStatusReview, buildStatusExtractionContent, extractCompanyStatus, apply: (res) => setProfile((p) => (res && res.status ? { ...p, companyStatus: res.status, companyStatusReview: res.review, companyStatusAI: JSON.parse(JSON.stringify(res.status)) } : p)) }; window.__ppBriefAI = { normalizeCompanyBrief, normalizeCompanyBriefReview, extractCompanyBrief, apply: (res) => setProfile((p) => (res && res.brief ? { ...p, companyBrief: res.brief, companyBriefReview: res.review, companyBriefAI: JSON.parse(JSON.stringify(res.brief)) } : p)) }; } }, [profile, status]);
+  useEffect(() => { if (typeof window !== "undefined") { window.__ppProfile = { get: () => profile, set: setProfile, status }; window.__ppStatusAI = { normalizeCompanyStatus, normalizeCompanyStatusReview, apply: (res) => setProfile((p) => (res && res.status ? { ...p, companyStatus: res.status, companyStatusReview: res.review, companyStatusAI: JSON.parse(JSON.stringify(res.status)) } : p)) }; window.__ppBriefAI = { normalizeCompanyBrief, normalizeCompanyBriefReview, apply: (res) => setProfile((p) => (res && res.brief ? { ...p, companyBrief: res.brief, companyBriefReview: res.review, companyBriefAI: JSON.parse(JSON.stringify(res.brief)) } : p)) }; } }, [profile, status]);
 
   const _ovF = overviewVM(fields.overview);
   // Company Status Card view-model — derived 1:1 from the single `companyStatus`

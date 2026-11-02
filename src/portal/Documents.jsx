@@ -5,6 +5,12 @@
 // downloaded (the private company-docs bucket is reached via a short-lived signed
 // URL). Upload is here too. The heavy AI actions (rebuild the profile from memory)
 // live in the admin/onboarding console, not this clean browse surface.
+//
+// Reached from the sidebar ("Documents", next to Mine IQ, which answers from
+// these files). It used to hang off the bottom of Media and was unreachable
+// once Media dropped it. Upload and delete follow 0076/0078: the drafting
+// roles (owner, admin, editor, publisher) -- `draftContent` in the role table.
+// Analysts and viewers can open and download.
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import {
@@ -13,6 +19,7 @@ import {
 } from "lucide-react";
 import { listDocuments, storeDocuments, deleteDocument, signedDocUrl } from "../lib/memory.js";
 import { logActivity } from "../lib/portal.js";
+import { can } from "../lib/companyRoles.js";
 
 // Category catalogue — order defines how groups are stacked. `match` keys map the
 // documents.kind values (and a couple of synonyms) onto these buckets.
@@ -28,11 +35,21 @@ const CAT_BY_ID = Object.fromEntries(CATS.map((c) => [c.id, c]));
 const catOf = (kind) => CAT_BY_ID[kind] || CAT_BY_ID.other;
 
 const fmtBytes = (n) => (!n ? "" : n < 1024 ? n + " B" : n < 1048576 ? (n / 1024).toFixed(0) + " KB" : (n / 1048576).toFixed(1) + " MB");
-const fmtDate = (s) => { try { return new Date(s).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }); } catch { return ""; } };
+// toLocaleDateString does not throw on a bad date; it returns "Invalid Date".
+// A date-only value ("2025-06-01", doc_date) is midnight UTC, so it is shown
+// in UTC -- in local time west of Greenwich it read as the day before.
+const fmtDate = (s) => {
+  const d = new Date(s);
+  if (!s || Number.isNaN(d.getTime())) return "";
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", ...(/^\d{4}-\d{2}-\d{2}$/.test(String(s)) ? { timeZone: "UTC" } : {}) });
+};
 
 export default function Documents({ company }) {
   const companyId = company?.id || null;
+  const canEdit = can(company?.role || "viewer", "draftContent");
   const [docs, setDocs] = useState(null);        // null = loading
+  const [loadErr, setLoadErr] = useState(false);
+  const [confirmDel, setConfirmDel] = useState(null);
   const [busy, setBusy] = useState("");
   const [err, setErr] = useState("");
   const [q, setQ] = useState("");
@@ -45,7 +62,10 @@ export default function Documents({ company }) {
   const load = useCallback(() => {
     if (!companyId) { setDocs([]); return; }
     setDocs(null);
-    listDocuments(companyId).then(setDocs);
+    // listDocuments throws when the list can't be read; [] means none.
+    listDocuments(companyId)
+      .then((rows) => { setLoadErr(false); setDocs(rows); })
+      .catch(() => { setLoadErr(true); setDocs([]); });
   }, [companyId]);
   useEffect(() => { load(); }, [load]);
 
@@ -63,11 +83,15 @@ export default function Documents({ company }) {
     finally { setBusy(""); }
   };
 
+  // Permanent: the row AND the stored file go, and Mine IQ stops using it --
+  // so it asks first, and a refusal is said out loud instead of the row just
+  // reappearing.
   const remove = async (d) => {
+    setConfirmDel(null); setErr("");
     setDocs((xs) => xs.filter((x) => x.id !== d.id));   // optimistic
     const ok = await deleteDocument(d.id);
     if (ok) logActivity(companyId, { action: "media_deleted", entity: "documents", source: "ui", reason: d.filename || "" });
-    else load();
+    else { setErr(`Couldn't delete ${d.filename || "that file"}. It's still in your library.`); load(); }
   };
 
   const open = async (d, download = false) => {
@@ -115,10 +139,26 @@ export default function Documents({ company }) {
     <div>
       <div className="mb-6">
         <h1 className="text-[24px] font-extrabold tracking-tight text-slate-900">Documents</h1>
-        <p className="mt-1.5 text-[14.5px] text-slate-500">Everything you've uploaded — organized by type and kept forever. Open or download any original whenever you need it.</p>
+        <p className="mt-1.5 text-[14.5px] text-slate-500">Everything you've uploaded, organized by type. Mine IQ answers from these. Open or download any original whenever you need it.</p>
       </div>
 
+      {confirmDel && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-slate-900/30 p-4" onClick={() => setConfirmDel(null)}>
+          <div onClick={(e) => e.stopPropagation()} className="w-full max-w-[400px] rounded-2xl border border-slate-100 bg-white p-5 shadow-xl" data-confirm-delete>
+            <p className="text-[15px] font-extrabold tracking-tight text-slate-900">Delete this document?</p>
+            <p className="mt-2 break-words text-[13px] leading-relaxed text-slate-500">
+              {confirmDel.filename || "This file"} and its stored original are removed permanently, and Mine IQ stops using it. This can't be undone.
+            </p>
+            <div className="mt-4 flex justify-end gap-2">
+              <button onClick={() => setConfirmDel(null)} className="rounded-xl px-3.5 py-2 text-[13px] font-bold text-slate-500 hover:bg-slate-100">Cancel</button>
+              <button onClick={() => remove(confirmDel)} className="rounded-xl bg-rose-600 px-4 py-2 text-[13px] font-bold text-white hover:bg-rose-700">Delete</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Upload */}
+      {canEdit ? (
       <div onClick={() => inputRef.current?.click()}
         onDragOver={(e) => { e.preventDefault(); setDrag(true); }} onDragLeave={() => setDrag(false)}
         onDrop={(e) => { e.preventDefault(); setDrag(false); if (e.dataTransfer.files?.length) addFiles(e.dataTransfer.files); }}
@@ -128,6 +168,11 @@ export default function Documents({ company }) {
         <p className="text-[12px] text-slate-400">Drop files or click — press releases, decks, technical reports, financials, photos. Deduped automatically.</p>
         <input ref={inputRef} type="file" multiple className="hidden" onChange={(e) => { addFiles(e.target.files); e.target.value = ""; }} />
       </div>
+      ) : (
+        <p className="rounded-2xl border border-slate-100 bg-slate-50 px-5 py-3.5 text-[13px] text-slate-500" data-readonly-documents>
+          Your role ({company?.role || "viewer"}) can open and download documents. An owner, admin, editor or publisher can upload or delete them.
+        </p>
+      )}
       {err && <p className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-amber-50 px-3 py-2 text-[12.5px] font-semibold text-amber-700"><AlertTriangle size={13} /> {err}</p>}
 
       {/* Controls */}
@@ -154,11 +199,17 @@ export default function Documents({ company }) {
       {/* List */}
       <div className="mt-4">
         {docs === null && <div className="flex justify-center py-12"><Loader2 size={22} className="animate-spin text-slate-300" /></div>}
-        {docs && docs.length === 0 && (
+        {loadErr && (
+          <div className="flex items-center justify-between gap-3 rounded-2xl border border-amber-100 bg-amber-50 px-5 py-3.5" data-load-error>
+            <p className="text-[13px] font-semibold text-amber-800">Couldn't load your documents. Nothing has been deleted.</p>
+            <button onClick={load} className="shrink-0 text-[12.5px] font-bold text-amber-800 hover:underline">Retry</button>
+          </div>
+        )}
+        {docs && docs.length === 0 && !loadErr && (
           <div className="rounded-2xl border border-dashed border-slate-200 py-14 text-center">
             <FileText size={24} className="mx-auto text-slate-300" />
             <p className="mt-2 text-[14px] font-semibold text-slate-500">No documents yet</p>
-            <p className="mt-1 text-[13px] text-slate-400">Upload your first file above — everything you add is kept forever.</p>
+            <p className="mt-1 text-[13px] text-slate-400">{canEdit ? "Upload your first file above." : "Nothing has been uploaded yet."}</p>
           </div>
         )}
 
@@ -172,14 +223,14 @@ export default function Documents({ company }) {
                   <span className="text-[12px] font-semibold text-slate-300">{g.items.length}</span>
                 </div>
                 <div className="space-y-2">
-                  {g.items.map((d) => <DocRow key={d.id} d={d} onOpen={open} onRemove={remove} opening={opening} />)}
+                  {g.items.map((d) => <DocRow key={d.id} d={d} onOpen={open} onRemove={canEdit ? setConfirmDel : null} opening={opening} />)}
                 </div>
               </div>
             ))}
           </div>
         ) : (
           <div className="space-y-2">
-            {filtered.map((d) => <DocRow key={d.id} d={d} onOpen={open} onRemove={remove} opening={opening} />)}
+            {filtered.map((d) => <DocRow key={d.id} d={d} onOpen={open} onRemove={canEdit ? setConfirmDel : null} opening={opening} />)}
             {docs && docs.length > 0 && filtered.length === 0 && <p className="py-6 text-center text-[13px] text-slate-400">Nothing matches your filters.</p>}
           </div>
         )}
@@ -207,7 +258,7 @@ function DocRow({ d, onOpen, onRemove, opening }) {
         <p className="truncate text-[13.5px] font-bold text-slate-800">{d.filename || "Untitled"}</p>
         <p className="truncate text-[11.5px] text-slate-400">
           <span className="font-semibold" style={{ color: c.c }}>{c.label}</span>
-          {d.doc_date ? ` · dated ${fmtDate(d.doc_date)}` : ""}{d.bytes ? ` · ${fmtBytes(d.bytes)}` : ""} · uploaded {fmtDate(d.created_at)}
+          {fmtDate(d.doc_date) ? ` · dated ${fmtDate(d.doc_date)}` : ""}{d.bytes ? ` · ${fmtBytes(d.bytes)}` : ""}{fmtDate(d.created_at) ? ` · uploaded ${fmtDate(d.created_at)}` : ""}
           {d.hasText ? " · searchable" : ""}
         </p>
       </div>
@@ -220,7 +271,7 @@ function DocRow({ d, onOpen, onRemove, opening }) {
           className="grid h-8 w-8 place-items-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700">
           {opening === d.id + ":dl" ? <Loader2 size={14} className="animate-spin" /> : <Download size={15} />}
         </button>
-        <button onClick={() => onRemove(d)} title="Delete" className="grid h-8 w-8 place-items-center rounded-lg text-slate-300 hover:bg-rose-50 hover:text-rose-500"><Trash2 size={15} /></button>
+        {onRemove && <button onClick={() => onRemove(d)} title="Delete" aria-label={`Delete ${d.filename || "document"}`} className="grid h-8 w-8 place-items-center rounded-lg text-slate-300 hover:bg-rose-50 hover:text-rose-500"><Trash2 size={15} /></button>}
       </div>
     </div>
   );

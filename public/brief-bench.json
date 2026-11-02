@@ -1,0 +1,515 @@
+{
+  "dates": [
+    "2025-09-24",
+    "2026-07-22",
+    "2026-09-22",
+    "2023-06-07",
+    "2025-03-27",
+    "2026-02-11",
+    "2024-08-20",
+    "2025-10-24"
+  ],
+  "v2": {
+    "2025-09-24": {
+      "cat": "Drill Results",
+      "head": "First drill results return 1,742 g/t silver-equivalent",
+      "wh": "The first assays from Kingsmen's maiden Las Coloradas drill program hit high-grade silver in hole LC-25-010, testing ground directly beneath workings ASARCO mined in 1943–1952.",
+      "wy": "They validate the company's core thesis — that high grade continues below the old mine — on the very first results, at grades comparable to what ASARCO historically extracted.",
+      "kr": [
+        {
+          "v": "138",
+          "u": "g/t AgEq",
+          "desc": "13.35 m interval",
+          "sec": "Wider mineralized zone"
+        },
+        {
+          "v": "1,028",
+          "u": "g/t AgEq",
+          "desc": "1.45 m interval",
+          "sec": "190.25–191.70 m core",
+          "rel": "INCLUDING"
+        },
+        {
+          "v": "1,742",
+          "u": "g/t AgEq",
+          "desc": "0.70 m interval",
+          "sec": "Peak · 770 g/t Ag",
+          "rel": "INCLUDING"
+        },
+        {
+          "v": "125 m",
+          "u": "Depth",
+          "desc": "To first intercept",
+          "sec": "Per company"
+        }
+      ],
+      "tk": "Eleven more holes from the same program are still awaiting assays."
+    },
+    "2026-07-22": {
+      "cat": "Drill Results",
+      "head": "Deepest Soledad hole returns 641 g/t AgEq, extending high grade over 135 m of vertical depth",
+      "wh": "Hole LC-26-013, the deepest yet at Soledad, returned high-grade silver-gold down-dip of the discovery hole, linking a three-hole fence.",
+      "wy": "The zone widens and gains grade with depth and stays open below the fence, pointing to an untested extension.",
+      "kr": [
+        {
+          "v": "257",
+          "u": "g/t AgEq",
+          "desc": "5.20 m interval",
+          "sec": "Down-dip intercept"
+        },
+        {
+          "v": "641",
+          "u": "g/t AgEq",
+          "desc": "1.40 m interval",
+          "sec": "Peak · 425 g/t Ag",
+          "rel": "INCLUDING"
+        },
+        {
+          "v": "135 m",
+          "u": "Vertical",
+          "desc": "Grade continuity",
+          "sec": "Across a 3-hole fence"
+        },
+        {
+          "v": "54 m",
+          "u": "Down-dip",
+          "desc": "Of hole LC-25-010",
+          "sec": "Deepest Soledad hole"
+        }
+      ],
+      "tk": "These are the first assays of 1,000+ samples from 19 completed holes; the rest remain pending."
+    },
+    "2026-09-22": {
+      "cat": "Drill Results",
+      "head": "New #8 structure returns 218 g/t AgEq over 6.5 m",
+      "wh": "Hole LC-26-020 cut shallow, gold-rich silver on the newly tested #8 structure, west of the original discovery hole.",
+      "wy": "High grade now appears in more than one structure — which management reads as a broader system with a possible deeper source.",
+      "kr": [
+        {
+          "v": "218",
+          "u": "g/t AgEq",
+          "desc": "6.45 m interval",
+          "sec": "199 g/t Ag + 0.53 g/t Au"
+        },
+        {
+          "v": "338",
+          "u": "g/t AgEq",
+          "desc": "1.95 m interval",
+          "sec": "Higher-grade section",
+          "rel": "INCLUDING"
+        },
+        {
+          "v": "150 m",
+          "u": "Distance",
+          "desc": "West of hole LC-25-010",
+          "sec": "New #8 structure"
+        }
+      ],
+      "tk": "The geophysical anomaly beneath these veins is the program's priority target — and it hasn't been drilled yet."
+    },
+    "2023-06-07": {
+      "cat": "Exploration",
+      "head": "Surface sampling confirms high-grade silver on the Soledad structure",
+      "wh": "Kingsmen sampled old workings along the SE Soledad structure, returning multiple high-grade silver values and mapping a new mineralized structure.",
+      "wy": "The grades align with the district's reported historic production, supporting structurally controlled mineralization likely to continue below the old workings.",
+      "kr": [
+        {
+          "v": ">500",
+          "u": "g/t Ag",
+          "desc": "Top surface values",
+          "sec": "2 of 39 samples"
+        },
+        {
+          "v": "300 m",
+          "u": "Structure",
+          "desc": "Newly mapped",
+          "sec": "Soledad structure"
+        },
+        {
+          "v": "39",
+          "u": "Samples",
+          "desc": "Collected at surface",
+          "sec": ""
+        }
+      ],
+      "tk": "Three priority target areas now frame the maiden drill program."
+    },
+    "2025-03-27": {
+      "cat": "Exploration",
+      "head": "3D IP survey adds five drill targets at Las Coloradas",
+      "wh": "An induced-polarization survey by Geofisica TMC covered about a third of the project and flagged new high-priority targets tied to chargeability anomalies.",
+      "wy": "The targets test depth extensions never drilled — below the water table and below ASARCO's mined levels — firming up the maiden drill plan.",
+      "kr": [
+        {
+          "v": "5",
+          "u": "Targets",
+          "desc": "New drill targets",
+          "sec": "High-priority"
+        },
+        {
+          "v": "14",
+          "u": "Holes",
+          "desc": "Now planned",
+          "sec": ""
+        },
+        {
+          "v": "16 km",
+          "u": "IP survey",
+          "desc": "1.6 × 1.8 km grid",
+          "sec": "Three-dimensional IP"
+        }
+      ]
+    },
+    "2026-02-11": {
+      "cat": "Financing",
+      "head": "Kingsmen closes C$13 million bought-deal financing",
+      "wh": "The company closed its bought-deal private placement, including full exercise of the underwriter's option.",
+      "wy": "The proceeds fund exploration at Las Coloradas and Almoloya plus working capital, extending the runway for drilling.",
+      "kr": [
+        {
+          "v": "C$13.0M",
+          "u": "Gross",
+          "desc": "Bought-deal proceeds",
+          "sec": "C$13,000,000.50 total"
+        },
+        {
+          "v": "C$2.25",
+          "u": "Per unit",
+          "desc": "Unit price",
+          "sec": "½ warrant each"
+        },
+        {
+          "v": "C$3.00",
+          "u": "Warrant",
+          "desc": "Exercise price",
+          "sec": "To Feb 11, 2029"
+        },
+        {
+          "v": "5,777,778",
+          "u": "Units",
+          "desc": "Issued",
+          "sec": ""
+        }
+      ],
+      "tk": "Closing still hinges on final TSX Venture Exchange approval."
+    },
+    "2024-08-20": {
+      "cat": "Corporate",
+      "head": "Veteran geologist Mark J. Pryor joins the board",
+      "wh": "Mark J. Pryor, a geologist with a four-decade track record advancing precious-metal projects, was appointed a director of Kingsmen.",
+      "wy": "His central-Mexican silver-belt experience — including the Los Gatos mine — maps directly onto Kingsmen's exploration focus.",
+      "kr": [],
+      "tk": "His résumé spans majors — Anglo American, Placer Dome, Antofagasta — and two geological fellowships."
+    },
+    "2025-10-24": {
+      "cat": "Corporate",
+      "head": "Kingsmen options 100% of the Almoloya gold-silver project",
+      "wh": "Kingsmen completed an option to earn 100% of Almoloya, a consolidation of past-producing claims west of Las Coloradas, including the Cigarrero and Las Juliettas mines.",
+      "wy": "It expands the district footprint onto a second past-producing system while keeping early spending on exploration rather than tenure payments.",
+      "kr": [
+        {
+          "v": "100%",
+          "u": "Interest",
+          "desc": "Earn-in via option",
+          "sec": "100% of Almoloya"
+        },
+        {
+          "v": "866.25",
+          "u": "Hectares",
+          "desc": "5 claims consolidated",
+          "sec": "Gold-silver project"
+        },
+        {
+          "v": "US$325K",
+          "u": "Cash yrs 1–2",
+          "desc": "Option payments",
+          "sec": "US$75K in year 1"
+        },
+        {
+          "v": "8 yrs",
+          "u": "Term",
+          "desc": "Staged payment period",
+          "sec": ""
+        }
+      ],
+      "tk": "The option remains subject to TSX Venture Exchange approval."
+    }
+  },
+  "old": {
+    "2025-09-24": {
+      "headline": "Kingsmen Intersects 1,742 g/t Silver Equivalent over 0.7 Meters (190.85 - 191.55 m) in Its First Drill Program at Its Las Coloradas Silver Project, Chihuahua, Mexico",
+      "why": "First assays from hole LC-25-010: 1,028 g/t AgEq over 1.45 m including 1,742 g/t AgEq over 0.70 m, within a wider zone of 138 g/t AgEq over 13.35 m from only 125 metres depth.",
+      "takeaways": [
+        "HIGH GRADE SILVER DISCOVERY",
+        "WIDE MINERALIZED ZONE",
+        "SHALLOW, NEAR-SURFACE MINERALIZATION"
+      ]
+    },
+    "2026-07-22": {
+      "headline": "Kingsmen Extends High-Grade Soledad System at Depth, with a 1.4m Intercept of 641 g/t Silver Equivalent, Confirming Continuity over 135 Meters of Vertical Depth at Its Las Coloradas Silver Project, Chihuahua, Mexico",
+      "why": "Hole LC-26-013, the deepest at Soledad, returns 5.20 m @ 257 g/t AgEq including 1.40 m @ 641 g/t AgEq, 54 m down-dip of LC-25-010 and confirming continuity over 135 metres of vertical depth.",
+      "takeaways": [
+        "LC-26-013 (new): 5.20 meters @ 257 g/t AgEq (114 g/t Ag) within a broader alteration zone (130.0–246.9m), including 641 g/t AgEq (425 g/t Ag) over 1.40m (236.55–237.95m) — among the highest-grade silver intercepts reported by Kingsmen to date, and the deepest hole in the Soledad fence.",
+        "LC-25-010 (previously reported, Sept. 24, 2025): 1.45 meters @ 1,028 g/t AgEq (455 g/t Ag) (190.25–191.70m), including 1,742 g/t AgEq (770 g/t Ag) over 0.70m (190.85–191.55m), within a broader zone of 138 g/t AgEq over 13.35m (64.3 g/t Ag).",
+        "LC-25-005 (previously reported, January 19, 2026): 15.7 meters @ 74 g/t AgEq (46 g/t Ag), including an upper zone of 704 g/t AgEq (460 g/t Ag) over 0.35m and a lower zone of 1,379 g/t AgEq (848 g/t Ag & 0.87 g/t Au) over 0.6m."
+      ]
+    },
+    "2026-09-22": {
+      "headline": "Kingsmen Intersects 218g/t AgEq over 6.5 Meters on New Structure,150 Meters West of High-Grade Hole LC-25-010",
+      "why": "LC-26-020 returned 218 g/t AgEq (199 g/t silver and 0.53 g/t Au) over 6.45 metres, including 338 g/t AgEq over 1.95 metres, confirming high-grade mineralization on the new #8 structure.",
+      "takeaways": [
+        "LC-26-020 returned 218 g/t AgEq (199 g/t silver and 0.53 g/t Au) over 6.45 metres, including 338 g/t AgEq (313 g/t silver) over 1.95 metres",
+        "Confirms high-grade mineralization on a new structure (#8), 150 meters west of high-grade hole LC-25-010",
+        "Second hole drilled on the #8 structure, following LC-25-008 (200 g/t AgEq and 0.28 g/t Au over 10.5 meters, including 931 g/t AgEq and 1.28 g/t Au over 1.6 meters), confirming continuity of high-grade mineralization across structures"
+      ]
+    },
+    "2023-06-07": {
+      "headline": "Las Coloradas Project Surface Sampling of the SE Soledad Structure",
+      "why": "First results from surface sampling of old workings on the SE part of the Soledad structure: 39 samples, three separate target areas, and a new 300 metre long mineralized structure recognized.",
+      "takeaways": [
+        "Thirty-nine (39) samples were collected.",
+        "2 > 500 g/t silver",
+        "4 > 200 g/t silver"
+      ]
+    },
+    "2025-03-27": {
+      "headline": "Kingsmen Reports Successful Completion of 3D IP Survey",
+      "why": "A 3D induced polarization-resistivity survey by Geofisica TMC identified five new high priority drill targets, bringing the initial drill program to 14 proposed holes.",
+      "takeaways": []
+    },
+    "2026-02-11": {
+      "headline": "Kingsmen Resources Announces Closing of Bought Deal Private Placement for Gross Proceeds of C$13 Million",
+      "why": "Closing of the bought deal for gross proceeds of C$13,000,000.50 including full exercise of the underwriter’s option: 5,777,778 units at C$2.25, with warrants exercisable at C$3.00 to February 11, 2029.",
+      "takeaways": []
+    },
+    "2024-08-20": {
+      "headline": "Kingsmen Resources Appoints Mark J. Pryor as Director",
+      "why": "Appointment of Mark J. Pryor as a director. A geologist with a 40-year track record, his career includes the Electrum Group, the Los Gatos Mine, Anglo American, Placer Dome and Antofagasta Minerals.",
+      "takeaways": []
+    },
+    "2025-10-24": {
+      "headline": "Kingsmen Granted Option to Acquire 100% of the Gold/Silver Almoloya Project in the Parral Mining District, Chihuahua, Mexico",
+      "why": "The option transaction to acquire a 100% interest in the Almoloya Gold/Silver project completed, with staged cash payments over eight years totalling US$325,000 in the first two years.",
+      "takeaways": []
+    }
+  },
+  "full": {
+    "2025-09-24": {
+      "blocks": [
+        {
+          "type": "text",
+          "text": "Vancouver, British Columbia--(Newsfile Corp. - September 24, 2025) - Kingsmen Resources Ltd. (TSXV: KNG) (OTCQB: KNGRF) (FSE: TUY) (“Kingsmen” or the “Company”) is pleased to report first assays from hole LC-25-010 that intersected significant mineralization. The hole was drilled as part of the recently completed 12 hole - 3,227.2 meter drill program on its 100% owned Las Coloradas silver project. The Las Coloradas project is in the Parral mining district of the Central Mexican Silver Belt, Chihuahua, Mexico.\nFour Key Highlights:\n\n• HIGH GRADE SILVER DISCOVERY\n*1,028 g/t silver equivalent over 1.45 meters (455 g/t silver) from 190.25-191.70m.\nincluding 1,742 g/t silver equivalent over 0.70 meters (770 g/t silver) from 190.85-191.55m.\n*See Tables 1 and 2 for zinc, lead and gold grades used in the silver equivalent calculation.\n\n• WIDE MINERALIZED ZONE\n*138 g/t silver equivalent over 13.35 meters (64.3 g/t silver) from 178.35-191.70m.\n*Drilled previously untested areas below historic ASARCO mining 1943-1952\n\n• SHALLOW, NEAR-SURFACE MINERALIZATION\nIntercept from only 125 Meters Depth\n*Multiple mineralization styles including massive sulphides\n*Strong pathfinder elements (antimony, indium, bismuth) indicate larger system\n\n• SIGNIFICANT DISCOVERY POTENTIAL\nLess than 5% of property explored\n*8.5 km2 consolidated historic mining district\n*Multiple untested structures and veins\n*Located in Mexico’s prolific Parral Silver District\nPresident, Scott Emerson, commented, “Our first hole confirms our thesis to drill below historic mining areas and has demonstrated the two essential elements of both grade and scale. Since the Company’s inception, our approach has been laser-focused on creating sustainable value for our stakeholders. Hole LC-25-010 delivered high-grade, shallow silver mineralization in the Mine zone of the Soledad structure demonstrating the potential for the discovery of additional high-grade mineralization in this area.\nThe Company is awaiting assays from eleven additional holes and targets that have been drilled as part of this initial drill program. With its growing understanding of the geochemistry and controls on mineralization, and less than 5% of the project area covered with comprehensive exploration work, the property remains under explored. Kingsmen has only just begun to unlock the true potential of this high-grade silver system.”\nHole LC-25-010 (Figure 1; Table 1; Table 2; Table 3) was drilled on the Soledad structure to test for depth extensions to the mineralization mined by ASARCO in the period 1943-1952. The hole intersected an alteration zone with massive sulphide mineralization from 178.35 to 191.70 meters (13.35 meters) downhole. The silver rich massive sulphide mineralization (190.85 to 191.55 meters) comprises sphalerite, galena, arsenopyrite, pyrrhotite, and pyrite (Figure 2). The mineralization is strongly anomalous in pathfinder elements antimony, bismuth, indium and arsenic. The values for bismuth, antimony and indium are very anomalous and underscore the value of these elements as pathfinders that map the alteration zone that contains the high grade mineralization (Table 1). Significant gold of 0.60 g/t is associated with an arsenopyrite rich zone indicating the potential for the development of this type of mineralization. The high-grade silver values are comparable to the reported historical grades that ASARCO mined confirming the drilling is testing an extension to the historic mineralization.\nAlteration starts at approximately 178.0 meters with a weakly mineralized zone from 180.25 to 182.0 meters with elevated silver values (Figure 2 and Figure 3). This zone, which contains elevated pathfinder elements arsenic, antimony, bismuth and indium, may be along strike or down-dip of stronger mineralization. The alteration comprises chlorite-calcite-clays with variable silicification and pyritization with variable low to anomalous values of arsenic, bismuth, indium and antimony. Of note is the discovery of the critical metal indium in the massive sulphide intersection. Further work is required to determine the significance of this discovery.\nMineralization occurs as massive sulfides composed primarily of sphalerite/blende (?), pyrrhotite, arsenopyrite, pyrite, and galena, accompanied by massive white quartz and a smaller proportion of calcite. The host rock is a sedimentary sequence composed of fine- to medium-grained quartzo-feldspathic sandstone and interbedded thin layers of shale/siltstone. This sequence exhibits moderate to pervasive silicification superimposed on chloritic alteration (?), which permeates from layer contacts and in cracks and fractures. Microfaulting, incipient layer elongation, and ductile deformation are evident in the shale/siltstone layers. Multiple cracking and fracture systems and veinlets with different orientations and compositions, which sometimes overlap, are present indicating shear stresses and different mineralization events. Petrographic studies are underway to type the alteration and relative ages of the mineralization.\nTable 1 Analyses"
+        },
+        {
+          "type": "image",
+          "src": "/pr-fixture/sep24-2025-table1-analyses-lc25010.jpg",
+          "caption": "Table 1 — analyses, LC-25-010"
+        },
+        {
+          "type": "text",
+          "text": "Table 1 Analyses\n\nTrue width cannot be determined at this time and reported widths are drilled intervals.\nTable 2 Silver equivalents"
+        },
+        {
+          "type": "image",
+          "src": "/pr-fixture/sep24-2025-table2-silver-equivalents.jpg",
+          "caption": "Table 2 — silver equivalents"
+        },
+        {
+          "type": "text",
+          "text": "Table 2 Silver equivalents\n\nThe silver equivalent calculation formula is AgEq(g/t) = ((Ag grade (g/t) x (Ag price per ounce/31.10348) x Ag recovery) + (Pb grade (%) x (Pb price per tonne/100) x Pb recovery) + (Zn grade (%) x (Zn price per tonne/100) x Zn recovery) + (Au grade (g/t) x (Au price per ounce/31.10348) x Au recovery)) / (Ag price per ounce/31.10348 x Ag recovery). The prices used were US$3675/oz gold, US$2960/t zinc, US$2003/t lead and US$42/oz silver. Recoveries are estimated at 40% for gold, 91% for lead, 85% for zinc and 92% for silver based on published figures by Kootenay Silver Inc. for sulphide mineralization in the Cigarra deposit, Chihuahua, Mexico, a deposit with similar style mineralization.\nTable 3 Collar and survey table"
+        },
+        {
+          "type": "image",
+          "src": "/pr-fixture/sep24-2025-table3-collar-survey.jpg",
+          "caption": "Table 3 — collar and survey"
+        },
+        {
+          "type": "text",
+          "text": "Table 3 Collar and survey table"
+        },
+        {
+          "type": "image",
+          "src": "/pr-fixture/sep24-fig1-las-coloradas-drill-collars.jpg",
+          "caption": "Figure 1"
+        },
+        {
+          "type": "image",
+          "src": "/pr-fixture/sep24-fig2-mineralization.jpg",
+          "caption": "Figure 2 Mineralization"
+        },
+        {
+          "type": "image",
+          "src": "/pr-fixture/sep24-fig3-mineralization.jpg",
+          "caption": "Figure 3 Mineralization"
+        },
+        {
+          "type": "text",
+          "text": "Holes 5, 6, 7 and 10 tested a 100-meter length of the Soledad system centered on the Soledad shaft. Holes 9 and 11 tested the structure in the area of the Rosario shaft. Holes 2,3 and 4 tested a 50-meter segment of the Soledad structure/vein system in the DBD target. Hole 12 tested under old workings on the Soledad II structure/vein system. Holes1 and 8 tested a geological/geophysical target. The target was the intersection of NW-trending and NE-trending structures/vein systems, in an area of high chargeability and resistivity on an interpreted NW-trending magnetic structure.\nQAQC\nThe drill core (HQ size) is currently being geologically logged and sampled. The full drill core is sawn with a diamond blade rock saw. One half of the sawn drill core is bagged and tagged for analysis. The remaining half portion is returned to the drill core tray and stored. Bagged samples are securely stored prior to submission for analysis. Samples are being submitted to ALS Geochemistry-Chihuahua for multielement analysis following four-acid digestion (code ME-MS61), and gold by fire assay-AA (code Au-AA23). Quality assurance and quality control (QA/QC) is maintained by the systematic insertion of certified standard reference materials (CSRM), blanks and duplicates into the sample stream. Assay results will be announced following receipt, compilation and confirmation. ALS Geochemistry operates under a Global Geochemistry Quality Manual that complies with ISO/IEC 17025:2017.\nAbout Las Coloradas\nThe Las Coloradas Project (8.5 km2 -3.3 sq miles) represents a consolidation of a historic mining district which covers numerous silver-gold-lead-zinc-copper mines previously exploited by ASARCO (American Smelting and Refining Company), the U.S. based subsidiary of Grupo Mexico.\nLas Coloradas is in the Parral mining district of the Central Mexican Silver Belt, and is located approximately 30 kilometers southeast of the city of Hidalgo de Parral and 40 kilometers east of the San Francisco de Oro and Santa Barbara mining districts where several old major mines are located, such as La Prieta, Veta Colorada, Palmilla, Esmeralda, San Francisco del Oro and Santa Barbara. Click here to see locator map: https://www.kingsmenresources.com/area-history.\nQualified Person\nKieran Downes, Ph.D., P.Geo., a director of Kingsmen and Qualified Person as defined by National Instrument 43-101, has reviewed and approved the scientific and technical disclosure set out in this news release.\nAbout Kingsmen Resources\nKingsmen Resources is a mineral exploration company focused on advancing its 100% held projects, the Las Coloradas silver/gold project and Almoloya gold/silver project located in the prolific mining district of Parral Mexico. The projects host historic past producing high-grade silver mines. They are considered to be prospective for hosting further precious metal deposits, being on the same structural and stratigraphic belts that host numerous other, on-trend, high-grade deposits. In addition, the company has a 1% NSR on the La Trini claims which form part of the Los Ricos North project operated by GoGold Resources Inc. in Mexico. Kingsmen is a publicly-traded company (TSXV: KNG) (OTCQB: KNGRF) ( FSE: TUY) and is headquartered in Vancouver, British Columbia.\nOn behalf of the Board,\nSigned: “Scott Emerson”\nScott Emerson, President & CEO\nPhone: 6046859316\nEmail: se@kingsmenresources.com\nFollow us on: LinkedIn, Instagram and X\nNeither the TSX Venture Exchange nor its Regulation Services Provider (as that term is defined in the policies of the TSX Venture Exchange) accepts responsibility for the adequacy or accuracy of this release.\nForward-Looking Statements: Certain disclosure contained in this news release may constitute forward-looking information or forward-looking statements, within the meaning of Canadian securities laws. These statements may relate to this news release and other matters identified in the Company’s public filings. In making the forward-looking statements the Company has applied certain factors and assumptions that are based on the Company’s current beliefs as well as assumptions made by and information currently available to the Company. These statements address future events and conditions and, as such, involve known and unknown risks, uncertainties and other factors which may cause the actual results, performance or achievements to be materially different from any future results, performance or achievements expressed or implied by the statements. These risks and uncertainties include but are not limited to: the political environment in which the Company operates continuing to support the development and operation of mining projects; the threat associated with outbreaks of viruses and infectious diseases; risks related to negative publicity with respect to the Company or the mining industry in general; planned work programs; permitting; and community relations. Readers are cautioned not to place undue reliance on forward-looking statements. The Company does not intend, and expressly disclaims any intention or obligation to, update or revise any forward-looking statements whether as a result of new information, future events or otherwise, except as required by law."
+        }
+      ]
+    },
+    "2026-07-22": {
+      "blocks": [
+        {
+          "type": "text",
+          "text": "Vancouver, British Columbia--(Newsfile Corp. - July 22, 2026) - Kingsmen Resources Ltd. (TSXV: KNG) (OTCQB: KNGRF) (FSE: TUY) (“Kingsmen” or the “Company”) is pleased to report first assays from its ongoing fully funded diamond drilling campaign, from hole LC-26-013, drilled on the Company’s 100%-owned Las Coloradas silver project in the Parral mining district of the Central Mexican Silver Belt, Chihuahua, Mexico. LC-26-013, the deepest hole drilled to date at the Soledad system, intersected significant silver-gold mineralization 54 meters down-dip of previously reported hole LC-25-010, confirming that high-grade mineralization at Soledad continues to grow at depth. Together with previously reported holes, LC-25-005 and LC-25-010, the fence of three holes has now intersected silver-gold mineralization over a minimum of 135 meters of vertical depth, and a new structural target has been identified. Mineralization remains open at depth and along strike. This result demonstrates the continuity of the high- grade silver mineralization and expands the known mineralized footprint.\nHighlights:\n\n• LC-26-013 (new): 5.20 meters @ 257 g/t AgEq (114 g/t Ag) within a broader alteration zone (130.0–246.9m), including 641 g/t AgEq (425 g/t Ag) over 1.40m (236.55–237.95m) — among the highest-grade silver intercepts reported by Kingsmen to date, and the deepest hole in the Soledad fence.\n\n• LC-25-010 (previously reported, Sept. 24, 2025): 1.45 meters @ 1,028 g/t AgEq (455 g/t Ag) (190.25–191.70m), including 1,742 g/t AgEq (770 g/t Ag) over 0.70m (190.85–191.55m), within a broader zone of 138 g/t AgEq over 13.35m (64.3 g/t Ag).\n\n• LC-25-005 (previously reported, January 19, 2026): 15.7 meters @ 74 g/t AgEq (46 g/t Ag), including an upper zone of 704 g/t AgEq (460 g/t Ag) over 0.35m and a lower zone of 1,379 g/t AgEq (848 g/t Ag & 0.87 g/t Au) over 0.6m.\n\n• Silver-gold mineralization has now been intersected over a minimum of 135 metres of vertical depth across the three-hole fence, with increasing width and grade at depth, and remains open at depth and along strike — pointing to the potential for a high-grade, untested extension of the Soledad system beyond the current drill fence.\n\n• LC-26-013 cut a wide, continuous zone of alteration and mineralization (116.9m) starting at 130.0m downhole: 130.0–236.4m phyllic alteration; 236.6–239.2m stockwork of massive sulphide veins; 239.2–246.9m sulphide-rich rock.\n\n• A new structural target has been identified along strike to the southeast and northwest, based on the structural flexure/dilatancy associated with the high-grade mineralization in LC-25-010 and LC-26-013."
+        },
+        {
+          "type": "image",
+          "src": "/pr-fixture/jul22-fig1-mine-zone-drilling.jpg",
+          "caption": "Figure 1"
+        },
+        {
+          "type": "image",
+          "src": "/pr-fixture/jul22-fig2-section-lc005-010-013.jpg",
+          "caption": "Figure 2"
+        },
+        {
+          "type": "text",
+          "text": "President, Scott Emerson, commented, “These results continue to demonstrate the strength, continuity and expansion of the Soledad system. These are the first of over 1,000 samples from the 19 holes completed to date, submitted to ALS Geochemistry in Chihuahua, Mexico for analysis, and continue to represent another important step forward in expanding the footprint of the mineralization. Assays remain pending for the majority of these holes, and we look forward to reporting further results as they are received, processed and evaluated. With our current drill program, we believe Kingsmen is only beginning to unlock the district-scale potential of this asset.”\nMineralization comprises silver and gold bearing pyrite, sphalerite, galena and arsenopyrite with pervasive sericite-muscovite phyllic alteration +/- silicification. Drilling has now intersected silver-gold mineralization over a minimum of 135 metres of vertical depth, and the mineralization remains open at depth and along strike.\nThe mineralized zone dips east at approximately 30° from LC-25-005 to LC-25-010, and at 45° from LC-25-010 to LC-26-013. This structural flexure/dilatancy is associated with significant mineralization and a wide zone of alteration in hole LC-25-010. In addition to confirming depth potential in LC-26-013, this structural flexure/dilatancy is an important drill target along strike to the southeast and northwest.\nThe host geology consists of a sedimentary sequence comprising thin layers of shale and siltstone interbedded with fine- to medium-grained lithic sandstone of varying thickness (up to 2.0 metres). Numerous NW-trending pinch-and-swell quartz-calcite veins/structures have been identified at surface; in core, these are represented by alteration +/- silicification.\nTable 1 Analyses – LC-26-013"
+        },
+        {
+          "type": "image",
+          "src": "/pr-fixture/jul22-table1-analyses-lc26013.jpg",
+          "caption": "Table 1 Analyses — LC-26-013"
+        },
+        {
+          "type": "text",
+          "text": "Table 1 Analyses – LC-26-013"
+        },
+        {
+          "type": "image",
+          "src": "/pr-fixture/jul22-table2-silver-intersections.jpg",
+          "caption": "Table 2 Silver Intersections"
+        },
+        {
+          "type": "text",
+          "text": "The silver equivalent calculation formula is AgEq(g/t) = ((Ag grade (g/t) x (Ag price per ounce/31.10348) x Ag recovery) + (Pb grade (%) x (Pb price per tonne/100) x Pb recovery) + (Zn grade (%) x (Zn price per tonne/100) x Zn recovery) + (Au grade (g/t) x (Au price per ounce/31.10348) x Au recovery)) / (Ag price per ounce/31.10348 x Ag recovery). The prices used were US$3675/oz gold, US$2960/t zinc, US$2003/t lead and US$42/oz silver. Recoveries are estimated at 40% for gold, 91% for lead, 85% for zinc and 92% for silver based on published figures by Kootenay Silver Inc. for sulphide mineralization in the Cigarra deposit, Chihuahua, Mexico, a deposit with similar style mineralization."
+        },
+        {
+          "type": "image",
+          "src": "/pr-fixture/jul22-table3-collar.jpg",
+          "caption": "Table 3 Collar Data"
+        },
+        {
+          "type": "text",
+          "text": "QAQC\nThe drill core (HQ size) is currently being geologically logged and sampled. The full drill core is sawn with a diamond blade rock saw. One half of the sawn drill core is bagged and tagged for analysis. The remaining half portion is returned to the drill core tray and stored. Bagged samples are securely stored prior to submission for analysis. Samples are being submitted to ALS Geochemistry-Chihuahua for multi-element analysis following four-acid digestion (code ME-MS61), and gold by fire assay-AA (code Au-AA23). Quality assurance and quality control (QA/QC) is maintained by the systematic insertion of certified standard reference materials (CSRM), blanks and duplicates into the sample stream. Assay results will be announced following receipt, compilation and confirmation. ALS Geochemistry operates under a Global Geochemistry Quality Manual that complies with ISO/IEC 17025:2017.\nAbout Las Coloradas\nThe Las Coloradas Project (8.5 km² – 3.3 sq. miles) represents a consolidation of a historic mining district which covers numerous silver-gold-lead-zinc-copper mines previously exploited by ASARCO (American Smelting and Refining Company), the U.S.-based subsidiary of Grupo Mexico.\nLas Coloradas is in the Parral mining district of the Central Mexican Silver Belt and is located approximately 30 kilometers southeast of the city of Hidalgo de Parral and 40 kilometers east of the San Francisco de Oro and Santa Barbara mining districts, where several old major mines are located, such as La Prieta, Veta Colorada, Palmilla, Esmeralda, San Francisco del Oro and Santa Barbara. Click here to see locator map: https://www.kingsmenresources.com/area-history\nQualified Person\nKieran Downes, Ph.D., P.Geo., a director of Kingsmen and Qualified Person as defined by National Instrument 43-101, has reviewed and approved the scientific and technical disclosure set out in this news release.\nAbout Kingsmen Resources\nKingsmen Resources is a mineral exploration company focused on advancing its 100%-held projects, the Las Coloradas silver/gold project and Almoloya gold/silver project, located in the prolific mining district of Parral, Mexico. The projects host historic, past-producing high-grade silver mines and are considered prospective for hosting further precious metal deposits, being on the same structural and stratigraphic belts that host numerous other, on-trend, high-grade deposits. In addition, the Company has a 1% NSR on the La Trini claims, which form part of the Los Ricos North project operated by GoGold Resources Inc. in Mexico. Kingsmen is a publicly-traded company (TSXV: KNG) (OTCQB: KNGRF) (FSE: TUY) and is headquartered in Vancouver, British Columbia.\nOn behalf of the Board,\nSigned: “Scott Emerson”\nScott Emerson, President & CEO\nPhone: 6046859316\nEmail: se@kingsmenresources.com\nFollow us on: LinkedIn, Instagram and X\nNeither the TSX Venture Exchange nor its Regulation Services Provider (as that term is defined in the policies of the TSX Venture Exchange) accepts responsibility for the adequacy or accuracy of this release.\nForward-Looking Statements: Certain disclosure contained in this news release may constitute forward-looking information or forward-looking statements, within the meaning of Canadian securities laws. These statements may relate to this news release and other matters identified in the Company’s public filings. In making the forward-looking statements the Company has applied certain factors and assumptions that are based on the Company’s current beliefs as well as assumptions made by and information currently available to the Company. These statements address future events and conditions and, as such, involve known and unknown risks, uncertainties and other factors which may cause the actual results, performance or achievements to be materially different from any future results, performance or achievements expressed or implied by the statements. These risks and uncertainties include but are not limited to: the political environment in which the Company operates continuing to support the development and operation of mining projects; the threat associated with outbreaks of viruses and infectious diseases; risks related to negative publicity with respect to the Company or the mining industry in general; planned work programs; permitting; and community relations. Readers are cautioned not to place undue reliance on forward-looking statements. The Company does not intend, and expressly disclaims any intention or obligation to, update or revise any forward-looking statements whether as a result of new information, future events or otherwise, except as required by law."
+        }
+      ]
+    },
+    "2026-09-22": {
+      "blocks": [
+        {
+          "type": "text",
+          "text": "Vancouver, British Columbia (September 22, 2026) Kingsmen Resources Ltd. (TSX-V: KNG) (OTCQB: KNGRF) ( FSE: TUY) (“Kingsmen” or the “Company”) is pleased to report additional assays from drilling on the Company’s Las Coloradas silver project in the Parral mining district of the Central Mexican Silver Belt, Chihuahua Mexico.\nHighlights :\n\n• LC-26-020 returned 218 g/t AgEq (199 g/t silver and 0.53 g/t Au) over 6.45 metres, including 338 g/t AgEq (313 g/t silver) over 1.95 metres\n\n• Confirms high-grade mineralization on a new structure (#8), 150 meters west of high-grade hole LC-25-010\n\n• Second hole drilled on the #8 structure, following LC-25-008 (200 g/t AgEq and 0.28 g/t Au over 10.5 meters, including 931 g/t AgEq and 1.28 g/t Au over 1.6 meters), confirming continuity of high-grade mineralization across structures\nPresident, Scott Emerson, commented, “Holes LC-25-008 and LC-26-020 were bold step outs to test the new # 8 structure, 150 meters west of high-grade hole LC-25-010. Hole LC-26-020 confirmed the high-grade mineralization in the #8 structure. The significance of this discovery is that it demonstrates that significant mineralization occurs in more than one structure. This shallow, near surface high-grade mineralization is structurally controlled, and we believe it indicates a deeper source.”\nHole LC-26-020 intersected high grade, gold rich silver mineralization grading 218 g/t AgEq (199 g/t silver) & 0.53 g/t Au over 6.45 meters including 338 g/t AgEq (313 g/t silver) over 1.95 meters. LC-26-020 was drilled as an undercut of LC-25-008 which had intersected high grade, gold rich silver mineralization of 200 g/t AgEq & 0.28 g/t Au over 10.5 meters including 931 g/t AgEq & 1.28 g/t Au over 1.6 meters (Table 1 and 2). It intersected the mineralization 35 meters east of and at almost the same elevation as the mineralization in LC-25-008\nBoth holes were drilled on the #8 structure, approximately 150 meters west of high-grade hole LC-25-010 and 200 meters northeast of the Soledad mine (Figure 1 and 2; Table 3).\nThe high-grade mineralization in the #8 structure is located where NE-trending vein/structures cut a 400-meter-long flexure in regional NW-trending vein/structures. The holes were drilled at the south end of a 430-meter-long X 200-meter-wide, NW-trending zone of high chargeability/high resistivity that coincides with the flexure and plunges to the northwest (Figure 1). The structurally controlled high grade mineralization constitutes a priority drill target if it follows the plunge of the high chargeability-resistivity.\nLC-26-020 intersected high-grade mineralization from 151.20 to 157.65 meters downhole, including massive sulphides (pyrrhotite, sphalerite, pyrite, arsenopyrite, galena) from 153.90 to 154.90 meters. From 154.90 to 156.20 meters, the mineralization appears as a multidirectional stockwork of massive sulfides within pervasive phyllic alteration. The massive sulfides are accompanied by massive calcite, massive white quartz, and translucent quartz. From 156.20 to 157.15, the massive sulfides exhibit a semi-banded arrangement and are accompanied by massive milky-white quartz. The mineralization is similar to that intercepted in hole LC-25-008 including significant gold values with arsenopyrite and anomalous pathfinder elements antimony, bismuth, indium, arsenic, and tellurium.\nKingsmen has conducted drilling on major step outs on the Soledad vein/structure and on regional targets with positive results (Figure3)."
+        },
+        {
+          "type": "image",
+          "src": "/pr-fixture/sep22-2026-table1-significant-intersections.jpg",
+          "caption": "Table 1: Significant Intersections"
+        },
+        {
+          "type": "text",
+          "text": "The silver equivalent calculation formula is AgEq(g/t) = ((Ag grade (g/t) x (Ag price per ounce/31.10348) x Ag recovery) + (Pb grade (%) x (Pb price per tonne/100) x Pb recovery) + (Zn grade (%) x (Zn price per tonne/100) x Zn recovery) + (Au grade (g/t) x (Au price per ounce/31.10348) x Au recovery)) / (Ag price per ounce/31.10348 x Ag recovery). The prices used were US$3675/oz gold, US$2960/t zinc, US$2003/t lead and US$42/oz silver. Recoveries are estimated at 40% for gold, 91% for lead, 85% for zinc and 92% for silver based on published figures by Kootenay Silver Inc. for sulphide mineralization in the Cigarra deposit, Chihuahua, Mexico, a deposit with similar style mineralization (https://kootenaysilver.com/news/kootenay/2024/kootenay-silver-announces-updated-mineral-resource-estimate-for-la-cigarra-project-chihuahua-mexico).\nThe intersections are downhole widths. True width cannot be calculated at this time."
+        },
+        {
+          "type": "image",
+          "src": "/pr-fixture/sep22-2026-table2-assays.jpg",
+          "caption": "Table 2: Assays"
+        },
+        {
+          "type": "image",
+          "src": "/pr-fixture/sep22-2026-table3-collars.jpg",
+          "caption": "Table 3: Collars"
+        },
+        {
+          "type": "image",
+          "src": "/pr-fixture/sep22-2026-fig1-drill-hole-compilation-chargeability.jpg",
+          "caption": "Figure 1: Drill Hole Compilation on Chargeability"
+        },
+        {
+          "type": "image",
+          "src": "/pr-fixture/sep22-2026-fig2-section-lc25008-lc26020.jpg",
+          "caption": "Figure 2: Cross Section Holes LC-25-008 & LC-26-020"
+        },
+        {
+          "type": "image",
+          "src": "/pr-fixture/sep22-2026-fig3-regional-targets.jpg",
+          "caption": "Figure 3: Regional Targets"
+        },
+        {
+          "type": "text",
+          "text": "QAQC\nDrill core (HQ size) is geologically logged and sampled. The full drill core is sawn with a diamond blade rock saw. One half of the sawn drill core is bagged and tagged for analysis. The remaining half portion is returned to the drill core tray and stored. Bagged samples are securely stored prior to submission for analysis. Samples are being submitted to ALS Geochemistry-Chihuahua for multielement analysis following four-acid digestion (code ME-MS61), and gold by fire assay-AA (code Au-AA23). Quality assurance and quality control (QA/QC) is maintained by the systematic insertion of certified standard reference materials (CSRM), blanks and duplicates into the sample stream. Assay results will be announced following receipt, compilation and confirmation. ALS Geochemistry operates under a Global Geochemistry Quality Manual that complies with ISO/IEC 17025:2017.\nAbout Las Coloradas\nThe Las Coloradas Project (8.5 km2 -3.3 sq miles) represents a consolidation of a historic mining district which covers numerous silver-gold-lead-zinc-copper mines previously exploited by ASARCO (American Smelting and Refining Company), the U.S. based subsidiary of Grupo Mexico.\nLas Coloradas is in the Parral mining district of the Central Mexican Silver Belt, and is located approximately 30 kilometers southeast of the city of Hidalgo de Parral and 40 kilometers east of the San Francisco de Oro and Santa Barbara mining districts where several old major mines are located, such as La Prieta, Veta Colorada, Palmilla, Esmeralda, San Francisco del Oro and Santa Barbara.\nQualified Person\nKieran Downes, Ph.D., P.Geo., a director of Kingsmen and Qualified Person as defined by National Instrument 43-101, has reviewed and approved the scientific and technical disclosure set out in this news release.\nAbout Kingsmen Resources\nKingsmen Resources is a mineral exploration company focused on advancing its 100% held projects,the Las Coloradas silver/gold project and Almoloya gold/silver project located in the prolific mining district of Parral Mexico. The projects host historic past producing high-grade silver mines. They are considered to be prospective for hosting further precious metal deposits, being on the same structural and stratigraphic belts that host numerous other, on-trend, high-grade deposits. In addition, the company has a 1% NSR on the La Trini claims which form part of the Los Ricos North project operated by GoGold Resources Inc. in Mexico. Kingsmen is a publicly-traded company (TSX-V:KNG;OTCQB: KNGRF; FSE:TUY) and is headquartered in Vancouver, British Columbia.\nOn behalf of the Board,\n“Scott Emerson”\nScott Emerson, President & CEO\nPhone: 6046859316\nEmail: se@kingsmenresources.com\nFollow us on: LinkedIn, Instagram and X\nNeither the TSX Venture Exchange nor its Regulation Services Provider (as that term is defined in the policies of the TSX Venture Exchange) accepts responsibility for the adequacy or accuracy of this release.\nForward-Looking Statements:\nCertain disclosure contained in this news release may constitute forward-looking information or forward-looking statements, within the meaning of Canadian securities laws. These statements may relate to this news release and other matters identified in the Company's public filings. In making the forward-looking statements the Company has applied certain factors and assumptions that are based on the Company's current beliefs as well as assumptions made by and information currently available to the Company. These statements address future events and conditions and, as such, involve known and unknown risks, uncertainties and other factors which may cause the actual results, performance or achievements to be materially different from any future results, performance or achievements expressed or implied by the statements. These risks and uncertainties include but are not limited to: the political environment in which the Company operates continuing to support the development and operation of mining projects; the threat associated with outbreaks of viruses and infectious diseases; risks related to negative publicity with respect to the Company or the mining industry in general; planned work programs; permitting; and community relations. Readers are cautioned not to place undue reliance on forward-looking statements. The Company does not intend, and expressly disclaims any intention or obligation to, update or revise any forward-looking statements whether as a result of new information, future events or otherwise, except as required by law."
+        }
+      ]
+    },
+    "2023-06-07": {
+      "blocks": [
+        {
+          "type": "text",
+          "text": "Vancouver, British Columbia--(Newsfile Corp. - June 7, 2023) - Kingsmen Resources Ltd. (TSXV: KNG) (OTCQB: KNGRF) (“Kingsmen” or the “Company”) is pleased to report first results from its on-going surface sampling program of old workings along the Soledad and Soledad II structures, and their subsidiary structures, in the southeast part of the Las Coloradas project located 30km from Hildago, Parral, Chihuahua, Mexico. The Soledad structure is one of two previously mined structures identified on the project. Sixteen old workings were accessed and sampled on the SE part of the Soledad structure. Results are presented on Figure 1 and Table 1.\nHighlights\n\n• Thirty-nine (39) samples were collected.\n• 2 > 500 g/t silver\n\n• 4 > 200 g/t silver\n\n• 9 >100 g/t silver\n\n• Three separate target areas recognized on the Soledad vein/structure.\n\n• New 300 meter long mineralized structure recognized.\n\n• Prospecting and sampling are continuing.\nScott Emerson, President commented: “These results are very encouraging and they align well with the reported historic silver and gold production grades of 300 to 518 g/t silver, 0.6 to 0.8 g/t gold, 6.2 to 10.9% lead and 6.5 to 10.3 % zinc.”\nThe distribution of old workings on the southeastern part of the Soledad structure indicates three areas of interest (Figure 1 and Figure 2). The concentration between El Tronco (mine) and El Contrapozo (shaft) is developed on a flexure in the Soledad vein. This suggests the potential for strong structural control on mineralization with significant depth extent. The concentration between Las Jaras and La Cometa, and the flanking occurrences of El Barril, La Sirena and El Catrin, appear to be related to structures in/along felsic intrusives. The La Rama and La Casa area occur in volcanic-sedimentary rocks but may also be related to buried felsic intrusives. The alignment of the El Cubo to El Pescado workings clearly maps a separate, 300 meter long mineralized structure, separate from the Soledad. The El Negrito and La Campana workings do not lie on currently known structures. The mineralization is structurally controlled and typically quartz vein related, and exploits structures in both the felsic intrusives and the volcanic-sedimentary rocks. Geophysical surveys will better the define the lateral and depth extents of the structures controlling mineralization. There may be a transition, laterally and/or vertically, to epithermal gold-silver mineralization. Samples from the La Sirena mine, La Casa mine, El Zopilotito mine and Las Jaras shaft contain elevated gold values (Table 1). As well, the Mexico Geological Survey noted the presence of skarn mineralization (see below) which may be significant.\nThe mineralization that was exploited historically by ASARCO is shallow, high-grade, silver-gold-lead-zinc-copper veins. The La Soledad vein system, and its subsidiary structures, is estimated to be approximately 1 kilometer long based on the presence of old workings. Mining appears to have stopped at the water table and standing water is present in the deeper workings. Primary galena and sphalerite and pyrite are locally preserved in parts of the old workings which are very dangerous to enter. Where accessible, this remnant mineralization was sampled in order to gauge the grade of the mineralization as there are no accessible mining records available. This sampling will aid in identifying higher grade areas for future drilling. The sampling data (Table 1) indicates the potential for high grade silver mineralization with gold and base metal credits. The sizes of the old workings suggest the mined mineralization may have been up to several meters in width in the various zones of mineralization developed in the laterally extensive host structures, which will persist to depth below the water table where previous mining is reported to have stopped.\nThe area of the Los Coloradas Project lies within the Zona Mineralizada Cienega de Ceniceros on the Mexico Geological Survey (SGM) map sheet G13-59. The map notes state: “The veins strike NW-SE with dips of 760 SW and 700 NE. Veins are up to 200 meters long and 30 meters deep. The mineralization consists of sulphides of zinc, lead and silver in the La Reyna, La Soledad, Tres Estrellas, Rosario & El Gigante veins. Representative samples from these veins showed 0.2 to 2.0 g/t gold, 54 to 170 g/t silver, 1.2 to 4.2 % lead and 0.4 to 4.0% zinc. Skarn and hornfels style mineralization was noted disseminated in argillite and carbonate horizons and the potential for significant volumes of these styles of mineralization at depth was noted.” The locations of historic mines/workings are taken from the Mexico Geological Survey’s website GeoInfoMex - El Banco de Datos del SGM."
+        },
+        {
+          "type": "image",
+          "src": "/pr-fixture/jun07-2023-fig1-surface-sampling-old-workings.jpg",
+          "caption": "Figure 1"
+        },
+        {
+          "type": "image",
+          "src": "/pr-fixture/jun07-2023-fig2-district-claims.jpg",
+          "caption": "Figure 2"
+        },
+        {
+          "type": "image",
+          "src": "/pr-fixture/jun07-2023-table1-sample-analyses.jpg",
+          "caption": "Table 1 — sample analyses"
+        },
+        {
+          "type": "text",
+          "text": "Table 1\n\nA QA/QC program was employed using blanks and certified reference standard, and check sampling.\nIt is not known how much production was generated by ASARCO during the years it operated in the area. The following information (not independently verified) was provided by Ing. Abelardo Garza Hernandez, President of Minera Sierra Almoloya S.A. de C.V. “Historic production came from small high grade underground mines, with average mining diluted grades in the order of 0.6 to 0.8 g/t gold, 300 to 518 g/t silver, 6.2 to 10.9 % lead and 6.5 to 10.3 % zinc, from four different veins, called La Soledad, Santo Niño, Eva and Rosario. Workings appear to have been on an area about 400 meters long, to a maximum depth of around 120 meters. More than twenty veins are known with most past production having come from the NW-trending Soledad vein system which is estimated to be approximately 1 km in length. There are numerous old mining works visible (pits, shafts, and superficial stopes) with depths of 10 meters to 140meters on the main shafts. Mining appears to have stopped at the water table. Standing water is present in the deeper workings.”\nAbout Las Coloradas\nThe Las Coloradas Project ( 8.5 km2 -3.3 sq miles) represents a consolidation of a historic mining district which covers numerous silver-gold-lead-zinc-copper mines previously exploited by ASARCO (American Smelting and Refining Company), the U.S. based subsidiary of Grupo Mexico.\nLas Coloradas is in the Parral mining district of the Central Mexican Silver Belt, located approximately 30 kilometers southeast of the city of Hildago de Parral and 40 kilometers east of the San Francisco de Oro and Santa Barbera mining districts where several old major mines are located, such as La Prieta, Veta Colorada, Palmilla, Esmeralda, San Francisco del Oro and Santa Barbara. As well, new major mining projects are currently being explored in the district; Cordero (Discovery Silver Corp.), 35 kms north of Parral, and La Cigarra (Kootenay Silver Inc.), 35 kms northwest of Parral. Click here to see locator map, https://www.kingsmenresources.com/area-history\nQualified Person\nKieran Downes, Ph.D., P.Geo., a Qualified Person as defined by National Instrument 43-101, has reviewed and approved the scientific and technical disclosure set out in this news release.\nAbout Kingsmen Resources\nIn line with Kingsmen’s organic-growth strategy, the Company’s focus is on exploration and development, and is currently focused on district-scale exploration for high -margin metallic mineral deposits in the prolific mining districts of Parral Mexico. In addition, the company has a 1% NSR on the Los Ricos North project in Mexico operated by GoGold Resources Inc. The Company’s leaders have extensive experience in the mining and financial sectors. Kingsmen is a publicly-traded company (TSX.V:KNG; OTCQB: KNGRF) and is headquartered in Vancouver, British Columbia.\nOn behalf of the Board,\nSigned: “Scott Emerson”\nScott Emerson, President & CEO\nPhone: 604-685-9316\nEmail: se@kingsmenresources.com\nNeither the TSX Venture Exchange nor the Investment Industry Regulatory Organization of Canada accepts responsibility for the adequacy or accuracy of this release.\nForward-Looking Statement: All statements, trend analysis and other information contained in this press release about anticipated future events or results constitute forward-looking statements. Forward-looking statements are often, but not always, identified by the use of words such as “seek”, “anticipate”, “believe”, “plan”, “estimate”, “expect” and “intend” and statements that an event or result “may”, “will”, “should”, “could” or “might” occur or be achieved and other similar expressions. All statements, other than statements of historical fact, included herein, including, without limitation, statements regarding the completion of the acquisition of the Las Coloradas Project and receipt of regulatory approval, are forward-looking statements. Although Kingsmen believes that the expectations reflected in such forward-looking statements and/or information are reasonable, undue reliance should not be placed on forward-looking statements since Kingsmen can give no assurance that such expectations will prove to be correct. These statements involve known and unknown risks, uncertainties and other factors that may cause actual results or events to differ materially from those anticipated in such forward-looking statements, including the risks, uncertainties and other factors identified in Kingsmen’s periodic filings with Canadian securities regulators, and assumptions made with regard to: Kingsmen’s ability to make the required payments under the definitive agreements; and Kingsmen’s ability to secure the necessary regulatory approvals. Forward-looking statements are subject to business and economic risks and uncertainties and other factors that could cause actual results of operations to differ materially from those contained in the forward-looking statements. Important factors that could cause actual results to differ materially from Kingsmen’s expectations include risks associated with the business of Kingsmen; risks related to the satisfaction or waiver of certain conditions to the closing of the acquisition of the Las Coloradas Project; non-completion of the acquisition of the Las Coloradas Project; risks related to exploration and potential development of the Las Coloradas Project; business and economic conditions in the mining industry generally; fluctuations in commodity prices and currency exchange rates; uncertainties relating to interpretation of drill results and the geology, continuity and grade of mineral deposits; the need for cooperation of government agencies in the exploration and development of properties and the issuance of required permits; the need to obtain additional financing to develop properties and uncertainty as to the availability and terms of future financing; the possibility of delay in exploration or development programs and uncertainty of meeting anticipated program milestones; uncertainty as to timely availability of permits and other governmental approvals; and other risk factors as detailed from time to time and additional risks identified in Kingsmen’s filings with Canadian securities regulators on SEDAR in Canada (available at www.sedar.com). Forward-looking statements are based on estimates and opinions of management at the date the statements are made. Kingsmen does not undertake any obligation to update forward-looking statements except as required by applicable securities laws. Investors should not place undue reliance on forward-looking statements."
+        }
+      ]
+    },
+    "2025-03-27": {
+      "blocks": [
+        {
+          "type": "text",
+          "text": "Vancouver, British Columbia--(Newsfile Corp. - March 27, 2025) - Kingsmen Resources Ltd. (TSXV: KNG) (OTCQB: KNGRF) (FSE: TUY) (“Kingsmen” or the “Company“) is pleased to report the results from a very successful 3D induced polarization-resistivity (3D IP) survey on its 100% owned Las Coloradas project, which is in the Parral mining district of the Central Mexican Silver Belt, Chihuahua Mexico.\nThe survey, conducted by Geofisica TMC, S.A. de C.V., identified five new high priority drill targets associated with high chargeability/high resistivity zones. These new targets are in addition to the drill targets already selected by the Kingsmen. A total of 14 holes have now been proposed for drilling in the initial drill program. This survey, over approximately 1/3 of the project area, covered priority areas identified by Kingsmen’s prospecting, mapping, sampling and ground magnetic surveys. These areas surveyed included historic workings and the past producing underground Las Coloradas mine.\nPresident, Scott Emerson, commented: “The 3D IP Survey both confirmed and further defined key targets and gives us great confidence to have a successful drilling program.”\nFigure 1 illustrates the extent of high chargeability at -150 meters depth associated with the mineralized structures. This is below the level of the water table and below the level ASARCO mined. The Mine target includes the old Las Coloradas mine on the SE end of the Soledad structure/vein system, and adjacent mineralized structures. The Leona target covers an area of old high-grade workings approximately 530 meters long on the NW end of the Soledad II structure. The Aguilar target covers an area of old high-grade workings approximately 250 meters long on the NW end of the Soledad structure/vein system. The depth extent of the mineralization and the newly identified chargeability anomalies have never been drill tested.\nThe survey consisted of 16 km of IP completed with the 3D off-set pole-dipole electrode array. The grid consisted of 4 adjacent blocks of closely spaced profiles covering an area of approximately 1.6 km by 1.8 km. Nineteen lines were oriented N35º/N215º or N45º/N225º, while the remaining five were regrouped in the southeast of the survey zone and oriented N145º/325º. The data was exported to a RES3DINV compatible file prior to carrying out an inversion of the data. The model was extended to 525 m below the surface. Apparent resistivity and chargeability model 2D sections were extracted from the 3D IP inversion voxels as were resistivity and chargeability slices at vertical depths of 100 to 500 meters."
+        },
+        {
+          "type": "image",
+          "src": "/pr-fixture/mar27-fig1-chargeability-150m.jpg",
+          "caption": "Figure 1"
+        },
+        {
+          "type": "text",
+          "text": "About Las Coloradas\nThe Las Coloradas Project (8.5 km2 -3.3 sq miles) represents a consolidation of a historic mining district which covers numerous silver-gold-lead-zinc-copper mines previously exploited by ASARCO (American Smelting and Refining Company), the U.S. based subsidiary of Grupo Mexico.\nLas Coloradas is in the Parral mining district of the Central Mexican Silver Belt, and is located approximately 30 kilometers southeast of the city of Hidalgo de Parral and 40 kilometers east of the San Francisco de Oro and Santa Barbara mining districts where several old major mines are located, such as La Prieta, Veta Colorada, Palmilla, Esmeralda, San Francisco del Oro and Santa Barbara. As well, new major mining projects are currently being explored in the district; Cordero (Discovery Silver Corp.), 35 kms north of Parral, and La Cigarra (Kootenay Silver Inc.), 35 kms northwest of Parral. Click here to see locator map: https://www.kingsmenresources.com/area-history.\nQualified Person\nKieran Downes, Ph.D., P.Geo., a Qualified Person as defined by National Instrument 43-101, has reviewed and approved the scientific and technical disclosure set out in this news release.\nAbout Kingsmen Resources\nKingsmen Resources is a mineral exploration company focused on advancing its 100% held Las Coloradas Project located in the prolific mining district of Parral Mexico. The project hosts the historic past producing high-grade silver mine, Las Coloradas. It is considered to be prospective for hosting further precious metal deposits, being on the same structural and stratigraphic belts that host numerous other, on-trend, high-grade deposits. In addition, the Company has a 1% NSR on the La Trini claims which form part of the Los Ricos North project operated by GoGold Resources Inc. in Mexico. Kingsmen is a publicly-traded company (TSXV: KNG) (OTCQB: KNGRF) (FSE: TUY) and is headquartered in Vancouver, British Columbia.\nOn behalf of the Board,\nSigned: “Scott Emerson“\nScott Emerson, President & CEO\nPhone: 6046859316\nEmail: se@kingsmenresources.com\nNeither the TSX Venture Exchange nor the Investment Industry Regulatory Organization of Canada accepts responsibility for the adequacy or accuracy of this release.\nForward-Looking Statement: Certain disclosure contained in this news release may constitute forward-looking information or forward-looking statements, within the meaning of Canadian securities laws. These statements may relate to this news release and other matters identified in the Company’s public filings. In making the forward-looking statements the Company has applied certain factors and assumptions that are based on the Company’s current beliefs as well as assumptions made by and information currently available to the Company. These statements address future events and conditions and, as such, involve known and unknown risks, uncertainties and other factors which may cause the actual results, performance or achievements to be materially different from any future results, performance or achievements expressed or implied by the statements. These risks and uncertainties include but are not limited to: the political environment in which the Company operates continuing to support the development and operation of mining projects; the threat associated with outbreaks of viruses and infectious diseases; risks related to negative publicity with respect to the Company or the mining industry in general; planned work programs; permitting; and community relations. Readers are cautioned not to place undue reliance on forward-looking statements. The Company does not intend, and expressly disclaims any intention or obligation to, update or revise any forward-looking statements whether as a result of new information, future events or otherwise, except as required by law.\nNeither the TSX Venture Exchange nor its Regulation Services Provider (as that term is defined in the policies of the TSX Venture Exchange) accepts responsibility for the adequacy or accuracy of this news."
+        }
+      ]
+    },
+    "2026-02-11": {
+      "blocks": [
+        {
+          "type": "text",
+          "text": "Kingsmen Resources Ltd. (TSXV: KNG) (OTCQB: KNGRF) (FSE: TUY) (“Kingsmen”, or the “Company”) is pleased to announce the closing of its previously announced “bought deal” basis private placement (the “Offering”) for gross proceeds of C$13,000,000.50, which includes the exercise in full of the underwriter’s option. Pursuant to the Offering, the Company sold 5,777,778 units of the Company (the “Units”) at a price of C$2.25 per Unit (the “Offering Price”).\nEach Unit consists of one common share of the Company (a “Common Share”) and one-half of one Common Share purchase warrant (each whole warrant, a “Warrant”). Each Warrant entitles the holder to purchase one Common Share at an exercise price of C$3.00 at any time on or before February 11, 2029.\nRed Cloud Securities Inc. (“Red Cloud”) acted as sole underwriter and bookrunner under the Offering. As consideration for their services, Red Cloud received aggregate cash fees of C$910,000.04 and 404,444 non-transferable common share purchase warrants (the “Broker Warrants”). Each Broker Warrant is exercisable to acquire one common share of the Company at the Offering Price at any time on or before February 11, 2029.\nThe Company intends to use the net proceeds of the Offering for the exploration and advancement of the Company’s Las Coloradas and Almoloya projects in the historic Parral region of Chihuahua, Mexico as well as for working capital and general corporate purposes.\nIn accordance with National Instrument 45-106 - Prospectus Exemptions (“NI 45-106”), the Units were issued to Canadian purchasers pursuant to the listed issuer financing exemption under Part 5A of NI 45-106, as amended by Coordinated Blanket Order 45-935 - Exemptions from Certain Conditions of the Listed Issuer Financing Exemption (the “Listed Issuer Financing Exemption”). The securities issued from the sale of Units to purchasers resident in Canada under the Listed Issuer Financing Exemption are immediately freely tradeable in accordance with applicable Canadian securities legislation.\nThere is an amended and restated offering document dated January 26, 2026 related to the Offering and the use by the Company of the Listed Issuer Financing Exemption that can be accessed under the Company’s profile at www.sedarplus.ca and on the Company’s website at www.kingsmenresources.com.\nThe closing of the Offering remains subject to the final approval of the TSX Venture Exchange (the “TSXV”).\nThis news release does not constitute an offer to sell or a solicitation of an offer to buy nor shall there be any sale of any of the securities in any jurisdiction in which such offer, solicitation or sale would be unlawful, including any of the securities in the United States of America. The securities referred to in this news release have not been, and will not be, registered under the United States Securities Act of 1933, as amended (the “U.S. Securities Act”) or any U.S. state securities laws, and may not be offered or sold in the United States or to, or for the account or benefit of, U.S. persons, absent registration or any applicable exemption from the registration requirements of the U.S. Securities Act and applicable U.S. state securities laws.\nAbout Kingsmen Resources\nKingsmen Resources is a discovery-driven explorer focused on unlocking the potential of two 100%-owned precious-metal districts Las Coloradas and Almoloya located in the historic Parral region of Chihuahua, Mexico, one of the most productive silver belts in the world. Both projects cover past-producing high-grade silver and gold mines and lie directly on the structural corridors that host many of Mexico’s most notable silver-gold deposits. Recent drilling at Las Coloradas has confirmed new zones of shallow, high-grade mineralization and highlighted the potential for multiple parallel structures across an 4.5-kilometre trend. At Almoloya, historic drilling, extensive underground workings, and multiple vein systems point to strong potential for both vein-hosted and carbonate-replacement style mineralization. Kingsmen also owns a 1% NSR royalty on the La Trini claims within GoGold Resources’ Los Ricos North project in Jalisco State, Mexico.\nOn behalf of the Board,\n“Scott Emerson”\nScott Emerson, President & CEO\nPhone: 604-685-9316\nEmail: se@kingsmenresources.com\nFollow us on: LinkedIn, Instagram and X\nForward-Looking Statements: Certain disclosure contained in this news release may constitute forward-looking information or forward-looking statements, within the meaning of Canadian securities laws. These statements may relate to this news release and other matters identified in the Company’s public filings. Forward-looking statements in this news release include, without limitation, statements regarding the intended use of proceeds from the Offering and the receipt of final approval for the Offering from the TSXV. In making the forward-looking statements the Company has applied certain factors and assumptions that are based on the Company’s current beliefs as well as assumptions made by and information currently available to the Company. These statements address future events and conditions and, as such, involve known and unknown risks, uncertainties and other factors which may cause the actual results, performance or achievements to be materially different from any future results, performance or achievements expressed or implied by the statements. These risks and uncertainties include but are not limited to: the political environment in which the Company operates continuing to support the development and operation of mining projects; the threat associated with outbreaks of viruses and infectious diseases; risks related to negative publicity with respect to the Company or the mining industry in general; planned work programs; permitting; and community relations. Readers are cautioned not to place undue reliance on forward-looking statements. The Company does not intend, and expressly disclaims any intention or obligation to, update or revise any forward-looking statements whether as a result of new information, future events or otherwise, except as required by law.\nNeither the TSXV nor its Regulation Services Provider (as that term is defined in the policies of the TSXV) accepts responsibility for the adequacy or accuracy of this release.\nNOT FOR DISTRIBUTION TO UNITED STATES NEWSWIRE SERVICES OR FOR RELEASE, PUBLICATION, DISTRIBUTION OR DISSEMINATION DIRECTLY, OR INDIRECTLY, IN WHOLE OR IN PART, IN OR INTO THE UNITED STATES."
+        }
+      ]
+    },
+    "2024-08-20": {
+      "blocks": [
+        {
+          "type": "text",
+          "text": "Vancouver, British Columbia--(Newsfile Corp. - August 20, 2024) - Kingsmen Resources Ltd. (TSXV: KNG) (OTCQB: KNGRF) (“Kingsmen” or the “Company”) is pleased to announce the appointment of Mr. Mark J. Pryor as a director to the Company. With his extensive experience in the exploration and development of mining projects, particularly in the Mexican silver belt, Mr. Pryor brings a wealth of knowledge and expertise to Kingsmen.\nMr. Pryor is a distinguished geologist with a 40-year track record of successfully advancing multiple precious metal projects from discovery through to exploitation, including a position at the Electrum Group based in New York.\nMr. Pryor has played a key role in the development of several brownfield projects, including the Los Gatos Mine, located in the central Mexican silver belt. His experience aligns with Kingsmen’s exploration focus in similar geological settings, making him a valuable addition to the team. His comprehensive understanding of the region and proven track record of project advancement will significantly contribute to Kingsmen’s strategic goals.\nMr. Pryor’s extensive career includes roles with major mining companies such as Anglo American, Placer Dome, and Antofagasta Minerals. His extensive knowledge of brownfield projects and proven success in transitioning discoveries into operational mines will be invaluable to Kingsmen.\nScott Emerson, CEO of Kingsmen, commented, “We are thrilled to welcome Mark to our team. His extensive experience in the Mexican silver belt and his successful track record in advancing exploration projects align perfectly with our goals at Kingsmen Resources. Mark’s expertise will be instrumental in enhancing our strategic initiatives.”\nMr. Pryor graduated from Aberdeen University in 1981 with a degree in Geology & Mineralogy. He is a Fellow of the Geological Society, a Fellow of the Society of Economic Geologists, a member of the Institute of Directors, and a Qualified Professional under the South African Council for Natural Scientific Professions.\nAbout Kingsmen Resources\nIn line with Kingsmen’s organic-growth strategy, the Company’s focus is on exploration and development, and is currently focused on district-scale exploration for high -margin metallic mineral deposits in the prolific mining districts of Parral Mexico. In addition, the company has a 1% NSR on the La Trini Project located within the Los Ricos North project in Mexico operated by GoGold Resources Inc. The Company’s leaders have extensive experience in the mining and financial sectors. Kingsmen is a publicly-traded company (TSXV: KNG) (OTCQB: KNGRF) and is headquartered in Vancouver, British Columbia.\nOn behalf of the Board,\n“Scott Emerson”\nScott Emerson, President & CEO\nPhone: 604- 685-9316\nEmail: se@kingsmenresources.com\nNeither the TSX Venture Exchange nor the Investment Industry Regulatory Organization of Canada accepts responsibility for the adequacy or accuracy of this release.\nForward-Looking Statement: All statements, trend analysis and other information contained in this press release about anticipated future events or results constitute forward-looking statements. Forward-looking statements are often, but not always, identified by the use of words such as “seek”, “anticipate”, “believe”, “plan”, “estimate”, “expect” and “intend” and statements that an event or result “may”, “will”, “should”, “could” or “might” occur or be achieved and other similar expressions. All statements, other than statements of historical fact, included herein, including, without limitation, statements regarding the completion of the acquisition of the Las Coloradas Project and receipt of regulatory approval, are forward-looking statements. Although Kingsmen believes that the expectations reflected in such forward-looking statements and/or information are reasonable, undue reliance should not be placed on forward-looking statements since Kingsmen can give no assurance that such expectations will prove to be correct. These statements involve known and unknown risks, uncertainties and other factors that may cause actual results or events to differ materially from those anticipated in such forward-looking statements, including the risks, uncertainties and other factors identified in Kingsmen’s periodic filings with Canadian securities regulators, and assumptions made with regard to: Kingsmen’s ability to make the required payments under the definitive agreements; and Kingsmen’s ability to secure the necessary regulatory approvals. Forward-looking statements are subject to business and economic risks and uncertainties and other factors that could cause actual results of operations to differ materially from those contained in the forward-looking statements. Important factors that could cause actual results to differ materially from Kingsmen’s expectations include risks associated with the business of Kingsmen; risks related to the satisfaction or waiver of certain conditions to the closing of the acquisition of the Las Coloradas Project; non-completion of the acquisition of the Las Coloradas Project; risks related to exploration and potential development of the Las Coloradas Project; business and economic conditions in the mining industry generally; fluctuations in commodity prices and currency exchange rates; uncertainties relating to interpretation of drill results and the geology, continuity and grade of mineral deposits; the need for cooperation of government agencies in the exploration and development of properties and the issuance of required permits; the need to obtain additional financing to develop properties and uncertainty as to the availability and terms of future financing; the possibility of delay in exploration or development programs and uncertainty of meeting anticipated program milestones; uncertainty as to timely availability of permits and other governmental approvals; and other risk factors as detailed from time to time and additional risks identified in Kingsmen’s filings with Canadian securities regulators on SEDAR in Canada (available at www.sedarplus.ca). Forward-looking statements are based on estimates and opinions of management at the date the statements are made. Kingsmen does not undertake any obligation to update forward-looking statements except as required by applicable securities laws. Investors should not place undue reliance on forward-looking statements."
+        }
+      ]
+    },
+    "2025-10-24": {
+      "blocks": [
+        {
+          "type": "text",
+          "text": "Vancouver, British Columbia--(Newsfile Corp. - October 24, 2025) - Kingsmen Resources Ltd. (TSXV: KNG) (OTCQB: KNGRF) (FSE: TUY) (“Kingsmen” or the “Company“) is pleased to report that the previously announced transaction to acquire an option (the “Option“) to acquire a 100% interest in the Almoloya Gold/Silver project, located 30 km west of its 100%-owned Las Coloradas project, has been successfully completed. Both projects are located in the mining-friendly jurisdiction of Parral, Chihuahua, Mexico. The terms of the Option require Kingsmen to make staged cash payments over an eight year period, with the amount to be paid in the first two years being a total of US$ 325,000 (including US$75,000 in the first year). The Option remains subject to the approval of the TSX Venture Exchange (“TSXV“). For more information regarding the terms of the Option, please see the Company’s press release dated July 9, 2025.\nThe Almoloya project includes the historic past producing Cigarrero and Las Juliettas mines. The project represents a consolidation of five mineral claims into a single, contiguous land package covering 866.25 hectares (2,140.55 acres).\nPresident, Scott Emerson, commented, “This acquisition strengthens our presence in the Parral district. The acquisition aligns with Kingsmen’s objective of bringing new life to historically producing assets through claim consolidation. The acquisition terms also allows us to focus costs on exploration work rather than tenure payments in the initial years of the option. With the addition of Almoloya, we expand our land position in the region and continue to advance Kingsmen as a preeminent explorer in the Parral Mining District with current exploration programs designed to deliver near-term significant discoveries.”\nKingsmen is pleased with the Almoloya project area which is prospective for high grade silver, lead, zinc and gold mineralization. The project is situated within a large, 12 X 14 km, regional hydrothermal system. This is the first time the entire area has been consolidated by the same company. Many companies have explored portions of the current holdings but none have controlled the entire block including Anglo American Exploration (Canada) Ltd., Newmont Corp., Western Copper Corp., Queenston Mining Inc., Quaterra Resources Inc., Alamos Gold Inc. and Hemlo Gold Mines Inc. Kingsmen is currently compiling and evaluating a number of significant databases. As well, Kingsmen is completing regional sampling and evaluation, and looks forward to quickly advancing the Almoloya project to drill ready status.\nAbout Amoloya\nThe Almoloya project represents the culmination of a land consolidation process that has taken over 20 years to complete. The now-contiguous land package brings together historically fragmented claims, many of which were previously held and explored by major operators. Extensive historical data from these programs, conducted up until the early 2000s, is available to Kingsmen and provides a valuable foundation for future exploration. Since that time, the project has seen no systematic exploration by either junior or major companies, leaving significant potential untapped in a highly prospective and historically productive district.\nClick here to see locator map: https://kingsmenresources.com/area-history.\nQualified Person\nKieran Downes, Ph.D., P.Geo., a director of Kingsmen and Qualified Person as defined by National Instrument 43-101, has reviewed and approved the scientific and technical disclosure set out in this news release.\nAbout Kingsmen Resources\nKingsmen Resources is a mineral exploration company focused on advancing its 100% held projects, the Las Coloradas silver/gold project and Almoloya gold/silver project located in the prolific mining district of Parral Mexico. The projects host historic past producing high-grade silver mines. They are considered to be prospective for hosting further precious metal deposits, being on the same structural and stratigraphic belts that host numerous other, on-trend, high-grade deposits. In addition, the Company has a 1% NSR on the La Trini claims which form part of the Los Ricos North project operated by GoGold Resources Inc. in Mexico. Kingsmen is a publicly-traded company and is headquartered in Vancouver, British Columbia.\nOn behalf of the Board,\n“Scott Emerson“\nScott Emerson, President & CEO\nPhone: 604- 685-9316\nEmail: se@kingsmenresources.com\nFollow us on: LinkedIn, Instagram and X\nForward-Looking Statements: Certain disclosure contained in this news release may constitute forward-looking information or forward-looking statements, within the meaning of Canadian securities laws. These statements may relate to this news release and other matters identified in the Company’s public filings. In making the forward-looking statements the Company has applied certain factors and assumptions that are based on the Company’s current beliefs as well as assumptions made by and information currently available to the Company. These statements address future events and conditions and, as such, involve known and unknown risks, uncertainties and other factors which may cause the actual results, performance or achievements to be materially different from any future results, performance or achievements expressed or implied by the statements. These risks and uncertainties include but are not limited to: the Option, TSXV approval of the Option, the political environment in which the Company operates continuing to support the development and operation of mining projects; the threat associated with outbreaks of viruses and infectious diseases; risks related to negative publicity with respect to the Company or the mining industry in general; planned work programs; permitting; and community relations. Readers are cautioned not to place undue reliance on forward-looking statements. The Company does not intend, and expressly disclaims any intention or obligation to, update or revise any forward-looking statements whether as a result of new information, future events or otherwise, except as required by law.\nNeither the TSX Venture Exchange nor its Regulation Services Provider (as that term is defined in the policies of the TSX Venture Exchange) accepts responsibility for the adequacy or accuracy of this release."
+        }
+      ]
+    }
+  }
+}

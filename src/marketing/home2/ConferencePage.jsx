@@ -60,7 +60,7 @@ function IntroCarousel({ lead, steps, mobile }) {
   const anim = phase === "out"
     ? { opacity: 0, transform: "translateY(-8px)", transition: "opacity 210ms cubic-bezier(0.4,0,0.2,1), transform 210ms cubic-bezier(0.4,0,0.2,1)" }
     : { animation: "cfStepIn 340ms cubic-bezier(0.22,1,0.36,1) both" };
-  const arrow = { flex: "0 0 auto", width: 40, height: 40, borderRadius: 999, border: `1px solid ${HAIR}`, background: "#fff", color: NAVY, cursor: "pointer", display: "grid", placeItems: "center", fontSize: 15, transition: `border-color 200ms ${EASE}, color 200ms ${EASE}` };
+  const arrow = { flex: "0 0 auto", width: mobile ? 44 : 40, height: mobile ? 44 : 40, borderRadius: 999, border: `1px solid ${HAIR}`, background: "#fff", color: NAVY, cursor: "pointer", display: "grid", placeItems: "center", fontSize: 15, transition: `border-color 200ms ${EASE}, color 200ms ${EASE}` };
   const Body = (
     <div key={i} style={{ width: "100%", ...anim }}>
       {cur.lead ? (
@@ -74,9 +74,10 @@ function IntroCarousel({ lead, steps, mobile }) {
     </div>
   );
   const dots = (
-    <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+    <div style={{ display: "flex", gap: mobile ? 6 : 8, alignItems: "center" }}>
       {slides.map((_, k) => (
-        <button key={k} type="button" onClick={() => go(k)} aria-label={`Slide ${k + 1}`} className="cf-dot" style={{ padding: "6px 0", border: "none", background: "transparent", cursor: "pointer" }}>
+        <button key={k} type="button" onClick={() => go(k)} aria-label={`Slide ${k + 1}`} className="cf-dot" style={{ padding: 0, border: "none", background: "transparent", cursor: "pointer",
+          ...(mobile ? { width: 40, height: 44, display: "grid", placeItems: "center" } : { padding: "6px 0" }) }}>
           <span aria-hidden style={{ display: "block", height: 6, borderRadius: 99, width: k === i ? 24 : 6, background: k === i ? COBALT : "rgba(37,99,235,0.24)", transition: "width 320ms cubic-bezier(0.22,1,0.36,1), background 320ms ease" }} />
         </button>
       ))}
@@ -86,8 +87,8 @@ function IntroCarousel({ lead, steps, mobile }) {
   if (mobile) {
     return (
       <div>
-        <div style={{ minHeight: 172, display: "flex", alignItems: "center" }}>{Body}</div>
-        <div style={{ marginTop: 20, display: "flex", alignItems: "center", justifyContent: "center", gap: 16 }}>
+        <div style={{ minHeight: 150, display: "flex", alignItems: "center" }}>{Body}</div>
+        <div style={{ marginTop: 18, display: "flex", alignItems: "center", justifyContent: "center", gap: 10 }}>
           <button type="button" onClick={() => go(i - 1)} aria-label="Previous" className="cf-nav" style={arrow}>←</button>
           {dots}
           <button type="button" onClick={() => go(i + 1)} aria-label="Next" className="cf-nav" style={arrow}>→</button>
@@ -110,31 +111,125 @@ function IntroCarousel({ lead, steps, mobile }) {
 }
 
 
+// Which rendition a desktop tile reads, decided once from the display's own pixel ratio.
+const THUMB_RENDITION = (() => {
+  try { return (window.devicePixelRatio || 1) > 2 ? ".md.webp" : ".sm.webp"; } catch (_) { return ".md.webp"; }
+})();
+
+// ── How many decks may boot AT ONCE ──────────────────────────────────────────────
+//
+// Every tile boots a whole conference deck in an iframe. Each card decided on its own,
+// as soon as its still had decoded — and the still comes from cache in a millisecond, so
+// "when my thumbnail is ready" meant "immediately, all of us". Measured cold on the
+// deployed gallery: twelve iframes up by 2s and 11.13MB over 441 requests still arriving
+// at 10s. Clicking a tile in that window puts the template's own document at the back of
+// that queue, which is why opening a presentation could take 16-24s on a real connection
+// while opening the SAME url directly took 1272ms.
+//
+// Nothing here changes what a tile shows. Every preview still becomes the same live deck;
+// they simply take turns, so there is always capacity left for the thing the visitor
+// actually clicked. A slot is released when a deck paints, or after a ceiling, so one slow
+// deck can never strand the queue.
+// Desktop can afford more in flight than a phone. Three was tuned for the slowest case
+// and made the gallery take ~40s to fill, which is worse than the queueing it prevents.
+// Mobile keeps a tight cap because a phone is where the memory ceiling actually bites;
+// mobile does not boot live decks at all today, so this only guards a future change.
+const DECK_SLOTS = (() => {
+  try { return window.innerWidth < 760 ? 2 : 6; } catch (_) { return 6; }
+})();
+// A SAFETY NET, not a regular path. At 6s this fired before a deck on a real connection
+// had painted, so slots were handed back on a timer and the cap dissolved precisely when
+// the network was slow enough to need it — measured on staging, 9-10 decks live at 7s
+// against a cap of 3. It now only rescues a deck that is genuinely never going to paint.
+const DECK_RELEASE_MS = 12000;
+let deckBusy = 0;
+const deckQueue = [];
+function pumpDecks() {
+  while (deckBusy < DECK_SLOTS && deckQueue.length) { deckBusy += 1; deckQueue.shift()(); }
+}
+function takeDeckSlot(run) {
+  let released = false;
+  const release = () => { if (released) return; released = true; deckBusy = Math.max(0, deckBusy - 1); pumpDecks(); };
+  deckQueue.push(() => { run(); setTimeout(release, DECK_RELEASE_MS); });
+  pumpDecks();
+  return release;
+}
+
 // One template card — thumb placeholder, live hero booted only when it scrolls near.
-function LiveCard({ tpl, name, isNew, slug, idx }) {
+function LiveCard({ tpl, name, isNew, slug, idx, mobile }) {
   const ref = useRef(null);
   const [live, setLive] = useState(false);
+  const [painted, setPainted] = useState(false);   // the live preview has actually drawn
+  const releaseRef = useRef(null);                 // hands this tile's boot slot back
   useEffect(() => {
+    // A phone cannot afford sixteen live tablet renders; the captured thumbnail is the same frame.
+    if (mobile) return;
     const el = ref.current; if (!el) return;
-    const io = new IntersectionObserver((es) => { if (es.some((e) => e.isIntersecting)) { setLive(true); io.disconnect(); } }, { rootMargin: "300px 0px" });
+    // The THUMBNAIL first, then the preview. Each tile boots a full conference deck, and
+    // sixteen of those starting as they come within range were competing with the very
+    // thumbnails they are meant to sit behind — measured, the gallery took 14s to fill in.
+    // The preview now waits for its own still to be decoded, so the page is complete to look
+    // at before any of that work begins. The still is already in cache by then, so this costs
+    // the preview nothing it was not going to spend anyway.
+    const io = new IntersectionObserver((es) => {
+      if (!es.some((e) => e.isIntersecting)) return;
+      io.disconnect();
+      const src = `/thumbs/${tpl}${mobile ? ".sm.webp" : THUMB_RENDITION}`;
+      const im = new Image();
+      // …and then WAIT FOR A TURN. See DECK_SLOTS: the still decodes from cache instantly,
+      // so without this every in-range tile booted its deck in the same frame.
+      const go = () => {
+        releaseRef.current = takeDeckSlot(() => {
+          setLive(true);
+          // HAND THE SLOT BACK AS SOON AS THIS DECK IS UP, not when it is fully decorated.
+          // Measured: a deck paints in ~0ms once its iframe is in the document, yet the slot
+          // was held until onReady, which under strictReady waits for the deck's images. That
+          // is why the gallery took ~27s to admit sixteen decks when each one costs nothing to
+          // start. The visual fade still waits for onReady, so nothing appears half-drawn —
+          // only the QUEUE moves on sooner. release() is idempotent, so whichever fires first
+          // wins and the other is a no-op.
+          setTimeout(() => { if (releaseRef.current) releaseRef.current(); }, 400);
+        });
+      };
+      im.src = src;
+      if (im.decode) im.decode().then(go).catch(go); else { im.onload = go; im.onerror = go; }
+      setTimeout(go, 2500);            // never let a slow still hold the preview back for good
+    }, { rootMargin: "300px 0px" });
     io.observe(el);
-    return () => io.disconnect();
-  }, []);
+    return () => { io.disconnect(); if (releaseRef.current) releaseRef.current(); };
+  }, [mobile]);
   const previewSrc = `/confv3demo?c=${slug}&t=${tpl}&bar=0`;
   const openHref = `/site?conftemplate=1&t=${tpl}&c=${slug}`;
   return (
     <a href={openHref} className="cf-card" style={{ display: "block", textDecoration: "none", color: "inherit", borderRadius: 14, overflow: "hidden", border: `1px solid ${HAIR}`, background: "#fff" }}>
-      <div ref={ref} style={{ position: "relative", width: "100%", aspectRatio: "1194 / 820", overflow: "hidden",
-        backgroundColor: "#0c0f15", backgroundImage: `url(/thumbs/${tpl}.jpg)`, backgroundSize: "cover", backgroundPosition: "top center" }}>
-        {live && <div style={{ position: "absolute", inset: 0 }}>
-          <TabletFrame bare src={previewSrc} interactive={false} showBootCover={false} screenBg="transparent" renderW={1194} renderH={820} title={`${name} — ${slug}`} />
+      {/* The captured thumbnails are 1920x1200 (16:10) while the live TabletFrame renders at
+          1194x820. On desktop the frame is the thing being shown, so the box keeps the frame's
+          aspect; on a phone the thumbnail IS the thing being shown, so the box takes the
+          thumbnail's aspect and nothing is cropped off the sides. */}
+      <div ref={ref} style={{ position: "relative", width: "100%", aspectRatio: mobile ? "1920 / 1200" : "1194 / 820", overflow: "hidden",
+        backgroundColor: "#0c0f15",
+        // Sized to the tile, not to the capture. These are 271x186 on screen — 542x372 at DPR 2,
+        // 813x558 at DPR 3 — and desktop was loading the 1920x1200 original for every one of
+        // them: 3.88MB across the sixteen, which is why the gallery took so long to fill in.
+        // 840px covers DPR 3 with room and 560 covers DPR 2 exactly, so nothing is softer than
+        // the screen can show, and the set drops to 971KB / 418KB respectively.
+        backgroundImage: `url(/thumbs/${tpl}${mobile ? ".sm.webp" : THUMB_RENDITION})`, backgroundSize: mobile ? "contain" : "cover", backgroundPosition: mobile ? "center" : "top center", backgroundRepeat: "no-repeat" }}>
+        {live && <div style={{ position: "absolute", inset: 0,
+          // Held invisible until the deck has painted, then faded in over the still.
+          // `screenBg: transparent` only clears the frame's own backing — the iframe's
+          // DOCUMENT paints the deck's dark ground as soon as it loads, which blacked out
+          // the thumbnail underneath for the seconds the deck takes to mount. Sixteen of
+          // those is the load-then-black-then-reload flicker on this page.
+          opacity: painted ? 1 : 0, transition: "opacity 420ms ease", pointerEvents: "none" }}>
+          <TabletFrame bare src={previewSrc} interactive={false} showBootCover={false} screenBg="transparent" renderW={1194} renderH={820} strictReady
+            onReady={() => { setPainted(true); if (releaseRef.current) releaseRef.current(); }} title={`${name} — ${slug}`} />
         </div>}
       </div>
-      <div style={{ display: "flex", alignItems: "center", gap: 9, padding: "13px 15px", borderTop: `1px solid ${HAIR}` }}>
-        <span style={{ fontSize: 12, color: MUTE, fontVariantNumeric: "tabular-nums", fontWeight: 600 }}>{String(idx + 1).padStart(2, "0")}</span>
-        <span style={{ fontSize: 15.5, fontWeight: 700, letterSpacing: "-0.01em", color: NAVY }}>{name}</span>
+      <div style={{ display: "flex", alignItems: "center", gap: 9, minHeight: mobile ? 52 : 0, padding: mobile ? "0 16px" : "13px 15px", borderTop: `1px solid ${HAIR}` }}>
+        <span style={{ fontSize: mobile ? 13 : 12, color: MUTE, fontVariantNumeric: "tabular-nums", fontWeight: 600 }}>{String(idx + 1).padStart(2, "0")}</span>
+        <span style={{ fontSize: mobile ? 17 : 15.5, fontWeight: 700, letterSpacing: "-0.01em", color: NAVY }}>{name}</span>
         {isNew ? <span style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: "0.12em", color: COBALT, border: `1px solid ${COBALT}`, borderRadius: 4, padding: "2px 6px", lineHeight: 1 }}>NEW</span> : null}
-        <span className="cf-open" style={{ marginLeft: "auto", fontSize: 11, color: MUTE, letterSpacing: "0.1em", fontWeight: 700, textTransform: "uppercase" }}>Open ↗</span>
+        <span className="cf-open" style={{ marginLeft: "auto", fontSize: mobile ? 12 : 11, color: MUTE, letterSpacing: "0.1em", fontWeight: 700, textTransform: "uppercase" }}>Open ↗</span>
       </div>
     </a>
   );
@@ -151,7 +246,7 @@ export default function ConferencePage() {
       <main style={{ fontFamily: "'Switzer', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}>
 
         {/* ── Intro: eyebrow, then headline left with the supporting text beside it on the right ── */}
-        <section style={{ maxWidth: MAXW, margin: "0 auto", padding: `clamp(118px,14vh,160px) ${gut} clamp(40px,5vh,64px)` }}>
+        <section style={{ maxWidth: MAXW, margin: "0 auto", padding: mobile ? `86px ${gut} 40px` : `clamp(118px,14vh,160px) ${gut} clamp(40px,5vh,64px)` }}>
           <p className="mx-label" style={{ color: COBALT, letterSpacing: "0.22em", margin: 0 }}>Conference Mode</p>
           <div style={{ marginTop: "clamp(20px,2.6vh,30px)", display: "grid", gridTemplateColumns: mobile ? "1fr" : "1.1fr 0.9fr", gap: "clamp(24px,4vw,64px)", alignItems: "center" }}>
             <h1 className="mx-h2" style={{ margin: 0, color: NAVY, maxWidth: "15ch" }}>
@@ -164,19 +259,20 @@ export default function ConferencePage() {
         </section>
 
         {/* ── TEMPLATE GALLERY — a quiet lead-in, then the existing collection ── */}
-        <section style={{ maxWidth: MAXW, margin: "0 auto", padding: `clamp(28px,4vh,52px) ${gut} clamp(80px,12vh,140px)` }}>
-          <div style={{ marginBottom: "clamp(26px,3.5vh,40px)", display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 24, flexWrap: "wrap" }}>
+        <section style={{ maxWidth: MAXW, margin: "0 auto", padding: mobile ? `clamp(28px,4vh,52px) ${gut} 72px` : `clamp(28px,4vh,52px) ${gut} clamp(80px,12vh,140px)` }}>
+          <div style={{ marginBottom: "clamp(26px,3.5vh,40px)", display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: mobile ? 22 : 24, flexWrap: "wrap" }}>
             <div>
               <p className="mx-label" style={{ color: MUTE, letterSpacing: "0.22em", margin: 0 }}>Premium Designs</p>
               <h2 className="mx-h3" style={{ margin: "12px 0 0", color: NAVY }}>Choose your starting point.</h2>
+              {mobile ? <p style={{ margin: "10px 0 0", fontSize: 16, lineHeight: 1.5, color: SLATE }}>Tap any design to open the full experience.</p> : null}
             </div>
-            <a href={"/get-started"} className="cf-cta" style={{ display: "inline-flex", alignItems: "center", gap: 10, height: 50, padding: "0 28px", borderRadius: 999, background: COBALT, color: "#fff", border: `1px solid ${COBALT}`, fontSize: 15.5, fontWeight: 700, letterSpacing: "-0.01em", textDecoration: "none", whiteSpace: "nowrap" }}>
+            <a href={"/get-started"} className="cf-cta" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 10, height: mobile ? 54 : 50, width: mobile ? "100%" : "auto", padding: "0 28px", borderRadius: 999, background: COBALT, color: "#fff", border: `1px solid ${COBALT}`, fontSize: 15.5, fontWeight: 700, letterSpacing: "-0.01em", textDecoration: "none", whiteSpace: "nowrap" }}>
               Get Started <span aria-hidden className="cf-cta-arw">→</span>
             </a>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: mobile ? "1fr" : "repeat(4, minmax(0, 1fr))", gap: "clamp(14px,1.4vw,22px)" }}>
             {TEMPLATES.map(([tpl, name, isNew, slug], i) => (
-              <LiveCard key={tpl} tpl={tpl} name={name} isNew={isNew} slug={slug} idx={i} />
+              <LiveCard key={tpl} tpl={tpl} name={name} isNew={isNew} slug={slug} idx={i} mobile={mobile} />
             ))}
           </div>
         </section>

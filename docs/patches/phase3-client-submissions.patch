@@ -1,0 +1,69 @@
+--- a/src/site/Site.jsx
++++ b/src/site/Site.jsx
+@@ -7,13 +7,26 @@
+ 
+ // Insert a lead row (contact or demo) via the anon key. Requires an anon INSERT
+ // policy on the target table (see the SQL handed to the user).
++// Submits through /api/submit, the server-controlled door, rather than writing
++// straight to PostgREST with the bundled anon key. The anon INSERT policies those
++// direct writes relied on are removed by migration 0058; see
++// docs/PHASE3-PUBLIC-SUBMISSIONS.md for why and in what order.
+ async function insertLead(table, row) {
+-  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}`, {
++  // The endpoint takes a FORM name, not a table name -- it owns the mapping, so
++  // the browser no longer names a table it is about to write.
++  const form = table === "contact_submissions" ? "contact" : "demo";
++  const res = await fetch(`/api/submit?form=${form}`, {
+     method: "POST",
+-    headers: { apikey: SUPABASE_ANON, Authorization: `Bearer ${SUPABASE_ANON}`, "Content-Type": "application/json", Prefer: "return=minimal" },
++    headers: { "Content-Type": "application/json" },
+     body: JSON.stringify(row),
+   });
+-  if (!res.ok) { const d = await res.text().catch(() => ""); throw new Error(`Couldn't submit (${res.status})${d ? `: ${d}` : ""}`); }
++  if (!res.ok) {
++    const d = await res.json().catch(() => null);
++    if (res.status === 429) throw new Error("Too many submissions just now. Please try again in a few minutes.");
++    throw new Error(d?.error === "missing-required-fields"
++      ? "Please fill in the required fields."
++      : `Couldn't submit (${res.status})`);
++  }
+   return true;
+ }
+ 
+--- a/src/marketing/sections/Close.jsx
++++ b/src/marketing/sections/Close.jsx
+@@ -225,18 +225,26 @@
+ 
+ /* ══════════════════════════════════════════ 15 · THE CLOSE + FORM ════════ */
+ 
++// Submits through /api/submit, the server-controlled door, rather than writing
++// straight to PostgREST with the bundled anon key. The anon INSERT policies those
++// direct writes relied on are removed by migration 0058; see
++// docs/PHASE3-PUBLIC-SUBMISSIONS.md for why and in what order.
+ async function insertLead(table, row) {
+-  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}`, {
++  // The endpoint takes a FORM name, not a table name -- it owns the mapping, so
++  // the browser no longer names a table it is about to write.
++  const form = table === "contact_submissions" ? "contact" : "demo";
++  const res = await fetch(`/api/submit?form=${form}`, {
+     method: "POST",
+-    headers: {
+-      apikey: SUPABASE_ANON,
+-      Authorization: `Bearer ${SUPABASE_ANON}`,
+-      "Content-Type": "application/json",
+-      Prefer: "return=minimal",
+-    },
++    headers: { "Content-Type": "application/json" },
+     body: JSON.stringify(row),
+   });
+-  if (!res.ok) throw new Error(`Couldn't submit (${res.status})`);
++  if (!res.ok) {
++    const d = await res.json().catch(() => null);
++    if (res.status === 429) throw new Error("Too many submissions just now. Please try again in a few minutes.");
++    throw new Error(d?.error === "missing-required-fields"
++      ? "Please fill in the required fields."
++      : `Couldn't submit (${res.status})`);
++  }
+   return true;
+ }
+ 

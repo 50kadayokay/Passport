@@ -17,6 +17,7 @@ import { authHeaders } from "./auth.js";
 import { listDocuments } from "./memory.js";
 import { listPublished, listDrafts } from "./publishDrafts.js";
 import { listMediaPosts } from "./mediaPosts.js";
+import { ACTIVE_FACTS } from "./mineiqActive.js";
 
 const REST = `${SUPABASE_URL}/rest/v1`;
 
@@ -35,10 +36,22 @@ async function countOf(path) {
  * How many approved facts MineIQ holds. `null` means the knowledge layer is not
  * switched on (0050 unapplied), which the page states; `0` means it is on and
  * nothing has been ingested yet. Those are different and must not be conflated.
+ * Only facts from releases that are live count (a08, mineiqActive.js).
  */
 export async function factCount(companyId) {
   if (!companyId) return null;
-  return countOf(`facts?company_id=eq.${companyId}&select=id`);
+  return countOf(`facts?company_id=eq.${companyId}&select=id,${ACTIVE_FACTS}`);
+}
+
+/**
+ * How many facts MineIQ learned from ONE publication (facts.publication_id,
+ * 0050a). Used by the take-down flow to say what leaves Mine IQ: taking a
+ * release down keeps its facts as a record but stops using them (a08). Counts
+ * every row, live or not -- it is the release's own record. `null` = unknown.
+ */
+export async function factCountForPublication(publicationId) {
+  if (!publicationId || String(publicationId).startsWith("demo-")) return null;
+  return countOf(`facts?publication_id=eq.${encodeURIComponent(publicationId)}&select=id`);
 }
 
 /** Facts grouped the way a person thinks about a company, not by table. */
@@ -57,7 +70,7 @@ export async function factsByCategory(companyId) {
   try {
     const h = await authHeaders();
     const res = await fetch(
-      `${REST}/facts?company_id=eq.${companyId}&superseded_by=is.null&select=kind&limit=2000`,
+      `${REST}/facts?company_id=eq.${companyId}&superseded_by=is.null&select=kind,${ACTIVE_FACTS}&limit=2000`,
       { headers: h });
     if (!res.ok) return null;
     const rows = await res.json().catch(() => []);
@@ -79,7 +92,7 @@ export async function listFacts(companyId, { kinds = null, limit = 100 } = {}) {
     const kindFilter = kinds && kinds.length ? `&kind=in.(${kinds.join(",")})` : "";
     const res = await fetch(
       `${REST}/facts?company_id=eq.${companyId}&superseded_by=is.null${kindFilter}` +
-      `&select=id,kind,subject,data,quote,confidence,created_at&order=created_at.desc&limit=${limit}`,
+      `&select=id,kind,subject,data,quote,confidence,created_at,${ACTIVE_FACTS}&order=created_at.desc&limit=${limit}`,
       { headers: h });
     if (!res.ok) return [];
     const rows = await res.json().catch(() => []);
@@ -90,30 +103,59 @@ export async function listFacts(companyId, { kinds = null, limit = 100 } = {}) {
 /**
  * What MineIQ holds overall. Counts come from the real tables; `facts` is
  * reported separately because it is the one that may legitimately be unavailable.
+ *
+ * A list that FAILED to load is `null`, never 0, and is named in `unavailable`
+ * (with its message in `errors`). These used to be caught to [] and reported as
+ * "0 documents" -- a count of nothing for a read that never happened.
+ * listDocuments throws code "documents_unavailable" (S3, f3b8b5d); the release
+ * and media lists throw too (a28 round).
  */
+const LABEL_OF = { documents: "documents", releases: "published releases", drafts: "draft releases", media: "media posts" };
+
 export async function knowledgeSummary(companyId, profile) {
   const prof = profile || {};
+  const errors = {};
+  const settle = (key, p) => p.then((v) => (Array.isArray(v) ? v : null), (e) => {
+    errors[key] = (e && e.message) || `Your ${LABEL_OF[key]} could not be loaded.`;
+    return null;
+  });
   const [docs, published, drafts, media, facts, byCat] = await Promise.all([
-    listDocuments(companyId).catch(() => []),
-    listPublished(companyId).catch(() => []),
-    listDrafts(companyId).catch(() => []),
-    listMediaPosts(companyId).catch(() => []),
+    settle("documents", listDocuments(companyId)),
+    settle("releases", listPublished(companyId)),
+    settle("drafts", listDrafts(companyId)),
+    settle("media", listMediaPosts(companyId)),
     factCount(companyId),
     factsByCategory(companyId),
   ]);
+  const count = (list) => (Array.isArray(list) ? list.length : null);
+  // a08: a taken-down release is not current public material, so it is not
+  // counted as published or shown as something Mine IQ learned from. The
+  // /portaldemo fixtures carry no publications field and keep their status.
+  const live = Array.isArray(published)
+    ? published.filter((p) => !Array.isArray(p.publications) || p.publications.some((x) => x.destination_id === "passport" && x.status === "published"))
+    : null;
   return {
-    documents: (docs || []).length,
-    releases: (published || []).length,
-    drafts: (drafts || []).length,
+    documents: count(docs),
+    releases: count(live),
+    drafts: count(drafts),
     projects: Array.isArray(prof.projects) ? prof.projects.length : 0,
     milestones: Array.isArray(prof.timeline) ? prof.timeline.length : 0,
     team: Array.isArray(prof.team) ? prof.team.length : 0,
-    media: (media || []).length,
+    media: count(media),
     facts,                 // null = knowledge layer not switched on
     byCategory: byCat,
+    unavailable: Object.keys(errors),
+    errors,
     _docs: docs || [],
-    _published: published || [],
+    _published: live || [],
   };
+}
+
+/** "3 documents", or what could not be loaded. Never "0" for a failed read. */
+export function countLabel(summary, key, noun) {
+  const n = summary && summary[key];
+  if (n == null) return `${noun[0].toUpperCase()}${noun.slice(1)} couldn't be loaded`;
+  return `${n} ${noun}`;
 }
 
 /**
@@ -186,6 +228,16 @@ export async function recentlyLearned(companyId, summary, limit = 6) {
 export function attentionItems(summary, profile) {
   const items = [];
   const prof = profile || {};
+
+  // Said first: everything below is computed from what DID load.
+  (summary.unavailable || []).forEach((key) => {
+    items.push({
+      id: `unavailable-${key}`,
+      title: `Your ${LABEL_OF[key] || key} couldn't be loaded`,
+      body: (summary.errors && summary.errors[key]) || "Try again shortly. Nothing has been lost.",
+      action: null, to: null,
+    });
+  });
 
   if (summary.drafts > 0) {
     items.push({

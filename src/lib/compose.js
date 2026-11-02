@@ -32,9 +32,19 @@ async function call(payload) {
   return data;
 }
 
-/** A caption for a photo or video, from the company's description of it. */
-export function generateCaption({ hint, filename, isVideo, companyName }) {
-  return call({ mode: "caption", hint, filename, isVideo, companyName }).then((r) => r.text);
+// The text modes MUST carry text. A 200 without it (a proxy page, a changed
+// server) used to reach the editor as `undefined` and crash it on .trim().
+async function callText(payload) {
+  const data = await call(payload);
+  if (typeof data.text !== "string" || !data.text.trim()) throw new Error("Nothing came back. Try again.");
+  return data;
+}
+
+/** A caption for a photo or video, from the company's description of it.
+ *  `companyId` is required: /api/compose authorises every mode against the
+ *  company the caller belongs to (F4). */
+export function generateCaption({ hint, filename, isVideo, companyName, companyId }) {
+  return callText({ mode: "caption", hint, filename, isVideo, companyName, companyId }).then((r) => r.text);
 }
 
 /**
@@ -43,7 +53,7 @@ export function generateCaption({ hint, filename, isVideo, companyName }) {
  * workspace can show the CEO where the context came from.
  */
 export function draftRelease({ details, attachments, companyId, companyName }) {
-  return call({ mode: "draft", details, attachments, companyId, companyName });
+  return callText({ mode: "draft", details, attachments, companyId, companyName });
 }
 
 /**
@@ -53,7 +63,7 @@ export function draftRelease({ details, attachments, companyId, companyName }) {
  * action and a chat instruction are the same call with different arguments.
  */
 export function reviseRelease({ current, preset, instruction, attachments, companyId, companyName }) {
-  return call({ mode: "revise", current, preset, instruction, attachments, companyId, companyName });
+  return callText({ mode: "revise", current, preset, instruction, attachments, companyId, companyName });
 }
 
 /** Structured fact check. Reports; never rewrites. */

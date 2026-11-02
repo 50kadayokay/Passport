@@ -296,7 +296,11 @@ function QrCard({ wide = false }) {
       padding: 14, borderRadius: 18,
       background: "rgba(18,22,28,0.72)",
       border: "1px solid rgba(255,255,255,0.12)",
-      backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)",
+      // backdrop-filter removed on phones (see AppSection): a 390x298 backdrop blur over a
+      // moving device is re-rasterised every frame on iOS Safari. Desktop keeps it.
+      ...(typeof window !== "undefined" && window.innerWidth < 760
+        ? null
+        : { backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)" }),
       boxShadow: "0 40px 80px -40px rgba(0,0,0,0.8)",
       maxWidth: wide ? 340 : 300,
     }}>

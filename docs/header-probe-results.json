@@ -1,0 +1,159 @@
+{
+  "probedAt": "2026-10-30T20:12:30.491Z",
+  "base": "https://mineex-header-probe-0769f7-d09f70xou-50kadayokays-projects.vercel.app",
+  "runtimes": {
+    "node": {
+      "table": {
+        "x-forwarded-host": {
+          "sent": "canary-78caabf7.invalid",
+          "received": "mineex-header-probe-0769f7-d09f70xou-50kadayokays-projects.vercel.app",
+          "verdict": "overwritten by platform"
+        },
+        "x-forwarded-for": {
+          "sent": "198.51.100.7",
+          "received": "<client-public-ip>",
+          "verdict": "overwritten by platform"
+        },
+        "x-forwarded-proto": {
+          "sent": "http",
+          "received": "https",
+          "verdict": "overwritten by platform"
+        },
+        "x-real-ip": {
+          "sent": "198.51.100.8",
+          "received": "<client-public-ip>",
+          "verdict": "overwritten by platform"
+        },
+        "x-vercel-forwarded-for": {
+          "sent": "198.51.100.9",
+          "received": "<client-public-ip>",
+          "verdict": "overwritten by platform"
+        },
+        "forwarded": {
+          "sent": "for=198.51.100.10;host=canary-78caabf7.invalid;proto=http",
+          "received": "for=<client-public-ip>;host=mineex-header-probe-0769f7-d09f70xou-50kadayokays-projects.vercel.app;proto=https;sig=<redacted>;exp=1793391450",
+          "verdict": "overwritten by platform"
+        },
+        "x-client-ip": {
+          "sent": "198.51.100.11",
+          "received": "198.51.100.11",
+          "verdict": "SURVIVED (client-controlled)"
+        },
+        "true-client-ip": {
+          "sent": "198.51.100.12",
+          "received": "198.51.100.12",
+          "verdict": "SURVIVED (client-controlled)"
+        },
+        "x-vercel-ip-country": {
+          "sent": "ZZ",
+          "received": "CA",
+          "verdict": "overwritten by platform"
+        },
+        "host": {
+          "sent": "(not overridable from fetch)",
+          "received": "mineex-header-probe-0769f7-d09f70xou-50kadayokays-projects.vercel.app",
+          "verdict": "reported"
+        },
+        "_clientIpConsistent": true
+      },
+      "control": {
+        "host": "mineex-header-probe-0769f7-d09f70xou-50kadayokays-projects.vercel.app",
+        "x-forwarded-host": "mineex-header-probe-0769f7-d09f70xou-50kadayokays-projects.vercel.app",
+        "x-forwarded-for": "<client-public-ip>",
+        "x-forwarded-proto": "https",
+        "x-real-ip": "<client-public-ip>",
+        "x-vercel-forwarded-for": "<client-public-ip>",
+        "x-vercel-deployment-url": "mineex-header-probe-0769f7-d09f70xou-50kadayokays-projects.vercel.app",
+        "x-vercel-ip-country": "CA",
+        "forwarded": "for=<client-public-ip>;host=mineex-header-probe-0769f7-d09f70xou-50kadayokays-projects.vercel.app;proto=https;sig=<redacted>;exp=1793391450"
+      },
+      "socketRemoteAddress": "127.0.0.1",
+      "withheld": [
+        "x-vercel-oidc-token",
+        "x-vercel-protection-bypass"
+      ]
+    },
+    "edge": {
+      "table": {
+        "x-forwarded-host": {
+          "sent": "canary-78caabf7.invalid",
+          "received": "mineex-header-probe-0769f7-d09f70xou-50kadayokays-projects.vercel.app",
+          "verdict": "overwritten by platform"
+        },
+        "x-forwarded-for": {
+          "sent": "198.51.100.7",
+          "received": "<client-public-ip>",
+          "verdict": "overwritten by platform"
+        },
+        "x-forwarded-proto": {
+          "sent": "http",
+          "received": "https",
+          "verdict": "overwritten by platform"
+        },
+        "x-real-ip": {
+          "sent": "198.51.100.8",
+          "received": "<client-public-ip>",
+          "verdict": "overwritten by platform"
+        },
+        "x-vercel-forwarded-for": {
+          "sent": "198.51.100.9",
+          "received": null,
+          "verdict": "absent"
+        },
+        "forwarded": {
+          "sent": "for=198.51.100.10;host=canary-78caabf7.invalid;proto=http",
+          "received": "for=<client-public-ip>;host=mineex-header-probe-0769f7-d09f70xou-50kadayokays-projects.vercel.app;proto=https;sig=<redacted>;exp=1793391450",
+          "verdict": "overwritten by platform"
+        },
+        "x-client-ip": {
+          "sent": "198.51.100.11",
+          "received": "198.51.100.11",
+          "verdict": "SURVIVED (client-controlled)"
+        },
+        "true-client-ip": {
+          "sent": "198.51.100.12",
+          "received": "198.51.100.12",
+          "verdict": "SURVIVED (client-controlled)"
+        },
+        "x-vercel-ip-country": {
+          "sent": "ZZ",
+          "received": "CA",
+          "verdict": "overwritten by platform"
+        },
+        "host": {
+          "sent": "(not overridable from fetch)",
+          "received": "mineex-header-probe-0769f7-d09f70xou-50kadayokays-projects.vercel.app",
+          "verdict": "reported"
+        },
+        "_clientIpConsistent": true
+      },
+      "control": {
+        "host": "mineex-header-probe-0769f7-d09f70xou-50kadayokays-projects.vercel.app",
+        "x-forwarded-host": "mineex-header-probe-0769f7-d09f70xou-50kadayokays-projects.vercel.app",
+        "x-forwarded-for": "<client-public-ip>",
+        "x-forwarded-proto": "https",
+        "x-real-ip": "<client-public-ip>",
+        "x-vercel-deployment-url": "mineex-header-probe-0769f7-d09f70xou-50kadayokays-projects.vercel.app",
+        "x-vercel-ip-country": "CA",
+        "forwarded": "for=<client-public-ip>;host=mineex-header-probe-0769f7-d09f70xou-50kadayokays-projects.vercel.app;proto=https;sig=<redacted>;exp=1793391450"
+      },
+      "socketRemoteAddress": null,
+      "withheld": [
+        "x-vercel-oidc-token",
+        "x-vercel-protection-bypass"
+      ]
+    }
+  },
+  "conclusions": {
+    "node": {
+      "F5_x_forwarded_host_spoofable": false,
+      "F5_forwarded_host_spoofable": false,
+      "F12_trusted_client_ip_header": "x-real-ip"
+    },
+    "edge": {
+      "F5_x_forwarded_host_spoofable": false,
+      "F5_forwarded_host_spoofable": false,
+      "F12_trusted_client_ip_header": "x-real-ip"
+    }
+  }
+}

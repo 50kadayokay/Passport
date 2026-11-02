@@ -9,19 +9,16 @@
 //
 // Skips cleanly without OPENAI_API_KEY. Never prints the key.
 
+import { requireLiveAiOptIn } from "./_target-guard.mjs";
 import fs from "node:fs";
 import path from "node:path";
 import { ASK_SYSTEM, callModel } from "../api/compose.js";
 import { extractFacts } from "../api/_mineiq.js";
 
-for (const f of [".env.import", ".env.vercel.local", ".env.local", ".env"]) {
-  const file = path.resolve(process.cwd(), f);
-  if (!fs.existsSync(file)) continue;
-  for (const line of fs.readFileSync(file, "utf8").split("\n")) {
-    const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/);
-    if (m && !(m[1] in process.env) && m[2]) process.env[m[1]] = m[2].trim().replace(/^["']|["']$/g, "");
-  }
-}
+// No longer loads .env.import / .env.local / .env: those files hold PRODUCTION
+// credentials, and loading every variable from them put a production service
+// key in this process. The AI key must already be in the environment.
+requireLiveAiOptIn("mineiq-live-test");
 if (!process.env.OPENAI_API_KEY) { console.log("mineiq-live: skipped (no OPENAI_API_KEY)"); process.exit(0); }
 
 let pass = 0, fail = 0;

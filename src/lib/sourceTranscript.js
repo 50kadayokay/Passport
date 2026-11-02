@@ -77,15 +77,23 @@ export async function storeTranscript(companyId, documentId, {
     throw new TranscriptPersistenceError("There was no text to record for this document.", "empty transcript refused");
   }
 
-  let res;
+  // D26: INSERT ... ON CONFLICT DO NOTHING (resolution=ignore-duplicates) on the
+  // (document_id, sha256) unique index. This used to ask PostgREST to MERGE
+  // duplicates, i.e. ON CONFLICT DO UPDATE -- and Postgres requires UPDATE
+  // privilege for that even when nothing conflicts. 0053 revoked UPDATE from
+  // signed-in users on purpose (transcripts are immutable evidence; the trigger
+  // refuses updates too), so every upload failed with 42501. Grants stay as
+  // they are: a repeat extraction is now a no-op insert, and the existing row is
+  // read back by the same digest the database computes (sha256 of the UTF-8
+  // text, hex -- public.sha256_hex in 0041).
+  let res, h;
   try {
-    const h = await writeHeaders();
-    res = await fetch(`${SUPABASE_URL}/rest/v1/source_transcripts`, {
+    h = await writeHeaders();
+    res = await fetch(`${SUPABASE_URL}/rest/v1/source_transcripts?on_conflict=document_id,sha256`, {
       method: "POST",
       headers: {
         ...h, "content-type": "application/json",
-        // merge-duplicates + the unique index makes a repeat extraction a no-op.
-        Prefer: "return=representation,resolution=merge-duplicates",
+        Prefer: "return=representation,resolution=ignore-duplicates",
       },
       body: JSON.stringify({
         document_id: documentId,
@@ -111,13 +119,31 @@ export async function storeTranscript(companyId, documentId, {
   }
 
   const rows = await res.json().catch(() => []);
-  const row = (Array.isArray(rows) && rows[0]) || null;
+  let row = (Array.isArray(rows) && rows[0]) || null;
+  if (!row) {
+    // No row back = the identical transcript already exists (the conflict was
+    // ignored). Read THAT row; anything else is a failure, never a guess.
+    try {
+      const digest = await sha256Hex(body);
+      const r = await fetch(
+        `${SUPABASE_URL}/rest/v1/source_transcripts?document_id=eq.${encodeURIComponent(documentId)}&sha256=eq.${digest}&select=*&limit=1`,
+        { headers: h });
+      const existing = r.ok ? await r.json().catch(() => []) : [];
+      row = (Array.isArray(existing) && existing[0]) || null;
+    } catch (_) { row = null; }
+  }
   if (!row || !row.id) {
     throw new TranscriptPersistenceError(
       "Could not confirm the source text was saved. Your file is safe — try again.",
       "write returned no row");
   }
   return row;
+}
+
+/** sha256 of the UTF-8 text, lowercase hex: the same value as public.sha256_hex(). */
+export async function sha256Hex(text) {
+  const buf = await globalThis.crypto.subtle.digest("SHA-256", new TextEncoder().encode(String(text)));
+  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
 /** Every transcript for a document, newest first. Append-only, so this is a history. */

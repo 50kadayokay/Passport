@@ -19,7 +19,7 @@
 // Marketing content only; no backend or pricing logic anywhere else.
 // ─────────────────────────────────────────────────────────────────────────────
 import React, { useState } from "react";
-import { EASE } from "../system.jsx";
+import { EASE, useViewport } from "../system.jsx";
 import { BILLING, BillingToggle, Mark, PRICE_TOKENS as T, Setup } from "./SalesPricing.jsx";
 
 // Re-exported so the pricing deck keeps importing its card parts from one place.
@@ -132,6 +132,9 @@ export const BESPOKE_TINT = "rgba(37,99,235,0.06)";
 // directly on the container's gray surface. Identical internal rhythm either way, so the
 // columns line up: name · description · price · term · CTA · features · note.
 export function Plan({ name, badge, blurb, price, per, pre, sub, features, inherits, note, cta, dark, control, quote, tint, compactPrice, children }) {
+  // On a phone the grid collapses to one column, so the dense three-up type ramp has no
+  // reason to stay small — and no column to stay level with. Read it at phone sizes.
+  const { mobile } = useViewport();
   const ink   = dark ? "#fff" : T.NAVY;
   const muted = dark ? "rgba(255,255,255,0.62)" : T.SLATE;
   const faint = dark ? "rgba(255,255,255,0.45)" : T.MUTE;
@@ -139,7 +142,7 @@ export function Plan({ name, badge, blurb, price, per, pre, sub, features, inher
   return (
     <div style={{
       display: "flex", flexDirection: "column", borderRadius: 20,
-      padding: "clamp(16px, min(1.6vw, 2.3vh), 26px)",
+      padding: mobile ? "22px 20px 24px" : "clamp(16px, min(1.6vw, 2.3vh), 26px)",
       // `dark` is the featured plan's near-black panel. `tint` is a lighter, separate signal
       // for a plan that is simply DIFFERENT in kind rather than recommended — the bespoke
       // build — so the two never read as competing for the same "pick me" slot.
@@ -151,46 +154,46 @@ export function Plan({ name, badge, blurb, price, per, pre, sub, features, inher
           worse than the switch dropping to its own row. */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, rowGap: 10, flexWrap: "wrap", minHeight: 26 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 9, minWidth: 0 }}>
-          <h3 style={{ margin: 0, fontSize: "clamp(17px,1.4vw,19px)", fontWeight: 700, letterSpacing: "-0.02em", color: ink, whiteSpace: "nowrap" }}>{name}</h3>
+          <h3 style={{ margin: 0, fontSize: mobile ? 21 : "clamp(17px,1.4vw,19px)", fontWeight: 700, letterSpacing: "-0.02em", color: ink, whiteSpace: "nowrap" }}>{name}</h3>
           {badge && (
-            <span style={{ flexShrink: 0, fontSize: 10.5, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", whiteSpace: "nowrap",
+            <span style={{ flexShrink: 0, fontSize: mobile ? 11.5 : 10.5, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", whiteSpace: "nowrap",
               color: "#9dc0ff", background: "rgba(37,99,235,0.26)", borderRadius: 999, padding: "3px 8px" }}>{badge}</span>
           )}
         </div>
         {control && <div style={{ flexShrink: 0, marginLeft: "auto" }}>{control}</div>}
       </div>
-      <p style={{ margin: "7px 0 0", fontSize: 13.5, lineHeight: 1.4, color: muted, minHeight: "clamp(19px, 3.6vh, 38px)" }}>{blurb}</p>
+      <p style={{ margin: mobile ? "9px 0 0" : "7px 0 0", fontSize: mobile ? 16 : 13.5, lineHeight: mobile ? 1.5 : 1.4, color: muted, minHeight: mobile ? 0 : "clamp(19px, 3.6vh, 38px)" }}>{blurb}</p>
 
       {/* The price row is pinned to the PRICED line-height, so a "Request a Quote" card —
           whose type is smaller — still leaves its CTA, features and note exactly level with
           the priced cards beside it. An explicit line-height makes that height predictable
           at every viewport instead of depending on the font's default line box. */}
-      {!compactPrice && <p style={{ margin: "clamp(9px,1.3vh,13px) 0 -4px", fontSize: 12.5, lineHeight: "18px", minHeight: 18, fontWeight: 600, color: faint }}>{pre || "\u00a0"}</p>}
+      {!compactPrice && <p style={{ margin: "clamp(9px,1.3vh,13px) 0 -4px", fontSize: mobile ? 14 : 12.5, lineHeight: mobile ? "20px" : "18px", minHeight: 18, fontWeight: 600, color: faint }}>{pre || "\u00a0"}</p>}
       <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginTop: compactPrice ? 10 : "clamp(9px,1.3vh,13px)",
-        minHeight: compactPrice ? 0 : "calc(clamp(30px, min(2.9vw, 4.2vh), 42px) * 1.2)" }}>
-        <span style={{ fontSize: compactPrice ? "clamp(20px,1.7vw,24px)" : (quote ? "clamp(24px,2.1vw,30px)" : "clamp(30px, min(2.9vw, 4.2vh), 42px)"), lineHeight: 1.2, fontWeight: 700, letterSpacing: "-0.035em", color: ink }}>{price}</span>
-        {per && <span style={{ fontSize: 13.5, fontWeight: 600, color: faint }}>{per}</span>}
+        minHeight: (compactPrice || mobile) ? 0 : "calc(clamp(30px, min(2.9vw, 4.2vh), 42px) * 1.2)" }}>
+        <span style={{ fontSize: mobile ? (compactPrice ? 26 : (quote ? 30 : 42)) : (compactPrice ? "clamp(20px,1.7vw,24px)" : (quote ? "clamp(24px,2.1vw,30px)" : "clamp(30px, min(2.9vw, 4.2vh), 42px)")), lineHeight: 1.2, fontWeight: 700, letterSpacing: "-0.035em", color: ink }}>{price}</span>
+        {per && <span style={{ fontSize: mobile ? 15.5 : 13.5, fontWeight: 600, color: faint }}>{per}</span>}
       </div>
-      <p style={{ margin: "5px 0 0", fontSize: 12.5, lineHeight: 1.5, color: muted, minHeight: 19 }}>{sub}</p>
+      <p style={{ margin: "5px 0 0", fontSize: mobile ? 14.5 : 12.5, lineHeight: 1.5, color: muted, minHeight: 19 }}>{sub}</p>
 
       <a href={cta.href} className="sp-cta" style={{
-        marginTop: "clamp(10px,1.5vh,14px)", alignSelf: "flex-start",
+        marginTop: mobile ? 18 : "clamp(10px,1.5vh,14px)", alignSelf: mobile ? "stretch" : "flex-start",
         display: "inline-flex", alignItems: "center", justifyContent: "center",
-        height: 38, padding: "0 22px", borderRadius: 999, textDecoration: "none",
+        height: mobile ? 52 : 38, padding: "0 22px", borderRadius: 999, textDecoration: "none",
         background: dark ? "#fff" : T.NAVY, color: dark ? T.NAVY : "#fff",
-        fontSize: 14, fontWeight: 700, letterSpacing: "-0.01em", whiteSpace: "nowrap",
+        fontSize: mobile ? 16.5 : 14, fontWeight: 700, letterSpacing: "-0.01em", whiteSpace: "nowrap",
       }}>{cta.label}</a>
 
-      <div style={{ marginTop: "clamp(10px,1.5vh,14px)", display: "flex", flexDirection: "column", gap: "clamp(5px,0.75vh,6px)", flex: 1 }}>
-        {inherits && <p style={{ margin: "0 0 2px", fontSize: 12.5, fontWeight: 700, letterSpacing: "-0.01em", color: ink }}>{inherits}</p>}
+      <div style={{ marginTop: mobile ? 18 : "clamp(10px,1.5vh,14px)", display: "flex", flexDirection: "column", gap: mobile ? 11 : "clamp(5px,0.75vh,6px)", flex: 1 }}>
+        {inherits && <p style={{ margin: "0 0 2px", fontSize: mobile ? 15 : 12.5, fontWeight: 700, letterSpacing: "-0.01em", color: ink }}>{inherits}</p>}
         {features.map((f, i) => (
-          <div key={i} style={{ display: "flex", gap: 9, alignItems: "flex-start", color: muted, fontSize: 13, lineHeight: 1.4 }}>
+          <div key={i} style={{ display: "flex", gap: mobile ? 11 : 9, alignItems: "flex-start", color: muted, fontSize: mobile ? 16 : 13, lineHeight: mobile ? 1.5 : 1.4 }}>
             <Mark c={mark} /><span>{f}</span>
           </div>
         ))}
       </div>
 
-      {note && <p style={{ margin: "12px 0 0", fontSize: 12, color: faint }}>{note}</p>}
+      {note && <p style={{ margin: mobile ? "16px 0 0" : "12px 0 0", fontSize: mobile ? 14 : 12, color: faint }}>{note}</p>}
       {children}
     </div>
   );
@@ -198,6 +201,7 @@ export function Plan({ name, badge, blurb, price, per, pre, sub, features, inher
 
 // A highlighted price inside a card — the Pro member's Conference Mode rate, from both sides.
 export function InlineOffer({ label, price, was, note, dark }) {
+  const { mobile } = useViewport();
   const ink = dark ? "#fff" : T.NAVY;
   return (
     <div style={{
@@ -205,12 +209,12 @@ export function InlineOffer({ label, price, was, note, dark }) {
       background: dark ? "rgba(255,255,255,0.07)" : "rgba(37,99,235,0.07)",
       border: `1px solid ${dark ? "rgba(255,255,255,0.14)" : "rgba(37,99,235,0.18)"}`,
     }}>
-      <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: dark ? "#9dc0ff" : T.COBALT }}>{label}</div>
+      <div style={{ fontSize: mobile ? 11.5 : 10.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: dark ? "#9dc0ff" : T.COBALT }}>{label}</div>
       <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginTop: 6 }}>
-        <span style={{ color: ink, fontWeight: 700, fontSize: 21, letterSpacing: "-0.03em" }}>{price}</span>
-        {was && <span style={{ color: dark ? "rgba(255,255,255,0.45)" : T.MUTE, fontSize: 13, textDecoration: "line-through" }}>{was}</span>}
+        <span style={{ color: ink, fontWeight: 700, fontSize: mobile ? 25 : 21, letterSpacing: "-0.03em" }}>{price}</span>
+        {was && <span style={{ color: dark ? "rgba(255,255,255,0.45)" : T.MUTE, fontSize: mobile ? 15 : 13, textDecoration: "line-through" }}>{was}</span>}
       </div>
-      <div style={{ color: dark ? "rgba(255,255,255,0.62)" : T.SLATE, fontSize: 12.5, marginTop: 3 }}>{note}</div>
+      <div style={{ color: dark ? "rgba(255,255,255,0.62)" : T.SLATE, fontSize: mobile ? 14.5 : 12.5, marginTop: 4 }}>{note}</div>
     </div>
   );
 }

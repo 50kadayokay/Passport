@@ -120,7 +120,7 @@ export default function CompanyConsole() {
         <div className="min-h-0 flex-1 overflow-hidden">
           {section === "build" && <Onboarding embedded />}
           {section === "dashboard" && <DashboardSection company={company} go={setSection} />}
-          {section === "memory" && <CompanyMemory company={company} />}
+          {section === "memory" && <CompanyMemory company={company} onSaved={refresh} />}
           {section === "comms" && <CommsCenter company={company} />}
           {section === "settings" && <SettingsSection />}
           {(section === "analytics" || section === "qr") && <Stub id={section} />}

@@ -1,19 +1,30 @@
 import React, { useState } from "react";
 import { ArrowRight, Check, Loader2, CheckCircle2, Mail, Linkedin, Twitter } from "lucide-react";
 import { NAV_LINKS, PLANS, FEATURES, CONTACT } from "./content.js";
-import { SUPABASE_URL, SUPABASE_ANON } from "../lib/supabase.js";
 import Home, { PlanCard } from "./Home.jsx";
 import Auth, { ResetPassword } from "./Auth.jsx";
 
-// Insert a lead row (contact or demo) via the anon key. Requires an anon INSERT
-// policy on the target table (see the SQL handed to the user).
+// Submit a lead (contact or demo) through /api/submit, the server-controlled
+// door: it validates, throttles, screens spam and writes with the service role.
+// Writing the table directly with the anon key stopped working when migration
+// 0058 revoked anon INSERT (that revoke is the point of 0058).
+const LEAD_FORMS = { contact_submissions: "contact", demo_bookings: "demo" };
 async function insertLead(table, row) {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}`, {
+  const form = LEAD_FORMS[table];
+  if (!form) throw new Error("Unknown form.");
+  const res = await fetch(`/api/submit?form=${form}`, {
     method: "POST",
-    headers: { apikey: SUPABASE_ANON, Authorization: `Bearer ${SUPABASE_ANON}`, "Content-Type": "application/json", Prefer: "return=minimal" },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(row),
   });
-  if (!res.ok) { const d = await res.text().catch(() => ""); throw new Error(`Couldn't submit (${res.status})${d ? `: ${d}` : ""}`); }
+  const out = await res.json().catch(() => null);
+  if (!res.ok || !out || out.ok !== true) {
+    const why = out && out.error === "rate-limited" ? "Too many submissions — please try again in a few minutes."
+      : out && out.error === "invalid-email" ? "Please enter a valid email address."
+      : out && out.error === "missing-required-fields" ? "Please fill in the required fields."
+      : `Couldn't submit (${res.status}).`;
+    throw new Error(why);
+  }
   return true;
 }
 

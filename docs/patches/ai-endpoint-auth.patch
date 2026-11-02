@@ -1,0 +1,298 @@
+diff --git a/api/audience-card.js b/api/audience-card.js
+index c94bb05..8f2cf75 100644
+--- a/api/audience-card.js
++++ b/api/audience-card.js
+@@ -8,6 +8,8 @@
+ //
+ // The Anthropic key lives ONLY here (server-side env var). Model via AI_MODEL.
+ 
++import { requireAiCaller } from "./_aiGuard.js";
++
+ const MODEL = process.env.AI_MODEL || "claude-sonnet-5";
+ const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
+ const SCHEMA_VERSION = 1;
+@@ -91,6 +93,16 @@ function bad(res, code, msg) { res.status(code).json({ error: msg }); }
+ 
+ export default async function handler(req, res) {
+   if (req.method !== "POST") return bad(res, 405, "Method not allowed");
++
++  // SPENDING GATE. Size ceiling, then authentication, then company
++  // authorisation + paid entitlement, then a rate limit that FAILS CLOSED.
++  // Nothing below this line runs for an unauthorised caller, so no
++  // unauthorised request can reach Anthropic. See api/_aiGuard.js.
++  const caller = await requireAiCaller(req, res, { label: "audience-card", feature: "company_memory" });
++  // No onboarding exception: this surface always knows its company
++  // (src/admin/AudienceCard.jsx resolves it by slug before enabling the
++  // button), so a missing companyId here is a bug, not a new company.
++  if (!caller) return;
+   const key = process.env.ANTHROPIC_API_KEY;
+   if (!key) return bad(res, 500, "Server not configured: ANTHROPIC_API_KEY is missing.");
+ 
+diff --git a/api/structure-release.js b/api/structure-release.js
+index 00e6844..4e3fd81 100644
+--- a/api/structure-release.js
++++ b/api/structure-release.js
+@@ -13,6 +13,8 @@
+ // Set ANTHROPIC_API_KEY in Vercel (Project → Settings → Environment Variables)
+ // and in .env for local `vercel dev`. Model overridable via AI_MODEL.
+ 
++import { requireAiCaller } from "./_aiGuard.js";
++
+ const MODEL = process.env.AI_MODEL || "claude-sonnet-5";
+ const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
+ const SCHEMA_VERSION = 1;
+@@ -195,6 +197,13 @@ function contextBlock(context) {
+ 
+ export default async function handler(req, res) {
+   if (req.method !== "POST") return bad(res, 405, "Method not allowed");
++
++  // SPENDING GATE. Size ceiling, then authentication, then company
++  // authorisation + paid entitlement, then a rate limit that FAILS CLOSED.
++  // Nothing below this line runs for an unauthorised caller, so no
++  // unauthorised request can reach Anthropic. See api/_aiGuard.js.
++  const caller = await requireAiCaller(req, res, { label: "structure-release", feature: "company_memory", allowOnboarding: true });
++  if (!caller) return;
+   const key = process.env.ANTHROPIC_API_KEY;
+   if (!key) return bad(res, 500, "Server not configured: ANTHROPIC_API_KEY is missing.");
+ 
+diff --git a/api/synthesize-profile.js b/api/synthesize-profile.js
+index 49b3dfa..2780c56 100644
+--- a/api/synthesize-profile.js
++++ b/api/synthesize-profile.js
+@@ -8,6 +8,8 @@
+ //
+ // The Anthropic key lives ONLY here (server-side env var). Model via AI_MODEL.
+ 
++import { requireAiCaller } from "./_aiGuard.js";
++
+ const MODEL = process.env.AI_MODEL || "claude-sonnet-5";
+ const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
+ const SCHEMA_VERSION = 1;
+@@ -95,6 +97,13 @@ function bad(res, code, msg) { res.status(code).json({ error: msg }); }
+ 
+ export default async function handler(req, res) {
+   if (req.method !== "POST") return bad(res, 405, "Method not allowed");
++
++  // SPENDING GATE. Size ceiling, then authentication, then company
++  // authorisation + paid entitlement, then a rate limit that FAILS CLOSED.
++  // Nothing below this line runs for an unauthorised caller, so no
++  // unauthorised request can reach Anthropic. See api/_aiGuard.js.
++  const caller = await requireAiCaller(req, res, { label: "synthesize-profile", feature: "company_memory", allowOnboarding: true });
++  if (!caller) return;
+   const key = process.env.ANTHROPIC_API_KEY;
+   if (!key) return bad(res, 500, "Server not configured: ANTHROPIC_API_KEY is missing.");
+ 
+diff --git a/package.json b/package.json
+index 1d48f98..1ff8909 100644
+--- a/package.json
++++ b/package.json
+@@ -13,7 +13,7 @@
+     "check:imports": "node scripts/check-imports.mjs",
+     "check:pr": "node scripts/press-release-test.mjs",
+     "check:media": "node scripts/media-support-test.mjs",
+-    "test": "npm run check:imports && npm run check:leak && npm run check:integrity && npm run check:transcript && npm run check:failclosed && npm run check:inventory && npm run check:reconcile && npm run check:adversarial && npm run check:canonical && npm run check:auditsync && npm run check:pipeline && npm run check:mineiq && npm run check:phase1 && npm run check:pr && npm run check:media && npm run check:auth && npm run check:demo-assets && npm run check:push && npm run check:reliability && node scripts/onboarding-classify-test.mjs",
++    "test": "npm run check:imports && npm run check:submissions && npm run check:audit-sql && npm run check:leak && npm run check:integrity && npm run check:transcript && npm run check:failclosed && npm run check:inventory && npm run check:reconcile && npm run check:adversarial && npm run check:canonical && npm run check:auditsync && npm run check:pipeline && npm run check:mineiq && npm run check:phase1 && npm run check:pr && npm run check:media && npm run check:auth && npm run check:aiguard && npm run check:demo-assets && npm run check:push && npm run check:reliability && node scripts/onboarding-classify-test.mjs",
+     "check:auth": "node scripts/api-auth-test.mjs",
+     "check:integrity": "node scripts/source-integrity-test.mjs",
+     "check:transcript": "node scripts/transcript-test.mjs",
+@@ -29,7 +29,13 @@
+     "check:mineiq-live": "node scripts/mineiq-live-test.mjs",
+     "check:demo-assets": "node scripts/check-demo-assets.mjs",
+     "check:push": "node scripts/push-routing-test.mjs",
+-    "check:reliability": "node scripts/push-reliability-test.mjs"
++    "check:reliability": "node scripts/push-reliability-test.mjs",
++    "check:submissions": "node scripts/submissions-test.mjs",
++    "check:isolation": "node scripts/tenant-isolation-test.mjs",
++    "check:deps": "node scripts/migration-deps-check.mjs",
++    "check:audit-sql": "node scripts/audit-sql-readonly-check.mjs",
++    "replay:plan": "node scripts/replay-migrations.mjs",
++    "check:aiguard": "node scripts/ai-guard-test.mjs"
+   },
+   "dependencies": {
+     "@aparajita/capacitor-secure-storage": "^8.0.0",
+diff --git a/src/Onboarding.jsx b/src/Onboarding.jsx
+index 90f64eb..b729bd1 100644
+--- a/src/Onboarding.jsx
++++ b/src/Onboarding.jsx
+@@ -6421,6 +6421,12 @@ export default function Onboarding({ embedded = false, companySlug = null }) {
+     if (items.length) {
+       try {
+         const out = await extractCorpus(items, {
++          // Authorization subject for the AI endpoints: the company being
++          // edited. On ?new=1 there is no row yet, so savedSlug is null and
++          // `onboarding` declares the exception EXPLICITLY — the server will
++          // not substitute a company on its own. See api/_aiGuard.js.
++          slug: savedSlug,
++          onboarding: true,
+           token,
+           context: companyName ? { company: { name: companyName } } : {},
+           onProgress: (done, total) => setExtractMsg(`Analyzing releases ${done} of ${total}…`),
+@@ -6451,7 +6457,10 @@ export default function Onboarding({ embedded = false, companySlug = null }) {
+         // Layer 2 — synthesize the Overview (status card + brief) from the chronology.
+         if (out.timeline && out.timeline.length) {
+           setExtractMsg("Writing the company overview…");
+-          const ov = await synthesizeProfile({ company: { name: companyName }, timeline: out.timeline });
++          const ov = await synthesizeProfile(
++            { company: { name: companyName }, timeline: out.timeline },
++            { slug: savedSlug, onboarding: true },
++          );
+           if (ov) setProfile((p) => ({
+             ...p,
+             companyStatus: { ...(p.companyStatus || {}), ...(ov.companyStatus || {}) },
+diff --git a/src/admin/AudienceCard.jsx b/src/admin/AudienceCard.jsx
+index c47eba6..5fe82a8 100644
+--- a/src/admin/AudienceCard.jsx
++++ b/src/admin/AudienceCard.jsx
+@@ -807,9 +807,12 @@ export default function AudienceCard() {
+     setErr(""); setBusy("generate"); setCard(null);
+     try {
+       const p = company.profile || {};
++      // Signed-in callers only: this endpoint spends AI credits per request.
++      const h = await authHeaders();
+       const res = await fetch("/api/audience-card", {
+-        method: "POST", headers: { "content-type": "application/json" },
++        method: "POST", headers: { ...h, "content-type": "application/json" },
+         body: JSON.stringify({
++          companyId: company.id,
+           company: { name: company.name, ticker: company.primary_ticker || p.company?.ticker || "" },
+           timeline: p.timeline || [], brief: p.companyBrief || null, projects: p.projects || [],
+         }),
+diff --git a/src/lib/ai.js b/src/lib/ai.js
+index 83a50d6..1fced21 100644
+--- a/src/lib/ai.js
++++ b/src/lib/ai.js
+@@ -9,10 +9,18 @@
+ // The company confirms category / impact / key and approves proposedChanges before
+ // anything is applied.
+ 
++import { authHeaders } from "./auth.js";
++
+ async function callAI(payload) {
++  // The endpoint requires a signed-in, entitled caller: it spends AI credits per
++  // request. NOTE: analyzeRelease/refineAnalysis below currently have no callers
++  // — the live path to /api/structure-release is lib/structureReleases.js. The
++  // session is attached anyway so reviving either does not produce a confusing
++  // 401, and `companyId` must be supplied by whoever revives them.
++  const h = await authHeaders();
+   const res = await fetch("/api/structure-release", {
+     method: "POST",
+-    headers: { "Content-Type": "application/json" },
++    headers: { ...h, "Content-Type": "application/json" },
+     body: JSON.stringify(payload),
+   });
+   const data = await res.json().catch(() => ({}));
+diff --git a/src/lib/structureReleases.js b/src/lib/structureReleases.js
+index b9b94d0..e91c1cc 100644
+--- a/src/lib/structureReleases.js
++++ b/src/lib/structureReleases.js
+@@ -11,6 +11,8 @@
+ // returns 500 until then. The shapes are stable so the intake UI + mapper can be
+ // wired against them now and verified the moment the key lands.
+ 
++import { authHeaders } from "./auth.js";
++
+ const API = "/api/structure-release";
+ 
+ // Errors worth retrying: provider overload (529), rate limit (429), gateway/
+@@ -27,7 +29,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+ // corpus (100+ calls) Anthropic overload (529) is near-certain on some calls; a
+ // single retry pass turns "silently dropped release" into "arrived a few seconds
+ // late". `attempts` total tries (default 4 → up to ~1+2+4s of backoff).
+-export async function structureRelease(input, context = {}, { attempts = 4 } = {}) {
++export async function structureRelease(input, context = {}, { attempts = 4, companyId = null, slug = null, onboarding = false } = {}) {
+   const payload = typeof input === "string"
+     ? { text: input }
+     : { text: input.text || "", pdf: input.pdf || "" };
+@@ -38,10 +40,12 @@ export async function structureRelease(input, context = {}, { attempts = 4 } = {
+     // be trusted to encode retryability.
+     let retryable = false;
+     try {
++      // Signed-in callers only: this endpoint spends AI credits per request.
++      const h = await authHeaders();
+       const res = await fetch(API, {
+         method: "POST",
+-        headers: { "content-type": "application/json" },
+-        body: JSON.stringify({ mode: "extract", ...payload, context }),
++        headers: { ...h, "content-type": "application/json" },
++        body: JSON.stringify({ mode: "extract", ...payload, context, companyId, slug, onboarding }),
+       });
+       if (res.ok) {
+         const data = await res.json().catch(() => ({}));
+@@ -114,16 +118,18 @@ function entryToAnalysis(e) {
+  * `instruction` may be empty -- that is a plain regenerate, which is why the
+  * Regenerate button and the Improve button are one code path.
+  */
+-export async function refineRelease(current, instruction = "", text = "", context = {}, { attempts = 3 } = {}) {
++export async function refineRelease(current, instruction = "", text = "", context = {}, { attempts = 3, companyId = null, slug = null, onboarding = false } = {}) {
+   if (!current) throw new Error("Nothing to revise yet.");
+   let lastErr;
+   for (let i = 0; i < attempts; i++) {
+     let retryable = false;
+     try {
++      // Signed-in callers only: this endpoint spends AI credits per request.
++      const h = await authHeaders();
+       const res = await fetch(API, {
+         method: "POST",
+-        headers: { "content-type": "application/json" },
+-        body: JSON.stringify({ mode: "refine", current, instruction: String(instruction || ""), text, context }),
++        headers: { ...h, "content-type": "application/json" },
++        body: JSON.stringify({ mode: "refine", current, instruction: String(instruction || ""), text, context, companyId, slug, onboarding }),
+       });
+       if (res.ok) {
+         const data = await res.json().catch(() => ({}));
+@@ -177,7 +183,7 @@ export async function structureReleasesBatched(items, { token, context = {}, bat
+ // `onProgress(done, total, item)` fires after each completes.
+ // Returns [{ item, analysis }] on success or [{ item, error }] per failed item —
+ // one bad release never sinks the batch. (Legacy per-doc path; batched is cheaper.)
+-export async function structureReleases(items, { context = {}, concurrency = 4, onProgress } = {}) {
++export async function structureReleases(items, { context = {}, concurrency = 4, onProgress, companyId = null, slug = null, onboarding = false } = {}) {
+   const list = Array.isArray(items) ? items.filter((it) => it && (String(it.text || "").trim() || it.pdf)) : [];
+   const results = new Array(list.length);
+   let done = 0;
+@@ -187,7 +193,7 @@ export async function structureReleases(items, { context = {}, concurrency = 4,
+       const i = cursor++;
+       const item = list[i];
+       try {
+-        results[i] = { item, analysis: await structureRelease({ text: item.text, pdf: item.pdf }, context) };
++        results[i] = { item, analysis: await structureRelease({ text: item.text, pdf: item.pdf }, context, { companyId, slug, onboarding }) };
+       } catch (e) {
+         results[i] = { item, error: (e && e.message) || "failed" };
+       }
+@@ -329,17 +335,19 @@ export function toTimelineEntries(assembled) {
+ 
+ // Layer 2 — synthesize the Company Status card + Brief from the assembled timeline.
+ // Returns { companyStatus, companyBrief, warnings } or null on failure.
+-export async function synthesizeProfile({ company = {}, timeline = [], projects = [] } = {}, { attempts = 3 } = {}) {
++export async function synthesizeProfile({ company = {}, timeline = [], projects = [] } = {}, { attempts = 3, companyId = null, slug = null, onboarding = false } = {}) {
+   if (!Array.isArray(timeline) || !timeline.length) return null;
+   // The synthesis call intermittently returns a 200 with an empty overview (the model
+   // occasionally emits the forced tool with no content). Retry until we get a usable
+   // status headline, so a one-off empty response doesn't leave the profile blank.
+   for (let i = 0; i < attempts; i++) {
+     try {
++      // Signed-in callers only: this endpoint spends AI credits per request.
++      const h = await authHeaders();
+       const res = await fetch("/api/synthesize-profile", {
+         method: "POST",
+-        headers: { "content-type": "application/json" },
+-        body: JSON.stringify({ company, timeline, projects }),
++        headers: { ...h, "content-type": "application/json" },
++        body: JSON.stringify({ company, timeline, projects, companyId, slug, onboarding }),
+       });
+       const data = await res.json().catch(() => ({}));
+       const ov = res.ok ? data.overview : null;
+diff --git a/src/portal/publish/CreateRelease.jsx b/src/portal/publish/CreateRelease.jsx
+index 7e12e14..1a54897 100644
+--- a/src/portal/publish/CreateRelease.jsx
++++ b/src/portal/publish/CreateRelease.jsx
+@@ -421,8 +421,8 @@ export default function CreateRelease({ company, draftId, onExit, onPublished })
+     try {
+       const context = { companyName: company?.name || "", companySlug: company?.slug || "" };
+       const next = (mode === "extract" || !analysis)
+-        ? await structureRelease({ text: body }, context)
+-        : await refineRelease(analysis, mode === "improve" ? instruction : "", body, context);
++        ? await structureRelease({ text: body }, context, { companyId })
++        : await refineRelease(analysis, mode === "improve" ? instruction : "", body, context, { companyId });
+       if (!next) throw new Error("No summary came back.");
+       setAnalysis(next);
+       setShot(0);

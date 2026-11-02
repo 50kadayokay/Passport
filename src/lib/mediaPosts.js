@@ -10,25 +10,35 @@
 
 import { SUPABASE_URL } from "./supabase.js";
 import { authHeaders } from "./auth.js";
+import { isPortalDemo } from "./demoMode.js";
+import { guardDemoWrite } from "./demoMode.js";
 
 /** Every media post for a company, newest first. */
 export async function listMediaPosts(companyId) {
+  // DEMO HARNESS ONLY. import.meta.env.DEV is a literal false in a production
+  // build and must LEAD the condition: Rollup cannot see through isPortalDemo()
+  // on its own, and with the call first the fixtures ship as a real chunk.
+  if (import.meta.env && import.meta.env.DEV && isPortalDemo()) {
+    return (await import("../portal/__fixtures/updatesDemo.js")).MEDIA_POSTS;
+  }
   if (!companyId) return [];
-  try {
+  // THROWS on failure. It used to return [] for a failed read too, so an
+  // outage showed "No media yet" -- an empty library that was not empty.
+  {
     const h = await authHeaders();
     const res = await fetch(
       `${SUPABASE_URL}/rest/v1/updates` +
         `?company_id=eq.${companyId}` +
         `&detected->>post_type=eq.media` +
+        `&status=neq.deleted` +   // permanently deleted via /api/media-delete
         `&select=id,body,status,created_at,published_on,publications(id,status,content,published_at)` +
         `&order=created_at.desc&limit=200`,
       { headers: h }
     );
-    if (!res.ok) return [];
-    const rows = await res.json().catch(() => []);
-    return (Array.isArray(rows) ? rows : []).map(shape);
-  } catch {
-    return [];
+    if (!res.ok) throw new Error(`Your media could not be loaded (${res.status}). Try again shortly.`);
+    const rows = await res.json().catch(() => null);
+    if (!Array.isArray(rows)) throw new Error("Your media could not be loaded. Try again shortly.");
+    return rows.map(shape);
   }
 }
 
@@ -41,12 +51,19 @@ function shape(row) {
   const url = content.media_url || "";
   return {
     id: row.id,
+    // The publication, not the update: /api/unpublish takes a publication id,
+    // and without this the detail view has nothing to act on.
+    publicationId: (pub && pub.id) || null,
     caption: (content.headline || row.body || "").trim(),
     mediaUrl: url,
     thumbnailUrl: content.thumbnail_url || "",
-    isVideo: /\.(mp4|mov|webm|m4v)(\?|$)/i.test(url) || !!content.thumbnail_url,
+    // publishMediaPost sets thumbnail_url on EVERY post (a photo's is its own
+    // URL), so only a DIFFERENT poster frame marks a video.
+    isVideo: /\.(mp4|mov|webm|m4v)(\?|$)/i.test(url) || !!(content.thumbnail_url && content.thumbnail_url !== url),
     status: row.status,
     live: !!(pub && pub.status === "published"),
+    // unpublish_publication returns a post to 'draft' but keeps published_at.
+    takenDown: !!(pub && pub.status !== "published" && pub.published_at),
     createdAt: row.created_at,
     publishedAt: (pub && pub.published_at) || row.published_on || row.created_at,
   };
@@ -65,6 +82,7 @@ function shape(row) {
  * upload itself.
  */
 export async function publishMediaPost({ companyId, file, caption = "", posterFile = null, onStage = () => {} }) {
+  guardDemoWrite("Posting media");
   if (!companyId) throw new Error("No company.");
   if (!file) throw new Error("Choose a photo or video first.");
 

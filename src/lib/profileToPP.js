@@ -8,6 +8,7 @@
 // non-crashing empty structures for now and will be mapped next.
 
 import { firstMeaningfulLine } from "./pressRelease.js";
+import { normalizeKeyResults } from "./keyResults.js";
 
 const has = (v) => v != null && String(v).trim() !== "";
 const str = (v) => (v == null ? "" : String(v));
@@ -116,6 +117,26 @@ const shortLabel = (e) => {
 // shape from the batch pipeline where the AI fields are nested under `e.ai`
 // (title/summary + ai.keyNumbers/ai.fullText). Reading `e.ai.*` is what makes key
 // numbers and "read full release" actually populate for onboarded companies.
+/**
+ * One timeline entry → exactly what the investor app's release reader renders,
+ * through the same mapper the published profile goes through.
+ *
+ * The review screen's phone preview calls this on every edit. Routing the
+ * preview through mapTimeline rather than reading the card directly is the
+ * whole point: every normalisation the real profile applies -- canonical key
+ * results, the carried classification, the day label -- applies here too, so
+ * the preview cannot flatter the draft.
+ *
+ * Returns null for an entry mapTimeline rejects (no ISO date), which is the
+ * same thing the profile would do with it.
+ */
+export function mapReleaseEntry(entry) {
+  const { PR_YEARS, FULL } = mapTimeline([entry]);
+  const item = (PR_YEARS[0] && PR_YEARS[0].items[0]) || null;
+  if (!item) return null;
+  return { item, year: PR_YEARS[0].year, full: FULL[item.id] || null };
+}
+
 function mapTimeline(timeline) {
   const entries = (Array.isArray(timeline) ? timeline : []).filter((e) => e && /^\d{4}-\d{2}-\d{2}/.test(str(e.date)));
   const byYear = new Map();
@@ -125,7 +146,16 @@ function mapTimeline(timeline) {
     const year = Number(str(e.date).slice(0, 4));
     if (!year) return;
     if (!byYear.has(year)) byYear.set(year, []);
-    const nums = Array.isArray(e.keyNumbers) ? e.keyNumbers : Array.isArray(ai.keyNumbers) ? ai.keyNumbers : Array.isArray(e.takeaways) ? e.takeaways : [];
+    // CANONICAL KEY RESULTS. Previously this array was handed to `str()` and
+    // flattened into `takeaways`, which worked only while every producer
+    // happened to emit strings -- an object would have rendered as
+    // "[object Object]" on a public investor profile. normalizeKeyResults
+    // accepts every shape the pipeline has produced and returns one.
+    const keyResults = normalizeKeyResults(
+      Array.isArray(e.keyNumbers) ? e.keyNumbers
+      : Array.isArray(ai.keyNumbers) ? ai.keyNumbers
+      : Array.isArray(e.takeaways) ? e.takeaways : []
+    );
     const fullText = has(e.fullText) ? e.fullText : (has(ai.fullText) ? ai.fullText : "");
     const fullImages = Array.isArray(e.fullImages) ? e.fullImages.filter(has) : [];
     // The verbatim company headline, shown when the entry is opened. If ChatGPT didn't
@@ -143,10 +173,45 @@ function mapTimeline(timeline) {
       // Only the company's disclosed next step — empty means the app hides the section
       // instead of showing a generic canned phrase.
       whatHappensNext: str(e.whatHappensNext || ai.whatHappensNext),
-      takeaways: nums.map(str).filter(has),
+      // Both shapes are carried. `keyResults` is what the V2 Key Results block
+      // renders; `takeaways` stays as flattened strings so any older consumer
+      // that reads it keeps working rather than silently emptying.
+      keyResults,
+      // The STRUCTURED form the Brief reader parses into metric rows. Passing
+      // the objects rather than the flattened strings matters: a result whose
+      // figure is not numeric ("Fully subscribed") survives as a row here,
+      // where the string form would be demoted to a highlight and then hidden
+      // whenever other rows exist.
+      keyNumbers: keyResults,
+      takeaways: keyResults.map((k) => (k.label ? `${k.value} — ${k.label}` : k.value)),
+      // THE TAKEAWAY THE PIPELINE ACTUALLY GENERATED.
+      // /api/structure-release produces `investorTakeaway`; toTimelineEntries
+      // carries it as `ai.takeaway`; nothing read it, so the V2 Takeaway card
+      // fell back to one of four canned sentences keyed off impact tier. Every
+      // company was shown a generic line in place of the release-specific one
+      // it had already paid to generate. Read here, rendered by the card, with
+      // the canned line kept only for releases that genuinely predate the field.
+      takeaway: str(e.investorTakeaway || e.takeaway || ai.takeaway || ai.investorTakeaway),
+      impact: str(e.impact || ai.impact),
+      // The classifier's category, carried so the renderer uses it instead of
+      // re-deriving one from the headline.
+      category: str(e.category || ai.category),
+      // The release's own stage transition, for the same reason.
+      stageFrom: str(e.stageFrom || ai.stageFrom),
+      stageTo: str(e.stageTo || ai.stageTo),
       key: !!e.key,
       id: str(e.date),
-      label: shortLabel({ ...e, keyNumbers: nums }),
+      label: shortLabel({ ...e, keyNumbers: keyResults.map((k) => k.value) }),
+      // Refined BriefV1 (validated), when the generator produced one — this is the single field
+      // the reader consumes to show the generated Brief instead of the card-mapped fallback.
+      // ENFORCEMENT GATE: this is the only chokepoint between a generated Brief and the public
+      // reader (the app reads companies.profile.pp.PR_YEARS[].items[].v2, and on a published
+      // company a profile write is instantly public). A Brief that validated REVIEW (or worse)
+      // carries `_needsReview` and is NEVER auto-mapped into the public payload — it must be
+      // approved by a human first. Human approval happens in the portal BriefReview UI, which
+      // writes the reviewed v2 straight into pp.PR_YEARS items (bypassing this mapping), so an
+      // explicitly-approved Brief is unaffected. FAIL attaches no v2 at all (safe by omission).
+      ...((() => { const vv = e.v2 || (ai && ai.v2); return (vv && !vv._needsReview) ? { v2: vv } : {}; })()),
     });
     // Full release: formatted text and/or attached images (screenshots). Stored as an
     // object so the reader can render both. Absent → the "Read Full Press Release" button
@@ -522,6 +587,11 @@ export function mapProfileToPP(profile = {}) {
   const COMPANY = {
     name: str(c.name),
     website: str(c.website),
+    // Official company social links (company-level). The Contact card reads these,
+    // falling back to the legacy profile.contact.{linkedin,twitter} for old data.
+    linkedin: str(c.linkedin),
+    twitter: str(c.twitter),
+    instagram: str(c.instagram),
     slogan: str(c.slogan),
     ticker: str(c.ticker),
     commodity: str(c.commodity),
@@ -730,7 +800,9 @@ export function mapProfileToPP(profile = {}) {
     // Contact links shown on the profile — each rendered only when present.
     CONTACT: (() => {
       const cn = profile.contact || {};
-      return { phone: str(cn.phone), email: str(cn.email), twitter: str(cn.twitter), linkedin: str(cn.linkedin) };
+      // IR PERSON: name/role/photo/email/phone. twitter/linkedin kept only as a read
+      // fallback for COMPANY social links (company.{linkedin,twitter} take priority).
+      return { name: str(cn.name), role: str(cn.role), photo: str(cn.photo), phone: str(cn.phone), email: str(cn.email), twitter: str(cn.twitter), linkedin: str(cn.linkedin) };
     })(),
     // A short CEO note shown near the top of the profile — a human voice from the person
     // running the company. Empty text → the card is hidden.

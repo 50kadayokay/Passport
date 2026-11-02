@@ -6,8 +6,12 @@
 // outbox event. The dispatcher then projects the post and notifications.
 
 import { getAccessToken } from "./auth.js";
+import { guardDemoWrite } from "./demoMode.js";
 
 async function call(path, publicationId) {
+  // The demo never publishes to production. Simulated publishing lives in
+  // lib/demoPublish.js and writes only to this browser.
+  guardDemoWrite("Publishing");
   const token = await getAccessToken();
   if (!token) throw new Error("Sign in required.");
   const res = await fetch(path, {
@@ -22,3 +26,6 @@ async function call(path, publicationId) {
 
 export const publishViaApi = (publicationId) => call("/api/publish", publicationId);
 export const unpublishViaApi = (publicationId) => call("/api/unpublish", publicationId);
+// Permanent delete of a media post that is already down: its stored file(s) and
+// its place in the library (api/media-delete.js).
+export const deleteMediaViaApi = (publicationId) => call("/api/media-delete", publicationId);

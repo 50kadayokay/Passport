@@ -12,7 +12,7 @@
 //
 // Env: ANTHROPIC_API_KEY (required), STUDIO_EXTRACT_MODEL / AI_MODEL (optional).
 
-import { verifyUser, bearer } from "./_service.js";
+import { requireAiCaller } from "./_aiGuard.js";
 
 const MODEL = process.env.STUDIO_EXTRACT_MODEL || process.env.AI_MODEL || "claude-sonnet-5";
 const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
@@ -414,12 +414,15 @@ function contextBlock(context) {
 export default async function handler(req, res) {
   if (req.method !== "POST") return bad(res, 405, "Method not allowed");
 
+  // PLATFORM ADMINS ONLY (F4). Story Studio is admin-gated in the UI
+  // (src/main.jsx AuthGate requireAdmin); this endpoint used to accept ANY
+  // signed-in account, investors included. Now: kill switch, size ceiling,
+  // admin check, per-user limits -- all before the key is even read (F10).
+  const user = await requireAiCaller(req, res, { label: "story-extract", adminOnly: true });
+  if (!user) return;
+
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key) return bad(res, 500, "Server not configured: ANTHROPIC_API_KEY is missing.");
-
-  // Signed-in callers only — this endpoint spends money per request.
-  const user = await verifyUser(bearer(req));
-  if (!user || !user.id) return bad(res, 401, "Sign in to run extraction.");
 
   let body = req.body;
   if (typeof body === "string") { try { body = JSON.parse(body); } catch { return bad(res, 400, "Invalid JSON body"); } }

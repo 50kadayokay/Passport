@@ -1,0 +1,43 @@
+{
+  "_what": "Machine-readable record of the READ-ONLY production audit of 2026-11-01 (Q01: which migrations are on production). Transcribed from docs/PRODUCTION-ROLLOUT-PLAN.md, 'Production audit results'. scripts/apply-migrations-production.mjs plans from THIS file; it never asks production. Re-run the audit and write a new record (new date in the filename) rather than editing this one.",
+  "project_ref": "rvptronniomlqumjhyrr",
+  "audited_at": "2026-11-01T00:47:00Z",
+  "query": "supabase/audit/production_readiness_2026_10_31.sql (Q01)",
+  "q01": {
+    "0053_phase3_0041_privilege_hardening.sql": "applied",
+    "0054_phase3_0041_immutability.sql": "applied",
+    "0055_enable_device_push.sql": "deferred",
+    "0056_function_execute_hardening.sql": "applied",
+    "0057_submission_throttle.sql": "applied",
+    "0058_close_public_insert.sql": "pending",
+    "0059_auth_user_trigger.sql": "applied",
+    "0060_publish_actor_hardening.sql": "applied",
+    "0061a_table_privilege_hardening.sql": "pending",
+    "0061b_companies_column_grants.sql": "deferred",
+    "0062_message_attachments.sql": "pending",
+    "0063_company_initiated_threads.sql": "pending",
+    "0064_notification_clearing.sql": "pending",
+    "0065a_analytics_breakdown.sql": "pending",
+    "0065b_engagement_corrections.sql": "pending",
+    "0065c_analytics_indexes.sql": "pending",
+    "0066_mineiq_conversations.sql": "pending",
+    "0067_conference_mode_feature.sql": "applied",
+    "0068_site_contract.sql": "pending",
+    "0069b_stripe_events.sql": "pending",
+    "0071_publishing_reliability.sql": "pending",
+    "0072_profile_drafts.sql": "pending",
+    "0073a_impression_dedupe_index.sql": "pending",
+    "0073b_impression_tracking.sql": "pending",
+    "0073c_post_events_client_guard.sql": "pending",
+    "0074_profile_revision_history.sql": "pending",
+    "0075_profile_versions_privileges.sql": "pending",
+    "0076_company_roles.sql": "pending"
+  },
+  "corrections": {
+    "0061a_table_privilege_hardening.sql": "Q01's marker read 'applied', but Q09 shows anon still holding all privileges on company_follows and post_events: PENDING (the marker tested a table that never had an anon grant)."
+  },
+  "before_q01": "Files numbered below 0053 that the manifest does not defer are APPLIED: verified against catalog metadata before this audit (scripts/_migration-manifest.mjs, APPLIED_BY_DEFAULT). Q01 did not re-test them.",
+  "not_for_production": {
+    "0000_baseline.sql": "The 18 unversioned objects. They exist on production; the file is for every OTHER environment (manifest)."
+  }
+}

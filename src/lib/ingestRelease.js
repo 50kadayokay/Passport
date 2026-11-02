@@ -22,6 +22,7 @@ import { pdfImages, pdfPageRenders } from "./pdfImages.js";
 import { storeMediaAsset } from "./mediaAssets.js";
 import { parseReleaseDate, normalizeRelease, firstMeaningfulLine, looksLikePressRelease } from "./pressRelease.js";
 import { apiFetch } from "./auth.js";
+import { isPortalDemo } from "./demoMode.js";
 
 const MAX_BYTES = 25 * 1024 * 1024;
 
@@ -252,6 +253,18 @@ export async function ingestRelease(companyId, file, { onProgress = () => {} } =
   if (file.size > MAX_BYTES) throw new Error(`File is too large (max ${Math.round(MAX_BYTES / 1048576)}MB).`);
 
   const kind = supportedKind(file);
+
+  // DEMO. Real ingestion writes a document row, hashes it, extracts images and
+  // puts them in private storage -- all production writes, and all refused by
+  // the demo barrier anyway. This returns the same shape from a local fixture
+  // so the review screen, the V2 card and publish validation downstream are the
+  // real code operating on real-shaped data. The file is still validated above,
+  // so an unsupported drop is refused exactly as it would be in production.
+  if (import.meta.env && import.meta.env.DEV && isPortalDemo()) {
+    if (!kind) throw new Error("Upload a PDF or a Word document (.docx).");
+    const { demoIngest } = await import("../portal/__fixtures/releaseDemoAdapter.js");
+    return demoIngest(file, { onProgress });
+  }
   // Refused BEFORE anything is stored, so we never claim support we don't have.
   if (!kind) {
     return { ok: false, status: INGEST_STATUS.UNSUPPORTED_FORMAT, document: null,
@@ -434,6 +447,20 @@ export async function ingestRelease(companyId, file, { onProgress = () => {} } =
   //     transcript above holds the original.
   const normalization = normalizeRelease(parsed.text || "", { sourceKind: kind });
   const text = normalization.body;
+  // TWO OUTPUTS, because they answer two different questions.
+  //
+  //   text     - the investor-facing body. The summariser's input, and only
+  //              that: boilerplate and furniture removed so the model reads
+  //              the announcement rather than the disclaimer.
+  //   fullText - the complete release. What the company edits and publishes,
+  //              and what an investor opens from "Read Full Press Release".
+  //
+  // Deriving the full release from the summariser's input was the defect: on
+  // a real release it silently dropped the forward-looking statements, the
+  // exchange disclaimer and the rows of the assay table.
+  const complete = normalizeRelease(parsed.text || "", { sourceKind: kind, complete: true });
+  result.fullText = complete.body;
+  result.fullBlocks = complete.blocks;
   // Presentation metadata travels BESIDE the text, never inside it. The Review
   // screen and the investor renderer both style headings from this; neither needs
   // the body to carry formatting characters.
@@ -449,6 +476,11 @@ export async function ingestRelease(companyId, file, { onProgress = () => {} } =
     sourceChars: normalization.sourceChars,
     bodyChars: normalization.bodyChars,
     excludedChars: normalization.excludedChars,
+    fullChars: complete.bodyChars,
+    // How much of the source survived into the publishable release. Anything
+    // well short of the whole document means extraction dropped something,
+    // and the company is told before it can publish.
+    completeness: complete.sourceChars ? complete.bodyChars / complete.sourceChars : 1,
   };
   result.text = text;
   result.warnings = parsed.warnings || [];

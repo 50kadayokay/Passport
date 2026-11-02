@@ -22,8 +22,16 @@
 // from), previous releases, and stored documents -- never the whole knowledge
 // base. Retrieval is capped and each row is truncated, because the point is to
 // give the model the relevant part of the company's record, not all of it.
+//
+// ONLY CURRENT PUBLIC MATERIAL (a08)
+// ----------------------------------
+// A release that was taken down, and every fact learned from it, is not
+// returned -- see src/lib/mineiqActive.js. Nothing is deleted; publishing it
+// again brings it back. The filter runs on what the search returned, with the
+// same user JWT, so it can only narrow the result, never widen it.
 
 import { userRpc, userSelect } from "./_userDb.js";
+import { filterActive } from "../src/lib/mineiqActive.js";
 
 const PER_ROW = { fact: 600, release: 2200, document: 5000 };
 const TOTAL_BUDGET = 22000;
@@ -70,8 +78,11 @@ async function legacyScan(token, companyId, query, limit) {
   try {
     const rows = await userSelect(token,
       `updates?company_id=eq.${encodeURIComponent(companyId)}&status=eq.published` +
-      `&select=body,detected,published_on&order=published_on.desc.nullslast&limit=25`);
+      `&select=body,detected,published_on,publications(destination_id,status)&order=published_on.desc.nullslast&limit=25`);
     (Array.isArray(rows) ? rows : [])
+      // a08: updates.status stays 'published' after a take-down; the profile
+      // publication is what says whether the release is public now.
+      .filter((r) => (r.publications || []).some((p) => p.destination_id === "passport" && p.status === "published"))
       .map((r) => {
         const head = (r.detected && r.detected.headline) || "";
         return { r, head, score: overlap(`${head} ${r.body || ""}`, ts) };
@@ -127,7 +138,9 @@ export async function mineIqSearch(token, companyId, query, { limit = 12 } = {})
     rows = await userRpc(token, "mineiq_search", {
       p_company: companyId,
       p_query: String(query).slice(0, 2000),
-      p_limit: limit,
+      // Ask for more than we keep: taken-down releases and their facts are
+      // dropped below, and must not leave the answer short.
+      p_limit: Math.min(50, limit * 2),
     });
     RPC_PRESENT = true;
   } catch (e) {
@@ -143,9 +156,17 @@ export async function mineIqSearch(token, companyId, query, { limit = 12 } = {})
     return legacyScan(token, companyId, query, limit);
   }
 
-  if (!Array.isArray(rows) || !rows.length) return out;
+  // Nothing matched. Before 0080, mineiq_search required EVERY word of the
+  // question, so a natural question ("what did we raise?") found nothing; the
+  // keyword scan matches ANY word, under the same RLS. It is also the safety
+  // net if 0080 is rolled back.
+  if (!Array.isArray(rows) || !rows.length) return legacyScan(token, companyId, query, limit);
 
   out.available = true;
+
+  const active = await filterActive(rows, (path) => userSelect(token, path));
+  rows = active.rows;
+  if (active.degraded) out.degraded = true;
 
   // Facts first: they are the company's own approved disclosures, distilled and
   // carrying the sentence they came from. Releases next, documents last --
@@ -159,7 +180,9 @@ export async function mineIqSearch(token, companyId, query, { limit = 12 } = {})
     const cap = PER_ROW[r.source] || 1000;
     const text = String(r.body || "").slice(0, cap);
     if (!text.trim()) continue;
-    if (spent + text.length > TOTAL_BUDGET) break;
+    // Skip, don't stop: one long release over budget must not hide the shorter
+    // rows ranked after it (a19).
+    if (spent + text.length > TOTAL_BUDGET) continue;
     spent += text.length;
 
     const when = r.occurred_on ? ` (${String(r.occurred_on).slice(0, 10)})` : "";

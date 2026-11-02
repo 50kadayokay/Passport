@@ -17,9 +17,11 @@
 //
 // The Anthropic key lives ONLY here (server-side env), as with structure-release.
 
-import { bearerToken, verifyBearer, supabaseConfigured } from "./_supabase.js";
+import { bearerToken } from "./_supabase.js";
+import { requireAiCaller, DRAFTING_ROLES, MEMBER_ROLES } from "./_aiGuard.js";
 import { userSelect } from "./_userDb.js";
 import { mineIqSearch } from "./_mineiqSearch.js";
+import { groundingChecks } from "./_mineiqGrounding.js";
 
 // Provider lives in the shared helper (_openaiExtract.js), not here. This file
 // owns prompts, grounding and refusal; it must not know which vendor answers.
@@ -428,26 +430,48 @@ export function buildUserMessage(mode, {
   throw new Error(`buildUserMessage: unknown mode "${mode}"`);
 }
 
-export { SYSTEM, FACT_TOOL, callModel };
+/**
+ * The user message for one Ask MineIQ question. Exported for the grounding
+ * harness (scripts/mineiq-grounding-eval.mjs), which grades answers against
+ * exactly the text the model was given.
+ */
+export function buildAskMessage({ who = "", question = "", ctx = null, attachBlock = "" } = {}) {
+  return [
+    `${who}Question from the company:`,
+    '"""',
+    String(question).slice(0, 2000),
+    '"""',
+    contextPrompt(ctx),
+    attachBlock,
+    "Answer from the company record above. If it does not contain the",
+    "answer, say that you could not find it.",
+  ].filter(Boolean).join("\n");
+}
+
+export { SYSTEM, FACT_TOOL, callModel, mineIqContext, contextPrompt };
 
 export default async function handler(req, res) {
   if (req.method !== "POST") return bad(res, 405, "POST only");
 
-  // SIGNED-IN CALLERS ONLY. This endpoint spends money per request, so an open
-  // one is an invitation to burn someone else's Anthropic credits.
-  //
-  // Note: api/structure-release.js has no such check and is reachable
-  // unauthenticated today. That is a pre-existing exposure, not one introduced
-  // here -- flagged rather than silently copied.
-  if (!supabaseConfigured()) return bad(res, 502, "Could not verify the session.");
-  const token = bearerToken(req);
-  const auth = await verifyBearer(token);
-  if (!auth.ok) return bad(res, auth.status || 401, auth.error || "Sign in required.");
-
-  if (!process.env.OPENAI_API_KEY) return bad(res, 500, "AI is not configured on this deployment.");
-
+  // AUTHORISED COMPANY USERS, FOR THEIR OWN COMPANY (F4). This used to accept
+  // any signed-in account -- investors included -- and any companyId, so one
+  // company's users could spend on another's behalf. Every mode now names a
+  // company the caller belongs to, entitled to the portal (portal_access: the
+  // same entitlement that admits them to /portal at all), and:
+  //   ask                          Mine IQ questions -- any member role
+  //   draft, revise, check_facts,  content creation -- drafting roles only
+  //   caption                      (owner, admin, editor, publisher)
+  // plus the kill switch, size ceiling and per-user / per-company limits.
+  // Investors have no company membership and are refused.
   const body = req.body && typeof req.body === "object" ? req.body : {};
   const mode = String(body.mode || "");
+  const caller = await requireAiCaller(req, res, mode === "ask"
+    ? { label: "compose-ask", feature: "portal_access", roles: MEMBER_ROLES }
+    : { label: "compose", feature: "portal_access", roles: DRAFTING_ROLES });
+  if (!caller) return;
+  const token = caller.token || bearerToken(req);
+
+  if (!process.env.OPENAI_API_KEY) return bad(res, 500, "AI is not configured on this deployment.");
   const companyName = String(body.companyName || "").slice(0, 200);
   const who = companyName ? `The company is ${companyName}. ` : "";
 
@@ -476,7 +500,9 @@ export default async function handler(req, res) {
       return res.status(200).json({ text });
     }
 
-    const companyId = String(body.companyId || "");
+    // The company the guard AUTHORISED -- never re-read from the body, so the
+    // authorisation subject and the data subject cannot diverge.
+    const companyId = String(caller.companyId || "");
     const attachments = Array.isArray(body.attachments) ? body.attachments : [];
     const attachBlock = attachmentsPrompt(attachments);
 
@@ -536,9 +562,19 @@ export default async function handler(req, res) {
 
       const ctx = await mineIqContext(token, companyId, question);
 
-      if (!ctx.blocks.length) {
-        // Nothing retrieved — say so rather than letting the model answer from
-        // general knowledge about mining companies.
+      // Files attached to THIS question. Bounded by the same helper the drafting
+      // modes use, and deliberately NOT written anywhere: an attachment informs
+      // one answer and is gone. That is what keeps an uploaded file from
+      // becoming a company fact without passing through the document pipeline
+      // and its review.
+      const askAttachments = Array.isArray(body.attachments) ? body.attachments : [];
+      const askAttachBlock = attachmentsPrompt(askAttachments);
+
+      if (!ctx.blocks.length && !askAttachBlock) {
+        // Nothing retrieved AND nothing attached — say so rather than letting
+        // the model answer from general knowledge about mining companies. An
+        // attachment counts: the company handed over the text itself, so there
+        // is something to answer from even when the record has nothing.
         return res.status(200).json({
           text: "I couldn't find anything in your company's record that answers that. "
               + "MineIQ only answers from your own profile, projects, releases and uploaded documents.",
@@ -547,24 +583,33 @@ export default async function handler(req, res) {
         });
       }
 
+      const askUser = buildAskMessage({ who, question, ctx, attachBlock: askAttachBlock });
       const text = await callModel({
         system: ASK_SYSTEM,
         maxTokens: 1500, task: "ask",
-        user: [
-          `${who}Question from the company:`,
-          '"""',
-          question.slice(0, 2000),
-          '"""',
-          contextPrompt(ctx),
-          "Answer from the company record above. If it does not contain the",
-          "answer, say that you could not find it.",
-        ].join("\n"),
+        user: askUser,
       });
+
+      // Mechanical checks on the answer (_mineiqGrounding.js). They report and
+      // never rewrite: a figure the sources do not contain is shown to the CEO
+      // as "check this", and an answer that says it found nothing is not
+      // labelled grounded just because the profile block was retrieved.
+      const checks = groundingChecks(text, askUser);
 
       return res.status(200).json({
         text,
-        grounded: true,
-        context: { available: ctx.available, sources: ctx.sources },
+        grounded: ctx.blocks.length > 0 && !checks.refused,
+        unsupported_figures: checks.unsupported_figures,
+        context: {
+          available: ctx.available,
+          // Attachments are named as sources so the reader can tell an answer
+          // that leaned on a file they just handed over from one drawn out of
+          // the company record.
+          sources: [
+            ...ctx.sources,
+            ...askAttachments.filter((a) => a && a.text).map((a) => `Attached: ${String(a.name || "file")}`),
+          ],
+        },
       });
     }
 

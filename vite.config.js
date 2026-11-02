@@ -1,4 +1,4 @@
-import { defineConfig } from "vite";
+import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
 import fs from "node:fs";
 import path from "node:path";
@@ -15,6 +15,12 @@ import path from "node:path";
  * because this runs only in the dev server process.
  */
 function loadServerEnv() {
+  // STAGING LOADS NOTHING FROM DISK. These files hold production credentials
+  // (.env.import: a service key, Stripe, OpenAI). A staging process gets its
+  // environment from scripts/staging-api-server.mjs or the shell, never from
+  // here -- and api/_stagingEnv.js refuses the production-named variables even
+  // if one arrives some other way.
+  if (process.env.MINEEX_ENV === "staging") return;
   for (const f of [".env.vercel.local", ".env.import", ".env.local", ".env"]) {
     const file = path.resolve(process.cwd(), f);
     if (!fs.existsSync(file)) continue;
@@ -110,11 +116,88 @@ function devApiRoutes() {
   };
 }
 
+/**
+ * Which Supabase project the BROWSER bundle will talk to, decided at config
+ * time so a wrong target fails the build instead of shipping.
+ *
+ * Production is unchanged: no MINEEX_ENV, and src/lib/supabase.js keeps its
+ * fallback. Staging (MINEEX_ENV=staging) must name the staging project exactly
+ * -- there is no fallback, so a missing variable is a build error, not a
+ * production bundle -- and the flag is passed to the client as
+ * VITE_MINEEX_ENV so src/lib/supabase.js enforces the same rule at runtime.
+ * A bundle aimed at staging without the flag is refused too.
+ */
+const STAGING_SUPABASE_URL = "https://jmljfovtfxcdhjmtlnva.supabase.co";
+function assertBuildTarget(mode) {
+  const flag = process.env.MINEEX_ENV;
+  if (flag !== undefined && flag !== "" && flag !== "staging") {
+    throw new Error(`[staging tripwire] MINEEX_ENV must be unset or "staging".`);
+  }
+  const fromFiles = loadEnv(mode, process.cwd(), "VITE_");
+  const url = String(process.env.VITE_SUPABASE_URL || fromFiles.VITE_SUPABASE_URL || "").replace(/\/+$/, "");
+  if (flag === "staging") {
+    if (url !== STAGING_SUPABASE_URL) {
+      throw new Error("[staging tripwire] MINEEX_ENV=staging needs VITE_SUPABASE_URL set to exactly the staging project (no fallback).");
+    }
+    if (!(process.env.VITE_SUPABASE_ANON_KEY || fromFiles.VITE_SUPABASE_ANON_KEY)) {
+      throw new Error("[staging tripwire] MINEEX_ENV=staging needs VITE_SUPABASE_ANON_KEY (no fallback).");
+    }
+    process.env.VITE_MINEEX_ENV = "staging";
+  } else if (url.includes("jmljfovtfxcdhjmtlnva")) {
+    throw new Error("[staging tripwire] VITE_SUPABASE_URL names the staging project but MINEEX_ENV is not \"staging\".");
+  }
+}
+
+/**
+ * Whether this build may default to the production Supabase project. Vercel
+ * sets VERCEL_ENV at build time; Preview deployments are production-mode builds
+ * that get the production env vars too, so mode alone is not enough
+ * (2026-11-01). Exported for scripts/poll-guard-test.mjs.
+ */
+export function productionDefault(command, mode, vercelEnv = process.env.VERCEL_ENV) {
+  if (command !== "build" || mode !== "production") return false;
+  return vercelEnv === undefined || vercelEnv === "" || vercelEnv === "production";
+}
+
+// Draft Pro profiles under public/drafts/ (e.g. GoGold, loaded only via ?c=<slug>&draft=1) are
+// PRE-PUBLISH previews — they must never ship in a production deploy or the iOS/App Store bundle.
+// This plugin strips dist/drafts from the build output by default. To build WITH drafts for a
+// local preview you can show in a browser, run: INCLUDE_DRAFTS=1 npm run build  (or build:preview).
+function stripDrafts() {
+  const rm = (rel) => { try { fs.rmSync(path.resolve(__dirname, "dist", rel), { recursive: true, force: true }); console.log(`[strip] removed dist/${rel}`); } catch (_) {} };
+  return {
+    name: "strip-build-assets",
+    closeBundle() {
+      if (process.env.INCLUDE_DRAFTS !== "1") rm("drafts"); // keep drafts only for local preview builds
+      // NATIVE app bundle (iOS/Android): exclude web-only surfaces the /app route never loads —
+      // the conference booth's demo images (~207MB) and the marketing site assets (~8MB). These
+      // ship to Vercel for mineex.ca (/conference, /site) but must NOT bloat the native app.
+      // Use `npm run build:native` before `cap sync`. The web deploy keeps using `npm run build`.
+      if (process.env.NATIVE_BUILD === "1") { rm("demo"); rm("marketing"); }
+    },
+  };
+}
+
+// A build stamp in every document. The sales page and the app embedded inside the phone
+// are separate documents loaded independently, and a service worker can serve one from
+// cache while the other comes from the network — so "which build is the phone running?"
+// is a question that has to be answerable on the device, not inferred.
+const MX_BUILD = new Date().toISOString().replace("T", " ").slice(0, 19) + "Z";
+
 // https://vite.dev/config/
-export default defineConfig({
-  plugins: [react(), devApiRoutes()],
-  server: {
-    host: true,
-    port: 5173,
-  },
+export default defineConfig(({ command, mode }) => {
+  assertBuildTarget(mode);
+  return {
+    // src/lib/supabase.js falls back to the production project ONLY in a
+    // production build for production: a Vercel PRODUCTION deploy, or a local
+    // `vite build` (no VERCEL_ENV: the native apps). A Vercel preview or
+    // development build is production MODE too, so VERCEL_ENV decides. A
+    // literal, so every other bundle drops the production values at build time.
+    define: { __MINEEX_PRODUCTION_BUILD__: JSON.stringify(productionDefault(command, mode)), __MX_BUILD__: JSON.stringify(MX_BUILD) },
+    plugins: [react(), devApiRoutes(), stripDrafts()],
+    server: {
+      host: true,
+      port: 5173,
+    },
+  };
 });

@@ -13,8 +13,10 @@
 // It is powerful — do not share it or commit it. This script only reads it from
 // the environment for these uploads.
 
+import { requireProductionOptIn } from "./_target-guard.mjs";
 import { readFileSync } from "node:fs";
 
+requireProductionOptIn("import-kingsmen-media");   // writes to PRODUCTION: explicit opt-in only
 const SUPABASE_URL = "https://rvptronniomlqumjhyrr.supabase.co";
 const KEY = process.env.SUPABASE_SERVICE_KEY;
 const SLUG = "kingsmen-resources";

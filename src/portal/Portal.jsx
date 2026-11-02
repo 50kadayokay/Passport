@@ -6,25 +6,32 @@ import {
   ChevronDown, ChevronRight, CheckCircle2, AlertCircle, ArrowRight, Sparkles, Loader2,
   Plus, Trash2, Clock, TrendingUp, FileText, Radio as RadioIcon, Check, ArrowLeft,
   Megaphone, QrCode, HelpCircle, Copy, Download, Eye, Upload, Send, Mail, Bell,
-  Presentation, Brain,
+  Presentation, Brain, PenLine, Users, Globe,
 } from "lucide-react";
 import { getUser, signOut, authHeaders, updatePassword, updateEmail } from "../lib/auth.js";
 import { profileUrl, companyLogo, companyMonogram, placardLogo } from "../lib/brand.js";
 import { buildPlacardSvg, splitQrSvg, CARD_W, CARD_H, PLACARD_FONT } from "../lib/qrPlacard.js";
 import {
-  portalReadiness, listActivity, loadPortalCompany, updateCompanyProfile,
+  portalReadiness, loadPortalCompany, updateCompanyProfile,
   logActivity,
 } from "../lib/portal.js";
-import { fetchPlan, fetchFeatures } from "../lib/features.js";
+import { listMembers } from "../lib/team.js";
 import { uploadCompanyLogo } from "../lib/storage.js";
 import { visibleProfileSections } from "./profileNav.js";
 import OnboardingPanel from "./OnboardingPanel.jsx";
+import { can } from "../lib/companyRoles.js";
+import { checkoutReturn } from "../lib/billing.js";
+import { loadActivity } from "../lib/activityLog.js";
+const Content = React.lazy(() => import("./Content.jsx"));
+const Updates = React.lazy(() => import("./Updates.jsx"));
 import { MineExLockup, CompanyMark } from "./BrandMarks.jsx";
+import SectionBoundary from "./SectionBoundary.jsx";
 
 // Heavy, already-built surfaces are reused wholesale (never duplicated) and lazily
 // loaded so the portal shell stays lean:
 const CommsCenter = React.lazy(() => import("../console/CommsCenter.jsx"));  // legacy multi-channel composer (still routed at `press`)
 const Publish     = React.lazy(() => import("./publish/Publish.jsx"));       // Publish workspace: create / drafts / published
+const BriefReview = React.lazy(() => import("./BriefReview.jsx"));           // BriefV1 generate + review + save (prod-v1.3.2)
 const Onboarding  = React.lazy(() => import("../Onboarding.jsx"));           // Profile builder (create/onboard)
 const ProfileEditor = React.lazy(() => import("./ProfileEditor.jsx"));       // pp-direct editor (edit existing, 1:1 with app)
 const Messages      = React.lazy(() => import("./Messages.jsx"));            // investor inbox (the company side of 0014 messaging)
@@ -34,6 +41,10 @@ const Notifications = React.lazy(() => import("./Notifications.jsx"));      // f
 const Conference    = React.lazy(() => import("./Conference.jsx"));         // iPad booth: launch + status
 const MineIQ        = React.lazy(() => import("./MineIQ.jsx"));             // company memory, searchable
 const Services      = React.lazy(() => import("./Services.jsx"));           // MineEx services
+const Website       = React.lazy(() => import("./Website.jsx"));            // site selection + tokens (a14, S2)
+const Documents     = React.lazy(() => import("./Documents.jsx"));          // uploaded source files (company memory)
+const TeamView      = React.lazy(() => import("./TeamView.jsx"));           // members, roles, invitations (a03)
+const BillingView   = React.lazy(() => import("./Billing.jsx"));            // subscription + Stripe hand-offs (a20)
 
 // The Company Portal shell. ONE app; the resolved company arrives from PortalGate.
 // Every navigation item is a real page: Home, Broadcast, Company Profile, Media,
@@ -46,25 +57,28 @@ const Services      = React.lazy(() => import("./Services.jsx"));           // M
 // investor app, and Analytics is switched back on later). They're just hidden from the sidebar.
 const NAV_GROUPS = [
   { title: "Workspace", items: [
+    // Publish / Press Releases / Media collapsed into Content; Messages /
+    // Notifications / Analytics into Updates. Nothing was dropped -- every one
+    // is a tab inside its container, and the old ids still route there (see
+    // LEGACY_SECTION in Portal).
     { id: "home",      label: "Home",            Icon: HomeIcon },
-    { id: "profile",   label: "Company Profile", Icon: Building2 },
-    { id: "publish",   label: "Publish",         Icon: Send },
-    { id: "releases",  label: "Press Releases",  Icon: Megaphone },
-    { id: "media",     label: "Media",           Icon: ImageIcon },
-    { id: "messages",  label: "Messages",        Icon: Mail },
-    { id: "notifications", label: "Notifications", Icon: Bell },
-    { id: "analytics", label: "Analytics",       Icon: BarChart3 },
-    { id: "conference", label: "Conference Mode", Icon: Presentation },
+    { id: "profile",   label: "Profile",         Icon: Building2 },
+    { id: "content",   label: "Content",         Icon: Megaphone },
+    // prod-v1.3.2: generate, review and save investor briefs (BriefV1).
+    { id: "briefs",    label: "Investor Briefs", Icon: Sparkles },
+    { id: "updates",   label: "Updates",         Icon: Bell },
+    { id: "sharing",   label: "Conference",      Icon: Presentation },
+    // a14 (S2's page): what the company's own website pulls from MineEx. Shown
+    // to every member; the page says "No website connected" when there is
+    // none, and only owners/admins can change it (0068/0076).
+    { id: "website",   label: "Website",         Icon: Globe },
     { id: "mineiq",    label: "Mine IQ",         Icon: Brain },
-    { id: "share",     label: "QR & Share",      Icon: QrCode },
-  ] },
-  { title: "Account", items: [
+    // The files Mine IQ answers from: open, download, upload, delete. Was
+    // unreachable after Media dropped it (a28).
+    { id: "documents", label: "Documents",       Icon: FileText },
     { id: "services",  label: "Services",        Icon: Sparkles },
-    { id: "billing",   label: "Billing",         Icon: CreditCard },
-    { id: "settings",  label: "Settings",        Icon: SettingsIcon },
   ] },
 ];
-const NAV = NAV_GROUPS.flatMap((g) => g.items);
 
 // Shared surface: white card on the soft canvas, hairline ring + a whisper of depth.
 // Design-system card: white on white, lifted by a hairline + the layered slate shadow.
@@ -79,8 +93,100 @@ const SectionLoader = () => (
 // Without it the editor re-fetches by slug with the anon key, RLS returns nothing for a
 // draft, and the editor renders empty. The real portal never passes it — there the user's
 // own JWT reads their company normally.
+// Which section the portal is on, remembered across a reload.
+//
+// THE BUG THIS FIXES. `section` was plain useState("home"), so every refresh
+// dropped the reader back on Home from wherever they were -- MineIQ included,
+// which is what made its navigation look broken: you clicked it, it opened, you
+// reloaded, and you were somewhere else. Nothing was wrong with the click or
+// the lazy import; there was simply nothing holding the choice.
+//
+// sessionStorage rather than the URL: the portal has never had routable
+// section URLs, and inventing a hash scheme now would change what every
+// existing link means. Per TAB rather than per browser, so two companies open
+// side by side do not fight over one key, and keyed by company id so switching
+// company cannot restore a section belonging to the previous one.
+const SECTION_KEY = (companyId) => `mineex.portal.section.${companyId || "none"}`;
+
+// Stripe's return URLs land on Settings -> Billing (see billingNotice in Portal).
+function billingReturn() {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    return !!checkoutReturn(window.location.search) || params.get("section") === "billing";
+  } catch { return false; }
+}
+
+function readSection(companyId) {
+  try { return sessionStorage.getItem(SECTION_KEY(companyId)) || "home"; }
+  catch { return "home"; }       // private mode or blocked storage
+}
+
 export default function Portal({ company: initial, switchCompany, adminMode = false, injectedProfile = null, devFeatures = null }) {
-  const [section, setSection] = useState("home");
+  const [section, setSectionRaw] = useState(() => (billingReturn() ? "settings" : readSection(initial && initial.id)));
+  // Tabs live HERE, not in the containers, so leaving Content for MineIQ and
+  // coming back returns you to the tab you were on.
+  const [contentTab, setContentTab] = useState("releases");
+  const [contentTakeover, setContentTakeover] = useState(null);
+  const [updatesTab, setUpdatesTab] = useState("messages");
+  const [sharingTab, setSharingTab] = useState("conference");
+  const [settingsTab, setSettingsTab] = useState(() => (billingReturn() ? "billing" : "general"));
+
+  // Back from Stripe (api/stripe-checkout.js success_url / cancel_url, and the
+  // Billing Portal's return_url ?section=billing). These used to be ignored:
+  // the reader landed on whatever section they had last, with no word on
+  // whether the payment went through. Read once, then strip from the URL so a
+  // refresh does not repeat the notice.
+  const [billingNotice] = useState(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const notice = checkoutReturn(window.location.search);
+      if (!notice && params.get("section") !== "billing") return null;
+      params.delete("checkout"); params.delete("section");
+      const qs = params.toString();
+      window.history.replaceState(null, "", window.location.pathname + (qs ? `?${qs}` : ""));
+      return notice || "return";
+    } catch { return null; }
+  });
+
+  // Publish / Press Releases / Media / Messages / Notifications / Analytics are
+  // no longer sidebar destinations, but internal callers still navigate by those
+  // ids -- Publish.jsx go("releases") and go("media"). Mapping them here keeps
+  // every previously reachable place reachable without touching the callers.
+  const setSection = React.useCallback((id) => {
+    const mapped = {
+      publish:       ["content", "releases"],
+      releases:      ["content", "releases"],
+      media:         ["content", "media"],
+      messages:      ["updates", "messages"],
+      notifications: ["updates", "notifications"],
+      analytics:     ["updates", "analytics"],
+      conference:    ["sharing", "conference"],
+      share:         ["sharing", "qr"],
+      billing:       ["settings", "billing"],
+      team:          ["settings", "team"],
+      activity:      ["settings", "activity"],
+    }[id];
+    if (mapped) {
+      const [dest, tab] = mapped;
+      setContentTakeover(null);
+      // One setter per destination rather than a content/else branch -- with a
+      // third consolidated section, `else` would have quietly sent Conference
+      // and QR tab ids into the Updates tab state.
+      const setTab = { content: setContentTab, updates: setUpdatesTab, sharing: setSharingTab, settings: setSettingsTab }[dest];
+      if (setTab) setTab(tab);
+      setSectionRaw(dest);
+      return;
+    }
+    if (id !== "content") setContentTakeover(null);
+    setSectionRaw(id);
+  }, []);
+
+  // Persist on every change, including the ones setSection makes above via the
+  // mapped branch -- an effect catches both paths, where writing inside
+  // setSection would have missed its own early return.
+  useEffect(() => {
+    try { sessionStorage.setItem(SECTION_KEY(initial && initial.id), section); } catch { /* ignore */ }
+  }, [section, initial]);
   const [company, setCompany] = useState(initial);
   // Company Profile editor navigation, lifted here so the sidebar's expandable "Company Profile"
   // menu and the editor share one state (the editor is rendered controlled).
@@ -93,20 +199,21 @@ export default function Portal({ company: initial, switchCompany, adminMode = fa
   // Silently 0 when 0049 is not applied -- a badge is not the place to explain
   // a missing migration; the page itself says so.
   const [notifCount, setNotifCount] = useState(0);
+  const [msgCount, setMsgCount] = useState(0);
   useEffect(() => {
-    let alive = true;
     if (!initial.id) return undefined;
-    const tick = async () => {
-      const m = await import("../lib/companyNotifications.js");
-      const [rows, seen] = await Promise.all([
-        m.listCompanyNotifications(initial.id),
-        m.companyLastSeenAt(initial.id),
-      ]);
-      if (alive) setNotifCount(m.companyUnreadCount(rows, seen));
-    };
-    tick();
-    const t = setInterval(tick, 60000);
-    return () => { alive = false; clearInterval(t); };
+    // lib/portalBadges.js: once a minute, only with a session, and never again
+    // after a 401/403 (lib/pollGuard.js).
+    let alive = true, poll = null;
+    import("../lib/portalBadges.js").then((badges) => {
+      if (!alive) return;
+      poll = badges.startBadgePoll({
+        companyId: initial.id, slug: initial.slug,
+        onNotifications: (n) => { if (alive) setNotifCount(n); },
+        onMessages: (n) => { if (alive) setMsgCount(n); },
+      });
+    });
+    return () => { alive = false; if (poll) poll.stop(); };
   }, [initial.id]);
 
   // Hydrate the full record (with profile JSON) once; PortalGate only passed the lean row.
@@ -118,14 +225,18 @@ export default function Portal({ company: initial, switchCompany, adminMode = fa
 
   // Press Releases (CommsCenter) and Profile fill their own full-height scroll area; the other
   // pages (Media included) sit inside the padded content column.
-  const bare = section === "press" || section === "broadcast" || section === "profile";
-
-  const active = NAV.find((n) => n.id === section);
+  // `bare` sections lay themselves out: no mx-auto max-w-6xl, no px-8 py-10.
+  // MineIQ is one because its history sidebar has to meet the portal's own
+  // navigation with nothing between them and run the full height of the
+  // content area. Inside the padded wrapper it could only ever be a card
+  // floating in the middle of the page.
+  const bare = section === "press" || section === "broadcast" || section === "profile"
+            || section === "mineiq";
 
   return (
     <div className="flex min-h-[100dvh] bg-white text-slate-900">
       <Sidebar section={section} setSection={setSection} company={company} switchCompany={switchCompany}
-        profileNav={{ tab: profTab, step: profStep, go: goProfile }} notifCount={notifCount} />
+        profileNav={{ tab: profTab, step: profStep, go: goProfile }} notifCount={notifCount} msgCount={msgCount} />
       <main className="flex h-[100dvh] flex-1 flex-col overflow-hidden">
         {adminMode && (
           <div className="flex shrink-0 items-center justify-between gap-3 bg-indigo-600 px-6 py-2 text-white">
@@ -136,30 +247,43 @@ export default function Portal({ company: initial, switchCompany, adminMode = fa
           </div>
         )}
         {bare ? (
-          <div className="min-h-0 flex-1 overflow-y-auto">
+          <div className={`min-h-0 flex-1 ${section === "mineiq" ? "overflow-hidden" : "overflow-y-auto"}`}>
+            <SectionBoundary resetKey={section}>
             <Suspense fallback={<SectionLoader />}>
-              {(section === "press" || section === "broadcast") && <CommsCenter company={company} devFeatures={devFeatures} />}
+              {/* Legacy composer: no navigation reaches it; gated anyway so a future link cannot expose it to read-only roles. */}
+              {(section === "press" || section === "broadcast") && can(company?.role || "owner", "draftContent") && <CommsCenter company={company} devFeatures={devFeatures} />}
               {section === "profile"   && <Suspense fallback={<SectionLoader />}><ProfileEditor company={company} injectedProfile={injectedProfile} navTab={profTab} navStep={profStep} onNav={(t, s) => { setProfTab(t); setProfStep(s); }} /></Suspense>}
+              {section === "mineiq"    && <MineIQ company={company} go={setSection} />}
             </Suspense>
+            </SectionBoundary>
           </div>
         ) : (
           <div className="min-h-0 flex-1 overflow-y-auto">
             <div className="mx-auto max-w-6xl px-8 py-10">
-              {section === "home"      && <HomeView company={company} />}
+              <SectionBoundary resetKey={section}>
+              {/* prod-v1.3.2's brief generator. Rendered in the padded column: in prod it sat in the bare branch, which "briefs" never reaches, so the page was blank. It calls an AI endpoint, so it follows the AI drafting roles (a03). */}
+              {section === "briefs"    && can(company?.role || "owner", "aiDraft") && <BriefReview company={company} />}
+              {section === "home"      && <HomeView company={company} go={setSection}
+                  openContent={(tab, takeover) => { setContentTab(tab); setContentTakeover(takeover || null); setSectionRaw("content"); }}
+                  openUpdates={() => setSectionRaw("updates")}
+                  updatesCount={notifCount + msgCount} />}
+              {section === "content"   && <Suspense fallback={<SectionLoader />}><Content company={company} tab={contentTab} setTab={setContentTab} go={setSection} takeover={contentTakeover} setTakeover={setContentTakeover} /></Suspense>}
+              {section === "updates"   && <Suspense fallback={<SectionLoader />}><Updates company={company} tab={updatesTab} setTab={setUpdatesTab} msgCount={msgCount} notifCount={notifCount} onNotificationsSeen={() => setNotifCount(0)} /></Suspense>}
               {section === "publish"   && <Suspense fallback={<SectionLoader />}><Publish company={company} go={setSection} view="publish" /></Suspense>}
               {section === "releases"  && <Suspense fallback={<SectionLoader />}><Publish company={company} go={setSection} view="releases" /></Suspense>}
               {section === "messages"  && <Suspense fallback={<SectionLoader />}><Messages company={company} /></Suspense>}
               {section === "notifications" && <Suspense fallback={<SectionLoader />}><Notifications company={company} onSeen={() => setNotifCount(0)} /></Suspense>}
-              {section === "conference" && <Suspense fallback={<SectionLoader />}><Conference company={company} /></Suspense>}
-              {section === "mineiq"    && <Suspense fallback={<SectionLoader />}><MineIQ company={company} go={setSection} /></Suspense>}
               {section === "services"  && <Suspense fallback={<SectionLoader />}><Services company={company} /></Suspense>}
+              {section === "documents" && <Suspense fallback={<SectionLoader />}><Documents company={company} /></Suspense>}
+              {section === "website"   && <Suspense fallback={<SectionLoader />}><Website company={company} /></Suspense>}
               {section === "media"     && <Suspense fallback={<SectionLoader />}><MediaPage company={company} /></Suspense>}
-              {section === "share"     && <QRShareView company={company} />}
+              {section === "sharing"   && <ConferenceShareView company={company} tab={sharingTab} setTab={setSharingTab} />}
               {section === "calendar"  && <CalendarView company={company} setCompany={setCompany} />}
               {section === "analytics" && <Suspense fallback={<SectionLoader />}><Analytics company={company} /></Suspense>}
               {section === "activity"  && <ActivityView company={company} />}
-              {section === "billing"   && <BillingView company={company} />}
-              {section === "settings"  && <SettingsView company={company} go={setSection} goProfile={goProfile} onPublished={() => setCompany((c) => ({ ...c, status: "published" }))} />}
+              {section === "settings"  && <SettingsView company={company} tab={settingsTab} setTab={setSettingsTab} go={setSection} goProfile={goProfile} onPublished={() => setCompany((c) => ({ ...c, status: "published" }))}
+                  billingNotice={billingNotice === "return" ? null : billingNotice} />}
+              </SectionBoundary>
             </div>
           </div>
         )}
@@ -174,9 +298,29 @@ export default function Portal({ company: initial, switchCompany, adminMode = fa
 // accent, hairline borders, rounded-2xl hit areas, heavy lucide strokes. It previously used
 // a green-black gradient panel with vivid blue gradient tiles — off-system on every count.
 // (The unused `collapsed` icon-rail branch was removed with this rebuild; nothing passed it.)
-function Sidebar({ section, setSection, company, switchCompany, profileNav = null, notifCount = 0 }) {
+function Sidebar({ section, setSection, company, switchCompany, profileNav = null, notifCount = 0, msgCount = 0 }) {
   const navRef = React.useRef(null);
   const activeKey = `${section}:${profileNav ? profileNav.tab : ""}:${profileNav ? profileNav.step : ""}`;
+
+  // Whether the Company Profile sub-tree is folded open. This has to be its
+  // OWN state: it used to be derived purely from `section === "profile"`, so
+  // the chevron offered a collapse that could not happen -- clicking the
+  // parent just re-selected the section it was already on, and the tree stayed
+  // open. You cannot fold the tree by leaving the page, because leaving the
+  // page is not what the user is asking for when they click the chevron.
+  const [profileOpen, setProfileOpen] = React.useState(true);
+
+  // Re-open on ARRIVAL at the profile section, so a tree left collapsed does
+  // not stay collapsed when the user later navigates in from somewhere else
+  // (a homepage card, a sub-page link) and expects to see where they landed.
+  // Keyed on the transition, not on `section` being profile, or it would fight
+  // the toggle above on every render while already there.
+  const wasProfile = React.useRef(section === "profile");
+  React.useEffect(() => {
+    const isNow = section === "profile";
+    if (isNow && !wasProfile.current) setProfileOpen(true);
+    wasProfile.current = isNow;
+  }, [section]);
   React.useEffect(() => {
     const el = navRef.current && navRef.current.querySelector("[data-navactive='1']");
     if (!el) return;
@@ -225,28 +369,36 @@ function Sidebar({ section, setSection, company, switchCompany, profileNav = nul
               {group.items.map(({ id, label, Icon }) => {
                 const isProfile = id === "profile";
                 const on = section === id;
-                const expanded = isProfile && section === "profile" && profileNav;
+                const onProfile = isProfile && section === "profile";
+                const expanded = onProfile && profileNav && profileOpen;
                 // The Company Profile parent shows an OPEN state when expanded but never the
                 // accent pill — that is reserved for the one selected sub-page, so exactly one
-                // item ever reads as active.
+                // item ever reads as active. It keeps that state while COLLAPSED too, keyed on
+                // `onProfile` rather than `expanded`: folding the tree shut does not mean you
+                // left the page, and the current section should not look unselected.
                 const parentStrong = on && !isProfile;
                 return (
                   <div key={id}>
                     <button
-                      onClick={() => setSection(id)}
+                      onClick={() => {
+                        if (onProfile) { setProfileOpen((v) => !v); return; }
+                        if (isProfile) setProfileOpen(true);
+                        setSection(id);
+                      }}
+                      aria-expanded={isProfile ? Boolean(expanded) : undefined}
                       data-navactive={parentStrong ? "1" : undefined}
                       className={`group flex w-full items-center gap-3 rounded-2xl px-3 py-2 text-[13.5px] font-bold tracking-tight transition active:scale-[0.99] ${
                         parentStrong ? "bg-blue-50 text-blue-600"
-                        : expanded ? "text-slate-900"
+                        : onProfile ? "text-slate-900"
                         : "text-slate-600 hover:bg-slate-50"
                       }`}
                     >
                       <Icon size={16.5} strokeWidth={parentStrong ? 2.4 : 2.2}
-                        className={parentStrong ? "text-blue-600" : expanded ? "text-slate-700" : "text-slate-400 group-hover:text-slate-600"} />
+                        className={parentStrong ? "text-blue-600" : onProfile ? "text-slate-700" : "text-slate-400 group-hover:text-slate-600"} />
                       <span className="flex-1 text-left">{label}</span>
-                      {id === "notifications" && notifCount > 0 && (
+                      {id === "updates" && (notifCount + msgCount) > 0 && (
                         <span className="grid h-[18px] min-w-[18px] shrink-0 place-items-center rounded-full bg-blue-600 px-1 text-[10.5px] font-bold text-white">
-                          {notifCount > 99 ? "99+" : notifCount}
+                          {notifCount + msgCount > 99 ? "99+" : notifCount + msgCount}
                         </span>
                       )}
                       {isProfile && (expanded
@@ -306,6 +458,16 @@ function Sidebar({ section, setSection, company, switchCompany, profileNav = nul
            className="flex items-center gap-2 rounded-2xl px-3 py-2 text-[12.5px] font-bold text-slate-600 transition hover:bg-slate-50 active:scale-[0.99]">
           <HelpCircle size={14} strokeWidth={2.4} className="text-slate-400" /> Help &amp; support
         </a>
+        {/* Settings lives down here with the account actions rather than in the
+            nav. It is the only footer entry that is a DESTINATION, so it is the
+            only one that takes the accent when selected. */}
+        <button onClick={() => setSection("settings")}
+          data-navactive={section === "settings" ? "1" : undefined}
+          className={`mt-0.5 flex w-full items-center gap-2 rounded-2xl px-3 py-2 text-[12.5px] font-bold transition active:scale-[0.99] ${
+            section === "settings" ? "bg-blue-50 text-blue-600" : "text-slate-600 hover:bg-slate-50"
+          }`}>
+          <SettingsIcon size={14} strokeWidth={2.4} className={section === "settings" ? "text-blue-600" : "text-slate-400"} /> Settings
+        </button>
         <button onClick={() => signOut()}
           className="mt-0.5 flex w-full items-center gap-2 rounded-2xl px-3 py-2 text-[12.5px] font-bold text-slate-600 transition hover:bg-slate-50 active:scale-[0.99]">
           <LogOut size={14} strokeWidth={2.4} className="text-slate-400" /> Sign out
@@ -337,12 +499,90 @@ function PageTitle({ title, sub }) {
 // What is left is deliberately a landing page, not a dashboard. If it should
 // carry something again -- a genuine at-a-glance summary rather than a repeat of
 // the menu -- that is worth designing on purpose.
-function HomeView({ company }) {
-  const name = company?.name || "your company";
+// Home is a launchpad, not a dashboard. Six verbs, no statistics -- a company
+// arriving here wants to DO something, and the sidebar already lists where
+// everything lives. Duplicating it as a grid of links would just be the sidebar
+// again, larger.
+//
+// Every tile hands off to an existing destination. None of them owns logic.
+function HomeView({ company, go, openContent, openUpdates, updatesCount = 0 }) {
+  const live = profileUrl(company?.slug);
+  const role = company?.role || "owner";
+
+  const actions = [
+    // a03: tiles a role cannot use are left out rather than shown to refuse.
+    can(role, "draftContent") && { id: "pr",      Icon: Upload,    title: "Publish Press Release",
+      sub: "Upload a release and put it on your profile.",
+      onClick: () => openContent("releases", "releases") },
+    can(role, "publishContent") && { id: "media",   Icon: ImageIcon, title: "Publish Media",
+      sub: "Add photos or video investors will see.",
+      onClick: () => openContent("media", "media") },
+    can(role, "draftContent") && { id: "draft",   Icon: PenLine,   title: "Draft Press Release",
+      sub: "Write one with MineEx, from your own facts.",
+      onClick: () => openContent("releases", "draft") },
+    { id: "mineiq",  Icon: Brain,     title: "Ask MineIQ",
+      sub: "Your company's own knowledge, answered.",
+      onClick: () => go("mineiq") },
+    { id: "live",    Icon: Eye,       title: "View Live Profile",
+      sub: "See exactly what investors see.",
+      href: live || undefined },
+    { id: "updates", Icon: Bell,      title: "Updates",
+      sub: "Messages, notifications and analytics.",
+      badge: updatesCount, onClick: () => openUpdates() },
+  ].filter(Boolean);
+
   return (
     <div>
-      <h1 className="text-[22px] font-extrabold leading-tight tracking-tight text-slate-900">Home</h1>
-      <p className="mt-1 text-[14px] text-slate-500">Manage {name} on MineEx. Choose a section from the left to begin.</p>
+      <h1 className="text-[27px] font-extrabold leading-tight tracking-tight text-slate-900">What would you like to do?</h1>
+      <p className="mt-1.5 text-[15px] text-slate-500">Manage {company?.name || "your company"}&rsquo;s MineEx presence.</p>
+
+      {/* Built to the SIDEBAR's system, because these launch the same places
+          the sidebar does and there is no reason the same destination should
+          wear a different face on each surface: slate neutrals on white,
+          cobalt as the ONE accent, hairline borders, rounded-2xl hit areas,
+          heavy lucide strokes.
+
+          The cards are no longer forced to 1:1. A square card in this language
+          is mostly empty -- which was the first version of this page, and the
+          first thing that got rejected. Height comes from the content, and the
+          grid equalises each row. */}
+      <div className="mt-6 grid max-w-[980px] grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+        {actions.map(({ id, Icon, title, sub, onClick, href, badge }) => {
+          const inner = (
+            <>
+              {/* One cube colour for all six: the sidebar's active nav state,
+                  blue-50 on blue-600. The portal's system has exactly ONE
+                  accent, so a per-action hue would be six accents competing
+                  with it -- and the colour would carry no meaning anyway,
+                  since the icon already says which action this is.
+
+                  rounded-xl rather than the sidebar's rounded-2xl so it reads
+                  as a block with corners rather than a pill, with an inset
+                  ring a step deeper than the fill for an edge. Hover deepens
+                  the fill; it never changes hue. */}
+              <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-blue-50 text-blue-600 ring-1 ring-inset ring-blue-100 transition group-hover:bg-blue-100">
+                <Icon size={20} strokeWidth={2.2} />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="flex items-center gap-2">
+                  <span className="text-[14px] font-bold tracking-tight text-slate-900">{title}</span>
+                  {badge > 0 && (
+                    <span className="grid h-[18px] min-w-[18px] shrink-0 place-items-center rounded-full bg-blue-600 px-1 text-[10.5px] font-bold text-white">
+                      {badge > 99 ? "99+" : badge}
+                    </span>
+                  )}
+                </span>
+                <span className="mt-0.5 block text-[12.5px] leading-snug text-slate-500">{sub}</span>
+              </span>
+              <ChevronRight size={15} strokeWidth={2.4} className="mt-1 shrink-0 text-slate-300 transition group-hover:text-slate-400" />
+            </>
+          );
+          const cls = "group flex items-start gap-3 rounded-2xl border border-slate-100 bg-white p-4 text-left shadow-[0_1px_2px_rgba(15,23,42,.04)] transition hover:border-slate-200 active:scale-[0.99] motion-reduce:transform-none motion-reduce:transition-none";
+          return href
+            ? <a key={id} href={href} target="_blank" rel="noreferrer" className={cls}>{inner}</a>
+            : <button key={id} onClick={onClick} className={cls}>{inner}</button>;
+        })}
+      </div>
     </div>
   );
 }
@@ -430,7 +670,74 @@ function placardToPng(svgStr, scale = 2) {
   });
 }
 
-function QRShareView({ company }) {
+// Conference & Sharing — one destination, two tabs.
+//
+// WHY THIS IS IN Portal.jsx AND NOT ITS OWN FILE
+// ----------------------------------------------
+// Content.jsx and Updates.jsx are separate files because their children are
+// separate modules. QRShareView is NOT: it is defined below in this file and
+// leans on local helpers (placardToPng, textWidth, CARD_W/CARD_H). Giving this
+// wrapper its own file would mean either exporting QRShareView and importing
+// it back -- a cycle, since Portal would import the wrapper -- or moving the
+// placard and QR generation into a new module. The brief says not to rebuild
+// QR generation, and moving it is a rebuild's worth of risk for a tab bar.
+//
+// IT OWNS NO FEATURE LOGIC. Both children are the existing components with
+// their own headings suppressed; nothing about the booth, the QR destination
+// or the entitlement behaviour is touched here.
+//
+// Tab state is LIFTED to Portal so the tab survives leaving the section, and
+// so the legacy "conference" / "share" ids can select a tab on the way in.
+const SHARING_TABS = [
+  { id: "conference", label: "Conference Mode", Icon: Presentation,
+    sub: "A full-screen booth for your stand. Visitors scan the code and land on your investor profile." },
+  { id: "qr", label: "QR & Share", Icon: QrCode,
+    sub: "Drive investors to your MineEx profile and encourage them to follow your company." },
+];
+
+function ConferenceShareView({ company, tab = "conference", setTab }) {
+  const active = SHARING_TABS.some((t) => t.id === tab) ? tab : "conference";
+  // One heading for the page, but the sub follows the tab -- the two tools do
+  // genuinely different things, and a single blended sentence would describe
+  // neither. This is what the children's own headings used to say.
+  const sub = (SHARING_TABS.find((t) => t.id === active) || SHARING_TABS[0]).sub;
+
+  return (
+    <div>
+      <h1 className="text-[22px] font-extrabold leading-tight tracking-tight text-slate-900">Conference</h1>
+      <p className="mt-1 text-[14px] text-slate-500">{sub}</p>
+
+      <div className="mt-5 flex items-center gap-1 border-b border-slate-100">
+        {SHARING_TABS.map(({ id, label, Icon }) => {
+          const on = id === active;
+          return (
+            <button
+              key={id}
+              onClick={() => setTab(id)}
+              aria-current={on ? "page" : undefined}
+              className={`-mb-px inline-flex items-center gap-2 border-b-2 px-3.5 py-2.5 text-[13.5px] font-bold tracking-tight transition ${
+                on ? "border-blue-600 text-blue-600"
+                   : "border-transparent text-slate-500 hover:text-slate-900"
+              }`}
+            >
+              <Icon size={15.5} strokeWidth={on ? 2.4 : 2.2} />
+              {label}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* The inactive tab is not mounted, matching Content and Updates. */}
+      <div className="mt-6">
+        {active === "conference"
+          ? <Suspense fallback={<SectionLoader />}><Conference company={company} hideHeading /></Suspense>
+          : <QRShareView company={company} hideHeading />}
+      </div>
+    </div>
+  );
+}
+
+function QRShareView({ company, hideHeading = false }) {
   const slug = company?.slug || "";
   // Derived from THIS company's slug against the canonical origin — never the current
   // window's origin, so a placard generated from a preview deploy or localhost still
@@ -446,10 +753,6 @@ function QRShareView({ company }) {
   const [logoBusy, setLogoBusy] = useState("");
   useEffect(() => { setLogoSrc(placardLogo(company)); }, [company]);
 
-  // A QR for an unpublished company resolves to "Profile not available" when scanned. Say
-  // so plainly rather than handing someone a code to print that cannot work yet.
-  const isLive = company?.status === "published";
-
   const pickLogo = async (file) => {
     if (!file) return;
     setLogoBusy("Uploading…");
@@ -459,15 +762,18 @@ function QRShareView({ company }) {
       const nextProfile = { ...(company.profile || {}), brand: { ...((company.profile || {}).brand || {}), qrLogo: url } };
       const saved = await updateCompanyProfile(company.id, nextProfile);
       setLogoSrc(url);
-      setLogoBusy(saved ? "Saved" : "Saved for this download only");
-      setTimeout(() => setLogoBusy(""), 2600);
+      // A refused save is said plainly: the logo is used for this download
+      // only, and the profile keeps its previous one.
+      setLogoBusy(saved ? "Saved" : "Not saved to your profile (only the account owner or MineEx can change it) — used for this download only");
+      if (saved) setTimeout(() => setLogoBusy(""), 2600);
     } catch (_) {
       setLogoBusy("Upload failed"); setTimeout(() => setLogoBusy(""), 2600);
     }
   };
   const clearLogo = async () => {
     const nextProfile = { ...(company.profile || {}), brand: { ...((company.profile || {}).brand || {}), qrLogo: "" } };
-    await updateCompanyProfile(company.id, nextProfile).catch(() => null);
+    const saved = await updateCompanyProfile(company.id, nextProfile).catch(() => null);
+    if (!saved) { setLogoBusy("Couldn't change the logo — only the account owner or MineEx can."); return; }
     setLogoSrc(companyLogo(company));
   };
 
@@ -514,7 +820,7 @@ function QRShareView({ company }) {
   if (!slug) {
     return (
       <div>
-        <PageTitle title="QR & Share" sub="Drive investors to your MineEx profile." />
+        {!hideHeading && <PageTitle title="QR & Share" sub="Drive investors to your MineEx profile." />}
         <div className={`p-6 ${CARD}`}><p className="text-[14px] text-slate-500">Your company needs a public profile URL before a QR code can be generated.</p></div>
       </div>
     );
@@ -522,20 +828,7 @@ function QRShareView({ company }) {
 
   return (
     <div>
-      <PageTitle title="QR & Share" sub="Drive investors to your MineEx profile and encourage them to follow your company." />
-
-      {!isLive && (
-        <div className="mb-5 flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4">
-          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-amber-100 text-amber-600"><AlertCircle size={19} strokeWidth={2.4} /></span>
-          <div>
-            <p className="text-[14.5px] font-bold text-amber-900">This code won't work yet</p>
-            <p className="text-[13px] leading-relaxed text-amber-700">
-              Your profile isn't live, so anyone scanning this sees "Profile not available". Publish from
-              Home and the same code starts working — the link never changes, so it's safe to print ahead of time.
-            </p>
-          </div>
-        </div>
-      )}
+      {!hideHeading && <PageTitle title="QR & Share" sub="Drive investors to your MineEx profile and encourage them to follow your company." />}
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-[340px_1fr]">
         {/* Placard preview */}
@@ -556,6 +849,13 @@ function QRShareView({ company }) {
             </button>
           </div>
           <p className="mt-3 text-center text-[12px] text-slate-400">SVG stays sharp at any size — use it for banners and large prints.</p>
+          {/* Same warning as the Conference QR panel: until the profile is
+              published the code resolves to a page the public can't see. */}
+          {company?.status !== "published" && (
+            <p className="mt-3 w-full rounded-xl bg-amber-50 px-3.5 py-3 text-[12px] leading-relaxed text-amber-800 ring-1 ring-inset ring-amber-100" data-qr-not-published>
+              <span className="font-bold">Not ready to print.</span> Your profile isn't published, so this code currently opens a page the public can't see. Publish it before the artwork goes to a printer.
+            </p>
+          )}
 
           {/* Placard logo — upload a dedicated print version if the profile one isn't right. */}
           <div className="mt-5 w-full border-t border-slate-100 pt-4">
@@ -564,6 +864,13 @@ function QRShareView({ company }) {
               {logoSrc
                 ? <img src={logoSrc} alt="" className="h-11 w-11 shrink-0 rounded-xl border border-slate-200 bg-white object-cover" />
                 : <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-slate-900 text-[14px] font-extrabold text-white">{companyMonogram(company)}</span>}
+              {/* The placard logo is written straight to the LIVE profile
+                  (profile.brand), so it follows the profile-publish roles. */}
+              {!can(company?.role || "owner", "publishProfile") ? (
+                <p className="min-w-0 flex-1 text-[11px] leading-relaxed text-slate-500" data-readonly-brand>
+                  Only an owner or admin can change the placard logo. You can still download the placard.
+                </p>
+              ) : (
               <div className="min-w-0 flex-1">
                 <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-bold text-slate-600 transition hover:border-slate-300 active:scale-95">
                   <Upload size={13} strokeWidth={2.4} /> {logoSrc ? "Replace" : "Upload"}
@@ -575,6 +882,7 @@ function QRShareView({ company }) {
                 )}
                 <p className="mt-1 text-[11px] text-slate-400">{logoBusy || "PNG, JPG or SVG. A square, high-resolution version prints best."}</p>
               </div>
+              )}
             </div>
           </div>
         </div>
@@ -622,6 +930,9 @@ function CalendarView({ company, setCompany }) {
   const [items, setItems] = useState(() => (Array.isArray(company.profile?.catalysts) ? company.profile.catalysts : []));
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const [saveErr, setSaveErr] = useState("");
+  // Catalysts are written straight to the LIVE profile.
+  const canEdit = can(company?.role || "owner", "publishProfile");
 
   const addItem = () => { setItems((xs) => [...xs, { id: uid(), title: "", type: "Drilling", expected: "", status: "upcoming", note: "" }]); setDirty(true); };
   const patch = (id, k, v) => { setItems((xs) => xs.map((x) => (x.id === id ? { ...x, [k]: v } : x))); setDirty(true); };
@@ -632,6 +943,7 @@ function CalendarView({ company, setCompany }) {
     const clean = items.filter((x) => (x.title || "").trim());
     const nextProfile = { ...(company.profile || {}), catalysts: clean };
     const saved = await updateCompanyProfile(company.id, nextProfile);
+    setSaveErr(saved ? "" : "Not saved. Only the account owner or MineEx can change the live profile's catalysts — your edits are still here.");
     if (saved) {
       setCompany((c) => ({ ...c, profile: saved }));
       setItems(Array.isArray(saved.catalysts) ? saved.catalysts : clean);
@@ -649,14 +961,17 @@ function CalendarView({ company, setCompany }) {
       <div className="flex items-start justify-between">
         <PageTitle title="Calendar & Catalysts" sub="The upcoming events that move your story — drilling, assays, studies, financings and conferences." />
         <div className="flex items-center gap-2">
-          {dirty && <span className="text-[12px] font-semibold text-amber-600">Unsaved changes</span>}
-          <button onClick={save} disabled={saving || !dirty}
+          {saveErr && <span role="alert" className="max-w-[340px] text-[12px] font-semibold text-rose-600" data-save-error>{saveErr}</span>}
+          {dirty && !saveErr && <span className="text-[12px] font-semibold text-amber-600">Unsaved changes</span>}
+          {canEdit && <button onClick={save} disabled={saving || !dirty}
             className={`inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-[13.5px] font-bold text-white ${dirty ? "bg-slate-900" : "bg-slate-300"} ${saving ? "opacity-60" : ""}`}>
             {saving ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />} Save
-          </button>
+          </button>}
         </div>
       </div>
 
+      {!canEdit && <p className="mt-2 text-[12.5px] text-slate-500" data-readonly-calendar>Read only. Catalysts are part of the live profile, which an owner or admin changes.</p>}
+      <fieldset disabled={!canEdit} className="m-0 min-w-0 border-0 p-0">
       {items.length === 0 ? (
         <div className="mt-4 rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-14 text-center">
           <Calendar size={26} className="mx-auto text-slate-300" />
@@ -698,6 +1013,7 @@ function CalendarView({ company, setCompany }) {
           <button onClick={addItem} className="mt-3 inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-[13.5px] font-bold text-slate-700 hover:border-slate-300"><Plus size={15} /> Add another</button>
         </>
       )}
+      </fieldset>
     </div>
   );
 }
@@ -712,34 +1028,110 @@ const ACTION_LABEL = {
   media_uploaded: "Media uploaded",
   documents_analyzed: "Documents analyzed",
   company_created: "Company created",
+  // Recorded by the server (a25).
+  release_published: "Release published",
+  release_unpublished: "Release taken down",
+  release_corrected: "Release corrected",
+  media_published: "Media posted",
+  media_unpublished: "Media taken down",
+  media_post_deleted: "Media deleted permanently",
+  profile_published: "Profile published",
+  profile_draft_discarded: "Profile draft discarded",
+  profile_version_restored_to_draft: "Earlier version restored to draft",
+  member_invited: "Member invited",
+  member_joined: "Member joined",
+  member_removed: "Member removed",
+  member_role_changed: "Member role changed",
+  invitation_revoked: "Invitation revoked",
 };
 
-function ActivityView({ company }) {
+// What changed, as short "before -> after" lines, from a row's old/new values.
+// Long text (a corrected release body) is shown in full only when expanded.
+function changeLines(r) {
+  const o = r.old_value && typeof r.old_value === "object" ? r.old_value : {};
+  const n = r.new_value && typeof r.new_value === "object" ? r.new_value : {};
+  const keys = [...new Set([...Object.keys(o), ...Object.keys(n)])].filter((k) => !/(_id|^id)$/.test(k));
+  const show = (v) => (v == null || v === "" ? "—" : typeof v === "object" ? JSON.stringify(v) : String(v));
+  return keys.filter((k) => show(o[k]) !== show(n[k])).map((k) => ({ k: k.replace(/_/g, " "), before: k in o ? show(o[k]) : null, after: k in n ? show(n[k]) : null }));
+}
+
+function ActivityRowDetail({ r }) {
+  const lines = changeLines(r);
+  if (!lines.length) return null;
+  return (
+    <dl className="mt-2 space-y-1.5 rounded-lg bg-slate-50 px-3 py-2.5 text-[12px]">
+      {lines.map((l) => (
+        <div key={l.k}>
+          <dt className="font-bold uppercase tracking-wide text-[10px] text-slate-400">{l.k}</dt>
+          <dd className="whitespace-pre-wrap break-words text-slate-600">
+            {l.before != null && <span className="text-slate-400 line-through decoration-slate-300">{l.before}</span>}
+            {l.before != null && l.after != null && <span className="text-slate-300"> → </span>}
+            {l.after != null && <span>{l.after}</span>}
+          </dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+function ActivityView({ company, hideHeading = false }) {
   const [rows, setRows] = useState(null);
-  useEffect(() => { let alive = true; listActivity(company.id).then((r) => { if (alive) setRows(r); }); return () => { alive = false; }; }, [company.id]);
+  const [who, setWho] = useState({});       // actor_id -> email (team list; former members show as "a former member")
+  const [open, setOpen] = useState(null);
+  const [loadErr, setLoadErr] = useState(false);
+  const [attempt, setAttempt] = useState(0);
+  useEffect(() => {
+    let alive = true;
+    setRows(null);
+    loadActivity(company.id).then((r) => { if (!alive) return; setLoadErr(!r.ok); setRows(r.ok ? r.rows : []); });
+    return () => { alive = false; };
+  }, [company.id, attempt]);
+  useEffect(() => {
+    let alive = true;
+    listMembers(company.id).then((m) => { if (alive && m && m.ok) setWho(Object.fromEntries((m.members || []).map((x) => [x.user_id, x.email]))); });
+    return () => { alive = false; };
+  }, [company.id]);
+  const actorName = (r) => (r.actor_kind === "admin" ? "MineEx" : r.actor_id ? who[r.actor_id] || "A former member" : r.actor_kind === "system" ? "System" : "");
 
   return (
     <div>
-      <PageTitle title="Activity log" sub="An append-only record of every change. History can't be rewritten — members can add to it but never erase it." />
+      {hideHeading
+        ? <p className="mb-4 text-[13.5px] text-slate-500">An append-only record of every change: who made it, when, and what changed. History can't be rewritten.</p>
+        : <PageTitle title="Activity log" sub="An append-only record of every change. History can't be rewritten — members can add to it but never erase it." />}
       <div className={`overflow-hidden ${CARD}`}>
         {rows == null ? (
           <div className="p-6"><div className="h-4 w-1/3 animate-pulse rounded bg-slate-100" /></div>
+        ) : loadErr ? (
+          <div className="flex items-center justify-between gap-3 px-6 py-5" data-load-error>
+            <p className="text-[13.5px] font-semibold text-amber-800">Couldn't load the activity log. Nothing in it has changed.</p>
+            <button onClick={() => setAttempt((a) => a + 1)} className="shrink-0 text-[12.5px] font-bold text-amber-800 hover:underline">Retry</button>
+          </div>
         ) : rows.length === 0 ? (
           <div className="px-6 py-14 text-center">
             <ScrollText size={26} className="mx-auto text-slate-300" />
             <p className="mt-3 text-[14px] font-semibold text-slate-500">No activity yet</p>
-            <p className="mt-1 text-[13px] text-slate-400">Edits, uploads and broadcasts will appear here as you use the portal.</p>
+            <p className="mt-1 text-[13px] text-slate-400">Publishing, corrections, take-downs, profile changes and team changes will appear here.</p>
           </div>
         ) : (
           <ul className="divide-y divide-slate-100">
             {rows.map((r) => (
-              <li key={r.id} className="flex items-center gap-4 px-5 py-3.5">
+              <li key={r.id} className="flex items-start gap-4 px-5 py-3.5">
                 <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg ${r.actor_kind === "admin" ? "bg-indigo-50 text-indigo-500" : "bg-slate-100 text-slate-500"}`}><ScrollText size={15} /></span>
                 <span className="min-w-0 flex-1">
                   <span className="block text-[13.5px] font-semibold text-slate-800">{ACTION_LABEL[r.action] || r.action}{r.entity ? <span className="font-normal text-slate-400"> · {r.entity}</span> : null}</span>
+                  {actorName(r) && <span className="block truncate text-[12.5px] text-slate-500">by {actorName(r)}</span>}
                   {r.reason && <span className="block truncate text-[12.5px] text-slate-400">{r.reason}</span>}
+                  {changeLines(r).length > 0 && (
+                    <button onClick={() => setOpen(open === r.id ? null : r.id)} className="mt-1 inline-flex items-center gap-1 text-[12px] font-bold text-blue-600 hover:text-blue-700">
+                      {open === r.id ? <ChevronDown size={12} strokeWidth={2.6} /> : <ChevronRight size={12} strokeWidth={2.6} />} What changed
+                    </button>
+                  )}
+                  {open === r.id && <ActivityRowDetail r={r} />}
                 </span>
                 {r.actor_kind === "admin" && <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-bold uppercase text-indigo-500">MineEx</span>}
+                {/* a03 / 0076: source 'ui' is reserved for entries a member's browser
+                    reported; everything else was recorded by the server itself. */}
+                {r.source === "ui" && <span title="Recorded by a member's browser, not by the server" className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase text-slate-500">Reported in portal</span>}
                 <span className="shrink-0 text-[12px] text-slate-400">{fmtDate(r.created_at)}</span>
               </li>
             ))}
@@ -750,145 +1142,9 @@ function ActivityView({ company }) {
   );
 }
 
-/* ---------------------------------------------------------------- Billing */
-
-function BillingView({ company }) {
-  const [plan, setPlan] = useState(undefined); // undefined = loading
-  const [feats, setFeats] = useState(null);
-  useEffect(() => {
-    let alive = true;
-    fetchPlan(company.id).then((p) => { if (alive) setPlan(p); });
-    fetchFeatures(company.id).then((f) => { if (alive) setFeats(f); });
-    return () => { alive = false; };
-  }, [company.id]);
-
-  const status = plan?.status || "—";
-  const statusTone = status === "active" ? "accent" : status === "past_due" ? "rose" : "slate";
-
-  const [busy, setBusy] = useState("");
-  const [payErr, setPayErr] = useState("");
-  const startCheckout = async (tier) => {
-    setPayErr(""); setBusy(tier);
-    try {
-      const h = await authHeaders();
-      const res = await fetch("/api/stripe-checkout", {
-        method: "POST", headers: { ...h, "Content-Type": "application/json" },
-        body: JSON.stringify({ tier, companyId: company.id }),
-      });
-      const j = await res.json().catch(() => null);
-      if (res.ok && j && j.url) { window.location.href = j.url; return; }
-      setPayErr((j && j.error) || "Couldn't start checkout. Please try again.");
-    } catch (_) { setPayErr("Couldn't reach the payment service."); }
-    finally { setBusy(""); }
-  };
-  const manageBilling = async () => {
-    setPayErr(""); setBusy("manage");
-    try {
-      const h = await authHeaders();
-      const res = await fetch("/api/stripe-portal", { method: "POST", headers: { ...h, "Content-Type": "application/json" }, body: "{}" });
-      const j = await res.json().catch(() => null);
-      if (res.ok && j && j.url) { window.location.href = j.url; return; }
-      setPayErr(res.status === 404 ? "No card subscription on file — you're on a manual/invoiced plan." : ((j && j.error) || "Couldn't open billing."));
-    } catch (_) { setPayErr("Couldn't reach the billing service."); }
-    finally { setBusy(""); }
-  };
-  const PLANS = [
-    { tier: "basic", name: "Basic", perMo: "$299", perYr: "$3,588", planIds: ["passport"], blurb: "Edit your profile + publish press releases to the MineEx feed." },
-    { tier: "pro", name: "Pro", perMo: "$799", perYr: "$9,588", planIds: ["passport_managed"], blurb: "Everything: projects, capital, team, media, external channels, analytics." },
-  ];
-  const currentPlanId = plan?.plan_id;
-
-  return (
-    <div>
-      <PageTitle title="Billing" sub="Your MineEx subscription and what it includes." />
-
-      <div className={`p-6 ${CARD}`}>
-        {plan === undefined ? (
-          <div className="h-6 w-40 animate-pulse rounded bg-slate-100" />
-        ) : plan === null ? (
-          <div className="flex items-center gap-3">
-            <AlertCircle size={20} className="text-amber-500" />
-            <p className="text-[14.5px] text-slate-600">No active subscription found. Contact MineEx to activate your plan.</p>
-          </div>
-        ) : (
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="text-[12px] font-bold uppercase tracking-wide text-slate-400">Current plan</p>
-              <p className="mt-1 text-[22px] font-extrabold tracking-tight text-slate-900">{plan.plans?.label || plan.plan_id}</p>
-              {plan.renews_at && <p className="mt-1 text-[13px] text-slate-500">Renews {fmtDate(plan.renews_at)}</p>}
-            </div>
-            <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[12.5px] font-bold ${
-              statusTone === "accent" ? "bg-blue-50 text-blue-600" : statusTone === "rose" ? "bg-rose-50 text-rose-600" : "bg-slate-100 text-slate-500"
-            }`}>
-              <span className={`h-1.5 w-1.5 rounded-full ${statusTone === "accent" ? "bg-blue-500" : statusTone === "rose" ? "bg-rose-500" : "bg-slate-400"}`} /> {cap(status)}
-            </span>
-          </div>
-        )}
-      </div>
-
-      {feats && feats.length > 0 && (
-        <div className={`mt-5 p-6 ${CARD}`}>
-          <p className="text-[12px] font-bold uppercase tracking-[0.12em] text-slate-400">Included in your plan</p>
-          <ul className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
-            {feats.map((f) => (
-              <li key={f} className="flex items-center gap-2 text-[13.5px] font-semibold text-slate-700">
-                <CheckCircle2 size={15} className="text-blue-500" /> {FEATURE_LABEL[f] || f}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {/* Plans — pay/upgrade by card (annual). */}
-      <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
-        {PLANS.map((p) => {
-          const isCurrent = currentPlanId && p.planIds.includes(currentPlanId) && status === "active";
-          return (
-            <div key={p.tier} className={`p-6 ${CARD} ${isCurrent ? "!ring-2 !ring-blue-300" : ""}`}>
-              <div className="flex items-baseline justify-between">
-                <p className="text-[17px] font-extrabold tracking-tight text-slate-900">{p.name}</p>
-                {isCurrent && <span className="rounded-full bg-blue-50 px-2.5 py-0.5 text-[11px] font-bold text-blue-600">Current</span>}
-              </div>
-              <p className="mt-1 text-[22px] font-extrabold tracking-tight text-slate-900">{p.perMo}<span className="text-[13px] font-semibold text-slate-400">/mo</span></p>
-              <p className="text-[12px] text-slate-400">{p.perYr} billed annually</p>
-              <p className="mt-2 text-[13px] leading-snug text-slate-600">{p.blurb}</p>
-              <button onClick={() => startCheckout(p.tier)} disabled={!!busy || isCurrent}
-                className={`mt-4 w-full rounded-xl px-4 py-2.5 text-[14px] font-bold transition ${isCurrent ? "cursor-default bg-slate-100 text-slate-400" : "bg-slate-900 text-white hover:bg-slate-800 active:scale-[.99]"}`}>
-                {isCurrent ? "Active" : busy === p.tier ? "Redirecting…" : "Pay by card"}
-              </button>
-            </div>
-          );
-        })}
-      </div>
-      {payErr && <p className="mt-3 text-[13px] font-semibold text-rose-600">{payErr}</p>}
-      {status === "active" && (
-        <button onClick={manageBilling} disabled={!!busy}
-          className="mt-4 inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-4 py-2.5 text-[13.5px] font-bold text-slate-600 hover:border-slate-300 hover:text-slate-900">
-          <CreditCard size={15} /> {busy === "manage" ? "Opening…" : "Manage / cancel card"}
-        </button>
-      )}
-      <p className="mt-4 text-[13px] text-slate-400">Prefer e-transfer or wire? <span className="font-semibold text-slate-500">Contact us and we'll invoice you.</span> Managed plans are arranged directly with MineEx.</p>
-    </div>
-  );
-}
-
-const FEATURE_LABEL = {
-  portal_access: "Company Portal access",
-  passport_profile: "MineEx investor profile",
-  company_memory: "Company memory (documents)",
-  communications_center: "Communications Center",
-  website_publish: "Website publishing",
-  linkedin_publish: "LinkedIn publishing",
-  x_publish: "X publishing",
-  newsletter_publish: "Investor newsletter",
-  push_publish: "Push notifications",
-  analytics: "Investor analytics",
-  custom_website: "Managed website",
-};
-
 /* ---------------------------------------------------------------- Settings */
 
-function SettingsView({ company, go, goProfile, onPublished }) {
+function SettingsView({ company, tab = "general", setTab, go, goProfile, onPublished, billingNotice = null }) {
   // Readiness moved off Home. A missing owner or absent entitlement is a
   // CONFIGURATION problem, so it belongs with the configuration -- not as a
   // permanent yellow band above the controls someone came here to use. The
@@ -900,9 +1156,44 @@ function SettingsView({ company, go, goProfile, onPublished }) {
     return () => { alive = false; };
   }, [company.id]);
 
+  const active = tab === "billing" || tab === "team" || tab === "activity" ? tab : "general";
+  const TABS = [{ id: "general", label: "General", Icon: SettingsIcon },
+                { id: "team", label: "Team", Icon: Users },
+                { id: "activity", label: "Activity log", Icon: ScrollText },
+                { id: "billing", label: "Billing", Icon: CreditCard }];
+
   return (
     <div>
       <PageTitle title="Settings" />
+
+      {/* Same tab language as Content, Updates and Conference. Billing used to
+          be its own sidebar entry; it is one panel of account configuration,
+          so it belongs here rather than competing for a top-level slot. */}
+      <div className="-mt-3 mb-6 flex items-center gap-1 border-b border-slate-100">
+        {TABS.map(({ id, label, Icon }) => {
+          const on = id === active;
+          return (
+            <button key={id} onClick={() => setTab && setTab(id)}
+              aria-current={on ? "page" : undefined}
+              className={`-mb-px inline-flex items-center gap-2 border-b-2 px-3.5 py-2.5 text-[13.5px] font-bold tracking-tight transition ${
+                on ? "border-blue-600 text-blue-600" : "border-transparent text-slate-500 hover:text-slate-900"
+              }`}>
+              <Icon size={15.5} strokeWidth={on ? 2.4 : 2.2} />
+              {label}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Billing is for owners and company admins (F2); the server enforces it. */}
+      {active === "billing" && <Suspense fallback={<SectionLoader />}><BillingView company={company} hideHeading notice={billingNotice}
+          canManage={can(company?.role || "owner", "manageBilling")} /></Suspense>}
+      {active === "team" && <Suspense fallback={<SectionLoader />}><TeamView company={company} /></Suspense>}
+      {/* a25: the audit trail was rendered only for section "activity", which no
+          navigation reached. It belongs beside the team who make the changes. */}
+      {active === "activity" && <ActivityView company={company} hideHeading />}
+
+      {active === "general" && (<>
 
       {ready && !ready.ready && (
         <div className="mb-5 flex items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4">
@@ -943,6 +1234,7 @@ function SettingsView({ company, go, goProfile, onPublished }) {
           cta="Update password"
           onSubmit={async (v) => { if ((v.password || "").length < 8) throw new Error("Use at least 8 characters."); await updatePassword(v.password); return "Password updated."; }} />
       </div>
+      </>)}
     </div>
   );
 }
@@ -994,9 +1286,10 @@ function Field({ label, value }) {
 
 const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 
+// new Date(bad) does not throw: it formats as "Invalid Date", which used to
+// print as "Invalid Date · Invalid Date" on a malformed row.
 function fmtDate(iso) {
-  try {
-    const d = new Date(iso);
-    return d.toLocaleDateString(undefined, { month: "short", day: "numeric" }) + " · " + d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
-  } catch { return ""; }
+  const d = new Date(iso);
+  if (!iso || Number.isNaN(d.getTime())) return "";
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" }) + " · " + d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
 }

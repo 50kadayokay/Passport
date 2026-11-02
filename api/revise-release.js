@@ -13,7 +13,10 @@
 // Presentation edits -- summary, media, captions, order -- never come here. They
 // are ordinary patches to the draft/publication content and create no revision.
 
-import { serviceConfigured, serviceRpc, serviceRest, bearer, verifyUser, invokeDispatchBestEffort } from "./_service.js";
+import { SB_URL, ANON_KEY, serviceConfigured, serviceRpc, serviceRest, bearer, verifyUser, invokeDispatchBestEffort } from "./_service.js";
+import { recordActivity } from "./_audit.js";
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function bad(res, code, msg) { res.status(code).json({ ok: false, error: msg }); }
 
@@ -32,14 +35,63 @@ export default async function handler(req, res) {
   const reason = body.reason == null ? null : String(body.reason).slice(0, 500);
 
   if (!publicationId) return bad(res, 400, "publicationId is required.");
+  // Shape only -- the same answer for every caller, whether or not it exists.
+  if (!UUID.test(publicationId)) return bad(res, 400, "publicationId must be a UUID.");
   if (!text.trim()) return bad(res, 400, "A release cannot be corrected to nothing.");
 
-  // Ownership is re-checked inside the RPC via actor_can_publish(); this read is
-  // only so the caller gets 403 rather than a generic failure.
-  const pubRes = await serviceRest(`publications?id=eq.${publicationId}&select=company_id,status`);
-  if (!pubRes.ok) return bad(res, 502, "Could not load the publication.");
-  const [pub] = await pubRes.json().catch(() => []);
+  // Load the publication AS THE CALLER, exactly as /api/publish and
+  // /api/unpublish do (F8). RLS lets only members of the owning company (and
+  // platform admins) see it, so for anyone else a real id and a made-up one
+  // are the same empty result and the same 404 -- this route can no longer be
+  // used to test whether a publication exists. This used to be a SERVICE-role
+  // read: strangers got 404 for a fake id but 403 for a real one. Members who
+  // can see it but may not correct it still get an honest 403 from the RPC
+  // (actor_can_publish), which tells them nothing they cannot already read.
+  let pub = null;
+  try {
+    const r = await fetch(`${SB_URL}/rest/v1/publications?id=eq.${publicationId}&select=company_id,status,update_id,content`, {
+      headers: { apikey: ANON_KEY, Authorization: `Bearer ${token}` },
+    });
+    if (r.ok) { const rows = await r.json().catch(() => []); pub = rows[0] || null; }
+  } catch { /* fallthrough: not visible */ }
   if (!pub) return bad(res, 404, "That publication does not exist.");
+
+  // THE FIRST CORRECTION (D22). revise_publication() treats revision 1 as the
+  // ORIGINAL publication and emits PUBLICATION_REVISED only from revision 2 --
+  // but nothing records revision 1 at publish time. So every release's first
+  // correction became "revision 1" with NO event: the portal said "the feed and
+  // your profile timeline update in place" and nothing updated until a second
+  // correction. Until migration 0071 records the original at publish, the
+  // original release is recorded here as revision 1 first, through the same
+  // RPC and the same authorization (actor_can_publish), so the correction
+  // becomes revision 2 and is delivered. Two concurrent first corrections are
+  // safe: the RPC locks the publication, and the second baseline is "unchanged".
+  const revRes = await serviceRest(`release_revisions?publication_id=eq.${publicationId}&select=id&limit=1`);
+  if (!revRes.ok) return bad(res, 502, "Could not load the publication's history.");
+  const hasHistory = (await revRes.json().catch(() => [])).length > 0;
+  if (!hasHistory && pub.status === "published" && pub.update_id) {
+    const updRes = await serviceRest(`updates?id=eq.${pub.update_id}&select=body`);
+    const original = updRes.ok ? ((await updRes.json().catch(() => []))[0] || {}).body : null;
+    if (original && String(original).trim()) {
+      const base = await serviceRpc("revise_publication", {
+        p_publication_id: publicationId,
+        p_headline: (pub.content && pub.content.headline) || null,
+        p_body: String(original),
+        p_reason: "original publication (recorded before the first correction)",
+        p_actor: user.id,
+      });
+      const b = base.ok ? await base.json().catch(() => null) : null;
+      if (b && b.ok === false && b.error === "forbidden") return bad(res, 403, "You cannot correct this release.");
+      if (!b || b.ok === false) return bad(res, 502, "Could not record the original before correcting it.");
+    }
+  }
+
+  // The text being replaced, for the audit trail (a25): the latest revision.
+  let before = null;
+  try {
+    const br = await serviceRest(`release_revisions?publication_id=eq.${publicationId}&select=headline,body,revision&order=revision.desc&limit=1`);
+    before = br.ok ? (await br.json().catch(() => []))[0] || null : null;
+  } catch { /* the correction proceeds; the trail records what is known */ }
 
   const out = await serviceRpc("revise_publication", {
     p_publication_id: publicationId,
@@ -56,13 +108,23 @@ export default async function handler(req, res) {
   if (!result || result.ok === false) {
     const why = (result && result.error) || "unknown";
     if (why === "forbidden") return bad(res, 403, "You cannot correct this release.");
+    if (why === "not_found") return bad(res, 404, "That publication does not exist.");
     if (why === "not_published") return bad(res, 409, "That release is not published yet.");
     return bad(res, 400, `Could not save the correction (${why}).`);
   }
 
-  // Nudge the dispatcher so the feed, timeline and MineIQ catch up in seconds.
-  // Best effort: cron is the guaranteed drain, exactly as with publishing.
-  if (!result.unchanged) invokeDispatchBestEffort();
+  // Nudge the dispatcher so the feed, timeline and MineIQ pick up the
+  // PUBLICATION_REVISED event revise_publication() just wrote (F11: this used to
+  // be called without the request it then read, threw inside its own try, and
+  // never dispatched). Awaited, like publish: an un-awaited fetch is not
+  // guaranteed to run once a serverless function has responded.
+  if (!result.unchanged) {
+    await recordActivity({ companyId: pub.company_id, actorId: user.id, action: "release_corrected", entity: "publication",
+      oldValue: before ? { headline: before.headline, body: before.body, revision: before.revision } : null,
+      newValue: { headline: headline ?? (before && before.headline) ?? null, body: text, revision: result.revision ?? null, publication_id: publicationId },
+      reason });
+    await invokeDispatchBestEffort();
+  }
 
   return res.status(200).json(result);
 }

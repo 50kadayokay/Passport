@@ -33,3 +33,26 @@ scratchpad/
 # profile.conference.attractVideo to a hosted URL) for the booth's attract loop.
 # The public marketing site does not use it.
 public/conference-media/
+
+# Staging DB connection string — never committed.
+supabase/staging/.connection
+supabase/staging/.isolation-env
+
+# Local staging API environment and egress log -- never committed.
+supabase/staging/.api-env
+supabase/staging/egress.log
+
+# Header probe: `vercel link` inside tools/header-probe writes project metadata and a
+# project-scoped VERCEL_OIDC_TOKEN. Never commit either.
+tools/header-probe/.vercel
+tools/header-probe/.env*
+
+# Production audit outputs: never commit
+supabase/audit/results/
+
+# Temporary local PR-ingest review fixture (regenerated; real ingest uploads to Storage)
+public/pr-fixture/
+public/pr-fixture.json
+
+# Phase 1A dev-only generated briefs (local fixture, never committed/shipped)
+public/brief-generated*.json

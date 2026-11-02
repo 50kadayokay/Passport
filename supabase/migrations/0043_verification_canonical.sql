@@ -203,6 +203,22 @@ drop trigger if exists composition_rules_immutable on public.composition_rules;
 create trigger composition_rules_immutable before update or delete on public.composition_rules
   for each row execute function public.phase3_append_only();
 
+
+-- MOVED UP (2026-10-30). This definition sat ~100 lines below its first
+-- use. Production never noticed: it was built in the remedial order
+-- 0042, 0045, 0043, 0044, so 0045 had already created the function. A
+-- replay in filename order has not, which is how a fresh staging build
+-- found it. The body is byte-identical to 0045's copy; only its position
+-- in this file changed.
+create or replace function public.phase3_no_truncate()
+returns trigger language plpgsql as $$
+begin
+  raise exception '% is append-only; it cannot be truncated', tg_table_name
+    using errcode = '42501',
+          hint = 'TRUNCATE bypasses row-level security and row triggers, which is '
+                 'exactly why this statement-level guard exists. Evidence is not erasable.';
+end $$;
+
 drop trigger if exists composition_rules_no_truncate on public.composition_rules;
 create trigger composition_rules_no_truncate before truncate on public.composition_rules
   for each statement execute function public.phase3_no_truncate();
@@ -306,14 +322,7 @@ create index if not exists canonical_spans_canonical_idx on public.canonical_spa
 -- the remedial order (0042, 0045, 0043, 0044) used in production. `create or
 -- replace` makes the duplication idempotent, and scripts/audit-sync.mjs asserts
 -- the two copies are identical so they cannot drift.
-create or replace function public.phase3_no_truncate()
-returns trigger language plpgsql as $$
-begin
-  raise exception '% is append-only; it cannot be truncated', tg_table_name
-    using errcode = '42501',
-          hint = 'TRUNCATE bypasses row-level security and row triggers, which is '
-                 'exactly why this statement-level guard exists. Evidence is not erasable.';
-end $$;
+
 
 do $$
 declare t text;

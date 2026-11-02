@@ -81,10 +81,22 @@ export async function restoreVersion(company, versionId) {
   return { ok: true };
 }
 
-// Keep only the most recent `keep` snapshots for a company; delete the rest. Best-effort.
+// Keep only the most recent `keep` MANUAL snapshots for a company; delete the
+// rest. Best-effort.
+//
+// PUBLISH HISTORY IS NEVER PRUNED (a05, approved 2026-10-31). Snapshots taken
+// by a company publish carry kind = 'publish' (migration 0074) and the
+// database refuses to delete them; this only ever asks for kind = 'manual'.
+// Before 0074 there is no kind column and no way to tell the two apart, so
+// nothing is pruned at all -- an unpruned table beats deleted history.
 export async function pruneVersions(companyId, keep = 20) {
   try {
-    const all = await listVersions(companyId, 200);
+    const h0 = await authHeaders();
+    const res0 = await fetch(
+      `${TABLE}?company_id=eq.${encodeURIComponent(companyId)}&kind=eq.manual&select=id&order=created_at.desc&limit=200`,
+      { headers: h0 });
+    if (!res0.ok) return { ok: true, pruned: 0, skipped: "cannot tell publish history apart (needs migration 0074)" };
+    const all = await res0.json().catch(() => []);
     const stale = all.slice(keep);
     if (!stale.length) return { ok: true, pruned: 0 };
     const h = await authHeaders();

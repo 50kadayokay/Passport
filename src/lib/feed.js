@@ -22,7 +22,12 @@ export async function follow(companyId) {
     const h = await authHeaders();
     const res = await fetch(`${SUPABASE_URL}/rest/v1/company_follows`, {
       method: "POST",
-      headers: { ...h, "content-type": "application/json", Prefer: "resolution=merge-duplicates,return=minimal" },
+      // ignore-duplicates, not merge-duplicates. The row is (user_id,
+      // company_id) and nothing else, so the ON CONFLICT UPDATE branch only
+      // ever rewrote a row to itself -- yet it is what forced UPDATE onto the
+      // table's grant. DO NOTHING is identical in effect and lets 0061 withhold
+      // the privilege. post_likes already works this way.
+      headers: { ...h, "content-type": "application/json", Prefer: "resolution=ignore-duplicates,return=minimal" },
       body: JSON.stringify({ user_id: u.id, company_id: companyId }),
     });
     return res.ok;
@@ -157,21 +162,26 @@ export async function getPost(postId) {
 
 // How many live posts exist newer than `since` — powers a "N new posts" pill
 // WITHOUT moving the feed under the reader. Cheap exact-count head request.
-export async function countNewSince(since, { followedOnly = false } = {}) {
-  if (!since) return 0;
+/** { ok, status?, count } -- the feed's poller needs the status to stop on a 401/403 (lib/pollGuard.js). */
+export async function loadNewSince(since, { followedOnly = false } = {}) {
+  if (!since) return { ok: true, count: 0 };
   try {
     const h = await authHeaders();
     let url = `${SUPABASE_URL}/rest/v1/posts?removed_at=is.null&published_at=gt.${encodeURIComponent(since)}&select=id`;
     if (followedOnly) {
       const ids = await myFollowedIds();
-      if (!ids.length) return 0;
+      if (!ids.length) return { ok: true, count: 0 };
       url += `&company_id=in.(${ids.join(",")})`;
     }
     const res = await fetch(url, { headers: { ...h, Prefer: "count=exact", Range: "0-0" } });
     const cr = res.headers.get("content-range");
-    if (cr && cr.includes("/")) return Number(cr.split("/")[1]) || 0;
-    return 0;
-  } catch { return 0; }
+    const count = cr && cr.includes("/") ? Number(cr.split("/")[1]) || 0 : 0;
+    return res.ok ? { ok: true, count } : { ok: false, status: res.status, count };
+  } catch { return { ok: false, count: 0 }; }
+}
+
+export async function countNewSince(since, opts = {}) {
+  return (await loadNewSince(since, opts)).count;
 }
 
 /* ---------------- analytics events ---------------- */
