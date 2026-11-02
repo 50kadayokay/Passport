@@ -54,7 +54,7 @@ Line numbers refer to `prod-v1.3.2`.
 | I08 | Upserts with merge-duplicates on `investor_profiles`, `investor_preferences` and `notification_preferences`; `post_saves` with ignore-duplicates (`lib/investorData.js:106,138,241,278`) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | I10 | `user_company_relationships`: upsert with merge-duplicates and return=representation, plus SELECT and DELETE. This is the in-app Follow, Favourite and Watch (`lib/investorData.js:172,181,191`) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | I11 | `post_likes`: INSERT with ignore-duplicates, plus SELECT and DELETE (`lib/investorData.js:198,211,221`) | ✅ | ✅ | ✅ | ✅ | ✅ |
-| I12 | `company_follows` INSERT with **merge-duplicates**: `follow()` on the `/p/<id>` page (`lib/feed.js:23`) | ✅ | ❌ | ❌ | ❌ | ❌ |
+| I12 | `company_follows` INSERT with **merge-duplicates**: `follow()` on the `/p/<id>` page (`lib/feed.js:23`). Broken by 0061a, **fixed by 0094** (right after it, Phase 3) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | I13 | `company_follows` SELECT and DELETE: `isFollowing` and `unfollow` (`lib/feed.js:37,47,72`) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | I14 | `post_events` INSERT of `open`, `dwell`, `like` and `save`, return=minimal (`lib/feed.js:184`) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | I15 | `listing_reports` INSERT with the anon key: one row, six columns, return=minimal (`PassportProto.jsx:10237`) | ✅ | ⚠️ | ⚠️ | ⚠️ | ⚠️ |
@@ -86,37 +86,44 @@ The staging suites (`investor-app-live-test`, `messaging-schema-compat-check`) c
 | W06 | The profile editor via `/api/profile-draft`, on the web and in the next store build: 503 "profile drafts need migration 0072" until Phase 5 | ⚠️ | ⚠️ | ⚠️ | ✅ | ✅ |
 <!-- web-matrix:end -->
 
-## The one break: I12, `company_follows` after 0061a
+## The one break: I12, `company_follows` after 0061a, fixed by 0094
 
 **What breaks.**
 - Every installed build's `follow()` (`src/lib/feed.js`) sends `Prefer: resolution=merge-duplicates`.
 - PostgREST turns that into `INSERT … ON CONFLICT (id) DO UPDATE SET user_id, company_id`.
 - PostgreSQL requires the UPDATE privilege on those columns for any ON CONFLICT DO UPDATE, even when no conflict happens.
 - **0061a** (Phase 3) revokes all privileges and grants back only `select, insert, delete`. The request then fails with 42501.
+- S4 reproduced it on staging through PostgREST as a real investor: merge-duplicates gave 403 (42501), ignore-duplicates gave 201.
 
 0061a's own header expects this. It removes the need for UPDATE through "the accompanying patch", which changed `follow()` to ignore-duplicates (3212e72, 2026-10-29). That patch is not in any store build: `prod-v1.3.2` was tagged on 2026-10-26.
 
-**Who is affected.**
+**Who is affected (without 0094).**
 - **Native shells: no one in practice.** `FollowButton` is rendered only on the `/p/<id>` page (`Feed.jsx`), which `main.jsx` routes by path. The shell always boots at `/`, so that page cannot be reached. Every in-app Follow, Favourite and Watch writes `user_company_relationships` instead (I10), and 0061a grants UPDATE there.
 - **Web:** after Phase 1, `/p/<id>` serves the fixed code. Only a tab still running the pre-deploy bundle hits the break: the Follow button snaps back.
 
-**Minimal fix, if you want installed and stale clients covered too.** Add this one line to 0061a, which is still unapplied, or to a follow-up migration:
+It is not a pilot blocker. 0094 closes it cheaply.
+
+**The fix: `0094_company_follows_upsert_grant.sql`** (prepared; not applied anywhere; your decision). It runs in Phase 3, right after 0061a:
 
 ```sql
 grant update (user_id, company_id) on public.company_follows to authenticated;
 ```
 
-`company_follows` has no non-admin UPDATE policy (0009 defines `own_select`, `own_insert`, `own_delete` and `admin_all`). So RLS still refuses every real UPDATE, and the grant only satisfies the planner's privilege check. The offline test verifies that this line satisfies I12.
+- `company_follows` has no non-admin UPDATE policy. 0009 defines `own_select`, `own_insert`, `own_delete` and `admin_all` (`is_admin()`), and no later migration adds one.
+- So RLS still refuses every real UPDATE: a plain UPDATE matches no row, and an upsert onto an existing row is refused. The grant only satisfies the privilege check that ON CONFLICT DO UPDATE needs.
+- 0094 checks this premise in the database it runs on. If RLS is off, or any UPDATE/ALL policy on the table is not admin-only, it raises 55000 and grants nothing.
+- Its rollback revokes exactly that column grant, which restores 0061a's state.
 
-Nothing was changed: 0061a isn't S3's file, and the decision is yours.
-
-**Not verified live.** `investor-app-live-test` follows with `Prefer: return=minimal`, not the app's header, so it could not see this. To confirm on staging (where 0061a is applied), run one request as a throwaway investor:
-
-```
-POST /rest/v1/company_follows   Prefer: resolution=merge-duplicates,return=minimal
-```
-
-Expect 401/403 with code 42501. With the grant above, expect 201.
+**Verified by:**
+- `scripts/company-follows-0094-test.mjs` (offline);
+- this matrix's test, whose grant model now passes I12 in every phase;
+- `scripts/company-follows-0094-check.mjs` (staging, rolled back; S4 runs it). It covers:
+  - 42501 becoming 201;
+  - an existing follow sent again: 23505, with the row unchanged, the same answer as before 0061a;
+  - another user unable to touch the follow;
+  - anon getting nothing;
+  - the self-check refusing;
+  - the rollback.
 
 ## Notes on the ⚠️ cells and on behaviour the matrix doesn't capture
 

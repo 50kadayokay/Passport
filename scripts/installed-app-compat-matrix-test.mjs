@@ -159,15 +159,18 @@ for (const [id, g] of Object.entries(GRANT_ROWS)) {
     else ok(s === "✅" || s === "⚠️", `${id} (${k}): ${g.r} has what it needs on ${g.t}, so the cell must not be ❌ (is ${ROWS[id].cells[k]})`);
   }
 }
-// The one break: what revokes it, and the fix that would close it.
-ok(PHASE["0061a"] === "3", "0061a runs in Phase 3");
-ok(!has(STATES.b, "company_follows", "authenticated", "update", ["user_id", "company_id"]) && has(STATES.a, "company_follows", "authenticated", "update"), "company_follows UPDATE is present before Phase 3 and gone after 0061a");
+// The one break: what revokes it (0061a), and what closes it (0094).
+ok(PHASE["0061a"] === "3" && PHASE["0094"] === "3", "0061a and 0094 both run in Phase 3");
+ok(pending.indexOf("0094") === pending.indexOf("0061a") + 1, "0094 runs immediately after 0061a");
 {
-  const fixed = apply(stateAt("e"), "grant update (user_id, company_id) on public.company_follows to authenticated;");
-  ok(GRANT_ROWS.I12.needs.every(([p, c]) => has(fixed, "company_follows", "authenticated", p, c)), "the documented minimal fix (column UPDATE grant) satisfies I12");
+  const upTo = (last) => { const st = baseline(); for (const [m, sql] of allPendingSql) { apply(st, sql); if (m === last) break; } return st; };
+  ok(has(STATES.a, "company_follows", "authenticated", "update") && !has(upTo("0061a"), "company_follows", "authenticated", "update", ["user_id", "company_id"]), "company_follows UPDATE is present before Phase 3 and gone after 0061a alone");
+  ok(GRANT_ROWS.I12.needs.every(([p, c]) => has(upTo("0094"), "company_follows", "authenticated", p, c)), "after 0094, I12 has everything it needs");
+  ok(!upTo("0094").company_follows.authenticated.has("update"), "...through the column grant only (no table-level UPDATE)");
+  ok(/grant update \(user_id, company_id\) on public\.company_follows to authenticated;/.test(sqlOf("0094")), "0094 grants exactly UPDATE (user_id, company_id) to authenticated");
   ok(!/create policy[^;]*on public\.company_follows for (update|all) to authenticated using \(user_id/.test(allPendingSql.map(([, s]) => s).join("\n")), "no pending migration adds a non-admin UPDATE policy on company_follows (so the column grant updates nothing)");
   ok(/create policy "own_insert" on public\.company_follows for insert to authenticated with check \(user_id = auth\.uid\(\)\)/.test(sqlOf("0009")) && !/policy[^;]*"own_update"[^;]*company_follows/.test(sqlOf("0009")), "company_follows has own_insert and no own_update policy (0009)");
-  ok(doc.includes("grant update (user_id, company_id) on public.company_follows to authenticated"), "doc states the minimal fix verbatim");
+  ok(/\| I12 \|[^\n]*fixed by 0094/.test(doc), "the matrix row says I12 is fixed by 0094");
 }
 
 // 3. targeted assertions -----------------------------------------------------------

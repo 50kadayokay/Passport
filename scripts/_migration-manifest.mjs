@@ -114,6 +114,8 @@ export const PENDING = {
     "\"Clear all\" admits only the company's owner_id or an active owner/admin membership; platform admins no longer pass by being platform admins (user decision 2026-11-01). Replaces 0090's check only; same signature and grants. MUST follow 0090. Applied to staging 2026-11-01.",
   "0061a_table_privilege_hardening.sql":
     "Revokes the default all-7 grant on company_follows/post_events/post_likes/user_company_relationships; re-grants only what traced call sites need. anon gets nothing. NO code deploy required.",
+  "0094_company_follows_upsert_grant.sql":
+    "UPDATE on company_follows (user_id, company_id) for authenticated: installed 1.0-1.3.2 follow() upserts with merge-duplicates (ON CONFLICT DO UPDATE), which 0061a's select/insert/delete refuses (42501, reproduced on staging). No non-admin UPDATE policy exists, so RLS still refuses every real update; the migration checks that before granting. Run right after 0061a (Phase 3). Not applied anywhere.",
 
 };
 
@@ -163,6 +165,7 @@ export const PREREQUISITES = {
   "0091_notification_clear_no_platform_admin.sql": ["0090_notification_clear_roles.sql"],
   "0092_listing_reports_column_insert.sql": ["0077_listing_reports_installed_app_compat.sql"],
   "0093_listing_reports_rate_limit.sql": ["0057_submission_throttle.sql", "0092_listing_reports_column_insert.sql"],
+  "0094_company_follows_upsert_grant.sql": ["0061a_table_privilege_hardening.sql"],
 };
 
 // Sections that need the SQL-editor role (postgres), not a pooled lesser role.
