@@ -13,7 +13,7 @@
 // The detailed Pro Profile walkthrough remains at /site?salesstory=1.
 // ─────────────────────────────────────────────────────────────────────────────
 import React from "react";
-import { MarketingStyles } from "../system.jsx";
+import { MarketingStyles, useViewport } from "../system.jsx";
 import Nav from "./Nav.jsx";
 import AppSection from "./AppSection.jsx";
 import { installNavProbe, navDebugOn, NavDebugHUD } from "./navDebug.jsx";
@@ -24,7 +24,11 @@ import { installNavProbe, navDebugOn, NavDebugHUD } from "./navDebug.jsx";
 // changes. Earlier study components (Glance/ProProfile*/Conference chapters) remain on
 // disk, unrendered.
 export default function Home2() {
+  const { mobile } = useViewport();
   React.useEffect(() => { installNavProbe(); }, []);   // dev-only trackpad probe (?navdebug=1)
+  // The deck below is a pinned, wheel-driven stage. A phone has no wheel to drive it,
+  // so it degraded into the desktop stage made taller. Mobile gets its own composition
+  // of the same story; the desktop deck is untouched.
   return (
     <div className="mx-root" id="top">
       <MarketingStyles />

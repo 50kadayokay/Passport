@@ -20,13 +20,15 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { MX, EASE, useTrack, step, useViewport, useReduce } from "../system.jsx";
 import { DirectedEmbed } from "../demo/DirectedEmbed.jsx";
 import ConferenceScene from "./ConferenceScene.jsx";
+import StageArrows, { StageStart } from "./StageArrows.jsx";
+import PhoneDiag, { diagOn } from "./PhoneDiag.jsx";
 import HeroHandPhone from "./HeroHandPhone.jsx";
 // The Pricing deck slides up as the chapter after the template gallery (paged panels; see below).
 const PricingDeckLazy = React.lazy(() => import("./PricingDeck.jsx"));
 const SalesPricingLazy = React.lazy(() => import("./SalesPricing.jsx"));
 import { WalkthroughNarrative, stageGridStyle } from "./WalkthroughNarrative.jsx";
 import { logNav } from "./navDebug.jsx";
-import { SHEET_MS, EASE_SHEET, WHEEL_TRIGGER, NEW_GESTURE_GAP, FIRM_DELTA, FRESH_FLICK } from "./motion.js";
+import { SHEET_MS, EASE_SHEET, WHEEL_TRIGGER, NEW_GESTURE_GAP, FIRM_DELTA, FRESH_FLICK , gestureReady, isReversal} from "./motion.js";
 import PushPreview from "./PushPreview.jsx";   // dev-only (?navdebug=1) controller logging; no-op otherwise
 
 const NAVY = "#0a1b2e", SLATE = "#54617a";
@@ -107,6 +109,25 @@ export default function AppSection() {
   const slow = (() => { try { const v = parseFloat(new URLSearchParams(window.location.search).get("tslow")); return v > 0 ? Math.min(12, v) : 1; } catch (_) { return 1; } })();
 
   const [idx, setIdx] = useState(0);
+  // The card's opening entrance may only begin once the device has ARRIVED. On a phone the
+  // chapter slides in over SHEET_MS, and an entrance started on the press plays underneath a
+  // moving phone — in the reported recording the device simply appeared at 0.99s already
+  // carrying its photograph and logo at full opacity, with nothing left to watch. This waits
+  // out the slide, then hands DirectedEmbed a single true.
+  const [appOpenReady, setAppOpenReady] = useState(false);
+  useEffect(() => {
+    if (!mobile || appOpenReady) return;
+    if (idx < APP0 || idx > CONF0 - 1) return;
+    // Exactly the slide's own duration — no margin. The 120ms cushion that used to sit here
+    // was dead time on a blank card: the device is in place when the sheet finishes, and the
+    // app's own opening puts the photograph 60ms after that, not 180.
+    // A shade before the slide finishes. The card arrives carrying its photograph now, so
+    // the only thing the entrance has left to do is bring the logo up — and holding that
+    // until the device has completely stopped made it feel like a separate, later event
+    // rather than part of the arrival. 140ms early overlaps the tail of the slide only.
+    const t = setTimeout(() => setAppOpenReady(true), Math.max(0, SHEET_MS - 140));
+    return () => clearTimeout(t);
+  }, [mobile, idx, appOpenReady]);
   const idxRef = useRef(0);
   useEffect(() => { idxRef.current = idx; }, [idx]);
 
@@ -216,7 +237,7 @@ export default function AppSection() {
       if (!pinned) { accum = 0; accumDir = 0; streamUsed = false; logNav({ src: "SALES", dy: DY, idx: idxRef.current, note: `unpinned t${Math.round(r.top)} b${Math.round(r.bottom)}/${vh}` }); return; }
 
       const now = performance.now(), gap = now - lastWheel, mag = Math.abs(e.deltaY);
-      const reversed = accumDir !== 0 && Math.sign(e.deltaY) === -accumDir && mag >= FIRM_DELTA;
+      const reversed = isReversal(e.deltaY, accumDir);
       // A consumed stream re-arms on silence (gap), a reversal, OR a FRESH-FLICK rising edge:
       // a new deliberate swipe spikes deltaY above the monotonically-decaying inertial tail,
       // so the next swipe works as soon as the transition ends — no multi-second silence wait.
@@ -231,7 +252,7 @@ export default function AppSection() {
       if (lockedRef.current || streamUsed) { logNav({ src: "SALES", dy: DY, gap: Math.round(gap), idx: cur, locked: lockedRef.current ? 1 : 0, used: streamUsed ? 1 : 0, note: "rejected" }); return; }
       if (Math.sign(e.deltaY) !== accumDir) { accum = 0; accumDir = Math.sign(e.deltaY); }
       accum += e.deltaY;
-      if (Math.abs(accum) < WHEEL_TRIGGER || streamPeak < FIRM_DELTA) { logNav({ src: "SALES", dy: DY, gap: Math.round(gap), accum: Math.round(accum), note: "below-trigger" }); return; }
+      if (!gestureReady(accum, streamPeak, WHEEL_TRIGGER, FIRM_DELTA)) { logNav({ src: "SALES", dy: DY, gap: Math.round(gap), accum: Math.round(accum), note: "below-trigger" }); return; }
       streamUsed = true; accum = 0;
       // Past the last state (TEMPLATES), a deliberate downward swipe slides the Pricing page up as a page.
       if (dir > 0 && idxRef.current >= NSTATES - 1) { logNav({ src: "SALES", dy: DY, gap: Math.round(gap), note: "openPricing" }); openPricing(); return; }
@@ -290,16 +311,38 @@ export default function AppSection() {
     };
   }, [mobile, reduce, slow]);
 
-  // ── MOBILE / reduced-motion: native-scroll paging ──
+  // ── MOBILE: the two arrow controls drive the story; scroll does not ──
+  //
+  // Scroll position was the wrong input on a phone. Momentum carried the story on after
+  // the finger left the glass, and nothing tried against that (rate limits, settle
+  // windows, scroll snapping) stopped it without introducing motion of its own. One press
+  // is one state, and the stage sits still otherwise.
+  //
+  // Pricing is the close of the sales story, so pressing next on the LAST state lifts the
+  // pricing sheet exactly as a deliberate downward wheel does on desktop.
+  // Reduced-motion on DESKTOP keeps the native-scroll paging it has always had — this
+  // rework is a phone change and must not alter the desktop page for anyone.
   const mp = useTrack(trackRef);
   useEffect(() => {
-    if (!(mobile || reduce)) return;
-    const want = reduce ? 0 : step(mp, NSTATES);
-    if (want !== idxRef.current) {
-      setIdx(want);
-      if (want >= APP0 && want <= CONF0 - 1) { desiredRef.current = subOf(want - APP0); try { window.__demoGo && window.__demoGo(subOf(want - APP0)); } catch (_) {} }
+    if (mobile || !reduce) return;
+    const want = step(mp, NSTATES + 1);
+    const wantPricing = want >= NSTATES;
+    if (wantPricing !== pricingUpRef.current) { if (wantPricing) openPricing(); else closePricing(); }
+    const idxWant = Math.min(want, NSTATES - 1);
+    if (idxWant !== idxRef.current) {
+      setIdx(idxWant);
+      if (idxWant >= APP0 && idxWant <= CONF0 - 1) { desiredRef.current = subOf(idxWant - APP0); try { window.__demoGo && window.__demoGo(subOf(idxWant - APP0)); } catch (_) {} }
     }
-  }, [mp, mobile, reduce]);
+  }, [mp, mobile, reduce, openPricing, closePricing]);
+
+  const goM = useCallback((next) => {
+    if (pricingUpRef.current) closePricing();
+    idxRef.current = next; setIdx(next);
+    if (next >= APP0 && next <= CONF0 - 1) {
+      desiredRef.current = subOf(next - APP0);
+      try { window.__demoGo && window.__demoGo(subOf(next - APP0)); } catch (_) {}
+    }
+  }, [closePricing]);
 
   // Pause the ambient blooms during a product slide so all GPU budget goes to the move.
   useEffect(() => {
@@ -432,9 +475,14 @@ export default function AppSection() {
           <p style={{ color: SLATE, fontWeight: 400, fontSize: "clamp(18px,1.7vw,22px)", lineHeight: 1.45, margin: "26px 0 0", maxWidth: "32ch" }}>
             Present your story. Engage investors. Build lasting connections.
           </p>
-          <p style={{ marginTop: 44, color: MX.mute, fontSize: 12.5, letterSpacing: "0.18em", fontWeight: 700, textTransform: "uppercase", opacity: heroIn ? 0.9 : 0, transition: "opacity 300ms" }}>
-            Scroll to explore the product ↓
-          </p>
+          {/* Phones no longer scroll through the story, so this line would be both wrong and
+              sitting underneath the control that replaces it. The StageStart control below
+              carries the same invitation. */}
+          {!mobile && (
+            <p style={{ marginTop: 44, color: MX.mute, fontSize: 12.5, letterSpacing: "0.18em", fontWeight: 700, textTransform: "uppercase", opacity: heroIn ? 0.9 : 0, transition: "opacity 300ms" }}>
+              Scroll to explore the product ↓
+            </p>
+          )}
         </div>
       </div>
     </div>
@@ -444,8 +492,10 @@ export default function AppSection() {
   // sheet at its FINAL resting geometry: it is revealed when the Hero sheet leaves and hidden
   // when the App sheet itself leaves into the Conference — it never enters/scales/fades. Only
   // the narrative + real phone product change between states 01–06 (unchanged). ──
+  // SAFE_TOP reserves 92px for the 64px desktop nav. The phone nav is 54, so on mobile that
+  // was 30px of the device's own height spent on nothing; the phone takes it back.
   const appLayer = (
-    <div className="mx-story" style={{ position: "absolute", left: 0, right: 0, top: SAFE_TOP, bottom: SAFE_BOTTOM, zIndex: 3, pointerEvents: appVisible ? "auto" : "none" }}>
+    <div className="mx-story" style={{ position: "absolute", left: 0, right: 0, top: mobile ? 62 : SAFE_TOP, bottom: mobile ? 12 : SAFE_BOTTOM, zIndex: 3, pointerEvents: appVisible ? "auto" : "none" }}>
       <div style={stageGridStyle(mobile)}>
         <WalkthroughNarrative total={BEATS.length} index={appBeat} page={beat.page}
           head={pubStep ? PUB_HEADS[pubStep - 1] : beat.head}
@@ -457,7 +507,11 @@ export default function AppSection() {
             </a>) : null} />
         <div style={{ position: "relative", height: "100%" }}>
           {PRNOTIFY && !mobile && <PushPreview show={pubStep === 1} />}
-          <DirectedEmbed variant="home" hardware />
+          {/* openWhen: on a phone the walkthrough opens on the HERO, so the device is off
+              screen at boot. Without this the card played its whole opening — hero in,
+              logo in, flip — while the visitor was still reading the hero, and arrived
+              already finished. null keeps the desktop behaviour exactly as it was. */}
+          <DirectedEmbed variant="home" hardware cutout prepareWhen={mobile ? idx >= APP0 : null} openWhen={mobile ? appOpenReady : null} />
         </div>
       </div>
     </div>
@@ -471,8 +525,16 @@ export default function AppSection() {
     <div style={{ position: "absolute", inset: 0, zIndex: 4, pointerEvents: confSceneIn ? "auto" : "none",
       opacity: confSceneIn ? 1 : 0, transform: confSceneIn ? "translateY(0)" : "translateY(18px)",
       transition: `opacity ${T(520)} ${EASE}, transform ${T(560)} ${EASE_SHEET}` }}>
+      {/* The Conference tablet mounts at the START of the walkthrough, not one state before
+          its own chapter. One state is one arrow press — nowhere near enough for a whole
+          template app to load over a phone connection, so the visitor arrived at the chapter
+          looking at the unloaded placeholder, which is a near-black gradient. That is the
+          black screen. Mounting from the first app state gives it the entire walkthrough to
+          load and paint. It costs a second product iframe on the page during that stretch,
+          which is the thing I previously tried to avoid for performance; a black device is
+          worse, and the expensive filters that made that overlap hurt are gone now. */}
       <ConferenceScene mobile={mobile} reduce={reduce} confIndex={Math.max(0, Math.min(CONF_STATES - 1, confIndex))}
-        mount={idx >= CONF0 - 1} active={confSceneIn} />
+        mount={idx >= APP0} active={confSceneIn} />
     </div>
   );
 
@@ -498,7 +560,7 @@ export default function AppSection() {
   );
 
   return (
-    <section id="app" ref={trackRef} className="mx-appstage" style={{ position: "relative", height: (mobile || reduce) ? `${NSTATES * 90}svh` : "100svh", background: "#fbfcfe", overscrollBehavior: "none" }}>
+    <section id="app" ref={trackRef} className="mx-appstage" style={{ position: "relative", height: (!mobile && reduce) ? `${(NSTATES + 1) * 90}svh` : "100svh", background: "#fbfcfe", overscrollBehavior: "none" }}>
       <span id="app-scroll" style={{ position: "absolute", top: 0 }} />
       {sideNav}
       <style>{`
@@ -521,9 +583,23 @@ export default function AppSection() {
         @keyframes fD{0%{transform:translate(-50%,-50%) translate(3%,-2%) scale(1.06)}50%{transform:translate(-50%,-50%) translate(-6%,6%) scale(.92)}100%{transform:translate(-50%,-50%) translate(3%,-2%) scale(1.06)}}
         .mx-fa{animation:fA 24s ease-in-out infinite}.mx-fb{animation:fB 30s ease-in-out infinite}.mx-fc{animation:fC 27s ease-in-out infinite}.mx-fd{animation:fD 33s ease-in-out infinite}
         .mx-appstage[data-busy="1"] .mx-fa, .mx-appstage[data-busy="1"] .mx-fb, .mx-appstage[data-busy="1"] .mx-fc, .mx-appstage[data-busy="1"] .mx-fd { animation-play-state: paused !important; }
+        /* Phones halve the blob blur rather than dropping it. Removing it entirely made these
+           gradients render as a hard saturated column — they are tuned to be seen through a
+           blur — but 24px of it is the most expensive thing on the page for iOS to re-filter
+           every animation frame. 12px keeps the softness the design depends on at roughly a
+           quarter of the cost. */
+        @media (max-width: 759px) {
+          .mx-fa, .mx-fb, .mx-fc, .mx-fd { filter: blur(12px) !important; }
+        }
+        /* The blur on the ambient blobs is BACK on phones. I removed it to cut iOS paint
+           cost — animated filters are genuinely expensive — but these blobs are radial
+           gradients tuned to be seen THROUGH a 24px blur. Without it they render as a hard,
+           saturated column down the side of the section, which is what wrecked the look of
+           the Conference chapter. The performance win was not worth it: the other filter and
+           backdrop-filter removals in that pass stand on their own, and this one does not. */
         .mx-appstage .mx-demo iframe { will-change: transform; backface-visibility: hidden; }
       `}</style>
-      <div ref={stickyRef} style={{ position: "sticky", top: 0, height: "100svh", overflow: "hidden" }}>
+      <div ref={stickyRef} className="mx-vstage" style={{ position: mobile ? "relative" : "sticky", top: 0, height: "100svh", overflow: "hidden" }}>
         {/* Three stacked, opaque CHAPTER SHEETS (iOS layers). Each carries the identical
             atmosphere so the reveal is seamless; the top sheet TRANSLATES up to expose the
             one already resting underneath. Hero (top) → App (middle) → Conference (bottom).
@@ -559,6 +635,14 @@ export default function AppSection() {
             mouse to continue" bug). This shield never changes, so every gesture reaches the
             wheel controller with no click. Nav (z100) stays clickable above it. */}
         <div aria-hidden style={{ position: "absolute", inset: 0, zIndex: 7, background: "transparent", pointerEvents: pricingUp ? "none" : "auto" }} />
+        {/* The gesture shield above sits at z7 and would swallow a press, so the controls
+            live above it. Hidden while the pricing sheet is up — that sheet is the end of
+            the story and carries its own way back. The sales stage is light, so the
+            controls take their light palette. */}
+        {mobile && diagOn() && <PhoneDiag state={idx} label="home" />}
+        {mobile && !pricingUp && (idx === S_HERO
+          ? <StageStart onGo={() => goM(S_HERO + 1)} />
+          : <StageArrows i={idx} n={NSTATES} onGo={goM} atEnd={openPricing} bottom="30%" />)}
       </div>
     </section>
   );
@@ -572,14 +656,27 @@ function ChapterBg({ reduce, paused }) {
   // Only the active chapter's sheet animates its blooms; the two hidden sheets freeze theirs
   // (keeps the 3× atmosphere at the original single-atmosphere GPU cost).
   const ap = paused ? "paused" : "running";
+  const { mobile } = useViewport();
+  // The vertical mask fades the blooms IN from the top so they do not run under the nav. It
+  // had no fade at the BOTTOM, so they stayed at full strength to the stage's bottom edge.
+  // On a desktop-height viewport nothing meets that edge. On a phone the browser's own UI
+  // cuts the page short, so the still-tinted final rows sit directly against near-white
+  // browser chrome and the difference reads as a straight horizontal line under the stand.
+  // Measured from the device screenshot: last page row 241,244,239 against browser UI
+  // 253,252,253 — a full-width step of about ten levels, 433 of 454 columns wide.
+  // A bottom fade returns those rows to the page's own #fbfcfe so there is nothing to step
+  // against. Phones only; desktop keeps the original mask exactly.
+  const vMask = mobile
+    ? "linear-gradient(to bottom, transparent 0%, transparent 8%, #000 28%, #000 72%, transparent 97%)"
+    : "linear-gradient(to bottom, transparent 0%, transparent 8%, #000 28%)";
   const blob = (pos, color) => ({ ...fblob(pos, color), animationPlayState: ap });
   return (
     <div aria-hidden style={{ position: "absolute", inset: 0, zIndex: 0, pointerEvents: "none" }}>
       <div style={{ position: "absolute", inset: 0, background: "#fbfcfe" }} />
       <div style={{ position: "absolute", right: 0, top: 0, bottom: 0, width: "64%", overflow: "hidden",
-        WebkitMaskImage: "linear-gradient(to right, transparent, #000 40%), linear-gradient(to bottom, transparent 0%, transparent 8%, #000 28%)",
+        WebkitMaskImage: `linear-gradient(to right, transparent, #000 40%), ${vMask}`,
         WebkitMaskComposite: "source-in",
-        maskImage: "linear-gradient(to right, transparent, #000 40%), linear-gradient(to bottom, transparent 0%, transparent 8%, #000 28%)",
+        maskImage: `linear-gradient(to right, transparent, #000 40%), ${vMask}`,
         maskComposite: "intersect" }}>
         <span className={reduce ? "" : "mx-fa"} style={blob("60% 46%", "rgba(37,99,235,.50)")} />
         <span className={reduce ? "" : "mx-fb"} style={blob("52% 66%", "rgba(59,130,246,.40)")} />
@@ -603,4 +700,24 @@ function ChapterEyebrow({ tick, children }) {
   );
 }
 
-const fblob = (pos, color) => { const [x, y] = pos.split(" "); return { position: "absolute", left: x, top: y, width: "74%", height: "74%", transform: "translate(-50%,-50%)", background: `radial-gradient(closest-side, ${color}, transparent 70%)`, filter: "blur(24px)", borderRadius: "50%" }; };
+// A two-stop radial ramps alpha LINEARLY from the centre to the edge, which the eye does not
+// read as a bloom — it reads as a disc with a soft edge, and on a large blob the constant
+// gradient of the ramp is visible as a faint banded cone. Desktop gets away with it because
+// blur(24px) smears the ramp; phones run blur(12px), half as much, over a blob that is barely
+// smaller, so the shape shows. These stops approximate a Gaussian (exp(-3.2t²), normalised to
+// reach zero at the same 70% the two-stop version ended at), so the falloff is steep in the
+// middle and flat at the rim, which is what light actually does.
+//
+// The radius, the centre and the peak alpha are all unchanged — only the curve between them
+// differs — so the bloom occupies the same footprint at the same intensity. Costs nothing at
+// runtime: it is the same single gradient, just with more stops.
+const SOFT_STOPS = [[0, 1], [11, 0.93], [21, 0.74], [31.5, 0.5], [42, 0.29], [52.5, 0.13], [61.5, 0.045], [70, 0]];
+const softRadial = (color) => {
+  const m = /rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)\s*(?:,\s*([\d.]+))?\s*\)/.exec(color);
+  if (!m) return `radial-gradient(closest-side, ${color}, transparent 70%)`;
+  const a = m[4] === undefined ? 1 : parseFloat(m[4]);
+  return "radial-gradient(closest-side, " + SOFT_STOPS
+    .map(([p, k]) => `rgba(${m[1]},${m[2]},${m[3]},${+(a * k).toFixed(3)}) ${p}%`).join(", ") + ")";
+};
+const PHONE_ATMOS = () => (typeof window !== "undefined" && window.innerWidth < 760);
+const fblob = (pos, color) => { const [x, y] = pos.split(" "); return { position: "absolute", left: x, top: y, width: "74%", height: "74%", transform: "translate(-50%,-50%)", background: PHONE_ATMOS() ? softRadial(color) : `radial-gradient(closest-side, ${color}, transparent 70%)`, filter: "blur(24px)", borderRadius: "50%" }; };

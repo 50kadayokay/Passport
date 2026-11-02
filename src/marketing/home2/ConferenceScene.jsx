@@ -71,7 +71,13 @@ const DEBUG_PINK = false;
 
 // The Northvale folio presentation. confIndex 0 = the HERO page (it animates in and HOLDS
 // until the next swipe); confIndex 1..6 walk these pages, one per swipe.
-const FOLIO_SRC = "/confv3demo?c=northvale-demo&t=folio";
+// `img=sm` on phones only. Drawn here the deck is 291 CSS px wide, but it was loading the
+// full-size photography — nineteen 1800px images, ~147MB of DECODED bitmaps, which iOS
+// cannot hold, so it evicted them and the pictures came up blank. The small renditions cap
+// the long side at 900px, still above the 873 device pixels this box can resolve, so the
+// deck looks identical and the booth itself is completely unaffected.
+const FOLIO_SRC = "/confv3demo?c=northvale-demo&t=folio"
+  + ((typeof window !== "undefined" && window.innerWidth < 760) ? "&img=sm" : "");
 
 // The Conference sales story — FIVE iPad states, each driving the REAL folio to ONE real state (no
 // intermediate pages, no montage). Left copy (verbatim) + the folio data-sid the iPad jumps to.
@@ -175,14 +181,41 @@ export default function ConferenceScene({ mobile = false, reduce = false, confIn
   // template hero then boots in over it — a few cards at a time so the browser never loads all 16
   // Conference bundles at once (which janked the swipe and left cards black). Re-arms on each entry so
   // the heroes replay their intro. Mounting begins as the state is approached (QR onward).
-  const galleryNear = mount && i >= 4 && !deviceOnly;   // deviceOnly reuse (ecosystem finale) never shows the 16-up gallery
-  const [liveN, setLiveN] = useState(0);
+  // Fetch the tablet's boot poster as soon as the chapter is mounted, which is many states
+  // before the visitor reaches it. It is the thing shown while the deck boots, and the deck
+  // takes seconds — but the poster was only being requested on arrival, so it was still
+  // loading for the first few seconds and the glass was black anyway. Measured on desktop:
+  // z-index 3 and NOT LOADED at +2500ms. 38KB, fetched once, long before it is needed.
   useEffect(() => {
-    if (!galleryNear) { setLiveN(0); return; }
+    if (!mount || typeof window === "undefined") return;
+    const im = new Image();
+    im.src = "/marketing/conference-folio-poster.webp";
+  }, [mount]);
+
+  const galleryNear = mount && i >= 4 && !deviceOnly;   // deviceOnly reuse (ecosystem finale) never shows the 16-up gallery
+  // The gallery boots the 16 templates LIVE, two at a time. On a desktop that is the
+  // point of the scene. On a phone it is the Conference-gallery failure again: measured
+  // here, scrolling to the end of the home page took the heap from 9MB to 138MB with 18
+  // live iframes — past the ~128MB where Safari kills the tab. The captured thumbnail is
+  // the same frame, so phones get the thumbs and no live boot, exactly as the standalone
+  // gallery page already does.
+  const [liveN, setLiveN] = useState(0);
+  const [liveReady, setLiveReady] = useState({});   // template key → its live preview has painted
+  useEffect(() => {
+    if (!galleryNear || mobile) { setLiveN(0); setLiveReady({}); return; }
+    // The still thumbnails first, THEN the live previews. Sixteen of these mount a full
+    // /confv3demo each — seventeen conference instances on the page with the main tablet —
+    // and starting them immediately put all of that in front of the thumbnails, which is why
+    // the gallery took so long to show anything. The stills now land on their own, and the
+    // previews come alive one at a time behind them. Every tile still ends up live, so the
+    // gallery is unchanged once settled; only the order it arrives in is different.
     let n = 0; setLiveN(0);
-    const id = setInterval(() => { n += 2; setLiveN(n); if (n >= TEMPLATE_GALLERY.length) clearInterval(id); }, 240);
-    return () => clearInterval(id);
-  }, [galleryNear]);
+    let id = null;
+    const lead = setTimeout(() => {
+      id = setInterval(() => { n += 1; setLiveN(n); if (n >= TEMPLATE_GALLERY.length) clearInterval(id); }, 380);
+    }, 900);
+    return () => { clearTimeout(lead); if (id) clearInterval(id); };
+  }, [galleryNear, mobile]);
 
   // ── Measure the rendered iPad box so the homography maps to on-screen pixels. ──
   const boxRef = useRef(null);
@@ -258,9 +291,44 @@ export default function ConferenceScene({ mobile = false, reduce = false, confIn
           bloom under the RIGHT, aligned with the colours already reflecting off the aluminium stand, so the
           gradient reads as the light source the stand is picking up. Behind the device (shows in the margins
           around the base), blurred and subtle. */}
-      <div aria-hidden style={{ position: "absolute", left: 0, right: 0, bottom: "-3%", height: "40%", zIndex: 0, pointerEvents: "none",
-        background: "radial-gradient(38% 78% at 33% 74%, rgba(37,99,235,0.55), rgba(37,99,235,0) 72%), radial-gradient(40% 82% at 70% 76%, rgba(198,240,74,0.52), rgba(198,240,74,0) 72%)",
-        filter: "blur(34px)" }} />
+      {/* Reflected-light glow behind the base — a soft blue bloom under the LEFT of the stand and a lime
+          bloom under the RIGHT, aligned with the colours already reflecting off the aluminium stand.
+
+          THE CLIP IS REAL, and the note that previously stood here was wrong. It recorded a
+          "measured luminance delta 0.8" and concluded the clip was invisible; that was an AVERAGE
+          over a region, which is precisely the measurement that hides a localised edge. Measured
+          per-row on the device instead, the green tint falls from +11 to +3 across about one CSS
+          pixel, right across the full width — a hard line under the stand.
+
+          Both gradients overrun this box. The blue ellipse is centred at 74% of the height with a
+          vertical radius of 78%, so it wants to reach 152% — half again past the bottom edge — and
+          the lime one reaches 158%. The background stops at the box while still carrying colour.
+          Desktop never showed it because blur(34px) smears the cut away; mobile sets the filter to
+          none for performance, which removed the only thing hiding it. Hence mobile-only.
+
+          The previous fix enlarged the box and made the bloom enormous, because every gradient
+          number here is a PERCENTAGE of that box: growing the box grows the bloom with it. So grow
+          the box and divide the gradient's own percentages by the same factor. At k = 1.7 the
+          centre and radius resolve to the identical absolute pixels — the bloom does not move,
+          change size, or change intensity — but the ellipse now completes inside the box and fades
+          to transparent on its own instead of being cut off. 74/1.7 = 43.53, 78/1.7 = 45.88,
+          76/1.7 = 44.71, 82/1.7 = 48.24; height 40 x 1.7 = 68, and the bottom drops by the extra
+          28 so the box grows DOWNWARD and its top edge stays exactly where it was. Verified against
+          the live geometry: the box runs 537.3 -> 640.3 today with the ellipse wanting 693.8; after,
+          it runs 537.3 -> 712.5 with the ellipse finishing at 694.0. Same bloom, no edge. */}
+      <div aria-hidden style={{ position: "absolute", left: 0, right: 0,
+        bottom: mobile ? "-31%" : "-3%", height: mobile ? "68%" : "40%", zIndex: 0, pointerEvents: "none",
+        // Falloff, mobile only. Desktop's blur(34px) dissolves these two gradients into one
+        // another; with the filter off, their LINEAR two-stop ramps keep their shape and the
+        // reflected light reads as two coloured puddles side by side — a blue pool left of the
+        // base, a lime pool right — instead of one bloom the stand is sitting in. Same centres,
+        // same radii, same peak alphas; the stops just follow a Gaussian (exp(-3.2t²) scaled
+        // into the same 72% the ramp ended at) so each one is dense at its core and thin at its
+        // rim, which lets the two overlap into a single wash rather than meeting as two discs.
+        background: mobile
+          ? "radial-gradient(38% 45.88% at 33% 43.53%, rgba(37,99,235,0.55) 0%, rgba(37,99,235,0.512) 11.3%, rgba(37,99,235,0.407) 21.6%, rgba(37,99,235,0.275) 32.4%, rgba(37,99,235,0.16) 43.2%, rgba(37,99,235,0.072) 54%, rgba(37,99,235,0.025) 63.4%, rgba(37,99,235,0) 72%), radial-gradient(40% 48.24% at 70% 44.71%, rgba(198,240,74,0.52) 0%, rgba(198,240,74,0.484) 11.3%, rgba(198,240,74,0.385) 21.6%, rgba(198,240,74,0.26) 32.4%, rgba(198,240,74,0.151) 43.2%, rgba(198,240,74,0.068) 54%, rgba(198,240,74,0.023) 63.4%, rgba(198,240,74,0) 72%)"
+          : "radial-gradient(38% 78% at 33% 74%, rgba(37,99,235,0.55), rgba(37,99,235,0) 72%), radial-gradient(40% 82% at 70% 76%, rgba(198,240,74,0.52), rgba(198,240,74,0) 72%)",
+        filter: (typeof window !== "undefined" && window.innerWidth < 760) ? "none" : "blur(34px)" }} />
       {/* Opaque screen backing — fills the glass rectangle BEHIND the (transparent-screened) iPad asset so the
           display can never show the page through it as a pale ring at the aperture edge. Sits under the asset;
           only the asset's transparent screen area reveals it, and the bezel covers any overhang. */}
@@ -275,7 +343,7 @@ export default function ConferenceScene({ mobile = false, reduce = false, confIn
         // triangles on the light background. The two-axis form restores a true circle.
         borderRadius: `${(GLASS.Rg / (GLASS.R - GLASS.L)) * 100}% / ${(GLASS.Rg / (GLASS.B - GLASS.T)) * 100}%`,
         zIndex: 0, pointerEvents: "none" }} />
-      <img src={IPAD_SRC} alt="MineEx Conference Mode on an iPad at a conference booth" draggable={false}
+      <img src={mobile ? IPAD_SRC.replace(/\.webp(\?.*)?$/, ".sm.webp") : IPAD_SRC} alt="MineEx Conference Mode on an iPad at a conference booth" draggable={false}
         style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "contain", pointerEvents: "none", zIndex: 1 }} />
       {/* No camera overlay — this asset has no front camera. */}
       <div style={{ position: "absolute", top: 0, left: 0, width: SW, height: SH, zIndex: 2, transformOrigin: "0 0", transform: screenTransform,
@@ -289,7 +357,7 @@ export default function ConferenceScene({ mobile = false, reduce = false, confIn
             {DEBUG_PINK ? (
               <div style={{ position: "absolute", inset: 0, background: "#ff1493" }} />
             ) : mount ? (
-              <TabletFrame bare src={FOLIO_SRC} interactive={false} renderW={SW} renderH={SH} navSid={foSid} navSmooth={foSmooth} title="MineEx Conference Mode — Northvale" />
+              <TabletFrame bare src={FOLIO_SRC} interactive={false} renderW={SW} renderH={SH} navSid={foSid} navSmooth={foSmooth} poster="/marketing/conference-folio-poster.webp" title="MineEx Conference Mode — Northvale" />
             ) : (
               <div style={{ position: "absolute", inset: 0, background: "radial-gradient(130% 130% at 50% 42%, #0c1016 0%, #05070b 72%)" }} />
             )}
@@ -323,10 +391,35 @@ export default function ConferenceScene({ mobile = false, reduce = false, confIn
                         boots in over it (staggered) with a transparent screen so nothing flashes. Fills the cell
                         (rows are equal) and crops to the hero band — no squish, and nothing overflows the screen. */}
                     <div style={{ position: "relative", flex: 1, minHeight: 0, overflow: "hidden",
-                      backgroundColor: "#05070b", backgroundImage: `url(/thumbs/${k}.jpg)`, backgroundSize: "cover", backgroundPosition: "top center" }}>
+                      backgroundColor: "#05070b",
+                      // The thumb is a CSS background, so it is fetched the moment this node exists —
+                      // and on the home deck every scene exists from the start. That pulled ~4MB of
+                      // gallery imagery before the page had drawn its own phone. It now waits for the
+                      // same proximity flag the live tiles use.
+                      // A phone renders these tiles ~80px wide but was decoding the 1920x1200 source:
+                      // 8.8MB of bitmap each, 141MB across the sixteen. That is invisible to
+                      // performance.memory (which stayed at 18MB) and is what killed the tab.
+                      // The small rendition at BOTH breakpoints. A tile is 157x71 on screen — 314x142 at DPR 2 —
+                      // and desktop was loading the 1920x1200 source for it: 435KB and 8.8MB decoded
+                      // each, 3.88MB across the sixteen, for pictures a sixth of that size on either
+                      // axis. 560x350 is still above what the tile can resolve, so nothing is softer,
+                      // and the set drops to 280KB.
+                      backgroundImage: galleryNear ? `url(/thumbs/${k}.sm.webp)` : "none",
+                      backgroundSize: "cover", backgroundPosition: "top center" }}>
                       {galleryNear && idx < liveN && (
-                        <div style={{ position: "absolute", top: 0, left: 0, right: 0 }}>
-                          <TabletFrame bare src={`/confv3demo?c=${slug}&t=${k}&bar=0`} interactive={false} showBootCover={false} screenBg="transparent" renderW={1194} renderH={834} title={`${name} — ${slug}`} />
+                        // Invisible until its deck has actually painted, then faded in over the
+                        // still. `screenBg: transparent` was meant to stop it flashing, but it only
+                        // covers the frame's own backing -- the iframe's DOCUMENT paints the deck's
+                        // dark ground the moment it loads, which blacked out the thumbnail
+                        // underneath and held it there for the seconds the deck takes to mount.
+                        // Sixteen of those, staggered, is the flicker that was reported. TabletFrame
+                        // already reports when the real experience has painted; this just waits for it.
+                        <div style={{ position: "absolute", top: 0, left: 0, right: 0,
+                          opacity: liveReady[k] ? 1 : 0,
+                          transition: `opacity 420ms ${EASE_PAGE}`, pointerEvents: "none" }}>
+                          <TabletFrame bare src={`/confv3demo?c=${slug}&t=${k}&bar=0`} interactive={false} showBootCover={false} screenBg="transparent" renderW={1194} renderH={834} strictReady
+                            onReady={() => setLiveReady((m) => (m[k] ? m : { ...m, [k]: true }))}
+                            title={`${name} — ${slug}`} />
                         </div>
                       )}
                     </div>

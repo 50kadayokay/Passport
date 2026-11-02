@@ -17,10 +17,11 @@
 // DIAGNOSTIC SLICE ONLY: Projects → Drill Results → Project Intelligence →
 // Timeline. Add ?slowDemo=1 to stretch the timeline for inspection.
 // ─────────────────────────────────────────────────────────────────────────────
+import { gestureReady , isReversal} from "../home2/motion.js";
 import React, { Suspense, lazy, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { MX, EASE, Wrap, Phone, useViewport, useReduce, subscribe, phoneWidth } from "../system.jsx";
-import { PP_ASSETS } from "./ppAssets.js";
+import { warmPpAssets } from "./warmPpAssets.js";
 
 // The screen for the ~240ms before the real app paints. It is the APP'S OWN background,
 // so the hand-off is invisible rather than a contrasting slab flashing to light UI.
@@ -121,16 +122,12 @@ if (typeof window !== "undefined" && /(?:\?|&)slice/.test(window.location.search
 }
 
 function usePreload(active) {
+  // Throttled: at most 3 of the 58 in flight, at low priority. The loop this replaces
+  // started all of them in one idle tick, which is what put a nav click's chunk behind
+  // 12MB of photographs. See warmPpAssets.
   useEffect(() => {
     if (!active) return;
-    let idx = 0, stop = false;
-    const ric = window.requestIdleCallback || ((fn) => setTimeout(() => fn({ timeRemaining: () => 8 }), 200));
-    const step = (deadline) => {
-      while (!stop && idx < PP_ASSETS.length && (deadline.timeRemaining() > 3 || deadline.didTimeout)) { const img = new Image(); img.decoding = "async"; img.src = PP_ASSETS[idx++]; }
-      if (!stop && idx < PP_ASSETS.length) ric(step);
-    };
-    ric(step);
-    return () => { stop = true; };
+    return warmPpAssets({ concurrency: 3 });
   }, [active]);
 }
 
@@ -599,7 +596,7 @@ function DirectedDemo() {
       // gesture — inertia is monotonic and never reverses sign — so it starts a new
       // gesture even without a pause. This is what lets a reverse swipe interrupt
       // the tail of the forward swipe that just opened the sheet.
-      const reversed = accumDir !== 0 && Math.sign(e.deltaY) === -accumDir && Math.abs(e.deltaY) >= FIRM_DELTA;
+      const reversed = isReversal(e.deltaY, accumDir);
       const newGesture = gap > NEW_GESTURE_GAP || reversed;
       if (newGesture) { accum = 0; accumDir = Math.sign(e.deltaY); streamUsed = false; streamPeak = 0; }
       lastWheel = now;
@@ -613,7 +610,7 @@ function DirectedDemo() {
         if (Math.sign(d) !== accumDir) { accum = 0; accumDir = Math.sign(d); }
         accum += d;
         if (Math.abs(accum) < WHEEL_TRIGGER) blocked = "accum";
-        else if (streamPeak < FIRM_DELTA) blocked = "peak";        // weak inertia tail, not a firm swipe
+        else if (!gestureReady(accum, streamPeak, WHEEL_TRIGGER, FIRM_DELTA)) blocked = "peak";   // weak inertia tail, not a firm swipe (a sustained gentle glide DOES qualify)
         else {
           const dir = accum > 0 ? 1 : -1;                          // forward swipe (fingers up / wheel down) advances
           streamUsed = true; accum = 0;

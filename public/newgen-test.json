@@ -1,0 +1,61 @@
+{
+  "company": "Sierra Blanca Silver Corp.",
+  "ticker": "TSXV: SBS",
+  "date": "2026-09-30",
+  "item": {
+    "id": "2026-09-30",
+    "headline": "Sierra Blanca Intersects 12.4 Metres of 583 g/t Silver Equivalent at Rosario Vein",
+    "originalTitle": "Sierra Blanca Silver Corp. Intersects 12.4 Metres of 583 g/t Silver Equivalent at the Rosario Vein, Durango, Mexico",
+    "v2": {
+      "cat": "Drilling",
+      "head": "Sierra Blanca Intersects 12.4 Metres of 583 g/t Silver Equivalent at Rosario Vein",
+      "wh": "Sierra Blanca Silver Corp. reported assay results from the first four diamond drill holes of its 2026 program at the Rosario Project in Durango, Mexico.",
+      "wy": "These results demonstrate the presence of a high-grade silver system, confirming continuity of the Rosario vein and supporting further exploration efforts.",
+      "kr": [
+        {
+          "v": "583",
+          "u": "g/t AgEq",
+          "desc": "12.4 metres interval, hole ROS-26-012",
+          "sec": "including 2.1 metres at 1,640 g/t AgEq"
+        },
+        {
+          "v": "1,640",
+          "u": "g/t AgEq",
+          "desc": "2.1 metres interval, hole ROS-26-012",
+          "sec": ""
+        },
+        {
+          "v": "372",
+          "u": "g/t AgEq",
+          "desc": "8.7 metres interval, hole ROS-26-013",
+          "sec": ""
+        }
+      ],
+      "tk": "Assays for the remaining holes are expected in the fourth quarter of 2026.",
+      "_gen": true,
+      "_needsReview": true
+    }
+  },
+  "full": {
+    "blocks": [
+      {
+        "text": "Sierra Blanca Silver Corp. Intersects 12.4 Metres of 583 g/t Silver Equivalent at the Rosario Vein, Durango, Mexico"
+      },
+      {
+        "text": "Durango, Mexico — September 30, 2026 — Sierra Blanca Silver Corp. (TSXV: SBS) (\"Sierra Blanca\" or the \"Company\") is pleased to report assay results from the first four diamond drill holes of its 2026 program at the 100%-owned Rosario Project in Durango State, Mexico."
+      },
+      {
+        "text": "Drill hole ROS-26-012 intersected 12.4 metres grading 583 g/t silver equivalent (AgEq), including a higher-grade interval of 2.1 metres at 1,640 g/t AgEq, from a down-hole depth of 118.0 to 130.4 metres. The silver equivalent calculation uses 410 g/t silver, 1.8 g/t gold and 2.4% lead over the 12.4 metre interval."
+      },
+      {
+        "text": "Hole ROS-26-013, drilled 60 metres along strike to the northwest, returned 8.7 metres of 372 g/t AgEq from 95.5 metres, confirming continuity of the Rosario vein. Holes ROS-26-014 and ROS-26-015 are currently being logged and sampled, with assays pending."
+      },
+      {
+        "text": "\"These results confirm a robust, high-grade silver system over an initial strike length of at least 300 metres,\" said Elena Marquez, President and CEO. \"The vein remains open along strike and at depth.\""
+      },
+      {
+        "text": "The Company has budgeted 6,000 metres of drilling for the 2026 program. Assays for the remaining holes are expected in the fourth quarter of 2026."
+      }
+    ]
+  }
+}

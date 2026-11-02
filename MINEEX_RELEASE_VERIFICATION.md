@@ -1,0 +1,121 @@
+# MineEx — Release Verification & Approval Checklist
+
+**Purpose:** personally review and sign off every meaningful change before it ships to the App Store / Play Store.
+**Baseline:** production web `prod-v75-4e696bf`; installed native iOS 1.3.1 (build 17) / Android 1.3.1.
+**Rule:** *Test result* (how it behaves) is tracked **separately** from *Approval* (your explicit OK). No item is "Approved" without your word. Native-build testing is tracked separately from desktop-preview testing — **a passing desktop preview does not satisfy native verification.**
+
+Status keys — **Test:** ⬜ not tested · 🟡 preview-only · ✅ native-verified · ❌ failed · 🚫 blocked · **Approve:** ⬜ awaiting · ✔ approved · ✎ needs correction
+
+---
+
+## How to use
+Each row maps to a Change ID in `MINEEX_CHANGE_INVENTORY.md`. Fill *Preserved?* = does existing production behaviour still work. Fill *Native?* only after testing the actual iOS/Android build, not the desktop preview.
+
+---
+
+## 1. Investor experience (existing production behaviour — must be preserved)
+
+| Change ID | Screen / feature | What changed | Before → now | Preserved? | Test (preview) | Test (native) | Approve |
+|---|---|---|---|---|---|---|---|
+| C-1 | Auth / login | Onboarding/interest gate removed | gate → straight in | ⬜ | ⬜ | ⬜ | ⬜ |
+| C-2 | Company profile (investor) | Primary action Message → **Contact card** | Message → Contact/IR card | ⬜ | ⬜ | ⬜ | ⬜ |
+| C-3 | App open | New opening animation | old splash → drill-core accordion | ⬜ | ⬜ | ⬜ | ⬜ |
+| C-4 | Company profile | CEO profile page removed | page → (gone) | ⬜ | ⬜ | ⬜ | ⬜ |
+| C-5 | Team bios | Connect/Message removed | buttons → (gone) | ⬜ | ⬜ | ⬜ | ⬜ |
+| C-6 | Capital card | Funding Runway bar removed | bar → (gone), taller card | ⬜ | ⬜ | ⬜ | ⬜ |
+| C-7 | Project media | Grouped gallery card | legacy → grouped gallery | ⬜ | ⬜ | ⬜ | ⬜ |
+| C-8 | Press releases | Content-block reader | text → text+image blocks | ⬜ | ⬜ | ⬜ | ⬜ |
+| C-9 | Messages | Company logo in thread | flat → live CoLogo | ⬜ | ⬜ | ⬜ | ⬜ |
+| C-10 | Kingsmen prototype | Real data restored | invented → real | ⬜ | ⬜ | ⬜ | ⬜ |
+| C-12 | Auth emails | Branded + redirect guard | default → branded | 🟡 (live email ✅) | 🟡 | ⬜ | ⬜ |
+| U-7 | Profile heroes | Edit button overlay fix | tap swallowed → works | — | ✅ | ⬜ | ⬜ |
+| — | Home/news, Explore, Following, Notifications | *(verify unchanged vs production)* | — | ⬜ | ⬜ | ⬜ | ⬜ |
+
+## 2. Company (owner) experience — all NEW (no production baseline)
+
+| Change ID | Feature | Current state | Preserved?* | Test (preview) | Test (native) | Approve |
+|---|---|---|---|---|---|---|
+| C-11 | Owner Profile tab + composer + create card | built | n/a (new) | 🟡 | ⬜ | ⬜ |
+| C-13 | Profile edit persist + owner-aware draft load | built; DB persist ✅ | n/a | ✅ | ⬜ | ⬜ |
+| U-1 | Owner Profile = live Pro profile | built | n/a | 🟡 | ⬜ | ⬜ |
+| U-2 | Owner header (Share/Contacts, Settings, +) | built | n/a | 🟡 | ⬜ | ⬜ |
+| U-3→A1 | Owner Settings | ✅ **FIXED** — now the shared `AccountSettings` (investor Settings reused); duplicate deleted | n/a | ✅ | ⬜ | ⬜ |
+| U-4→A2 | Contact-card owner edit | ✅ **FIXED** — IR name/role/photo added; single save path | n/a | ✅ | ⬜ | ⬜ |
+| U-5→A3 | Owner Share | ✅ **FIXED** — uses `share.js` | n/a | 🟡 | ⬜ | ⬜ |
+| A4 | Owner share sheet + QR | ✅ built — reuses existing QR | n/a | ✅ | ⬜ | ⬜ |
+| C-1 | Skippable onboarding (new investors) | ✅ built — overlay, not a gate | n/a | 🟡 | ⬜ | ⬜ |
+| U-6 | Global "+" on tabs (not Messages) | built | n/a | 🟡 | ⬜ | ⬜ |
+| SW1 | Owner detection → membership model (owner_id OR active membership) | built; RLS-backed | preserved (investor unaffected) | ✅ | 🟡 (launch OK) | ⬜ |
+| SW2 | `?manage=<slug>` native entry (membership-gated; unauth → `/app`) | built | preserved | ✅ (unauth redirect) | 🟡 (launch OK) | ⬜ |
+| SW3 | Account switcher in Profile/Settings (0→none, 1→direct, 2+→picker) | built; reuses `AccountSettings`/`BottomSheet`/`myPortalCompanies()` | preserved (no switcher for non-members) | ✅ (investor-none + multi picker) | ⬜ (needs signed-in owner) | ⬜ |
+
+\* "Preserved?" = n/a for net-new features; the risk for owner features is that they modify **shared** components (see U-2) — verify the investor side under section 1.
+
+## 3. Integration (main → dev)
+
+| Item | Detail | Status | Approve |
+|---|---|---|---|
+| Security fix `5e4540a` | Close 3 unauthenticated AI endpoints | ⬜ integrate | ⬜ |
+| 24 Conference/mobile commits | marketing walkthrough polish | ⬜ integrate | ⬜ |
+| Marketing merge conflicts (4) | AppSection / InvestorPage / ProProfileChapter / system.jsx | ⬜ resolve by hand | ⬜ |
+
+## 4. Platform / technical integrity (must be native-verified)
+
+| Check | Preview | iOS native | Android native |
+|---|---|---|---|
+| Build succeeds (post-merge) | ✅ | ⬜ | ⬜ |
+| `typecheck` (studio) | ✅ | n/a | n/a |
+| `check:demo-assets` | ✅ | n/a | n/a |
+| **AI-guard security regression (`npm test`)** | ✅ **145/0** | n/a | n/a |
+| Safe areas / notch / scrolling | ⬜ | ⬜ | ⬜ |
+| Modals & bottom sheets | 🟡 | ⬜ | ⬜ |
+| Native share sheet + deep links | ⬜ | ⬜ | ⬜ |
+| Auth / RLS / data persistence | partial ✅ | ⬜ | ⬜ |
+| No existing feature missing | ⬜ | ⬜ | ⬜ |
+| Commit→build traceability recorded | ⬜ | ⬜ | ⬜ |
+
+> **Sync run 2026-10-09:** merged `main` into `sync/main-into-appupdate-2026-10` (`c710b10`). Security fix `5e4540a` integrated & verified (145/0). 4 marketing conflicts resolved to main's version. `PassportProto.jsx` byte-identical to pre-merge — no investor behaviour changed by the merge. See `MINEEX_CHANGE_INVENTORY.md` §G.
+
+## Native simulator run (iPhone 17 Pro, iOS 26.3 — 2026-10-09)
+Built from sync HEAD via `cap sync ios` + headless `xcodebuild` (Debug, simulator). **Simulator only — cannot publish.**
+
+| Native screen | Result | Evidence |
+|---|---|---|
+| App launches / renders real UI | **PASS (sim)** | app booted, Welcome screen rendered |
+| Opening splash (C-3) | **PASS (sim)** | black splash → start (play-once observed implicitly) |
+| Welcome / "One account for the whole market" | **PASS (sim)** | screenshot |
+| Login screen (Email/Password/Apple/Google) | **PASS (sim)** | screenshot; safe areas correct |
+| Investor profile / Settings (A1) / onboarding (C-1) | **BLOCKED** | require sign-in; password not entered by Claude |
+| **Company-owner profile + A2/A3/A4 (Contact edit, Share, QR)** | **NOT REACHABLE (native)** | login says *"Are you a company? Set up your profile on **desktop**"* — no native entry to owner mode (activated only by the desktop `?c=<slug>` URL). Owner features verified in **desktop preview only.** |
+| Real-device behaviour | **UNVERIFIED** | simulator ≠ device |
+| Production parity vs published app | **UNVERIFIED** | no access to installed App Store/Play build or its commit |
+
+### Switcher re-run (SW1–3 HEAD `b49bb16` — 2026-10-09)
+Rebuilt from switcher HEAD: `vite build` ✅ → `cap sync ios` ✅ → `xcodebuild` Debug ✅ (5s) → launched on iPhone 17 Pro.
+
+| Native screen | Result | Evidence |
+|---|---|---|
+| App launches / renders real UI (no SW1–3 regression) | **PASS (sim)** | Welcome "Every junior miner, in one feed." rendered; cobalt CTA; safe areas correct; screenshot |
+| Switcher card / company mode (native) | **NOT REACHABLE (native)** | requires a real signed-in owner session (Claude does not enter the password); verified in desktop pane: investor-none, multi-company picker, unauthorized redirect |
+
+**Build-reproducibility risk (flagged):** `cap sync` rewrote `ios/App/CapApp-SPM/Package.swift` plugin paths to `../../../../Passport V1/node_modules/...` (worktree shares the toolchain). Machine-specific — **must not ship**; left uncommitted.
+
+**Root cause (confirmed 2026-10-09):** this worktree's `node_modules` is a **symlink** → `/Users/leifer/Claude Projects/Passport V1/node_modules`. The *committed* `Package.swift` already uses the correct portable form `path: "../../../node_modules/@…"` (relative, stays inside the worktree). `cap sync` **resolves the symlink to its real target** and writes an out-of-worktree path `../../../../Passport V1/node_modules/@…`, which only works on this machine with this exact sibling layout.
+
+**Proposed fix (choose one; recommend B for CI, C as the quick guard):**
+- **A — Own `node_modules` in the worktree:** `rm node_modules` (symlink) → `npm ci` in-worktree, then `npx cap sync ios`. `cap sync` then resolves to `../../../node_modules/@…` (portable, in-tree) and that form is safe to commit. Cost: duplicate `node_modules` (~hundreds MB) per worktree.
+- **B — Generate native on the build/CI host:** never commit the synced `Package.swift` variant; on the release machine run `npm ci && npx cap sync ios` where `node_modules` is real and in-tree, build from that. Keeps the repo clean; CI is the source of truth for native deps.
+- **C — Normalize after sync (cheapest):** add an `npm run cap:sync` wrapper that runs `npx cap sync ios` then rewrites any `../../../../Passport V1/node_modules/` back to `../../../node_modules/` in `Package.swift`, so the committed file always stays portable. One `sed` post-step; no extra disk.
+
+Until one lands: **keep `Package.swift` + `Package.resolved` uncommitted** (current state) so the machine-specific variant never ships.
+
+## 5. Release gate
+- [ ] All Section 1 rows: Preserved? = yes, Approved
+- [ ] All Section 2 "needs correction" (✎) resolved + approved
+- [ ] Security fix integrated & verified
+- [ ] Native iOS build tested (not just preview)
+- [ ] Native Android build tested
+- [ ] Commit tagged `release/<store>-<version>-<sha>`
+- [ ] Your explicit "ship it"
+
+*Derived from `MINEEX_CHANGE_INVENTORY.md`. Nothing here is approved until you mark it.*

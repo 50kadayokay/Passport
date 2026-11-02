@@ -49,3 +49,10 @@ tools/header-probe/.env*
 
 # Production audit outputs: never commit
 supabase/audit/results/
+
+# Temporary local PR-ingest review fixture (regenerated; real ingest uploads to Storage)
+public/pr-fixture/
+public/pr-fixture.json
+
+# Phase 1A dev-only generated briefs (local fixture, never committed/shipped)
+public/brief-generated*.json

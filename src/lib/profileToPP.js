@@ -202,6 +202,16 @@ function mapTimeline(timeline) {
       key: !!e.key,
       id: str(e.date),
       label: shortLabel({ ...e, keyNumbers: keyResults.map((k) => k.value) }),
+      // Refined BriefV1 (validated), when the generator produced one — this is the single field
+      // the reader consumes to show the generated Brief instead of the card-mapped fallback.
+      // ENFORCEMENT GATE: this is the only chokepoint between a generated Brief and the public
+      // reader (the app reads companies.profile.pp.PR_YEARS[].items[].v2, and on a published
+      // company a profile write is instantly public). A Brief that validated REVIEW (or worse)
+      // carries `_needsReview` and is NEVER auto-mapped into the public payload — it must be
+      // approved by a human first. Human approval happens in the portal BriefReview UI, which
+      // writes the reviewed v2 straight into pp.PR_YEARS items (bypassing this mapping), so an
+      // explicitly-approved Brief is unaffected. FAIL attaches no v2 at all (safe by omission).
+      ...((() => { const vv = e.v2 || (ai && ai.v2); return (vv && !vv._needsReview) ? { v2: vv } : {}; })()),
     });
     // Full release: formatted text and/or attached images (screenshots). Stored as an
     // object so the reader can render both. Absent → the "Read Full Press Release" button
@@ -577,6 +587,11 @@ export function mapProfileToPP(profile = {}) {
   const COMPANY = {
     name: str(c.name),
     website: str(c.website),
+    // Official company social links (company-level). The Contact card reads these,
+    // falling back to the legacy profile.contact.{linkedin,twitter} for old data.
+    linkedin: str(c.linkedin),
+    twitter: str(c.twitter),
+    instagram: str(c.instagram),
     slogan: str(c.slogan),
     ticker: str(c.ticker),
     commodity: str(c.commodity),
@@ -785,7 +800,9 @@ export function mapProfileToPP(profile = {}) {
     // Contact links shown on the profile — each rendered only when present.
     CONTACT: (() => {
       const cn = profile.contact || {};
-      return { phone: str(cn.phone), email: str(cn.email), twitter: str(cn.twitter), linkedin: str(cn.linkedin) };
+      // IR PERSON: name/role/photo/email/phone. twitter/linkedin kept only as a read
+      // fallback for COMPANY social links (company.{linkedin,twitter} take priority).
+      return { name: str(cn.name), role: str(cn.role), photo: str(cn.photo), phone: str(cn.phone), email: str(cn.email), twitter: str(cn.twitter), linkedin: str(cn.linkedin) };
     })(),
     // A short CEO note shown near the top of the profile — a human voice from the person
     // running the company. Empty text → the card is hidden.

@@ -26,11 +26,12 @@
 //
 // AppSection (the approved sales page) is untouched.
 // ─────────────────────────────────────────────────────────────────────────────
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { COUNTS } from "../demo/investorFixture.js";
 import { EASE, MarketingStyles, useReduce, useViewport } from "../system.jsx";
-import { SHEET_MS, EASE_SHEET, WHEEL_TRIGGER, NEW_GESTURE_GAP, FIRM_DELTA, FRESH_FLICK } from "./motion.js";
+import { SHEET_MS, EASE_SHEET, WHEEL_TRIGGER, NEW_GESTURE_GAP, FIRM_DELTA, FRESH_FLICK , isReversal} from "./motion.js";
 import Nav from "./Nav.jsx";
+import StageArrows from "./StageArrows.jsx";
 import InvestorShellPhone from "../demo/InvestorShellPhone.jsx";
 import PushPreview, { PR_INVESTOR } from "./PushPreview.jsx";
 import { STAGE } from "./WalkthroughNarrative.jsx";
@@ -65,6 +66,33 @@ const NARR_W = "clamp(360px, 40vw, 560px)";
 // sales size (557 wide) but overflows a 320px column by ~118px on each side, so the sales
 // page's 120px gap left only ~46px of air between the headline and the phone. A wider
 // container and a larger gap put ~115px between them without moving the device column.
+// On a phone the two columns do not fit: a 360px+ narrative column plus a 320px device
+// column plus a 110-190px gap, on a 390px screen, put the device half off-screen and cut
+// the copy off at the left. Phones stack it — copy above, device below, the device taking
+// the remaining height — the same shape the sales and Pro walkthroughs use.
+const stageGridMobile = {
+  display: "grid",
+  gridTemplateColumns: "1fr",
+  // The SAME row as the home walkthrough (stageGridStyle), so the device comes out at the
+  // same size on every phone page. It was raised to 252px to stop the longest beat running
+  // into the device; the headline now wraps at 22ch like home's instead, which shortens the
+  // copy enough that the original row holds it. A constant, not per-beat `auto` — per-beat
+  // sizing is what cost 0.312 CLS.
+  gridTemplateRows: "clamp(150px, 30svh, 200px) minmax(0, 1fr)",
+  alignItems: "stretch",
+  height: "100%",
+  padding: "0 22px 6px",
+  gap: 10,
+};
+// The intro and the close carry a display-sized headline and a CTA block — several times
+// the height of a walkthrough beat (333px and 437px against ~150px) — so on a phone they
+// overflowed the fixed row and ran behind the device.
+//
+// Changing the GRID for those beats is what caused the shift: the device moved 245px when
+// it reappeared at beat 1 (0.312 CLS on the one element that must never move). So the grid
+// never changes. The device keeps its slot on every beat and is simply made invisible on
+// the two endpoints, where the copy is the point — layout identical, nothing to reflow,
+// and the long copy spills into a row that has nothing visible in it.
 const stageGrid = {
   display: "grid",
   gridTemplateColumns: `${NARR_W} 320px`,
@@ -79,7 +107,7 @@ const stageGrid = {
 
 // Guided beats (states 1…17). State 0 = intro, state 18 = close. `k` is the phone
 // directive handed to window.__appDemoGo; `ch` (0-3) groups beats into the four chapters.
-const STATES = [
+export const STATES = [
   { ch: 0, k: "today:lead",        n: "01", label: "Discover", head: "Junior mining news is scattered. This isn\u2019t.", body: "Coverage of this sector lives across newswires, exchange filings and company websites. MineEx pulls it into one feed, ranked around the companies you follow." },
   { ch: 0, k: "today:scroll",      n: "01", label: "Discover", head: "Built for how investors actually read.", body: "Editorial coverage, press releases, company updates and company media sit side by side, newest first \u2014 so one scroll tells you what moved." },
   { ch: 0, k: "story",             n: "01", label: "Discover", head: "Headlines rarely explain themselves.", body: "Every story opens with a plain-language MineEx summary: what was announced, why it matters, and the numbers worth remembering." },
@@ -129,7 +157,7 @@ const KX = {
   team: "7 directors & officers",
   ceo: "Scott Emerson · President & CEO",
   // the real section headings of a MineEx story summary
-  summarySections: ["MineEx summary", "What does this mean", "Context"],
+  summarySections: ["MineEx summary", "What does this mean?", "Context"],
   sources: "Trade press · newswires · regulatory filings · company releases & media",
 };
 
@@ -203,7 +231,7 @@ function usePagedWheel(sectionRef, n, enabled) {
     // Gesture model copied verbatim from AppSection so the trigger point feels the same.
     const onWheel = (e) => {
       const now = performance.now(), gap = now - last, mag = Math.abs(e.deltaY);
-      const reversed = dir0 !== 0 && Math.sign(e.deltaY) === -dir0 && mag >= FIRM_DELTA;
+      const reversed = isReversal(e.deltaY, dir0);
       const freshFlick = used && !locked && mag >= FRESH_FLICK && mag > lastMag * 2;
       if (gap > NEW_GESTURE_GAP || reversed || freshFlick) { accum = 0; dir0 = Math.sign(e.deltaY); used = false; peak = 0; }
       last = now; lastMag = mag; peak = Math.max(peak, mag);
@@ -256,10 +284,26 @@ function usePagedWheel(sectionRef, n, enabled) {
   }, [sectionRef, n, enabled]);
 }
 
+// ── Section rail ────────────────────────────────────────────────────────────
+// The same left-hand jump rail the sales page and the Pro walkthrough carry. This page
+// never had one — it is the only walkthrough without a position indicator, so a visitor
+// had no sense of how far through the story they were. Derived from STATES so the dots
+// cannot drift from the copy: one dot per chapter, pointing at that chapter's first beat.
+// Beat i renders at stage index i + 1 (index 0 is the intro).
+const CHAPTERS = (() => {
+  const out = [];
+  STATES.forEach((s, i) => { if (!out.some((c) => c.n === s.n)) out.push({ n: s.n, label: s.label, index: i + 1 }); });
+  return out;
+})();
+
 /* ── native-scroll index: one index per snapped viewport, no preventDefault ──────── */
-function useScrollIndex(ref, n) {
+// `enabled` is false on phones: they drive the index with the two arrow controls instead
+// (one press, one state), because scroll position kept advancing the story on momentum
+// after the finger had left the glass. The setter is returned so the controls can drive it.
+function useScrollIndex(ref, n, enabled = true) {
   const [idx, setIdx] = useState(0);
   useEffect(() => {
+    if (!enabled) return undefined;
     let raf = 0;
     const calc = () => {
       raf = 0;
@@ -276,8 +320,8 @@ function useScrollIndex(ref, n) {
     window.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("resize", onScroll, { passive: true });
     return () => { window.removeEventListener("scroll", onScroll); window.removeEventListener("resize", onScroll); if (raf) cancelAnimationFrame(raf); };
-  }, [ref, n]);
-  return idx;
+  }, [ref, n, enabled]);
+  return [idx, setIdx];
 }
 
 /* ── copy cross-fade: out → prep → in, keyed on the active beat (matches sales page) ── */
@@ -474,9 +518,16 @@ function BeatCopy({ i, compact }) {
   return (
     <>
       <Eyebrow n={s.n} label={s.label} />
-      <h2 className="mx-h2" style={{ margin: compact ? "8px 0 0" : "18px 0 0", color: NAVY, maxWidth: "16ch", fontSize: compact ? 21 : undefined }}>{s.head}</h2>
+      {/* 22ch on a phone, matching the home walkthrough. At 16ch the same headline wrapped
+          onto more lines, the copy block grew, and the row had to be made taller to hold it
+          — which is what shrank the device here to 289px against home's 332px. */}
+      <h2 className="mx-h2" style={{ margin: compact ? "8px 0 0" : "18px 0 0", color: NAVY, maxWidth: compact ? "22ch" : "16ch", fontSize: compact ? 21 : undefined }}>{s.head}</h2>
       <p className="mx-lead" style={{ margin: compact ? "8px 0 0" : "20px 0 0", color: SLATE, maxWidth: "38ch", fontSize: compact ? 14.5 : undefined }}>{s.body}</p>
-      {s.ch === 1 ? <FilterViz i={i} compact={compact} /> : supportFor(i, compact)}
+      {/* The supporting card sits under the copy in the desktop LEFT COLUMN. Stacked on a
+          phone it overflows the copy row and lands behind the device. Nothing is lost by
+          dropping it there: the phone prints the same figures on screen beside it (see the
+          note above FilterViz), and the headline and body still carry the beat. */}
+      {compact ? null : (s.ch === 1 ? <FilterViz i={i} compact={compact} /> : supportFor(i, compact))}
     </>
   );
 }
@@ -485,7 +536,15 @@ export default function InvestorPage() {
   const { mobile } = useViewport();
   const reduce = useReduce();
   const sectionRef = useRef(null);
-  const idx = useScrollIndex(sectionRef, N);
+  // Native-scroll stage: one viewport per index, so jumping to a chapter is simply
+  // scrolling to that viewport. Smooth unless the visitor prefers reduced motion.
+  const jumpToIndex = useCallback((i) => {
+    const el = sectionRef.current; if (!el) return;
+    const vh = window.innerHeight || document.documentElement.clientHeight || 1;
+    const top = el.getBoundingClientRect().top + window.scrollY;
+    window.scrollTo({ top: Math.round(top + i * vh), behavior: reduce ? "auto" : "smooth" });
+  }, [reduce]);
+  const [idx, setIdx] = useScrollIndex(sectionRef, N, !mobile);
   const { shown, phase } = useCopyPhase(idx, reduce);
 
   // Desktop uses the sales page's paged-wheel controller; native CSS scroll-snap stays
@@ -505,65 +564,83 @@ export default function InvestorPage() {
   // its grid cell.
   const active = phoneKeyFor(idx);
   const showPhone = idx >= 1 && idx <= STATES.length;   // mobile only: copy card needs the room
+  // `fill` on BOTH: without it the root is height:100svh, so on a phone the device sized
+  // itself to the whole viewport (443px wide) instead of its grid row and ran off the
+  // bottom of the screen. `matchSales` stays desktop-only — that deliberately sizes off
+  // the viewport to match the sales page's stage, which is wrong once the layout stacks.
+  const endpointBeat = shown === 0 || shown === N - 1;
   const phone = mobile
-    ? <InvestorShellPhone active={active} insetTop={0} insetBottom={0} />
+    ? <InvestorShellPhone active={active} fill insetTop={0} insetBottom={0} />
     : <InvestorShellPhone active={active} fill matchSales />;
 
-  if (mobile) {
-    return (
-      <div className="mx-root" id="top" style={{ background: BG, minHeight: "100vh", color: NAVY }}>
-        <MarketingStyles />
-        <Nav />
-        <main style={{ fontFamily: "'Switzer', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}>
-          <section ref={sectionRef} style={{ position: "relative", height: `${N * 100}svh` }}>
-            {Array.from({ length: N }).map((_, i) => <div key={i} aria-hidden className="inv-cell" style={{ position: "absolute", top: `${i * 100}svh`, left: 0, right: 0, height: "100svh", pointerEvents: "none" }} />)}
-            <div style={{ position: "sticky", top: 0, height: "100svh", overflow: "hidden" }}>
-              <Atmosphere reduce={reduce} />
-              <div style={{ position: "absolute", inset: 0, zIndex: 20, opacity: showPhone ? 1 : 0, transition: `opacity 520ms ${EASE}` }}>{phone}</div>
-              <div key={shown} className="inv-mcopy" style={{ position: "absolute", left: 16, right: 16, zIndex: 30,
-                ...(showPhone ? { bottom: "calc(env(safe-area-inset-bottom, 0px) + 20px)" } : { top: "50%", transform: "translateY(-50%)" }),
-                background: "rgba(255,255,255,0.92)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", border: `1px solid ${HAIR}`, borderRadius: 18, padding: "18px 20px", boxShadow: "0 20px 44px -26px rgba(10,27,46,0.4)" }}>
-                <BeatCopy i={shown} compact />
-              </div>
-            </div>
-          </section>
-        </main>
-        <InvStyles />
-      </div>
-    );
-  }
-
-  // ── DESKTOP: one pinned stage; phone + copy glide to each chapter's composition ──
+  // ── One pinned stage, desktop and phone alike; the device + copy glide to each
+  //    chapter's composition. The phone sizes itself to the viewport (stageGridStyle).
   return (
     <div className="mx-root mx-invstage" id="top" style={{ background: BG, minHeight: "100vh", color: NAVY }}>
       <MarketingStyles />
       <Nav />
       <main style={{ fontFamily: "'Switzer', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}>
-        <section ref={sectionRef} style={{ position: "relative", height: `${N * 100}svh` }}>
-          {Array.from({ length: N }).map((_, i) => <div key={i} aria-hidden className="inv-cell" style={{ position: "absolute", top: `${i * 100}svh`, left: 0, right: 0, height: "100svh", pointerEvents: "none" }} />)}
+        <section ref={sectionRef} style={{ position: "relative", height: mobile ? "100svh" : `${N * 100}svh`, overflow: mobile ? "hidden" : undefined }}>
+          {/* Section rail — the SAME vertical line the Pro walkthrough uses (NarrativeStory's
+              ChapterRail): one 2px segment per beat, filled up to the active one, the active
+              segment taller. Identical geometry — 2px wide, 16px / 30px tall, 8px gap, the same
+              420ms easing — recoloured for this page's light ground instead of the dark stage.
+              Each segment is a button so the rail still navigates, which the dots did; nothing
+              about how it looks changes because of that. */}
+          {!mobile && (
+            <nav aria-label="Jump to section" style={{ position: "fixed", left: "clamp(18px, 2.4vw, 46px)", top: "50%", transform: "translateY(-50%)", zIndex: 80,
+              display: "flex", flexDirection: "column", justifyContent: "center", gap: 8,
+              opacity: idx >= 1 ? 1 : 0, pointerEvents: idx >= 1 ? "auto" : "none", transition: `opacity 420ms ${EASE}` }}>
+              {Array.from({ length: N }).map((_, i) => {
+                const label = (STATES[Math.max(0, Math.min(STATES.length - 1, i - 1))] || {}).label || "Section";
+                return (
+                  <button key={i} type="button" onClick={() => jumpToIndex(i)} className="inv-tick" aria-label={label}
+                    aria-current={i === idx ? "true" : undefined}
+                    style={{ display: "block", width: 2, padding: 0, border: "none", cursor: "pointer",
+                      height: i === idx ? 30 : 16, borderRadius: 2,
+                      background: i === idx ? NAVY : i < idx ? "rgba(10,27,46,0.42)" : "rgba(10,27,46,0.14)",
+                      transition: `height 420ms ${EASE}, background 420ms ${EASE}` }} />
+                );
+              })}
+            </nav>
+          )}
+          {!mobile && Array.from({ length: N }).map((_, i) => <div key={i} aria-hidden className="inv-cell" style={{ position: "absolute", top: `${i * 100}svh`, left: 0, right: 0, height: "100svh", pointerEvents: "none" }} />)}
 
-          <div style={{ position: "sticky", top: 0, height: "100svh", overflow: "hidden" }}>
+          <div className="mx-vstage" style={{ position: mobile ? "relative" : "sticky", top: 0, height: "100svh", overflow: "hidden" }}>
             <Atmosphere reduce={reduce} />
 
             {/* ONE stage for all 19 states: narrative left, device right, both fixed. */}
-            <div style={{ position: "absolute", left: 0, right: 0, top: SAFE_TOP, bottom: SAFE_BOTTOM, zIndex: 20 }}>
-              <div style={stageGrid}>
+            {/* Phones use the home walkthrough's insets (62 / 12) rather than this page's
+                desktop ones (78 / 16), so the stage the device is sized from is identical
+                and the render comes out the same size on every phone page. */}
+            <div style={{ position: "absolute", left: 0, right: 0, top: mobile ? 62 : SAFE_TOP, bottom: mobile ? 12 : SAFE_BOTTOM, zIndex: 20 }}>
+              <div style={mobile ? stageGridMobile : stageGrid}>
                 {/* narrative — fixed column, so the device slot never moves */}
-                <div style={{ minHeight: 300, display: "flex", flexDirection: "column", justifyContent: "center" }}>
-                  <div style={copyStyleFor(phase, reduce)}><BeatCopy i={shown} /></div>
+                {/* Phones align the copy to the TOP of its row. Centring it was fine while every
+                    beat was short, but the closing beat carries 437px of copy and minHeight:300
+                    is taller than the row itself, so centring pushed the overflow out BOTH ways
+                    and the eyebrow and headline ended up above the nav (measured at top=7 and
+                    top=43 against a nav bottom of 49 — the cut-off text). Aligned to the top,
+                    the overflow can only go downwards, into the device row, which is already
+                    invisible on exactly those beats. */}
+                <div style={{ minHeight: mobile ? 0 : 300, display: "flex", flexDirection: "column", justifyContent: mobile ? "flex-start" : "center" }}>
+                  <div style={copyStyleFor(phase, reduce)}><BeatCopy i={shown} compact={mobile} /></div>
                 </div>
                 {/* device — constant slot, constant scale, no entrance */}
-                <div style={{ position: "relative", height: "100%", pointerEvents: "none" }}>
+                <div style={{ position: "relative", height: "100%", pointerEvents: "none", opacity: mobile && endpointBeat ? 0 : 1, transition: "opacity 220ms ease" }}>
                   {phone}
                   {/* The story's point, in one frame: the company publishes, the follower is
                       notified, and the update is already in the feed behind the banner. Fires
                       on the same beat that switches the phone to the followed-company updates,
                       so the two land together. Desktop only — on mobile the copy card owns
                       the space to the phone's side. */}
-                  <PushPreview show={shown === PUSH_BEAT} note={PR_INVESTOR} />
+                  <PushPreview show={shown === PUSH_BEAT} note={PR_INVESTOR} mobile={mobile} />
                 </div>
               </div>
             </div>
+            {/* One press, one state. The investor stage is a light screen, so the controls
+                take their light palette. */}
+            {mobile && <StageArrows i={idx} n={N} onGo={setIdx} bottom="30%" />}
           </div>
         </section>
       </main>
@@ -575,6 +652,9 @@ export default function InvestorPage() {
 function InvStyles() {
   return (
     <style>{`
+        /* Jump rail — identical rules to the sales page and the Pro walkthrough, so the
+           three rails hover and scale the same way. */
+        .inv-tick:hover { background: ${NAVY} !important; }
       html.inv-snap { scroll-snap-type: y mandatory; }
       /* The paged controller animates scroll position itself — the browser must not
          re-animate it on top. !important is required: the smooth value is set inline. */
