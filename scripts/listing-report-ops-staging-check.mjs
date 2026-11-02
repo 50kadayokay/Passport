@@ -4,13 +4,15 @@
 // FOR S4 TO RUN (needs supabase/staging/.connection and 0093 APPLIED on staging).
 // It COMMITS, and restores exactly:
 //   1. snapshot listing_report_limits and every 0093 counter in submission_throttle
-//   2. lower global_per_window to (this window's global count + 3)
-//   3. three anon reports (simulated PostgREST: role anon, gateway headers, the
-//      json_to_recordset insert) are stored; the fourth is refused PT429 "right now"
+//   2. lower global_per_window to (this window's global count + 4)
+//   3. four anon reports (simulated PostgREST: role anon, gateway headers, the
+//      json_to_recordset insert) are stored; the fifth is refused PT429 "right now"
 //   4. api/_listingReportOps.js's listingReportStatus() -- the exact code /api/ops
 //      runs, its service-role PostgREST reads answered from the same database --
 //      reports capHit, globalCount = globalLimit, and 0093's own window start
-//   5. with the limit raised to just above the count: warn (>= 80%), not capHit
+//   5. with the limit raised to floor(count / 0.8) -- above the count, and the
+//      count still >= 80% of it (possible because the count is at least 4): warn,
+//      not capHit
 //   6. restore: the limits row, every 0093 counter (deleted / recounted / re-added
 //      by primary key, then compared), and this run's report rows deleted
 // Prints counts and booleans only; no keys, no addresses.
@@ -87,22 +89,24 @@ const report = async (ip) => {
 
 try {
   const g0 = await globalNow();
-  const limit = g0 + 3;
+  const FILL = 4;   // >= 4, so floor(count / 0.8) > count: a limit exists that is >= 80% full but not hit
+  const limit = g0 + FILL;
   await q(`update public.listing_report_limits set global_per_window = $1 where id`, [limit]);
-  console.log(`\n  CAP LOWERED to this window's count + 3 (${limit})`);
+  console.log(`\n  CAP LOWERED to this window's count + ${FILL} (${limit})`);
   const res = [];
-  for (let i = 0; i < 4; i++) res.push(await report(`198.18.${100 + i}.${7 + i}`));
-  ok(res.slice(0, 3).every((r) => r.ok), "three reports from three networks are stored", JSON.stringify(res.slice(0, 3)));
-  ok(!res[3].ok && res[3].code === "PT429" && /right now/.test(res[3].msg), "the fourth is refused by the GLOBAL cap (PT429, \"right now\")", `${res[3].code} ${res[3].msg}`);
+  for (let i = 0; i <= FILL; i++) res.push(await report(`198.18.${100 + i}.${7 + i}`));
+  ok(res.slice(0, FILL).every((r) => r.ok), `${FILL} reports from ${FILL} networks are stored`, JSON.stringify(res.slice(0, FILL)));
+  ok(!res[FILL].ok && res[FILL].code === "PT429" && /right now/.test(res[FILL].msg), `the ${FILL + 1}th is refused by the GLOBAL cap (PT429, "right now")`, `${res[FILL].code} ${res[FILL].msg}`);
   ok((await globalNow()) === limit, `the window's global counter equals the limit (${limit}): the refusal left no trace`);
 
   console.log("\n  WHAT /api/ops REPORTS");
   let s = await listingReportStatus();
   ok(s.available && s.capHit === true && s.globalCount === limit && s.globalLimit === limit, "capHit, with globalCount = globalLimit", JSON.stringify({ available: s.available, capHit: s.capHit, globalCount: s.globalCount, globalLimit: s.globalLimit }));
   ok(s.windowStart === dbWindow, "windowStart is the window 0093 wrote (same bucket arithmetic as the guard)", `${s.windowStart} vs ${dbWindow}`);
-  await q(`update public.listing_report_limits set global_per_window = $1 where id`, [Math.ceil(limit / 0.85)]);
+  const raised = Math.floor(limit / 0.8);   // > limit (limit >= 4), and limit / raised >= 0.8
+  await q(`update public.listing_report_limits set global_per_window = $1 where id`, [raised]);
   s = await listingReportStatus();
-  ok(s.capHit === false && s.warn === true, `limit raised to ${Math.ceil(limit / 0.85)}: warn (>= 80%), not capHit`);
+  ok(raised > limit && s.capHit === false && s.warn === true, `limit raised to ${raised}: ${limit} of ${raised} (${Math.round((limit / raised) * 100)}%) warns, not capHit`);
 } catch (e) {
   ok(false, "unexpected error", e.stack || e.message);
 } finally {
