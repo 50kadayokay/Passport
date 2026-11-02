@@ -22,7 +22,7 @@ const ok = (c, m, d = "") => { if (c) { pass++; console.log(`  ✓ ${m}`); } els
 
 // Built from the refs (no production URL literal: scripts/script-target-guard-test.mjs).
 const PROD_SB = `https://${PRODUCTION_REFS[0]}.supabase.co`, STG_SB = `https://${STAGING_REFS[0]}.supabase.co`;
-const PROD_APP = "https://mineex.ca", STG_APP = "https://staging-app.example.com";
+const PROD_APP = "https://passport-xi-five.vercel.app", STG_APP = "https://staging-app.example.com";
 const KEY = "sb_publishable_offline_stub_key_0123456789abcdef";
 const PW = { investor: "pw-investor-SECRET-1", owner: "pw-owner-SECRET-2", admin: "pw-admin-SECRET-3" };
 
@@ -188,7 +188,7 @@ world({ sb: STG_SB, app: STG_APP });
 db({ upTo: 6 });
 r = await run(["--stage=deploy", "--staging", "--app", STG_APP], { answers: ALL(), env: {} });
 ok(r.kinds("INFO").filter((l) => /ahead of this stage/.test(l)).length === items.length && !r.kinds("FAIL").length && DB.dsn.includes("jmljfovtfxcdhjmtlnva"), "staging has everything: INFO, not FAIL; the staging connection is used");
-ok(!W.calls.some((c) => c.url.includes("rvptronniomlqumjhyrr") || c.url.includes("mineex.ca")), "a staging run never contacts production");
+ok(!W.calls.some((c) => c.url.includes("rvptronniomlqumjhyrr") || c.url.includes("mineex.ca") || c.url.includes("passport-xi-five")), "a staging run never contacts production");
 
 console.log("\n  SCHEDULED DRAIN (pg_cron)");
 world({ sb: PROD_SB, app: PROD_APP });

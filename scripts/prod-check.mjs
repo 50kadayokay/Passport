@@ -50,7 +50,9 @@ import { PRODUCTION_REFS, STAGING_REFS, DEFAULT_AUDIT, loadRecord, parseQ01Marke
 export const STAGES = ["deploy", "phase3", "phase4", "phase5", "phase5b", "final"];
 const PHASE_OF_STAGE = { deploy: 2, phase3: 3, phase4: 4, phase5: 5, phase5b: 6, final: 6 };
 const PHASE_RANK = { "3": 3, "4": 4, "5": 5, "5b": 6 };
-const PROD = { ref: PRODUCTION_REFS[0], app: "https://mineex.ca" };
+// The production app host is the passport project (portal, investor web app and every API the native apps call).
+// mineex.ca is the separate mineex-site project (sales site), which this rollout does not change.
+const PROD = { ref: PRODUCTION_REFS[0], app: "https://passport-xi-five.vercel.app" };
 const STAGING = { ref: STAGING_REFS[0] };
 const sbUrl = (ref) => `https://${ref}.supabase.co`;
 
@@ -77,7 +79,7 @@ export function parseArgs(argv) {
   const ref = staging ? STAGING.ref : PROD.ref;
   const t = parseTarget(["--app", app, "--supabase", sbUrl(ref), ...(staging ? [] : ["--production"]), ...(argv.includes("--api-only") ? ["--api-only"] : [])]);
   if (t.refuse) return { refuse: t.refuse };
-  if (staging && /mineex\.ca$/i.test(new URL(t.app).hostname)) return { refuse: "--staging with the production web app; give the staging app URL" };
+  if (staging && /(^|\.)mineex\.ca$|^passport-xi-five\.vercel\.app$/i.test(new URL(t.app).hostname)) return { refuse: "--staging with the production web app; give the staging app URL" };
   if (!staging && new URL(t.app).hostname !== new URL(PROD.app).hostname) return { refuse: `production checks run against ${PROD.app}; --app can only change it together with --staging` };
   return { stage, staging, target: t, ref, noAccounts: argv.includes("--no-accounts"), noDb: argv.includes("--no-db") };
 }
