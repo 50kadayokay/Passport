@@ -39,6 +39,7 @@ const LOADED = {
 const NOT_LOADED = {
   "http://www.w3.org": "XML/SVG namespace strings",
   "http://www.apache.org": "XML namespace in pdf.js", "http://www.xfa.org": "XFA namespace in pdf.js", "http://ns.adobe.com": "XMP namespace in pdf.js",
+  "https://supabase-url-not-configured.invalid": "src/lib/supabase.js's non-production host (never resolves; a production build never selects it)",
   "https://example.com": "placeholder text", "https://company.com": "placeholder text",
   "https://mineex.ca": "links and QR targets", "https://passport-xi-five.vercel.app": "links, QR targets and the booth fallback origin",
   "https://mineex.app": "QR target in marketing art",

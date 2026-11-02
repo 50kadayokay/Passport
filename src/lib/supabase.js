@@ -1,7 +1,11 @@
 // Supabase config. The URL + publishable ("anon") key are read from Vite env
 // vars (set in .env locally and in Vercel for prod). Both are safe to ship in
-// the client — never put the service-role/secret key here. Fallbacks keep local
-// dev working without a .env; production should always set the env vars.
+// the client — never put the service-role/secret key here. Only a PRODUCTION
+// build falls back to the production project (Vercel sets the vars; the native
+// apps are built with `vite build` and rely on the fallback). Anything else --
+// `vite` dev, `vite build --mode development`, a node test -- gets a host that
+// cannot resolve, so a local preview never talks to production by accident.
+// (2026-11-01: a signed-out dev portal polled production once a minute.)
 // `import.meta.env` exists under Vite and is undefined under plain node. Reading it
 // as a whole (rather than reaching straight through it) keeps Vite's build-time
 // substitution working while letting this module be imported by a node test — which
@@ -19,10 +23,26 @@ if (IS_STAGING && (String(ENV.VITE_SUPABASE_URL || "").replace(/\/+$/, "") !== S
   throw new Error("[staging tripwire] this staging bundle is not configured for the staging Supabase project.");
 }
 
+// __MINEEX_PRODUCTION_BUILD__ is a literal from vite.config.js (true only for
+// `vite build` in production mode), so any other bundle drops the production
+// values entirely; it is undefined under node and in test bundles. A page on
+// plain http (a local `vite preview` of a production build) gets no fallback
+// either: the deploy is https, and the native apps load from
+// capacitor://localhost (iOS) and https://localhost (Android).
+// eslint-disable-next-line no-undef
+const BUILT_FOR_PRODUCTION = typeof __MINEEX_PRODUCTION_BUILD__ !== "undefined" && __MINEEX_PRODUCTION_BUILD__ === true;
+const PLAIN_HTTP_PAGE = typeof location !== "undefined" && location.protocol === "http:";
+const PRODUCTION_BUILD = BUILT_FOR_PRODUCTION && !PLAIN_HTTP_PAGE;
+export const NOT_CONFIGURED_URL = "https://supabase-url-not-configured.invalid";
+if (!IS_STAGING && !PRODUCTION_BUILD && !ENV.VITE_SUPABASE_URL && typeof console !== "undefined") {
+  console.error("[supabase] VITE_SUPABASE_URL is not set: this is not a production build, so there is no fallback. " +
+                "Requests go to an unresolvable host. Set VITE_SUPABASE_URL (and VITE_SUPABASE_ANON_KEY) to the project you mean.");
+}
+
 export const SUPABASE_URL = IS_STAGING ? STAGING_URL
-  : (ENV.VITE_SUPABASE_URL || "https://rvptronniomlqumjhyrr.supabase.co");
+  : (ENV.VITE_SUPABASE_URL || (PRODUCTION_BUILD ? "https://rvptronniomlqumjhyrr.supabase.co" : NOT_CONFIGURED_URL));
 export const SUPABASE_ANON = IS_STAGING ? ENV.VITE_SUPABASE_ANON_KEY
-  : (ENV.VITE_SUPABASE_ANON_KEY || "sb_publishable_NNxikHZSGZ0CYnzN7jckLg_vPvrRCTl");
+  : (ENV.VITE_SUPABASE_ANON_KEY || (PRODUCTION_BUILD ? "sb_publishable_NNxikHZSGZ0CYnzN7jckLg_vPvrRCTl" : "sb_publishable_not_configured"));
 
 const headers = {
   apikey: SUPABASE_ANON,
