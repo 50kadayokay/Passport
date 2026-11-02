@@ -52,7 +52,7 @@ with a self-check), and the accepted risks listed in the checklist.
 7. After 24 h clean: hand the portal to 2–3 pilot companies.
 
 ## Progress
-Implemented 97% · Integrated 97% · Verified 86% · Feature completion 91% · Launch readiness 68%.
+Implemented 97% · Integrated 97% · Verified 86% · Feature completion 91% · Launch readiness 64% (7 of 11 gates).
 
 ## ETA to the first paying company
 Deploy and the four phases take about 2–3 hours of your time with confirmations; then a 24-hour soak.

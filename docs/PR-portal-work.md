@@ -20,7 +20,7 @@ phases (`docs/LAUNCH-DAY-RUNBOOK.md`).
 
 ### Verified on staging (every pending migration applied)
 - Tenant isolation 1088/0, API authorization 446/0, 25 live suites (investor app 35/0), migration round
-  trip 79/0, production-exact rollback captures 15/0, `npm test`, web and native builds.
+  trip 82/0, production-exact rollback captures 15/0, `npm test`, web and native builds.
 - Read-only production audits (2026-11-01, re-run 2026-11-02): production matches the repo's expected state;
   no drift since.
 

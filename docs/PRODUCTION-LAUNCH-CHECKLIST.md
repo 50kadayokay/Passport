@@ -13,7 +13,7 @@ Nothing here has been done in production. Pilot scope: 2–3 companies.
   plan-only by default, one file per run, typed confirmation, capture-on-apply (production-exact
   rollbacks), no-transaction mode for 0065c/0073a, `--rollback`.
 - Staging with every migration applied, including 0092 and 0093: isolation 1088/0/0/0, API authz 446/0,
-  25 live suites, investor app 35/0, round trip 79/0, captures 15/0, `npm test`, web and native builds.
+  25 live suites, investor app 35/0, round trip 82/0, captures 15/0, `npm test`, web and native builds.
 - Listing-report rate limit (0093): 5 per device per 10 min, 20 per network per hour, 600 per hour
   overall, one report per request; keyed only on the gateway-set address (live gateway test 131/0,
   adversarial 129/0, concurrency exact, installed 1.3.x apps unchanged). Alert on the admin Delivery
