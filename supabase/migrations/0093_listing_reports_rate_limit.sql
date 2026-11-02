@@ -39,7 +39,8 @@
 -- Neither present (a direct, non-gateway session): one shared 'unknown' bucket,
 -- at the per-client limit, with no network limit (there is no network).
 -- NETWORK = the address's /24 (IPv4) or /48 (IPv6), so rotating through one
--- provider's range is capped together.
+-- provider's range is capped together. An IPv4-mapped IPv6 address counts as its
+-- IPv4 address (/24), not as part of ::ffff:0:0/96.
 -- Stored are salted SHA-256 prefixes, never an address:
 --   client  'lr:' || left(sha256(salt || '|' || ip), 32)
 --   network 'ln:' || left(sha256(salt || '|net|' || network), 32)
@@ -140,6 +141,11 @@ declare v inet;
 begin
   if p_ip is null then return null; end if;
   begin v := p_ip::inet; exception when others then return null; end;
+  -- An IPv4-mapped IPv6 address (::ffff:a.b.c.d) is that IPv4 address: as IPv6
+  -- its /48 would be ALL of IPv4, one bucket for every such client.
+  if family(v) = 6 and v <<= '::ffff:0:0/96'::inet then
+    v := '0.0.0.0'::inet + (v - '::ffff:0.0.0.0'::inet);
+  end if;
   return host(network(set_masklen(v, case when family(v) = 4 then 24 else 48 end)))
       || case when family(v) = 4 then '/24' else '/48' end;
 end $$;
