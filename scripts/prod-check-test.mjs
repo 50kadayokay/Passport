@@ -93,6 +93,7 @@ const pgConnect = async (dsn) => {
       if (fileOfCheckpoint.has(sql)) return { rows: [{ applied: DB.applied.has(fileOfCheckpoint.get(sql)) }] };
       if (/listing_reports_guard/.test(sql) && /row_to_json/.test(sql)) return { rows: [DB.guard] };
       if (/to_regclass\('cron\.job'\)/.test(sql)) return { rows: [{ has_cron: DB.cron }] };
+      if (/from cron\.job/.test(sql)) return { rows: [{ active: DB.cronActive || 0, inactive: DB.cronInactive || 0 }] };
       throw new Error(`unexpected SQL: ${sql.slice(0, 80)}`);
     },
     async end() { DB.ended = true; },
@@ -188,6 +189,16 @@ db({ upTo: 6 });
 r = await run(["--stage=deploy", "--staging", "--app", STG_APP], { answers: ALL(), env: {} });
 ok(r.kinds("INFO").filter((l) => /ahead of this stage/.test(l)).length === items.length && !r.kinds("FAIL").length && DB.dsn.includes("jmljfovtfxcdhjmtlnva"), "staging has everything: INFO, not FAIL; the staging connection is used");
 ok(!W.calls.some((c) => c.url.includes("rvptronniomlqumjhyrr") || c.url.includes("mineex.ca")), "a staging run never contacts production");
+
+console.log("\n  SCHEDULED DRAIN (pg_cron)");
+world({ sb: PROD_SB, app: PROD_APP });
+for (const [label, cron, active, inactive, want] of [["absent", false, 0, 0, "absent"], ["present, one INACTIVE outbox-drain job", true, 0, 1, "inactive"], ["present, one ACTIVE job", true, 1, 0, "active"]]) {
+  db({ upTo: 6, cron }); DB.cronActive = active; DB.cronInactive = inactive;
+  r = await run(["--stage=final"], { answers: ALL() });
+  if (want === "absent") ok(r.kinds("PASS").some((l) => /no pg_cron/.test(l)) && r.verdict === "PASS", `pg_cron ${label}: PASS`);
+  if (want === "inactive") ok(r.kinds("PASS").some((l) => /no active scheduled outbox drain/.test(l)) && r.kinds("INFO").some((l) => /INACTIVE/.test(l)) && r.verdict === "PASS", `pg_cron ${label}: PASS, reported as INFO`);
+  if (want === "active") ok(r.kinds("FAIL").some((l) => /no ACTIVE scheduled outbox drain/.test(l)) && r.code === 1, `pg_cron ${label}: FAIL`);
+}
 
 console.log("\n  READ-ONLY, ACCOUNTS AND DSN");
 world({ sb: PROD_SB, app: PROD_APP });

@@ -278,8 +278,13 @@ export async function runCheck({ argv, env = {}, fetchImpl = globalThis.fetch, p
       const cron = await one(`select to_regclass('cron.job') is not null has_cron`);
       if (!cron.has_cron) line("PASS", "no pg_cron: nothing schedules an outbox drain (pilot)");
       else {
-        const j = await one(`select count(*)::int n from cron.job where command ilike '%dispatch%' or jobname = 'outbox-drain'`);
-        if (j.n === 0) line("PASS", "pg_cron is present but schedules no outbox drain (pilot)"); else line("FAIL", "no scheduled outbox drain in the pilot", `${j.n} job(s)`);
+        // The pilot needs no ACTIVE drain: an inactive job (staging keeps one, contained) is information.
+        const j = await one(`select count(*) filter (where active)::int active, count(*) filter (where not active)::int inactive from cron.job where command ilike '%dispatch%' or jobname = 'outbox-drain'`);
+        if (j.active > 0) line("FAIL", "no ACTIVE scheduled outbox drain in the pilot", `${j.active} active job(s)`);
+        else {
+          line("PASS", "no active scheduled outbox drain (pilot)");
+          if (j.inactive > 0) line("INFO", `${j.inactive} outbox-drain job(s) present but INACTIVE (cron.job.active = false)`);
+        }
       }
     } catch (e) { line("FAIL", "catalog checks completed", e.message); }
     finally { await client.end().catch(() => {}); }
