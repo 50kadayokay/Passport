@@ -107,7 +107,7 @@ export const PENDING = {
   "0090_notification_clear_roles.sql":
     "Company-wide \"Clear all\" notifications limited to owner/admin (and platform admins) via has_company_role; was any member. Needs 0064 and 0076. Applied to staging 2026-11-01.",
   "0092_listing_reports_column_insert.sql":
-    "listing_reports INSERT for anon/authenticated narrowed from the whole table to the six columns installed 1.3.x builds send, so a guest can no longer set id or created_at (backdating, id oracle). 0077's policy unchanged. Apply in the SAME runner session as 0077, right after it.",
+    "listing_reports INSERT for anon/authenticated narrowed from the whole table to the six columns installed 1.3.x builds send, so a guest can no longer set id or created_at (backdating, id oracle). 0077's policy unchanged. Apply in the SAME runner session as 0077, right after it. Applied to staging 2026-11-02.",
   "0091_notification_clear_no_platform_admin.sql":
     "\"Clear all\" admits only the company's owner_id or an active owner/admin membership; platform admins no longer pass by being platform admins (user decision 2026-11-01). Replaces 0090's check only; same signature and grants. MUST follow 0090. Applied to staging 2026-11-01.",
   "0061a_table_privilege_hardening.sql":

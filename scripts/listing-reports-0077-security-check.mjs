@@ -72,7 +72,9 @@ try {
   const priv = async (role) => Object.fromEntries((await q(`select p, has_table_privilege($1, 'public.listing_reports', p) h from unnest(array['SELECT','INSERT','UPDATE','DELETE','TRUNCATE','REFERENCES','TRIGGER']) p`, [role])).map((r) => [r.p, r.h]));
   for (const role of ["anon", "authenticated"]) {
     const p = await priv(role);
-    ok(p.INSERT && Object.entries(p).every(([k, v]) => k === "INSERT" || !v), `${role}: INSERT and nothing else on listing_reports`, JSON.stringify(p));
+    // After 0092 the INSERT is per column (the six the app sends), so the table-level check is false.
+    const colIns = (await q(`select has_column_privilege($1, 'public.listing_reports', 'company_slug', 'INSERT') h`, [role]))[0].h;
+    ok((p.INSERT || colIns) && Object.entries(p).every(([k, v]) => k === "INSERT" || !v), `${role}: INSERT (table or 0092's columns) and nothing else on listing_reports`, JSON.stringify({ ...p, colIns }));
   }
   const pols = await q(`select policyname, cmd, roles::text r from pg_policies where schemaname = 'public' and tablename = 'listing_reports'`);
   ok(pols.length === 1 && pols[0].cmd === "INSERT", "one policy, INSERT only: no SELECT/UPDATE/DELETE policy exists", JSON.stringify(pols));
