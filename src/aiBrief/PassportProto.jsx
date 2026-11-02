@@ -73,7 +73,7 @@ import {
   Trash2, Briefcase, Instagram, Share2, ImagePlus, Video
 } from "lucide-react";
 import { signOut, getUser, getAccessToken, authHeaders, onAuthChange, requestPasswordReset } from "../lib/auth.js";
-import { pollEvery } from "../lib/pollGuard.js"; // background polls: session required, stop on 401/403
+import { pollEvery } from "../lib/pollGuard.js"; // background polls: session required (member-only reads), stop on 401/403
 import { registerPush } from "../lib/push.js"; // native push registration (no-op on web)
 import { shareContent, shouldFallback, companyShareUrl } from "../lib/share.js"; // native share sheet on Android; unchanged on iOS/web
 import { useBackHandler, BACK_PRIORITY } from "../lib/useBackHandler.js"; // Android hardware back (inert on web/iOS)

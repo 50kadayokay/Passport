@@ -95,12 +95,13 @@ export default function Feed({ mode: initialMode = "following", onOpenCompany })
     let alive = true;
     sinceRef.current = new Date().toISOString();
     setNewCount(0);
-    // lib/pollGuard.js: only with a session; a 401/403 ends the poll.
+    // lib/pollGuard.js: posts are PUBLIC (read with the anon key, and the web app
+    // is browsable signed out), so this runs for guests too; a 401/403 ends it.
     const stop = pollEvery(20000, async () => {
       const r = await loadNewSince(sinceRef.current, { followedOnly: mode === "following" });
       if (alive && !pollRefused(r)) setNewCount(r.count);
       return r;
-    });
+    }, { publicRead: true });
     return () => { alive = false; stop(); };
   }, [mode]);
 

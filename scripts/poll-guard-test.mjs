@@ -222,15 +222,21 @@ section("3b. pollEvery (Feed.jsx, PassportProto.jsx) AND THE INVESTOR APP'S COUN
     export { loadNewSince, countNewSince } from "./src/lib/feed.js";
     export { loadUnreadCount, unreadCount } from "./src/lib/notifications.js";
   `);
-  const run = async (results) => {
+  const run = async (results, publicRead = false) => {
     const T = fakeTimers(); let n = 0;
-    const stop = P.pollEvery(1000, async () => results[Math.min(n++, results.length - 1)], T);
+    const stop = P.pollEvery(1000, async () => results[Math.min(n++, results.length - 1)], { timers: T, publicRead });
     return { T, stop, fire: async () => { await T.fn(); await flush(); }, calls: () => n };
   };
   signOutLocal();
   let p = await run([{ ok: true }]);
   await p.fire(); await p.fire();
   ok(p.calls() === 0 && p.T.cleared === 0, "signed out: the poll function never runs (no request), and the poll stays armed");
+  p = await run([{ ok: true, count: 1 }, { ok: true, count: 2 }], true);
+  await p.fire(); await p.fire();
+  ok(p.calls() === 2 && p.T.cleared === 0, "signed out, publicRead (the feed's new-posts count): it RUNS for guests -- the live app is browsable without a login");
+  p = await run([{ ok: true }, { ok: false, status: 401 }, { ok: true }], true);
+  await p.fire(); await p.fire(); await p.fire();
+  ok(p.calls() === 2 && p.T.cleared === 1, "signed out, publicRead: a 401 still stops it for good");
   signIn({ id: "u1", email: "u1@stub.invalid" });
   p = await run([5, { ok: true, count: 2 }, null, { ok: false, status: 500 }]);
   for (let i = 0; i < 4; i++) await p.fire();
@@ -243,7 +249,7 @@ section("3b. pollEvery (Feed.jsx, PassportProto.jsx) AND THE INVESTOR APP'S COUN
   p = await run([{ ok: true }]); p.stop(); p.stop();
   ok(p.T.cleared === 1, "stop() clears once and is safe to call twice (unmount, stopPolling)");
   const throwing = fakeTimers(); let th = 0;
-  P.pollEvery(1000, async () => { th++; throw new Error("network"); }, throwing);
+  P.pollEvery(1000, async () => { th++; throw new Error("network"); }, { timers: throwing });
   await throwing.fn(); await throwing.fn(); await flush();
   ok(th === 2 && throwing.cleared === 0, "a poll that throws is retried next time, not stopped");
 
@@ -283,6 +289,10 @@ section("THE CALL SITES");
   const feed = fs.readFileSync("src/aiBrief/Feed.jsx", "utf8");
   ok(!/setInterval\(/.test(feed) && (feed.match(/pollEvery\(20000, async \(\) => \{/g) || []).length === 2 && /loadNewSince\(sinceRef\.current/.test(feed) && /loadUnreadCount\(\)/.test(feed),
     "Feed.jsx: the new-posts count and the unread count both poll through pollEvery every 20 s (no raw setInterval)");
+  const newPosts = feed.slice(feed.indexOf("loadNewSince(sinceRef.current"), feed.indexOf("loadNewSince(sinceRef.current") + 400);
+  const unread = feed.slice(feed.indexOf("loadUnreadCount()"), feed.indexOf("loadUnreadCount()") + 300);
+  ok(/\}, \{ publicRead: true \}\);/.test(newPosts) && !/publicRead/.test(unread), "...the PUBLIC new-posts count runs signed out (publicRead); the member-only unread count still needs a session");
+  ok(!/publicRead/.test(fs.readFileSync("src/aiBrief/PassportProto.jsx", "utf8").replace(/\/\/.*$/gm, "")), "the investor's message thread (member-only) is not a public read");
   const pp = fs.readFileSync("src/aiBrief/PassportProto.jsx", "utf8");
   ok(/this\.poll = pollEvery\(4000, \(\) => \(this\.activeId === id \? this\.loadMsgs\(id\) : null\)\)/.test(pp) && /stopPolling\(\) \{ if \(this\.poll\) \{ this\.poll\(\); this\.poll = null; \}/.test(pp)
     && /if \(!r\.ok\) return \{ ok: false, status: r\.status \};/.test(pp), "PassportProto.jsx: the open thread polls every 4 s through pollEvery; loadMsgs reports a refusal's status; stopPolling stops it");
