@@ -21,7 +21,7 @@ Work in the project folder: `cd "/Users/leifer/Claude Projects/Passport-Portal"`
 
 ## 2. Database migrations — one APPROVAL per phase
 
-Run each line in your terminal; the runner shows the file, you **type the project ID** to confirm, it applies
+31 files in all. Run each line in your terminal; the runner shows the file, you **type the project ID** to confirm, it applies
 ONE file, checks its checkpoint and stops on the first failure. Two files (0065c, 0073a) run without a
 transaction (index builds); the runner handles that. Functions a file replaces are captured from production
 first, so a rollback restores production exactly.
@@ -44,25 +44,27 @@ PRODUCTION_DSN_FILE=~/.mineex-prod-dsn node scripts/apply-migrations-production.
 PRODUCTION_DSN_FILE=~/.mineex-prod-dsn node scripts/apply-migrations-production.mjs --apply --only 0093_listing_reports_rate_limit.sql --ref=rvptronniomlqumjhyrr --approved-by="<your name>, <date>, Phase 3 approval in Claude chat"
 # 5. 0061a_table_privilege_hardening.sql
 PRODUCTION_DSN_FILE=~/.mineex-prod-dsn node scripts/apply-migrations-production.mjs --apply --only 0061a_table_privilege_hardening.sql --ref=rvptronniomlqumjhyrr --approved-by="<your name>, <date>, Phase 3 approval in Claude chat"
+# 6. 0094_company_follows_upsert_grant.sql   (only if you approved 0094; it fixes installed apps' Follow on /p/ pages)
+PRODUCTION_DSN_FILE=~/.mineex-prod-dsn node scripts/apply-migrations-production.mjs --apply --only 0094_company_follows_upsert_grant.sql --ref=rvptronniomlqumjhyrr --approved-by="<your name>, <date>, Phase 3 approval in Claude chat"
 ```
 Then smoke stage `phase3` (section 3).
 
 ### Phase 4 — APPROVAL C
 
 ```bash
-# 6. 0062_message_attachments.sql
+# 7. 0062_message_attachments.sql
 PRODUCTION_DSN_FILE=~/.mineex-prod-dsn node scripts/apply-migrations-production.mjs --apply --only 0062_message_attachments.sql --ref=rvptronniomlqumjhyrr --approved-by="<your name>, <date>, Phase 4 approval in Claude chat"
-# 7. 0063_company_initiated_threads.sql
+# 8. 0063_company_initiated_threads.sql
 PRODUCTION_DSN_FILE=~/.mineex-prod-dsn node scripts/apply-migrations-production.mjs --apply --only 0063_company_initiated_threads.sql --ref=rvptronniomlqumjhyrr --approved-by="<your name>, <date>, Phase 4 approval in Claude chat"
-# 8. 0064_notification_clearing.sql
+# 9. 0064_notification_clearing.sql
 PRODUCTION_DSN_FILE=~/.mineex-prod-dsn node scripts/apply-migrations-production.mjs --apply --only 0064_notification_clearing.sql --ref=rvptronniomlqumjhyrr --approved-by="<your name>, <date>, Phase 4 approval in Claude chat"
-# 9. 0065a_analytics_breakdown.sql
+# 10. 0065a_analytics_breakdown.sql
 PRODUCTION_DSN_FILE=~/.mineex-prod-dsn node scripts/apply-migrations-production.mjs --apply --only 0065a_analytics_breakdown.sql --ref=rvptronniomlqumjhyrr --approved-by="<your name>, <date>, Phase 4 approval in Claude chat"
-# 10. 0065b_engagement_corrections.sql
+# 11. 0065b_engagement_corrections.sql
 PRODUCTION_DSN_FILE=~/.mineex-prod-dsn node scripts/apply-migrations-production.mjs --apply --only 0065b_engagement_corrections.sql --ref=rvptronniomlqumjhyrr --approved-by="<your name>, <date>, Phase 4 approval in Claude chat"
-# 11. 0065c_analytics_indexes.sql
+# 12. 0065c_analytics_indexes.sql
 PRODUCTION_DSN_FILE=~/.mineex-prod-dsn node scripts/apply-migrations-production.mjs --apply --only 0065c_analytics_indexes.sql --ref=rvptronniomlqumjhyrr --approved-by="<your name>, <date>, Phase 4 approval in Claude chat"
-# 12. 0066_mineiq_conversations.sql
+# 13. 0066_mineiq_conversations.sql
 PRODUCTION_DSN_FILE=~/.mineex-prod-dsn node scripts/apply-migrations-production.mjs --apply --only 0066_mineiq_conversations.sql --ref=rvptronniomlqumjhyrr --approved-by="<your name>, <date>, Phase 4 approval in Claude chat"
 ```
 Then smoke stage `phase4` (section 3).
@@ -70,27 +72,27 @@ Then smoke stage `phase4` (section 3).
 ### Phase 5 — APPROVAL D
 
 ```bash
-# 13. 0068_site_contract.sql
+# 14. 0068_site_contract.sql
 PRODUCTION_DSN_FILE=~/.mineex-prod-dsn node scripts/apply-migrations-production.mjs --apply --only 0068_site_contract.sql --ref=rvptronniomlqumjhyrr --approved-by="<your name>, <date>, Phase 5 approval in Claude chat"
-# 14. 0069b_stripe_events.sql
+# 15. 0069b_stripe_events.sql
 PRODUCTION_DSN_FILE=~/.mineex-prod-dsn node scripts/apply-migrations-production.mjs --apply --only 0069b_stripe_events.sql --ref=rvptronniomlqumjhyrr --approved-by="<your name>, <date>, Phase 5 approval in Claude chat"
-# 15. 0071_publishing_reliability.sql
+# 16. 0071_publishing_reliability.sql
 PRODUCTION_DSN_FILE=~/.mineex-prod-dsn node scripts/apply-migrations-production.mjs --apply --only 0071_publishing_reliability.sql --ref=rvptronniomlqumjhyrr --approved-by="<your name>, <date>, Phase 5 approval in Claude chat"
-# 16. 0072_profile_drafts.sql
+# 17. 0072_profile_drafts.sql
 PRODUCTION_DSN_FILE=~/.mineex-prod-dsn node scripts/apply-migrations-production.mjs --apply --only 0072_profile_drafts.sql --ref=rvptronniomlqumjhyrr --approved-by="<your name>, <date>, Phase 5 approval in Claude chat"
-# 17. 0073a_impression_dedupe_index.sql
+# 18. 0073a_impression_dedupe_index.sql
 PRODUCTION_DSN_FILE=~/.mineex-prod-dsn node scripts/apply-migrations-production.mjs --apply --only 0073a_impression_dedupe_index.sql --ref=rvptronniomlqumjhyrr --approved-by="<your name>, <date>, Phase 5 approval in Claude chat"
-# 18. 0073b_impression_tracking.sql
+# 19. 0073b_impression_tracking.sql
 PRODUCTION_DSN_FILE=~/.mineex-prod-dsn node scripts/apply-migrations-production.mjs --apply --only 0073b_impression_tracking.sql --ref=rvptronniomlqumjhyrr --approved-by="<your name>, <date>, Phase 5 approval in Claude chat"
-# 19. 0073c_post_events_client_guard.sql
+# 20. 0073c_post_events_client_guard.sql
 PRODUCTION_DSN_FILE=~/.mineex-prod-dsn node scripts/apply-migrations-production.mjs --apply --only 0073c_post_events_client_guard.sql --ref=rvptronniomlqumjhyrr --approved-by="<your name>, <date>, Phase 5 approval in Claude chat"
-# 20. 0074_profile_revision_history.sql
+# 21. 0074_profile_revision_history.sql
 PRODUCTION_DSN_FILE=~/.mineex-prod-dsn node scripts/apply-migrations-production.mjs --apply --only 0074_profile_revision_history.sql --ref=rvptronniomlqumjhyrr --approved-by="<your name>, <date>, Phase 5 approval in Claude chat"
-# 21. 0075_profile_versions_privileges.sql
+# 22. 0075_profile_versions_privileges.sql
 PRODUCTION_DSN_FILE=~/.mineex-prod-dsn node scripts/apply-migrations-production.mjs --apply --only 0075_profile_versions_privileges.sql --ref=rvptronniomlqumjhyrr --approved-by="<your name>, <date>, Phase 5 approval in Claude chat"
-# 22. 0076_company_roles.sql
+# 23. 0076_company_roles.sql
 PRODUCTION_DSN_FILE=~/.mineex-prod-dsn node scripts/apply-migrations-production.mjs --apply --only 0076_company_roles.sql --ref=rvptronniomlqumjhyrr --approved-by="<your name>, <date>, Phase 5 approval in Claude chat"
-# 23. 0078_storage_role_hardening.sql
+# 24. 0078_storage_role_hardening.sql
 PRODUCTION_DSN_FILE=~/.mineex-prod-dsn node scripts/apply-migrations-production.mjs --apply --only 0078_storage_role_hardening.sql --ref=rvptronniomlqumjhyrr --approved-by="<your name>, <date>, Phase 5 approval in Claude chat"
 ```
 Then smoke stage `phase5` (section 3).
@@ -98,22 +100,22 @@ Then smoke stage `phase5` (section 3).
 ### Phase 5b — APPROVAL E
 
 ```bash
-# 24. 0080_mineiq_search_any_term.sql
+# 25. 0080_mineiq_search_any_term.sql
 PRODUCTION_DSN_FILE=~/.mineex-prod-dsn node scripts/apply-migrations-production.mjs --apply --only 0080_mineiq_search_any_term.sql --ref=rvptronniomlqumjhyrr --approved-by="<your name>, <date>, Phase 5b approval in Claude chat"
-# 25. 0085_conference_booth_config.sql
+# 26. 0085_conference_booth_config.sql
 PRODUCTION_DSN_FILE=~/.mineex-prod-dsn node scripts/apply-migrations-production.mjs --apply --only 0085_conference_booth_config.sql --ref=rvptronniomlqumjhyrr --approved-by="<your name>, <date>, Phase 5b approval in Claude chat"
-# 26. 0086_service_requests.sql
+# 27. 0086_service_requests.sql
 PRODUCTION_DSN_FILE=~/.mineex-prod-dsn node scripts/apply-migrations-production.mjs --apply --only 0086_service_requests.sql --ref=rvptronniomlqumjhyrr --approved-by="<your name>, <date>, Phase 5b approval in Claude chat"
-# 27. 0087_audience_events.sql
+# 28. 0087_audience_events.sql
 PRODUCTION_DSN_FILE=~/.mineex-prod-dsn node scripts/apply-migrations-production.mjs --apply --only 0087_audience_events.sql --ref=rvptronniomlqumjhyrr --approved-by="<your name>, <date>, Phase 5b approval in Claude chat"
-# 28. 0088_content_fanout.sql
+# 29. 0088_content_fanout.sql
 PRODUCTION_DSN_FILE=~/.mineex-prod-dsn node scripts/apply-migrations-production.mjs --apply --only 0088_content_fanout.sql --ref=rvptronniomlqumjhyrr --approved-by="<your name>, <date>, Phase 5b approval in Claude chat"
-# 29. 0090_notification_clear_roles.sql
+# 30. 0090_notification_clear_roles.sql
 PRODUCTION_DSN_FILE=~/.mineex-prod-dsn node scripts/apply-migrations-production.mjs --apply --only 0090_notification_clear_roles.sql --ref=rvptronniomlqumjhyrr --approved-by="<your name>, <date>, Phase 5b approval in Claude chat"
-# 30. 0091_notification_clear_no_platform_admin.sql
+# 31. 0091_notification_clear_no_platform_admin.sql
 PRODUCTION_DSN_FILE=~/.mineex-prod-dsn node scripts/apply-migrations-production.mjs --apply --only 0091_notification_clear_no_platform_admin.sql --ref=rvptronniomlqumjhyrr --approved-by="<your name>, <date>, Phase 5b approval in Claude chat"
 ```
-Then smoke stage `phase5b` and `final` (section 3).
+Then smoke stages `phase5b` and `final` (section 3).
 
 ## 3. Smoke checks (read-only, in your terminal)
 
