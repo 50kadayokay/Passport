@@ -25,7 +25,8 @@
 // --------------
 //   1. Resolves config once, VALIDATING it rather than trusting truthiness, and
 //      falling back to the same project the browser falls back to — so client and
-//      server can never disagree about which project a token belongs to.
+//      server can never disagree about which project a token belongs to. On a
+//      production deployment only (see FALLBACK_URL below).
 //   2. Says so loudly, once, at startup.
 //   3. Verifies a bearer token in ONE place, returning a structured result with a
 //      SAFE diagnostic. The token is never logged, and is scrubbed from any error
@@ -41,8 +42,16 @@ import { IS_STAGING, STAGING } from "./_stagingEnv.js";
 // Mirrors the fallbacks in src/lib/supabase.js. Both values are public by design —
 // the project URL and the publishable ("anon") key are shipped in the browser
 // bundle. The service-role key is NOT here and must never be.
-const FALLBACK_URL = "https://rvptronniomlqumjhyrr.supabase.co";
-const FALLBACK_ANON = "sb_publishable_NNxikHZSGZ0CYnzN7jckLg_vPvrRCTl";
+//
+// They are the default ONLY on a production deployment (VERCEL_ENV=production).
+// A preview or development deployment, `vite` dev's /api routes and a node
+// script get an unresolvable host instead: a Vercel preview runs new code, and
+// a local dev server must not reach production by accident (2026-11-01).
+// Explicitly configured env vars still win everywhere.
+export const PRODUCTION_DEPLOY = process.env.VERCEL_ENV === "production";
+export const NOT_CONFIGURED_URL = "https://supabase-url-not-configured.invalid";
+const FALLBACK_URL = PRODUCTION_DEPLOY ? "https://rvptronniomlqumjhyrr.supabase.co" : NOT_CONFIGURED_URL;
+const FALLBACK_ANON = PRODUCTION_DEPLOY ? "sb_publishable_NNxikHZSGZ0CYnzN7jckLg_vPvrRCTl" : "sb_publishable_not_configured";
 
 const looksLikeUrl = (v) => {
   try { const u = new URL(String(v)); return u.protocol === "https:" || u.protocol === "http:"; }
@@ -71,8 +80,9 @@ export const ANON_KEY = IS_STAGING ? STAGING.anon
 
 // One line at startup beats a 502 at runtime. Values are never printed.
 if (warnings.length) {
-  console.warn(`[supabase] ${warnings.join("; ")} — using the built-in project fallback. ` +
-               `Set these in the environment to target a different project.`);
+  console.warn(PRODUCTION_DEPLOY
+    ? `[supabase] ${warnings.join("; ")} — using the built-in project fallback. Set these in the environment to target a different project.`
+    : `[supabase] ${warnings.join("; ")} — not a production deployment (VERCEL_ENV=${process.env.VERCEL_ENV || "unset"}), so there is no fallback: requests go to an unresolvable host. Set them to the project you mean.`);
 }
 
 // Exported for tests: the validators that decide whether env config is usable.

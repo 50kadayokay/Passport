@@ -44,9 +44,14 @@ const leaks = (r, ...secrets) => secrets.some((s) => s && (r.out.includes(s) || 
 // =================================================================== tripwire ==
 console.log("\n  TRIPWIRE");
 {
-  const r = child({}, IMPORT);
+  const r = child({ VERCEL_ENV: "production" }, IMPORT);
   ok(r.status === 0 && JSON.parse(r.out || "{}").url === PROD_URL,
-     "production behaviour unchanged: MINEEX_ENV unset, no URL -> production fallback still applies", r.err);
+     "production behaviour unchanged: a production deployment (VERCEL_ENV=production), MINEEX_ENV unset, no URL -> production fallback still applies", r.err);
+  // Since 2026-11-01 nothing else defaults to production (a preview runs new code; a local dev server must not).
+  for (const [label, env] of [["no VERCEL_ENV (local dev server, node)", {}], ["VERCEL_ENV=preview", { VERCEL_ENV: "preview" }], ["VERCEL_ENV=development", { VERCEL_ENV: "development" }]]) {
+    const n = child(env, IMPORT);
+    ok(n.status === 0 && JSON.parse(n.out || "{}").url === "https://supabase-url-not-configured.invalid", `${label}, no URL -> no production fallback (an unresolvable host)`, n.err);
+  }
 }
 {
   const r = child(STAGING_ENV, IMPORT);

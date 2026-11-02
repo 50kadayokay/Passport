@@ -148,15 +148,27 @@ function assertBuildTarget(mode) {
   }
 }
 
+/**
+ * Whether this build may default to the production Supabase project. Vercel
+ * sets VERCEL_ENV at build time; Preview deployments are production-mode builds
+ * that get the production env vars too, so mode alone is not enough
+ * (2026-11-01). Exported for scripts/poll-guard-test.mjs.
+ */
+export function productionDefault(command, mode, vercelEnv = process.env.VERCEL_ENV) {
+  if (command !== "build" || mode !== "production") return false;
+  return vercelEnv === undefined || vercelEnv === "" || vercelEnv === "production";
+}
+
 // https://vite.dev/config/
 export default defineConfig(({ command, mode }) => {
   assertBuildTarget(mode);
   return {
     // src/lib/supabase.js falls back to the production project ONLY in a
-    // production build (the web deploy, and the native apps' `vite build`).
-    // A literal, so every other bundle (dev server, --mode development) drops
-    // the production values at build time.
-    define: { __MINEEX_PRODUCTION_BUILD__: JSON.stringify(command === "build" && mode === "production") },
+    // production build for production: a Vercel PRODUCTION deploy, or a local
+    // `vite build` (no VERCEL_ENV: the native apps). A Vercel preview or
+    // development build is production MODE too, so VERCEL_ENV decides. A
+    // literal, so every other bundle drops the production values at build time.
+    define: { __MINEEX_PRODUCTION_BUILD__: JSON.stringify(productionDefault(command, mode)) },
     plugins: [react(), devApiRoutes()],
     server: {
       host: true,
