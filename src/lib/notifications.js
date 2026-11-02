@@ -14,14 +14,20 @@ export async function listNotifications(limit = 50) {
   } catch { return []; }
 }
 
-export async function unreadCount() {
-  if (!getUser()) return 0;
+/** { ok, status?, count } -- the feed's poller needs the status to stop on a 401/403 (lib/pollGuard.js). */
+export async function loadUnreadCount() {
+  if (!getUser()) return { ok: true, count: 0 };
   try {
     const h = await authHeaders();
     const res = await fetch(`${SUPABASE_URL}/rest/v1/notifications?read_at=is.null&select=id`, { headers: { ...h, Prefer: "count=exact", Range: "0-0" } });
     const cr = res.headers.get("content-range");
-    return cr && cr.includes("/") ? Number(cr.split("/")[1]) || 0 : 0;
-  } catch { return 0; }
+    const count = cr && cr.includes("/") ? Number(cr.split("/")[1]) || 0 : 0;
+    return res.ok ? { ok: true, count } : { ok: false, status: res.status, count };
+  } catch { return { ok: false, count: 0 }; }
+}
+
+export async function unreadCount() {
+  return (await loadUnreadCount()).count;
 }
 
 export async function markRead(id) {

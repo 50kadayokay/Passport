@@ -18,7 +18,11 @@
 // No network. No real credentials. The stub answers as Supabase would.
 
 process.env.SUPABASE_SERVICE_ROLE_KEY ||= "test-service-role-not-a-real-key";
-process.env.SUPABASE_URL ||= "https://rvptronniomlqumjhyrr.supabase.co";
+// The API reads VITE_SUPABASE_URL. Outside a production deployment it has no
+// production default any more (2026-11-01), so name a stub host; the fetch stub
+// below routes by path and never resolves it.
+process.env.VITE_SUPABASE_URL ||= "https://stub-project.supabase.invalid";
+process.env.VITE_SUPABASE_ANON_KEY ||= "sb_publishable_stubKeyForOfflineTests";
 process.env.ANTHROPIC_API_KEY ||= "test-key-not-real";
 process.env.SUBMISSION_SALT ||= "test-salt";
 
