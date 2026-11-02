@@ -53,8 +53,8 @@ export const ROLLBACK_BLOCKED_WHILE = {
 // it lossy again until it is re-reviewed.
 export const REVIEWED_NOT_LOSSY = {
   "0093_listing_reports_rate_limit.sql": {
-    sha256: "792ca79f738f925f9d1ca01e8f8d189d9d9d79d5c33797ed0ed128464f5e2100",
-    why: "drops only 0093's own config tables (listing_report_limits, submission_throttle_salt), its four functions, and only its own rate-limit counters (forms listing_report_db_global/_network/_client); /api/submit's counters and every listing report are kept (S1 review of 28974b3, 2026-11-02)",
+    sha256: "2c510dcea214dc84abe9d55f3cb002c23a28b75ee272ede475dc733a46c9ed7d",
+    why: "drops only 0093's own config tables (listing_report_limits, submission_throttle_salt), its five functions, and only its own rate-limit counters (forms listing_report_db_global/_network/_client); /api/submit's counters and every listing report are kept (S1 review of 28974b3 + 47cc68c, 2026-11-02)",
   },
 };
 
