@@ -476,12 +476,12 @@ async function anonClient(headers) {
   await k.query("set role anon");
   return k;
 }
-const parallel = async (headersList) => {
+async function parallel(headersList) {
   const ks = await Promise.all(headersList.map((h) => anonClient(h)));
   const res = await Promise.all(ks.map((k) => k.query(PGRST, [JSON.stringify(body())]).then(() => true, (e) => e.code)));
   await Promise.all(ks.map((k) => k.end()));
   return { got: res.filter((x) => x === true).length, codes: [...new Set(res.filter((x) => x !== true))] };
-};
+}
 async function phaseB() {
   console.log("\n  PHASE B: PARALLEL, COMMITTED");
   if (!(await isApplied())) { info("skipped: 0093 is not applied on staging (S4 applies it first)"); return; }
