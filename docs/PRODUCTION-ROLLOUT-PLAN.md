@@ -57,6 +57,37 @@ Shared settings for the commands below (in your own shell, never in chat or git)
 - `SMOKE_INVESTOR_*`, `SMOKE_OWNER_*` and optionally `SMOKE_VIEWER_*`: the
   production test accounts (gate g07).
 
+### One read-only check per step: `scripts/prod-check.mjs`
+After each step below, run its stage. Nothing is written: HTTP goes through the
+smoke's read-only guard, and catalog reads run in `BEGIN READ ONLY` transactions.
+Accounts are asked for at a hidden prompt, and the DSN comes from
+`PRODUCTION_DSN_FILE`. Each check prints PASS / FAIL / INCOMPLETE / NOT YET. The
+exit code is 0 for PASS, 1 for FAIL, 2 for REFUSED and 3 for INCOMPLETE.
+
+| After | Command |
+|---|---|
+| Step 3 (the Vercel deploy) | `PRODUCTION_DSN_FILE=~/.mineex-prod-dsn node scripts/prod-check.mjs --stage=deploy` |
+| Phase 3 (after 0061a) | `... node scripts/prod-check.mjs --stage=phase3` |
+| Phase 4 (after 0066) | `... --stage=phase4` |
+| Phase 5 (after 0078) | `... --stage=phase5` |
+| Phase 5b (after 0091) | `... --stage=phase5b` |
+| Step 6, before the pilot opens | `... --stage=final` |
+
+Each stage runs:
+- `production-smoke.mjs`. A check that needs a later migration reads NOT YET.
+- `/api/ops` for a guest, which must be refused, and for the admin account if given, which must also show the listing-report limit.
+- Every pending migration's runner marker: applied up to this stage, not yet after it.
+- The 0092/0093 listing-report guard, checked in the catalog. No report is ever submitted.
+- A check that no pg_cron outbox drain exists.
+
+Dry run against staging:
+
+```
+node scripts/prod-check.mjs --staging --app <staging app or API URL> --stage=final
+```
+
+On staging, migrations ahead of the stage are expected and report INFO.
+
 ### Step 1 · Preconditions (you, with S4)
 Every row of "Phase 0" below passes. `npm test` and the build are green on the
 commit being deployed, and the staging evidence in the launch checklist is
