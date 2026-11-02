@@ -80,7 +80,7 @@ export const ANON_KEY = IS_STAGING ? STAGING.anon
 
 // One line at startup beats a 502 at runtime. Values are never printed.
 if (warnings.length) {
-  console.warn(PRODUCTION_DEPLOY
+  (PRODUCTION_DEPLOY ? console.warn : console.error)(PRODUCTION_DEPLOY
     ? `[supabase] ${warnings.join("; ")} — using the built-in project fallback. Set these in the environment to target a different project.`
     : `[supabase] ${warnings.join("; ")} — not a production deployment (VERCEL_ENV=${process.env.VERCEL_ENV || "unset"}), so there is no fallback: requests go to an unresolvable host. Set them to the project you mean.`);
 }
@@ -91,7 +91,9 @@ export const _looksLikeAnonKey = looksLikeAnonKey;
 
 /** True when this process has a usable Supabase URL + publishable key. */
 export function supabaseConfigured() {
-  return looksLikeUrl(SB_URL) && looksLikeAnonKey(ANON_KEY);
+  // Outside a production deployment with no URL set, SB_URL is the
+  // unresolvable placeholder: not configured, so routes fail closed and say so.
+  return SB_URL !== NOT_CONFIGURED_URL && looksLikeUrl(SB_URL) && looksLikeAnonKey(ANON_KEY);
 }
 
 /** Read the bearer token off a request. One parser, so no route invents its own. */
@@ -126,6 +128,9 @@ export function scrubSecrets(text) {
  */
 export async function verifyBearer(token) {
   if (!token) return { ok: false, user: null, status: 401, error: "Sign in required.", detail: "no bearer token" };
+  if (SB_URL === NOT_CONFIGURED_URL) {
+    return { ok: false, user: null, status: 500, error: "Server not configured: Supabase env is missing.", detail: "no VITE_SUPABASE_URL outside a production deployment (no fallback)" };
+  }
 
   let r;
   try {

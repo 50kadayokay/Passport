@@ -10,9 +10,10 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Loader2, ArrowUp, ExternalLink, Bell, ChevronLeft, Plus, Check, X, BellOff } from "lucide-react";
 import {
   feedFollowing, feedLatest, feedDiscover, companiesInfo, getPost,
-  follow, unfollow, isFollowing, countNewSince, recordPostEvent,
+  follow, unfollow, isFollowing, loadNewSince, recordPostEvent,
 } from "../lib/feed.js";
-import { listNotifications, unreadCount, markRead, markAllRead, getGlobalPref, setGlobalPref } from "../lib/notifications.js";
+import { listNotifications, unreadCount, loadUnreadCount, markRead, markAllRead, getGlobalPref, setGlobalPref } from "../lib/notifications.js";
+import { pollEvery, pollRefused } from "../lib/pollGuard.js";
 
 const MODES = [
   { id: "following", label: "Following" },
@@ -94,17 +95,27 @@ export default function Feed({ mode: initialMode = "following", onOpenCompany })
     let alive = true;
     sinceRef.current = new Date().toISOString();
     setNewCount(0);
-    const tick = async () => {
-      const n = await countNewSince(sinceRef.current, { followedOnly: mode === "following" });
-      if (alive) setNewCount(n);
-    };
-    const iv = setInterval(tick, 20000);
-    return () => { alive = false; clearInterval(iv); };
+    // lib/pollGuard.js: only with a session; a 401/403 ends the poll.
+    const stop = pollEvery(20000, async () => {
+      const r = await loadNewSince(sinceRef.current, { followedOnly: mode === "following" });
+      if (alive && !pollRefused(r)) setNewCount(r.count);
+      return r;
+    });
+    return () => { alive = false; stop(); };
   }, [mode]);
 
   const [notifOpen, setNotifOpen] = useState(false);
   const [unread, setUnread] = useState(0);
-  useEffect(() => { let a = true; const t = () => unreadCount().then((n) => a && setUnread(n)); t(); const iv = setInterval(t, 20000); return () => { a = false; clearInterval(iv); }; }, [notifOpen]);
+  useEffect(() => {
+    let a = true;
+    unreadCount().then((n) => a && setUnread(n));   // once on open (no request when signed out)
+    const stop = pollEvery(20000, async () => {     // then only with a session; a 401/403 ends it
+      const r = await loadUnreadCount();
+      if (a && !pollRefused(r)) setUnread(r.count);
+      return r;
+    });
+    return () => { a = false; stop(); };
+  }, [notifOpen]);
 
   const openPost = (post) => { recordPostEvent(post.id, "open"); setDetail(post); };
   const showNew = () => { sinceRef.current = new Date().toISOString(); setNewCount(0); reload(); scrollRef.current?.scrollTo({ top: 0, behavior: "smooth" }); };

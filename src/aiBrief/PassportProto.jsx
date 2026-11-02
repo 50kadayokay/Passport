@@ -64,6 +64,7 @@ import {
   Trash2, Briefcase, Instagram, Share2, ImagePlus, Video
 } from "lucide-react";
 import { signOut, getUser, getAccessToken, authHeaders, onAuthChange, requestPasswordReset } from "../lib/auth.js";
+import { pollEvery } from "../lib/pollGuard.js"; // background polls: session required, stop on 401/403
 import { registerPush } from "../lib/push.js"; // native push registration (no-op on web)
 import { shareContent, shouldFallback, companyShareUrl } from "../lib/share.js"; // native share sheet on Android; unchanged on iOS/web
 import { useBackHandler, BACK_PRIORITY } from "../lib/useBackHandler.js"; // Android hardware back (inert on web/iOS)
@@ -8531,7 +8532,7 @@ const dmStore = {
     try {
       const headers = await authHeaders();
       const r = await fetch(`${SUPABASE_URL}/rest/v1/messages?conversation_id=eq.${c.convId}&select=id,sender,body,created_at&order=created_at.asc`, { headers });
-      if (!r.ok) return;
+      if (!r.ok) return { ok: false, status: r.status };   // the poll below stops on a 401/403
       const rows = await r.json().catch(() => []);
       c.msgs = rows.map((m) => ({ from: m.sender === "investor" ? "me" : "them", text: m.body, mid: m.id }));
       c.when = "now";
@@ -8590,9 +8591,10 @@ const dmStore = {
     this.activeId = id;
     this.stopPolling();
     this.loadMsgs(id, true);
-    this.poll = setInterval(() => { if (this.activeId === id) this.loadMsgs(id); }, 4000);
+    // lib/pollGuard.js: only with a session; a 401/403 ends the poll.
+    this.poll = pollEvery(4000, () => (this.activeId === id ? this.loadMsgs(id) : null));
   },
-  stopPolling() { if (this.poll) { clearInterval(this.poll); this.poll = null; } this.activeId = null; },
+  stopPolling() { if (this.poll) { this.poll(); this.poll = null; } this.activeId = null; },
 };
 
 function Avatar({ mono, c, size = 52 }) {

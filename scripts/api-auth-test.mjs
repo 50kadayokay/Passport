@@ -43,7 +43,7 @@ for (const bad of ["[SENSITIVE]", "", undefined, "sb_publishable_", "random"])
 // ---- resolution always yields something usable ------------------------------
 ok(looksLikeUrl(SB_URL), "SB_URL always resolves to a usable URL");
 ok(looksLikeAnonKey(ANON_KEY), "ANON_KEY always resolves to a usable key");
-ok(supabaseConfigured(), "server reports itself configured");
+ok(!supabaseConfigured(), "no URL outside a production deployment: the server reports itself NOT configured (routes fail closed with 'Server not configured')");
 // Outside a production deployment (here: no VERCEL_ENV) neither side defaults
 // to production any more (2026-11-01); they must still agree.
 eq(new URL(SB_URL).host, new URL((await import("../src/lib/supabase.js")).SUPABASE_URL).host,

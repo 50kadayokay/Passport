@@ -12,8 +12,10 @@
 //      production origin nor its publishable key as a value; the production
 //      bundle still does (the control). api/_supabase.js: the production default
 //      only with VERCEL_ENV=production.
-//   3. The portal's background polls (lib/portalBadges.js, Messages.jsx): no
-//      request without a session; a 401/403 stops them for good; a 5xx does not.
+//   3. Background polls of our backend -- the portal (lib/portalBadges.js,
+//      Messages.jsx) and the investor app (Feed.jsx, PassportProto.jsx, through
+//      lib/pollGuard.js pollEvery): no request without a session; a 401/403
+//      stops them for good; a 5xx does not. Signed in, nothing else changes.
 // Nothing here reaches a network: fetch answers from a stub, builds are local.
 import fs from "node:fs";
 import os from "node:os";
@@ -139,10 +141,15 @@ const runBuild = (args, dir) => spawnSync(process.execPath, ["node_modules/vite/
 section("2b. THE SERVER SIDE (api/_supabase.js), by VERCEL_ENV, no URL configured");
 for (const [label, vercel, want] of [["production deploy", "production", "prod"], ["preview deploy", "preview", "none"], ["development", "development", "none"], ["no VERCEL_ENV (`vite` dev's /api routes, node)", undefined, "none"]]) {
   const e = { PATH: process.env.PATH, ...(vercel ? { VERCEL_ENV: vercel } : {}) };
-  const r = spawnSync(process.execPath, ["--input-type=module", "-e", `const m = await import("./api/_supabase.js"); console.log(JSON.stringify({ url: m.SB_URL, key: m.ANON_KEY }));`], { encoding: "utf8", env: e, timeout: 20000 });
+  // verifyBearer with a token: on production it would call Supabase, so fetch is stubbed to answer 401 locally.
+  const code = `globalThis.fetch = async () => new Response("{}", { status: 401 });
+    const m = await import("./api/_supabase.js"); const v = await m.verifyBearer("tok");
+    console.log(JSON.stringify({ url: m.SB_URL, key: m.ANON_KEY, configured: m.supabaseConfigured(), v: { status: v.status, error: v.error } }));`;
+  const r = spawnSync(process.execPath, ["--input-type=module", "-e", code], { encoding: "utf8", env: e, timeout: 20000 });
   const got = (() => { try { return JSON.parse(r.stdout.trim().split("\n").pop()); } catch { return {}; } })();
-  if (want === "prod") ok(got.url === PROD_URL && got.key === PROD_KEY, `${label}: the production default (unchanged)`, r.stderr.slice(0, 200));
-  else ok(got.url === NOT_CONFIGURED && got.key !== PROD_KEY && /no fallback/.test(r.stderr), `${label}: no production default, and it says so`, `${got.url} ${r.stderr.slice(0, 160)}`);
+  if (want === "prod") ok(got.url === PROD_URL && got.key === PROD_KEY && got.configured && got.v.status === 401, `${label}: the production default (unchanged), configured`, r.stderr.slice(0, 200));
+  else ok(got.url === NOT_CONFIGURED && got.key !== PROD_KEY && /no fallback/.test(r.stderr) && got.configured === false && got.v.status === 500 && /Server not configured/.test(got.v.error),
+    `${label}: no production default -- fails closed (not configured; a session check answers 500 "Server not configured" without any request) and logs why`, `${JSON.stringify(got)} ${r.stderr.slice(0, 160)}`);
 }
 {
   const e = { PATH: process.env.PATH, VERCEL_ENV: "preview", VITE_SUPABASE_URL: "https://someproject.supabase.co", VITE_SUPABASE_ANON_KEY: "sb_publishable_someprojectkey000" };
@@ -207,6 +214,61 @@ for (const [what, m] of [["notification_reads 401 (expired session)", { reads: 4
   ok(B.pollRefused({ status: 401 }) && B.pollRefused({ status: 403 }) && !B.pollRefused({ status: 500 }) && !B.pollRefused({ ok: false }) && !B.pollRefused(null), "pollRefused: 401/403 only");
 }
 
+section("3b. pollEvery (Feed.jsx, PassportProto.jsx) AND THE INVESTOR APP'S COUNTS");
+{
+  mode = {};
+  const P = await loadBundle("poll-every", `
+    export { pollEvery } from "./src/lib/pollGuard.js";
+    export { loadNewSince, countNewSince } from "./src/lib/feed.js";
+    export { loadUnreadCount, unreadCount } from "./src/lib/notifications.js";
+  `);
+  const run = async (results) => {
+    const T = fakeTimers(); let n = 0;
+    const stop = P.pollEvery(1000, async () => results[Math.min(n++, results.length - 1)], T);
+    return { T, stop, fire: async () => { await T.fn(); await flush(); }, calls: () => n };
+  };
+  signOutLocal();
+  let p = await run([{ ok: true }]);
+  await p.fire(); await p.fire();
+  ok(p.calls() === 0 && p.T.cleared === 0, "signed out: the poll function never runs (no request), and the poll stays armed");
+  signIn({ id: "u1", email: "u1@stub.invalid" });
+  p = await run([5, { ok: true, count: 2 }, null, { ok: false, status: 500 }]);
+  for (let i = 0; i < 4; i++) await p.fire();
+  ok(p.calls() === 4 && p.T.cleared === 0, "signed in: it runs every time; numbers, null and a 5xx keep it going (investor app unchanged)");
+  for (const st of [401, 403]) {
+    p = await run([{ ok: true }, { ok: false, status: st }, { ok: true }]);
+    await p.fire(); await p.fire(); await p.fire();
+    ok(p.calls() === 2 && p.T.cleared === 1, `a ${st} stops it for good (cleared once; no later run)`, `${p.calls()} runs, cleared ${p.T.cleared}`);
+  }
+  p = await run([{ ok: true }]); p.stop(); p.stop();
+  ok(p.T.cleared === 1, "stop() clears once and is safe to call twice (unmount, stopPolling)");
+  const throwing = fakeTimers(); let th = 0;
+  P.pollEvery(1000, async () => { th++; throw new Error("network"); }, throwing);
+  await throwing.fn(); await throwing.fn(); await flush();
+  ok(th === 2 && throwing.cleared === 0, "a poll that throws is retried next time, not stopped");
+
+  // The new status-returning reads, against the stub (the old number-returning ones are their wrappers).
+  const counted = (n, status = 200) => new Response("[]", { status, headers: { "content-range": `0-0/${n}` } });
+  let postsStatus = 200, notifStatus = 200;
+  installFetch(async (req) => {
+    if (req.url.origin !== STUB_SB) return undefined;
+    if (req.url.pathname === "/auth/v1/token") return json({ error: "invalid_grant" }, 400);
+    if (req.url.pathname === "/rest/v1/posts") return counted(3, postsStatus);
+    if (req.url.pathname === "/rest/v1/notifications") return counted(4, notifStatus);
+    return undefined;
+  });
+  const since = "2026-11-01T00:00:00Z";
+  let r = await P.loadNewSince(since), u = await P.loadUnreadCount();
+  ok(r.ok && r.count === 3 && u.ok && u.count === 4 && (await P.countNewSince(since)) === 3 && (await P.unreadCount()) === 4, "signed in: loadNewSince / loadUnreadCount return the counts, and countNewSince / unreadCount return the same numbers as before");
+  postsStatus = 401; notifStatus = 403;
+  r = await P.loadNewSince(since); u = await P.loadUnreadCount();
+  ok(!r.ok && r.status === 401 && !u.ok && u.status === 403, "a refusal carries its status (401 / 403), so pollEvery can stop");
+  signOutLocal();
+  const before = calls.length;
+  u = await P.loadUnreadCount();
+  ok(u.ok && u.count === 0, "signed out, loadUnreadCount answers 0 without a request (as unreadCount always did)");
+}
+
 section("THE CALL SITES");
 {
   const portal = fs.readFileSync("src/portal/Portal.jsx", "utf8");
@@ -218,5 +280,18 @@ section("THE CALL SITES");
   const cn = fs.readFileSync("src/lib/companyNotifications.js", "utf8");
   const branch = (fn) => new RegExp(`export async function ${fn}\\([^)]*\\) \\{\\s*(//[^\\n]*\\n\\s*)*if \\(import\\.meta\\.env && import\\.meta\\.env\\.DEV && isPortalDemo\\(\\)\\)`).test(cn);
   ok(branch("loadCompanyLastSeen") && branch("markCompanyNotificationsSeen"), "the dev demo (/portaldemo) reads and marks 'seen' locally: it no longer asks the real company_notification_reads every minute");
+  const feed = fs.readFileSync("src/aiBrief/Feed.jsx", "utf8");
+  ok(!/setInterval\(/.test(feed) && (feed.match(/pollEvery\(20000, async \(\) => \{/g) || []).length === 2 && /loadNewSince\(sinceRef\.current/.test(feed) && /loadUnreadCount\(\)/.test(feed),
+    "Feed.jsx: the new-posts count and the unread count both poll through pollEvery every 20 s (no raw setInterval)");
+  const pp = fs.readFileSync("src/aiBrief/PassportProto.jsx", "utf8");
+  ok(/this\.poll = pollEvery\(4000, \(\) => \(this\.activeId === id \? this\.loadMsgs\(id\) : null\)\)/.test(pp) && /stopPolling\(\) \{ if \(this\.poll\) \{ this\.poll\(\); this\.poll = null; \}/.test(pp)
+    && /if \(!r\.ok\) return \{ ok: false, status: r\.status \};/.test(pp), "PassportProto.jsx: the open thread polls every 4 s through pollEvery; loadMsgs reports a refusal's status; stopPolling stops it");
+  // The two 2-minute quote refreshes are deliberately NOT gated: public prices from a quote worker
+  // or Yahoo relays, never our Supabase project, shown to signed-out visitors too.
+  for (const f of ["src/aiBrief/PassportProto.jsx", "src/Onboarding.jsx"]) {
+    const src = fs.readFileSync(f, "utf8");
+    const fq = src.slice(src.indexOf("async function fetchQuote("), src.indexOf("function useQuote("));
+    ok(fq.length > 100 && !/SUPABASE_URL|authHeaders|getAccessToken|API_BASE/.test(fq), `${f}: useQuote's fetchQuote never calls our backend or sends credentials (so it is outside the session rule)`);
+  }
 }
 done();
