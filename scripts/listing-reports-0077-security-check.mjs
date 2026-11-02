@@ -133,6 +133,11 @@ try {
   const throttled = (await q(`select count(*)::int n from public.submission_throttle`))[0].n;
   console.log(`  (burst: ${burst} of 20 back-to-back anon reports stored; throttle rows ${throttleBefore} -> ${throttled})`);
   if (burst === 20 && throttled === throttleBefore) finding("this path is NOT rate limited: 20 of 20 back-to-back anon reports were stored and submission_throttle did not move. 0057's throttle (5 per 10 min) runs only inside /api/submit. 0077 keeps the length and kind bounds, not the rate.");
+  else if (burst === 20 && (await q(`select to_regclass('public.listing_report_limits') is not null x`))[0].x)
+    // 0093 present: this check lifts its limits in-transaction to probe grants with many inserts, so all 20
+    // land while 0093's counters still move. The limit itself is proven by listing-reports-0093-check
+    // and listing-reports-0093-adversarial-check (5 per client, PT429 beyond).
+    ok(throttled > throttleBefore, "0093 counted the burst (limits lifted in this transaction; enforcement proven by the 0093 checks)", `throttle rows ${throttleBefore} -> ${throttled}`);
   else ok(burst < 20, "the burst was throttled", `${burst} stored, throttle rows ${throttleBefore} -> ${throttled}`);
 
   console.log("\n  FINDINGS: what the table-level INSERT grant still allows");
