@@ -65,6 +65,10 @@ const tablePriv = async (role, p) => (await q(`select has_table_privilege($1, 'p
 const rowsBefore = (await q(`select count(*)::int n from public.listing_reports`))[0].n;
 const grantsBeforeRun = await grantState();
 await c.query("begin");
+// If 0093 (rate limit) is on staging, lift its limits inside this transaction:
+// this check probes grants and policy with many inserts, not the rate limit
+// (that is listing-reports-0093-check.mjs). Rolled back with everything else.
+if ((await q(`select to_regclass('public.listing_report_limits') t`))[0].t) await q(`update public.listing_report_limits set per_client = 100000, global_per_window = 100000`);
 try {
   // If 0092 is ever on staging, unwind it inside the transaction first (nothing is committed).
   if (!(await colPriv("anon", "created_at")) && (await colPriv("anon", "company_slug"))) { await q(runnerBody(RB)); console.log("  (0092 was on staging: unwound inside the transaction)"); }
