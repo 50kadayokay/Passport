@@ -131,7 +131,7 @@ export async function readOnly(client, sql, args) {
   } finally { await client.query("rollback").catch(() => {}); }
 }
 
-export async function runCheck({ argv, env = {}, fetchImpl = globalThis.fetch, pgConnect, ask, out = console.log, err = console.error, read = (f) => fs.readFileSync(f, "utf8"), repoRoot = process.cwd() }) {
+export async function runCheck({ argv, env = {}, fetchImpl = globalThis.fetch, pgConnect, ask, out = console.log, err = console.error, read = (f) => fs.readFileSync(f, "utf8"), repoRoot = process.cwd(), manifest }) {
   const a = parseArgs(argv);
   if (a.refuse) { err(`\n  prod-check: REFUSING -- ${a.refuse}\n`); return { verdict: "REFUSED", code: 2 }; }
   const { stage, staging, target } = a;
@@ -148,12 +148,14 @@ export async function runCheck({ argv, env = {}, fetchImpl = globalThis.fetch, p
     phases = phasesFromPlan(read("docs/PRODUCTION-ROLLOUT-PLAN.md"));
     const record = loadRecord(DEFAULT_AUDIT);
     const q01 = parseQ01Markers(read(record.query.split(" ")[0]));
-    items = buildPlan({ files: fs.readdirSync("supabase/migrations").filter((f) => f.endsWith(".sql")), record, log: [], q01Markers: q01 }).items;
+    items = buildPlan({ files: fs.readdirSync("supabase/migrations").filter((f) => f.endsWith(".sql")), record, log: [], q01Markers: q01, ...(manifest ? { manifest } : {}) }).items;
   } catch (e) { line("FAIL", "the plan's phases and the runner's markers load", e.message); }
   const expected = (f) => (phases[f] || 99) <= reached;
   const missingPhase = items.filter((i) => !phases[i.file]).map((i) => i.file);
   if (missingPhase.length) line("FAIL", "every pending migration has a phase in the plan", missingPhase.join(", "));
-  const has = (f) => expected(f);
+  // A migration is expected once its phase is reached AND the runner plans it (HELD files are not planned).
+  const planned = new Set(items.map((i) => i.file));
+  const has = (f) => planned.has(f) && expected(f);
 
   // Accounts.
   let acc = {};

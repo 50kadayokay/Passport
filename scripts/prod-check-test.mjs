@@ -15,6 +15,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { runCheck, parseArgs, phasesFromPlan, STAGES } from "./prod-check.mjs";
+import { DEFERRED, PENDING, UNVERIFIED, PREREQUISITES, NEEDS_SUPERUSER } from "./_migration-manifest.mjs";
+const UNHELD = { DEFERRED: Object.fromEntries(Object.entries(DEFERRED).filter(([, why]) => !/^HELD\b/.test(why))), PENDING, UNVERIFIED, PREREQUISITES, NEEDS_SUPERUSER };
 import { DEFAULT_AUDIT, loadRecord, parseQ01Markers, buildPlan, PRODUCTION_REFS, STAGING_REFS } from "./_production-migrations.mjs";
 
 let pass = 0, fail = 0;
@@ -73,7 +75,7 @@ const fetchImpl = async (input, init = {}) => {
 
 // ---- the stub catalog -----------------------------------------------------------
 const record = loadRecord(DEFAULT_AUDIT);
-const items = buildPlan({ files: fs.readdirSync("supabase/migrations").filter((f) => f.endsWith(".sql")), record, log: [], q01Markers: parseQ01Markers(fs.readFileSync(record.query.split(" ")[0], "utf8")) }).items;
+const items = buildPlan({ files: fs.readdirSync("supabase/migrations").filter((f) => f.endsWith(".sql")), record, log: [], manifest: UNHELD, q01Markers: parseQ01Markers(fs.readFileSync(record.query.split(" ")[0], "utf8")) }).items;
 const fileOfCheckpoint = new Map(items.map((i) => [i.checkpoint, i.file]));
 const PHASES = phasesFromPlan(fs.readFileSync("docs/PRODUCTION-ROLLOUT-PLAN.md", "utf8"));
 const rank = { deploy: 2, phase3: 3, phase4: 4, phase5: 5, phase5b: 6, final: 6 };
@@ -109,9 +111,10 @@ const read = (f) => (f in READS ? READS[f] : fs.readFileSync(f, "utf8"));
 const asked = [];
 const askWith = (answers) => async (q, opts = {}) => { asked.push({ q, hidden: !!opts.hidden }); return answers.shift() ?? ""; };
 const ALL = () => ["investor@test.invalid", PW.investor, "owner@test.invalid", PW.owner, "", "admin@test.invalid", PW.admin, ""];
-async function run(argv, { answers = null, env = { PRODUCTION_DSN_FILE: dsnFile } } = {}) {
+// The stage tests model the full rollout (no HELD files); one test below runs the real, held manifest.
+async function run(argv, { answers = null, env = { PRODUCTION_DSN_FILE: dsnFile }, manifest = UNHELD } = {}) {
   const lines = [];
-  const r = await runCheck({ argv, env, fetchImpl, pgConnect, ask: answers ? askWith(answers) : null, out: (s) => lines.push(String(s)), err: (s) => lines.push(String(s)), read });
+  const r = await runCheck({ argv, env, fetchImpl, pgConnect, ask: answers ? askWith(answers) : null, out: (s) => lines.push(String(s)), err: (s) => lines.push(String(s)), read, manifest });
   const text = lines.join("\n");
   const kinds = (k) => text.split("\n").filter((l) => l.startsWith(`  ${k.padEnd(10)}`));
   return { ...r, text, kinds };
@@ -124,7 +127,7 @@ for (const [argv, why] of [[["--stage=bogus"], /--stage must be/], [["--stage=de
 }
 ok(parseArgs(["--stage=phase3"]).target.production === true && parseArgs(["--stage", "final", "--staging", "--app", STG_APP]).target.production === false, "production by default; --staging targets staging");
 ok(STAGES.join() === "deploy,phase3,phase4,phase5,phase5b,final", "the six stages");
-ok(Object.keys(PHASES).length === items.length && items.every((i) => PHASES[i.file]), `every pending migration has a phase in the plan (${items.length})`);
+ok(items.every((i) => PHASES[i.file]), `every pending migration has a phase in the plan (${items.length})`);
 const r0 = await run(["--stage=bogus"]);
 ok(r0.code === 2 && W === undefined, "a refusal exits 2 before any request");
 
@@ -172,6 +175,13 @@ world({ sb: PROD_SB, app: PROD_APP, hasRoles: false, hasThreads: false, capHit: 
 db({ upTo: 3 });
 r = await run(["--stage=phase3"], { answers: ALL() });
 ok(r.kinds("FAIL").some((l) => /global cap is NOT full/.test(l)), "a full listing-report cap FAILs the stage");
+{
+  // The real manifest HOLDS 0058/0077/0092/0093 (user decision 2026-11-02): phase 3 is then 0061a and 0094 only.
+  db({ upTo: 3 });
+  const h = await run(["--stage=phase3"], { answers: ALL(), manifest: null });
+  ok(h.kinds("NOT YET").some((l) => /listing-report guard/.test(l)) && !h.kinds("FAIL").some((l) => /00(58|77|92|93)_/.test(l)) && h.kinds("PASS").some((l) => /0061a_table_privilege_hardening\.sql: applied/.test(l)) && h.kinds("PASS").some((l) => /0094_company_follows_upsert_grant\.sql: applied/.test(l)),
+     "HELD: phase 3 checks 0061a and 0094; the listing-report guard reads NOT YET, never FAIL", h.text.split("\n").filter((l) => /0061a|0094|guard|FAIL/.test(l)).join(" | ").slice(0, 900));
+}
 
 console.log("\n  PHASE 5 AND FINAL");
 world({ sb: PROD_SB, app: PROD_APP, hasRoles: false, hasThreads: true });

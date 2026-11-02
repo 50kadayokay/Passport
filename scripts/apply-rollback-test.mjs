@@ -20,6 +20,9 @@ import { checkRollback, applyRollback, lossyReasons, formatRollbackSection, NEVE
 import { writeCaptureFile } from "./_function-capture.mjs";
 import { STATE_SQL } from "./_concurrent-indexes.mjs";
 import { runnerBody, sha256 } from "./_db-egress.mjs";
+import { DEFERRED, PENDING, UNVERIFIED, PREREQUISITES, NEEDS_SUPERUSER } from "./_migration-manifest.mjs";
+// These cases model the 0058 group, which the user HELD on 2026-11-02: plan them without the hold.
+const UNHELD = { DEFERRED: Object.fromEntries(Object.entries(DEFERRED).filter(([, why]) => !/^HELD\b/.test(why))), PENDING, UNVERIFIED, PREREQUISITES, NEEDS_SUPERUSER };
 
 let pass = 0, fail = 0;
 const ok = (c, m, d = "") => { if (c) { pass++; console.log(`  ✓ ${m}`); } else { fail++; console.error(`  ✗ ${m}${d ? `\n      ${d}` : ""}`); } };
@@ -36,24 +39,24 @@ const DOC = fs.readFileSync("docs/PRODUCTION-ROLLOUT-PLAN.md", "utf8");
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "rollback-test-"));
 const A = (s) => parseArgs(s.split(" ").filter(Boolean));
 const applied = (...files) => files.map((file, i) => ({ at: `2026-11-02T0${i}:00:00Z`, ref: PROD, file, status: "applied" }));
-const rb = (args, log, extra = {}) => () => checkRollback(typeof args === "string" ? A(args) : args, { log, ref: PROD, q01Markers: Q01, planDoc: DOC, ...extra });
+const rb = (args, log, extra = {}) => () => checkRollback(typeof args === "string" ? A(args) : args, { log, ref: PROD, q01Markers: Q01, manifest: UNHELD, planDoc: DOC, ...extra });
 const R = (file, more = "") => `--rollback --only ${file} --ref=${PROD} --approved-by=user-in-chat-2026-11-02 ${more}`;
 
 console.log("\n  LOG: a rollback puts the file back in the plan");
 {
-  const base = buildPlan({ files: FILES, record: RECORD, q01Markers: Q01 });
+  const base = buildPlan({ files: FILES, record: RECORD, q01Markers: Q01, manifest: UNHELD });
   const log = [...applied("0058_close_public_insert.sql", "0077_listing_reports_installed_app_compat.sql")];
-  ok(buildPlan({ files: FILES, record: RECORD, q01Markers: Q01, log }).items[0].file === "0092_listing_reports_column_insert.sql", "(with 0058 and 0077 applied by the runner, 0092 is next)");
+  ok(buildPlan({ files: FILES, record: RECORD, q01Markers: Q01, manifest: UNHELD, log }).items[0].file === "0092_listing_reports_column_insert.sql", "(with 0058 and 0077 applied by the runner, 0092 is next)");
   log.push({ at: "2026-11-02T05:00:00Z", ref: PROD, file: "0077_listing_reports_installed_app_compat.sql", status: "rolled_back" });
-  const p = buildPlan({ files: FILES, record: RECORD, q01Markers: Q01, log });
+  const p = buildPlan({ files: FILES, record: RECORD, q01Markers: Q01, manifest: UNHELD, log });
   ok(p.items[0].file === "0077_listing_reports_installed_app_compat.sql" && p.items.length === base.items.length - 1, "after `rolled_back`, the plan offers 0077 again as step 1 (0058 stays applied)");
   ok(JSON.stringify(appliedStack(log, PROD)) === JSON.stringify(["0058_close_public_insert.sql"]), "the rollback stack drops it");
   log.push(...applied("0077_listing_reports_installed_app_compat.sql").map((e) => ({ ...e, at: "2026-11-02T06:00:00Z" })));
-  ok(buildPlan({ files: FILES, record: RECORD, q01Markers: Q01, log }).items[0].file === "0092_listing_reports_column_insert.sql", "re-applied after the rollback: applied again (0092 next)");
+  ok(buildPlan({ files: FILES, record: RECORD, q01Markers: Q01, manifest: UNHELD, log }).items[0].file === "0092_listing_reports_column_insert.sql", "re-applied after the rollback: applied again (0092 next)");
   ok(JSON.stringify(appliedStack([...applied("0058_close_public_insert.sql"), { ref: STAGING, file: "0058_close_public_insert.sql", status: "rolled_back" }], PROD)) === JSON.stringify(["0058_close_public_insert.sql"]),
      "a rollback logged for another ref does not count");
   const rec = { ...RECORD, q01: { ...RECORD.q01, "0058_close_public_insert.sql": "applied" } };
-  is(refusal(() => buildPlan({ files: FILES, record: rec, q01Markers: Q01, log: [...applied("0058_close_public_insert.sql"), { at: "x", ref: PROD, file: "0058_close_public_insert.sql", status: "rolled_back" }] }), /audit predates the rollback/),
+  is(refusal(() => buildPlan({ files: FILES, record: rec, q01Markers: Q01, manifest: UNHELD, log: [...applied("0058_close_public_insert.sql"), { at: "x", ref: PROD, file: "0058_close_public_insert.sql", status: "rolled_back" }] }), /audit predates the rollback/),
      "an audit that says applied, after the runner rolled the file back: planning refuses until the audit is re-run");
   ok(unresolved([{ file: "a", status: "rollback-started" }]).length === 1 && unresolved([{ file: "a", status: "rollback-failed" }]).length === 1
      && unresolved([{ file: "a", status: "rollback-started" }, { file: "a", status: "rolled_back" }]).length === 0, "an interrupted or failed rollback is an unresolved run (blocks everything until --reviewed)");
@@ -76,11 +79,11 @@ console.log("\n  REFUSALS (before the DSN is read)");
   const it72 = rb(R("0072_profile_drafts.sql", "--accept-data-loss=drafts-lost-ok-user-in-chat"), applied("0072_profile_drafts.sql"))();
   ok(it72.lossy.length >= 1 && it72.acceptDataLoss === "drafts-lost-ok-user-in-chat" && it72.mode === "transaction", "...with the decision given, it passes and carries the decision for the log");
   is(refusal(rb(R("0090_notification_clear_roles.sql", "--accept-data-loss=just-in-case-x"), applied("0090_notification_clear_roles.sql")), /not lossy; drop the flag/), "--accept-data-loss on a clean rollback (0090) is refused");
-  is(refusal(() => checkRequest(A(`--apply --only 0058_close_public_insert.sql --ref=${PROD} --approved-by=user-in-chat --accept-data-loss=whatever-long`), buildPlan({ files: FILES, record: RECORD, q01Markers: Q01 }), []), /only for --rollback/),
+  is(refusal(() => checkRequest(A(`--apply --only 0058_close_public_insert.sql --ref=${PROD} --approved-by=user-in-chat --accept-data-loss=whatever-long`), buildPlan({ files: FILES, record: RECORD, q01Markers: Q01, manifest: UNHELD }), []), /only for --rollback/),
      "--accept-data-loss with --apply");
-  is(refusal(() => checkRequest(A(`--rollback --apply --only 0058_close_public_insert.sql --ref=${PROD} --approved-by=user-in-chat`), buildPlan({ files: FILES, record: RECORD, q01Markers: Q01 }), [], { kind: "rollback" }), /choose one/), "--rollback with --apply");
-  is(refusal(() => checkRequest(A(`--rollback --only 0058_close_public_insert.sql --ref=${STAGING} --approved-by=user-in-chat`), buildPlan({ files: FILES, record: RECORD, q01Markers: Q01 }), [], { kind: "rollback" }), /STAGING/), "the staging ref");
-  is(refusal(() => checkRequest(A(`--rollback --only 0058_close_public_insert.sql --ref=${PROD}`), buildPlan({ files: FILES, record: RECORD, q01Markers: Q01 }), [], { kind: "rollback" }), /approved-by/), "no --approved-by");
+  is(refusal(() => checkRequest(A(`--rollback --apply --only 0058_close_public_insert.sql --ref=${PROD} --approved-by=user-in-chat`), buildPlan({ files: FILES, record: RECORD, q01Markers: Q01, manifest: UNHELD }), [], { kind: "rollback" }), /choose one/), "--rollback with --apply");
+  is(refusal(() => checkRequest(A(`--rollback --only 0058_close_public_insert.sql --ref=${STAGING} --approved-by=user-in-chat`), buildPlan({ files: FILES, record: RECORD, q01Markers: Q01, manifest: UNHELD }), [], { kind: "rollback" }), /STAGING/), "the staging ref");
+  is(refusal(() => checkRequest(A(`--rollback --only 0058_close_public_insert.sql --ref=${PROD}`), buildPlan({ files: FILES, record: RECORD, q01Markers: Q01, manifest: UNHELD }), [], { kind: "rollback" }), /approved-by/), "no --approved-by");
 }
 
 console.log("\n  LOSSY: from the rollback's own statements and the rollout table");
@@ -107,22 +110,22 @@ captured[0].aclKey = ["service_role:EXECUTE:-"];
 const cap = writeCaptureFile(captured, { file: F71, sha256: "abc", ref: PROD, at: AT }, { dir: tmp, isIgnored: () => true });
 const LOG71 = [{ ref: PROD, file: F71, status: "started" }, { ref: PROD, file: F71, status: "captured", capture: cap.path, capture_sha256: cap.sha256 }, { at: AT, ref: PROD, file: F71, status: "applied" }];
 {
-  const item = checkRollback(parseArgs([...R(F71).split(" ").filter(Boolean), "--accept-data-loss=ops tables lost, user-in-chat"]), { log: LOG71, ref: PROD, q01Markers: Q01, planDoc: DOC });
+  const item = checkRollback(parseArgs([...R(F71).split(" ").filter(Boolean), "--accept-data-loss=ops tables lost, user-in-chat"]), { log: LOG71, ref: PROD, q01Markers: Q01, manifest: UNHELD, planDoc: DOC });
   ok(item.capture && item.capture.path === cap.path && item.capture.functions === 1 && item.rollback === "supabase/rollbacks/0071_publishing_reliability.rollback.sql",
      "the capture logged for that apply is found, checked against its sha256 and parsed");
   ok(checkRollback(parseArgs([...R(F71).split(" ").filter(Boolean), "--accept-data-loss=ops tables lost, user-in-chat"]),
-     { log: [...LOG71, { ref: PROD, file: F71, status: "rolled_back" }, { ref: PROD, file: F71, status: "started" }, { ref: PROD, file: F71, status: "applied" }], ref: PROD, q01Markers: Q01, planDoc: DOC }).capture === null,
+     { log: [...LOG71, { ref: PROD, file: F71, status: "rolled_back" }, { ref: PROD, file: F71, status: "started" }, { ref: PROD, file: F71, status: "applied" }], ref: PROD, q01Markers: Q01, manifest: UNHELD, planDoc: DOC }).capture === null,
      "a later apply that captured nothing: no capture file (an older capture is never reused)");
   const args = parseArgs([...R(F71).split(" ").filter(Boolean), "--accept-data-loss=ops tables lost, user-in-chat"]);
   const original = fs.readFileSync(cap.path, "utf8");
   fs.writeFileSync(cap.path, original + "\n-- edited");
-  is(refusal(() => checkRollback(args, { log: LOG71, ref: PROD, q01Markers: Q01, planDoc: DOC }), /changed after it was written/), "a capture file edited since: refused");
+  is(refusal(() => checkRollback(args, { log: LOG71, ref: PROD, q01Markers: Q01, manifest: UNHELD, planDoc: DOC }), /changed after it was written/), "a capture file edited since: refused");
   fs.writeFileSync(cap.path, original);
-  is(refusal(() => checkRollback(args, { log: LOG71.map((e) => (e.capture ? { ...e, capture: path.join(tmp, "gone.sql") } : e)), ref: PROD, q01Markers: Q01, planDoc: DOC }), /is gone/), "a capture file that is gone: refused");
+  is(refusal(() => checkRollback(args, { log: LOG71.map((e) => (e.capture ? { ...e, capture: path.join(tmp, "gone.sql") } : e)), ref: PROD, q01Markers: Q01, manifest: UNHELD, planDoc: DOC }), /is gone/), "a capture file that is gone: refused");
 }
 
 console.log("\n  APPLY: one transaction, then the marker must read NOT applied (fake client)");
-const ITEM71 = checkRollback(parseArgs([...R(F71).split(" ").filter(Boolean), "--accept-data-loss=ops tables lost, user-in-chat"]), { log: LOG71, ref: PROD, q01Markers: Q01, planDoc: DOC });
+const ITEM71 = checkRollback(parseArgs([...R(F71).split(" ").filter(Boolean), "--accept-data-loss=ops tables lost, user-in-chat"]), { log: LOG71, ref: PROD, q01Markers: Q01, manifest: UNHELD, planDoc: DOC });
 function fakeClient(item, { appliedBefore = true, noEffect = false, throwOn = null } = {}) {
   const st = { applied: appliedBefore, queries: [], idx: {} };
   if (item.steps) for (const s of item.steps) st.idx[s.index] = true;
@@ -179,7 +182,7 @@ function fakeClient(item, { appliedBefore = true, noEffect = false, throwOn = nu
 console.log("\n  0092 (grant-only, right after 0077) on every path");
 {
   const F92 = "0092_listing_reports_column_insert.sql", F77 = "0077_listing_reports_installed_app_compat.sql";
-  const it = buildPlan({ files: FILES, record: RECORD, q01Markers: Q01, log: applied("0058_close_public_insert.sql", F77) }).items[0];
+  const it = buildPlan({ files: FILES, record: RECORD, q01Markers: Q01, manifest: UNHELD, log: applied("0058_close_public_insert.sql", F77) }).items[0];
   ok(it.file === F92 && it.after === F77 && it.mode === "transaction" && it.concurrent === null && !it.concurrentError, "planned right after 0077, as a transaction file (not the no-transaction path)");
   ok(Array.isArray(it.captures) && it.captures.length === 0 && !it.captureError, "capture-on-apply: no function to capture");
   ok(/has_column_privilege\('anon', 'public\.listing_reports', 'company_slug', 'INSERT'\) and not has_column_privilege\('anon', 'public\.listing_reports', 'created_at', 'INSERT'\)/.test(it.checkpoint),
@@ -196,7 +199,7 @@ console.log("\n  0092 (grant-only, right after 0077) on every path");
 console.log("\n  0093 (rate limit, right after 0092) on every path");
 {
   const F92 = "0092_listing_reports_column_insert.sql", F93 = "0093_listing_reports_rate_limit.sql", F77 = "0077_listing_reports_installed_app_compat.sql";
-  const it = buildPlan({ files: FILES, record: RECORD, q01Markers: Q01, log: applied("0058_close_public_insert.sql", F77, F92) }).items[0];
+  const it = buildPlan({ files: FILES, record: RECORD, q01Markers: Q01, manifest: UNHELD, log: applied("0058_close_public_insert.sql", F77, F92) }).items[0];
   ok(it.file === F93 && it.after === F92 && it.mode === "transaction" && it.concurrent === null, "planned right after 0092, as a transaction file");
   ok(!it.captureError && it.captures.map((c) => c.sig).join() === "public.listing_report_client_ip(),public.listing_report_canonical_ip(text),public.listing_report_network(text),public.listing_report_key(text, text),public.listing_reports_guard()",
      "capture-on-apply pins its five functions (both new in production: listed in the capture, not restored)", it.captureError || it.captures.map((c) => c.sig).join());
