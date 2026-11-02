@@ -374,33 +374,6 @@ This is the authoritative list. `scripts/rollout-plan-manifest-test.mjs` (in `np
 | 3 | `0092_listing_reports_column_insert.sql` | 3 | transaction; immediately after 0077, same runner session (it narrows the door 0077 reopens) | 0077 | re-opens: guests can set id/created_at again (restores the post-0077 table-level grants) |
 | 4 | `0093_listing_reports_rate_limit.sql` | 3 | transaction; immediately after 0092, same runner session (bounds the same door: rate limit + one row per request) | 0092 | re-opens: no rate limit or per-request cap on direct reports (drops the guard, its tables and its counters) |
 | 5 | `0061a_table_privilege_hardening.sql` | 3 | transaction | — | re-opens anon grants |
-<<<<<<< HEAD
-| 6 | `0062_message_attachments.sql` | 4 | transaction | — | lossy: attachment rows (bucket kept) |
-| 7 | `0063_company_initiated_threads.sql` | 4 | transaction; only after Phase 1 messaging code | — | clean |
-| 8 | `0064_notification_clearing.sql` | 4 | transaction | — | clean (cleared_at dropped) |
-| 9 | `0065a_analytics_breakdown.sql` | 4 | transaction | — | clean |
-| 10 | `0065b_engagement_corrections.sql` | 4 | transaction | 0065a | clean (restores 0048 bodies) |
-| 11 | `0065c_analytics_indexes.sql` | 4 | outside a transaction (CONCURRENTLY), one statement at a time | 0065a | clean |
-| 12 | `0066_mineiq_conversations.sql` | 4 | transaction | — | lossy: Mine IQ history |
-| 13 | `0068_site_contract.sql` | 5 | transaction | — | lossy: website tokens, blueprint manifest |
-| 14 | `0069b_stripe_events.sql` | 5 | transaction | — | lossy: Stripe event ledger |
-| 15 | `0071_publishing_reliability.sql` | 5 | transaction; capture-on-apply (R1; the runner captures before every function-replacing file, 21 in all) | — | lossy (drops dispatcher_runs, ops_alerts, listener active_from); restores repo 0036/0008: same behaviour as production (R1); byte-exact via the captured rollback |
-| 16 | `0072_profile_drafts.sql` | 5 | transaction; capture-on-apply (R1; the runner captures before every function-replacing file, 21 in all) | — | lossy: unpublished drafts; restores 0035's company_go_live: same behaviour as production (R1) |
-| 17 | `0073a_impression_dedupe_index.sql` | 5 | outside a transaction (CONCURRENTLY) | — | clean |
-| 18 | `0073b_impression_tracking.sql` | 5 | transaction | — | clean |
-| 19 | `0073c_post_events_client_guard.sql` | 5 | transaction | — | re-opens: clients can backdate post_events again |
-| 20 | `0074_profile_revision_history.sql` | 5 | transaction | 0072 | lossy (drops company_profile_versions.kind; snapshot rows kept) |
-| 21 | `0075_profile_versions_privileges.sql` | 5 | transaction | — | re-opens anon grants |
-| 22 | `0076_company_roles.sql` | 5 | transaction; capture-on-apply (R1; the runner captures before every function-replacing file, 21 in all) | 0072 | lossy (drops company_invitations.kind; revokes pending member invitations) and re-opens (TRUNCATE/REFERENCES/TRIGGER for anon/authenticated on memberships and invitations); restores 0031's accept_company_invitation (R1) |
-| 23 | `0078_storage_role_hardening.sql` | 5 | transaction (R4 cleared) | 0076 | re-opens storage writes (repo 0037/0040 policies; production's six match them exactly) |
-| 24 | `0080_mineiq_search_any_term.sql` | 5b | transaction | — | restores 0050a's mineiq_search; production-exact (R3 cleared) |
-| 25 | `0085_conference_booth_config.sql` | 5b | transaction | — | lossy: published booth looks |
-| 26 | `0086_service_requests.sql` | 5b | transaction | 0076 | lossy: service requests (export first) |
-| 27 | `0087_audience_events.sql` | 5b | transaction | 0071 | lossy: audience events |
-| 28 | `0088_content_fanout.sql` | 5b | transaction; deploy `api/_listeners.js` first (Phase 1) | 0071 | lossy: destination copies; **roll back before 0071** (R2) |
-| 29 | `0090_notification_clear_roles.sql` | 5b | transaction | 0064, 0076 | re-opens: any member can clear notifications again (restores 0064's body) |
-| 30 | `0091_notification_clear_no_platform_admin.sql` | 5b | transaction; right after 0090 | 0090 | re-opens: platform admins can clear without membership again (restores 0090's body) |
-=======
 | 6 | `0094_company_follows_upsert_grant.sql` | 3 | transaction; right after 0061a (installed apps' follow() needs it; refuses to run if company_follows has a non-admin UPDATE policy) | 0061a | clean (revokes exactly the column grant) |
 | 7 | `0062_message_attachments.sql` | 4 | transaction | — | lossy: attachment rows (bucket kept) |
 | 8 | `0063_company_initiated_threads.sql` | 4 | transaction; only after Phase 1 messaging code | — | clean |
@@ -411,23 +384,22 @@ This is the authoritative list. `scripts/rollout-plan-manifest-test.mjs` (in `np
 | 13 | `0066_mineiq_conversations.sql` | 4 | transaction | — | lossy: Mine IQ history |
 | 14 | `0068_site_contract.sql` | 5 | transaction | — | lossy: website tokens, blueprint manifest |
 | 15 | `0069b_stripe_events.sql` | 5 | transaction | — | lossy: Stripe event ledger |
-| 16 | `0071_publishing_reliability.sql` | 5 | transaction; capture-on-apply (R1) | — | restores repo 0036/0008: same behaviour as production (R1); byte-exact via the captured rollback |
-| 17 | `0072_profile_drafts.sql` | 5 | transaction; capture-on-apply (R1) | — | lossy: unpublished drafts; restores 0035's company_go_live: same behaviour as production (R1) |
+| 16 | `0071_publishing_reliability.sql` | 5 | transaction; capture-on-apply (R1; the runner captures before every function-replacing file, 21 in all) | — | lossy (drops dispatcher_runs, ops_alerts, listener active_from); restores repo 0036/0008: same behaviour as production (R1); byte-exact via the captured rollback |
+| 17 | `0072_profile_drafts.sql` | 5 | transaction; capture-on-apply (R1; the runner captures before every function-replacing file, 21 in all) | — | lossy: unpublished drafts; restores 0035's company_go_live: same behaviour as production (R1) |
 | 18 | `0073a_impression_dedupe_index.sql` | 5 | outside a transaction (CONCURRENTLY) | — | clean |
 | 19 | `0073b_impression_tracking.sql` | 5 | transaction | — | clean |
-| 20 | `0073c_post_events_client_guard.sql` | 5 | transaction | — | clean |
-| 21 | `0074_profile_revision_history.sql` | 5 | transaction | 0072 | clean (snapshot rows kept) |
+| 20 | `0073c_post_events_client_guard.sql` | 5 | transaction | — | re-opens: clients can backdate post_events again |
+| 21 | `0074_profile_revision_history.sql` | 5 | transaction | 0072 | lossy (drops company_profile_versions.kind; snapshot rows kept) |
 | 22 | `0075_profile_versions_privileges.sql` | 5 | transaction | — | re-opens anon grants |
-| 23 | `0076_company_roles.sql` | 5 | transaction; capture-on-apply (R1) | 0072 | restores 0031's accept_company_invitation: same behaviour as production (R1); revokes pending member invitations |
+| 23 | `0076_company_roles.sql` | 5 | transaction; capture-on-apply (R1; the runner captures before every function-replacing file, 21 in all) | 0072 | lossy (drops company_invitations.kind; revokes pending member invitations) and re-opens (TRUNCATE/REFERENCES/TRIGGER for anon/authenticated on memberships and invitations); restores 0031's accept_company_invitation (R1) |
 | 24 | `0078_storage_role_hardening.sql` | 5 | transaction (R4 cleared) | 0076 | re-opens storage writes (repo 0037/0040 policies; production's six match them exactly) |
 | 25 | `0080_mineiq_search_any_term.sql` | 5b | transaction | — | restores 0050a's mineiq_search; production-exact (R3 cleared) |
 | 26 | `0085_conference_booth_config.sql` | 5b | transaction | — | lossy: published booth looks |
 | 27 | `0086_service_requests.sql` | 5b | transaction | 0076 | lossy: service requests (export first) |
 | 28 | `0087_audience_events.sql` | 5b | transaction | 0071 | lossy: audience events |
 | 29 | `0088_content_fanout.sql` | 5b | transaction; deploy `api/_listeners.js` first (Phase 1) | 0071 | lossy: destination copies; **roll back before 0071** (R2) |
-| 30 | `0090_notification_clear_roles.sql` | 5b | transaction | 0064, 0076 | clean (restores 0064's body) |
-| 31 | `0091_notification_clear_no_platform_admin.sql` | 5b | transaction; right after 0090 | 0090 | clean (restores 0090's body) |
->>>>>>> f449a13
+| 30 | `0090_notification_clear_roles.sql` | 5b | transaction | 0064, 0076 | re-opens: any member can clear notifications again (restores 0064's body) |
+| 31 | `0091_notification_clear_no_platform_admin.sql` | 5b | transaction; right after 0090 | 0090 | re-opens: platform admins can clear without membership again (restores 0090's body) |
 <!-- migration-order:end -->
 
 **Already applied in production, not in the list:** 0053, 0054, 0056, 0057, 0059 (never run its rollback in production), 0060 and 0067.
