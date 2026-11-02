@@ -93,6 +93,7 @@ function httpStatus(code, role) {
 }
 
 const TAG = `zz-0093adv-${Date.now().toString(36)}`;
+const PRUNE = `zzp${Date.now().toString(36)}`;   // planted stale-counter keys: unique per run
 const SIX = ["company_slug", "company_name", "kind", "message", "contact", "user_id"];
 const COLS = SIX.join(", ");
 const body = (o = {}) => ({ company_slug: TAG, company_name: "Zz 0093 adversarial", kind: o.kind ?? "error", message: "0093 adversarial check", contact: "", user_id: o.user ?? null });
@@ -146,13 +147,17 @@ async function exhaust(role, h, max, o = {}, uid = null) {
 const OURS = `form = any($1::text[])`;
 const keyOf = async (kind, v) => (await q(`select public.listing_report_key($1, $2) k`, [kind, v]))[0].k;
 const netOf = async (ip) => (await q(`select public.listing_report_network($1) n`, [ip]))[0].n;
-const count = async (form, key) => (await q(`select coalesce(sum(count), 0)::int n from ${DESIGN.throttle} where form = $1 and ip_hash = $2 and window_start > now() - interval '1 day'`, [form, key]))[0].n;
+// A key's count in its form's CURRENT window (the bucket the guard writes), nothing older.
+const WIN = { [DESIGN.forms.global]: DESIGN.globalWindowS, [DESIGN.forms.network]: DESIGN.networkWindowS, [DESIGN.forms.client]: DESIGN.clientWindowS };
+const count = async (form, key) => (await q(`select coalesce(sum(count), 0)::int n from ${DESIGN.throttle} where form = $1 and ip_hash = $2 and window_start = to_timestamp(floor(extract(epoch from now()) / $3) * $3)`, [form, key, WIN[form]]))[0].n;
 const globalCount = () => count(DESIGN.forms.global, DESIGN.globalKey);
 const counterRows = async () => (await q(`select count(*)::int n from ${DESIGN.throttle} where ${OURS}`, [OUR_FORMS]))[0].n;
 const otherForms = async () => JSON.stringify(await q(`select form, count(*)::int n, sum(count)::int s from ${DESIGN.throttle} where not (${OURS}) group by form order by form`, [OUR_FORMS]));
-// "The next window": this design's counters move back past every window (but stay
-// well within a day, so the pruner leaves them alone).
-const newWindow = () => q(`update ${DESIGN.throttle} set window_start = window_start - make_interval(secs => $2) where ${OURS} and window_start > now() - interval '1 day'`, [OUR_FORMS, Math.max(DESIGN.globalWindowS, DESIGN.networkWindowS) + DESIGN.clientWindowS]);
+// A clean slate for a section (phase A only, inside its rolled-back transaction):
+// this design's counters from the last day are removed, as if every window had
+// rolled over. (Moving them back by a fixed delta instead collides with rows an
+// earlier move already put there -- submission_throttle_pkey -- depending on row order.)
+const newWindow = () => q(`delete from ${DESIGN.throttle} where ${OURS} and window_start > now() - interval '1 day'`, [OUR_FORMS]);
 const grantsAndPolicy = async () => JSON.stringify({
   policy: await q(`select policyname, cmd, roles::text r, coalesce(qual, '') q, coalesce(with_check, '') w from pg_policies where schemaname = 'public' and tablename = 'listing_reports' order by 1`),
   table: await q(`select grantee, privilege_type from information_schema.role_table_grants where table_schema = 'public' and table_name = 'listing_reports' and grantee in ('anon', 'authenticated') order by 1, 2`),
@@ -378,7 +383,7 @@ try {
   const kw = freshIp();
   await exhaust("anon", gw(kw), N);
   ok(refusedBy(await report("anon", gw(kw)), "client"), "exhausted in this window");
-  await q(`update ${DESIGN.throttle} set window_start = window_start - make_interval(secs => $2) where form = $1 and window_start > now() - interval '1 day'`, [DESIGN.forms.client, DESIGN.clientWindowS]);
+  await q(`update ${DESIGN.throttle} set window_start = window_start - make_interval(secs => $3) where form = $1 and ip_hash = $2 and window_start > now() - interval '1 day'`, [DESIGN.forms.client, await keyOf("client", kw), DESIGN.clientWindowS]);
   r = await report("anon", gw(kw));
   ok(r.ok, `once its window is the previous one (${DESIGN.clientWindowS / 60} min on), the client is allowed again (the network and global hours still count it)`, r.code);
   info(`fixed windows: ${2 * N} per client and ${2 * NET} per /24 can land across a boundary (accepted for the pilot)`);
@@ -388,13 +393,13 @@ try {
   const kp = freshIp();
   await exhaust("anon", gw(kp), N); // at its limit BEFORE any stale rows exist
   const OTHER = "zz_0093adv_other_form";
-  await q(`insert into ${DESIGN.throttle} (ip_hash, form, window_start, count) select 'zzprune-' || g, $1, now() - interval '2 days' - make_interval(secs => g), 1 from generate_series(1, 120) g`, [DESIGN.forms.client]);
-  await q(`insert into ${DESIGN.throttle} (ip_hash, form, window_start, count) select 'zzprune-n' || g, $1, now() - interval '3 days', 1 from generate_series(1, 10) g`, [DESIGN.forms.network]);
-  await q(`insert into ${DESIGN.throttle} (ip_hash, form, window_start, count) select 'zzprune-o' || g, $1, now() - interval '5 days', 1 from generate_series(1, 30) g`, [OTHER]);
-  await q(`insert into ${DESIGN.throttle} (ip_hash, form, window_start, count) select 'zzprune-r' || g, $1, now() - interval '23 hours', 1 from generate_series(1, 5) g`, [DESIGN.forms.client]);
+  await q(`insert into ${DESIGN.throttle} (ip_hash, form, window_start, count) select $2 || '-c' || g, $1, now() - interval '2 days' - make_interval(secs => g), 1 from generate_series(1, 120) g`, [DESIGN.forms.client, PRUNE]);
+  await q(`insert into ${DESIGN.throttle} (ip_hash, form, window_start, count) select $2 || '-n' || g, $1, now() - interval '3 days', 1 from generate_series(1, 10) g`, [DESIGN.forms.network, PRUNE]);
+  await q(`insert into ${DESIGN.throttle} (ip_hash, form, window_start, count) select $2 || '-o' || g, $1, now() - interval '5 days', 1 from generate_series(1, 30) g`, [OTHER, PRUNE]);
+  await q(`insert into ${DESIGN.throttle} (ip_hash, form, window_start, count) select $2 || '-r' || g, $1, now() - interval '23 hours', 1 from generate_series(1, 5) g`, [DESIGN.forms.client, PRUNE]);
   const stale = async () => (await q(`select count(*)::int n from ${DESIGN.throttle} where ${OURS} and window_start < now() - interval '1 day'`, [OUR_FORMS]))[0].n;
   const otherN = async () => (await q(`select count(*)::int n from ${DESIGN.throttle} where form = $1`, [OTHER]))[0].n;
-  const recentN = async () => (await q(`select count(*)::int n from ${DESIGN.throttle} where ip_hash like 'zzprune-r%'`))[0].n;
+  const recentN = async () => (await q(`select count(*)::int n from ${DESIGN.throttle} where ip_hash like $1`, [`${PRUNE}-r%`]))[0].n;
   const s0 = await stale();
   await req("service_role", { headers: gw(freshIp()) }, VALUES1, vals());
   ok((await stale()) === s0, "a service-role insert prunes nothing (the guard returns before pruning)");
@@ -433,7 +438,7 @@ try {
     r = await req("anon", { headers: gw(freshIp()) }, sql);
     ok(!r.ok && r.code === "42501", `anon: ${sql.slice(7, 40)}... -> refused (no key or address oracle)`, r.code);
   }
-  ok(!(await q(`select 1 from ${DESIGN.throttle} where ${OURS} and ip_hash !~ '^(lr|ln):[0-9a-f]{32}$' and ip_hash <> $2 and ip_hash not like 'zzprune-%'`, [OUR_FORMS, DESIGN.globalKey])).length, "every counter key is 'lr:'/'ln:' + 32 hex: no raw address or network is stored");
+  ok(!(await q(`select 1 from ${DESIGN.throttle} where ${OURS} and ip_hash !~ '^(lr|ln):[0-9a-f]{32}$' and ip_hash <> $2 and ip_hash not like $3`, [OUR_FORMS, DESIGN.globalKey, `${PRUNE}-%`])).length, "every counter key is 'lr:'/'ln:' + 32 hex: no raw address or network is stored");
 } catch (e) {
   ok(false, "unexpected error", e.stack || e.message);
 } finally {
@@ -488,13 +493,13 @@ async function phaseB() {
   try {
     if (gStart + 60 > G) { info(`skipped: the live global count is ${gStart}; too close to ${G} to probe without blocking real reports`); return; }
     // Stale rows for the pruner to fight over.
-    await q(`insert into ${DESIGN.throttle} (ip_hash, form, window_start, count) select 'zzprune-b' || g, $1, now() - interval '2 days' - make_interval(secs => g), 1 from generate_series(1, 400) g`, [DESIGN.forms.client]);
+    await q(`insert into ${DESIGN.throttle} (ip_hash, form, window_start, count) select $2 || '-b' || g, $1, now() - interval '2 days' - make_interval(secs => g), 1 from generate_series(1, 400) g`, [DESIGN.forms.client, PRUNE]);
     const one = freshIp();
     const a = await parallel(Array.from({ length: N + 15 }, () => gw(one)));
     ok(a.got === N, `${N + 15} parallel reports from one client: exactly ${N} stored (no overshoot)`, `${a.got}; ${a.codes.join(",")}`);
     ok(a.codes.every((x) => x === DESIGN.tooMany), "every parallel refusal is PT429: no deadlock (40P01), serialization (40001) or lock timeout (55P03), pruning included", a.codes.join(","));
     ok((await globalCount()) === gStart + N, `the global counter moved by exactly ${N}`, `${gStart} -> ${await globalCount()}`);
-    const left = (await q(`select count(*)::int n from ${DESIGN.throttle} where ip_hash like 'zzprune-b%'`))[0].n;
+    const left = (await q(`select count(*)::int n from ${DESIGN.throttle} where ip_hash like $1`, [`${PRUNE}-b%`]))[0].n;
     ok(left < 400 && left >= 400 - N * DESIGN.pruneBatch, `the parallel inserts pruned stale rows without conflict (${400 - left} of 400, skip locked; only the ${N} stored inserts keep their pruning)`);
     const net = (i) => `198.19.210.${i + 1}`;
     const b = await parallel(Array.from({ length: NET + 15 }, (_, i) => gw(net(i))));
