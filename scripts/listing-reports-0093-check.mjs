@@ -115,6 +115,7 @@ try {
   ok(kX1 === kX2 && kX1 !== (await keyFor({ "x-forwarded-for": `${ip(8)}, 10.0.0.1` })), "x-forwarded-for: the FIRST hop is the client (later proxy hops ignored)");
   ok((await keyFor({ "cf-connecting-ip": ip(7), "x-forwarded-for": ip(6) })) === (await keyFor({ "cf-connecting-ip": ip(7) })), "cf-connecting-ip wins over x-forwarded-for (Cloudflare sets it; a client cannot forge it through Cloudflare)");
   ok((await keyFor({})) === (await keyFor({ "user-agent": "x" })) && /^lr:[0-9a-f]{32}$/.test(await keyFor({})), "no address header -> one shared 'unknown' bucket, hashed like any other");
+  ok((await keyFor({ "cf-connecting-ip": `\t ${ip(5)}\n` })) === (await keyFor({ "cf-connecting-ip": ip(5) })), "a header padded with tabs or newlines is the same client (all whitespace trimmed)");
   for (let i = 0; i < 3; i++) await report({ headers: {} });
   r = await report({ headers: {} });
   ok(!r.ok && r.code === "PT429", "the 'unknown' bucket is limited like a client");

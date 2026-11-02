@@ -98,15 +98,17 @@ alter table public.submission_throttle_salt enable row level security;
 revoke all on public.submission_throttle_salt from public, anon, authenticated;
 
 -- ---- who is calling ---------------------------------------------------------
+-- Each candidate is trimmed of ALL surrounding whitespace (tabs and newlines too,
+-- not just spaces), so a padded header cannot make a second bucket.
 create or replace function public.listing_report_client_key()
 returns text
 language sql stable security definer set search_path = public, pg_temp as $$
   with h as (select coalesce(nullif(current_setting('request.headers', true), ''), '{}')::json as j),
   ip as (
     select coalesce(
-      nullif(btrim(j ->> 'cf-connecting-ip'), ''),
-      nullif(btrim(split_part(coalesce(j ->> 'x-forwarded-for', ''), ',', 1)), ''),
-      nullif(btrim(j ->> 'x-real-ip'), ''),
+      nullif(regexp_replace(coalesce(j ->> 'cf-connecting-ip', ''), '^\s+|\s+$', '', 'g'), ''),
+      nullif(regexp_replace(split_part(coalesce(j ->> 'x-forwarded-for', ''), ',', 1), '^\s+|\s+$', '', 'g'), ''),
+      nullif(regexp_replace(coalesce(j ->> 'x-real-ip', ''), '^\s+|\s+$', '', 'g'), ''),
       'unknown') as a
     from h
   )

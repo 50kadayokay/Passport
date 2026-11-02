@@ -54,6 +54,7 @@ console.log("\n  THE CLIENT KEY (never the address)");
 const ci = key.indexOf("cf-connecting-ip"), xi = key.indexOf("x-forwarded-for"), ri = key.indexOf("x-real-ip"), ui = key.indexOf("'unknown'");
 ok(ci > 0 && ci < xi && xi < ri && ri < ui, "cf-connecting-ip, then x-forwarded-for, then x-real-ip, then 'unknown'");
 ok(/split_part\(coalesce\(j ->> 'x-forwarded-for', ''\), ',', 1\)/.test(key), "x-forwarded-for: its FIRST hop");
+ok((key.match(/regexp_replace\([^\n]*'\^\\s\+\|\\s\+\$', '', 'g'\)/g) || []).length === 3 && !/btrim\(/.test(key), "every candidate is trimmed of all surrounding whitespace (tabs, newlines), not just spaces (S2 finding 3)");
 ok(/'lr:' \|\| left\(encode\(sha256\(convert_to\(s\.salt \|\| '\|' \|\| ip\.a, 'UTF8'\)\), 'hex'\), 32\)/.test(key), "stored is 'lr:' + 32 hex of SHA-256(salt | address)");
 ok(/values \(true, replace\(gen_random_uuid\(\)::text \|\| gen_random_uuid\(\)::text, '-', ''\)\)/.test(m), "the salt is generated in the migration (two v4 UUIDs, core PostgreSQL)");
 ok(!/raw|ip_address/i.test(guard.replace(/--.*$/gm, "")) && /values \(v_key, 'listing_report_db_client'/.test(guard), "only the hashed key is written");
