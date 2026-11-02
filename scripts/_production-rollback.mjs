@@ -48,6 +48,16 @@ export const ROLLBACK_BLOCKED_WHILE = {
 };
 
 // ---- lossy ------------------------------------------------------------------------
+// Rollbacks a reviewer read and found to lose no user data, although the scan
+// flags them. Pinned to the rollback file's sha256: any edit to the file makes
+// it lossy again until it is re-reviewed.
+export const REVIEWED_NOT_LOSSY = {
+  "0093_listing_reports_rate_limit.sql": {
+    sha256: "e80b9d954bb9b50c3776069529869ede04aaa27aaf47a04ae2e8266fb664e3bd",
+    why: "drops only 0093's own config tables (listing_report_limits, submission_throttle_salt) and deletes only its own rate-limit counters (forms listing_report_db_*); /api/submit's counters and every listing report are kept (S1 review 2026-11-02)",
+  },
+};
+
 const LOSSY = [
   ["drops a table", /\bdrop table\b/i],
   ["drops a column", /\balter table\b[^;]*?\bdrop (column )?(if exists )?(?!constraint\b|default\b|not null\b|expression\b|identity\b)[a-z_]/i],
@@ -133,7 +143,8 @@ export function checkRollback(args, { log, ref, q01Markers, dir = "supabase/migr
     try { runnerBody(rollbackSql); } catch (e) { refuse(`${rb}: ${e.message}`); }
   }
 
-  const lossy = lossyReasons(rollbackSql, file, planDoc);
+  const reviewed = REVIEWED_NOT_LOSSY[file];
+  const lossy = reviewed && reviewed.sha256 === sha256(rollbackSql) ? [] : lossyReasons(rollbackSql, file, planDoc);
   const accepted = String(args.acceptDataLoss ?? "").trim();
   if (lossy.length && accepted.length < 8) refuse(`${file}'s rollback loses data (${lossy.join("; ")}). Decide with S4 first, then pass --accept-data-loss="<the decision, and who made it>" (at least 8 characters); it is logged`);
   if (!lossy.length && args.acceptDataLoss != null) refuse(`--accept-data-loss was given but ${file}'s rollback is not lossy; drop the flag`);
@@ -194,7 +205,10 @@ export function formatRollbackSection(log, ref, { planDoc = "", rollbacksDir = "
   if (!stack.length) L.push("    nothing applied by this runner yet");
   [...stack].reverse().forEach((f, i) => {
     let lossy = [];
-    try { lossy = lossyReasons(read(path.join(rollbacksDir, f.replace(/\.sql$/, ".rollback.sql"))), f, planDoc); } catch { /* no rollback file: the request refuses */ }
+    try {
+      const sql = read(path.join(rollbacksDir, f.replace(/\.sql$/, ".rollback.sql")));
+      lossy = REVIEWED_NOT_LOSSY[f]?.sha256 === sha256(sql) ? [] : lossyReasons(sql, f, planDoc);
+    } catch { /* no rollback file: the request refuses */ }
     const blocked = (ROLLBACK_BLOCKED_WHILE[f] || []).filter((b) => stack.includes(b));
     L.push(`    ${i === 0 ? "next:" : "then:"} ${f}${blocked.length ? `   (refused while ${blocked.join(", ")} is applied)` : ""}${lossy.length ? `   LOSSY: ${lossy.join("; ")} -- needs --accept-data-loss` : ""}`);
   });

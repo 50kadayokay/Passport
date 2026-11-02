@@ -16,7 +16,7 @@ import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { Refusal, loadRecord, parseQ01Markers, buildPlan, parseArgs, checkRequest, unresolved, appliedStack, markerSelect, PRODUCTION_REFS, STAGING_REFS } from "./_production-migrations.mjs";
-import { checkRollback, applyRollback, lossyReasons, formatRollbackSection, NEVER_ROLL_BACK } from "./_production-rollback.mjs";
+import { checkRollback, applyRollback, lossyReasons, formatRollbackSection, NEVER_ROLL_BACK, REVIEWED_NOT_LOSSY } from "./_production-rollback.mjs";
 import { writeCaptureFile } from "./_function-capture.mjs";
 import { STATE_SQL } from "./_concurrent-indexes.mjs";
 import { runnerBody, sha256 } from "./_db-egress.mjs";
@@ -191,6 +191,28 @@ console.log("\n  0092 (grant-only, right after 0077) on every path");
   is(refusal(rb(R(F77), applied("0058_close_public_insert.sql", F77, F92)), /strict reverse order: 0092.* must be rolled back first/), "0077 cannot be rolled back while 0092 is applied");
   is(refusal(rb(R(F77), [...applied("0058_close_public_insert.sql", F92), ...applied(F77).map((e) => ({ ...e, at: "z" }))]), /0092_listing_reports_column_insert\.sql still needs 0077/),
      "...even when the log's order is odd: 0092 still needs 0077");
+}
+
+console.log("\n  0093 (rate limit, right after 0092) on every path");
+{
+  const F92 = "0092_listing_reports_column_insert.sql", F93 = "0093_listing_reports_rate_limit.sql", F77 = "0077_listing_reports_installed_app_compat.sql";
+  const it = buildPlan({ files: FILES, record: RECORD, q01Markers: Q01, log: applied("0058_close_public_insert.sql", F77, F92) }).items[0];
+  ok(it.file === F93 && it.after === F92 && it.mode === "transaction" && it.concurrent === null, "planned right after 0092, as a transaction file");
+  ok(!it.captureError && it.captures.map((c) => c.sig).join() === "public.listing_report_client_key(),public.listing_reports_guard()",
+     "capture-on-apply pins its two functions (both new in production: listed in the capture, not restored)", it.captureError || it.captures.map((c) => c.sig).join());
+  ok(/to_regclass\('public\.listing_report_limits'\) is not null and exists \(select 1 from pg_trigger where tgrelid = 'public\.listing_reports'::regclass and tgname = 'listing_reports_guard'/.test(it.checkpoint), "its checkpoint: the limits table and the guard trigger exist");
+  const rbSql = fs.readFileSync("supabase/rollbacks/0093_listing_reports_rate_limit.rollback.sql", "utf8");
+  ok(lossyReasons(rbSql, F93, DOC).join() === "deletes rows,drops a table" && REVIEWED_NOT_LOSSY[F93].sha256 === sha256(rbSql),
+     "the scan flags its rollback (drops its tables, deletes its counters); a review pinned to this file's sha256 clears it");
+  const r93 = rb(R(F93), applied("0058_close_public_insert.sql", F77, F92, F93))();
+  ok(r93.lossy.length === 0 && r93.acceptDataLoss === null && r93.mode === "transaction", "--rollback 0093: no --accept-data-loss needed (reviewed: no user data lost)");
+  const edited = path.join(tmp, "rb93"); fs.mkdirSync(edited);
+  for (const f of fs.readdirSync("supabase/rollbacks")) fs.copyFileSync(path.join("supabase/rollbacks", f), path.join(edited, f));
+  fs.appendFileSync(path.join(edited, "0093_listing_reports_rate_limit.rollback.sql"), "\ndelete from public.listing_reports;\n");
+  is(refusal(rb(R(F93), applied("0058_close_public_insert.sql", F77, F92, F93), { rollbacksDir: edited }), /loses data \(deletes rows; drops a table\)/),
+     "an EDITED 0093 rollback is lossy again until re-reviewed (the sha256 no longer matches)");
+  is(refusal(rb(R(F92), applied("0058_close_public_insert.sql", F77, F92, F93)), /strict reverse order: 0093.* must be rolled back first/), "0092 cannot be rolled back while 0093 is applied");
+  ok(/next: 0093_listing_reports_rate_limit\.sql(?!.*LOSSY)/.test(formatRollbackSection(applied("0058_close_public_insert.sql", F77, F92, F93), PROD, { planDoc: DOC })), "the plan's rollback section does not mark it LOSSY");
 }
 
 console.log("\n  CLI and the plan");
