@@ -34,8 +34,8 @@ const ORDER = ["0053_phase3_0041_privilege_hardening", "0054_phase3_0041_immutab
   "0077_listing_reports_installed_app_compat", "0092_listing_reports_column_insert", "0093_listing_reports_rate_limit", "0078_storage_role_hardening",
   "0080_mineiq_search_any_term", "0085_conference_booth_config", "0086_service_requests", "0087_audience_events", "0088_content_fanout",
   "0090_notification_clear_roles", "0091_notification_clear_no_platform_admin"];
-// 0077, 0078, 0080, 0085-0088 and 0090-0092 applied to staging (0092 on 2026-11-02); 0093 awaits approval.
-const NOT_ON_STAGING = new Set(["0055_enable_device_push", "0093_listing_reports_rate_limit"]);
+// 0077, 0078, 0080, 0085-0088 and 0090-0093 applied to staging (0092 and 0093 on 2026-11-02).
+const NOT_ON_STAGING = new Set(["0055_enable_device_push"]);
 const DEFERRED = new Set(["0055_enable_device_push"]);
 
 const prep = (sql) => {

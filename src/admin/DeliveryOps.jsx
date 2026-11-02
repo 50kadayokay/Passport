@@ -4,6 +4,9 @@
 // alerts (acknowledge / resolve), dead letters with their full error and a
 // single, confirmed, version-checked replay, and the delivery history.
 // There is deliberately no "replay all": one delivery at a time.
+// Also the listing-report cap (migration 0093): a red banner when the global
+// cap is full (every installed app's "Report or claim" is refused until the
+// window ends), amber at 80%, and any cap hit in the last day.
 import React, { useCallback, useEffect, useState } from "react";
 import { Loader2, RefreshCw, AlertTriangle, CheckCircle2, Clock, X, RotateCcw } from "lucide-react";
 import { authHeaders } from "../lib/auth.js";
@@ -58,6 +61,31 @@ function Notice({ tone = "info", children, onClose }) {
       {onClose && <button onClick={onClose} aria-label="Dismiss" className="opacity-60 hover:opacity-100"><X size={14} /></button>}
     </div>
   );
+}
+
+// 0093's global cap on direct listing reports (installed 1.3.x apps).
+function ListingReports({ lr }) {
+  if (!lr || !lr.available) return lr && lr.reason ? <p className="text-[12px] text-slate-400" data-testid="listing-reports-unavailable">{lr.reason}</p> : null;
+  const until = new Date(Date.parse(lr.windowStart) + lr.windowMinutes * 60 * 1000);
+  const hot = lr.networkHotspots && lr.networkHotspots.atLimit ? ` ${lr.networkHotspots.atLimit} network${lr.networkHotspots.atLimit === 1 ? " is" : "s are"} at their limit of ${lr.networkHotspots.limit} an hour.` : "";
+  const recent = lr.recentCapHits && lr.recentCapHits.length ? ` The cap also filled in the last day: ${lr.recentCapHits.slice(0, 3).map((w) => new Date(w).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })).join(", ")}.` : "";
+  if (lr.capHit) {
+    return (
+      <div role="alert" data-testid="listing-reports-cap" className="flex items-start gap-2 rounded-xl bg-rose-600 px-4 py-3 text-[13px] font-semibold text-white">
+        <AlertTriangle size={16} className="mt-0.5 flex-shrink-0" />
+        <span>Listing reports are being refused. The global limit of {lr.globalLimit} an hour is full ({lr.globalCount}), so every installed app's "Report or claim" fails until {until.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}. The website and newer app builds (/api/submit) are not affected.{hot}{recent}</span>
+      </div>
+    );
+  }
+  if (lr.warn || recent) {
+    return (
+      <div role="status" data-testid={lr.warn ? "listing-reports-warn" : "listing-reports-recent"} className="flex items-start gap-2 rounded-xl bg-amber-50 px-4 py-3 text-[13px] font-medium text-amber-900">
+        <AlertTriangle size={16} className="mt-0.5 flex-shrink-0" />
+        <span>{lr.warn ? `Listing reports are at ${Math.round(lr.ratio * 100)}% of the hourly limit (${lr.globalCount} of ${lr.globalLimit}). At ${lr.globalLimit}, installed apps' reports are refused until the hour ends.` : "Listing reports are within the limit now."}{hot}{recent}</span>
+      </div>
+    );
+  }
+  return <p className="text-[12px] text-slate-500" data-testid="listing-reports-ok">Listing reports from installed apps this hour: {lr.globalCount} of {lr.globalLimit}.{hot}</p>;
 }
 
 function Health({ s }) {
@@ -333,6 +361,7 @@ export default function DeliveryOps({ companies = [] }) {
 
       {s && (
         <>
+          <ListingReports lr={s.listingReports} />
           <Health s={s} />
           <Alerts alerts={s.alerts || []} onAction={alertAction} busy={busy} />
           <Counts s={s} />

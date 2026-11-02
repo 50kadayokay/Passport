@@ -74,6 +74,12 @@ const MIG = fs.readFileSync(DESIGN.migration, "utf8");
 if (!/listing_report_client_ip/.test(MIG) || !/listing_report_db_network/.test(MIG)) { console.error("  this 0093 is not S3's redesign (28974b3); this check is pinned to the redesign."); process.exit(3); }
 const BURST = process.argv.includes("--burst"), HTTP = process.argv.includes("--http");
 const N = DESIGN.perClient, NET = DESIGN.perNetwork, G = DESIGN.global;
+// Phase B's parallel connections, on top of the main one. Staging (Nano) has a
+// session pooler of 15 clients; 10 still exceeds N, so overshoot is tested.
+const MAXP = Math.max(2, Number(process.env.RL_MAX_PARALLEL) || 10);
+// Phase B lowers the network and global limits to this many slots, so a burst of
+// MAXP can overshoot them too (both restored afterwards).
+const SLOTS = Math.max(1, Math.floor(MAXP / 2));
 
 let pass = 0, fail = 0;
 const ok = (c, m, d = "") => { if (c) { pass++; console.log(`  ✓ ${m}`); } else { fail++; console.error(`  ✗ ${m}${d ? `\n      ${d}` : ""}`); } };
@@ -93,6 +99,7 @@ function httpStatus(code, role) {
 }
 
 const TAG = `zz-0093adv-${Date.now().toString(36)}`;
+const PRUNE = `zzp${Date.now().toString(36)}`;   // planted stale-counter keys: unique per run
 const SIX = ["company_slug", "company_name", "kind", "message", "contact", "user_id"];
 const COLS = SIX.join(", ");
 const body = (o = {}) => ({ company_slug: TAG, company_name: "Zz 0093 adversarial", kind: o.kind ?? "error", message: "0093 adversarial check", contact: "", user_id: o.user ?? null });
@@ -146,13 +153,17 @@ async function exhaust(role, h, max, o = {}, uid = null) {
 const OURS = `form = any($1::text[])`;
 const keyOf = async (kind, v) => (await q(`select public.listing_report_key($1, $2) k`, [kind, v]))[0].k;
 const netOf = async (ip) => (await q(`select public.listing_report_network($1) n`, [ip]))[0].n;
-const count = async (form, key) => (await q(`select coalesce(sum(count), 0)::int n from ${DESIGN.throttle} where form = $1 and ip_hash = $2 and window_start > now() - interval '1 day'`, [form, key]))[0].n;
+// A key's count in its form's CURRENT window (the bucket the guard writes), nothing older.
+const WIN = { [DESIGN.forms.global]: DESIGN.globalWindowS, [DESIGN.forms.network]: DESIGN.networkWindowS, [DESIGN.forms.client]: DESIGN.clientWindowS };
+const count = async (form, key) => (await q(`select coalesce(sum(count), 0)::int n from ${DESIGN.throttle} where form = $1 and ip_hash = $2 and window_start = to_timestamp(floor(extract(epoch from now()) / $3) * $3)`, [form, key, WIN[form]]))[0].n;
 const globalCount = () => count(DESIGN.forms.global, DESIGN.globalKey);
 const counterRows = async () => (await q(`select count(*)::int n from ${DESIGN.throttle} where ${OURS}`, [OUR_FORMS]))[0].n;
 const otherForms = async () => JSON.stringify(await q(`select form, count(*)::int n, sum(count)::int s from ${DESIGN.throttle} where not (${OURS}) group by form order by form`, [OUR_FORMS]));
-// "The next window": this design's counters move back past every window (but stay
-// well within a day, so the pruner leaves them alone).
-const newWindow = () => q(`update ${DESIGN.throttle} set window_start = window_start - make_interval(secs => $2) where ${OURS} and window_start > now() - interval '1 day'`, [OUR_FORMS, Math.max(DESIGN.globalWindowS, DESIGN.networkWindowS) + DESIGN.clientWindowS]);
+// A clean slate for a section (phase A only, inside its rolled-back transaction):
+// this design's counters from the last day are removed, as if every window had
+// rolled over. (Moving them back by a fixed delta instead collides with rows an
+// earlier move already put there -- submission_throttle_pkey -- depending on row order.)
+const newWindow = () => q(`delete from ${DESIGN.throttle} where ${OURS} and window_start > now() - interval '1 day'`, [OUR_FORMS]);
 const grantsAndPolicy = async () => JSON.stringify({
   policy: await q(`select policyname, cmd, roles::text r, coalesce(qual, '') q, coalesce(with_check, '') w from pg_policies where schemaname = 'public' and tablename = 'listing_reports' order by 1`),
   table: await q(`select grantee, privilege_type from information_schema.role_table_grants where table_schema = 'public' and table_name = 'listing_reports' and grantee in ('anon', 'authenticated') order by 1, 2`),
@@ -272,9 +283,19 @@ try {
   r = await report("anon", gw("2001:db8:2::1"));
   ok(r.ok, "the neighbouring /48 is unaffected");
   await newWindow();
+  // S3 256ef55 unmaps ::ffff:a.b.c.d to IPv4 before taking the network (by value).
+  const UNMAPS = /::ffff:0:0\/96/.test(MIG);
   const mapped = await exhaust("anon", (i) => gw(`::ffff:198.18.${(i * 7) % 256}.${(i % 200) + 1}`), NET + 5);
-  if (mapped.n === NET) finding(`IPv4-mapped IPv6 addresses (::ffff:a.b.c.d) from ${NET + 5} DIFFERENT IPv4 /24s share one network bucket: /48 of ::ffff:0:0/96 is all of IPv4. Harmless while cf-connecting-ip is plain IPv4 (phase C checks); otherwise unmap first (if family 6 and << '::ffff:0:0/96', take the IPv4 /24)`);
+  if (UNMAPS) ok(mapped.n === NET + 5, `IPv4-mapped IPv6 from ${NET + 5} different IPv4 /24s are NOT lumped into one /48 (${mapped.n} stored)`);
+  else if (mapped.n === NET) finding(`IPv4-mapped IPv6 addresses (::ffff:a.b.c.d) from ${NET + 5} DIFFERENT IPv4 /24s share one network bucket (this 0093 predates S3's 256ef55)`);
   else ok(true, `IPv4-mapped addresses from different /24s are not lumped together (${mapped.n} stored)`);
+  if (UNMAPS) {
+    await newWindow();
+    const mix = await exhaust("anon", (i) => gw(i % 2 ? `::ffff:198.19.220.${i + 1}` : `198.19.220.${i + 1}`), NET + 5);
+    ok(mix.n === NET && refusedBy(mix.refusal, "network"), `plain and ::ffff:-mapped addresses in one IPv4 /24 share its network limit of ${NET}`, `${mix.n}`);
+    ok((await netOf("::ffff:198.51.100.7")) === (await netOf("198.51.100.7")), "listing_report_network(::ffff:198.51.100.7) = listing_report_network(198.51.100.7)");
+    info("the CLIENT key still distinguishes the mapped and plain text of one address (2 buckets); the gateway, not the client, chooses the form, so not exploitable");
+  }
   r = await req("anon", { headers: gw("garbage") }, PGRST, [JSON.stringify(body())]);
   ok(r.ok && (await netOf("garbage")) === null, "an address that is not an inet: stored, no network counter (client and global only)", r.code);
   await newWindow();
@@ -368,7 +389,7 @@ try {
   const kw = freshIp();
   await exhaust("anon", gw(kw), N);
   ok(refusedBy(await report("anon", gw(kw)), "client"), "exhausted in this window");
-  await q(`update ${DESIGN.throttle} set window_start = window_start - make_interval(secs => $2) where form = $1 and window_start > now() - interval '1 day'`, [DESIGN.forms.client, DESIGN.clientWindowS]);
+  await q(`update ${DESIGN.throttle} set window_start = window_start - make_interval(secs => $3) where form = $1 and ip_hash = $2 and window_start > now() - interval '1 day'`, [DESIGN.forms.client, await keyOf("client", kw), DESIGN.clientWindowS]);
   r = await report("anon", gw(kw));
   ok(r.ok, `once its window is the previous one (${DESIGN.clientWindowS / 60} min on), the client is allowed again (the network and global hours still count it)`, r.code);
   info(`fixed windows: ${2 * N} per client and ${2 * NET} per /24 can land across a boundary (accepted for the pilot)`);
@@ -378,13 +399,13 @@ try {
   const kp = freshIp();
   await exhaust("anon", gw(kp), N); // at its limit BEFORE any stale rows exist
   const OTHER = "zz_0093adv_other_form";
-  await q(`insert into ${DESIGN.throttle} (ip_hash, form, window_start, count) select 'zzprune-' || g, $1, now() - interval '2 days' - make_interval(secs => g), 1 from generate_series(1, 120) g`, [DESIGN.forms.client]);
-  await q(`insert into ${DESIGN.throttle} (ip_hash, form, window_start, count) select 'zzprune-n' || g, $1, now() - interval '3 days', 1 from generate_series(1, 10) g`, [DESIGN.forms.network]);
-  await q(`insert into ${DESIGN.throttle} (ip_hash, form, window_start, count) select 'zzprune-o' || g, $1, now() - interval '5 days', 1 from generate_series(1, 30) g`, [OTHER]);
-  await q(`insert into ${DESIGN.throttle} (ip_hash, form, window_start, count) select 'zzprune-r' || g, $1, now() - interval '23 hours', 1 from generate_series(1, 5) g`, [DESIGN.forms.client]);
+  await q(`insert into ${DESIGN.throttle} (ip_hash, form, window_start, count) select $2 || '-c' || g, $1, now() - interval '2 days' - make_interval(secs => g), 1 from generate_series(1, 120) g`, [DESIGN.forms.client, PRUNE]);
+  await q(`insert into ${DESIGN.throttle} (ip_hash, form, window_start, count) select $2 || '-n' || g, $1, now() - interval '3 days', 1 from generate_series(1, 10) g`, [DESIGN.forms.network, PRUNE]);
+  await q(`insert into ${DESIGN.throttle} (ip_hash, form, window_start, count) select $2 || '-o' || g, $1, now() - interval '5 days', 1 from generate_series(1, 30) g`, [OTHER, PRUNE]);
+  await q(`insert into ${DESIGN.throttle} (ip_hash, form, window_start, count) select $2 || '-r' || g, $1, now() - interval '23 hours', 1 from generate_series(1, 5) g`, [DESIGN.forms.client, PRUNE]);
   const stale = async () => (await q(`select count(*)::int n from ${DESIGN.throttle} where ${OURS} and window_start < now() - interval '1 day'`, [OUR_FORMS]))[0].n;
   const otherN = async () => (await q(`select count(*)::int n from ${DESIGN.throttle} where form = $1`, [OTHER]))[0].n;
-  const recentN = async () => (await q(`select count(*)::int n from ${DESIGN.throttle} where ip_hash like 'zzprune-r%'`))[0].n;
+  const recentN = async () => (await q(`select count(*)::int n from ${DESIGN.throttle} where ip_hash like $1`, [`${PRUNE}-r%`]))[0].n;
   const s0 = await stale();
   await req("service_role", { headers: gw(freshIp()) }, VALUES1, vals());
   ok((await stale()) === s0, "a service-role insert prunes nothing (the guard returns before pruning)");
@@ -423,7 +444,7 @@ try {
     r = await req("anon", { headers: gw(freshIp()) }, sql);
     ok(!r.ok && r.code === "42501", `anon: ${sql.slice(7, 40)}... -> refused (no key or address oracle)`, r.code);
   }
-  ok(!(await q(`select 1 from ${DESIGN.throttle} where ${OURS} and ip_hash !~ '^(lr|ln):[0-9a-f]{32}$' and ip_hash <> $2 and ip_hash not like 'zzprune-%'`, [OUR_FORMS, DESIGN.globalKey])).length, "every counter key is 'lr:'/'ln:' + 32 hex: no raw address or network is stored");
+  ok(!(await q(`select 1 from ${DESIGN.throttle} where ${OURS} and ip_hash !~ '^(lr|ln):[0-9a-f]{32}$' and ip_hash <> $2 and ip_hash not like $3`, [OUR_FORMS, DESIGN.globalKey, `${PRUNE}-%`])).length, "every counter key is 'lr:'/'ln:' + 32 hex: no raw address or network is stored");
 } catch (e) {
   ok(false, "unexpected error", e.stack || e.message);
 } finally {
@@ -461,12 +482,12 @@ async function anonClient(headers) {
   await k.query("set role anon");
   return k;
 }
-const parallel = async (headersList) => {
+async function parallel(headersList) {
   const ks = await Promise.all(headersList.map((h) => anonClient(h)));
   const res = await Promise.all(ks.map((k) => k.query(PGRST, [JSON.stringify(body())]).then(() => true, (e) => e.code)));
   await Promise.all(ks.map((k) => k.end()));
   return { got: res.filter((x) => x === true).length, codes: [...new Set(res.filter((x) => x !== true))] };
-};
+}
 async function phaseB() {
   console.log("\n  PHASE B: PARALLEL, COMMITTED");
   if (!(await isApplied())) { info("skipped: 0093 is not applied on staging (S4 applies it first)"); return; }
@@ -478,20 +499,24 @@ async function phaseB() {
   try {
     if (gStart + 60 > G) { info(`skipped: the live global count is ${gStart}; too close to ${G} to probe without blocking real reports`); return; }
     // Stale rows for the pruner to fight over.
-    await q(`insert into ${DESIGN.throttle} (ip_hash, form, window_start, count) select 'zzprune-b' || g, $1, now() - interval '2 days' - make_interval(secs => g), 1 from generate_series(1, 400) g`, [DESIGN.forms.client]);
+    await q(`insert into ${DESIGN.throttle} (ip_hash, form, window_start, count) select $2 || '-b' || g, $1, now() - interval '2 days' - make_interval(secs => g), 1 from generate_series(1, 400) g`, [DESIGN.forms.client, PRUNE]);
     const one = freshIp();
-    const a = await parallel(Array.from({ length: N + 15 }, () => gw(one)));
-    ok(a.got === N, `${N + 15} parallel reports from one client: exactly ${N} stored (no overshoot)`, `${a.got}; ${a.codes.join(",")}`);
+    if (MAXP <= N) info(`RL_MAX_PARALLEL ${MAXP} does not exceed the per-client limit ${N}: overshoot is not tested`);
+    const a = await parallel(Array.from({ length: MAXP }, () => gw(one)));
+    ok(a.got === Math.min(N, MAXP), `${MAXP} parallel reports from one client: exactly ${Math.min(N, MAXP)} stored (no overshoot)`, `${a.got}; ${a.codes.join(",")}`);
     ok(a.codes.every((x) => x === DESIGN.tooMany), "every parallel refusal is PT429: no deadlock (40P01), serialization (40001) or lock timeout (55P03), pruning included", a.codes.join(","));
     ok((await globalCount()) === gStart + N, `the global counter moved by exactly ${N}`, `${gStart} -> ${await globalCount()}`);
-    const left = (await q(`select count(*)::int n from ${DESIGN.throttle} where ip_hash like 'zzprune-b%'`))[0].n;
+    const left = (await q(`select count(*)::int n from ${DESIGN.throttle} where ip_hash like $1`, [`${PRUNE}-b%`]))[0].n;
     ok(left < 400 && left >= 400 - N * DESIGN.pruneBatch, `the parallel inserts pruned stale rows without conflict (${400 - left} of 400, skip locked; only the ${N} stored inserts keep their pruning)`);
     const net = (i) => `198.19.210.${i + 1}`;
-    const b = await parallel(Array.from({ length: NET + 15 }, (_, i) => gw(net(i))));
-    ok(b.got === NET && b.codes.every((x) => x === DESIGN.tooMany), `${NET + 15} parallel clients in one /24: exactly ${NET} stored`, `${b.got}; ${b.codes.join(",")}`);
-    await q(`update ${DESIGN.limitsTable} set global_per_window = $1 where id`, [(await globalCount()) + 10]);
-    const cg = await parallel(Array.from({ length: 30 }, () => gw(freshIp())));
-    ok(cg.got === 10, "30 parallel clients (separate /24s) against 10 remaining global slots: exactly 10 stored", `${cg.got}; ${cg.codes.join(",")}`);
+    // The network limit under contention: lowered to SLOTS for the probe (a fresh /24, so its count starts at 0).
+    await q(`update ${DESIGN.limitsTable} set per_network = $1 where id`, [SLOTS]);
+    const b = await parallel(Array.from({ length: MAXP }, (_, i) => gw(net(i))));
+    ok(b.got === SLOTS && b.codes.every((x) => x === DESIGN.tooMany), `${MAXP} parallel clients in one /24 against a network limit of ${SLOTS}: exactly ${SLOTS} stored`, `${b.got}; ${b.codes.join(",")}`);
+    await q(`update ${DESIGN.limitsTable} set per_network = $1 where id`, [lim0.per_network]);
+    await q(`update ${DESIGN.limitsTable} set global_per_window = $1 where id`, [(await globalCount()) + SLOTS]);
+    const cg = await parallel(Array.from({ length: MAXP }, () => gw(freshIp())));
+    ok(cg.got === SLOTS && cg.codes.every((x) => x === DESIGN.tooMany), `${MAXP} parallel clients (separate /24s) against ${SLOTS} remaining global slots: exactly ${SLOTS} stored`, `${cg.got}; ${cg.codes.join(",")}`);
   } finally {
     await q(`update ${DESIGN.limitsTable} set per_network = $1, global_per_window = $2 where id`, [lim0.per_network, lim0.global_per_window]);
     await q(`delete from public.listing_reports where company_slug = $1`, [TAG]);
