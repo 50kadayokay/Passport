@@ -31,6 +31,10 @@ export const DSN_ENV = "PRODUCTION_DSN_FILE";
 // nothing in between (the manifest: "in the SAME session as 0058, right after").
 export const IMMEDIATELY_AFTER = {
   "0077_listing_reports_installed_app_compat.sql": "0058_close_public_insert.sql",
+  // 0092 narrows the door 0077 reopens (table-level anon INSERT -> six columns),
+  // so production never runs 0077 with id/created_at settable. After 0077's
+  // entry: the loop places entries in this order.
+  "0092_listing_reports_column_insert.sql": "0077_listing_reports_installed_app_compat.sql",
 };
 
 // Read-only markers for the files the 2026-11-01 audit predates. Each is TRUE
@@ -39,6 +43,11 @@ export const IMMEDIATELY_AFTER = {
 export const POST_AUDIT_MARKERS = {
   "0077_listing_reports_installed_app_compat.sql":
     `has_table_privilege('anon', 'public.listing_reports', 'INSERT') and exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'listing_reports' and policyname = 'listing_reports_insert' and 'anon' = any(roles) and with_check ~* 'coalesce\\(contact')`,
+  // has_column_privilege is also true through a table-level grant, so
+  // created_at must read NOT insertable: false under 0017/0077 (table-wide) and
+  // under 0058 alone (nothing), true only under 0092's column grant.
+  "0092_listing_reports_column_insert.sql":
+    `has_column_privilege('anon', 'public.listing_reports', 'company_slug', 'INSERT') and not has_column_privilege('anon', 'public.listing_reports', 'created_at', 'INSERT')`,
   "0078_storage_role_hardening.sql":
     `to_regprocedure('public.can_upload_company_assets()') is not null`,
   "0080_mineiq_search_any_term.sql":
