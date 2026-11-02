@@ -198,6 +198,8 @@ try {
   console.log("\n  4. HEADER SPOOFING AND ROTATION");
   // [label, headers(real, i), expectation]: "hold" = must not buy a fresh quota;
   // "gateway" = holds only if the platform overwrites/sets that header (phase C);
+  // "enforced" = the gateway refuses it before PostgREST (measured by S4, 2026-11-02:
+  //   a client-sent cf-connecting-ip -> 403); reported, not failed; phase C re-asserts the 403.
   // "accepted" = S3's stated, global-bounded weakness.
   const VARIANTS = [
     ["cf present; x-forwarded-for first hop rotated", (real, i) => gw(real, { "x-forwarded-for": `${spoofIp(i)}, ${real}` }), "hold"],
@@ -209,8 +211,8 @@ try {
     // S3 c82105d trims all whitespace (regexp_replace), so tab/newline padding is the same address.
     ["cf with tabs/newlines around the same address", (real, i) => gw(real, { "cf-connecting-ip": `${"\t".repeat(i % 3)}${real}${"\n".repeat(i % 2)}` }), "hold"],
     ["no cf; x-forwarded-for first hop padded with tabs/newlines", (real, i) => noCf(gw(real, { "x-forwarded-for": `${"\t".repeat(i % 3)}${real}${"\n".repeat(i % 2)}, 192.0.2.1` })), "hold"],
-    ["cf rotated", (real, i) => gw(real, { "cf-connecting-ip": spoofIp(i) }), "gateway"],
-    ["cf rotated as IPv6 case variants of one address", (real, i) => gw(real, { "cf-connecting-ip": i % 2 ? "2001:DB8::1" : "2001:db8::1".replace(/d/g, i % 3 ? "D" : "d") }), "gateway"],
+    ["cf rotated", (real, i) => gw(real, { "cf-connecting-ip": spoofIp(i) }), "enforced"],
+    ["cf rotated as IPv6 case variants of one address", (real, i) => gw(real, { "cf-connecting-ip": i % 2 ? "2001:DB8::1" : "2001:db8::1".replace(/d/g, i % 3 ? "D" : "d") }), "enforced"],
     ["no cf; x-forwarded-for first hop rotated (peer appended)", (real, i) => noCf(gw(real, { "x-forwarded-for": `${spoofIp(i)}, ${real}` })), "accepted"],
     ["no cf; x-forwarded-for empty first hop", (real, i) => noCf(gw(real, { "x-forwarded-for": `${" ".repeat(i % 4)}, ${real}` })), "hold"],
     ["no cf, no x-forwarded-for; x-real-ip rotated", (real, i) => { const h = noCf(gw(real, { "x-real-ip": spoofIp(i) })); delete h["x-forwarded-for"]; return h; }, "gateway"],
@@ -224,6 +226,7 @@ try {
     growth.push((await counterRows()) - t0);
     if (got <= N) ok(true, `${label}: ${got} stored, no fresh quota`);
     else if (kind === "hold") ok(false, `${label}: rotation bought a fresh quota (${got} > ${N})`);
+    else if (kind === "enforced") info(`${label}: ${got} stored in the simulation; unreachable in practice: the gateway answers 403 to a client-sent cf-connecting-ip (pinned assumption, re-checked by --http)`);
     else if (kind === "gateway") finding(`${label}: ${got} stored (> ${N}); safe only if the gateway sets/overwrites it -- phase C`);
     else finding(`${label}: ${got} stored (> ${N}) -- the accepted weakness, bounded only by the global ${G}/h`);
   }
@@ -452,25 +455,29 @@ async function phaseC() {
   if (!(await isApplied())) { info("skipped: 0093 is not applied on staging"); return; }
   const snap = await snapshot();
   const before = (await q(`select count(*)::int n from public.listing_reports`))[0].n;
-  const SPOOF = { "cf-connecting-ip": "203.0.113.77", "x-forwarded-for (first hop)": "203.0.113.78", "x-real-ip": "203.0.113.79" };
+  // Gateway behaviour measured by S4 (2026-11-02): a client-sent cf-connecting-ip is refused
+  // (403); otherwise cf-connecting-ip = the real address; x-forwarded-for keeps client entries
+  // and appends the real address LAST; x-real-ip is stripped; true-client-ip passes through.
+  const SPOOF = { "x-forwarded-for (first hop)": "203.0.113.78", "x-real-ip": "203.0.113.79", "true-client-ip": "203.0.113.80" };
   try {
     const send = (headers) => fetch("https://jmljfovtfxcdhjmtlnva.supabase.co/rest/v1/listing_reports", {
       method: "POST",
       headers: { apikey: key, Authorization: `Bearer ${key}`, "Content-Type": "application/json", Prefer: "return=minimal", ...headers },
       body: JSON.stringify(body()),
     }).then((r) => r.status, () => 0);
-    info(`plain request: HTTP ${await send({})}`);
-    info(`spoofed request: HTTP ${await send({ "CF-Connecting-IP": SPOOF["cf-connecting-ip"], "X-Forwarded-For": SPOOF["x-forwarded-for (first hop)"], "X-Real-IP": SPOOF["x-real-ip"] })}`);
-    const added = [...(await snapshot()).values()].filter((r) => r.form === DESIGN.forms[1] && !snap.has(`${r.ip_hash}|${r.form}|${r.ws}`)).map((r) => r.ip_hash);
     const keyOf = async (ip) => (await q(`select 'lr:' || left(encode(sha256(convert_to(s.salt || '|' || $1, 'UTF8')), 'hex'), 32) k from ${DESIGN.saltTable} s where s.id`, [ip]))[0].k;
+    const newKeys = async (since) => [...(await snapshot()).values()].filter((r) => r.form === DESIGN.forms[1] && !since.has(`${r.ip_hash}|${r.form}|${r.ws}`)).map((r) => r.ip_hash);
+    const forged = await send({ "CF-Connecting-IP": "203.0.113.77" });
+    ok(forged === 403, "a client-sent CF-Connecting-IP is refused by the gateway (403) -- the pinned assumption", `HTTP ${forged}`);
+    ok((await newKeys(snap)).length === 0 && (await stored()) === 0, "...and that refused request reached nothing (no counter, no row)");
+    info(`plain request: HTTP ${await send({})}`);
+    const s1 = await snapshot();
+    info(`request with a forged first x-forwarded-for hop, x-real-ip and true-client-ip: HTTP ${await send({ "X-Forwarded-For": SPOOF["x-forwarded-for (first hop)"], "X-Real-IP": SPOOF["x-real-ip"], "True-Client-IP": SPOOF["true-client-ip"] })}`);
+    const added = await newKeys(snap), addedSpoofed = await newKeys(s1);
     ok(added.length >= 1, `the gateway requests created client counters (${added.length})`);
-    ok(!added.includes(await keyOf("unknown")), "the gateway delivers a usable client address (neither request fell into the shared 'unknown' bucket)");
-    for (const [h, v] of Object.entries(SPOOF)) {
-      if (added.includes(await keyOf(v))) {
-        if (h === "cf-connecting-ip") ok(false, "a client-sent CF-Connecting-IP reached the key: the gateway does NOT overwrite it, so any client can rotate its identity");
-        else finding(`the spoofed ${h} became the key: the gateway sets no cf-connecting-ip here, so the first-hop weakness applies (bounded by the global ${G}/h)`);
-      } else info(`spoofed ${h}: not the key`);
-    }
+    ok(!added.includes(await keyOf("unknown")), "the gateway delivers a usable client address (no request fell into the shared 'unknown' bucket)");
+    ok(addedSpoofed.length === 0, "the forged-header request landed in the SAME bucket as the plain one (no new client counter)", `${addedSpoofed.length} new`);
+    for (const [h, v] of Object.entries(SPOOF)) ok(!added.includes(await keyOf(v)), `the forged ${h} did not become the key`);
     info("staging's gateway is assumed to match production's (both Supabase-hosted); confirm once on production with one report after 0093");
   } finally {
     await q(`delete from public.listing_reports where company_slug = $1`, [TAG]);
