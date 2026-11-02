@@ -181,3 +181,18 @@ Apply 0080/0090 after approval, then rerun isolation and the live sweep.
   changed. Live 31/0, 0091 check 26/0, isolation 1077/0/0/0, authz 435/0, 25 live suites, investor app 35/0, round trip 75/0,
   npm test and build pass.
 - docs/PRODUCTION-LAUNCH-CHECKLIST.md: the remaining approvals and configuration. Launch readiness 64% (7/11 gates).
+
+## Batch 8: live production baseline merged (2026-11-02)
+- prod-v1.3.2 (223 live investor-app commits since Oct 5) merged into portal-work (96fb1eb); not the 42 newer
+  consolidated-2026-10 commits (user decision). 17 conflicts resolved by area (S1 AI, S2 share-news, S3 investor app
+  and portal shell, S4 build files). Every line prod added across its 655 changed files is present or deliberately
+  combined (16 files, each reviewed). Prod's predeploy AI guard is back in the Vercel build; its draft-stripping
+  and slim native build are kept; the CSP allows prod's second inline script.
+- Follow-ups: prod's /api/brief-generate now behind the shared AI guard (inert in production: no key);
+  two prod dev scripts no longer default to production; prod's own brief-contract test expectation fixed.
+- S3 round 12 merged (66bdb3c): the API fails closed outside a production deploy; member-only polls need a
+  session and stop on 401/403; guests keep the feed's new-posts prompt.
+- Staging on the final code: isolation 1088/0/0 unverified/0 skipped, API authz 446/0, 25 live suites green
+  (investor app 35/0, 0 breaking), round trip 78/0, captures 15/0, npm test, production and native builds.
+- Open decision: prod's native ?manage= profile editor (any member sees it; owner saves bypass drafts; others get a
+  false "Profile updated").
