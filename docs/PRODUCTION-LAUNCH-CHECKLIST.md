@@ -43,7 +43,7 @@ approval or a step only you can take; nothing past "Ready" starts without it.
 |---|---|---|
 | 1 | Deploy API and web (Vercel). New features stay inert until their migrations. | any Checkpoint 1 item fails: Vercel instant rollback, no DB state to undo |
 | 2 | Read-only smoke against the deploy: `production-smoke.mjs --production` (pages, security headers, CSP Report-Only, investor feed/profile, role refusals). | any FAIL |
-| 3 | Phase 3: 0058, 0077, 0061a (runner, one file each). | checkpoint fails: run that file's rollback |
+| 3 | Phase 3: 0058, 0077, 0092, 0061a (runner, one file each). | checkpoint fails: run that file's rollback |
 | 4 | Phase 4: 0062–0066; 0065c through the runner's no-transaction mode (CONCURRENTLY). | same; if the runner still refuses 0065c, wait |
 | 5 | Phase 5: 0068–0078; 0073a through the runner's no-transaction mode; 0071/0072/0076 with capture-on-apply. | same; capture file restores production exactly |
 | 6 | Phase 5b: 0080, 0085–0088, 0090, 0091. | same; never roll back 0071 while 0088 is applied, and never run 0059's rollback |
