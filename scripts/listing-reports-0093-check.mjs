@@ -140,6 +140,7 @@ try {
   ok((await netOf(ip(1))) === "198.51.100.0/24" && (await netOf(ip(250))) === "198.51.100.0/24" && (await netOf(ip(1, 101))) === "198.51.101.0/24", "IPv4 is grouped by /24");
   ok((await netOf("2001:db8:aa:1::5")) === "2001:db8:aa::/48" && (await netOf("2001:db8:aa:ffff::9")) === "2001:db8:aa::/48" && (await netOf("2001:db8:ab::1")) === "2001:db8:ab::/48", "IPv6 is grouped by /48");
   ok((await netOf("not-an-address")) === null && (await netOf(null)) === null, "a non-address has no network (only the client and global limits apply)");
+  ok((await netOf("::ffff:198.51.100.7")) === "198.51.100.0/24" && (await netOf("::ffff:198.51.101.7")) === "198.51.101.0/24", "an IPv4-mapped IPv6 address is grouped as its IPv4 /24 (not one bucket for all of ::ffff:0:0/96)");
   await q(`update public.listing_report_limits set per_client = 1000, per_network = 4`);
   for (let i = 0; i < 4; i++) { r = await report(cf(60 + i, 102)); ok(r.ok, `network 198.51.102.0/24, address ${i + 1} -> stored`, r.msg); }
   r = await report(cf(99, 102));
