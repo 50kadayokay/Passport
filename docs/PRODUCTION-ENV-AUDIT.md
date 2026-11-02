@@ -19,7 +19,7 @@ missing variable is always the safe state.
 | `STRIPE_WEBHOOK_SECRET`, `STRIPE_SECRET_KEY` | billing | keep; pilot companies are invoiced by hand, but the webhook must verify |
 | `MESSAGES_INBOUND_SECRET`, `POSTMARK_SERVER_TOKEN`, `POSTMARK_INBOUND_HASH`, `MESSAGES_FROM_EMAIL` | messaging email | keep unchanged |
 | `OPENAI_API_KEY` (and/or `ANTHROPIC_API_KEY`) | Mine IQ and AI drafting | already present if Mine IQ works in production today |
-| `NEWS_PULL_SECRET`, `EODHD_API_KEY`, `JINA_API_KEY`, `NEWS_PROXY_URL` | existing news crons | existing behaviour; unchanged by the pilot |
+| `NEWS_PULL_SECRET`, `CRON_SECRET`, `EODHD_API_KEY`, `JINA_API_KEY`, `NEWS_PROXY_URL` | existing news crons (`api/_news.js` and `api/_cronAuth.js` check `CRON_SECRET`) | existing behaviour; unchanged by the pilot. `/api/dispatch` also accepts `CRON_SECRET`, but `vercel.json` schedules no dispatch cron |
 | `CONTACT_TO`, `CONFERENCE_INQUIRY_TO` | public forms | existing |
 | `DISPATCH_SECRET` | publish, unpublish, revise and Ops replay nudge `/api/dispatch` with it | **required for the pilot**: unset, publishing never runs the feed, timeline, Mine IQ facts or website projections (no cron drains them). Confirm the name exists; keep its value |
 
@@ -35,7 +35,7 @@ missing variable is always the safe state.
 | `VITE_NEWS_FIXTURES`, `VITE_STUDIO_MOCK` | dev fixtures / mock extraction (`"1"`) |
 | `VITE_STUDIO_API_BASE` | dev-only Studio API override |
 | any `VITE_*REVALIDATE*` | would put the revalidate secret in the browser bundle (`check:s2-revalidate-bundle` refuses it) |
-| `CRON_SECRET`, `DISPATCH_HEALTH_TOKEN`, `DELIVERY_EPOCH` | Phase 6 (scheduled delivery) only; not for the pilot |
+| `DISPATCH_HEALTH_TOKEN`, `DELIVERY_EPOCH` | Phase 6 (scheduled delivery) only; not for the pilot |
 
 ## C. Optional, safe defaults (set only to override)
 
@@ -54,3 +54,22 @@ credentials; harmless while `PUSH_ENABLED` is off. `VERCEL_URL` and `VERCEL_REGI
 ## D. No longer read (remove only after Phase 1 is confirmed)
 
 `MINEEX_BRIEF_API_KEY`, `MINEEX_BRIEF_MODEL`.
+
+## E. Production as seen in Vercel (names only, 2026-11-01, from the user's screenshots)
+
+- Present for Production: `SUBMISSION_SALT`, `DISPATCH_SECRET`, `SUPABASE_SERVICE_ROLE_KEY`,
+  `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `STRIPE_SECRET_KEY`,
+  `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_BASIC`, `STRIPE_PRICE_PRO`, `POSTMARK_SERVER_TOKEN` (Vercel shows
+  "Needs Attention"), `MESSAGES_FROM_EMAIL`, `CRON_SECRET`, `NEWS_PULL_SECRET`, `JINA_API_KEY`,
+  `NEWS_CRON_PROCESS_LIMIT`, `NEWS_CHAIN_LIMIT`, `AI_PAID_ENABLED`, `AI_DAILY_USD_LIMIT`,
+  `NEWS_AUTOCREATE_ENABLED`, `NEWS_AUTO_APPROVE_ENABLED`, `FCM_*`, `APNS_*`.
+- Absent, as required: `MINEEX_ENV`, `STAGING_*`, any secret `VITE_*`. `PUSH_ENABLED` exists for Preview only.
+- To add: `SITE_REVALIDATE_SECRET`.
+- Absent, acceptable for the pilot: `POSTMARK_INBOUND_HASH` (investor messages are not emailed to the company;
+  they appear in the portal inbox), `MESSAGES_INBOUND_SECRET` (inbound email replies refused with 503, fail
+  closed), `CONTACT_TO` / `CONFERENCE_INQUIRY_TO` (default support@mineex.ca), `EODHD_API_KEY` (manual
+  market pull only), `NEWS_PROXY_URL`.
+- Values unknown, existing behaviour, confirm intended: `AI_PAID_ENABLED` (website builder paid AI, capped by
+  `AI_DAILY_USD_LIMIT`), `NEWS_AUTOCREATE_ENABLED`, `NEWS_AUTO_APPROVE_ENABLED`.
+- Preview scope holds production `SUPABASE_SERVICE_ROLE_KEY`, `DISPATCH_SECRET`, Supabase URL and anon key:
+  turn preview builds off before any push (checklist 3b).

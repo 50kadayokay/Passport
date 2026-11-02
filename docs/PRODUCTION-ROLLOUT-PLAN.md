@@ -62,6 +62,35 @@ Every row of "Phase 0" below passes. `npm test` and the build are green on the
 commit being deployed, and the staging evidence in the launch checklist is
 current.
 
+### Step 1b · Before anything is pushed: keep preview deployments off production (you, in Vercel)
+**Why.**
+- Vercel scopes `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` to "Production and Preview".
+- Pushing `portal-work`, or opening its PR, builds a **Preview** deployment of the new code against the **production** database, before any migration.
+- Removing the Preview values is not enough. Both the browser bundle (`src/lib/supabase.js`) and the API (`api/_supabase.js`) fall back to the production project when `VITE_SUPABASE_URL` is unset.
+- Any server secret scoped to Preview (for example `SUPABASE_SERVICE_ROLE_KEY`) would also let the preview API write to production.
+
+Do **one** of these, then check it, before the first push:
+1. **Recommended: turn preview builds off.** Vercel → project → Settings → Git →
+   **Ignored Build Step**: choose "Only build production" (or a command that skips
+   when `VERCEL_ENV` is not `production`; confirm the exact option on that page).
+   Nothing previews, so nothing can reach production early.
+2. **Or keep previews and point them at staging:**
+   - Set the Preview values of `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` to
+     the staging project (`jmljfovtfxcdhjmtlnva`): staging's URL and its
+     publishable key.
+   - Remove `SUPABASE_SERVICE_ROLE_KEY` and every other server secret from the
+     Preview scope. A preview then cannot write anywhere with service rights.
+
+**Check:**
+- After the push and after the PR opens, Vercel → Deployments shows **no** Preview
+  build for the branch (option 1), or the preview's network requests go only to
+  `jmljfovtfxcdhjmtlnva` (option 2).
+- **Stop if** a Preview built against production. Delete that deployment, then
+  check the production Postgres and API logs for its traffic before going on.
+
+The same fallback is why a local dev or preview server must never run without
+staging settings (S4, 2026-11-01: a signed-out local preview polled production).
+
 ### Step 2 · Backup (you), before Phase 3
 1. In Supabase, open the production project, then Database → Backups. Confirm the
    newest daily backup completed and note its time.
@@ -92,7 +121,7 @@ current.
 1. Set the variables under "Environment variables" below that are needed before
    Phase 1. Leave everything under "Must NOT be set" unset, including
    `PUSH_ENABLED`.
-2. Push `portal-work` and deploy it to production.
+2. Push `portal-work` and deploy it to production, only after Step 1b.
 3. **Checkpoint:**
 
    ```
@@ -170,33 +199,33 @@ needs its own approval.
 **Order.** Strictly reverse: only the most recently applied file, then the one
 before it. Never jump past a file that is still applied.
 
-**Commands.** Run from the repo, with the `pg_service.conf` entry:
-- **Every file:** run its committed rollback. The rollback files manage their own
-  transaction, and the two CONCURRENTLY ones run outside one. Do not add `-1`:
+**Command.** The runner does it, with the same flags, exact ref, typed
+confirmation and DSN file as an apply:
 
   ```
-  psql "service=mineex_prod" -v ON_ERROR_STOP=1 -f supabase/rollbacks/<file>.rollback.sql
+  PRODUCTION_DSN_FILE=<path outside the repo> node scripts/apply-migrations-production.mjs \
+      --rollback --only <file> --ref=<production ref> --approved-by="<who approved, and where>" \
+      [--accept-data-loss="<the decision, and who made it>"]
   ```
 
-- **Then, only if the runner wrote a capture file for it:** run that file to put
-  production's own function text back. Functions that did not exist before the
-  migration are left to the committed rollback:
-
-  ```
-  psql "service=mineex_prod" -v ON_ERROR_STOP=1 -f supabase/audit/results/apply-capture-<file>-<time>.sql
-  ```
-
-  Without the capture file, 0071, 0072 and 0076 still restore the same behaviour
-  (R1); only formatting differs.
+- It refuses anything but the file it applied most recently, and every case
+  under **Never** below. A lossy rollback needs `--accept-data-loss`.
+- Transaction files: the marker must read applied, then a pre-snapshot. One
+  transaction runs the committed rollback, then the capture file that apply
+  wrote (production's own function text), if there is one. The marker must then
+  read NOT applied, or nothing is committed. Then a post-snapshot and diff.
+- The CONCURRENTLY files (0065c, 0073a) run their `DROP INDEX CONCURRENTLY`
+  statements one at a time, outside a transaction.
+- It logs `rolled_back`, so the plan offers the file again. The plan's ROLLBACK
+  section shows which file is next.
 
 **Afterwards.**
-1. Check the file's marker reads NOT applied (the runner's plan prints the marker
-   SQL).
-2. Re-run the read-only audit.
-3. Record the rollback in the runner's log, so the plan offers the file again.
-   The runner has no rollback-record mode yet (asked of S1). Until it has one,
-   S4 marks it by hand in `supabase/production-log/` with you, before anything
-   is re-applied.
+1. Re-run the read-only audit.
+2. If the runner refused, failed or was interrupted, nothing more runs until
+   `--reviewed <file>` is recorded after inspection. The manual commands
+   (`psql "service=mineex_prod" -v ON_ERROR_STOP=1 -f supabase/rollbacks/<file>.rollback.sql`,
+   then the capture file; no `-1`) are for when the runner itself cannot
+   connect. Decide that with S4.
 
 **Never:**
 - **0071 while 0088 is applied.** Its rollback refuses (R2); roll back 0088 first.
@@ -264,6 +293,7 @@ Every piece of Phase 1 code runs on the current production schema. Features whos
 | Function drift (R1) | **Resolved (2026-11-01):** the four drifted functions are token-identical to the repo state before the pending migrations (formatting only). Capture-on-apply stays mandatory for byte-exact restores (staging check 15/0) |
 | Replaced functions and storage policies (R3, R4) | **Done (2026-11-01):** `production_replaced_functions_2026_11_01.sql` run (approved). `mineiq_search` and all six storage policies 0078 replaces match the repo; the two other drifted functions moved to R1 |
 | `SITE_REVALIDATE_SECRET` | set (server only) before Phase 1 ends |
+| Preview deployments (Step 1b) | preview builds turned off for the branch, or Preview scoped to staging with no server secrets, BEFORE anything is pushed |
 | Staging evidence current | investor-app suite, messaging-schema check, 0077 check, all live suites, combined isolation: all pass |
 | Smoke-test identity | a designated production test investor account (needs your approval) for post-deploy checks |
 
