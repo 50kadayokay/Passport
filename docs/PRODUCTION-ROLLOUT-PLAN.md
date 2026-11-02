@@ -62,6 +62,35 @@ Every row of "Phase 0" below passes. `npm test` and the build are green on the
 commit being deployed, and the staging evidence in the launch checklist is
 current.
 
+### Step 1b · Before anything is pushed: keep preview deployments off production (you, in Vercel)
+**Why.**
+- Vercel scopes `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` to "Production and Preview".
+- Pushing `portal-work`, or opening its PR, builds a **Preview** deployment of the new code against the **production** database, before any migration.
+- Removing the Preview values is not enough. Both the browser bundle (`src/lib/supabase.js`) and the API (`api/_supabase.js`) fall back to the production project when `VITE_SUPABASE_URL` is unset.
+- Any server secret scoped to Preview (for example `SUPABASE_SERVICE_ROLE_KEY`) would also let the preview API write to production.
+
+Do **one** of these, then check it, before the first push:
+1. **Recommended: turn preview builds off.** Vercel → project → Settings → Git →
+   **Ignored Build Step**: choose "Only build production" (or a command that skips
+   when `VERCEL_ENV` is not `production`; confirm the exact option on that page).
+   Nothing previews, so nothing can reach production early.
+2. **Or keep previews and point them at staging:**
+   - Set the Preview values of `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` to
+     the staging project (`jmljfovtfxcdhjmtlnva`): staging's URL and its
+     publishable key.
+   - Remove `SUPABASE_SERVICE_ROLE_KEY` and every other server secret from the
+     Preview scope. A preview then cannot write anywhere with service rights.
+
+**Check:**
+- After the push and after the PR opens, Vercel → Deployments shows **no** Preview
+  build for the branch (option 1), or the preview's network requests go only to
+  `jmljfovtfxcdhjmtlnva` (option 2).
+- **Stop if** a Preview built against production. Delete that deployment, then
+  check the production Postgres and API logs for its traffic before going on.
+
+The same fallback is why a local dev or preview server must never run without
+staging settings (S4, 2026-11-01: a signed-out local preview polled production).
+
 ### Step 2 · Backup (you), before Phase 3
 1. In Supabase, open the production project, then Database → Backups. Confirm the
    newest daily backup completed and note its time.
@@ -92,7 +121,7 @@ current.
 1. Set the variables under "Environment variables" below that are needed before
    Phase 1. Leave everything under "Must NOT be set" unset, including
    `PUSH_ENABLED`.
-2. Push `portal-work` and deploy it to production.
+2. Push `portal-work` and deploy it to production, only after Step 1b.
 3. **Checkpoint:**
 
    ```
@@ -264,6 +293,7 @@ Every piece of Phase 1 code runs on the current production schema. Features whos
 | Function drift (R1) | **Resolved (2026-11-01):** the four drifted functions are token-identical to the repo state before the pending migrations (formatting only). Capture-on-apply stays mandatory for byte-exact restores (staging check 15/0) |
 | Replaced functions and storage policies (R3, R4) | **Done (2026-11-01):** `production_replaced_functions_2026_11_01.sql` run (approved). `mineiq_search` and all six storage policies 0078 replaces match the repo; the two other drifted functions moved to R1 |
 | `SITE_REVALIDATE_SECRET` | set (server only) before Phase 1 ends |
+| Preview deployments (Step 1b) | preview builds turned off for the branch, or Preview scoped to staging with no server secrets, BEFORE anything is pushed |
 | Staging evidence current | investor-app suite, messaging-schema check, 0077 check, all live suites, combined isolation: all pass |
 | Smoke-test identity | a designated production test investor account (needs your approval) for post-deploy checks |
 

@@ -32,6 +32,12 @@ Nothing here has been done in production.
    - add `SITE_REVALIDATE_SECRET` (a long random value from your password manager; server only);
    - confirm `SUBMISSION_SALT` and `DISPATCH_SECRET` exist (add them if Part 1 shows they don't);
    - remove anything in the env audit's "must be absent" list that Part 1 finds.
+3b. **Preview deployments, before anything is pushed.** `VITE_SUPABASE_URL` and the anon key are
+   scoped "Production and Preview", and the code falls back to production when they are unset. So
+   pushing `portal-work`, or opening its PR, would build a Preview of the new code against the
+   **production** database. Either turn preview builds off (Settings → Git → **Ignored Build Step**:
+   "Only build production"; recommended), or set the Preview values to the staging project and remove
+   every server secret (`SUPABASE_SERVICE_ROLE_KEY` and the rest) from Preview. Plan Runbook Step 1b.
 4. **Test users.** Supabase → Authentication → Users → **Add user** (Auto Confirm) for the smoke
    investor, owner and viewer, passwords from your password manager (Test accounts doc §0–1). The test
    company and owner hand-off come later (step 9), because portal roles arrive with 0076.
@@ -45,7 +51,7 @@ Nothing here has been done in production.
 
 | Step | What | Stop if |
 |---|---|---|
-| 7a | I push `portal-work` and open the PR to `main`; **you merge it** (Vercel deploys). New features stay inert until their migrations. | Checkpoint 1 fails: Vercel instant rollback, no database state to undo |
+| 7a | Only after 3b: I push `portal-work` and open the PR to `main`; **you merge it** (Vercel deploys). New features stay inert until their migrations. | a Preview deployment appears built against production (delete it, then check the logs); or Checkpoint 1 fails: Vercel instant rollback, no database state to undo |
 | 7b | Read-only smoke (`production-smoke.mjs --production`): pages, security headers, CSP Report-Only, investor feed/profile. Owner checks report "skipped" until step 9. | any FAIL |
 | 8a | Phase 3: 0058, 0077, 0092, 0061a | a checkpoint fails: the runner's `--rollback` for that file |
 | 8b | Phase 4: 0062–0066 (0065c in no-transaction mode) | same |
