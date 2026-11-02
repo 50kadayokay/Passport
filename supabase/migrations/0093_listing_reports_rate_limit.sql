@@ -40,7 +40,8 @@
 -- at the per-client limit, with no network limit (there is no network).
 -- NETWORK = the address's /24 (IPv4) or /48 (IPv6), so rotating through one
 -- provider's range is capped together. An IPv4-mapped IPv6 address counts as its
--- IPv4 address (/24), not as part of ::ffff:0:0/96.
+-- IPv4 address everywhere -- one client key and its /24 -- never as part of
+-- ::ffff:0:0/96 (whose /48 would be all of IPv4).
 -- Stored are salted SHA-256 prefixes, never an address:
 --   client  'lr:' || left(sha256(salt || '|' || ip), 32)
 --   network 'ln:' || left(sha256(salt || '|net|' || network), 32)
@@ -132,6 +133,24 @@ language sql stable security definer set search_path = public, pg_temp as $$
 $$;
 revoke all on function public.listing_report_client_ip() from public, anon, authenticated;
 
+-- The address in one canonical text form: an IPv4-mapped IPv6 address
+-- (::ffff:a.b.c.d) becomes the plain IPv4 address, any other valid address its
+-- normalized form (host()), so one client is one bucket whichever form arrives.
+-- A value that is not an address is returned as it is.
+create or replace function public.listing_report_canonical_ip(p_ip text)
+returns text
+language plpgsql immutable set search_path = public, pg_temp as $$
+declare v inet;
+begin
+  if p_ip is null then return null; end if;
+  begin v := p_ip::inet; exception when others then return p_ip; end;
+  if family(v) = 6 and v <<= '::ffff:0:0/96'::inet then
+    v := '0.0.0.0'::inet + (v - '::ffff:0.0.0.0'::inet);
+  end if;
+  return host(v);
+end $$;
+revoke all on function public.listing_report_canonical_ip(text) from public, anon, authenticated;
+
 -- The address's network: /24 for IPv4, /48 for IPv6, as text. NULL when the value
 -- is not an address at all (then only the client and global limits apply).
 create or replace function public.listing_report_network(p_ip text)
@@ -204,7 +223,7 @@ begin
     l.per_network := 20; l.network_window_minutes := 60;
     l.global_per_window := 600; l.global_window_minutes := 60;
   end if;
-  v_ip  := public.listing_report_client_ip();
+  v_ip  := public.listing_report_canonical_ip(public.listing_report_client_ip());
   v_net := public.listing_report_network(v_ip);
 
   -- 3a. Global (always first).
