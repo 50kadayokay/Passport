@@ -100,25 +100,28 @@ export async function registerPush() {
       PushNotifications.addListener("registrationError", (err) => { dbg("APNs registrationError: " + JSON.stringify(err)); });
       // Tapping a notification.
       //
-      // iOS behaviour is deliberately UNCHANGED: it has always been a no-op that
-      // simply brings the app forward, and Phase 5 must not alter the shipping iOS
-      // pipeline. Android gets navigation, built on the routing the app already
-      // has — the `?c=<slug>` URL that loadSlug()/popstate in PassportProto.jsx
-      // already understand — rather than a second deep-link architecture.
+      // A release notification should open THAT release, not just bring the app forward
+      // (iOS) or the company profile (old Android). The payload carries the release id
+      // (news_item_id for pipeline news, post_id for a company's own post) + company_slug.
+      // Prefer the release deep-link `?release=<id>` (handled by PassportProto.jsx, which
+      // opens the reader in the Today feed); fall back to `?c=<slug>` when there is no
+      // release id. Applies to iOS AND Android now — both platforms deep-link.
       PushNotifications.addListener("pushNotificationActionPerformed", (action) => {
         try {
-          if (Capacitor.getPlatform() !== "android") return;     // iOS: unchanged no-op
           const data = (action && action.notification && action.notification.data) || {};
+          const releaseId = String(data.news_item_id || data.post_id || "").trim();
           const slug = data.company_slug ? String(data.company_slug) : "";
-          if (!slug) return;                                     // nothing to navigate to
-          const url = `/?c=${encodeURIComponent(slug)}`;
+          const url = releaseId ? `/?release=${encodeURIComponent(releaseId)}`
+                    : slug ? `/?c=${encodeURIComponent(slug)}` : "";
+          if (!url) return;                                      // nothing to navigate to
           const mounted = !!(document.getElementById("root") && document.getElementById("root").children.length);
           if (mounted && window.history && typeof window.history.pushState === "function") {
-            // Warm app (foreground/background): reuse the existing popstate route.
-            window.history.pushState({ c: slug }, "", url);
-            window.dispatchEvent(new PopStateEvent("popstate"));
+            // Warm app (foreground/background): route in place, no reload.
+            window.history.pushState({}, "", url);
+            if (releaseId) window.dispatchEvent(new CustomEvent("mineex:open-release", { detail: { id: releaseId } }));
+            else window.dispatchEvent(new PopStateEvent("popstate"));   // company: existing ?c= route
           } else {
-            // Cold start / terminated: let the app boot straight into the company.
+            // Cold start / terminated: boot straight into the release (or company).
             window.location.assign(url);
           }
         } catch (_) { /* a tap must never crash the app */ }

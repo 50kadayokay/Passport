@@ -42,6 +42,8 @@ export default function TabletFrame({
   renderH = CONF_H,
   showBootCover = true,       // false = no dark mask while booting (a caller-supplied placeholder shows through instead)
   screenBg,                   // override the screen-area background (e.g. "transparent" to reveal a placeholder behind)
+  poster,                     // still frame of the presentation's opening — the screen is NEVER bare black
+  strictReady = false,        // wait for the deck's PICTURES, not just its markup, before reporting ready
   style,
   className = "",
 }) {
@@ -51,6 +53,7 @@ export default function TabletFrame({
   const readyRef = useRef(false);
   const [screenW, setScreenW] = useState(0);   // on-screen width of the screen area
   const [ready, setReady] = useState(false);   // real opening has painted → drop the mask
+  const [degraded, setDegraded] = useState(false);  // the deck never painted — show the poster instead of a black screen
 
   // Fluid: the device fills its parent's width; the screen area is that minus the bezel.
   useLayoutEffect(() => {
@@ -89,19 +92,48 @@ export default function TabletFrame({
         const doc = iframeRef.current && iframeRef.current.contentDocument;
         const hero = doc && (doc.querySelector(".cv3") || doc.querySelector(".fo") || doc.querySelector("[data-cv3]"));
         painted = !!(doc && doc.readyState === "complete" && hero && (hero.textContent || "").trim().length > 8);
+        // Markup is not pixels. A deck whose root exists and has text is still a dark, empty
+        // shell until its photography arrives, and reporting ready there is what made the
+        // gallery tiles fade in over their thumbnails and THEN fill in — measured, ten tiles
+        // at once sitting visible with no pictures in them. Where something good is already
+        // on screen behind the preview, wait for the pictures too. The main tablet does not
+        // ask for this: there the poster is the cover and handing over late costs the deck's
+        // entrance, which is the opposite problem.
+        if (painted && strictReady) {
+          const imgs = Array.from(doc.images || []);
+          const loaded = imgs.filter((i) => i.complete && i.naturalWidth > 0).length;
+          painted = imgs.length > 0 && loaded >= Math.ceil(imgs.length * 0.75);
+        }
       } catch (_) {
         painted = true;   // cross-origin (shouldn't happen same-origin) → don't block
       }
       if (painted) {
-        requestAnimationFrame(() => setTimeout(markReady, 240));   // let it rasterise
-      } else if (performance.now() - t0 < 4500) {
-        setTimeout(tick, 90);
-      } else {
+        // Hand over on the SAME tick when a poster is covering the boot. The deck's reveals
+        // are IntersectionObserver-driven and fire the instant it mounts — measured, nine of
+        // them had already run at the frame the root appeared — so every millisecond spent
+        // settling is a millisecond of the entrance played behind the poster. At 240ms the
+        // whole 600ms reveal was over before the hand-off and the deck arrived finished,
+        // which is exactly what was reported. There is nothing to settle for: the deck's own
+        // entrance starts from opacity 0, so an unrasterised frame is not visible anyway.
+        // Without a poster the settle stays, because there the mask IS the only cover.
+        if (poster) markReady();
+        else requestAnimationFrame(() => setTimeout(markReady, 240));
+      } else if (performance.now() - t0 < (strictReady ? 45000 : 4500)) {
+        // 32ms, not 90: this poll is what detects the mount, and the entrance is already
+        // running by then, so the interval is subtracted straight from what the visitor sees.
+        setTimeout(tick, 32);
+      } else if (!strictReady) {
         markReady();       // safety: never leave the mask up indefinitely
       }
+      // With strictReady there is deliberately NO such safety. The timeout existed so a mask
+      // could not trap the view — but here nothing is trapped: a thumbnail of this exact
+      // template is already on screen, and it is a better thing to look at than a deck that
+      // has not drawn. Revealing on a timer is precisely what produced the flash, since at
+      // 4500ms most of these decks still had no pictures in them. A preview that never draws
+      // simply never replaces its still.
     };
     tick();
-  }, [markReady]);
+  }, [markReady, poster, strictReady]);
 
   // Marketing orchestration — drive the REAL presentation to a named section/step WITHOUT
   // modifying Conference Mode. Same-origin: read the presentation's own scroll container and
@@ -137,6 +169,37 @@ export default function TabletFrame({
     return () => { cancelAnimationFrame(r1); cancelAnimationFrame(r2); if (raf) cancelAnimationFrame(raf); clearTimeout(t); };
   }, [ready, navSid, navStep, navSmooth]);
 
+  // NOTE — there was a lazy-load here that parked the deck's photography outside the current
+  // section and restored it on approach. It cut resident memory hard, but it was the wrong
+  // trade: parking and restoring images across a presentation is how you get pop-in, and this
+  // deck is supposed to move the way it does on desktop. It was removed once the renditions
+  // were cut to each image's own measured display size, which brings the WHOLE deck to about
+  // 21MB decoded — affordable with every page resident, so nothing has to be unloaded and
+  // nothing has to arrive late. Don't reintroduce it without first checking that number.
+
+  // HEALTH CHECK — an explicit, observable failure state instead of a silent black screen.
+  // Readiness so far has only ever asked whether the deck's markup EXISTS; a populated DOM is
+  // not proof that anything reached the glass, which is the assumption that let this ship
+  // broken. A short while after the mask drops, confirm the deck has real geometry and real
+  // imagery. If it does not, bring the poster forward so the device shows the presentation's
+  // own opening rather than a dead rectangle, and record it on data-mx-tablet so the
+  // on-device diagnostic can report WHICH of the two failures is happening.
+  useEffect(() => {
+    if (!ready || degraded) return;
+    const t = setTimeout(() => {
+      try {
+        const doc = iframeRef.current && iframeRef.current.contentDocument;
+        const root = doc && (doc.querySelector(".cv3") || doc.querySelector(".fo") || doc.querySelector("[data-cv3]"));
+        const r = root && root.getBoundingClientRect();
+        const painted = !!(r && r.width > 40 && r.height > 40);
+        const imgs = doc ? Array.from(doc.images) : [];
+        const anyImg = imgs.length === 0 || imgs.some((i) => i.complete && i.naturalWidth > 0);
+        if (!painted || !anyImg) setDegraded(true);
+      } catch (_) { setDegraded(true); }
+    }, 1500);
+    return () => clearTimeout(t);
+  }, [ready, degraded]);
+
   const scale = screenW > 0 ? screenW / renderW : 0;
   const screenH = renderH * scale;
   const src = srcProp || `/conference?c=${encodeURIComponent(slug)}&t=${encodeURIComponent(template)}&theme=${encodeURIComponent(theme)}&qr=0`;
@@ -167,7 +230,27 @@ export default function TabletFrame({
           background: screenBg != null ? screenBg : (bare ? "#000" : "#05070b"),
           isolation: "isolate",
         }}
+        data-mx-tablet={degraded ? "degraded" : ready ? "live" : "booting"}
       >
+        {/* The opening frame of the real presentation, UNDER the iframe. The screen area was
+            painted flat #000, so anything that stopped the deck compositing left a black
+            rectangle inside the device — shell, stand and gradient intact, screen dead, which
+            is exactly how this was reported from the device. Black is the worst possible
+            failure state for a sales page and it was also indistinguishable from the boot
+            mask, so the two could not be told apart. A still of the deck's own first page
+            costs 38KB, shows through only where the deck has not drawn, and is replaced the
+            instant it does. If the deck never paints at all, the health check below brings
+            this to the front rather than leaving the device broken. */}
+        {poster && (
+          <img src={poster} alt="" aria-hidden decoding="async" loading="eager" fetchpriority="high"
+            style={{ position: "absolute", inset: 0, width: "100%", height: "100%",
+                     objectFit: "cover", objectPosition: "top center",
+                     // Above the iframe until the deck is actually live, then out of the way.
+                     // Underneath it the black screen backing showed through every frame the
+                     // deck had not painted — which is the entire boot.
+                     zIndex: (degraded || !ready) ? 3 : 0, pointerEvents: "none",
+                     opacity: 1, transition: "opacity 420ms ease" }} />
+        )}
         {scale > 0 && (
           <iframe
             ref={iframeRef}
@@ -190,7 +273,13 @@ export default function TabletFrame({
           />
         )}
 
-        {showBootCover && <BootCover show={!ready} />}
+        {/* The obsidian mask is the LOADING state, and it is pure black — so a deck that takes
+            four to eight seconds to mount shows a black rectangle inside a perfect device for
+            all of it. That is the reported defect, on desktop, and the poster could never have
+            helped while this sat on top of it at z-index 4. When a poster is supplied it IS
+            the loading state: the presentation's own first frame, which is a far better thing
+            to look at than an empty screen and matches what resolves in behind it. */}
+        {showBootCover && !poster && <BootCover show={!ready} />}
 
         {/* Screen glare — a single raking highlight, purely the glass of the device. Omitted
             in `bare` mode: the physical device image already carries its own glass. */}

@@ -21,14 +21,76 @@
 // PROOF SLICE (this file): A Overview → B Projects → C Project Intelligence →
 // D Exploration Results, and the exact reverse. See /site?directedEmbed=1.
 // ─────────────────────────────────────────────────────────────────────────────
+import { gestureReady , isReversal} from "../home2/motion.js";
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { MX } from "../system.jsx";
 import { DEVICE_W, DEVICE_H } from "./MobileAppFrame.jsx";
-import { PP_ASSETS } from "./ppAssets.js";
+import { warmPpAssets } from "./warmPpAssets.js";
 
 // The screen for the ~240ms before the real app paints. It is the APP'S OWN background,
 // so the hand-off is invisible rather than a contrasting slab flashing to light UI.
 const BOOT_SCREEN = "#f4f5f7";
+// The app's OWN opening frame, captured from /app?c=kingsmen-resources&embed=1 at the
+// iframe's exact 393x852 viewport (qa/poster.mjs). The app needs ~1.8s to boot even with
+// the connection to itself, and until now the phone showed a flat grey fill for that
+// whole time. This is the identical first frame, so the device is complete from the first
+// paint of the page and the live app cross-fades in underneath it when it is ready —
+// nothing changes on screen at the swap, it simply becomes interactive.
+// Phones get a 590px capture: the full one decodes to 11.5MB of bitmap for a device
+// that is ~200px wide on screen.
+const BOOT_POSTER = "/marketing/app-opening-poster.webp";
+const BOOT_POSTER_SM = "/marketing/app-opening-poster.sm.webp";
+const POSTER_FOR = () => (typeof window !== "undefined" && window.innerWidth < 760 ? BOOT_POSTER_SM : BOOT_POSTER);
+
+// The boot cover: the real opening frame over the device-coloured fill, faded out once
+// the app has painted. `settled` keeps it mounted through the fade so there is no flash.
+function BootCover({ ready }) {
+  // RETIRE THE POSTER ONCE IT HAS FADED — on phones. It used to stay in the tree forever at
+  // opacity 0, which still costs: it is a full-bleed image layer sitting directly over the
+  // phone's screen, so the compositor carries ~2.3 megapixels of it on a DPR 3 device for
+  // every frame the app animates underneath. Measured from a device recording of the hero
+  // flip, the capital bar and the press release arriving, 27-41% of consecutive frames were
+  // pixel-identical — the screen was updating every second or third frame.
+  //
+  // DESKTOP IS UNTOUCHED: there the poster stays exactly as it was. The element is only
+  // dropped below the same 760px breakpoint everything else here switches on, and only
+  // after the 420ms fade has finished, so nothing about the hand-off changes.
+  const [retired, setRetired] = useState(false);
+  useEffect(() => {
+    if (!ready || !phoneSmall()) return;
+    const t = setTimeout(() => setRetired(true), 520);   // 420ms fade + a frame to spare
+    return () => clearTimeout(t);
+  }, [ready]);
+  return (
+    <div aria-hidden style={{
+      position: "absolute", inset: 0, background: BOOT_SCREEN, zIndex: 2,
+      opacity: ready ? 0 : 1, pointerEvents: "none",
+      transition: "opacity 420ms cubic-bezier(0.22,1,0.36,1)",
+    }}>
+      {/* SIZED BY THE BROWSER, not by a width check. The poster mounts WITH the phone shell, and
+                       its bytes arrive early (1690ms, measured) -- but it was not `complete` until 3120ms,
+                       because a 1179x2556 source is 3.0M pixels (~12MB of bitmap) to DECODE for a slot that is
+                       325x707 CSS. That decode was the whole gap: the device frame was on screen with nothing
+                       in it for 1273ms on /investor and 996ms on /home. srcset lets the browser take the
+                       smallest rendition that still covers the slot at its own DPR -- 1.28M pixels instead of
+                       3.0M at DPR 2 -- and keeps the full-size file for DPR 3, so nothing is softened. */}
+      {retired ? null : (
+              <img src={POSTER_FOR()} alt="" decoding="async" fetchpriority="high"
+        // DESKTOP ONLY. srcset let the browser choose by DPR, which on an iPhone at DPR 3
+        // picked the 768px rendition — BIGGER than the 590px one phones were served
+        // before it, on the device least able to decode it. That extra decode lands in
+        // the middle of the opening animation and the card flip, which is where the
+        // stutter came from. Phones take the small capture, exactly as they did before;
+        // POSTER_FOR() already picks it, so there is nothing for srcset to improve there.
+        {...(phoneSmall() ? {} : {
+          srcSet: "/marketing/app-opening-poster.sm.webp 590w, /marketing/app-opening-poster.md.webp 768w, /marketing/app-opening-poster.webp 1024w",
+          sizes: "340px",
+        })}
+        style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "top center", display: "block" }} />
+      )}
+    </div>
+  );
+}
 
 
 // ── Marketing hardware frame (SALES PAGE ONLY). With `hardware`, the real app renders inside
@@ -49,7 +111,22 @@ const BOOT_SCREEN = "#f4f5f7";
 // Costs ~1.1pt horizontally / ~1.7pt vertically of the 393×852 viewport, concealed by the bezel.
 const CUTOUT_BLEED = 1.004;
 
-const PHONE = {
+// Phones get 560px hardware art. The full 971x1620 photo decodes to 6MB of bitmap, and
+// the composite loads the photo AND its cutout AND the mask — 18MB for a device drawn
+// ~200px wide. Decoded bitmaps never appear in performance.memory, which is why the heap
+// readings looked healthy while the tab was dying.
+export const phoneSmall = () => typeof window !== "undefined" && window.innerWidth < 760;
+const sm = (u) => u.replace(/\.webp$/, ".sm.webp");
+export const PHONE_SRC = () => (phoneSmall() ? sm(PHONE.src) : PHONE.src);
+// The stage refuses touch gestures outright. It briefly allowed vertical panning, back
+// when scroll progress drove these chapters; the arrow controls drive them now and the
+// pages no longer scroll, so nothing is lost by refusing. Combined with the iframe's
+// pointer-events:none, there is no path left for a finger to move the app.
+const stageTouchAction = () => "none";
+export const PHONE_CUTOUT = () => (phoneSmall() ? sm(PHONE.cutout) : PHONE.cutout);
+export const PHONE_MASK = () => (phoneSmall() ? sm(PHONE.screenMask) : PHONE.screenMask);
+
+export const PHONE = {
   src: "/marketing/pro-phone-79.webp",   // ORIGINAL, unmodified reference image (971×1620)
   // The same photo with ONLY the display opening cut to alpha 0, anti-aliased along the
   // hardware's real curve. RGB is byte-identical on every still-visible pixel; the titanium,
@@ -163,7 +240,62 @@ const waitFor = (cond, timeout = 2000) =>
   });
 const easeInOut = (u) => (u < 0.5 ? 2 * u * u : 1 - Math.pow(-2 * u + 2, 2) / 2);
 
-export function DirectedEmbed({ variant = "full", hardware = false, cutout = false } = {}) {
+
+// ─────────────────────────────────────────────────────────────────────────────
+// deferUnseenImages — stop the demo downloading imagery it never shows.
+//
+// The embed boots at /app?c=…&embed=1, which mounts the app's TODAY feed as well as
+// the company profile. Measured on a cold load at 4x CPU / Fast 3G: 29 images in the
+// frame, 26 of them on [data-page="today"] and every one a remote news image, against
+// just 2 on [data-page="overview"] — the page the walkthrough actually opens on. After
+// 14 seconds only 5 of the 29 had decoded, and the first screen's own avatar, status
+// image and status logo were still pending behind the news queue. That is why the
+// first walkthrough screen renders without its imagery and why both devices feel slow:
+// the connection is busy fetching 26 pictures the visitor never sees.
+//
+// The walkthrough paints overview, timeline, capital, team and updates — never today
+// (verified by reading the painted page at the centre of the screen at every state).
+// So Today's images are parked: src moves to data-mx-src and is put back the moment
+// that page is actually painted, which keeps the demo correct if the story ever
+// changes. Nothing else is touched, and no image the visitor sees is affected.
+// ─────────────────────────────────────────────────────────────────────────────
+function deferUnseenImages(doc) {
+  if (!doc || doc.__mxDeferred) return;
+  doc.__mxDeferred = true;
+  const park = () => {
+    try {
+      doc.querySelectorAll('[data-page="today"] img[src]').forEach((im) => {
+        const src = im.getAttribute("src");
+        if (!src || im.dataset.mxSrc) return;
+        im.dataset.mxSrc = src;
+        im.removeAttribute("src");           // cancels the fetch; nothing is displayed
+      });
+    } catch (_) {}
+  };
+  const restore = () => {
+    try {
+      doc.querySelectorAll("img[data-mx-src]").forEach((im) => {
+        im.setAttribute("src", im.dataset.mxSrc);
+        delete im.dataset.mxSrc;
+      });
+    } catch (_) {}
+  };
+  park();
+  const mo = new doc.defaultView.MutationObserver(() => {
+    // If Today is ever the page actually painted, give it its images back at once.
+    let painted = null;
+    try {
+      const el = doc.elementFromPoint(doc.defaultView.innerWidth / 2, doc.defaultView.innerHeight * 0.45);
+      for (let a = el; a; a = a.parentElement) if (a.dataset && a.dataset.page) { painted = a.dataset.page; break; }
+    } catch (_) {}
+    if (painted === "today") { restore(); mo.disconnect(); return; }
+    park();
+  });
+  try { mo.observe(doc.documentElement, { childList: true, subtree: true }); } catch (_) {}
+  try { doc.defaultView.addEventListener("pagehide", () => mo.disconnect(), { once: true }); } catch (_) {}
+}
+
+export function DirectedEmbed({ variant = "full", hardware = false, cutout = false, openWhen = null, prepareWhen = null } = {}) {
   const STATES = variant === "home" ? HOME_STATES : FULL_STATES;
   const boxRef = useRef(null);
   const frameRef = useRef(null);
@@ -175,21 +307,29 @@ export function DirectedEmbed({ variant = "full", hardware = false, cutout = fal
   const [ready, setReady] = useState(false);
   const readyRef = useRef(false);   // gates wheel input: no interaction until the app has painted
   const openedRef = useRef(false);  // the automatic opening reveal has played this boot (reset on every reboot)
+  const decodedRef = useRef(false);   // the opening screen's images are decoded, not merely loaded
+  const decodingRef = useRef(false);
+  const pendingOpenRef = useRef(false);  // the opening is ready but its chapter is not on screen yet
+  const openWhenRef = useRef(openWhen); openWhenRef.current = openWhen;
   const autoOpenRef = useRef(null); // set by the gesture-machine effect; invoked once when the app first paints
   const resetRef = useRef(null);    // set by the gesture-machine effect; rewinds the machine to state 0 when the iframe reboots
 
   // Preload the profile's images in the PARENT (same origin → the iframe reuses the
   // HTTP cache), so a tab's hero never slides in blank on a cold first navigation.
+  //
+  // WAITS FOR THE APP TO PAINT. This used to start on mount, which meant 58 images were
+  // queued against the iframe's own critical resources while it was still booting — the
+  // app renders in 1.8s alone but took ~6s on the home page, and this was most of the
+  // difference. Nothing it warms is on screen in those first seconds: it exists so a
+  // LATER tab's hero is instant. Starting it once the phone has painted keeps that
+  // benefit and gives the boot the full connection.
+  // THROTTLED. Waiting for the app to paint was not enough on its own: the pump this
+  // replaces started every one of the 58 at once, so the home page sat on 12.13MB of
+  // in-flight images and a nav click's chunk queued behind all of it. See warmPpAssets.
   useEffect(() => {
-    let stop = false, i = 0;
-    const ric = window.requestIdleCallback || ((fn) => setTimeout(() => fn({ timeRemaining: () => 8 }), 150));
-    const pump = (dl) => {
-      while (!stop && i < PP_ASSETS.length && (dl.timeRemaining() > 3 || dl.didTimeout)) { const im = new Image(); im.decoding = "async"; im.src = PP_ASSETS[i++]; }
-      if (!stop && i < PP_ASSETS.length) ric(pump);
-    };
-    ric(pump);
-    return () => { stop = true; };
-  }, []);
+    if (!ready) return;
+    return warmPpAssets({ concurrency: 3 });
+  }, [ready]);
 
   // A neutral device-coloured cover sits over the iframe whenever the app is
   // (re)booting — before its first paint AND across any reload (e.g. a dev HMR
@@ -200,10 +340,26 @@ export function DirectedEmbed({ variant = "full", hardware = false, cutout = fal
   const settleApp = React.useCallback(() => {
     readyRef.current = false;               // block interaction until (re)painted
     openedRef.current = false;              // the opening reveal replays on every (re)boot — deterministic
+    decodedRef.current = false; decodingRef.current = false;
     if (resetRef.current) resetRef.current(); // rewind the machine to state 0 so a reboot restarts from the opening
     const t0 = performance.now();
     const reveal = () => {
       readyRef.current = true; setReady(true);
+      // The company card's logo eases up over the photograph, the way it does in the app.
+      // It has to be asked for HERE and not on a timer inside the app: in embed mode the
+      // app's own intro sequence is skipped (the director owns the flip), and anything the
+      // app ran on its own clock would play underneath the boot cover and never be seen.
+      // This fires on the frame the cover lifts, so the fade is the first thing that moves.
+      // The card's opening entrance is started by the opening beat below (autoOpenRef), not
+      // here, so that the beat can AWAIT it and the walkthrough cannot advance part-way
+      // through. See OPEN_LEAD for why it does not begin on this frame.
+      //
+      // Tell the app a director is present. The card opens BLANK in an embed and waits to be
+      // brought up; without this it has a timer that raises it on its own after a few
+      // seconds, which fires in the ordinary case where the visitor reads the hero first —
+      // the card arrives finished and the entrance then resets it in full view.
+      try { const w = frameRef.current && frameRef.current.contentWindow;
+            if (w) w.__ppDirector = true; } catch (_) {}
       // Marketing-only presentation override, injected into the DEMO IFRAME only (production
       // is untouched): normalize the active project pill's per-project accent (e.g. Almoloya's
       // teal #0D9488) to the MineEx primary accent, so the project selector reads consistent
@@ -217,11 +373,96 @@ export function DirectedEmbed({ variant = "full", hardware = false, cutout = fal
           st.textContent = '[data-page="projects"] button.flex-1[style*="background"]{background:#2563eb !important;color:#fff !important;}';
           d0.head.appendChild(st);
         }
+        // ── LOCK THE SIMULATED PHONE'S INTERNAL VIEWPORT ──────────────────────────────
+        // The app inside the device is a controlled presentation surface, not an app you
+        // can scroll. Its real scroll container, div.pp-scroll, carries overflow-y:auto
+        // and touch-action:auto over a 15,450px range, so a finger on the glass scrolls
+        // the demo's content and leaves it at whatever offset the finger stopped at —
+        // measured: div.pp-scroll.absolute retaining scrollTop 191 and staying there.
+        //
+        // overflow:hidden is the right lock here rather than touch-action alone: it stops
+        // the USER scrolling while leaving element.scrollTop fully writable, and the
+        // walkthrough drives every transition by animating exactly that property. So the
+        // choreography is untouched and only the finger is refused.
+        //
+        // Injected into the DEMO IFRAME ONLY. The real app and the surrounding sales page
+        // keep their own scrolling; nothing here reaches either.
+        if (d0 && d0.head && !d0.getElementById("mx-demo-scrolllock")) {
+          const sl = d0.createElement("style"); sl.id = "mx-demo-scrolllock";
+          sl.textContent =
+            "html,body{overflow:hidden !important;overscroll-behavior:none !important;}" +
+            ".pp-scroll,[class*='overflow-y-auto'],[class*='overflow-auto'],[class*='overflow-y-scroll']{" +
+            "overflow:hidden !important;overscroll-behavior:none !important;" +
+            "touch-action:none !important;-webkit-overflow-scrolling:auto !important;}" +
+            // The incoming view slides in from the right, so mid-animation it sits past the
+            // right edge — measured at 490 against a 424 viewport, settling to exactly 0-424.
+            // Horizontal CLIPPING is already handled: html/body above are overflow:hidden, so
+            // nothing paints outside the screen. Adding overflow-x:clip to the view and its
+            // children as well looked right and broke the project carousel — `clip` removes
+            // the scroll container, and the walkthrough drives that carousel with
+            // scrollTo({left}), so its 6500px track stopped being scrollable at all. What is
+            // left is the duration: the slide runs in 180ms, so the overhanging frame is on
+            // screen for a fraction as long. Demo iframe only; production app untouched.
+            // Clip the view ITSELF so a slide can never paint past the right edge of the
+            // screen. Only the view — not its descendants. Putting clip on `.pp-view *` is
+            // what broke the project carousel last time, because it removed the scroll
+            // container the walkthrough drives with scrollTo({left}). overflow-x on the view
+            // alone leaves every descendant's own scrolling intact.
+            ".pp-view{overflow-x:hidden !important;transition-duration:180ms !important;animation-duration:180ms !important;}" +
+            // HAIRLINES. The app is drawn at 0.5466 scale, so a 1px border becomes 0.55px and
+            // sub-pixel rounding paints it on one edge of a box and drops it on the opposite
+            // one — measured on the milestone card, which sits fully inside the viewport
+            // (left 20, right 404 of 424) with border-right:1px set and no right edge drawn.
+            // 2px survives the downscale and lands back at ~1.1px on screen.
+            //
+            // Scoped to CARDS, not everything. The first attempt applied it globally and the
+            // bottom navigation's own top border grew with it, pushing the nav 3px off on pro
+            // and home. The app is Tailwind, so box-sizing is border-box and a card's outer
+            // size does not change; the chrome is excluded so nothing structural can move.
+            // Both VISUAL rules below are phone-only, gated in JS on the PARENT's width.
+            // A media query cannot do it: inside the iframe it would be evaluated against the
+            // iframe's own 424px viewport, which matches on desktop too. They compensate for
+            // the mobile downscale, and desktop must stay pixel-identical. The scroll lock and
+            // the slide duration above are behavioural and apply everywhere, as before.
+            (phoneSmall()
+              ? ".pp-view [class*='rounded'][class*='border']:not(.pp-bottomnav):not(.pp-bottomnav *)" +
+                "{border-width:2px !important;}"
+              : "") +
+            // THE MISSING BLUE EDGE. The highlight on a newly published release is not a
+            // border at all — both borders read 2px slate-100. It is a ring:
+            //   box-shadow: rgba(37,99,235,0.52) 0 0 0 2px
+            // drawn OUTSIDE the border box. The card ends at 404 and its scroll container's
+            // content edge is also 404, so the ring's right 2px falls outside and is clipped,
+            // while the left has room — left/top/bottom visible, right missing. The clip is
+            // mine: the scroll lock above sets overflow:hidden on .pp-scroll. That cannot
+            // become overflow:clip, because clip would also stop the programmatic scrollTop
+            // the walkthrough drives every transition with. So the card gives the ring room
+            // instead: 3px of right margin pulls it inside the clip edge. Timeline cards
+            // only, and margin on a flex child moves nothing else.
+            // EVERY breakpoint, not just phones. The clip is identical on desktop — the card's
+            // right edge and the scroll container's content edge are both at 404 there too, so
+            // the ring loses its right 2px exactly the same way, and it was reported on desktop
+            // after being fixed on phones. The border-width rule above stays phone-only: that
+            // one compensates for the mobile downscale and would thicken every card on desktop.
+            // This one only gives the ring the room it already needed.
+            ".pp-view [class*='rounded'][class*='flex-1']{margin-right:3px !important;}";
+          d0.head.appendChild(sl);
+        }
       } catch (_) {}
       // The phone is now painted on its photographic hero. Fire the one-time automatic
       // opening reveal (hold → real flip → status face). It runs only from state 0, so a
       // dev HMR reload mid-demo never wrongly replays it.
-      if (!openedRef.current && autoOpenRef.current) { openedRef.current = true; autoOpenRef.current(); }
+      // Hold the opening until its chapter is actually on screen. `openWhen` is null on
+      // desktop and in every other caller, which keeps the original behaviour exactly:
+      // fire as soon as the app has painted. On a phone the walkthrough opens on the
+      // HERO, so the device is off screen at boot — and the card was playing its whole
+      // opening (hero in, logo in, flip) to nobody, arriving already finished. Measured:
+      // after pressing "Explore the product" the hero sat at opacity 1 and the card was
+      // already at rotateY(180deg).
+      if (!openedRef.current && autoOpenRef.current) {
+        if (openWhenRef.current === null || openWhenRef.current === true) { openedRef.current = true; autoOpenRef.current(); }
+        else pendingOpenRef.current = true;
+      }
     };
     const tick = () => {
       try {
@@ -230,8 +471,26 @@ export function DirectedEmbed({ variant = "full", hardware = false, cutout = fal
         // Reveal only once the profile is mounted AND its hero image has decoded (or a
         // safety cap), then wait two frames so the paint has actually flushed — so the
         // phone is revealed already fully drawn, never mid-paint.
-        const hero = page && page.querySelector("img");
-        const heroReady = !hero || (hero.complete && hero.naturalWidth > 0);
+        // PREPARE before REVEAL. This used to check only the FIRST image on the page, so the
+        // cover came off while the card's own photograph and logo were still arriving — and
+        // because the card now opens blank, what the visitor got was a grey card sitting
+        // there for seconds before anything faded in. Every image on the opening screen must
+        // be loaded AND decodable before the device is shown, so the entrance starts into a
+        // card that is ready and the only blank is the app's own deliberate first frame.
+        const imgs = page ? Array.from(page.querySelectorAll("img")) : [];
+        const loaded = imgs.length === 0 || imgs.every((i) => i.complete && i.naturalWidth > 0);
+        // DECODE here too, not just load. The entrance has its own decode gate — the app's,
+        // and it stays — but on a cold load that gate was being paid in front of the visitor,
+        // on a blank card, because `complete` only means the bytes arrived. Decoding them
+        // while the cover is still up costs nothing anyone can see and leaves the entrance's
+        // gate to resolve immediately. Measured before this: ~400ms of blank on a cold load
+        // against ~170 warm, the difference being exactly this work.
+        if (loaded && !decodedRef.current && !decodingRef.current) {
+          decodingRef.current = true;
+          Promise.all(imgs.map((i) => (i.decode ? i.decode().catch(() => {}) : Promise.resolve())))
+            .then(() => { decodedRef.current = true; });
+        }
+        const heroReady = loaded && (decodedRef.current || imgs.length === 0);
         if (page && (heroReady || performance.now() - t0 > 2500)) {
           requestAnimationFrame(() => requestAnimationFrame(reveal));
           return;
@@ -242,6 +501,62 @@ export function DirectedEmbed({ variant = "full", hardware = false, cutout = fal
     tick();
   }, []);
   useEffect(() => { settleApp(); }, [settleApp]);   // cover the initial boot
+  // …and run it the moment the chapter does arrive.
+  // PREPARE — re-decode the opening screen while the chapter is still sliding in.
+  //
+  // The decode done under the boot cover does not survive. iOS discards decoded bitmaps for
+  // images that are not on screen, and the card's photograph spends the whole hero chapter
+  // at opacity 0 inside an off-screen device — so by the time the chapter opens, the work
+  // has to be done again, and it is done with the visitor watching a blank card. Measured on
+  // the reported recording: the phone lands at 1.80s and the photograph does not begin until
+  // 2.50s, about 650ms of blank, against 167ms here and 60ms in the app itself. Chrome keeps
+  // the decode, which is precisely why this never showed up in testing.
+  //
+  // This fires on the PRESS, not on arrival, so the decode overlaps the 720ms slide instead
+  // of following it. No delay is added anywhere; the same work simply happens in the window
+  // that was already passing.
+  useEffect(() => {
+    if (prepareWhen !== true) return;
+    let cancelled = false;
+    const t = setTimeout(() => {
+      try {
+        const d = frameRef.current && frameRef.current.contentDocument;
+        const page = d && (d.querySelector('[data-page="overview"]') || d.querySelector("[data-page]"));
+        if (!page || cancelled) return;
+        for (const im of page.querySelectorAll("img")) {
+          if (im.decode && im.complete && im.naturalWidth > 0) im.decode().catch(() => {});
+        }
+      } catch (_) {}
+    }, 0);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [prepareWhen]);
+
+  useEffect(() => {
+    if (openWhen !== true || !pendingOpenRef.current || openedRef.current) return;
+    if (!autoOpenRef.current) return;
+    pendingOpenRef.current = false; openedRef.current = true;
+    // Tell the app its chapter is now ON SCREEN. Until this, the app must stay on its blank
+    // opening frame however long the visitor spends reading the hero; after it, a card still
+    // blank means something failed and the app may bring itself up. Without this signal the
+    // app had no safe moment to recover and a missed opening left the card grey for good.
+    try { const w = frameRef.current && frameRef.current.contentWindow;
+          if (w) w.__ppChapterVisible = true; } catch (_) {}
+    autoOpenRef.current();
+    // Watchdog: if the card is STILL blank a few seconds after its chapter arrived, play the
+    // opening directly. Cheap, cannot double-play (it checks first), and it closes the gap
+    // where any one readiness signal failing leaves a permanently empty device.
+    const wd = setTimeout(() => {
+      try {
+        const w = frameRef.current && frameRef.current.contentWindow;
+        const d = frameRef.current && frameRef.current.contentDocument;
+        if (!w || !d || !w.__ppPlayOpening) return;
+        const hero = Array.from(d.images).filter((i) => /04-status-img/.test(i.src || ""))[1];
+        const blank = hero && parseFloat(getComputedStyle(hero).opacity) < 0.05;
+        if (blank) w.__ppPlayOpening();
+      } catch (_) {}
+    }, 3500);
+    return () => clearTimeout(wd);
+  }, [openWhen]);
 
   // Fit the 393×852 device box into the available area (never scale the app itself —
   // only the iframe element is transform-scaled; its internal viewport stays 393×852).
@@ -260,7 +575,15 @@ export function DirectedEmbed({ variant = "full", hardware = false, cutout = fal
         const opL = op.left * boxW, opR = op.right * boxW;
         const opT = op.top * boxH,  opB = op.bottom * boxH;
         const opW = opR - opL, opH = opB - opT;
-        const appScale = Math.max(opW / DEVICE_W, opH / DEVICE_H) * CUTOUT_BLEED;
+        // ONE coordinate system, CONTAIN, no bleed. This was Math.max (cover) times a 1.004
+        // bleed, i.e. the app deliberately rendered 0.4% larger than the opening and centred,
+        // so it was cropped on every edge — and the app draws its status bar at y=0 of its own
+        // viewport, so the top crop lands straight on it. The bleed existed to stop a seam
+        // appearing between the app and the photo's bezel, but it is not needed: the opening
+        // and the device viewport share an aspect ratio to four decimal places (0.46038 vs
+        // 0.460369), so a contain fit fills the opening to within a sub-pixel on both axes,
+        // and the backing behind it is the app's own colour, which cannot read as a seam.
+        const appScale = Math.min(opW / DEVICE_W, opH / DEVICE_H);
         const appVW = DEVICE_W * appScale, appVH = DEVICE_H * appScale;
         setDims({
           scale: appScale, w: boxW, boxH,
@@ -790,24 +1113,43 @@ export function DirectedEmbed({ variant = "full", hardware = false, cutout = fal
       }
       S.animating = false;
       emit("demo:settled", { cur: S.cur });
+      // Spend a gesture that arrived while this transition was running.
+      if (pendingDir) {
+        const want = pendingDir; pendingDir = 0;
+        const fl = variant === "home" ? 0 : OPEN_FLOOR;
+        const nxt = Math.max(fl, Math.min(STATES.length - 1, S.cur + want));
+        if (nxt !== S.cur) run(nxt);
+      }
     };
 
+    let pendingDir = 0;                                   // a gesture that arrived mid-transition
     const onWheel = (e) => {
       e.preventDefault();
       if (!readyRef.current) return;         // not interactive until the real app has painted
       const now = performance.now();
       const gap = now - lastWheel;
-      const reversed = accumDir !== 0 && Math.sign(e.deltaY) === -accumDir && Math.abs(e.deltaY) >= FIRM_DELTA;
+      const reversed = isReversal(e.deltaY, accumDir);
       if (gap > NEW_GESTURE_GAP || reversed) { accum = 0; accumDir = Math.sign(e.deltaY); streamUsed = false; streamPeak = 0; }
       lastWheel = now;
       streamPeak = Math.max(streamPeak, Math.abs(e.deltaY));
-      if (S.animating || streamUsed) return;               // input locked mid-transition; one change per gesture
+      if (streamUsed) return;                              // one change per gesture
       const d = e.deltaY;
       if (Math.sign(d) !== accumDir) { accum = 0; accumDir = Math.sign(d); }
       accum += d;
-      if (Math.abs(accum) < WHEEL_TRIGGER || streamPeak < FIRM_DELTA) return;
+      if (!gestureReady(accum, streamPeak, WHEEL_TRIGGER, FIRM_DELTA)) return;
       const dir = accum > 0 ? 1 : -1;                       // swipe up (wheel down) advances
       streamUsed = true; accum = 0;
+      // A GESTURE MADE DURING A TRANSITION IS REMEMBERED, NOT THROWN AWAY.
+      //
+      // Input was simply dropped while S.animating, so a deliberate swipe that landed on a
+      // still-running transition did nothing and read as the deck seizing up. Measured on the
+      // Pro walkthrough going backwards: every stall was a glide during which the state was
+      // animating for its whole duration, and the very next gesture worked.
+      //
+      // At most ONE is held, it is cleared when it is spent, and streamUsed still allows a
+      // single change per gesture — so this cannot run the deck on, it only stops a
+      // deliberate gesture being discarded for arriving a few hundred ms early.
+      if (S.animating) { pendingDir = dir; return; }
       // Floor at the status face: the photographic hero is a one-time automatic opening,
       // never a state the visitor can gesture back into.
       const floor = variant === "home" ? 0 : OPEN_FLOOR;
@@ -819,19 +1161,94 @@ export function DirectedEmbed({ variant = "full", hardware = false, cutout = fal
     // first paints on its photographic hero: hold so the viewer registers the photo, then
     // perform the REAL Company Status flip (go(0→1)) so the STATUS face is the resting
     // start — not a gesture the visitor spends. Runs only from state 0.
+    // The app's OWN opening entrance — hero photograph in, then the logo 620ms behind it,
+    // on the app's constants and behind the app's decode gate. Without this the embed began
+    // on the finished front face: `?embed=1` initialises imgIn and logoIn to true and the
+    // app's intro effect returns early, so the entrance had simply never run here.
+    //
+    // OPEN_LEAD exists because the boot cover is still fading when this beat starts. The
+    // cover takes 420ms; an entrance begun on the reveal frame plays most of itself behind
+    // it (measured on an earlier build: the logo reached 0.94 while the cover was at 0.54).
+    // 300ms only on the BOOT path, where this beat runs as the cover is still fading and an
+    // entrance begun on the reveal frame would play behind it. When the opening is gated on
+    // its chapter arriving (openWhen), the cover went long before — the visitor was reading
+    // the hero — and the gate has already waited out the chapter slide, so the lead is pure
+    // dead time on a blank card. Measured at 300: the card sat blank for about 770ms after
+    // the device landed, against the app's own 60.
+    const OPEN_LEAD = openWhenRef.current === null ? 300 : 0;
+    // The app flips the card 2100ms after its entrance begins, and the entrance itself takes
+    // 1380 (the logo starts at 680 and fades for 700). So the hold between the two is 720 —
+    // not the director's OPEN_HOLD, which was tuned for a card that arrived already finished
+    // and had nothing to wait for. The Pro walkthrough keeps OPEN_HOLD, since its beat
+    // advances the walkthrough rather than flipping the card.
+    // The entrance is now the LOGO alone — 60ms in, 700ms fade — because the card arrives
+    // with its photograph. The flip still lands where the app puts it, so the hold absorbs
+    // the difference rather than the flip moving.
+    const OPEN_ENTRANCE = 460, OPEN_FLIP_AT = 2100;
+    const OPEN_HOLD_AFTER_ENTRANCE = Math.max(0, OPEN_FLIP_AT - OPEN_ENTRANCE);
+    // Wait for the machine to go idle instead of giving up on it. The opening is fired once
+    // and the caller has already marked it spent, so a bare `if (S.animating) return` throws
+    // the entrance away whenever the chapter is still in flight — which, when the opening is
+    // gated on the chapter arriving, is EXACTLY when it is called. That is why the device
+    // showed the card fully formed with no entrance: it was consumed, not played.
+    const waitIdle = async () => {
+      const t0 = performance.now();
+      // 16ms, not 60: this sits directly in front of the entrance, so its polling interval is
+      // added to the blank card the visitor is looking at. A frame's granularity is enough to
+      // notice the machine going idle and costs nothing.
+      // The cap is short on the gated path and long on the boot path. This guard exists so a
+      // machine still in flight cannot make the beat RETURN and throw the opening away — it
+      // was never meant to hold the entrance back. On the gated path the chapter gate has
+      // already waited out the slide, so anything still running is the demo's own internal
+      // settling and the card can start without it; measured, waiting on it cost ~500ms of
+      // blank card on a cold load against ~170 warm. On the boot path there is a cover over
+      // everything, so waiting there is free.
+      // Zero on the gated path: the loop is skipped entirely. A timeout there already
+      // proceeds rather than abandoning the opening, so waiting achieved nothing except a
+      // blank card — measured, the cap was being hit in full and 720 + 250 + 60 is exactly
+      // the ~310ms that was left. The chapter gate has waited out the slide, the device is
+      // in place and the state is the opening one; the machine's own settling does not
+      // conflict with setting the card's opacity.
+      const cap = openWhenRef.current === null ? 4000 : 0;
+      while (S.animating && performance.now() - t0 < cap) await delay(16);
+      // On the gated path, a timeout is not a reason to abandon the opening — proceed.
+      return openWhenRef.current !== null ? true : !S.animating;
+    };
+    const playOpening = async () => {
+      const w = win();
+      if (!w || !w.__ppPlayOpening) return;
+      try { await w.__ppPlayOpening(); } catch (_) {}
+    };
+
     autoOpenRef.current = async () => {
       if (variant === "home") {
         // Home inherits the walkthrough's EXACT Overview opening: the photographic hero
         // holds, then the REAL Company Status flip runs and rests on the status/info
         // face — the same resting Overview the walkthrough shows. The state index stays
         // at 0 (Overview); only the app's own face flips, exactly as in the full engine.
-        if (S.cur !== 0 || S.animating) return;
-        await delay(OPEN_HOLD);
+        if (!(await waitIdle()) || S.cur !== 0) return;
+        if (!phoneSmall()) {
+          // DESKTOP — untouched: hold the photographic hero, then run the real flip. No
+          // entrance is played and no lead is taken, exactly as before any of the phone work.
+          await delay(OPEN_HOLD);
+          if (S.cur !== 0 || S.animating) return;
+          setFace("status"); leadTab("overview");
+          return;
+        }
+        await delay(OPEN_LEAD);
+        if (S.cur !== 0) return;
+        await playOpening();                       // the logo's entrance (phones)
+        if (S.cur !== 0 || S.animating) return;    // an arrow during the entrance wins
+        await delay(OPEN_HOLD_AFTER_ENTRANCE);     // flip lands where the app puts it
         if (S.cur !== 0 || S.animating) return;
         setFace("status");
         leadTab("overview");                       // consistent tab indicator from the first frame
         return;
       }
+      if (!(await waitIdle()) || S.cur !== 0) return;
+      await delay(phoneSmall() ? OPEN_LEAD : 0);
+      if (S.cur !== 0) return;
+      if (phoneSmall()) await playOpening();    // the logo's entrance (phones only)
       if (S.cur !== 0 || S.animating) return;
       await delay(OPEN_HOLD);
       if (S.cur !== 0 || S.animating) return;   // a fast gesture during the hold may have advanced it already
@@ -853,7 +1270,13 @@ export function DirectedEmbed({ variant = "full", hardware = false, cutout = fal
     return () => { if (variant !== "home") window.removeEventListener("wheel", onWheel); };
   }, []);
 
-  const src = `/app?c=kingsmen-resources&embed=1`;
+  // `intro=1` says a DIRECTOR will play the card's opening, so the app should hold the logo
+  // back and wait to be asked. Without it an embed shows the logo immediately — which is
+  // what the investor page needs, since its shell drives screens but never plays an opening.
+  // `intro=1` ONLY on phones. It tells the app to hold the card's logo back for a directed
+  // entrance — which is the phone treatment that was asked for. Desktop never requested any
+  // of this and must open exactly as it always did, with the card already made.
+  const src = `/app?c=kingsmen-resources&embed=1${phoneSmall() ? "&intro=1" : ""}`;
 
   if (hardware && cutout) {
     // ONE display boundary. The photograph — with its opening cut to alpha 0 — sits ON TOP of
@@ -861,14 +1284,20 @@ export function DirectedEmbed({ variant = "full", hardware = false, cutout = fal
     // where the screen ends. No CSS rounded rect, no inset, no separate Dynamic Island layer,
     // and no backing colour can appear anywhere the app does not reach.
     return (
-      <div className="mx-demo" style={{ position: "relative", height: "100svh", overflow: "visible", background: "transparent", display: "flex", alignItems: "center", justifyContent: "center", touchAction: "none" }}>
-        <StateDots idx={idx} total={STATES.length} />
+      <div className="mx-demo" style={{ position: "relative", height: "100svh", overflow: "visible", background: "transparent", display: "flex", alignItems: "center", justifyContent: "center", touchAction: stageTouchAction() }}>
+        {!phoneSmall() && <StateDots idx={idx} total={STATES.length} />}
         <div ref={boxRef} style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
           <div style={{ position: "relative", width: dims.w, aspectRatio: "971 / 1620", flexShrink: 0 }}>
             {/* Soft body shadow — the phone silhouette, blackened + blurred (unchanged). */}
             <div aria-hidden style={{ position: "absolute", inset: 0, zIndex: 0, pointerEvents: "none",
-              backgroundImage: `url(${PHONE.src})`, backgroundSize: "100% 100%", backgroundRepeat: "no-repeat",
-              filter: "brightness(0) blur(26px)", opacity: 0.24, transform: "translateY(20px) translateZ(0)" }} />
+              backgroundImage: `url(${PHONE_SRC()})`, backgroundSize: "100% 100%", backgroundRepeat: "no-repeat",
+              // Phones: a 332x554 filtered layer sitting directly behind the device that moves is
+              // re-filtered on every frame by iOS Safari. The same soft shadow is drawn with a
+              // gradient instead, which composites for free. Desktop keeps the filtered photo.
+              ...(phoneSmall()
+                ? { backgroundImage: "radial-gradient(60% 46% at 50% 62%, rgba(0,0,0,0.42) 0%, rgba(0,0,0,0.20) 46%, rgba(0,0,0,0) 72%)", filter: "none", opacity: 0.85 }
+                : { filter: "brightness(0) blur(26px)", opacity: 0.24 }),
+              transform: "translateY(20px) translateZ(0)" }} />
             {/* z0–z1 — the backing and the live app, CLIPPED to the hardware's real screen
                 opening by the mask generated from the same measurement as the cutout. Both are
                 rectangles whose corners would otherwise sit outside the phone's curved body,
@@ -876,12 +1305,27 @@ export function DirectedEmbed({ variant = "full", hardware = false, cutout = fal
                 the whole phone box, so it aligns with the photo by construction. */}
             <div aria-hidden={false} style={{
               position: "absolute", inset: 0, zIndex: 1,
-              WebkitMaskImage: `url(${PHONE.screenMask})`, maskImage: `url(${PHONE.screenMask})`,
+              WebkitMaskImage: `url(${PHONE_MASK()})`, maskImage: `url(${PHONE_MASK()})`,
               WebkitMaskSize: "100% 100%", maskSize: "100% 100%",
               WebkitMaskRepeat: "no-repeat", maskRepeat: "no-repeat",
             }}>
-            <div aria-hidden style={{ position: "absolute", left: dims.opL, top: dims.opT, width: dims.opW, height: dims.opH, background: "#000", pointerEvents: "none" }} />
-            <div style={{ position: "absolute", left: dims.appLeft, top: dims.appTop, width: dims.appW, height: dims.appH, overflow: "hidden" }}>
+            {/* THE SCREEN BACKING. This was #000. It sits inside the screen opening, behind the live
+                app, and it is only ever visible when the app above it is not painting — during a
+                state transition, while the embedded app repaints, or any frame the device is too
+                busy to composite the iframe. On a fast machine that never happens, which is why
+                geometry checks kept showing the app fully covering this layer and the bar was
+                never reproducible here; on a real iPhone under load it is exposed constantly, and
+                a black fill behind a white app reads as a black bar across the bottom of the
+                screen. The backing is the SCREEN: it takes the app's own background colour, so an
+                unpainted frame is indistinguishable from a painted one instead of flashing black. */}
+            <div aria-hidden style={{ position: "absolute", left: dims.opL, top: dims.opT, width: dims.opW, height: dims.opH, background: BOOT_SCREEN, pointerEvents: "none" }} />
+            {/* overflow:CLIP, not hidden. `hidden` still makes this a scroll container, and on the
+                device Safari scrolled it: at state 12 the sheet's content grew (pp-scroll range
+                822 -> 953) and Safari scrolled this wrapper 6px to keep content in view, lifting
+                the whole app inside the phone with nothing to reset it — measured dTop/dBottom -6
+                from that frame onward through every later state. `clip` clips identically but
+                creates no scroll container. The onScroll guard covers engines without `clip`. */}
+            <div onScroll={(e) => { if (e.currentTarget.scrollTop || e.currentTarget.scrollLeft) { e.currentTarget.scrollTop = 0; e.currentTarget.scrollLeft = 0; } }} style={{ position: "absolute", left: dims.appLeft, top: dims.appTop, width: dims.appW, height: dims.appH, overflow: "clip" }}>
               {!DEBUG_SCREEN && <iframe
                 ref={frameRef}
                 title="MineEx mobile app"
@@ -889,18 +1333,18 @@ export function DirectedEmbed({ variant = "full", hardware = false, cutout = fal
                 width={DEVICE_W}
                 height={DEVICE_H}
                 scrolling="no"
-                onLoad={() => { setReady(false); settleApp(); }}
+                onLoad={(e) => { try { deferUnseenImages(e.currentTarget.contentDocument); } catch (_) {} setReady(false); settleApp(); }}
                 style={{ border: 0, display: "block", width: DEVICE_W, height: DEVICE_H, transform: `scale(${dims.scale})`, transformOrigin: "top left", pointerEvents: "none" }}
               />}
               {DEBUG_SCREEN && <div style={{ position: "absolute", inset: 0, background: "#ff1493" }} />}
-              {!DEBUG_SCREEN && !ready && <div style={{ position: "absolute", inset: 0, background: BOOT_SCREEN }} />}
+              {!DEBUG_SCREEN && <BootCover ready={ready} />}
             </div>
             </div>
             {/* z2 — the ORIGINAL photo with the display opening cut transparent. Titanium frame,
                 black bezel, side buttons, reflections and the Dynamic Island are untouched
                 original pixels, and this single layer draws the entire display boundary. */}
             <div aria-hidden style={{ position: "absolute", inset: 0, zIndex: 2, pointerEvents: "none",
-              backgroundImage: `url(${PHONE.cutout})`, backgroundSize: "100% 100%", backgroundRepeat: "no-repeat", backgroundPosition: "0 0" }} />
+              backgroundImage: `url(${PHONE_CUTOUT()})`, backgroundSize: "100% 100%", backgroundRepeat: "no-repeat", backgroundPosition: "0 0" }} />
           </div>
         </div>
       </div>
@@ -911,22 +1355,28 @@ export function DirectedEmbed({ variant = "full", hardware = false, cutout = fal
     // Real app composited as a picture in a frame: live display (z1) BEHIND the hardware PNG (z2),
     // which has the OLED opening cut transparent and the rim + Dynamic Island baked in. No CSS bezel.
     return (
-      <div className="mx-demo" style={{ position: "relative", height: "100svh", overflow: "visible", background: "transparent", display: "flex", alignItems: "center", justifyContent: "center", touchAction: "none" }}>
-        <StateDots idx={idx} total={STATES.length} />
+      <div className="mx-demo" style={{ position: "relative", height: "100svh", overflow: "visible", background: "transparent", display: "flex", alignItems: "center", justifyContent: "center", touchAction: stageTouchAction() }}>
+        {!phoneSmall() && <StateDots idx={idx} total={STATES.length} />}
         <div ref={boxRef} style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
           {/* Box matches the original photo (aspect-ratio 971:1620). */}
           <div style={{ position: "relative", width: dims.w, aspectRatio: "971 / 1620", flexShrink: 0 }}>
             {/* Soft body shadow — the phone silhouette (from the original), blackened + blurred. */}
             <div aria-hidden style={{ position: "absolute", inset: 0, zIndex: 0, pointerEvents: "none",
-              backgroundImage: `url(${PHONE.src})`, backgroundSize: "100% 100%", backgroundRepeat: "no-repeat",
-              filter: "brightness(0) blur(26px)", opacity: 0.24, transform: "translateY(20px) translateZ(0)" }} />
+              backgroundImage: `url(${PHONE_SRC()})`, backgroundSize: "100% 100%", backgroundRepeat: "no-repeat",
+              // Phones: a 332x554 filtered layer sitting directly behind the device that moves is
+              // re-filtered on every frame by iOS Safari. The same soft shadow is drawn with a
+              // gradient instead, which composites for free. Desktop keeps the filtered photo.
+              ...(phoneSmall()
+                ? { backgroundImage: "radial-gradient(60% 46% at 50% 62%, rgba(0,0,0,0.42) 0%, rgba(0,0,0,0.20) 46%, rgba(0,0,0,0) 72%)", filter: "none", opacity: 0.85 }
+                : { filter: "brightness(0) blur(26px)", opacity: 0.24 }),
+              transform: "translateY(20px) translateZ(0)" }} />
             {/* BOTTOM (z0) — the ORIGINAL, UNMODIFIED phone photo: titanium, black bezel, corners, buttons,
                 reflections, shadows, Dynamic Island and the baked-in screenshot all come from here. */}
             <div aria-hidden style={{ position: "absolute", inset: 0, zIndex: 0, pointerEvents: "none", transform: "translateZ(0)",
-              backgroundImage: `url(${PHONE.src})`, backgroundSize: "100% 100%", backgroundRepeat: "no-repeat", backgroundPosition: "0 0" }} />
+              backgroundImage: `url(${PHONE_SRC()})`, backgroundSize: "100% 100%", backgroundRepeat: "no-repeat", backgroundPosition: "0 0" }} />
             {/* MIDDLE (z1) — the live app (or hot-pink calibration fill) OVER the baked screenshot, clipped to
                 the white display shape so it stops at the inner edge of the original black bezel. ONE clip. */}
-            <div style={{ position: "absolute", left: dims.appLeft, top: dims.appTop, width: dims.appW, height: dims.appH, overflow: "hidden", borderRadius: dims.appRadius, zIndex: 1, background: DEBUG_SCREEN ? "#ff1493" : "#ffffff", isolation: "isolate", transform: "translateZ(0)" }}>
+            <div onScroll={(e) => { if (e.currentTarget.scrollTop || e.currentTarget.scrollLeft) { e.currentTarget.scrollTop = 0; e.currentTarget.scrollLeft = 0; } }} style={{ position: "absolute", left: dims.appLeft, top: dims.appTop, width: dims.appW, height: dims.appH, overflow: "clip", borderRadius: dims.appRadius, zIndex: 1, background: DEBUG_SCREEN ? "#ff1493" : "#ffffff", isolation: "isolate", transform: "translateZ(0)" }}>
               {!DEBUG_SCREEN && <iframe
                 ref={frameRef}
                 title="MineEx mobile app"
@@ -934,15 +1384,15 @@ export function DirectedEmbed({ variant = "full", hardware = false, cutout = fal
                 width={DEVICE_W}
                 height={DEVICE_H}
                 scrolling="no"
-                onLoad={() => { setReady(false); settleApp(); }}
+                onLoad={(e) => { try { deferUnseenImages(e.currentTarget.contentDocument); } catch (_) {} setReady(false); settleApp(); }}
                 style={{ border: 0, display: "block", width: DEVICE_W, height: DEVICE_H, transform: `translate(${dims.appOffX}px, ${dims.appOffY}px) scale(${dims.scale})`, transformOrigin: "top left", pointerEvents: "none" }}
               />}
-              {!DEBUG_SCREEN && !ready && <div style={{ position: "absolute", inset: 0, background: BOOT_SCREEN }} />}
+              {!DEBUG_SCREEN && <BootCover ready={ready} />}
             </div>
             {/* TOP (z2) — the Dynamic Island, extracted straight from the ORIGINAL photo (same image, aligned
                 by background-position) and clipped to the pill, placed above the live app. Not manufactured. */}
             <div aria-hidden style={{ position: "absolute", left: dims.diLeft, top: dims.diTop, width: dims.diW, height: dims.diH, overflow: "hidden", borderRadius: dims.diH / 2, zIndex: 2, pointerEvents: "none",
-              backgroundImage: `url(${PHONE.src})`, backgroundSize: `${dims.w}px ${dims.boxH}px`, backgroundRepeat: "no-repeat", backgroundPosition: `-${dims.diLeft}px -${dims.diTop}px` }} />
+              backgroundImage: `url(${PHONE_SRC()})`, backgroundSize: `${dims.w}px ${dims.boxH}px`, backgroundRepeat: "no-repeat", backgroundPosition: `-${dims.diLeft}px -${dims.diTop}px` }} />
           </div>
         </div>
       </div>
@@ -950,8 +1400,8 @@ export function DirectedEmbed({ variant = "full", hardware = false, cutout = fal
   }
 
   return (
-    <div className="mx-demo" style={{ position: "relative", height: "100svh", overflow: "hidden", background: MX.sheet, display: "flex", alignItems: "center", justifyContent: "center", touchAction: "none" }}>
-      <StateDots idx={idx} total={STATES.length} />
+    <div className="mx-demo" style={{ position: "relative", height: "100svh", overflow: "hidden", background: MX.sheet, display: "flex", alignItems: "center", justifyContent: "center", touchAction: stageTouchAction() }}>
+      {!phoneSmall() && <StateDots idx={idx} total={STATES.length} />}
       <div ref={boxRef} style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
         <div style={{ width: dims.w, height: dims.h, overflow: "hidden", borderRadius: Math.round(46 * dims.scale), background: "#000", boxShadow: "0 40px 100px -24px rgba(15,23,42,0.5), 0 0 0 " + Math.max(2, Math.round(10 * dims.scale)) + "px #111", position: "relative" }}>
           <iframe
@@ -961,12 +1411,12 @@ export function DirectedEmbed({ variant = "full", hardware = false, cutout = fal
             width={DEVICE_W}
             height={DEVICE_H}
             scrolling="no"
-            onLoad={() => { setReady(false); settleApp(); }}
+            onLoad={(e) => { try { deferUnseenImages(e.currentTarget.contentDocument); } catch (_) {} setReady(false); settleApp(); }}
             style={{ border: 0, display: "block", width: DEVICE_W, height: DEVICE_H, transform: `scale(${dims.scale})`, transformOrigin: "top left", pointerEvents: "none" }}
           />
           {/* Neutral device-coloured cover while the app (re)boots — no text, no white,
               never a screenshot of content. Removed once the profile has painted. */}
-          {!ready && <div style={{ position: "absolute", inset: 0, background: BOOT_SCREEN }} />}
+          <BootCover ready={ready} />
         </div>
       </div>
     </div>

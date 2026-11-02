@@ -3,21 +3,70 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <!-- NATIVE ONLY: paint the webview black while it boots, so the black MineEx splash
+         (WelcomeIntro) has no white flash before React mounts. Detected via the capacitor://
+         scheme so the light web marketing site is untouched. The splash / login / app each
+         paint their own full-screen background over this. -->
+    <script>
+      try {
+        if (location.protocol === "capacitor:" || location.protocol === "ionic:") {
+          document.documentElement.style.backgroundColor = "#000";
+          document.addEventListener("DOMContentLoaded", function () { document.body.style.backgroundColor = "#000"; });
+        }
+      } catch (e) {}
+    </script>
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
     <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
     <meta name="theme-color" content="#ffffff" />
+    <!-- Force light UI (keyboard, form controls) — the webview background is black for the
+         splash, which would otherwise make iOS render the dark keyboard. -->
+    <meta name="color-scheme" content="light" />
+    <style>:root { color-scheme: light; }</style>
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="MineEx" />
     <!-- Fonts for the Fixa-style conference mode (both free/open): Switzer + Instrument Serif -->
     <link rel="preconnect" href="https://api.fontshare.com" crossorigin />
+    <!-- fonts.gstatic.com serves the font FILES; fonts.googleapis.com serves the stylesheet
+         that has to be fetched and parsed before first paint, and it had no preconnect — so
+         it paid full DNS + TLS on the critical path. Lighthouse costed that request at 848ms. -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=switzer@400,500,600,700&display=swap" />
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap" />
+    <!-- SHARE CARD. These must be in the HTML AS SERVED: iMessage, Slack and Twitter do
+         not run JavaScript, and MarketingSite only sets them after React mounts — which is
+         why a share of mineex.ca showed a drill-site photograph instead of the page. The
+         runtime tags still run and still override these per route; these are what a crawler
+         actually reads. og-image.jpg is the hero as it already exists (the previous file is
+         kept in public/_previous/). -->
+    <meta property="og:site_name" content="MineEx" />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://mineex.ca/" />
+    <meta property="og:title" content="MineEx — The investor platform built for junior mining" />
+    <meta property="og:description" content="Present your story. Engage investors. Build lasting connections." />
+    <meta property="og:image" content="https://mineex.ca/og-image.jpg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="MineEx — the investor platform built for junior mining" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="MineEx — The investor platform built for junior mining" />
+    <meta name="twitter:description" content="Present your story. Engage investors. Build lasting connections." />
+    <meta name="twitter:image" content="https://mineex.ca/og-image.jpg" />
     <title>MineEx</title>
+    <!-- The Conference tablet's boot poster. The deck inside that iPad takes seconds to mount
+         and this still is what the glass shows meanwhile; requested from the component it was
+         queueing behind everything else and measured NOT LOADED at +3000ms, so the screen was
+         black anyway. 38KB, asked for with the document so it is there before it is needed. -->
+    <link rel="preload" as="image" href="/marketing/conference-folio-poster.webp" fetchpriority="high" />
+    <!-- NOT preloading the phone cutout, though it is the LCP element on a phone and its
+         load DELAY is 56-73% of LCP. Tried it: LCP did not move (4.1s -> 4.2s on home,
+         4.1s -> 4.1s on pro). The element is a div whose background React applies after it
+         mounts, so having the bytes early changes nothing — the paint is waiting on React,
+         not on the image. Left out rather than carried as a change that does nothing. -->
   </head>
   <body>
     <div id="root"></div>

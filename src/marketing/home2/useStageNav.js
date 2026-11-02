@@ -120,7 +120,7 @@ export function useStageNav({ n, mobile, reduce, lockMs = 760, onIndex }) {
       if (lockedRef.current || streamUsed) { log({ src, dy: Math.round(e.deltaY), gap: Math.round(gap), locked: lockedRef.current ? 1 : 0, used: streamUsed ? 1 : 0, acted: 0 }); return; }
       if (Math.sign(e.deltaY) !== accumDir) { accum = 0; accumDir = Math.sign(e.deltaY); }
       accum += e.deltaY;
-      if (Math.abs(accum) < WHEEL_TRIGGER || streamPeak < FIRM_DELTA) { log({ src, dy: Math.round(e.deltaY), gap: Math.round(gap), accum: Math.round(accum), acted: 0, note: "below-trigger" }); return; }
+      if (!gestureReady(accum, streamPeak, WHEEL_TRIGGER, FIRM_DELTA)) { log({ src, dy: Math.round(e.deltaY), gap: Math.round(gap), accum: Math.round(accum), acted: 0, note: "below-trigger" }); return; }
       streamUsed = true; accum = 0;   // consume this gesture (re-arms on gap / reversal / fresh-flick rising edge)
       advance(dir);
       log({ src, dy: Math.round(e.deltaY), gap: Math.round(gap), acted: 1, idx: idxRef.current });

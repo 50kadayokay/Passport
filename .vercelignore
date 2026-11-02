@@ -12,3 +12,5 @@ android
 /__acct
 # Scratch / logs
 *.log
+
+/qa

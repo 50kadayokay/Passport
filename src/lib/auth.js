@@ -311,11 +311,14 @@ export async function getMyRole() {
 // Email a reset link that returns to /reset. (Delivery uses Supabase's email
 // service — reliable delivery needs SMTP configured in the dashboard.)
 export async function requestPasswordReset(email) {
-  // In the native shell window.location.origin is capacitor://localhost, which the
-  // emailed link can't reopen — point recovery at the deployed web /reset instead,
-  // so the user completes the reset in Safari and returns to the app to sign in.
-  const origin = isNativeApp ? API_BASE : window.location.origin;
-  const redirectTo = `${origin}/reset`;
+  // Always send the recovery link to the PUBLIC web domain's /reset — never the raw
+  // Vercel app URL (passport-xi-five.vercel.app) and never capacitor://localhost in the
+  // native shell. mineex.ca and the app are the same Vercel deployment (vercel.json
+  // rewrites /(.*) -> index.html), so mineex.ca/reset resolves to the ResetPassword screen.
+  // NOTE: this host MUST also be in Supabase Auth → URL Configuration → Redirect URLs,
+  // or Supabase ignores redirect_to and falls back to the Site URL root.
+  const WEB_ORIGIN = (typeof import.meta !== "undefined" && import.meta.env && import.meta.env.VITE_WEB_ORIGIN) || "https://mineex.ca";
+  const redirectTo = `${WEB_ORIGIN}/reset`;
   const res = await fetch(`${AUTH}/recover?redirect_to=${encodeURIComponent(redirectTo)}`, {
     method: "POST", headers: base, body: JSON.stringify({ email }),
   });

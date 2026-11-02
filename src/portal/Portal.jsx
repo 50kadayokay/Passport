@@ -31,6 +31,7 @@ import SectionBoundary from "./SectionBoundary.jsx";
 // loaded so the portal shell stays lean:
 const CommsCenter = React.lazy(() => import("../console/CommsCenter.jsx"));  // legacy multi-channel composer (still routed at `press`)
 const Publish     = React.lazy(() => import("./publish/Publish.jsx"));       // Publish workspace: create / drafts / published
+const BriefReview = React.lazy(() => import("./BriefReview.jsx"));           // BriefV1 generate + review + save (prod-v1.3.2)
 const Onboarding  = React.lazy(() => import("../Onboarding.jsx"));           // Profile builder (create/onboard)
 const ProfileEditor = React.lazy(() => import("./ProfileEditor.jsx"));       // pp-direct editor (edit existing, 1:1 with app)
 const Messages      = React.lazy(() => import("./Messages.jsx"));            // investor inbox (the company side of 0014 messaging)
@@ -63,6 +64,8 @@ const NAV_GROUPS = [
     { id: "home",      label: "Home",            Icon: HomeIcon },
     { id: "profile",   label: "Profile",         Icon: Building2 },
     { id: "content",   label: "Content",         Icon: Megaphone },
+    // prod-v1.3.2: generate, review and save investor briefs (BriefV1).
+    { id: "briefs",    label: "Investor Briefs", Icon: Sparkles },
     { id: "updates",   label: "Updates",         Icon: Bell },
     { id: "sharing",   label: "Conference",      Icon: Presentation },
     // a14 (S2's page): what the company's own website pulls from MineEx. Shown
@@ -258,6 +261,8 @@ export default function Portal({ company: initial, switchCompany, adminMode = fa
           <div className="min-h-0 flex-1 overflow-y-auto">
             <div className="mx-auto max-w-6xl px-8 py-10">
               <SectionBoundary resetKey={section}>
+              {/* prod-v1.3.2's brief generator. Rendered in the padded column: in prod it sat in the bare branch, which "briefs" never reaches, so the page was blank. It calls an AI endpoint, so it follows the AI drafting roles (a03). */}
+              {section === "briefs"    && can(company?.role || "owner", "aiDraft") && <BriefReview company={company} />}
               {section === "home"      && <HomeView company={company} go={setSection}
                   openContent={(tab, takeover) => { setContentTab(tab); setContentTakeover(takeover || null); setSectionRaw("content"); }}
                   openUpdates={() => setSectionRaw("updates")}

@@ -14,6 +14,8 @@
 // and in .env for local `vercel dev`. Model overridable via AI_MODEL.
 
 import { requireAiCaller, DRAFTING_ROLES } from "./_aiGuard.js";
+import { generateBrief, briefToV2 } from "./_briefGen.js";   // refined BriefV1 generator (OpenAI)
+import { validateBrief } from "./_briefValidate.js";          // deterministic re-grounding validator
 
 const MODEL = process.env.AI_MODEL || "claude-sonnet-5";
 const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
@@ -262,6 +264,40 @@ export default async function handler(req, res) {
     const analysis = block.input;
     analysis.schemaVersion = SCHEMA_VERSION;
     analysis.model = MODEL;
+
+    // OPTIONAL BriefV1 enrichment — attach the refined, validated Brief (v2) the reader renders.
+    // Reuses the dedicated generator (OpenAI, MINEEX_BRIEF_API_KEY) + the deterministic validator.
+    // STRICTLY non-fatal and additive: if the brief key is not configured, or generation/validation
+    // fails or FAILs, we skip it and the reader falls back to mapping the card into BriefV1 — the
+    // existing analysis is returned unchanged either way. Only runs when we have raw source text.
+    const briefText = (text && text.trim()) ? text.trim() : "";
+    if (briefText && process.env.MINEEX_BRIEF_API_KEY) {
+      try {
+        const srcDate = (analysis.card && analysis.card.sourceDate) || "";
+        const coName = (context && (context.company?.name || context.companyName || context.name)) || "";
+        const brCat = (analysis.card && analysis.card.category) || (analysis.classification && analysis.classification.category) || "";
+        const g = await generateBrief({ sourceText: briefText, companyName: coName, sourceDate: srcDate, category: brCat });
+        const v = validateBrief(g.brief, briefText);
+        // A Brief is attached as a fully-generated V2 only on PASS or REVIEW. `_gen:true` marks it
+        // as generated (vs a legacy card-mapped Brief, which the reader flags `_historical`), and
+        // `_needsReview` forces the existing human review step to confirm a REVIEW verdict — so
+        // FAIL/REVIEW can never SILENTLY become an approved/published Brief. On FAIL/ERROR we attach
+        // NO Brief (the original release is preserved) and surface the verdict for review or retry;
+        // we do NOT pass off a card-mapped fallback as a validated V2.
+        if (v.status === "PASS") {
+          analysis.v2 = { ...briefToV2(g.brief, g.brief.category), _gen: true };
+          analysis.briefValidation = { status: "PASS" };
+        } else if (v.status === "REVIEW") {
+          analysis.v2 = { ...briefToV2(g.brief, g.brief.category), _gen: true, _needsReview: true };
+          analysis.briefValidation = { status: "REVIEW", needsReview: true, evidenceIssues: v.evidenceIssues || [] };
+        } else {
+          analysis.briefValidation = { status: "FAIL", applied: false, factualErrors: v.factualErrors || [] };
+        }
+      } catch (e) {
+        analysis.briefValidation = { status: "ERROR", applied: false, message: String(e && e.message || e).slice(0, 200) };
+      }
+    }
+
     return res.status(200).json({ analysis });
   } catch (e) {
     return bad(res, 502, `AI request failed: ${e.message || e}`);

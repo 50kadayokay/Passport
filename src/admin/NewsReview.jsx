@@ -92,6 +92,17 @@ export default function NewsReview() {
               {(it.fact_check || {}).flagged && it.fact_check.flagged.length > 0 && (
                 <p className="mt-1.5 rounded-md bg-amber-50 px-2 py-1 text-[11.5px] font-medium text-amber-700">⚠ Unsupported: {it.fact_check.flagged.join("; ")}</p>
               )}
+              {(() => {
+                const s = (it.fact_check || {}).sanitized;
+                if (!s || !s.changed) return null;
+                const bits = [];
+                if (Array.isArray(s.droppedNumbers) && s.droppedNumbers.length) bits.push(`removed unverifiable number(s): ${s.droppedNumbers.join(", ")}`);
+                if (Array.isArray(s.droppedDefs) && s.droppedDefs.length) bits.push(`removed ungrounded definition(s): ${s.droppedDefs.length}`);
+                if (s.termFixed) bits.push("corrected term spelling");
+                return bits.length ? (
+                  <p className="mt-1.5 rounded-md bg-sky-50 px-2 py-1 text-[11.5px] font-medium text-sky-700">✓ Auto-cleaned before publish: {bits.join("; ")}</p>
+                ) : null;
+              })()}
 
               {open[it.id] && (() => {
                 const prov = Array.isArray(it.provenance) ? it.provenance : [];
@@ -107,7 +118,7 @@ export default function NewsReview() {
                 return (
                   <div className="mt-3 space-y-3 rounded-xl border border-slate-100 bg-slate-50/60 p-3">
                     {it.plain_english_explanation && (<div>
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">What does this mean?</p>
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">What does this mean?</p>
                       <p className="mt-0.5 text-[12.5px] leading-relaxed text-slate-600">{it.plain_english_explanation}</p>
                       <Evidence field="plain_english_explanation" />
                     </div>)}

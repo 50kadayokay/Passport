@@ -7,7 +7,7 @@
 // copy mirrors PricingDeck / ProPricing; no checkout/billing behaviour.
 // ─────────────────────────────────────────────────────────────────────────────
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { EASE } from "../system.jsx";
+import { EASE, useViewport } from "../system.jsx";
 
 import Footer from "./Footer.jsx";
 export const PRICE_TOKENS = { BG: "#fbfcfe", NAVY: "#0a1b2e", SLATE: "#565f6e", COBALT: "#2563EB", MUTE: "#9aa1ad", SURFACE: "#eef1f6", PANEL: "#0b1220" };
@@ -56,31 +56,39 @@ const CONF = {
 // Monthly ⟷ Annually, as a switch (the reference's form). Buttons are type="button" with
 // preventDefault, so a click can never navigate, submit, or reach the sheet's gesture gate.
 export function BillingToggle({ value, onChange, dark, compact }) {
+  const { mobile } = useViewport();
   const annual = value === "annual";
   const onInk  = dark ? "#fff" : NAVY;
   const offInk = dark ? "rgba(255,255,255,0.48)" : MUTE;
   const track  = dark ? "rgba(255,255,255,0.22)" : "rgba(10,27,46,0.18)";
   const label = (id, text) => (
     <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); onChange(id); }}
-      style={{ appearance: "none", border: 0, background: "none", cursor: "pointer", padding: 0,
-        fontSize: 12.5, fontWeight: 600, letterSpacing: "-0.01em",
+      style={{ appearance: "none", border: 0, background: "none", cursor: "pointer",
+        padding: 0, ...(mobile ? { minHeight: 44, minWidth: 44, display: "inline-grid", placeItems: "center" } : null),
+        fontSize: mobile ? 15 : 12.5, fontWeight: 600, letterSpacing: "-0.01em",
         color: (id === "annual") === annual ? onInk : offInk }}>{text}</button>
   );
   return (
     <div style={{ display: "inline-flex", alignItems: "center", gap: 9 }}>
       {label("monthly", "Monthly")}
+      {/* On a phone the control itself is 44px tall — the coloured track is drawn inside it
+          rather than being the hit box, so the switch is a real target without looking heavy. */}
       <button type="button" role="switch" aria-checked={annual} aria-label="Bill annually"
         onClick={(e) => { e.preventDefault(); e.stopPropagation(); onChange(annual ? "monthly" : "annual"); }}
         style={{ appearance: "none", border: 0, cursor: "pointer", padding: 0,
-          width: 38, height: 22, borderRadius: 999, position: "relative",
-          background: annual ? COBALT : track,
+          width: mobile ? 50 : 38, height: mobile ? 44 : 22, borderRadius: 999, position: "relative",
+          background: mobile ? "transparent" : (annual ? COBALT : track),
           transition: `background 220ms ${EASE}` }}>
-        <span aria-hidden style={{ position: "absolute", top: 3, left: annual ? 19 : 3,
-          width: 16, height: 16, borderRadius: 999, background: "#fff",
+        {mobile && (
+          <span aria-hidden style={{ position: "absolute", top: 7, left: 0, width: 50, height: 30,
+            borderRadius: 999, background: annual ? COBALT : track, transition: `background 220ms ${EASE}` }} />
+        )}
+        <span aria-hidden style={{ position: "absolute", top: mobile ? 11 : 3, left: mobile ? (annual ? 26 : 4) : (annual ? 19 : 3),
+          width: mobile ? 22 : 16, height: mobile ? 22 : 16, borderRadius: 999, background: "#fff",
           boxShadow: "0 1px 2px rgba(10,27,46,0.28)", transition: `left 220ms ${EASE}` }} />
       </button>
       {label("annual", "Annually")}
-      {!compact && <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "-0.005em",
+      {!compact && <span style={{ fontSize: mobile ? 12.5 : 11, fontWeight: 700, letterSpacing: "-0.005em",
         color: dark ? "#9dc0ff" : COBALT, background: dark ? "rgba(37,99,235,0.26)" : "rgba(37,99,235,0.10)",
         borderRadius: 999, padding: "3px 8px" }}>Save 15%</span>}
     </div>
@@ -92,25 +100,26 @@ export function BillingToggle({ value, onChange, dark, compact }) {
 // number, and this reads as what it is — real work with a finished deliverable, priced
 // once — rather than an activation fee bolted onto the rate.
 export function Setup({ amount, per = "one-time", qualifier, blurb, dark }) {
+  const { mobile } = useViewport();
   const ink   = dark ? "#fff" : NAVY;
   const muted = dark ? "rgba(255,255,255,0.62)" : SLATE;
   const faint = dark ? "rgba(255,255,255,0.45)" : MUTE;
   const rule  = dark ? "rgba(255,255,255,0.14)" : "rgba(10,27,46,0.10)";
   return (
-    <div style={{ marginTop: "clamp(11px,1.6vh,16px)", paddingTop: "clamp(10px,1.4vh,13px)", borderTop: `1px solid ${rule}` }}>
-      <p style={{ margin: 0, fontSize: 10.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: dark ? "#9dc0ff" : COBALT }}>Professional Setup</p>
+    <div style={{ marginTop: mobile ? 20 : "clamp(11px,1.6vh,16px)", paddingTop: mobile ? 16 : "clamp(10px,1.4vh,13px)", borderTop: `1px solid ${rule}` }}>
+      <p style={{ margin: 0, fontSize: mobile ? 11.5 : 10.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: dark ? "#9dc0ff" : COBALT }}>Professional Setup</p>
       <div style={{ display: "flex", alignItems: "baseline", gap: 7, marginTop: 6, flexWrap: "wrap" }}>
-        <span style={{ fontSize: 19, fontWeight: 700, letterSpacing: "-0.03em", color: ink }}>{amount}</span>
-        {per && <span style={{ fontSize: 12.5, fontWeight: 600, color: faint }}>{per}</span>}
+        <span style={{ fontSize: mobile ? 23 : 19, fontWeight: 700, letterSpacing: "-0.03em", color: ink }}>{amount}</span>
+        {per && <span style={{ fontSize: mobile ? 14.5 : 12.5, fontWeight: 600, color: faint }}>{per}</span>}
         {qualifier && (
-          <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase",
+          <span style={{ fontSize: mobile ? 11 : 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase",
             color: faint, border: `1px solid ${rule}`, borderRadius: 999, padding: "2px 7px" }}>{qualifier}</span>
         )}
       </div>
       {/* Reserved to the longest blurb (three lines) so the three cards' setup rules land on
           one line instead of stair-stepping — the blocks are bottom-anchored, so equal
           internal height is what aligns them. */}
-      <p style={{ margin: "5px 0 0", fontSize: 12.5, lineHeight: "17px", minHeight: 34, color: muted }}>{blurb}</p>
+      <p style={{ margin: mobile ? "8px 0 0" : "5px 0 0", fontSize: mobile ? 15 : 12.5, lineHeight: mobile ? "22px" : "17px", minHeight: mobile ? 0 : 34, color: muted }}>{blurb}</p>
     </div>
   );
 }
@@ -123,6 +132,9 @@ export function Setup({ amount, per = "one-time", qualifier, blurb, dark }) {
 // content overflow, we measure its natural (untransformed) height against the space the
 // panel actually has, and scale the whole column down to fit. Scaling keeps the design
 // exactly as drawn — nothing reflows — and it never scales UP past 1.
+// Fit on desktop, plain pass-through on phones.
+function Maybe({ fit, children }) { return fit ? <Fit>{children}</Fit> : <>{children}</>; }
+
 export function Fit({ children }) {
   const ref = useRef(null);
   const [fit, setFit] = useState({ s: 1, h: 0 });
@@ -169,6 +181,7 @@ export function Mark({ c = COBALT }) {
 // rhythm either way, so the two columns line up: name · description · toggle · price ·
 // explanation · CTA · features · note.
 function Plan({ name, desc, price, per, sub, features, note, cta, dark, control, children }) {
+  const { mobile } = useViewport();
   const ink   = dark ? "#fff" : NAVY;
   const muted = dark ? "rgba(255,255,255,0.62)" : SLATE;
   const faint = dark ? "rgba(255,255,255,0.45)" : MUTE;
@@ -179,12 +192,18 @@ function Plan({ name, desc, price, per, sub, features, note, cta, dark, control,
       padding: "clamp(17px,1.5vw,24px)",
       background: dark ? "#0b1220" : "transparent",
     }}>
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 26, minHeight: 24 }}>
-        <div style={{ minWidth: 0 }}>
-          <h3 style={{ margin: 0, fontSize: "clamp(17px,1.4vw,19px)", fontWeight: 700, letterSpacing: "-0.02em", color: ink }}>{name}</h3>
-          <p style={{ margin: "5px 0 0", fontSize: 13.5, lineHeight: 1.4, color: muted, maxWidth: control ? "20ch" : "30ch", minHeight: 38 }}>{desc}</p>
+      {/* The name and the billing toggle share a row on desktop, where there is width for
+          both. On a phone there is not: "MineEx Pro" was squeezed onto two lines beside the
+          toggle and the description was forced into a 20ch column four lines deep. Phones
+          stack them — name, then the toggle on its own line, then the description at full
+          width — which is also the order you read them in. */}
+      <div style={{ display: "flex", flexDirection: mobile ? "column" : "row", alignItems: mobile ? "stretch" : "flex-start", justifyContent: "space-between", gap: mobile ? 12 : 26, minHeight: mobile ? 0 : 24 }}>
+        <div style={{ minWidth: 0, order: mobile ? 0 : undefined }}>
+          <h3 style={{ margin: 0, fontSize: mobile ? 20 : "clamp(17px,1.4vw,19px)", fontWeight: 700, letterSpacing: "-0.02em", color: ink, whiteSpace: mobile ? "nowrap" : undefined }}>{name}</h3>
+          {!mobile && <p style={{ margin: "5px 0 0", fontSize: 13.5, lineHeight: 1.4, color: muted, maxWidth: control ? "20ch" : "30ch", minHeight: 38 }}>{desc}</p>}
         </div>
-        {control && <div style={{ flexShrink: 0, marginTop: 1 }}>{control}</div>}
+        {control && <div style={{ flexShrink: 0, marginTop: 1, order: mobile ? 1 : undefined, alignSelf: mobile ? "flex-start" : undefined }}>{control}</div>}
+        {mobile && <p style={{ margin: 0, order: 2, fontSize: 15, lineHeight: 1.45, color: muted }}>{desc}</p>}
       </div>
 
       <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginTop: 13 }}>
@@ -234,8 +253,17 @@ export default function SalesPricing({ active, onExitTop, mobile }) {
   }, [active, onExitTop, mobile]);
 
   return (
-    <div className="sp-panel" style={{ position: "absolute", inset: 0, background: BG, overflow: "hidden", display: "flex", flexDirection: "column", padding: `clamp(76px,9vh,96px) clamp(22px,5vw,64px) clamp(24px,3.4vh,48px)` }}>
-      <Fit><div style={{ maxWidth: 1040, width: "100%", margin: "0 auto" }}>
+    <div className="sp-panel" style={{ position: "absolute", inset: 0, background: BG,
+      // PHONES scroll this panel instead of squeezing it. Fit scales the whole block down
+      // until it fits one viewport, which is right for the desktop sheet but wrong here:
+      // the two plans stack on a phone, so the natural height roughly doubles, Fit shrank
+      // everything to match (the "too thin" card) and what would not fit — the Conference
+      // Mode plan — was clipped by the panel's overflow:hidden. Scrolling costs nothing on
+      // a phone and shows both plans at their proper size.
+      overflow: mobile ? "auto" : "hidden", WebkitOverflowScrolling: "touch",
+      display: "flex", flexDirection: "column",
+      padding: mobile ? "74px 20px 32px" : `clamp(76px,9vh,96px) clamp(22px,5vw,64px) clamp(24px,3.4vh,48px)` }}>
+      <Maybe fit={!mobile}><div style={{ maxWidth: 1040, width: "100%", margin: "0 auto" }}>
         <div style={{ display: "flex", alignItems: "baseline", gap: 14 }}>
           <p className="mx-label" style={{ color: COBALT, letterSpacing: "0.22em", margin: 0 }}>Pricing</p>
         </div>
@@ -275,7 +303,7 @@ export default function SalesPricing({ active, onExitTop, mobile }) {
         </div>
         {!mobile && <p style={{ marginTop: 14, textAlign: "center", fontSize: 12.5, color: MUTE, letterSpacing: "0.06em" }}>↑ Swipe up to go back</p>}
         <Footer compact />
-      </div></Fit>
+      </div></Maybe>
       <style>{`
         .sp-cta { transition: transform 160ms ${EASE}, box-shadow 160ms ${EASE}; }
         .sp-cta:hover { transform: translateY(-1px); box-shadow: 0 16px 34px -18px rgba(10,27,46,0.5); }

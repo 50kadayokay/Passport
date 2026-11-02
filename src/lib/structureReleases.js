@@ -103,7 +103,9 @@ export async function structureRelease(input, context = {}, { attempts = 4, comp
 // `batchSize` docs. Only works on TEXT (the batch endpoint reads text, not PDFs),
 // so callers pass extracted text. Returns the SAME [{item, analysis}] shape as
 // structureReleases so assembleTimeline is unchanged.
-async function callBatch(batch, token, context, scope = {}, attempts = 3) {
+// `existingV2` (from prod-v1.3.2): approved V2 Briefs already on the live profile,
+// so the batch endpoint never regenerates one an eligible release already has.
+async function callBatch(batch, token, context, scope = {}, attempts = 3, existingV2 = null) {
   let lastErr;
   for (let i = 0; i < attempts; i++) {
     let res;
@@ -111,7 +113,7 @@ async function callBatch(batch, token, context, scope = {}, attempts = 3) {
       res = await fetch("/api/structure-batch", {
         method: "POST",
         headers: { "content-type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-        body: JSON.stringify({ releases: batch.map((b) => ({ id: b.id, text: b.text })), context, ...scope }),
+        body: JSON.stringify({ releases: batch.map((b) => ({ id: b.id, text: b.text })), context, ...scope, existingV2: existingV2 || undefined }),
       });
     } catch (e) { lastErr = e; if (i === attempts - 1) throw e; await sleep(800 * 2 ** i + Math.floor(Math.random() * 400)); continue; }
     if (res.ok) return (await res.json()).entries || [];
@@ -136,6 +138,7 @@ function entryToAnalysis(e) {
     },
     classification: { suggestedImpact: e.impact, suggestedKey: !!e.key, confidence: "medium" },
     proposedChanges: [],
+    ...((e.v2 && !e.v2._needsReview) ? { v2: e.v2 } : {}),   // carry an APPROVED/PASS BriefV1 only (never a _needsReview brief)
   };
 }
 
@@ -188,7 +191,7 @@ export async function refineRelease(current, instruction = "", text = "", contex
   throw lastErr;
 }
 
-export async function structureReleasesBatched(items, { token, context = {}, batchSize = 8, concurrency = 3, onProgress, companyId = null, slug = null, onboarding = false } = {}) {
+export async function structureReleasesBatched(items, { token, context = {}, batchSize = 8, concurrency = 3, onProgress, companyId = null, slug = null, onboarding = false, existingV2 = null } = {}) {
   const scope = aiScope({ companyId, slug, onboarding });
   const list = (Array.isArray(items) ? items : []).filter((it) => it && String(it.text || "").trim());
   if (!list.length) return [];
@@ -202,7 +205,7 @@ export async function structureReleasesBatched(items, { token, context = {}, bat
     while (cursor < batches.length) {
       const b = batches[cursor++];
       try {
-        const entries = await callBatch(b, token, context, scope);
+        const entries = await callBatch(b, token, context, scope, 3, existingV2);
         // match each entry back to its item by id; fall back to positional.
         entries.forEach((e, idx) => {
           const item = byId.get(String(e.id)) || b[idx];
@@ -286,6 +289,9 @@ export function assembleTimeline(results) {
         confidence: String(cls.confidence || ""),
         fullText: String(r.item.text || ""),
         proposedChanges: Array.isArray(r.analysis.proposedChanges) ? r.analysis.proposedChanges : [],
+        // Refined BriefV1 (validated server-side). Rides through to the reader when present;
+        // absent → the reader maps the card fields into BriefV1 instead.
+        v2: (r.analysis && r.analysis.v2) || null,
       };
     })
     .sort((a, b) => (b.date || "").localeCompare(a.date || ""));
@@ -359,6 +365,7 @@ export function toTimelineEntries(assembled) {
     summary: e.whyItMatters || e.whatHappened,
     url: e.sourceUrl,
     key: e.key,
+    ...((e.v2 && !e.v2._needsReview) ? { v2: e.v2 } : {}),   // APPROVED/PASS BriefV1 only onto the entry (held REVIEW/FAIL never persisted)
     ai: {
       whatHappened: e.whatHappened,
       whatHappensNext: e.whatHappensNext,
@@ -605,7 +612,7 @@ async function ensureDocsText(docs, token, deps, onProgress, scope = {}) {
 // against that company -- and the result carries `steps`, one outcome per step.
 // `existingTimeline` (the profile's saved timeline) is the fallback chronology
 // for the status card and brief when this run produced no dated releases.
-export async function reanalyzeFromMemory(companyId, { token, onProgress, deps, existingTimeline = [] } = {}) {
+export async function reanalyzeFromMemory(companyId, { token, onProgress, deps, existingTimeline = [], existingV2 = null } = {}) {
   const { documentsForExtraction } = deps || {};
   if (!documentsForExtraction) throw new Error("memory deps required");
   if (!companyId) throw new Error("companyId required");
@@ -634,7 +641,7 @@ export async function reanalyzeFromMemory(companyId, { token, onProgress, deps, 
   if (prItems.length) {
     if (onProgress) onProgress("Rebuilding the timeline…");
     try {
-      const results = await structureReleasesBatched(prItems, { token, companyId, onProgress: (dn, tot) => onProgress && onProgress(`Analyzing release ${dn} of ${tot}…`) });
+      const results = await structureReleasesBatched(prItems, { token, companyId, existingV2, onProgress: (dn, tot) => onProgress && onProgress(`Analyzing release ${dn} of ${tot}…`) });
       const failed = results.filter((r) => r.error);
       const timeline = assembleTimeline(results);
       out = { timeline, timelineEntries: toTimelineEntries(timeline), results };
@@ -687,7 +694,7 @@ export async function reanalyzeFromMemory(companyId, { token, onProgress, deps, 
 // capital/projects/leadership; the caller merges CONSERVATIVELY (mergeIncremental),
 // so a routine press release never clobbers hand-edited profile fields.
 // Returns { timelineEntries, company, projects, routing, reflectedIds, steps }.
-export async function analyzeNewDocuments(companyId, { token, onProgress, deps } = {}) {
+export async function analyzeNewDocuments(companyId, { token, onProgress, deps, existingV2 = null } = {}) {
   const { unreflectedDocuments } = deps || {};
   if (!unreflectedDocuments) throw new Error("memory deps required");
   if (!companyId) throw new Error("companyId required");
@@ -707,7 +714,7 @@ export async function analyzeNewDocuments(companyId, { token, onProgress, deps }
   let timelineEntries = [];
   if (items.length) {
     if (onProgress) onProgress("Sorting new documents…");
-    const results = await structureReleasesBatched(items, { token, companyId });
+    const results = await structureReleasesBatched(items, { token, companyId, existingV2 });
     const failed = results.filter((r) => r.error);
     // Only DATED entries (real press releases) go on the timeline; undated
     // reference docs (decks, website pages) fall through to the profile.

@@ -96,7 +96,7 @@ function Info({ text }) {
   return (
     <span style={{ position: "relative", display: "inline-flex", verticalAlign: "middle", marginLeft: 6 }}
       onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)}>
-      <button type="button" aria-label={text} onClick={() => setOpen((o) => !o)}
+      <button type="button" aria-label={text} onClick={() => setOpen((o) => !o)} className="cmp-info"
         style={{ width: 16, height: 16, borderRadius: 999, border: `1px solid ${HAIR}`, background: "transparent", color: MUTE, cursor: "pointer", padding: 0, display: "grid", placeItems: "center", fontSize: 10, fontWeight: 800, fontStyle: "italic", lineHeight: 1 }}>i</button>
       {open && (
         <span role="tooltip" style={{ position: "absolute", bottom: "calc(100% + 8px)", left: -8, width: 236, background: NAVY, color: "#fff", fontSize: 12.5, lineHeight: 1.45, fontWeight: 500, padding: "10px 12px", borderRadius: 10, boxShadow: "0 18px 40px -18px rgba(10,27,46,0.5)", zIndex: 60 }}>{text}</span>
@@ -165,9 +165,9 @@ export default function ComparePlans() {
       <div style={{ position: "sticky", top: NAV_H, zIndex: 40, background: "rgba(251,252,254,0.95)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", borderBottom: `1px solid ${HAIR}`, padding: `10px ${gut}` }}>
         <div style={{ display: "flex", gap: 6, background: "#eef0f4", borderRadius: 999, padding: 4 }}>
           {PLANS.map((p, k) => (
-            <button key={p.key} type="button" onClick={() => setMplan(k)} style={{ flex: 1, border: "none", cursor: "pointer", borderRadius: 999, padding: "8px 6px", fontSize: 12.5, fontWeight: 700,
+            <button key={p.key} type="button" onClick={() => setMplan(k)} style={{ flex: 1, border: "none", cursor: "pointer", borderRadius: 999, padding: "9px 6px", minHeight: 52, fontSize: 14, fontWeight: 700,
               background: mplan === k ? "#fff" : "transparent", color: mplan === k ? (p.lead ? COBALT : NAVY) : SLATE, boxShadow: mplan === k ? "0 1px 3px rgba(10,27,46,0.12)" : "none" }}>
-              {p.label}<div style={{ fontSize: 10.5, fontWeight: 600, color: MUTE }}>{p.price} {p.per}</div>
+              {p.label}<div style={{ fontSize: 12, fontWeight: 600, color: MUTE, marginTop: 2 }}>{p.price} {p.per}</div>
             </button>
           ))}
         </div>
@@ -175,13 +175,13 @@ export default function ComparePlans() {
       {CATS.map((c) => (
         <section key={c.id} id={c.id} style={{ scrollMarginTop: NAV_H + 76, padding: `clamp(28px,7vw,40px) ${gut} 4px` }}>
           <div style={{ display: "flex", alignItems: "baseline", gap: 11, marginBottom: 4 }}>
-            <span style={{ fontSize: 12, fontWeight: 800, color: MUTE }}>{c.n}</span>
-            <h2 style={{ margin: 0, color: NAVY, fontWeight: 700, letterSpacing: "-0.02em", fontSize: 19 }}>{c.title}</h2>
+            <span style={{ fontSize: 13, fontWeight: 800, color: MUTE }}>{c.n}</span>
+            <h2 style={{ margin: 0, color: NAVY, fontWeight: 700, letterSpacing: "-0.02em", fontSize: 23 }}>{c.title}</h2>
           </div>
           {c.rows.map((r, i) => (
-            <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 16, padding: "12px 0", borderTop: `1px solid ${HAIR}` }}>
-              <span style={{ color: NAVY, fontSize: 14.5, fontWeight: 600, flex: 1 }}>{r[0]}{r[4] && <Info text={r[4]} />}</span>
-              <span style={{ fontSize: 14, textAlign: "right", flex: "0 0 46%" }}><Cell v={r[mplan + 1]} /></span>
+            <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 16, padding: "15px 0", borderTop: `1px solid ${HAIR}` }}>
+              <span style={{ color: NAVY, fontSize: 16, lineHeight: 1.4, fontWeight: 600, flex: 1 }}>{r[0]}{r[4] && <Info text={r[4]} />}</span>
+              <span style={{ fontSize: 15.5, lineHeight: 1.4, textAlign: "right", flex: "0 0 46%" }}><Cell v={r[mplan + 1]} /></span>
             </div>
           ))}
         </section>
@@ -192,7 +192,16 @@ export default function ComparePlans() {
   return (
     <div className="mx-root mx-compare" id="top" style={{ background: BG, minHeight: "100vh", color: NAVY }}>
       <MarketingStyles />
-      <style>{`html{scroll-behavior:smooth} .cmp-arrow:hover .cmp-arw{transform:translateX(4px)}`}</style>
+      <style>{`
+        html{scroll-behavior:smooth}
+        .cmp-arrow:hover .cmp-arw{transform:translateX(4px)}
+        /* The info mark stays a quiet 16px dot; the tappable area around it is 44px. */
+        .cmp-info { position: relative; }
+        .cmp-info::after { content: ""; position: absolute; inset: -14px; }
+        @media (max-width: 759px) {
+          .cmp-arrow { min-height: 44px; }
+        }
+      `}</style>
       <Nav />
       <main>
         {/* ── TOP ── */}
@@ -209,11 +218,11 @@ export default function ComparePlans() {
                 {p.lead && <span aria-hidden style={{ position: "absolute", top: 0, left: mobile ? 0 : "clamp(20px,2vw,34px)", right: mobile ? 0 : "clamp(20px,2vw,34px)", height: 2, background: COBALT, borderRadius: 2 }} />}
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <span style={{ fontSize: 12, fontWeight: 800, letterSpacing: "0.14em", textTransform: "uppercase", color: p.lead ? COBALT : MUTE }}>{p.label}</span>
-                  {p.lead && <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: "0.12em", textTransform: "uppercase", color: COBALT, border: `1px solid ${COBALT}`, borderRadius: 999, padding: "2px 6px" }}>Recommended</span>}
+                  {p.lead && <span style={{ fontSize: mobile ? 11 : 9, fontWeight: 800, letterSpacing: "0.12em", textTransform: "uppercase", color: COBALT, border: `1px solid ${COBALT}`, borderRadius: 999, padding: "2px 6px" }}>Recommended</span>}
                 </div>
                 <div style={{ color: NAVY, fontWeight: 700, letterSpacing: "-0.02em", fontSize: "clamp(24px,2.2vw,32px)", marginTop: 10 }}>{p.price}<span style={{ color: MUTE, fontWeight: 500, fontSize: 15 }}> / month{p.key === "managed" ? "" : ""}</span></div>
-                <div style={{ color: MUTE, fontSize: 12.5, marginTop: 5 }}>{p.key === "managed" ? "Starting price · custom scope" : "12-month agreement"}</div>
-                <p style={{ color: SLATE, fontSize: 14, lineHeight: 1.5, marginTop: 14, maxWidth: "30ch" }}>{p.blurb}</p>
+                <div style={{ color: MUTE, fontSize: mobile ? 14 : 12.5, marginTop: 5 }}>{p.key === "managed" ? "Starting price · custom scope" : "12-month agreement"}</div>
+                <p style={{ color: SLATE, fontSize: mobile ? 16 : 14, lineHeight: 1.5, marginTop: 14, maxWidth: "30ch" }}>{p.blurb}</p>
               </div>
             ))}
           </div>
@@ -250,7 +259,7 @@ export default function ComparePlans() {
 
         <footer style={{ borderTop: `1px solid ${HAIR}`, padding: `28px ${gut}`, maxWidth: MAXW, margin: "0 auto", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
           <span style={{ fontSize: 13, color: MUTE }}>© {new Date().getFullYear()} MineEx</span>
-          <a href="/pricing" style={{ fontSize: 13, fontWeight: 600, color: SLATE, textDecoration: "none" }}>← Back to pricing</a>
+          <a href="/pricing" style={{ display: "inline-flex", alignItems: "center", minHeight: mobile ? 44 : 0, fontSize: mobile ? 16 : 13, fontWeight: 600, color: SLATE, textDecoration: "none" }}>← Back to pricing</a>
         </footer>
       </main>
       <Footer />

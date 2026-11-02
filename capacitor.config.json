@@ -4,10 +4,14 @@
   "webDir": "dist",
   "ios": {
     "contentInset": "never",
-    "backgroundColor": "#ffffff"
+    "backgroundColor": "#000000"
   },
-  "backgroundColor": "#ffffff",
+  "backgroundColor": "#000000",
   "plugins": {
+    "Keyboard": {
+      "resize": "none",
+      "style": "LIGHT"
+    },
     "SocialLogin": {
       "providers": {
         "google": true,

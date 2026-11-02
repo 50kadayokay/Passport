@@ -43,6 +43,7 @@ const NOT_LOADED = {
   "https://example.com": "placeholder text", "https://company.com": "placeholder text",
   "https://mineex.ca": "links and QR targets", "https://passport-xi-five.vercel.app": "links, QR targets and the booth fallback origin",
   "https://mineex.app": "QR target in marketing art",
+  "https://play.google.com": "Get the App store link (prod-v1.3.2 GetApp.jsx)", "https://instagram.com": "company social links (prod-v1.3.2 PassportProto)",
   "https://www.newsfilecorp.com": "sourceUrl links in demo data", "https://www.mining.com": "source links in demo data", "https://mining.com": "source links",
   "https://www.kingsmenresources.com": "company website link", "https://kingsmenresources.com": "company website link",
   "https://www.linkedin.com": "share links", "https://linkedin.com": "share links", "https://twitter.com": "share links", "https://x.com": "share links",

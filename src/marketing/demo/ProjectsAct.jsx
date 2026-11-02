@@ -29,10 +29,11 @@
 //
 // DirectedEmbed is untouched.
 // ─────────────────────────────────────────────────────────────────────────────
+import { gestureReady , isReversal} from "../home2/motion.js";
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { MX } from "../system.jsx";
 import { DEVICE_W, DEVICE_H } from "./MobileAppFrame.jsx";
-import { PP_ASSETS } from "./ppAssets.js";
+import { warmPpAssets, warmFirst } from "./warmPpAssets.js";
 
 // The screen for the ~240ms before the real app paints. It is the APP'S OWN background,
 // so the hand-off is invisible rather than a contrasting slab flashing to light UI.
@@ -58,11 +59,10 @@ export function ProjectsAct() {
   const [ready, setReady] = useState(false);
   const readyRef = useRef(false);
 
-  const preloadPhotos = () =>
-    Promise.race([
-      Promise.all(PP_ASSETS.map((src) => { const im = new Image(); im.decoding = "async"; im.src = src; return (im.decode ? im.decode() : Promise.resolve()).catch(() => {}); })),
-      new Promise((r) => setTimeout(r, 3200)),
-    ]);
+  // Wait for the FIRST few photographs, not all 58. Promise.all over the whole list meant
+  // this surface was gated on 12MB arriving (or on a 3.2s timeout firing), with every one
+  // of them started simultaneously. The rest keep warming behind it, throttled.
+  const preloadPhotos = () => warmFirst(3, 3).then(() => { warmPpAssets({ concurrency: 2 }); });
 
   const settleApp = useCallback(() => {
     readyRef.current = false;
@@ -236,14 +236,14 @@ export function ProjectsAct() {
       e.preventDefault();
       if (!readyRef.current) return;
       const now = performance.now(); const gap = now - lastWheel;
-      const reversed = accumDir !== 0 && Math.sign(e.deltaY) === -accumDir && Math.abs(e.deltaY) >= FIRM_DELTA;
+      const reversed = isReversal(e.deltaY, accumDir);
       if (gap > NEW_GESTURE_GAP || reversed) { accum = 0; accumDir = Math.sign(e.deltaY); streamUsed = false; streamPeak = 0; }
       lastWheel = now; streamPeak = Math.max(streamPeak, Math.abs(e.deltaY));
       if (S.animating || streamUsed) return;
       const d = e.deltaY;
       if (Math.sign(d) !== accumDir) { accum = 0; accumDir = Math.sign(d); }
       accum += d;
-      if (Math.abs(accum) < WHEEL_TRIGGER || streamPeak < FIRM_DELTA) return;
+      if (!gestureReady(accum, streamPeak, WHEEL_TRIGGER, FIRM_DELTA)) return;
       const dir = accum > 0 ? 1 : -1; streamUsed = true; accum = 0;
       const target = Math.max(0, Math.min(STATES.length - 1, S.cur + dir));
       if (target !== S.cur) run(target);
