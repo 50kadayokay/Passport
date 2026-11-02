@@ -45,12 +45,15 @@ const R = (file, more = "") => `--rollback --only ${file} --ref=${PROD} --approv
 console.log("\n  LOG: a rollback puts the file back in the plan");
 {
   const base = buildPlan({ files: FILES, record: RECORD, q01Markers: Q01, manifest: UNHELD });
-  const log = [...applied("0058_close_public_insert.sql", "0077_listing_reports_installed_app_compat.sql")];
-  ok(buildPlan({ files: FILES, record: RECORD, q01Markers: Q01, manifest: UNHELD, log }).items[0].file === "0092_listing_reports_column_insert.sql", "(with 0058 and 0077 applied by the runner, 0092 is next)");
+  // The order the runner applies them in: 0058, 0095 (right after it), 0077 (right after 0095).
+  const log = [...applied("0058_close_public_insert.sql", "0095_public_lead_form_guard.sql", "0077_listing_reports_installed_app_compat.sql")];
+  ok(buildPlan({ files: FILES, record: RECORD, q01Markers: Q01, manifest: UNHELD, log }).items[0].file === "0092_listing_reports_column_insert.sql", "(with 0058, 0095 and 0077 applied by the runner, 0092 is next)");
   log.push({ at: "2026-11-02T05:00:00Z", ref: PROD, file: "0077_listing_reports_installed_app_compat.sql", status: "rolled_back" });
   const p = buildPlan({ files: FILES, record: RECORD, q01Markers: Q01, manifest: UNHELD, log });
-  ok(p.items[0].file === "0077_listing_reports_installed_app_compat.sql" && p.items.length === base.items.length - 1, "after `rolled_back`, the plan offers 0077 again as step 1 (0058 stays applied)");
-  ok(JSON.stringify(appliedStack(log, PROD)) === JSON.stringify(["0058_close_public_insert.sql"]), "the rollback stack drops it");
+  ok(p.items[0].file === "0077_listing_reports_installed_app_compat.sql" && p.items[1].file === "0092_listing_reports_column_insert.sql" && p.items.length === base.items.length - 2
+     && p.warnings.length === 1 && /^0077_listing_reports_installed_app_compat\.sql goes FIRST: 0095_public_lead_form_guard\.sql is already applied/.test(p.warnings[0]),
+     "after `rolled_back`, the plan offers 0077 again as step 1, warned (0058 and 0095 stay applied)", p.warnings.join("; "));
+  ok(JSON.stringify(appliedStack(log, PROD)) === JSON.stringify(["0058_close_public_insert.sql", "0095_public_lead_form_guard.sql"]), "the rollback stack drops it");
   log.push(...applied("0077_listing_reports_installed_app_compat.sql").map((e) => ({ ...e, at: "2026-11-02T06:00:00Z" })));
   ok(buildPlan({ files: FILES, record: RECORD, q01Markers: Q01, manifest: UNHELD, log }).items[0].file === "0092_listing_reports_column_insert.sql", "re-applied after the rollback: applied again (0092 next)");
   ok(JSON.stringify(appliedStack([...applied("0058_close_public_insert.sql"), { ref: STAGING, file: "0058_close_public_insert.sql", status: "rolled_back" }], PROD)) === JSON.stringify(["0058_close_public_insert.sql"]),
@@ -72,7 +75,11 @@ console.log("\n  REFUSALS (before the DSN is read)");
     /0071_publishing_reliability\.sql's rollback is refused while 0088_content_fanout\.sql is applied/), "0071 while 0088 is applied (even when 0071 is the most recent)");
   is(refusal(rb(R("0090_notification_clear_roles.sql"), applied("0091_notification_clear_no_platform_admin.sql", "0090_notification_clear_roles.sql")), /0091_notification_clear_no_platform_admin\.sql still needs 0090/),
      "a file another applied file still needs (manifest prerequisites)");
-  is(refusal(rb(R("0058_close_public_insert.sql"), applied("0077_listing_reports_installed_app_compat.sql", "0058_close_public_insert.sql")), /0077.* still needs 0058/), "0058 while 0077 (its immediate partner) is applied");
+  is(refusal(rb(R("0058_close_public_insert.sql"), applied("0077_listing_reports_installed_app_compat.sql", "0058_close_public_insert.sql")), /0077.* still needs 0058/), "0058 while 0077 (its prerequisite partner) is applied");
+  is(refusal(rb(R("0058_close_public_insert.sql"), applied("0095_public_lead_form_guard.sql", "0058_close_public_insert.sql")), /0095_public_lead_form_guard\.sql still needs 0058/), "0058 while 0095 (its immediate partner) is applied");
+  is(refusal(rb(R("0095_public_lead_form_guard.sql"), applied("0058_close_public_insert.sql", "0077_listing_reports_installed_app_compat.sql", "0095_public_lead_form_guard.sql")), /0077_listing_reports_installed_app_compat\.sql still needs 0095/),
+     "0095 while 0077 (which runs right after it) is applied");
+  is(refusal(rb(R("0063_company_initiated_threads.sql"), applied("0096_conversations_legacy_upsert.sql", "0063_company_initiated_threads.sql")), /0096_conversations_legacy_upsert\.sql still needs 0063/), "0063 while 0096 (its immediate partner) is applied");
   is(refusal(rb(`--rollback --ref=${PROD} --approved-by=user-in-chat-2026-11-02`, applied("0090_notification_clear_roles.sql")), /exactly one --only/), "no --only");
   is(refusal(rb(R("0072_profile_drafts.sql"), applied("0072_profile_drafts.sql")), /loses data \(drops a table; the rollout plan marks it lossy.*--accept-data-loss=/), "LOSSY (0072, unpublished drafts) without --accept-data-loss");
   is(refusal(rb(R("0072_profile_drafts.sql", "--accept-data-loss=ok"), applied("0072_profile_drafts.sql")), /at least 8 characters/), "...or with a token one");
@@ -182,24 +189,24 @@ function fakeClient(item, { appliedBefore = true, noEffect = false, throwOn = nu
 console.log("\n  0092 (grant-only, right after 0077) on every path");
 {
   const F92 = "0092_listing_reports_column_insert.sql", F77 = "0077_listing_reports_installed_app_compat.sql";
-  const it = buildPlan({ files: FILES, record: RECORD, q01Markers: Q01, manifest: UNHELD, log: applied("0058_close_public_insert.sql", F77) }).items[0];
+  const it = buildPlan({ files: FILES, record: RECORD, q01Markers: Q01, manifest: UNHELD, log: applied("0058_close_public_insert.sql", "0095_public_lead_form_guard.sql", F77) }).items[0];
   ok(it.file === F92 && it.after === F77 && it.mode === "transaction" && it.concurrent === null && !it.concurrentError, "planned right after 0077, as a transaction file (not the no-transaction path)");
   ok(Array.isArray(it.captures) && it.captures.length === 0 && !it.captureError, "capture-on-apply: no function to capture");
   ok(/has_column_privilege\('anon', 'public\.listing_reports', 'company_slug', 'INSERT'\) and not has_column_privilege\('anon', 'public\.listing_reports', 'created_at', 'INSERT'\)/.test(it.checkpoint),
      "its checkpoint: company_slug insertable and created_at NOT (a table-wide grant reads false)");
   ok(lossyReasons(fs.readFileSync("supabase/rollbacks/0092_listing_reports_column_insert.rollback.sql", "utf8"), F92, DOC).length === 0, "its rollback is not lossy");
-  const r92 = rb(R(F92), applied("0058_close_public_insert.sql", F77, F92))();
+  const r92 = rb(R(F92), applied("0058_close_public_insert.sql", "0095_public_lead_form_guard.sql", F77, F92))();
   ok(r92.file === F92 && r92.mode === "transaction" && r92.capture === null && r92.lossy.length === 0 && r92.acceptDataLoss === null, "--rollback 0092: allowed with no --accept-data-loss, no capture file");
-  is(refusal(rb(R(F92, "--accept-data-loss=just-in-case-x"), applied("0058_close_public_insert.sql", F77, F92)), /not lossy; drop the flag/), "...and refuses a needless --accept-data-loss");
-  is(refusal(rb(R(F77), applied("0058_close_public_insert.sql", F77, F92)), /strict reverse order: 0092.* must be rolled back first/), "0077 cannot be rolled back while 0092 is applied");
-  is(refusal(rb(R(F77), [...applied("0058_close_public_insert.sql", F92), ...applied(F77).map((e) => ({ ...e, at: "z" }))]), /0092_listing_reports_column_insert\.sql still needs 0077/),
+  is(refusal(rb(R(F92, "--accept-data-loss=just-in-case-x"), applied("0058_close_public_insert.sql", "0095_public_lead_form_guard.sql", F77, F92)), /not lossy; drop the flag/), "...and refuses a needless --accept-data-loss");
+  is(refusal(rb(R(F77), applied("0058_close_public_insert.sql", "0095_public_lead_form_guard.sql", F77, F92)), /strict reverse order: 0092.* must be rolled back first/), "0077 cannot be rolled back while 0092 is applied");
+  is(refusal(rb(R(F77), [...applied("0058_close_public_insert.sql", "0095_public_lead_form_guard.sql", F92), ...applied(F77).map((e) => ({ ...e, at: "z" }))]), /0092_listing_reports_column_insert\.sql still needs 0077/),
      "...even when the log's order is odd: 0092 still needs 0077");
 }
 
 console.log("\n  0093 (rate limit, right after 0092) on every path");
 {
   const F92 = "0092_listing_reports_column_insert.sql", F93 = "0093_listing_reports_rate_limit.sql", F77 = "0077_listing_reports_installed_app_compat.sql";
-  const it = buildPlan({ files: FILES, record: RECORD, q01Markers: Q01, manifest: UNHELD, log: applied("0058_close_public_insert.sql", F77, F92) }).items[0];
+  const it = buildPlan({ files: FILES, record: RECORD, q01Markers: Q01, manifest: UNHELD, log: applied("0058_close_public_insert.sql", "0095_public_lead_form_guard.sql", F77, F92) }).items[0];
   ok(it.file === F93 && it.after === F92 && it.mode === "transaction" && it.concurrent === null, "planned right after 0092, as a transaction file");
   ok(!it.captureError && it.captures.map((c) => c.sig).join() === "public.listing_report_client_ip(),public.listing_report_canonical_ip(text),public.listing_report_network(text),public.listing_report_key(text, text),public.listing_reports_guard()",
      "capture-on-apply pins its five functions (both new in production: listed in the capture, not restored)", it.captureError || it.captures.map((c) => c.sig).join());
@@ -207,15 +214,15 @@ console.log("\n  0093 (rate limit, right after 0092) on every path");
   const rbSql = fs.readFileSync("supabase/rollbacks/0093_listing_reports_rate_limit.rollback.sql", "utf8");
   ok(lossyReasons(rbSql, F93, DOC).join() === "deletes rows,drops a table" && REVIEWED_NOT_LOSSY[F93].sha256 === sha256(rbSql),
      "the scan flags its rollback (drops its tables, deletes its counters); a review pinned to this file's sha256 clears it");
-  const r93 = rb(R(F93), applied("0058_close_public_insert.sql", F77, F92, F93))();
+  const r93 = rb(R(F93), applied("0058_close_public_insert.sql", "0095_public_lead_form_guard.sql", F77, F92, F93))();
   ok(r93.lossy.length === 0 && r93.acceptDataLoss === null && r93.mode === "transaction", "--rollback 0093: no --accept-data-loss needed (reviewed: no user data lost)");
   const edited = path.join(tmp, "rb93"); fs.mkdirSync(edited);
   for (const f of fs.readdirSync("supabase/rollbacks")) fs.copyFileSync(path.join("supabase/rollbacks", f), path.join(edited, f));
   fs.appendFileSync(path.join(edited, "0093_listing_reports_rate_limit.rollback.sql"), "\ndelete from public.listing_reports;\n");
-  is(refusal(rb(R(F93), applied("0058_close_public_insert.sql", F77, F92, F93), { rollbacksDir: edited }), /loses data \(deletes rows; drops a table\)/),
+  is(refusal(rb(R(F93), applied("0058_close_public_insert.sql", "0095_public_lead_form_guard.sql", F77, F92, F93), { rollbacksDir: edited }), /loses data \(deletes rows; drops a table\)/),
      "an EDITED 0093 rollback is lossy again until re-reviewed (the sha256 no longer matches)");
-  is(refusal(rb(R(F92), applied("0058_close_public_insert.sql", F77, F92, F93)), /strict reverse order: 0093.* must be rolled back first/), "0092 cannot be rolled back while 0093 is applied");
-  ok(/next: 0093_listing_reports_rate_limit\.sql(?!.*LOSSY)/.test(formatRollbackSection(applied("0058_close_public_insert.sql", F77, F92, F93), PROD, { planDoc: DOC })), "the plan's rollback section does not mark it LOSSY");
+  is(refusal(rb(R(F92), applied("0058_close_public_insert.sql", "0095_public_lead_form_guard.sql", F77, F92, F93)), /strict reverse order: 0093.* must be rolled back first/), "0092 cannot be rolled back while 0093 is applied");
+  ok(/next: 0093_listing_reports_rate_limit\.sql(?!.*LOSSY)/.test(formatRollbackSection(applied("0058_close_public_insert.sql", "0095_public_lead_form_guard.sql", F77, F92, F93), PROD, { planDoc: DOC })), "the plan's rollback section does not mark it LOSSY");
 }
 
 console.log("\n  CLI and the plan");

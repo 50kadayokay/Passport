@@ -129,9 +129,16 @@ const logStart = (await egressLog()).length;
 // =========================================================== the defect ==
 console.log("\n  D20 · THE CONFLICT ON STAGING");
 {
-  const r = await db("conversations?on_conflict=investor_id,company_slug", { method: "POST", headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
+  // After 0096 the full (investor_id, company_slug) constraint is back and mineex.ca/app's old upsert works again.
+  const post96 = (await db("conversations?select=started_by&limit=0")).status === 200;
+  const had = await investorThreads(who.INVESTOR.id, A.slug);
+  const r = await db("conversations?on_conflict=investor_id,company_slug", { method: "POST", headers: { Prefer: "resolution=merge-duplicates,return=representation" },
     body: JSON.stringify({ investor_id: who.INVESTOR.id, company_slug: A.slug }) });
-  ok(r.status === 400 && r.body.code === "42P10", "the old upsert (on_conflict=investor_id,company_slug) still fails 42P10 on staging -- the conflict is real", `${r.status} ${r.body.code}`);
+  if (post96) {
+    ok((r.status === 200 || r.status === 201) && Array.isArray(r.body) && r.body.length === 1 && r.body[0].sender_company_id === null && (!had.length || r.body[0].id === had[0].id),
+      "0096: the old upsert (on_conflict=investor_id,company_slug) works again and lands on the investor's own thread", `${r.status} ${JSON.stringify(r.body).slice(0, 120)}`);
+    if (!had.length && Array.isArray(r.body) && r.body[0]) await db(`conversations?id=eq.${r.body[0].id}`, { method: "DELETE" });   // leave staging as it was
+  } else ok(r.status === 400 && r.body.code === "42P10", "the old upsert (on_conflict=investor_id,company_slug) still fails 42P10 on staging -- the conflict is real", `${r.status} ${r.body.code}`);
   const g = await rest(who.COMPANY_A, "conversations", { method: "POST", headers: { Prefer: "return=minimal" },
     body: JSON.stringify({ investor_id: who.COMPANY_A.id, sender_company_id: A.id, company_slug: B.slug }) });
   ok(g.status === 401 || g.status === 403, "a browser INSERT into conversations is still refused (no grant, 0052) -- unchanged, no grant added", `${g.status} ${g.body && g.body.code}`);
@@ -214,7 +221,8 @@ let AB = null;
   ok(r.status === 200 && r.body.ok && r.body.created === true, "owner of A starts a thread with B: 200, created", `${r.status} ${JSON.stringify(r.body).slice(0, 160)}`);
   const t = await companyThreads(A.id, B.slug);
   AB = t[0];
-  ok(t.length === 1 && AB.investor_id === who.COMPANY_A.id && AB.sender_company_id === A.id && AB.company_slug === B.slug, "database: one row, sender_company_id = A, company_slug = B, investor_id = the acting user");
+  const starter = "started_by" in (AB || {}) ? AB.started_by === who.COMPANY_A.id && AB.investor_id === null : AB?.investor_id === who.COMPANY_A.id;
+  ok(t.length === 1 && starter && AB.sender_company_id === A.id && AB.company_slug === B.slug, "database: one row, sender_company_id = A, company_slug = B, the acting user recorded (started_by after 0096, investor_id before)");
   ok(AB.ceo_email === null, "database: no CEO address on a company-started thread (unchanged: no email, no inbound path)");
   const m = await msgsIn(AB.id);
   ok(m.length === 1 && m[0].sender === "investor" && m[0].body === T("A introduces itself to B"), "database: first message stored once as sender='investor' (initiating side)");

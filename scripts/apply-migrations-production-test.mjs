@@ -64,8 +64,8 @@ is(refusal(() => loadRecord(path.join(tmp, "missing.json")), /cannot read the au
 
 console.log("\n  PLAN: the recorded 2026-11-01 audit");
 const P = plan();
-const EXPECTED = ["0058_close_public_insert", "0077_listing_reports_installed_app_compat", "0092_listing_reports_column_insert", "0093_listing_reports_rate_limit", "0061a_table_privilege_hardening", "0094_company_follows_upsert_grant", "0062_message_attachments",
-  "0063_company_initiated_threads", "0064_notification_clearing", "0065a_analytics_breakdown", "0065b_engagement_corrections", "0065c_analytics_indexes",
+const EXPECTED = ["0058_close_public_insert", "0095_public_lead_form_guard", "0077_listing_reports_installed_app_compat", "0092_listing_reports_column_insert", "0093_listing_reports_rate_limit", "0061a_table_privilege_hardening", "0094_company_follows_upsert_grant", "0062_message_attachments",
+  "0063_company_initiated_threads", "0096_conversations_legacy_upsert", "0064_notification_clearing", "0065a_analytics_breakdown", "0065b_engagement_corrections", "0065c_analytics_indexes",
   "0066_mineiq_conversations", "0068_site_contract", "0069b_stripe_events", "0071_publishing_reliability", "0072_profile_drafts",
   "0073a_impression_dedupe_index", "0073b_impression_tracking", "0073c_post_events_client_guard", "0074_profile_revision_history",
   "0075_profile_versions_privileges", "0076_company_roles", "0078_storage_role_hardening", "0080_mineiq_search_any_term",
@@ -78,7 +78,7 @@ const HELD = new Set(Object.keys(DEFERRED).filter((f) => /^HELD\b/.test(DEFERRED
 const PLANNED = EXPECTED.filter((f) => !HELD.has(f));
 const N = PLANNED.length, N_AFTER = needs(RECORD).filter((f) => !(f in RECORD.q01) && !HELD.has(f)).length, N_FIXTURE = needs(FIXTURE).length;
 ok(JSON.stringify([...EXPECTED].sort()) === JSON.stringify(needs(RECORD).sort()), `the expected order holds exactly the ${N} files the manifest says production needs`);
-ok(JSON.stringify(P.items.map((i) => i.file)) === JSON.stringify(PLANNED), `${N} steps in the rollout plan's order (0058-0093 HELD; 0061a, 0094, 0062, ...)`, P.items.map((i) => i.file).join(" "));
+ok(JSON.stringify(P.items.map((i) => i.file)) === JSON.stringify(PLANNED), `${N} steps in the rollout plan's order (0058/0095/0077/0092/0093 HELD; 0061a, 0094, 0062, 0063, 0096, ...)`, P.items.map((i) => i.file).join(" "));
 ok(P.items.every((i) => i.rollback && fs.existsSync(i.rollback)), "every step names an existing rollback file");
 ok(P.items.every((i) => i.marker && /^select coalesce\(\(/.test(i.checkpoint)), "every step has a read-only checkpoint");
 ok(P.items.filter((i) => i.mode === "concurrently").map((i) => i.file).join() === "0065c_analytics_indexes.sql,0073a_impression_dedupe_index.sql", "0065c and 0073a are marked CONCURRENTLY (the runner's no-transaction path)");
@@ -88,8 +88,9 @@ ok(P.skipped.some((s) => s.file === "0000_baseline.sql") && !P.items.some((i) =>
 const stepOf = (f) => PLANNED.indexOf(f) + 1;
 ok(P.items.find((i) => i.file === "0090_notification_clear_roles.sql").prerequisites.map((p) => `${p.file}:${p.status}`).join() === `0064_notification_clearing.sql:step ${stepOf("0064_notification_clearing.sql")},0076_company_roles.sql:step ${stepOf("0076_company_roles.sql")}`,
    `prerequisites are shown with where they are satisfied (0090: 0064 step ${stepOf("0064_notification_clearing.sql")}, 0076 step ${stepOf("0076_company_roles.sql")})`);
-ok(EXPECTED.indexOf("0092_listing_reports_column_insert.sql") === EXPECTED.indexOf("0077_listing_reports_installed_app_compat.sql") + 1 && EXPECTED.indexOf("0077_listing_reports_installed_app_compat.sql") === EXPECTED.indexOf("0058_close_public_insert.sql") + 1,
-   "0058 -> 0077 -> 0092 back to back (Phase 3, one runner session)");
+ok(EXPECTED.indexOf("0092_listing_reports_column_insert.sql") === EXPECTED.indexOf("0077_listing_reports_installed_app_compat.sql") + 1 && EXPECTED.indexOf("0077_listing_reports_installed_app_compat.sql") === EXPECTED.indexOf("0095_public_lead_form_guard.sql") + 1
+   && EXPECTED.indexOf("0095_public_lead_form_guard.sql") === EXPECTED.indexOf("0058_close_public_insert.sql") + 1,
+   "0058 -> 0095 -> 0077 -> 0092 back to back (Phase 3, one runner session)");
 ok(EXPECTED.indexOf("0093_listing_reports_rate_limit.sql") === EXPECTED.indexOf("0092_listing_reports_column_insert.sql") + 1, "...and 0093 right after 0092");
 ok(P.items.find((i) => i.file === "0080_mineiq_search_any_term.sql").prerequisites[0].status === "applied", "...or that production already has them (0080 needs 0050a: applied)");
 ok(P.items.filter((i) => i.source === "written after the audit").length === N_AFTER, `the ${N_AFTER} files written after the audit are planned and labelled so`);
@@ -150,21 +151,63 @@ ok(P.items.find((i) => i.file === "0091_notification_clear_no_platform_admin.sql
   ok(rows.join(" ") === "00 00 10 11 11", "listing_reports markers after 0017 / 0058 / 0077 / 0092 / 0093: 0077's stays true under 0092 and 0093 (0077 is never re-applied over 0092), 0092's true only from 0092", rows.join(" "));
 }
 ok(P.warnings.length === 0, "no warnings against the real record", P.warnings.join("; "));
+{
+  // HELD (the default manifest): 0095 is held with 0058's group; 0096 is not, and follows 0063 directly.
+  const files = P.items.map((i) => i.file);
+  ok(HELD.has("0095_public_lead_form_guard.sql") && !files.includes("0095_public_lead_form_guard.sql") && P.deferred.some((d) => d.file === "0095_public_lead_form_guard.sql"),
+     "0095 is HELD with 0058/0077/0092/0093: deferred, never planned");
+  ok(!HELD.has("0096_conversations_legacy_upsert.sql") && files.indexOf("0096_conversations_legacy_upsert.sql") === files.indexOf("0063_company_initiated_threads.sql") + 1 && files.indexOf("0063_company_initiated_threads.sql") >= 0,
+     "HELD plan: 0096 directly after 0063", files.join(" "));
+  const i96 = P.items.find((i) => i.file === "0096_conversations_legacy_upsert.sql");
+  ok(i96.after === "0063_company_initiated_threads.sql" && i96.prerequisites.map((p) => `${p.file}:${p.status}`).join() === `0063_company_initiated_threads.sql:step ${stepOf("0063_company_initiated_threads.sql")}`,
+     "0096 runs IMMEDIATELY after 0063 and names it as its prerequisite (satisfied the step before)");
+  ok(i96.marker && i96.marker.from === "runner" && /started_by/.test(i96.checkpoint) && /conversations_investor_id_company_slug_key/.test(i96.checkpoint), "0096's checkpoint is its post-audit marker (started_by + the full constraint)");
+}
 
 console.log("\n  PLAN: a fixture audit (0058, 0061a, 0062 applied; 0077 not)");
 // A production where 0058 is applied cannot also hold it: these fixtures plan without the HELD entries.
 const UNHELD = { DEFERRED: Object.fromEntries(Object.entries(DEFERRED).filter(([f]) => !HELD.has(f))), PENDING, UNVERIFIED, PREREQUISITES, NEEDS_SUPERUSER };
 const PF = plan(FIXTURE, { manifest: UNHELD });
-ok(PF.items.length === N_FIXTURE && PF.items[0].file === "0094_company_follows_upsert_grant.sql" && PF.items[1].file === "0077_listing_reports_installed_app_compat.sql" && PF.items[2].file === "0092_listing_reports_column_insert.sql" && PF.items[3].file === "0093_listing_reports_rate_limit.sql" && PF.items[4].file === "0063_company_initiated_threads.sql",
-   `${N_FIXTURE} steps; 0094 and 0077 go FIRST because their partners 0061a and 0058 are already applied; 0092 and 0093 right behind 0077`, PF.items.slice(0, 5).map((i) => i.file).join(" "));
-ok(PF.warnings.some((w) => /0077.*FIRST/.test(w)) && PF.warnings.some((w) => /0094.*FIRST/.test(w)) && PF.warnings.filter((w) => /manifest still lists it PENDING/.test(w)).length === 3, "it warns about that, and that the manifest still lists 0058/0061a/0062 as pending");
+ok(JSON.stringify(PF.items.slice(0, 7).map((i) => i.file)) === JSON.stringify(["0094_company_follows_upsert_grant.sql", "0095_public_lead_form_guard.sql", "0077_listing_reports_installed_app_compat.sql",
+     "0092_listing_reports_column_insert.sql", "0093_listing_reports_rate_limit.sql", "0063_company_initiated_threads.sql", "0096_conversations_legacy_upsert.sql"]) && PF.items.length === N_FIXTURE,
+   `${N_FIXTURE} steps; 0094 and 0095 go FIRST because their partners 0061a and 0058 are already applied; 0077, 0092, 0093 right behind 0095; 0096 right after 0063`, PF.items.slice(0, 7).map((i) => i.file).join(" "));
+ok(PF.warnings.some((w) => /^0095_public_lead_form_guard\.sql goes FIRST: 0058_close_public_insert\.sql is already applied/.test(w)) && PF.warnings.some((w) => /^0094.*FIRST/.test(w)) && !PF.warnings.some((w) => /^0077.*FIRST/.test(w))
+   && PF.warnings.filter((w) => /FIRST/.test(w)).length === 2 && PF.warnings.filter((w) => /manifest still lists it PENDING/.test(w)).length === 3,
+   "it warns about that (0095 and 0094 only: 0077 now follows 0095, not 0058), and that the manifest still lists 0058/0061a/0062 as pending", PF.warnings.join("; "));
+ok(PF.items.find((i) => i.file === "0095_public_lead_form_guard.sql").prerequisites.map((p) => `${p.file}:${p.status}`).join() === "0057_submission_throttle.sql:applied,0058_close_public_insert.sql:applied",
+   "0095's prerequisites (0057, 0058) read applied");
 ok(PF.items.find((i) => i.file === "0077_listing_reports_installed_app_compat.sql").prerequisites[0].status === "applied", "0077's prerequisite (0058) reads applied");
 {
-  const log = [{ ref: PROD, file: "0077_listing_reports_installed_app_compat.sql", status: "applied" }, { ref: PROD, file: "0063_company_initiated_threads.sql", status: "applied" },
+  // A log the new chain can produce: 0095 then 0077 (after the fixture's 0058), 0063 then 0096.
+  const log = [{ ref: PROD, file: "0095_public_lead_form_guard.sql", status: "applied" }, { ref: PROD, file: "0077_listing_reports_installed_app_compat.sql", status: "applied" },
+               { ref: PROD, file: "0063_company_initiated_threads.sql", status: "applied" }, { ref: PROD, file: "0096_conversations_legacy_upsert.sql", status: "applied" },
                { ref: STAGING, file: "0064_notification_clearing.sql", status: "applied" }];
   const PL = plan(FIXTURE, { log, manifest: UNHELD });
-  ok(PL.items[0].file === "0094_company_follows_upsert_grant.sql" && PL.items[1].file === "0092_listing_reports_column_insert.sql" && PL.items[2].file === "0093_listing_reports_rate_limit.sql" && PL.items[3].file === "0064_notification_clearing.sql" && PL.items.length === N_FIXTURE - 2,
-     "the apply log subtracts what this runner applied (and ignores entries for another ref); 0094 and 0092 go first, their partners 0061a and 0077 being applied", PL.items.slice(0, 3).map((i) => i.file).join(" "));
+  ok(JSON.stringify(PL.items.slice(0, 4).map((i) => i.file)) === JSON.stringify(["0094_company_follows_upsert_grant.sql", "0092_listing_reports_column_insert.sql", "0093_listing_reports_rate_limit.sql", "0064_notification_clearing.sql"]) && PL.items.length === N_FIXTURE - 4,
+     "the apply log subtracts what this runner applied (and ignores entries for another ref); 0094 and 0092 go first, their partners 0061a and 0077 being applied", PL.items.slice(0, 4).map((i) => i.file).join(" "));
+  ok(PL.warnings.filter((w) => /FIRST/.test(w)).map((w) => w.split(" ")[0]).sort().join() === "0092_listing_reports_column_insert.sql,0094_company_follows_upsert_grant.sql", "...and warns for exactly those two", PL.warnings.join("; "));
+}
+{
+  // 0063 logged without 0096: 0096 goes FIRST (its partner applied), with a warning.
+  const log = [{ ref: PROD, file: "0063_company_initiated_threads.sql", status: "applied" }];
+  const PL = plan(FIXTURE, { log, manifest: UNHELD });
+  ok(PL.items[0].file === "0096_conversations_legacy_upsert.sql" && PL.warnings.some((w) => /^0096_conversations_legacy_upsert\.sql goes FIRST: 0063_company_initiated_threads\.sql is already applied/.test(w))
+     && PL.items[0].prerequisites.map((p) => `${p.file}:${p.status}`).join() === "0063_company_initiated_threads.sql:applied" && PL.items.length === N_FIXTURE - 1,
+     "0063 logged without 0096: 0096 goes FIRST, warned, its prerequisite read applied", PL.items.slice(0, 3).map((i) => i.file).join(" "));
+}
+{
+  // The real record with the hold lifted and 0058 logged as applied: 0095 FIRST (warned), then 0077's chain.
+  const log = [{ ref: PROD, file: "0058_close_public_insert.sql", status: "applied" }];
+  const PL = plan(RECORD, { log, manifest: UNHELD });
+  ok(JSON.stringify(PL.items.map((i) => i.file)) === JSON.stringify(EXPECTED.filter((f) => f !== "0058_close_public_insert.sql")),
+     "0058 logged as applied: 0095 is step 1, then 0077, 0092, 0093 (the rest unchanged)", PL.items.slice(0, 5).map((i) => i.file).join(" "));
+  ok(PL.warnings.length === 1 && /^0095_public_lead_form_guard\.sql goes FIRST: 0058_close_public_insert\.sql is already applied without it/.test(PL.warnings[0]), "...with one warning, naming 0095 and 0058", PL.warnings.join("; "));
+  ok(PL.items[0].prerequisites.map((p) => `${p.file}:${p.status}`).join() === "0057_submission_throttle.sql:applied,0058_close_public_insert.sql:applied"
+     && PL.items[1].prerequisites.map((p) => `${p.file}:${p.status}`).join() === "0058_close_public_insert.sql:applied", "0095 needs 0057 and 0058 (applied); 0077 needs 0058 (applied)");
+  // ...and with 0058 and 0095 both logged, 0077 is the one that goes FIRST.
+  const PL2 = plan(RECORD, { log: [...log, { ref: PROD, file: "0095_public_lead_form_guard.sql", status: "applied" }], manifest: UNHELD });
+  ok(PL2.items[0].file === "0077_listing_reports_installed_app_compat.sql" && PL2.items[1].file === "0092_listing_reports_column_insert.sql" && PL2.warnings.length === 1 && /^0077_listing_reports_installed_app_compat\.sql goes FIRST: 0095_public_lead_form_guard\.sql is already applied/.test(PL2.warnings[0]),
+     "0058 and 0095 logged: 0077 goes FIRST (its partner 0095 applied), 0092 behind it", PL2.warnings.join("; "));
 }
 ok(JSON.stringify(plan(RECORD).items.map((i) => i.file)) === JSON.stringify(PLANNED), "planning has no side effects (same plan twice)");
 
@@ -180,6 +223,19 @@ is(refusal(() => plan(RECORD, { log: [{ ref: PROD, file: "0999_ghost.sql", statu
 // Request checks plan without the HELD entries, so step 1 is 0058 as in the full rollout.
 const PU = plan(RECORD, { manifest: UNHELD });
 const stepOfU = (f) => EXPECTED.indexOf(f) + 1;
+console.log("\n  PLAN: the recorded audit with the hold lifted (the full rollout)");
+ok(JSON.stringify(PU.items.map((i) => i.file)) === JSON.stringify(EXPECTED) && PU.warnings.length === 0, `${EXPECTED.length} steps, exactly the expected order, no warnings`, PU.items.map((i) => i.file).join(" "));
+{
+  const at = (f) => PU.items.findIndex((i) => i.file === f);
+  ok(at("0058_close_public_insert.sql") === 0 && at("0095_public_lead_form_guard.sql") === 1 && at("0077_listing_reports_installed_app_compat.sql") === 2 && at("0092_listing_reports_column_insert.sql") === 3 && at("0093_listing_reports_rate_limit.sql") === 4,
+     "unheld: 0058 (step 1) -> 0095 (step 2) -> 0077 -> 0092 -> 0093");
+  ok(at("0096_conversations_legacy_upsert.sql") === at("0063_company_initiated_threads.sql") + 1, `unheld: 0096 directly after 0063 (step ${stepOfU("0096_conversations_legacy_upsert.sql")})`);
+  const i95 = PU.items[1];
+  ok(i95.after === "0058_close_public_insert.sql" && PU.items[2].after === "0095_public_lead_form_guard.sql"
+     && i95.prerequisites.map((p) => `${p.file}:${p.status}`).join() === "0057_submission_throttle.sql:applied,0058_close_public_insert.sql:step 1",
+     "0095 runs IMMEDIATELY after 0058 (needs 0057: applied, 0058: step 1); 0077 IMMEDIATELY after 0095");
+  ok(i95.marker && i95.marker.from === "runner" && /public_form_limits/.test(i95.checkpoint) && i95.rollback && fs.existsSync(i95.rollback), "0095 has its post-audit checkpoint and a rollback file");
+}
 console.log("\n  REFUSALS: the request (before the DSN is read)");
 const A = (s) => parseArgs(s.split(" ").filter(Boolean));
 const OK_ARGS = `--apply --only 0058_close_public_insert.sql --ref=${PROD} --approved-by=user-in-chat-2026-11-02`;

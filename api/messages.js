@@ -182,6 +182,8 @@ async function handleSend(req, res) {
 // upserted. Migration 0063 keys threads on two PARTIAL unique indexes:
 //   uq_conv_investor_thread (investor_id, company_slug)       WHERE sender_company_id IS NULL
 //   uq_conv_company_thread  (sender_company_id, company_slug) WHERE sender_company_id IS NOT NULL
+// (0096 replaces the first with the full (investor_id, company_slug) constraint,
+// company threads then carry investor_id NULL; select-then-insert still holds.)
 // PostgREST cannot name a partial index in on_conflict (42P10), so both the
 // investor send and the company-started thread were broken. Select, then
 // insert; a concurrent insert of the same thread loses on the unique index
@@ -265,7 +267,8 @@ export async function insertMessageOnce({ convId, sender, text, clientMessageId 
  *     or publisher (a03, approved); analysts and viewers read threads but do
  *     not send. Platform admins not included (as in 0063). 0076's
  *     conv_insert_company / msg_insert_* policies hold the same line;
- *   * investor_id is the acting user, so the row stays attributable;
+ *   * the acting user is recorded (started_by after 0096, investor_id before),
+ *     so the row stays attributable;
  *   * the recipient exists and is not the sending company.
  * The first message is sender='investor' -- positional: the initiating side.
  */
@@ -292,6 +295,10 @@ async function handleStart(req, res) {
   // do not exist yet, and creating one would make an INVESTOR thread instead.
   const probe = await serviceRest("conversations?select=sender_company_id&limit=0");
   if (!probe.ok) return bad(res, 503, "company-threads-unavailable");
+  // 0096 moves the acting user from investor_id to started_by, so the full
+  // (investor_id, company_slug) constraint that mineex.ca's older web app upserts
+  // against can come back. Before 0096 the 0063 shape (investor_id) is still required.
+  const hasStartedBy = (await serviceRest("conversations?select=started_by&limit=0")).ok;
 
   const fromR = await readRows(await serviceRest(`companies?id=eq.${encodeURIComponent(fromCompanyId)}&select=slug&limit=1`));
   const fromSlug = String((fromR[0] && fromR[0].slug) || "").toLowerCase();
@@ -304,7 +311,9 @@ async function handleStart(req, res) {
   const found = await findOrCreateThread({
     query: `sender_company_id=eq.${encodeURIComponent(fromCompanyId)}&company_slug=eq.${encodeURIComponent(toSlug)}`,
     match: (c) => c.sender_company_id === fromCompanyId,
-    insert: { investor_id: who.user.id, sender_company_id: fromCompanyId, company_slug: toSlug, company_name: toName },
+    insert: hasStartedBy
+      ? { started_by: who.user.id, sender_company_id: fromCompanyId, company_slug: toSlug, company_name: toName }
+      : { investor_id: who.user.id, sender_company_id: fromCompanyId, company_slug: toSlug, company_name: toName },
     create: listed,
   });
   if (!found.conv) return listed ? bad(res, 500, "conversation-failed") : bad(res, 404, "company-not-found");
