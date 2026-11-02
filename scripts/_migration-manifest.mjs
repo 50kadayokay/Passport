@@ -115,7 +115,7 @@ export const PENDING = {
   "0061a_table_privilege_hardening.sql":
     "Revokes the default all-7 grant on company_follows/post_events/post_likes/user_company_relationships; re-grants only what traced call sites need. anon gets nothing. NO code deploy required.",
   "0094_company_follows_upsert_grant.sql":
-    "UPDATE on company_follows (user_id, company_id) for authenticated: installed 1.0-1.3.2 follow() upserts with merge-duplicates (ON CONFLICT DO UPDATE), which 0061a's select/insert/delete refuses (42501, reproduced on staging). No non-admin UPDATE policy exists, so RLS still refuses every real update; the migration checks that before granting. Run right after 0061a (Phase 3). Not applied anywhere.",
+    "UPDATE on company_follows (user_id, company_id) for authenticated: installed 1.0-1.3.2 follow() upserts with merge-duplicates (ON CONFLICT DO UPDATE), which 0061a's select/insert/delete refuses (42501, reproduced on staging). No non-admin UPDATE policy exists, so RLS still refuses every real update; the migration checks that before granting. Run right after 0061a (Phase 3). Applied to staging 2026-11-02.",
 
 };
 

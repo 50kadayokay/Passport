@@ -218,3 +218,5 @@ Apply 0080/0090 after approval, then rerun isolation and the live sweep.
   (installed Follow upsert after 0061a), not applied.
 - Staging: isolation 1088/0/0/0, authz 446/0, 25 live suites, rate-limit 119/129/131, alert 9/0, round trip 82/0,
   captures 15/0, checkpoints 31/0, npm test and builds. Handoff: docs/MORNING-HANDOFF-2026-11-02.md.
+- 0094 applied to staging (approved 2026-11-02): apply-then-rollback fidelity exact (only 2 column grants change), 0094 check 24/0,
+  installed-app matrix 315/0, round trip 81/0, runner checkpoints 31/0, npm test. Phase 3 now runs all six files.

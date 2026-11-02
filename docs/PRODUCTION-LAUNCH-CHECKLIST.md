@@ -39,7 +39,7 @@ Nothing here has been done in production. Pilot scope: 2–3 companies.
 |---|---|---|
 | 4a | I push `portal-work` and open the PR to `main`; **you merge it** (Vercel deploys; this also picks up `SITE_REVALIDATE_SECRET`). New features stay inert until their migrations. | a Preview build appears (delete it, check logs); Checkpoint 1 fails: Vercel instant rollback |
 | 4b | Read-only smoke (`production-smoke.mjs --production`): pages, headers, CSP Report-Only, investor feed and profile. | any FAIL |
-| 5a | Phase 3: 0058, 0077, 0092, 0093, 0061a, 0094 (0094 pending your decision: keeps installed apps' Follow on `/p/` working after 0061a) | a checkpoint fails: the runner's `--rollback` for that file |
+| 5a | Phase 3: 0058, 0077, 0092, 0093, 0061a, 0094 (0094 keeps installed apps' Follow working after 0061a; on staging since 2026-11-02) | a checkpoint fails: the runner's `--rollback` for that file |
 | 5b | Phase 4: 0062–0066 (0065c in no-transaction mode) | same |
 | 5c | Phase 5: 0068–0076, 0078 (0073a no-transaction; functions captured before every file that replaces one) | same |
 | 5d | Phase 5b: 0080, 0085–0088, 0090, 0091 | same; never roll back 0071 while 0088 is applied |

@@ -22,7 +22,7 @@ const plan = buildPlan({ files: fs.readdirSync("supabase/migrations").filter((f)
 // Pending files NOT yet on staging: their checkpoint must read false there
 // (true would mean staging was changed without the record). Remove a file from
 // this set once S4 applies it to staging.
-const NOT_ON_STAGING = new Set(["0094_company_follows_upsert_grant.sql"]);
+const NOT_ON_STAGING = new Set([]);   // 0094 applied to staging 2026-11-02
 
 let pass = 0, fail = 0;
 const ok = (c, m, d = "") => { if (c) { pass++; console.log(`  ✓ ${m}`); } else { fail++; console.error(`  ✗ ${m}${d ? `\n      ${d}` : ""}`); } };

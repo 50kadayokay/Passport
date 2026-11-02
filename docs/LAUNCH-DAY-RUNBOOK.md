@@ -44,7 +44,7 @@ PRODUCTION_DSN_FILE=~/.mineex-prod-dsn node scripts/apply-migrations-production.
 PRODUCTION_DSN_FILE=~/.mineex-prod-dsn node scripts/apply-migrations-production.mjs --apply --only 0093_listing_reports_rate_limit.sql --ref=rvptronniomlqumjhyrr --approved-by="<your name>, <date>, Phase 3 approval in Claude chat"
 # 5. 0061a_table_privilege_hardening.sql
 PRODUCTION_DSN_FILE=~/.mineex-prod-dsn node scripts/apply-migrations-production.mjs --apply --only 0061a_table_privilege_hardening.sql --ref=rvptronniomlqumjhyrr --approved-by="<your name>, <date>, Phase 3 approval in Claude chat"
-# 6. 0094_company_follows_upsert_grant.sql   (only if you approved 0094; it fixes installed apps' Follow on /p/ pages)
+# 6. 0094_company_follows_upsert_grant.sql   (fixes installed apps' Follow after 0061a; applied and verified on staging 2026-11-02)
 PRODUCTION_DSN_FILE=~/.mineex-prod-dsn node scripts/apply-migrations-production.mjs --apply --only 0094_company_follows_upsert_grant.sql --ref=rvptronniomlqumjhyrr --approved-by="<your name>, <date>, Phase 3 approval in Claude chat"
 ```
 Then smoke stage `phase3` (section 3).
