@@ -25,7 +25,10 @@ Object.assign(process.env, {
 });
 delete process.env.MINEEX_ENV;
 delete process.env.AI_ENDPOINTS_DISABLED;
-const CLIENT_DB_HOST = "rvptronniomlqumjhyrr.supabase.co";   // answered by the stub; never contacted
+// Where src/lib/supabase.js points under plain node with no Vite env: an
+// unresolvable host since 2026-11-01 (it used to be the production project).
+// Answered by the stub; never contacted.
+const CLIENT_DB_HOST = "supabase-url-not-configured.invalid";
 
 // ------------------------------------------------------------------ world --
 const A = "aaaaaaaa-0000-4000-8000-00000000000a", B = "bbbbbbbb-0000-4000-8000-00000000000b";

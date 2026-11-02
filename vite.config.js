@@ -149,9 +149,14 @@ function assertBuildTarget(mode) {
 }
 
 // https://vite.dev/config/
-export default defineConfig(({ mode }) => {
+export default defineConfig(({ command, mode }) => {
   assertBuildTarget(mode);
   return {
+    // src/lib/supabase.js falls back to the production project ONLY in a
+    // production build (the web deploy, and the native apps' `vite build`).
+    // A literal, so every other bundle (dev server, --mode development) drops
+    // the production values at build time.
+    define: { __MINEEX_PRODUCTION_BUILD__: JSON.stringify(command === "build" && mode === "production") },
     plugins: [react(), devApiRoutes()],
     server: {
       host: true,

@@ -31,6 +31,8 @@ const REST = `${SUPABASE_URL}/rest/v1`;
 // differently from the thing it demonstrates is worse than no demo.
 const DEMO_CLEARED_KEY = "mineex-demo-notifications-cleared-at";
 const demoCleared = () => { try { return sessionStorage.getItem(DEMO_CLEARED_KEY); } catch { return null; } };
+const DEMO_SEEN_KEY = "mineex-demo-notifications-seen-at";
+const demoSeen = () => { try { return sessionStorage.getItem(DEMO_SEEN_KEY); } catch { return null; } };
 
 /**
  * The feed, with WHY it is missing when it is: { ok: true, rows } |
@@ -78,25 +80,43 @@ export async function listCompanyNotifications(companyId, limit = 50) {
   return r.ok ? r.rows : null;
 }
 
-/** When this company last opened its notifications. Null = never. */
-export async function companyLastSeenAt(companyId) {
-  if (!companyId) return null;
+/**
+ * When this company last opened its notifications: { ok: true, seen } (seen null
+ * = never) | { ok: false, status? }. The shell's poller needs the status to stop
+ * on a 401/403 (lib/pollGuard.js).
+ */
+export async function loadCompanyLastSeen(companyId) {
+  // The demo keeps its read receipt locally, like its cleared_at: without this
+  // branch /portaldemo asked the real table every minute.
+  if (import.meta.env && import.meta.env.DEV && isPortalDemo()) return { ok: true, seen: demoSeen() };
+  if (!companyId) return { ok: false };
   try {
     const h = await authHeaders();
     const res = await fetch(
       `${REST}/company_notification_reads?company_id=eq.${companyId}&select=seen_at`,
       { headers: h }
     );
-    if (!res.ok) return null;
+    if (!res.ok) return { ok: false, status: res.status };
     const rows = await res.json().catch(() => []);
-    return (Array.isArray(rows) && rows[0] && rows[0].seen_at) || null;
+    return { ok: true, seen: (Array.isArray(rows) && rows[0] && rows[0].seen_at) || null };
   } catch {
-    return null;
+    return { ok: false };
   }
+}
+
+/** When this company last opened its notifications. Null = never (or unreadable). */
+export async function companyLastSeenAt(companyId) {
+  const r = await loadCompanyLastSeen(companyId);
+  return r.ok ? r.seen : null;
 }
 
 /** Best-effort: a failed read receipt must not stop someone reading the list. */
 export async function markCompanyNotificationsSeen(companyId) {
+  if (import.meta.env && import.meta.env.DEV && isPortalDemo()) {
+    const at = new Date().toISOString();
+    try { sessionStorage.setItem(DEMO_SEEN_KEY, at); } catch {}
+    return at;
+  }
   if (!companyId) return null;
   try {
     const h = await authHeaders();

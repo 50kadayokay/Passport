@@ -198,28 +198,19 @@ export default function Portal({ company: initial, switchCompany, adminMode = fa
   const [notifCount, setNotifCount] = useState(0);
   const [msgCount, setMsgCount] = useState(0);
   useEffect(() => {
-    let alive = true;
     if (!initial.id) return undefined;
-    const tick = async () => {
-      const m = await import("../lib/companyNotifications.js");
-      const [rows, seen] = await Promise.all([
-        m.listCompanyNotifications(initial.id),
-        m.companyLastSeenAt(initial.id),
-      ]);
-      if (alive) setNotifCount(m.companyUnreadCount(rows, seen));
-      // Messages unread, from the SAME source the inbox uses
-      // (conversations.company_read_at vs last_message_at). Counted separately
-      // and never merged -- a conversation and a notification about it are two
-      // different things, and adding them would double-count.
-      try {
-        const mm = await import("../lib/messages.js");
-        const convs = await mm.listConversations(initial.slug);
-        if (alive) setMsgCount((convs || []).filter((c) => mm.isUnread(c, initial.id)).length);
-      } catch (_) { /* messaging not provisioned -- leave at 0 */ }
-    };
-    tick();
-    const t = setInterval(tick, 60000);
-    return () => { alive = false; clearInterval(t); };
+    // lib/portalBadges.js: once a minute, only with a session, and never again
+    // after a 401/403 (lib/pollGuard.js).
+    let alive = true, poll = null;
+    import("../lib/portalBadges.js").then((badges) => {
+      if (!alive) return;
+      poll = badges.startBadgePoll({
+        companyId: initial.id, slug: initial.slug,
+        onNotifications: (n) => { if (alive) setNotifCount(n); },
+        onMessages: (n) => { if (alive) setMsgCount(n); },
+      });
+    });
+    return () => { alive = false; if (poll) poll.stop(); };
   }, [initial.id]);
 
   // Hydrate the full record (with profile JSON) once; PortalGate only passed the lean row.

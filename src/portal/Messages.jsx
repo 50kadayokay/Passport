@@ -17,6 +17,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { can } from "../lib/companyRoles.js";
+import { mayPoll, pollRefused } from "../lib/pollGuard.js";
 import { Mail, Search, Send, Loader2, AlertCircle, ArrowLeft, RefreshCw, Paperclip, X, FileText, Download, PenSquare, Building2, ArrowUpRight } from "lucide-react";
 import {
   loadConversations, loadMessages, sendCompanyReply, markConversationRead,
@@ -180,9 +181,9 @@ export default function Messages({ company, hideHeading = false }) {
   // replace the inbox with "No messages yet", which reads as "no investor has
   // ever written to us".
   const loadInbox = useCallback(async () => {
-    if (!slug) return;
+    if (!slug) return null;
     const r = await loadConversations(slug, company?.id);
-    if (!r.ok) { setInboxErr(true); setConvs((c) => c || []); return; }
+    if (!r.ok) { setInboxErr(true); setConvs((c) => c || []); return r; }
     setInboxErr(false);
     const rows = r.rows;
     setConvs(rows);
@@ -192,6 +193,7 @@ export default function Messages({ company, hideHeading = false }) {
     ]);
     setSenders(s);
     setLatest(l);
+    return r;
   }, [slug, company?.id]);
 
   useEffect(() => {
@@ -205,10 +207,14 @@ export default function Messages({ company, hideHeading = false }) {
     return () => { alive = false; };
   }, [loadInbox]);
 
-  // Keep the inbox current while the page is open.
+  // Keep the inbox current while the page is open -- with a session only, and
+  // never again after a 401/403 (lib/pollGuard.js).
   useEffect(() => {
     if (!ready) return undefined;
-    const t = setInterval(() => { loadInbox(); }, POLL_MS);
+    const t = setInterval(async () => {
+      if (!mayPoll()) return;
+      if (pollRefused(await loadInbox())) clearInterval(t);
+    }, POLL_MS);
     return () => clearInterval(t);
   }, [ready, loadInbox]);
 
@@ -236,7 +242,9 @@ export default function Messages({ company, hideHeading = false }) {
   useEffect(() => {
     if (!ready || !openId) return undefined;
     const t = setInterval(async () => {
+      if (!mayPoll()) return;
       const r = await loadMessages(openId);
+      if (pollRefused(r)) { clearInterval(t); return; }
       // A failed poll leaves the thread as it is; it used to blank it.
       if (!r.ok) return;
       setThreadErr(false);
