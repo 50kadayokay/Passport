@@ -10,6 +10,7 @@ export const DRAFT_ROLES = ["owner", "admin", "editor"];
 export const PUBLISH_ROLES = ["owner", "admin"];
 
 import { apiHeaders } from "./auth.js";
+import { API_BASE } from "./platform.js";   // "" on the web; the deployed API from the native apps
 
 // What each refusal means to the person in front of the editor.
 export const MESSAGES = {
@@ -34,7 +35,7 @@ async function call(body) {
   try { h = await apiHeaders({ "content-type": "application/json" }); }
   catch (e) { return { ok: false, error: "sign-in-required", status: 401 }; }
   try {
-    const r = await fetch("/api/profile-draft", { method: "POST", headers: h, body: JSON.stringify(body) });
+    const r = await fetch(`${API_BASE}/api/profile-draft`, { method: "POST", headers: h, body: JSON.stringify(body) });
     const out = await r.json().catch(() => null);
     if (out && typeof out === "object") return { ...out, status: r.status, ok: r.ok && out.ok === true };
     return { ok: false, error: `HTTP ${r.status}`, status: r.status };

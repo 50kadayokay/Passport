@@ -908,8 +908,8 @@ function AppRoot() {
             // ACTIVE company_memberships row — matching the server's owns_company()/RLS, which
             // already accepts either. The membership query is RLS-backed (it can only return the
             // caller's own rows), so this is real authorization, never the slug/URL.
-            // NOTE: launch only mints the 'owner' role; when editor/viewer/analyst roles ship,
-            // the owner UI must gate write/publish actions by __CO_ROLE__ (captured below).
+            // Roles shipped (0076): only owner/admin get this view (mayManage below); edits
+            // then go through /api/profile-draft, which re-checks the role on the server.
             try {
               let coRole = null;
               if (me && rows[0].owner_id && rows[0].owner_id === me.id) {
@@ -921,7 +921,11 @@ function AppRoot() {
                   if (Array.isArray(mrows) && mrows[0] && mrows[0].role) coRole = mrows[0].role;
                 } catch (_) {}
               }
-              if (coRole) {
+              // The owner view IS the company's profile editor, so it is for the company's
+              // OWNERS and ADMINS only (lib/companyProfileEdit.js): another member, or a
+              // platform admin without such a membership, gets the investor app.
+              const mayManage = coRole === "owner" || coRole === "admin";
+              if (mayManage) {
                 window.__PP__.COMPANY_ACCOUNT = true;
                 window.__CO_ID__ = rows[0].id; window.__CO_SLUG__ = slug; window.__CO_ROLE__ = coRole;
                 // Snapshot the owner's OWN company context. Browsing other companies in-app
@@ -934,7 +938,7 @@ function AppRoot() {
               // on the Profile tab; otherwise show nothing of this company and bounce to the
               // investor app (handles stale links, revoked memberships, unauthorized attempts).
               if (isManage) {
-                if (coRole) { try { window.__CO_MANAGE__ = true; } catch (_) {} }
+                if (mayManage) { try { window.__CO_MANAGE__ = true; } catch (_) {} }
                 else { cancelled = true; window.location.replace("/app"); return; }
               }
             } catch (_) {}

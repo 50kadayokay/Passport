@@ -28,9 +28,9 @@ function demoFocusStyle(on, restShadow) {
   };
 }
 import { fetchCompany, SUPABASE_URL, SUPABASE_ANON } from "../lib/supabase.js";
-import { updateCompanyProfile, myPortalCompanies, companyFollowerCount, companyFollowers } from "../lib/portal.js";  // company-account: persist edits + resolve managed companies + follower count/list
+import { myPortalCompanies, companyFollowerCount, companyFollowers } from "../lib/portal.js";  // company-account: resolve manage
+import { editorRole, mayEditProfile, saveProfileEdit, EDITOR_ROLES } from "../lib/companyProfileEdit.js"; // ?manage= editor: owner/admin only, draft -> publishd companies + follower count/list
 import { uploadCompanyMedia } from "../lib/storage.js";          // company-account: upload a new logo/media
-import { mapProfileToPP } from "../lib/profileToPP.js";          // company-account: rebuild pp after an edit
 import { API_BASE, isNativeApp, isAndroidApp } from "../lib/platform.js";
 
 // REVIEW-ONLY: ?nav=1 forces the bottom tab bar to show in a web browser so the whole app can be
@@ -10053,31 +10053,39 @@ function CompanyProfileScreen({ onScan, onCreate }) {
   }));
   const [toast, setToast] = useState("");
   const toastT = useRef(null);
-  const flash = (m) => { setToast(m); clearTimeout(toastT.current); toastT.current = setTimeout(() => setToast(""), 1800); };
+  const flash = (m, ms = 1800) => { setToast(m); clearTimeout(toastT.current); toastT.current = setTimeout(() => setToast(""), ms); };
   useBackHandler(editing || settingsOpen, () => { setSettingsOpen(false); setEditing(false); });
-  // Persist profile edits to THIS company's row (when signed in as the owner). Falls back to a
-  // local-only update in the demo (no real company id). Media (a new logo) uploads to Storage.
+  // lib/companyProfileEdit.js: only the company's owners and admins edit here, by the
+  // role the SERVER reports for the caller (never the URL, never a guess); a platform
+  // admin without that membership is not one (as 0091). The local demo (no company id)
+  // keeps its local-only editing.
+  const coId = (typeof window !== "undefined" && window.__CO_ID__) || null;
+  const [editorOk, setEditorOk] = useState(!coId);
+  useEffect(() => {
+    if (!coId) return undefined;
+    let live = true;
+    editorRole({ id: coId }).then((role) => { if (live) setEditorOk(mayEditProfile(role)); }).catch(() => { if (live) setEditorOk(false); });
+    return () => { live = false; };
+  }, [coId]);
+  // Edits go through the portal's draft-and-publish workflow (/api/profile-draft):
+  // save a draft, then publish it. "Profile updated" appears only once publish is
+  // confirmed by the server; anything else shows the server's own reason. Media (a
+  // new logo or contact photo) uploads to Storage first.
   const saveCompany = async (f) => {
-    setCo(f);
-    const coId = (typeof window !== "undefined" && window.__CO_ID__) || null;
-    if (!coId) { flash("Saved"); return; }
-    flash("Saving…");
+    if (!coId) { setCo(f); flash("Saved"); return; }
+    flash("Saving…", 60000);
     try {
       let avatar = f.avatar;
       if (f.avatarFile) { try { const url = await uploadCompanyMedia(f.avatarFile); if (url) avatar = url; } catch (_) {} }
       let contactPhoto = f.contactPhoto;
       if (f.contactPhotoFile) { try { const url = await uploadCompanyMedia(f.contactPhotoFile); if (url) contactPhoto = url; } catch (_) {} }
-      const h = await authHeaders();
-      const cur = await fetch(`${SUPABASE_URL}/rest/v1/companies?id=eq.${coId}&select=profile`, { headers: h }).then((r) => r.json()).catch(() => []);
-      const profile = (cur && cur[0] && cur[0].profile) || {};
-      profile.company = { ...(profile.company || {}), slogan: f.bio, website: f.website, headquarters: f.address, linkedin: f.linkedin, twitter: f.twitter, instagram: f.instagram };
-      profile.contact = { ...(profile.contact || {}), email: f.email, phone: f.phone, name: f.contactName, role: f.contactRole, photo: contactPhoto };
-      profile.brand = { ...(profile.brand || {}), avatar };
-      try { profile.pp = mapProfileToPP(profile); } catch (_) {}
-      const saved = await updateCompanyProfile(coId, profile);
-      if (saved) { try { if (saved.pp) applyPP(saved.pp); } catch (_) {} flash("Profile updated"); }
-      else flash("Couldn't save — try again");
-    } catch (_) { flash("Couldn't save — try again"); }
+      const r = await saveProfileEdit(coId, { ...f, avatar, contactPhoto });
+      if (r.ok) {
+        setCo({ ...f, avatar, contactPhoto });
+        try { applyPP(r.pp); window.__CO_PP__ = r.pp; } catch (_) {}
+        flash("Profile updated");
+      } else flash(r.message || "Couldn't save — try again", 5000);
+    } catch (_) { flash("Couldn't save — try again", 5000); }
   };
   return (
     <div className="relative flex h-full flex-col">
@@ -10086,7 +10094,7 @@ function CompanyProfileScreen({ onScan, onCreate }) {
           Followers (private count) + Contacts. Share profile lives in Settings; editing is the
           cog inside the Contacts card. */}
       <CompanyProfile owner onCreate={onCreate} onScan={onScan}
-        onEdit={() => { haptic(); setEditing(true); }}
+        onEdit={editorOk ? () => { haptic(); setEditing(true); } : undefined}
         onSettings={() => { haptic(); setSettingsOpen(true); }}
       />
 
@@ -10095,7 +10103,7 @@ function CompanyProfileScreen({ onScan, onCreate }) {
           <span className="rounded-full px-4 py-2 text-[12.5px] font-bold text-white" style={{ background: "rgba(15,23,42,0.92)", boxShadow: "0 8px 22px -8px rgba(15,23,42,0.5)" }}>{toast}</span>
         </div>, ppFrameEl || document.body)}
 
-      {editing && <EditCompanyProfile initial={co} onSave={(f) => { saveCompany(f); setEditing(false); }} onClose={() => setEditing(false)} />}
+      {editing && editorOk && <EditCompanyProfile initial={co} onSave={(f) => { saveCompany(f); setEditing(false); }} onClose={() => setEditing(false)} />}
       {settingsOpen && (() => {
         const u = (() => { try { return getUser(); } catch { return null; } })();
         const inits = (COMPANY.name || "?").trim().split(/\s+/).slice(0, 2).map((w) => w[0] || "").join("").toUpperCase() || "?";
@@ -10130,7 +10138,9 @@ function AccountSettings({ onClose, audience = "investor", user, email, displayN
   useEffect(() => {
     if (!user) { setManaged([]); return; }
     let live = true;
-    myPortalCompanies().then((list) => { if (live) setManaged(Array.isArray(list) ? list.filter((c) => c && c.slug) : []); }).catch(() => { if (live) setManaged([]); });
+    // Only the companies whose OWNER or ADMIN this user is (lib/companyProfileEdit.js):
+    // manage mode is the company's profile editor, so no other member is offered it.
+    myPortalCompanies().then((list) => { if (live) setManaged(Array.isArray(list) ? list.filter((c) => c && c.slug && EDITOR_ROLES.includes(c.role)) : []); }).catch(() => { if (live) setManaged([]); });
     return () => { live = false; };
   }, [user && user.id]);
   const goManage = (slug) => { haptic(); try { window.location.assign(`/app?manage=${encodeURIComponent(slug)}`); } catch (_) {} };
