@@ -1,58 +1,71 @@
 # Production launch checklist: controlled pilot (2026-11-01)
 
-The short version of `docs/PRODUCTION-ROLLOUT-PLAN.md`. The plan holds the detail: the ordered
-**Runbook** with exact commands, who runs each step, rollbacks, "never" rules and stop conditions; the
-migration table; and the checkpoints. Nothing here has been done in production. Each **[you]** item is an
-approval or a step only you can take; nothing past "Ready" starts without it.
+Your steps, in order. Detail lives in `docs/PRODUCTION-ROLLOUT-PLAN.md` (the **Runbook**: commands,
+rollbacks, "never" rules, stop conditions), `docs/PRODUCTION-ENV-AUDIT.md` (variable names),
+`docs/PRODUCTION-TEST-ACCOUNTS.md` (smoke accounts) and `docs/PILOT-DISABLED-DELIVERY.md` (what stays off).
+Nothing here has been done in production.
 
 ## Ready (verified on staging, no production change)
 
-- All 28 pending migrations apply in production's shape. Two read-only production audits (approved):
-  storage policies and `mineiq_search` match the repo; the four "drifted" functions are token-identical
-  to the repo (formatting only), so nothing production-specific is overwritten.
-- Production-exact rollbacks: the runner captures production's functions and grants locally before each
-  file and refuses to apply if that fails. Staging test: 0071/0072/0076 captures restore production's
-  exact digests (15/0).
-- Staging with everything applied (incl. 0091): isolation 1077/0/0 unverified/0 skipped,
-  API authz 435/0, 25 live suites, investor app 35/0 (0 breaking), round trip 75/0, `npm test` and build.
-- Production runner: plan-only by default; one file per run with `--apply`, `--approved-by`, the exact
-  ref and a typed confirmation; refuses staging and superuser.
-- Production database password rotated (2026-11-01).
+- 29 migrations to apply; all match production's shape (two approved read-only audits). The four
+  "drifted" functions are token-identical to the repo, so nothing production-specific is overwritten.
+- Runner: plan-only by default; one file per run, exact ref, typed confirmation, `--approved-by`;
+  capture-on-apply (production-exact rollbacks, staging 15/0); no-transaction mode for 0065c/0073a;
+  `--rollback` that records itself. Offline 119/0, 66/0, 42/0, 61/0.
+- Staging, everything applied except 0092: isolation 1077/0/0 unverified/0 skipped, API authz 435/0,
+  25 live suites, investor app 35/0, messaging 63/0, round trip 78/0, `npm test` and build.
+- Outbox-drain, scheduled delivery and push stay off (`check:s2-pilot-disabled` 44/0).
+- Production database password rotated.
 
-## Approvals and configuration [you]
+## Part 1: two reads before you approve (nothing changes; about 10 minutes)
 
-1. **Production test accounts** (gate g07): one test investor and one test company owner (optionally a
-   viewer) for the read-only smoke. Credentials go into your own shell as `SMOKE_*` variables, never chat.
-2. **Vercel production environment** (names only; values never in chat or git):
-   - `SUBMISSION_SALT`: required before 0058.
-   - `SITE_REVALIDATE_SECRET`: server only, no `VITE_` copy; before 0088 and before any company sets a
-     revalidate URL.
-   - `STRIPE_WEBHOOK_SECRET`: before 0069b is used. Keep `MESSAGES_INBOUND_SECRET` unchanged.
-   - Must NOT be set: `MINEEX_ENV`, `STAGING_*`, any `VITE_*REVALIDATE*`, `PUSH_ENABLED=true`.
-3. **Cron**: confirm outbox-drain and any dispatch cron stay off for the pilot (Phase 6 is separate).
-   The offline proof is `docs/PILOT-DISABLED-DELIVERY.md` (`check:s2-pilot-disabled`).
-4. **Backup** (before step 3 below): confirm a fresh daily backup in Supabase (Database → Backups;
-   Pro). PITR is an optional paid add-on, and a restore is the last resort after rollbacks (Runbook Step 2).
-5. **0077**: confirm it keeps the anonymous listing-report path open for installed 1.3.x apps.
-6. **Push** `portal-work` and **approve the rollout** below. Each production migration run also records
-   your approval text (`--approved-by`).
+1. **Postgres errors.** Supabase → Passport V1 → **Logs → Postgres**, last 24 hours, severity ERROR and
+   FATAL. Screenshot the list (messages only). One is already explained (the first audit's cron check).
+2. **Vercel names.** Vercel → project → **Settings → Environment Variables**, filter **Production**.
+   Screenshot the **names** (values stay hidden; don't click the eye). I compare them with the env audit.
 
-## Rollout (after approval, in this order; commands in the plan's Runbook)
+(Alternatively, connect Claude in Chrome and I read both pages myself, read-only.)
+
+## Part 2: after your approval, your settings (about 20 minutes)
+
+3. **Vercel production variables** (values never in chat or git):
+   - add `SITE_REVALIDATE_SECRET` (a long random value from your password manager; server only);
+   - confirm `SUBMISSION_SALT` and `DISPATCH_SECRET` exist (add them if Part 1 shows they don't);
+   - remove anything in the env audit's "must be absent" list that Part 1 finds.
+4. **Test users.** Supabase → Authentication → Users → **Add user** (Auto Confirm) for the smoke
+   investor, owner and viewer, passwords from your password manager (Test accounts doc §0–1). The test
+   company and owner hand-off come later (step 9), because portal roles arrive with 0076.
+5. **Backup.** Supabase → Database → **Backups**: note today's daily backup time. Start step 7 only after
+   it. A restore is the last resort after rollbacks.
+6. **Database connection file**, for the runner only: one line holding the production connection string
+   with the new password, saved as `~/.mineex-prod-dsn` with `chmod 600`, outside the repo. You delete it
+   after step 9.
+
+## Part 3: the rollout (I run it in your terminal; you confirm each migration)
 
 | Step | What | Stop if |
 |---|---|---|
-| 1 | Deploy API and web (Vercel). New features stay inert until their migrations. | any Checkpoint 1 item fails: Vercel instant rollback, no DB state to undo |
-| 2 | Read-only smoke against the deploy: `production-smoke.mjs --production` (pages, security headers, CSP Report-Only, investor feed/profile, role refusals). | any FAIL |
-| 3 | Phase 3: 0058, 0077, 0092, 0061a (runner, one file each). | checkpoint fails: run that file's rollback |
-| 4 | Phase 4: 0062–0066; 0065c through the runner's no-transaction mode (CONCURRENTLY). | same; if the runner still refuses 0065c, wait |
-| 5 | Phase 5: 0068–0078; 0073a through the runner's no-transaction mode; 0071/0072/0076 with capture-on-apply. | same; capture file restores production exactly |
-| 6 | Phase 5b: 0080, 0085–0088, 0090, 0091. | same; never roll back 0071 while 0088 is applied, and never run 0059's rollback |
-| 7 | Smoke again plus investor-app checks (feed, profile, send/inbox, listing report); 24 h with no 5xx rise. | any investor-app regression: stop, roll back the last phase |
-| 8 | Open the portal to 2–3 pilot companies (owner accounts). | |
+| 7a | I push `portal-work` and open the PR to `main`; **you merge it** (Vercel deploys). New features stay inert until their migrations. | Checkpoint 1 fails: Vercel instant rollback, no database state to undo |
+| 7b | Read-only smoke (`production-smoke.mjs --production`): pages, security headers, CSP Report-Only, investor feed/profile. Owner checks report "skipped" until step 9. | any FAIL |
+| 8a | Phase 3: 0058, 0077, 0092, 0061a | a checkpoint fails: the runner's `--rollback` for that file |
+| 8b | Phase 4: 0062–0066 (0065c in no-transaction mode) | same |
+| 8c | Phase 5: 0068–0078 (0073a no-transaction; 0071/0072/0076 capture-on-apply) | same |
+| 8d | Phase 5b: 0080, 0085–0088, 0090, 0091 | same; never roll back 0071 while 0088 is applied |
+| 9 | **You**: create the draft test company, hand it to the test owner, invite the viewer (Test accounts doc §2–4). Then the full smoke and investor-app checks; delete the connection file. | any investor-app regression: stop, roll back the last phase |
+| 10 | After 24 h with no 5xx rise: **you** hand off the portal to 2–3 pilot companies. | |
+
+Each migration runs in your terminal: the runner shows the file, you type the project ID to confirm
+(29 times), and it records your approval text. It stops itself on the first failed checkpoint.
+
+## Accepted for the pilot (your decision in the approval)
+
+- Anonymous listing reports have no rate limit and accept many rows per request. Production allows that
+  today with no limits at all; 0058 + 0077 + 0092 add length, type and column limits. Close the
+  anonymous path once installed 1.3.x apps fade out.
 
 ## Deferred past the pilot
 
-- a19 real-model citation test (needs an OpenAI key on staging).
-- a20 Stripe self-serve checkout (pilot companies invoiced by hand; the test-mode script is ready).
-- a26 fresh-database replay (needs a disposable Supabase project); `conf_pkg_member_read` to SCHEMA-RECOVERY.
-- a22, Phase 6 (scheduled delivery), push (0055), enforcing the CSP after a Report-Only review on the deploy.
+- a19 real-model citation test (OpenAI key on staging); a20 Stripe self-serve checkout (pilot invoiced
+  by hand); a26 fresh-database replay (disposable Supabase project); a22.
+- Phase 6 scheduled delivery, push (0055; clear `notification_outbox` first), enforcing the CSP after a
+  Report-Only review on the deploy, `conf_pkg_member_read` into SCHEMA-RECOVERY.
