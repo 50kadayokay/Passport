@@ -1,86 +1,70 @@
 // 0093 (listing_reports: database-enforced per-client and global rate limit, and
-// one row per anonymous statement), attacked on STAGING. Independent of S3's own
-// check: written from the requirements, then pinned to S3's design (DESIGN below).
-//   node scripts/listing-reports-0093-adversarial-check.mjs            phase A only
+// one row per client statement), attacked on STAGING. Independent of S3's own
+// check (written from the requirements and S3's stated design, not from it).
+//   node scripts/listing-reports-0093-adversarial-check.mjs            phase A
 //   node scripts/listing-reports-0093-adversarial-check.mjs --burst    + phase B (parallel, committed, cleaned up exactly)
 //   STAGING_ANON_KEY=... node scripts/listing-reports-0093-adversarial-check.mjs --http
 //                                                                       + phase C (real requests through the gateway)
 //
 // FOR S4 TO RUN (needs supabase/staging/.connection). Prints booleans, counts,
-// SQLSTATEs and HTTP statuses only; never row contents or keys.
+// SQLSTATEs and HTTP statuses only; never row contents, keys or the salt.
 //
-// PHASE A: ONE transaction, always ROLLED BACK. 0093 is applied inside it if
-// staging does not have it yet. Every request is simulated the way PostgREST runs
-// it: `set local role anon|authenticated`, request.jwt.claims and request.headers
-// set per statement (as the gateway would deliver them), the insert shaped like
-// PostgREST's json_to_recordset body.
-//   1  the installed 1.3.x report (anon key, six columns, return=minimal) is stored
-//   2  per-client limit N, found by behaviour: exactly N stored, the N+1-th refused,
-//      the same N for several fresh clients (off-by-one), and DESIGN's N if declared
-//   3  the error a 1.3.x client gets: SQLSTATE -> PostgREST HTTP status; must be 4xx
-//      (a 5xx trips the launch's "5xx rise" stop condition), ideally 429; the app
-//      only checks r.ok, so it shows its generic error sheet; nothing echoes the IP
-//   4  header spoofing and rotation (x-forwarded-for prepend / many hops / empty /
-//      garbage / replaced, x-real-ip, cf-connecting-ip, true-client-ip,
-//      x-client-ip, Forwarded, an 8 KB value, headers absent): rotating what the
-//      client controls must not buy a fresh quota
-//   5  poisoning: another client cannot exhaust a victim's quota by spoofing it
-//   6  anon rotating the user_id column (1.3.x sends any uuid) gets no fresh quota;
-//      authenticated (a real session) is limited too
-//   7  one row per statement: a 2-row VALUES, a PostgREST array body, a 200-row
-//      INSERT ... SELECT and a two-insert CTE are refused and store nothing; a
-//      single-object body (the 1.3.x shape) still works
-//   8  upsert / on_conflict: DO NOTHING still counts against the quota; DO UPDATE
-//      and RETURNING are refused
-//   9  global cap G, found by behaviour with a fresh client per insert; past it a
-//      new client is refused too
-//  10  window edge: throttle timestamps moved back by W-2 s (still refused, or a
-//      fixed-window FINDING) and W+2 s (allowed again)
-//  11  throttle objects: no privilege for anon/authenticated on any table or
-//      sequence 0093 creates, RLS on, no non-trigger function executable by them,
-//      SECURITY DEFINER functions pin search_path; direct reads/writes refused;
-//      growth under header rotation (FINDING when every spoofed value adds a row
-//      and nothing prunes)
-//  12  the service role (/api/submit) and postgres are not limited, before and
-//      after the global cap is reached
+// S3'S DESIGN, AS STATED (2026-11-02), WHICH THIS ATTACKS
+//   - limited: request role anon/authenticated (request.jwt.claims->>'role', else
+//     the session's role); not the service role, direct sessions, or is_admin()
+//   - one row per INSERT statement, else PT400 (whole statement); 0 rows passes
+//   - AFTER INSERT ... FOR EACH STATEMENT trigger; GLOBAL 300 / fixed 60 min
+//     ('lr:global', form listing_report_db_global) first, then PER CLIENT 5 /
+//     fixed 10 min (form listing_report_db_client); over either PT429; counters
+//     in 0057's submission_throttle; a refusal rolls its own increments back
+//   - client = cf-connecting-ip, else FIRST x-forwarded-for hop, else x-real-ip,
+//     else 'unknown'; stored as 'lr:' || 32 hex of sha256(salt | ip)
+//   - no client access to submission_throttle, listing_report_limits,
+//     submission_throttle_salt, listing_report_client_key(), the guard; still no
+//     SELECT on listing_reports; 0077's policy and 0092's grants unchanged
 //
-// PHASE B (--burst, needs 0093 APPLIED on staging): separate pg clients, each
-// `set role anon` with its own request.headers, fire in parallel and COMMIT:
-//   - N+10 parallel reports from one client: at most N stored (no check-then-insert race)
-//   - parallel distinct clients past G (when G is small enough): at most G stored
-// Cleanup is exact: every report row carries this run's tag and is deleted; every
-// throttle table is snapshotted by primary key first, new rows are deleted and
-// changed rows restored. The run refuses phase B if a throttle table has no
-// primary key, and verifies the tables equal the snapshot afterwards.
+// PHASE A: ONE transaction, always ROLLED BACK; 0093 is applied inside it when
+// staging lacks it (that holds listing_reports' lock for the run's few seconds;
+// lock_timeout 10 s). now() is fixed inside a transaction, so phase A sits in one
+// window; "the next window" is simulated by moving this design's counter rows
+// back a full global window (newWindow), which also gives every section a clean
+// slate. Requests are simulated the way PostgREST runs them: set local role,
+// request.jwt.claims and request.headers per statement, and PostgREST's
+// json_to_recordset insert shape for object and array bodies.
 //
-// PHASE C (--http, needs STAGING_ANON_KEY, 0093 applied): two real reports through
-// the staging gateway with spoofed X-Forwarded-For / X-Real-IP / CF-Connecting-IP,
-// then (as postgres) which spoofed values reached the throttle key -- the one
-// thing a simulation cannot know: which headers the platform overwrites. Cleaned
-// up exactly as in phase B.
+// PHASE B (--burst; needs 0093 APPLIED on staging): separate pg clients, each
+// SET ROLE anon with its own request.headers, in parallel, COMMITTED. Cleanup is
+// exact: this run's report rows (tagged) are deleted, and this design's counter
+// rows in submission_throttle are restored from a snapshot by primary key and
+// compared.
+//
+// PHASE C (--http; STAGING_ANON_KEY; 0093 applied): real reports through the
+// staging gateway with spoofed CF-Connecting-IP / X-Forwarded-For / X-Real-IP,
+// then (as postgres, computing the key with the salt server-side) which spoofed
+// value became the client key, and whether the gateway supplies a usable
+// address at all ('unknown' would put every 1.3.x user in ONE bucket of 5).
 import fs from "node:fs";
 import crypto from "node:crypto";
 import pg from "pg";
 import { runnerBody } from "./_db-egress.mjs";
 
-// ---- S3's design (fill from S3's message; every field optional) -------------
-// Unknown values are discovered by behaviour; a declared value is also asserted.
 const DESIGN = {
   migration: "supabase/migrations/0093_listing_reports_rate_limit.sql",
-  perClient: num(process.env.RL_PER_CLIENT),      // reports per client per window
-  global: num(process.env.RL_GLOBAL),             // reports per window, all clients
-  windowSeconds: num(process.env.RL_WINDOW_SECONDS),
-  clientHeader: process.env.RL_CLIENT_HEADER || null, // e.g. "x-forwarded-for (right-most hop)"
-  expectSqlstate: process.env.RL_SQLSTATE || null,     // e.g. "PT429"
+  perClient: 5, clientWindowS: 600, global: 300, globalWindowS: 3600,
+  tooMany: "PT429", tooMuch: "PT400",
+  throttle: "public.submission_throttle",
+  forms: ["listing_report_db_global", "listing_report_db_client"],
+  globalKey: "lr:global",
+  limitsTable: "public.listing_report_limits", saltTable: "public.submission_throttle_salt",
+  keyFn: "public.listing_report_client_key()", guardFn: "public.listing_reports_guard()",
 };
-function num(v) { return v != null && v !== "" && Number.isFinite(Number(v)) ? Number(v) : null; }
-const MAXN = 1000, MAXG = num(process.env.RL_MAX_GLOBAL_PROBE) || 3000;
 
 const url = fs.readFileSync("supabase/staging/.connection", "utf8").trim();
 if (url.includes("rvptronniomlqumjhyrr") || !url.includes("jmljfovtfxcdhjmtlnva")) { console.error("  REFUSING: not the staging project."); process.exit(2); }
-if (!fs.existsSync(DESIGN.migration)) { console.error(`  ${DESIGN.migration} does not exist yet; nothing to attack.`); process.exit(3); }
+if (!fs.existsSync(DESIGN.migration)) { console.error(`  ${DESIGN.migration} is not on this branch; nothing to attack.`); process.exit(3); }
 const MIG = fs.readFileSync(DESIGN.migration, "utf8");
 const BURST = process.argv.includes("--burst"), HTTP = process.argv.includes("--http");
+const N = DESIGN.perClient, G = DESIGN.global;
 
 let pass = 0, fail = 0;
 const ok = (c, m, d = "") => { if (c) { pass++; console.log(`  ✓ ${m}`); } else { fail++; console.error(`  ✗ ${m}${d ? `\n      ${d}` : ""}`); } };
@@ -88,22 +72,21 @@ const findings = [];
 const finding = (m) => { findings.push(m); console.log(`  ! FINDING: ${m}`); };
 const info = (m) => console.log(`  · ${m}`);
 
-// PostgREST's SQLSTATE -> HTTP mapping (docs: "Errors"), for the status a client sees.
+// PostgREST's SQLSTATE -> HTTP mapping (docs: "Errors"): the status a client sees.
 function httpStatus(code, role) {
   if (!code) return 201;
   if (/^PT\d{3}$/.test(code)) return Number(code.slice(2));
   if (code === "42501") return role === "anon" ? 401 : 403;
   const exact = { "23503": 409, "23505": 409, "25006": 405, "42883": 404, "42P01": 404, "P0001": 400 };
   if (exact[code]) return exact[code];
-  const cls = code.slice(0, 2);
   const byClass = { "08": 503, "09": 500, "0L": 403, "0P": 403, "25": 500, "28": 403, "2D": 500, "38": 500, "39": 500, "3B": 500, "40": 500, "53": 503, "54": 500, "55": 500, "57": 500, "58": 500, "F0": 500, "HV": 500, "P0": 500, "XX": 500 };
-  return byClass[cls] || 400;
+  return byClass[code.slice(0, 2)] || 400;
 }
 
 const TAG = `zz-0093adv-${Date.now().toString(36)}`;
 const SIX = ["company_slug", "company_name", "kind", "message", "contact", "user_id"];
 const COLS = SIX.join(", ");
-const body = (o = {}) => ({ company_slug: o.slug ?? TAG, company_name: "Zz 0093 adversarial", kind: o.kind ?? "error", message: o.message ?? "0093 adversarial check", contact: "", user_id: o.user ?? null });
+const body = (o = {}) => ({ company_slug: TAG, company_name: "Zz 0093 adversarial", kind: o.kind ?? "error", message: "0093 adversarial check", contact: "", user_id: o.user ?? null });
 // The statement PostgREST builds for POST /rest/v1/listing_reports (object or array body).
 const PGRST = `insert into public.listing_reports (${COLS})
   select b.company_slug, b.company_name, b.kind, b.message, b.contact, b.user_id
@@ -113,22 +96,24 @@ const PGRST = `insert into public.listing_reports (${COLS})
 const VALUES1 = `insert into public.listing_reports (${COLS}) values ($1, $2, $3, $4, $5, $6)`;
 const vals = (o = {}) => { const b = body(o); return SIX.map((k) => b[k]); };
 
-// Client addresses: TEST-NET / benchmarking ranges only, never a real host.
+// Addresses from the benchmarking / documentation ranges only, never a real host.
 let ipN = 0;
 const freshIp = () => { const i = ++ipN; return `198.18.${(i >> 8) & 255}.${i & 255}`; };
-const spoofIp = (i) => `203.0.113.${i % 250 + 1}`;
-// What the gateway would hand PostgREST for a client at `real`: the proxy appends
-// the peer to X-Forwarded-For and sets its own headers.
-const gw = (real, extra = {}) => ({ "x-forwarded-for": real, "x-real-ip": real, "cf-connecting-ip": real, "user-agent": "MineEx/1.3.2 CFNetwork", ...extra });
+const spoofIp = (i) => `203.0.113.${(i % 250) + 1}`;
+// What Supabase's gateway hands PostgREST for a client at `real` (Cloudflare in
+// front sets cf-connecting-ip; proxies append to x-forwarded-for).
+const gw = (real, extra = {}) => ({ "cf-connecting-ip": real, "x-forwarded-for": real, "x-real-ip": real, "user-agent": "MineEx/1.3.2 CFNetwork", ...extra });
+const noCf = (h) => { const x = { ...h }; delete x["cf-connecting-ip"]; return x; };
 
 const c = new pg.Client({ connectionString: url, ssl: { rejectUnauthorized: false } });
 await c.connect();
 const q = async (s, a) => (await c.query(s, a)).rows;
 let sp = 0;
-// One request: role, claims and headers set for this statement only, in a savepoint.
-async function req(role, { headers = null, uid = null, rawHeaders } = {}, sql, args) {
+// One request: role, claims and headers for this statement only, in a savepoint.
+async function req(role, { headers = null, uid = null, claims, rawHeaders } = {}, sql, args) {
   await c.query("reset role");
-  await c.query(`select set_config('request.jwt.claims', $1, true)`, [JSON.stringify(uid ? { sub: uid, role } : { role })]);
+  const cl = claims !== undefined ? claims : JSON.stringify(uid ? { sub: uid, role } : { role });
+  await c.query(`select set_config('request.jwt.claims', $1, true)`, [cl]);
   await c.query(`select set_config('request.headers', $1, true)`, [rawHeaders !== undefined ? rawHeaders : headers ? JSON.stringify(headers) : ""]);
   if (role !== "postgres") await c.query(`set local role ${role}`);
   const n = `a${++sp}`; await c.query(`savepoint ${n}`);
@@ -137,55 +122,43 @@ async function req(role, { headers = null, uid = null, rawHeaders } = {}, sql, a
   finally { await c.query("reset role"); await c.query(`select set_config('request.headers', '', true)`); await c.query(`select set_config('request.jwt.claims', '', true)`); }
 }
 const report = (role, h, o = {}, uid = null) => req(role, { headers: h, uid }, PGRST, [JSON.stringify(body(o))]);
-const stored = async () => (await q(`select count(*)::int n from public.listing_reports where company_slug like $1`, [`${TAG}%`]))[0].n;
-// Reports from one client until refused (or `max`): how many were stored, and the refusal.
-async function exhaust(role, h, max = MAXN, o = {}, uid = null) {
+const stored = async () => (await q(`select count(*)::int n from public.listing_reports where company_slug = $1`, [TAG]))[0].n;
+const isClient = (r) => !r.ok && r.code === DESIGN.tooMany && /from this device/.test(r.msg);
+const isGlobal = (r) => !r.ok && r.code === DESIGN.tooMany && /too many reports right now/.test(r.msg);
+// Requests until refused (or `max`): how many were stored, and the refusal.
+async function exhaust(role, h, max, o = {}, uid = null) {
   for (let i = 0; i < max; i++) {
     const r = await report(role, typeof h === "function" ? h(i) : h, typeof o === "function" ? o(i) : o, typeof uid === "function" ? uid(i) : uid);
     if (!r.ok) return { n: i, refusal: r };
   }
   return { n: max, refusal: null };
 }
-
-// ---- 0093's objects ----------------------------------------------------------
-const catalog = async () => ({
-  tables: (await q(`select c.oid::regclass::text t from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname not in ('pg_catalog','information_schema','pg_toast') and c.relkind in ('r','p') order by 1`)).map((r) => r.t),
-  seqs: (await q(`select c.oid::regclass::text t from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname not in ('pg_catalog','information_schema') and c.relkind = 'S' order by 1`)).map((r) => r.t),
-  funcs: (await q(`select p.oid::regprocedure::text f from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname not in ('pg_catalog','information_schema') order by 1`)).map((r) => r.f),
-  triggers: (await q(`select tgname from pg_trigger where tgrelid = 'public.listing_reports'::regclass and not tgisinternal order by 1`)).map((r) => r.tgname),
+const FORMS = `form = any($1::text[])`;
+const globalCount = async () => (await q(`select coalesce(sum(count), 0)::int n from ${DESIGN.throttle} where ip_hash = $1 and form = $2 and window_start > now() - make_interval(secs => $3)`, [DESIGN.globalKey, DESIGN.forms[0], DESIGN.globalWindowS]))[0].n;
+const counterRows = async () => (await q(`select count(*)::int n from ${DESIGN.throttle} where ${FORMS}`, [DESIGN.forms]))[0].n;
+// "The next window": this design's counters move back one full global window.
+const newWindow = () => q(`update ${DESIGN.throttle} set window_start = window_start - make_interval(secs => $2) where ${FORMS}`, [DESIGN.forms, DESIGN.globalWindowS + DESIGN.clientWindowS]);
+const grantsAndPolicy = async () => JSON.stringify({
+  policy: await q(`select policyname, cmd, roles::text r, coalesce(qual, '') q, coalesce(with_check, '') w from pg_policies where schemaname = 'public' and tablename = 'listing_reports' order by 1`),
+  table: await q(`select grantee, privilege_type from information_schema.role_table_grants where table_schema = 'public' and table_name = 'listing_reports' and grantee in ('anon', 'authenticated') order by 1, 2`),
+  cols: await q(`select a.attname, a.attacl::text acl from pg_attribute a where a.attrelid = 'public.listing_reports'::regclass and a.attnum > 0 and not a.attisdropped and a.attacl is not null order by 1`),
 });
-const declared = (re) => [...MIG.replace(/--[^\n]*/g, "").matchAll(re)].map((m) => m[1].toLowerCase());
-const migTables = declared(/create\s+table\s+(?:if\s+not\s+exists\s+)?((?:\w+\.)?\w+)/gi);
-const migFuncs = declared(/create\s+(?:or\s+replace\s+)?function\s+((?:\w+\.)?\w+)\s*\(/gi);
-const bare = (x) => x.replace(/^public\./, "");
-// Applied = every table 0093 creates exists and so does every function it creates.
-async function applied() {
-  if (!migTables.length && !migFuncs.length) return false;
-  const tabs = await Promise.all(migTables.map(async (t) => (await q(`select to_regclass($1) r`, [`public.${bare(t)}`]))[0].r));
-  const fnames = new Set((await catalog()).funcs.map((f) => bare(f.replace(/\(.*$/, ""))));
-  return tabs.every(Boolean) && migFuncs.every((f) => fnames.has(bare(f)));
-}
+const isApplied = async () => (await q(`select to_regprocedure('public.listing_reports_guard()') is not null and exists (select 1 from pg_trigger where tgrelid = 'public.listing_reports'::regclass and tgname = 'listing_reports_guard') a`))[0].a;
 
 const rowsBefore = (await q(`select count(*)::int n from public.listing_reports`))[0].n;
-const wasApplied = await applied();
-const cat0 = await catalog();
-let OBJ = null, N = null, G = null, W = DESIGN.windowSeconds;
+const wasApplied = await isApplied();
 await c.query("begin");
 try {
   await c.query("set local lock_timeout = '10s'");
+  const GP0 = await grantsAndPolicy();
   if (!wasApplied) { await q(runnerBody(MIG)); console.log("  (0093 not on staging: applied inside the transaction)"); }
   else console.log("  (0093 already applied on staging)");
-  const cat1 = await catalog();
-  OBJ = wasApplied
-    ? { tables: cat1.tables.filter((t) => migTables.some((m) => bare(t) === bare(m))), seqs: cat1.seqs.filter((x) => migTables.some((m) => bare(x).startsWith(`${bare(m)}_`))), funcs: cat1.funcs.filter((f) => migFuncs.some((m) => bare(f.replace(/\(.*$/, "")) === bare(m))), triggers: cat1.triggers }
-    : { tables: cat1.tables.filter((t) => !cat0.tables.includes(t)), seqs: cat1.seqs.filter((s) => !cat0.seqs.includes(s)), funcs: cat1.funcs.filter((f) => !cat0.funcs.includes(f)), triggers: cat1.triggers.filter((t) => !cat0.triggers.includes(t)) };
-  info(`0093 objects: tables ${OBJ.tables.join(", ") || "-"}; sequences ${OBJ.seqs.length}; functions ${OBJ.funcs.length}; triggers on listing_reports ${OBJ.triggers.join(", ") || "-"}`);
-  ok(OBJ.triggers.length > 0 || OBJ.funcs.length > 0, "0093 installs something on the insert path (a trigger or a function)");
-  if (W == null) {
-    const iv = [...new Set([...MIG.replace(/--[^\n]*/g, "").matchAll(/interval\s+'(\d+)\s*(second|minute|hour|day)s?'/gi)].map((m) => Number(m[1]) * { second: 1, minute: 60, hour: 3600, day: 86400 }[m[2].toLowerCase()]))];
-    if (iv.length === 1) W = iv[0];
-  }
-  info(`window: ${W != null ? `${W} s` : "unknown (set RL_WINDOW_SECONDS)"}`);
+  ok(await isApplied(), "0093's statement trigger is on listing_reports");
+  if (!wasApplied) ok((await grantsAndPolicy()) === GP0, "0077's policy and 0092's column grants are unchanged by 0093");
+  const [lim] = await q(`select per_client, client_window_minutes, global_per_window, global_window_minutes from ${DESIGN.limitsTable} where id`);
+  ok(lim && lim.per_client === N && lim.client_window_minutes * 60 === DESIGN.clientWindowS && lim.global_per_window === G && lim.global_window_minutes * 60 === DESIGN.globalWindowS,
+    `the limits row says ${N} per ${DESIGN.clientWindowS / 60} min and ${G} per ${DESIGN.globalWindowS / 60} min`, JSON.stringify(lim));
+  await newWindow();
 
   console.log("\n  1. THE INSTALLED 1.3.x REPORT");
   let r = await report("anon", gw(freshIp()));
@@ -195,192 +168,219 @@ try {
   const u0 = crypto.randomUUID();
   r = await report("authenticated", gw(freshIp()), { user: u0 }, u0);
   ok(r.ok, "an authenticated session, same body -> stored", r.msg);
-  r = await req("anon", { headers: gw(freshIp()) }, VALUES1, vals());
-  ok(r.ok, "a plain one-row VALUES insert -> stored", r.msg);
+  r = await req("anon", { headers: gw(freshIp()) }, `${PGRST} on conflict do nothing`, [JSON.stringify(body())]);
+  ok(r.ok, "Prefer: resolution=ignore-duplicates (ON CONFLICT DO NOTHING) -> stored", r.msg);
 
   console.log("\n  2. PER-CLIENT LIMIT AND ITS BOUNDARY");
-  const e1 = await exhaust("anon", gw(freshIp()));
-  N = e1.n;
-  ok(e1.refusal && N >= 1 && N < MAXN, `a single client is limited: ${N} stored, the ${N + 1}th refused`, e1.refusal ? "" : `no refusal within ${MAXN}`);
-  if (DESIGN.perClient != null) ok(N === DESIGN.perClient, `the limit is exactly the declared ${DESIGN.perClient} (no off-by-one)`, `observed ${N}`);
+  await newWindow();
+  const e1 = await exhaust("anon", gw(freshIp()), N + 5);
+  ok(e1.n === N && isClient(e1.refusal), `one client: exactly ${N} stored, the ${N + 1}th refused by the per-client limit`, `${e1.n} stored; ${e1.refusal && e1.refusal.msg}`);
   const again = [];
-  for (let k = 0; k < 3; k++) again.push((await exhaust("anon", gw(freshIp()), N + 5)).n);
+  for (let k = 0; k < 3; k++) again.push((await exhaust("anon", gw(freshIp()), N + 3)).n);
   ok(again.every((x) => x === N), `three more fresh clients each get exactly ${N}`, again.join(", "));
-  const before = await stored();
-  const e1b = await report("anon", gw(freshIp())); // a fresh client right after -- unaffected
-  ok(e1b.ok && (await stored()) === before + 1, "one client's exhaustion does not block another (below the global cap)");
+  r = await report("anon", gw(freshIp()));
+  ok(r.ok, "an exhausted client does not block another");
+  const g0 = await globalCount();
+  const k1 = freshIp();
+  await exhaust("anon", gw(k1), N);
+  for (let i = 0; i < 10; i++) await report("anon", gw(k1));
+  ok((await globalCount()) === g0 + N, `10 refused requests from an exhausted client add nothing to the global count (+${N} only)`, `${g0} -> ${await globalCount()}`);
+  r = await req("anon", { headers: gw(k1) }, PGRST, [JSON.stringify(body())]);
+  ok(isClient(r), "...and it is still refused (a refusal does not reset anything)");
 
   console.log("\n  3. WHAT A 1.3.x CLIENT SEES WHEN REFUSED");
   const ref = e1.refusal || {};
-  info(`refusal: SQLSTATE ${ref.code}, PostgREST HTTP ${ref.status}${ref.hint ? ", with a hint" : ""}`);
-  ok(ref.status >= 400 && ref.status < 500, "the refusal is a 4xx (a 5xx would trip the launch's 5xx stop condition and monitoring)", `HTTP ${ref.status}`);
-  if (DESIGN.expectSqlstate) ok(ref.code === DESIGN.expectSqlstate, `SQLSTATE is the declared ${DESIGN.expectSqlstate}`, ref.code);
-  else if (ref.status !== 429) finding(`refusal maps to HTTP ${ref.status}, not 429 (raise with errcode 'PT429' to say "too many requests")`);
-  ok(![ref.msg, ref.hint, ref.detail].join(" ").match(/198\.18\.|203\.0\.113\./), "the error text does not echo the client's address");
-  info("1.3.x (prod-v1.3.2 ReportListingSheet) sets state = r.ok ? 'done' : 'error': any non-2xx shows its generic error sheet; the body is not read");
+  ok(ref.code === DESIGN.tooMany && ref.status === 429, `per-client refusal: SQLSTATE ${ref.code} -> PostgREST HTTP ${ref.status} (expected PT429 -> 429)`);
+  ok(!/198\.18\.|203\.0\.113\.|lr:/.test([ref.msg, ref.hint, ref.detail].join(" ")), "the error names the limit, never the client's address or key");
+  info("1.3.x (prod-v1.3.2 ReportListingSheet): state = r.ok ? 'done' : 'error', so a 429 shows its generic error sheet; the body is not read");
+  info("older PostgREST turns an unknown PTxxx into 400; either way a 4xx, never a 5xx (the launch's stop condition)");
 
   console.log("\n  4. HEADER SPOOFING AND ROTATION");
-  // `real` is what the gateway knows; the client controls only what it sends.
+  // [label, headers(real, i), expectation]: "hold" = must not buy a fresh quota;
+  // "gateway" = holds only if the platform overwrites/sets that header (phase C);
+  // "accepted" = S3's stated, global-bounded weakness.
   const VARIANTS = [
-    ["x-forwarded-for: rotated first hop, real peer appended", (real, i) => gw(real, { "x-forwarded-for": `${spoofIp(i)}, ${real}` }), true],
-    ["x-forwarded-for: many rotated hops before the peer", (real, i) => gw(real, { "x-forwarded-for": `${spoofIp(i)}, ${spoofIp(i + 1)}, ${spoofIp(i + 2)}, ${real}` }), true],
-    ["x-forwarded-for: empty first hop", (real, i) => gw(real, { "x-forwarded-for": `${" ".repeat(i % 3)}, ${real}` }), true],
-    ["x-forwarded-for: garbage first hop", (real, i) => gw(real, { "x-forwarded-for": `not-an-ip-${i}, ${real}` }), true],
-    ["x-forwarded-for: 8 KB value", (real, i) => gw(real, { "x-forwarded-for": `${"9".repeat(8000)}${i}, ${real}` }), true],
-    ["true-client-ip rotated", (real, i) => gw(real, { "true-client-ip": spoofIp(i) }), true],
-    ["x-client-ip rotated", (real, i) => gw(real, { "x-client-ip": spoofIp(i) }), true],
-    ["forwarded: for= rotated", (real, i) => gw(real, { forwarded: `for=${spoofIp(i)}` }), true],
-    ["user-agent rotated", (real, i) => gw(real, { "user-agent": `ua-${i}` }), true],
-    // Below: safe only if the platform overwrites the header (phase C tells).
-    ["x-forwarded-for replaced entirely (no appended peer)", (real, i) => gw(real, { "x-forwarded-for": spoofIp(i) }), false],
-    ["x-real-ip rotated", (real, i) => gw(real, { "x-real-ip": spoofIp(i) }), false],
-    ["cf-connecting-ip rotated", (real, i) => gw(real, { "cf-connecting-ip": spoofIp(i) }), false],
+    ["cf present; x-forwarded-for first hop rotated", (real, i) => gw(real, { "x-forwarded-for": `${spoofIp(i)}, ${real}` }), "hold"],
+    ["cf present; x-forwarded-for many hops rotated", (real, i) => gw(real, { "x-forwarded-for": `${spoofIp(i)}, ${spoofIp(i + 1)}, ${real}` }), "hold"],
+    ["cf present; x-real-ip rotated", (real, i) => gw(real, { "x-real-ip": spoofIp(i) }), "hold"],
+    ["cf present; true-client-ip / x-client-ip / forwarded rotated", (real, i) => gw(real, { "true-client-ip": spoofIp(i), "x-client-ip": spoofIp(i), forwarded: `for=${spoofIp(i)}` }), "hold"],
+    ["cf present; user-agent rotated", (real, i) => gw(real, { "user-agent": `ua-${i}` }), "hold"],
+    ["cf with spaces around the same address", (real, i) => gw(real, { "cf-connecting-ip": `${" ".repeat(i % 3)}${real}${" ".repeat(i % 2)}` }), "hold"],
+    // btrim() strips spaces only: tabs/newlines make a "new" address. Only matters if a client can set cf (phase C).
+    ["cf with tabs/newlines around the same address", (real, i) => gw(real, { "cf-connecting-ip": `${"\t".repeat(i % 3)}${real}${"\n".repeat(i % 2)}` }), "gateway"],
+    ["cf rotated", (real, i) => gw(real, { "cf-connecting-ip": spoofIp(i) }), "gateway"],
+    ["cf rotated as IPv6 case variants of one address", (real, i) => gw(real, { "cf-connecting-ip": i % 2 ? "2001:DB8::1" : "2001:db8::1".replace(/d/g, i % 3 ? "D" : "d") }), "gateway"],
+    ["no cf; x-forwarded-for first hop rotated (peer appended)", (real, i) => noCf(gw(real, { "x-forwarded-for": `${spoofIp(i)}, ${real}` })), "accepted"],
+    ["no cf; x-forwarded-for empty first hop", (real, i) => noCf(gw(real, { "x-forwarded-for": `${" ".repeat(i % 4)}, ${real}` })), "hold"],
+    ["no cf, no x-forwarded-for; x-real-ip rotated", (real, i) => { const h = noCf(gw(real, { "x-real-ip": spoofIp(i) })); delete h["x-forwarded-for"]; return h; }, "gateway"],
   ];
   const growth = [];
-  for (const [label, h, clientControlled] of VARIANTS) {
+  for (const [label, h, kind] of VARIANTS) {
+    await newWindow();
     const real = freshIp();
-    const t0 = await throttleRows();
+    const t0 = await counterRows();
     const got = (await exhaust("anon", (i) => h(real, i), N + 3)).n;
-    growth.push((await throttleRows()) - t0);
+    growth.push((await counterRows()) - t0);
     if (got <= N) ok(true, `${label}: ${got} stored, no fresh quota`);
-    else if (clientControlled) ok(false, `${label}: rotation bought a fresh quota (${got} > ${N})`);
-    else finding(`${label}: rotation bought a fresh quota (${got} > ${N}); safe only if the gateway overwrites this header -- run --http`);
+    else if (kind === "hold") ok(false, `${label}: rotation bought a fresh quota (${got} > ${N})`);
+    else if (kind === "gateway") finding(`${label}: ${got} stored (> ${N}); safe only if the gateway sets/overwrites it -- phase C`);
+    else finding(`${label}: ${got} stored (> ${N}) -- the accepted weakness, bounded only by the global ${G}/h`);
   }
-  for (const [label, raw] of [["request.headers absent", ""], ["request.headers '{}'", "{}"], ["request.headers 'null'", "null"], ["x-forwarded-for empty", JSON.stringify({ "x-forwarded-for": "" })], ["x-forwarded-for garbage only", JSON.stringify({ "x-forwarded-for": "garbage" })]]) {
+  await newWindow();
+  for (const [label, raw] of [["request.headers unset", ""], ["'{}'", "{}"], ["'null'", "null"], ["all three address headers empty", JSON.stringify({ "cf-connecting-ip": "", "x-forwarded-for": "", "x-real-ip": "" })], ["x-forwarded-for ',,,'", JSON.stringify({ "x-forwarded-for": ",,," })], ["an 8 KB x-forwarded-for", JSON.stringify({ "x-forwarded-for": "9".repeat(8192) })]]) {
     r = await req("anon", { rawHeaders: raw }, PGRST, [JSON.stringify(body())]);
-    ok(r.ok || (r.status >= 400 && r.status < 500), `${label}: stored or a 4xx, never a 5xx`, r.ok ? "" : `${r.code} -> HTTP ${r.status}`);
-    if (!r.ok) info(`${label}: refused (${r.code})`);
+    ok(r.ok || (r.status >= 400 && r.status < 500), `headers ${label}: stored or a 4xx, never a 5xx`, r.ok ? "" : `${r.code} -> HTTP ${r.status}`);
   }
-  const noHdr = (await exhaust("anon", () => ({}), N + 3)).n;
-  info(`clients with no address at all share one bucket? ${noHdr <= N ? `yes (${noHdr} stored)` : `NO: ${noHdr} stored`}`);
-  if (noHdr > N) ok(false, "requests with no client headers are unlimited", `${noHdr} > ${N}`);
+  await newWindow();
+  const unk = (await exhaust("anon", (i) => (i % 2 ? {} : { "x-forwarded-for": "" }), N + 3)).n;
+  ok(unk === N, `requests with no usable address share ONE bucket of ${N} ('unknown')`, `${unk}`);
+  info(`if the production gateway ever delivers no address, every 1.3.x user shares that bucket of ${N} per ${DESIGN.clientWindowS / 60} min -- phase C checks staging's gateway`);
 
   console.log("\n  5. POISONING");
+  await newWindow();
   const victim = freshIp(), attacker = freshIp();
-  await exhaust("anon", (i) => gw(attacker, { "x-forwarded-for": `${victim}, ${attacker}` }), N + 1);
+  await exhaust("anon", gw(attacker, { "x-forwarded-for": `${victim}, ${attacker}` }), N + 1);
   r = await report("anon", gw(victim));
-  if (r.ok) ok(true, "an attacker spoofing the victim's address in x-forwarded-for cannot exhaust the victim's quota");
-  else finding("an attacker can lock out any address by naming it in x-forwarded-for (the key is a client-controlled hop)");
+  ok(r.ok, "with cf present, naming a victim in x-forwarded-for does not exhaust the victim's quota");
+  await newWindow();
+  const v2 = freshIp();
+  await exhaust("anon", noCf(gw(freshIp(), { "x-forwarded-for": `${v2}, 192.0.2.99` })), N + 1);
+  r = await report("anon", noCf(gw(v2)));
+  if (!r.ok) finding("without cf-connecting-ip, an attacker can lock out any address by naming it as the first x-forwarded-for hop (phase C decides whether production can reach this)");
+  else info("without cf, poisoning by the first hop did not lock the victim out");
 
-  console.log("\n  6. IDENTITY");
-  const realU = freshIp();
-  const rot = (await exhaust("anon", gw(realU), N + 3, () => ({ user: crypto.randomUUID() }))).n;
-  ok(rot <= N, `anon rotating the user_id column (any uuid; 1.3.x sends it with the anon key): ${rot} stored, no fresh quota`, `${rot} > ${N}`);
+  console.log("\n  6. IDENTITY AND ROLE");
+  await newWindow();
+  const rot = (await exhaust("anon", gw(freshIp()), N + 3, () => ({ user: crypto.randomUUID() }))).n;
+  ok(rot === N, `anon rotating the user_id column gets no fresh quota (${rot})`);
   const ua = crypto.randomUUID();
-  const authN = (await exhaust("authenticated", gw(freshIp()), MAXN, { user: ua }, ua)).n;
-  ok(authN >= 1 && authN < MAXN, `an authenticated session is limited too (${authN})`);
-  const realA = freshIp();
-  const authRot = (await exhaust("authenticated", gw(realA), N + 3, () => ({}), () => crypto.randomUUID())).n;
-  if (authRot > N) finding(`authenticated callers rotating sessions from one address got ${authRot} (> ${N}): keyed on the user, so each real account is its own bucket (costs a sign-up each)`);
-  else ok(true, `authenticated callers rotating sessions from one address: ${authRot} stored`);
+  const au = (await exhaust("authenticated", gw(freshIp()), N + 3, { user: ua }, ua)).n;
+  ok(au === N, `an authenticated session is limited the same way (${au})`);
+  const realS = freshIp();
+  const sess = (await exhaust("authenticated", gw(realS), N + 3, () => ({}), () => crypto.randomUUID())).n;
+  ok(sess === N, `rotating sessions from one address gets no fresh quota (keyed on the address, ${sess})`);
+  await newWindow();
+  const directIp = freshIp();
+  const direct = await (async () => { for (let i = 0; i < N + 3; i++) { const x = await req("anon", { claims: "", headers: gw(directIp) }, VALUES1, vals()); if (!x.ok) return { n: i, x }; } return { n: N + 3 }; })();
+  ok(direct.n === N && direct.x && direct.x.code === DESIGN.tooMany, `role anon with NO claims (a direct anon session) is limited by the session role: ${direct.n} stored`, direct.x ? direct.x.code : "never refused");
+  info("role set without claims falls back to current_setting('role'), as designed");
+  r = await req("anon", { claims: JSON.stringify({ role: "service_role" }), headers: gw(freshIp()) }, `insert into public.listing_reports (${COLS}) values ($1, $2, $3, $4, $5, $6), ($1, $2, $3, $4, $5, $6)`, vals());
+  info(`session role anon but claims role service_role (not producible through PostgREST, whose role IS the claim): ${r.ok ? "exempt" : `refused (${r.code})`}`);
+  const [adm] = await q(`select id from public.profiles where role = 'admin' limit 1`);
+  if (adm) {
+    r = await req("authenticated", { uid: adm.id, headers: gw(freshIp()) }, `insert into public.listing_reports (${COLS}) values ($1, $2, $3, $4, $5, $6), ($1, $2, $3, $4, $5, $6)`, vals());
+    ok(r.ok, "a platform admin's session is exempt (a 2-row insert passes), as designed", r.code);
+    r = await req("anon", { claims: JSON.stringify({ role: "anon", sub: adm.id }), headers: gw(freshIp()) }, `insert into public.listing_reports (${COLS}) values ($1, $2, $3, $4, $5, $6), ($1, $2, $3, $4, $5, $6)`, vals());
+    info(`claims {role: anon, sub: <an admin>} -> ${r.ok ? "exempt: is_admin() trusts sub, which only a verified JWT can carry (PostgREST's anon key has none)" : `refused (${r.code})`}`);
+  } else info("no platform admin on staging: the is_admin() exemption was not exercised");
+  r = await req("anon", { headers: gw(freshIp()) }, `set session_replication_role = replica`);
+  ok(!r.ok && r.code === "42501", "anon cannot switch triggers off (session_replication_role)", r.code);
+  info("COPY ... FROM STDIN is not reachable through PostgREST (no COPY endpoint); in a direct session COPY fires the statement trigger too");
 
   console.log("\n  7. ONE ROW PER STATEMENT");
   for (const role of ["anon", "authenticated"]) {
+    await newWindow();
     const uid = role === "authenticated" ? crypto.randomUUID() : null;
-    const n0 = await stored();
-    r = await req(role, { headers: gw(freshIp()), uid }, `insert into public.listing_reports (${COLS}) values ($1, $2, $3, $4, $5, $6), ($1, $2, $3, $4, $5, $6)`, vals());
-    ok(!r.ok && r.status < 500 && (await stored()) === n0, `${role}: a 2-row VALUES -> refused (${r.code}, HTTP ${r.status}), nothing stored`);
-    r = await req(role, { headers: gw(freshIp()), uid }, PGRST, [JSON.stringify([body(), body()])]);
-    ok(!r.ok && r.status < 500 && (await stored()) === n0, `${role}: a PostgREST array body of 2 -> refused (${r.code}), nothing stored`);
-    r = await req(role, { headers: gw(freshIp()), uid }, `insert into public.listing_reports (${COLS}) select $1, 'Zz', 'error', 'bulk ' || g, '', null from generate_series(1, 200) g`, [TAG]);
-    ok(!r.ok && (await stored()) === n0, `${role}: a 200-row INSERT ... SELECT -> refused, nothing stored`, r.ok ? `${r.count} rows` : r.code);
+    const n0 = await stored(), gc0 = await globalCount();
+    const bulk = [
+      ["a 2-row VALUES", `insert into public.listing_reports (${COLS}) values ($1, $2, $3, $4, $5, $6), ($1, $2, $3, $4, $5, $6)`, vals()],
+      ["a PostgREST array body of 2", PGRST, [JSON.stringify([body(), body()])]],
+      ["a PostgREST array body of 200", PGRST, [JSON.stringify(Array.from({ length: 200 }, () => body()))]],
+      ["a 200-row INSERT ... SELECT", `insert into public.listing_reports (${COLS}) select $1, 'Zz', 'error', 'bulk ' || g, '', null from generate_series(1, 200) g`, [TAG]],
+      ["an array of 2 with ON CONFLICT DO NOTHING", `${PGRST} on conflict do nothing`, [JSON.stringify([body(), body()])]],
+    ];
+    for (const [label, sql, args] of bulk) {
+      r = await req(role, { headers: gw(freshIp()), uid }, sql, args);
+      ok(!r.ok && r.code === DESIGN.tooMuch && r.status === 400 && (await stored()) === n0, `${role}: ${label} -> PT400 (HTTP 400), nothing stored`, r.ok ? `${r.count} rows stored` : r.code);
+    }
+    ok((await globalCount()) === gc0, `${role}: the refused bulk requests consumed no quota`);
     r = await req(role, { headers: gw(freshIp()), uid }, `with a as (insert into public.listing_reports (${COLS}) values ($1, $2, $3, $4, $5, $6)) insert into public.listing_reports (${COLS}) values ($1, $2, $3, $4, $5, $6)`, vals());
     const cte = (await stored()) - n0;
-    ok(cte <= 1, `${role}: two inserts in one statement (data-modifying CTE) store at most one row`, `${cte} stored`);
+    if (cte > 1) finding(`${role}: two INSERTs in one statement (a data-modifying CTE) stored ${cte} rows: the cap is per INSERT, not per statement (not reachable through PostgREST, which builds one INSERT)`);
+    else ok(true, `${role}: a two-INSERT CTE stores at most one row (${cte})`);
     r = await req(role, { headers: gw(freshIp()), uid }, PGRST, [JSON.stringify([body()])]);
-    info(`${role}: a PostgREST array body of 1 -> ${r.ok ? "stored" : `refused (${r.code})`}`);
+    ok(r.ok, `${role}: a PostgREST array of ONE -> stored`, r.code);
+    r = await req(role, { headers: gw(freshIp()), uid }, `insert into public.listing_reports (${COLS}) select $1, 'Zz', 'error', 'x', '', null where false`, [TAG]);
+    ok(r.ok, `${role}: a 0-row INSERT passes`, r.code);
   }
   r = await req("service_role", { headers: gw(freshIp()) }, `insert into public.listing_reports (${COLS}) values ($1, $2, $3, $4, $5, $6), ($1, $2, $3, $4, $5, $6)`, vals());
-  info(`service_role: a 2-row insert -> ${r.ok ? "stored" : `refused (${r.code})`} (the cap is for anonymous inserts)`);
+  ok(r.ok, "service_role: a 2-row insert is not capped", r.code);
 
-  console.log("\n  8. UPSERT, ON CONFLICT, RETURNING");
+  console.log("\n  8. ON CONFLICT, RETURNING, READS");
+  await newWindow();
   const realD = freshIp();
-  let doNothing = 0;
-  for (let i = 0; i < N + 3; i++) { const x = await req("anon", { headers: gw(realD) }, `${PGRST} on conflict do nothing`, [JSON.stringify(body())]); if (x.ok) doNothing++; else break; }
-  ok(doNothing <= N, `ON CONFLICT DO NOTHING (Prefer: resolution=ignore-duplicates) still counts: ${doNothing} stored`, `${doNothing} > ${N}`);
+  let dn = 0;
+  for (let i = 0; i < N + 3; i++) { const x = await req("anon", { headers: gw(realD) }, `${PGRST} on conflict do nothing`, [JSON.stringify(body())]); if (x.ok) dn++; else break; }
+  ok(dn === N, `ON CONFLICT DO NOTHING counts against the quota (${dn})`);
   r = await req("anon", { headers: gw(freshIp()) }, `insert into public.listing_reports (id, ${COLS}) values (gen_random_uuid(), $1, $2, $3, $4, $5, $6) on conflict (id) do update set message = excluded.message`, vals());
-  ok(!r.ok && r.code === "42501", "ON CONFLICT DO UPDATE (merge-duplicates) -> refused (42501)", r.code);
-  const realR = freshIp();
-  r = await req("anon", { headers: gw(realR) }, `${VALUES1} returning *`, vals());
+  ok(!r.ok && r.code === "42501", "ON CONFLICT (id) DO UPDATE (merge-duplicates) -> refused (42501)", r.code);
+  r = await req("anon", { headers: gw(freshIp()) }, `${VALUES1} returning *`, vals());
   ok(!r.ok && r.code === "42501", "RETURNING * -> refused (42501)", r.code);
-  const afterRet = (await exhaust("anon", gw(realR), N + 1)).n;
-  info(`a refused RETURNING ${afterRet === N ? "did not consume" : `consumed ${N - afterRet} of`} the client's quota`);
+  for (const role of ["anon", "authenticated"]) {
+    r = await req(role, { uid: role === "authenticated" ? u0 : null }, `select * from public.listing_reports limit 1`);
+    ok(!r.ok && r.code === "42501", `${role}: SELECT on listing_reports -> still refused`, r.code);
+  }
 
   console.log("\n  9. GLOBAL CAP");
-  const g = await exhaust("anon", () => gw(freshIp()), MAXG);
-  G = g.n;
-  if (!g.refusal) finding(`no global cap within ${MAXG} reports from distinct clients in one window (RL_MAX_GLOBAL_PROBE to probe further)`);
-  else {
-    ok(true, `a global cap: ${G} more reports from distinct clients, then refused (${g.refusal.code}, HTTP ${g.refusal.status})`);
-    ok(g.refusal.status >= 400 && g.refusal.status < 500, "the global refusal is a 4xx too", `HTTP ${g.refusal.status}`);
-    if (DESIGN.global != null) info(`declared global ${DESIGN.global}; this probe started after ${await stored()} test rows in the same window -- compare with S3's counting rule`);
-    r = await report("anon", gw(freshIp()));
-    ok(!r.ok, "past the global cap a brand-new client is refused too");
-    r = await req("authenticated", { headers: gw(freshIp()), uid: u0 }, PGRST, [JSON.stringify(body({ user: u0 }))]);
-    info(`past the global cap an authenticated session is ${r.ok ? "allowed" : "refused"}`);
-  }
+  await newWindow();
+  const g = await exhaust("anon", () => gw(freshIp()), G + 5);
+  ok(g.n === G && isGlobal(g.refusal) && g.refusal.status === 429, `${G} reports from ${G} distinct clients, then the global PT429 (HTTP 429)`, `${g.n}; ${g.refusal && g.refusal.code}`);
+  r = await report("anon", gw(freshIp()));
+  ok(isGlobal(r), "past it a brand-new client is refused too");
+  r = await report("authenticated", gw(freshIp()), { user: u0 }, u0);
+  ok(isGlobal(r), "...and an authenticated session");
+  finding(`the global ceiling is a cheap denial of service for the 1.3.x report path: ${Math.ceil(G / N)} addresses (or one, wherever the first x-forwarded-for hop is the key) fill ${G}/h, and every installed app's "Report or claim" then fails for up to an hour. /api/submit (newer builds) is unaffected. Accept for the pilot, or alert on it.`);
 
-  console.log("\n  12. SERVICE ROLE AND POSTGRES (/api/submit)");
+  console.log("\n  12. SERVICE ROLE, POSTGRES (/api/submit)");
   const ns = await stored();
   let svc = 0;
-  for (let i = 0; i < N + 5; i++) { const x = await req("service_role", { headers: gw("192.0.2.10") }, VALUES1, vals({ message: "via /api/submit" })); if (x.ok) svc++; }
-  ok(svc === N + 5 && (await stored()) === ns + N + 5, `the service role is not limited, even from one address and past the global cap (${svc}/${N + 5})`);
+  for (let i = 0; i < N + 5; i++) { const x = await req("service_role", { headers: gw("192.0.2.10") }, VALUES1, vals()); if (x.ok) svc++; }
+  ok(svc === N + 5 && (await stored()) === ns + N + 5, `the service role is not limited, from one address and past the global cap (${svc}/${N + 5})`);
   r = await req("service_role", {}, VALUES1, vals());
-  ok(r.ok, "the service role with no request headers (a direct server call) -> stored", r.msg);
+  ok(r.ok, "the service role with no request headers -> stored", r.code);
   r = await req("postgres", {}, VALUES1, vals());
-  ok(r.ok, "postgres -> stored", r.msg);
+  ok(r.ok, "a direct postgres session -> stored", r.code);
 
-  console.log("\n  10. WINDOW EDGE");
-  // Moving time also moves this run's report rows, for a design that counts listing_reports itself.
-  if (W == null) info("skipped: window unknown (set RL_WINDOW_SECONDS)");
-  else {
-    // Fresh state for the probe: everything so far moved out of the window.
-    await shiftTime(W + 3600);
-    const k = freshIp();
-    const ex = (await exhaust("anon", gw(k), N + 1)).n;
-    ok(ex === N, `after the earlier rows left the window, a client again gets exactly ${N}`, `${ex}`);
-    await shiftTime(W - 2);
-    r = await report("anon", gw(k));
-    if (r.ok) finding(`${W - 2} s after its last report the client was allowed again: a fixed window (a client can send ${2 * N} across a boundary)`);
-    else ok(true, `${W - 2} s later: still refused (sliding window)`);
-    await shiftTime(4);
-    r = await report("anon", gw(k));
-    ok(r.ok, `${W + 2} s later: allowed again (the window expires)`, r.code);
-  }
+  console.log("\n  10. WINDOWS");
+  await newWindow();
+  const kw = freshIp();
+  await exhaust("anon", gw(kw), N);
+  ok(isClient(await report("anon", gw(kw))), "exhausted in this window");
+  await q(`update ${DESIGN.throttle} set window_start = window_start - make_interval(secs => $2) where ${FORMS}`, [DESIGN.forms, DESIGN.clientWindowS]);
+  r = await report("anon", gw(kw));
+  ok(r.ok, `once its window is the previous one (${DESIGN.clientWindowS / 60} min on), the client is allowed again`, r.code);
+  info(`fixed windows: a client can send ${2 * N} in a few seconds across a ${DESIGN.clientWindowS / 60}-minute boundary, and ${2 * G} can land across an hour boundary (accepted for the pilot)`);
+  const [b] = await q(`select (select count(*)::int from ${DESIGN.throttle} where form = $1 and window_start <> to_timestamp(floor(extract(epoch from now()) / $2) * $2)) stray`, [DESIGN.forms[1], DESIGN.clientWindowS]);
+  info(`client counters are keyed on the ${DESIGN.clientWindowS / 60}-minute bucket start (rows on other boundaries: ${b.stray}, all moved there by this run)`);
 
   console.log("\n  11. THROTTLE OBJECTS");
-  for (const t of OBJ.tables) {
-    const priv = await q(`select p, has_table_privilege(r, $1, p) h from unnest(array['anon','authenticated']) r, unnest(array['SELECT','INSERT','UPDATE','DELETE','TRUNCATE','REFERENCES','TRIGGER']) p`, [t]);
-    const held = priv.filter((x) => x.h);
-    ok(held.length === 0, `${t}: anon and authenticated hold no privilege`, held.map((x) => x.p).join(","));
+  for (const t of [DESIGN.throttle, DESIGN.limitsTable, DESIGN.saltTable]) {
+    const held = (await q(`select p from unnest(array['anon','authenticated']) r, unnest(array['SELECT','INSERT','UPDATE','DELETE','TRUNCATE','REFERENCES','TRIGGER']) p where has_table_privilege(r, $1, p)`, [t])).map((x) => x.p);
+    ok(held.length === 0, `${t}: anon and authenticated hold no privilege`, held.join(","));
     const [{ rls }] = await q(`select relrowsecurity rls from pg_class where oid = $1::regclass`, [t]);
     ok(rls, `${t}: row-level security on`);
-    for (const [role, sql] of [["anon", `select * from ${t} limit 1`], ["authenticated", `select * from ${t} limit 1`], ["anon", `delete from ${t}`], ["anon", `truncate ${t}`]]) {
+    for (const [role, sql] of [["anon", `select * from ${t} limit 1`], ["authenticated", `select * from ${t} limit 1`], ["anon", `update ${t} set ${t.endsWith("limits") ? "per_client = 1000" : t.endsWith("salt") ? "salt = 'x'" : "count = 0"}`], ["anon", `delete from ${t}`]]) {
       r = await req(role, { headers: gw(freshIp()), uid: role === "authenticated" ? u0 : null }, sql);
       ok(!r.ok && r.code === "42501", `${role}: ${sql.split(" ")[0]} on ${t} -> refused (42501)`, r.code);
     }
   }
-  for (const s of OBJ.seqs) {
-    const h = (await q(`select has_sequence_privilege('anon', $1, 'USAGE') a, has_sequence_privilege('authenticated', $1, 'USAGE') b`, [s]))[0];
-    ok(!h.a && !h.b, `${s}: no USAGE for anon/authenticated`);
-  }
-  for (const f of OBJ.funcs) {
-    const [x] = await q(`select prosecdef sd, coalesce(array_to_string(proconfig, ','), '') cfg, prorettype = 'trigger'::regtype trig, has_function_privilege('anon', oid, 'EXECUTE') a, has_function_privilege('authenticated', oid, 'EXECUTE') b from pg_proc where oid = $1::regprocedure`, [f]);
-    if (!x.trig) ok(!x.a && !x.b, `${f}: not executable by anon/authenticated (else /rpc could read or reset the counters)`, `anon ${x.a} authenticated ${x.b}`);
+  for (const f of [DESIGN.keyFn, DESIGN.guardFn, "public.bump_submission_throttle(text, text, timestamp with time zone)", "public.prune_submission_throttle()"]) {
+    const [x] = await q(`select prosecdef sd, coalesce(array_to_string(proconfig, ','), '') cfg, has_function_privilege('anon', oid, 'EXECUTE') a, has_function_privilege('authenticated', oid, 'EXECUTE') b from pg_proc where oid = to_regprocedure($1)`, [f]);
+    if (!x) { info(`${f}: not present`); continue; }
+    ok(!x.a && !x.b, `${f}: not executable by anon/authenticated`, `anon ${x.a} authenticated ${x.b}`);
     if (x.sd) ok(/search_path=/.test(x.cfg), `${f}: SECURITY DEFINER pins search_path`, x.cfg || "none");
   }
+  r = await req("anon", { headers: gw(freshIp()) }, `select ${DESIGN.keyFn.replace("()", "")}()`);
+  ok(!r.ok && r.code === "42501", "anon: calling listing_report_client_key() (would leak a key oracle) -> refused", r.code);
   const totalGrowth = growth.reduce((a, b) => a + b, 0);
-  const prunes = /delete\s+from/i.test(MIG.replace(/--[^\n]*/g, ""));
-  if (totalGrowth > VARIANTS.length * 2 && !prunes) finding(`header rotation added ${totalGrowth} throttle rows across ${VARIANTS.length} probes and 0093 never deletes old ones: an attacker can grow the table without bound`);
-  else info(`throttle rows added by the rotation probes: ${totalGrowth}${prunes ? " (0093 prunes old rows)" : ""}`);
+  info(`counter rows added by the rotation probes: ${totalGrowth}; 0057's prune_submission_throttle() (service role) deletes rows older than a day -- check that something actually CALLS it on a schedule`);
 } catch (e) {
   ok(false, "unexpected error", e.stack || e.message);
 } finally {
   await c.query("rollback").catch(() => {});
 }
-ok((await q(`select count(*)::int n from public.listing_reports`))[0].n === rowsBefore, "phase A left nothing behind (transaction rolled back)");
+ok((await q(`select count(*)::int n from public.listing_reports`))[0].n === rowsBefore, "phase A left nothing behind (rolled back)");
 
-// ---- phase B: parallel, committed, cleaned up exactly ------------------------
 if (BURST) await phaseB();
 if (HTTP) await phaseC();
 await c.end();
@@ -389,56 +389,19 @@ if (findings.length) { console.log("\n  FINDINGS"); for (const f of findings) co
 console.log(`\n  listing-reports-0093 adversarial (staging): ${pass} passed, ${fail} failed, ${findings.length} finding(s)\n`);
 process.exit(fail ? 1 : 0);
 
-// ---- helpers that need the catalogue -----------------------------------------
-async function throttleRows() {
-  let n = 0;
-  for (const t of (OBJ && OBJ.tables) || []) n += (await q(`select count(*)::int n from ${t}`))[0].n;
-  return n;
-}
-async function throttleTimestampCols() {
-  const out = [];
-  for (const t of OBJ.tables) for (const { attname } of await q(`select attname from pg_attribute where attrelid = $1::regclass and attnum > 0 and not attisdropped and atttypid = 'timestamptz'::regtype`, [t])) out.push([t, attname]);
-  return out;
-}
-// Move every throttle timestamp, and this run's report rows, `secs` into the past
-// (inside the rolled-back transaction): the same as waiting `secs`.
-async function shiftTime(secs) {
-  for (const [t, col] of await throttleTimestampCols()) await q(`update ${t} set "${col}" = "${col}" - make_interval(secs => $1)`, [secs]);
-  await q(`update public.listing_reports set created_at = created_at - make_interval(secs => $1) where company_slug like $2`, [secs, `${TAG}%`]);
-}
-async function pkCols(t) {
-  return (await q(`select a.attname from pg_index i join pg_attribute a on a.attrelid = i.indrelid and a.attnum = any(i.indkey) where i.indrelid = $1::regclass and i.indisprimary order by array_position(i.indkey, a.attnum)`, [t])).map((r) => r.attname);
-}
+// ---- phases B and C: committed, cleaned up exactly -----------------------------
 async function snapshot() {
-  const snap = {};
-  for (const t of OBJ.tables) {
-    const pk = await pkCols(t);
-    if (!pk.length) return { error: `${t} has no primary key, so phase B could not restore it exactly` };
-    snap[t] = { pk, rows: new Map((await q(`select to_jsonb(x) j from ${t} x`)).map((r) => [JSON.stringify(pk.map((k) => r.j[k])), r.j])) };
-  }
-  return { snap };
+  return new Map((await q(`select ip_hash, form, window_start::text ws, count from ${DESIGN.throttle} where ${FORMS}`, [DESIGN.forms])).map((r) => [`${r.ip_hash}|${r.form}|${r.ws}`, r]));
 }
-async function restore(snap) {
-  for (const [t, { pk, rows }] of Object.entries(snap)) {
-    const now = (await q(`select to_jsonb(x) j from ${t} x`)).map((r) => r.j);
-    for (const j of now) {
-      const key = JSON.stringify(pk.map((k) => j[k]));
-      const where = pk.map((k, i) => `"${k}" = (jsonb_populate_record(null::${t}, $1::jsonb))."${k}"`).join(" and ");
-      if (!rows.has(key)) await q(`delete from ${t} where ${where}`, [JSON.stringify(j)]);
-      else if (JSON.stringify(rows.get(key)) !== JSON.stringify(j)) {
-        const cols = Object.keys(j).filter((k) => !pk.includes(k));
-        if (cols.length) await q(`update ${t} set ${cols.map((k) => `"${k}" = (jsonb_populate_record(null::${t}, $1::jsonb))."${k}"`).join(", ")} where ${where}`, [JSON.stringify(rows.get(key))]);
-      }
-    }
-    for (const [key, j] of rows) {
-      const present = now.some((x) => JSON.stringify(pk.map((k) => x[k])) === key);
-      if (!present) await q(`insert into ${t} select * from jsonb_populate_record(null::${t}, $1::jsonb)`, [JSON.stringify(j)]);
-    }
+async function restore(snap, label) {
+  const now = await snapshot();
+  for (const [k, r] of now) {
+    if (!snap.has(k)) await q(`delete from ${DESIGN.throttle} where ip_hash = $1 and form = $2 and window_start = $3::timestamptz`, [r.ip_hash, r.form, r.ws]);
+    else if (snap.get(k).count !== r.count) await q(`update ${DESIGN.throttle} set count = $4 where ip_hash = $1 and form = $2 and window_start = $3::timestamptz`, [r.ip_hash, r.form, r.ws, snap.get(k).count]);
   }
-  for (const [t, { rows }] of Object.entries(snap)) {
-    const now = (await q(`select to_jsonb(x) j from ${t} x`)).map((r) => JSON.stringify(r.j)).sort();
-    ok(JSON.stringify(now) === JSON.stringify([...rows.values()].map((j) => JSON.stringify(j)).sort()), `${t} restored exactly to its pre-run state`);
-  }
+  for (const [k, r] of snap) if (!now.has(k)) await q(`insert into ${DESIGN.throttle} (ip_hash, form, window_start, count) values ($1, $2, $3::timestamptz, $4)`, [r.ip_hash, r.form, r.ws, r.count]);
+  const after = await snapshot();
+  ok(after.size === snap.size && [...snap].every(([k, r]) => after.has(k) && after.get(k).count === r.count), `${label}: this design's counters restored exactly (${snap.size} rows)`);
 }
 async function anonClient(headers) {
   const k = new pg.Client({ connectionString: url, ssl: { rejectUnauthorized: false } });
@@ -450,67 +413,67 @@ async function anonClient(headers) {
 }
 async function phaseB() {
   console.log("\n  PHASE B: PARALLEL, COMMITTED");
-  if (!(await applied())) { info("skipped: 0093 is not applied on staging (S4 applies it first)"); return; }
-  if (N == null) { info("skipped: phase A did not establish the per-client limit"); return; }
-  const s = await snapshot();
-  if (s.error) { ok(false, s.error); return; }
+  if (!(await isApplied())) { info("skipped: 0093 is not applied on staging (S4 applies it first)"); return; }
+  const snap = await snapshot();
   const before = (await q(`select count(*)::int n from public.listing_reports`))[0].n;
+  const gStart = await globalCount();
   try {
+    if (gStart + 40 > G) { info(`skipped: the live global count is ${gStart}; too close to ${G} to probe without blocking real reports`); return; }
     const one = freshIp();
-    const P = N + 10;
-    if (P > 60) { info(`parallel per-client probe skipped (N ${N}: ${P} connections is too many)`); return; }
+    const P = N + 15;
     const clients = await Promise.all(Array.from({ length: P }, () => anonClient(gw(one))));
     const res = await Promise.all(clients.map((k) => k.query(PGRST, [JSON.stringify(body())]).then(() => true, (e) => e.code)));
     await Promise.all(clients.map((k) => k.end()));
     const got = res.filter((x) => x === true).length;
-    ok(got <= N, `${P} parallel reports from one client: ${got} stored (limit ${N}; no check-then-insert race)`, `refusals: ${[...new Set(res.filter((x) => x !== true))].join(",")}`);
-    ok(!res.some((x) => x !== true && httpStatus(x, "anon") >= 500), "no parallel refusal maps to a 5xx (deadlock / serialization)", [...new Set(res.filter((x) => x !== true))].join(","));
-    if (G != null && G <= 300) {
-      const PG = G + 20;
-      const ks = await Promise.all(Array.from({ length: PG }, () => anonClient(gw(freshIp()))));
-      const rg = await Promise.all(ks.map((k) => k.query(PGRST, [JSON.stringify(body())]).then(() => true, (e) => e.code)));
-      await Promise.all(ks.map((k) => k.end()));
-      const gg = rg.filter((x) => x === true).length;
-      ok(gg <= G, `${PG} parallel reports from distinct clients: ${gg} stored (global ${G})`);
-    } else info(`parallel global probe skipped (G ${G == null ? "unknown" : `${G} > 300`}: too many connections)`);
+    const codes = [...new Set(res.filter((x) => x !== true))];
+    ok(got === N, `${P} parallel reports from one client: exactly ${N} stored (no overshoot)`, `${got}; refusals ${codes.join(",")}`);
+    ok(codes.every((x) => x === DESIGN.tooMany), "every parallel refusal is PT429 (no deadlock 40P01, no serialization 40001, no lock timeout)", codes.join(","));
+    ok((await globalCount()) === gStart + N, `the global counter moved by exactly ${N} (refusals rolled back their increments)`, `${gStart} -> ${await globalCount()}`);
+    // The global ceiling under contention, without filling the real window: lower it for the probe.
+    await q(`update ${DESIGN.limitsTable} set global_per_window = $1 where id`, [gStart + N + 10]);
+    const ks = await Promise.all(Array.from({ length: 30 }, () => anonClient(gw(freshIp()))));
+    const rg = await Promise.all(ks.map((k) => k.query(PGRST, [JSON.stringify(body())]).then(() => true, (e) => e.code)));
+    await Promise.all(ks.map((k) => k.end()));
+    const gg = rg.filter((x) => x === true).length;
+    ok(gg === 10, "30 parallel distinct clients against 10 remaining global slots: exactly 10 stored", `${gg}; ${[...new Set(rg.filter((x) => x !== true))].join(",")}`);
   } finally {
-    await q(`delete from public.listing_reports where company_slug like $1`, [`${TAG}%`]);
-    await restore(s.snap);
+    await q(`update ${DESIGN.limitsTable} set global_per_window = $1 where id`, [G]);
+    await q(`delete from public.listing_reports where company_slug = $1`, [TAG]);
+    await restore(snap, "phase B");
     ok((await q(`select count(*)::int n from public.listing_reports`))[0].n === before, "phase B: every report row it committed was deleted");
+    ok((await q(`select global_per_window g from ${DESIGN.limitsTable} where id`))[0].g === G, `phase B: the global limit is back to ${G}`);
   }
 }
 async function phaseC() {
   console.log("\n  PHASE C: THROUGH THE STAGING GATEWAY");
   const key = process.env.STAGING_ANON_KEY;
   if (!key) { info("skipped: STAGING_ANON_KEY not set"); return; }
-  if (!(await applied())) { info("skipped: 0093 is not applied on staging"); return; }
-  const s = await snapshot();
-  if (s.error) { ok(false, s.error); return; }
-  const SPOOF = { xff: "203.0.113.77", xri: "203.0.113.78", cf: "203.0.113.79" };
+  if (!(await isApplied())) { info("skipped: 0093 is not applied on staging"); return; }
+  const snap = await snapshot();
+  const before = (await q(`select count(*)::int n from public.listing_reports`))[0].n;
+  const SPOOF = { "cf-connecting-ip": "203.0.113.77", "x-forwarded-for (first hop)": "203.0.113.78", "x-real-ip": "203.0.113.79" };
   try {
-    const t0 = new Set((await throttleDump()).map((x) => x));
-    for (let i = 0; i < 2; i++) {
-      const r = await fetch("https://jmljfovtfxcdhjmtlnva.supabase.co/rest/v1/listing_reports", {
-        method: "POST",
-        headers: { apikey: key, Authorization: `Bearer ${key}`, "Content-Type": "application/json", Prefer: "return=minimal", "X-Forwarded-For": SPOOF.xff, "X-Real-IP": SPOOF.xri, "CF-Connecting-IP": SPOOF.cf },
-        body: JSON.stringify(body()),
-      });
-      info(`gateway request ${i + 1}: HTTP ${r.status}`);
-    }
-    const added = (await throttleDump()).filter((x) => !t0.has(x)).join(" ");
-    const hashed = (v) => [v, crypto.createHash("md5").update(v).digest("hex"), crypto.createHash("sha256").update(v).digest("hex")];
+    const send = (headers) => fetch("https://jmljfovtfxcdhjmtlnva.supabase.co/rest/v1/listing_reports", {
+      method: "POST",
+      headers: { apikey: key, Authorization: `Bearer ${key}`, "Content-Type": "application/json", Prefer: "return=minimal", ...headers },
+      body: JSON.stringify(body()),
+    }).then((r) => r.status, () => 0);
+    info(`plain request: HTTP ${await send({})}`);
+    info(`spoofed request: HTTP ${await send({ "CF-Connecting-IP": SPOOF["cf-connecting-ip"], "X-Forwarded-For": SPOOF["x-forwarded-for (first hop)"], "X-Real-IP": SPOOF["x-real-ip"] })}`);
+    const added = [...(await snapshot()).values()].filter((r) => r.form === DESIGN.forms[1] && !snap.has(`${r.ip_hash}|${r.form}|${r.ws}`)).map((r) => r.ip_hash);
+    const keyOf = async (ip) => (await q(`select 'lr:' || left(encode(sha256(convert_to(s.salt || '|' || $1, 'UTF8')), 'hex'), 32) k from ${DESIGN.saltTable} s where s.id`, [ip]))[0].k;
+    ok(added.length >= 1, `the gateway requests created client counters (${added.length})`);
+    ok(!added.includes(await keyOf("unknown")), "the gateway delivers a usable client address (neither request fell into the shared 'unknown' bucket)");
     for (const [h, v] of Object.entries(SPOOF)) {
-      const reached = hashed(v).some((x) => added.includes(x));
-      if (reached) finding(`the spoofed ${h} value reached the throttle key through the gateway: the platform does NOT overwrite it, so rotating it rotates the client`);
-      else info(`spoofed ${h}: not in the throttle key (overwritten by the gateway, or not used${added ? "" : "; no new throttle rows seen"})`);
+      if (added.includes(await keyOf(v))) {
+        if (h === "cf-connecting-ip") ok(false, "a client-sent CF-Connecting-IP reached the key: the gateway does NOT overwrite it, so any client can rotate its identity");
+        else finding(`the spoofed ${h} became the key: the gateway sets no cf-connecting-ip here, so the first-hop weakness applies (bounded by the global ${G}/h)`);
+      } else info(`spoofed ${h}: not the key`);
     }
+    info("staging's gateway is assumed to match production's (both Supabase-hosted); confirm once on production with one report after 0093");
   } finally {
-    await q(`delete from public.listing_reports where company_slug like $1`, [`${TAG}%`]);
-    await restore(s.snap);
+    await q(`delete from public.listing_reports where company_slug = $1`, [TAG]);
+    await restore(snap, "phase C");
+    ok((await q(`select count(*)::int n from public.listing_reports`))[0].n === before, "phase C: its report rows were deleted");
   }
-}
-async function throttleDump() {
-  const out = [];
-  for (const t of OBJ.tables) for (const r of await q(`select to_jsonb(x)::text j from ${t} x`)) out.push(r.j);
-  return out;
 }
