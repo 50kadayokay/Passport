@@ -206,8 +206,9 @@ try {
     ["cf present; true-client-ip / x-client-ip / forwarded rotated", (real, i) => gw(real, { "true-client-ip": spoofIp(i), "x-client-ip": spoofIp(i), forwarded: `for=${spoofIp(i)}` }), "hold"],
     ["cf present; user-agent rotated", (real, i) => gw(real, { "user-agent": `ua-${i}` }), "hold"],
     ["cf with spaces around the same address", (real, i) => gw(real, { "cf-connecting-ip": `${" ".repeat(i % 3)}${real}${" ".repeat(i % 2)}` }), "hold"],
-    // btrim() strips spaces only: tabs/newlines make a "new" address. Only matters if a client can set cf (phase C).
-    ["cf with tabs/newlines around the same address", (real, i) => gw(real, { "cf-connecting-ip": `${"\t".repeat(i % 3)}${real}${"\n".repeat(i % 2)}` }), "gateway"],
+    // S3 c82105d trims all whitespace (regexp_replace), so tab/newline padding is the same address.
+    ["cf with tabs/newlines around the same address", (real, i) => gw(real, { "cf-connecting-ip": `${"\t".repeat(i % 3)}${real}${"\n".repeat(i % 2)}` }), "hold"],
+    ["no cf; x-forwarded-for first hop padded with tabs/newlines", (real, i) => noCf(gw(real, { "x-forwarded-for": `${"\t".repeat(i % 3)}${real}${"\n".repeat(i % 2)}, 192.0.2.1` })), "hold"],
     ["cf rotated", (real, i) => gw(real, { "cf-connecting-ip": spoofIp(i) }), "gateway"],
     ["cf rotated as IPv6 case variants of one address", (real, i) => gw(real, { "cf-connecting-ip": i % 2 ? "2001:DB8::1" : "2001:db8::1".replace(/d/g, i % 3 ? "D" : "d") }), "gateway"],
     ["no cf; x-forwarded-for first hop rotated (peer appended)", (real, i) => noCf(gw(real, { "x-forwarded-for": `${spoofIp(i)}, ${real}` })), "accepted"],
