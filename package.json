@@ -36,6 +36,7 @@
     "check:s2-revalidate-staging": "node scripts/site-revalidate-staging-check.mjs",
     "check:s2-page-states": "node scripts/s2-page-states-test.mjs",
     "check:s2-rollout-plan": "node scripts/rollout-plan-manifest-test.mjs",
+    "check:s2-0093-adversarial-staging": "node scripts/listing-reports-0093-adversarial-check.mjs",
     "check:s2-pilot-disabled": "node scripts/pilot-disabled-test.mjs",
     "check:s2-function-drift": "node scripts/function-drift-diff-test.mjs",
     "check:s2-rollback-0071": "node scripts/rollback-0071-guard-test.mjs",
