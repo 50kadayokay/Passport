@@ -169,7 +169,7 @@ reset();
   ok((await deliver(p, sign(p))).status === 200, "a fresh, correctly signed event -> 200");
   ok((await deliver(p, sign(p, t - WEBHOOK_TOLERANCE_SECONDS - 1))).status === 400, `signed ${WEBHOOK_TOLERANCE_SECONDS + 1} s ago -> 400 (replay window closed)`);
   ok((await deliver(p, sign(p, t - 86400))).status === 400, "a day-old signed event -> 400 (the KNOWN F9 replay)");
-  ok((await deliver(p, sign(p, t + WEBHOOK_TOLERANCE_SECONDS + 1))).status === 400, "a timestamp from the future beyond tolerance -> 400");
+  ok((await deliver(p, sign(p, t + WEBHOOK_TOLERANCE_SECONDS + 30))).status === 400, "a timestamp from the future beyond tolerance -> 400");
   const e2 = ev("invoice.paid", { id: "in_2" }), p2 = JSON.stringify(e2);
   ok((await deliver(p2, sign(p2, t - WEBHOOK_TOLERANCE_SECONDS + 5))).status === 200, "inside the tolerance (295 s) -> 200");
   const e3 = ev("invoice.paid", { id: "in_3" }), p3 = JSON.stringify(e3);

@@ -109,7 +109,7 @@ export const PENDING = {
   "0093_listing_reports_rate_limit.sql":
     "A database-enforced rate limit and a one-row-per-request cap on DIRECT client inserts into listing_reports (anon/authenticated: the installed 1.3.x path 0077 keeps open). Client = cf-connecting-ip, else the LAST x-forwarded-for hop (gateway-set only), stored as a salted hash; limits 5 per 10 min per client, 20 per hour per /24 or /48 network, 600 per hour globally (editable in listing_report_limits); expired counters pruned by the trigger. Refusals are PT429/PT400. The service role (/api/submit), direct sessions and platform admins are unaffected. Apply in the SAME runner session as 0092, right after it.",
   "0092_listing_reports_column_insert.sql":
-    "listing_reports INSERT for anon/authenticated narrowed from the whole table to the six columns installed 1.3.x builds send, so a guest can no longer set id or created_at (backdating, id oracle). 0077's policy unchanged. Apply in the SAME runner session as 0077, right after it.",
+    "listing_reports INSERT for anon/authenticated narrowed from the whole table to the six columns installed 1.3.x builds send, so a guest can no longer set id or created_at (backdating, id oracle). 0077's policy unchanged. Apply in the SAME runner session as 0077, right after it. Applied to staging 2026-11-02.",
   "0091_notification_clear_no_platform_admin.sql":
     "\"Clear all\" admits only the company's owner_id or an active owner/admin membership; platform admins no longer pass by being platform admins (user decision 2026-11-01). Replaces 0090's check only; same signature and grants. MUST follow 0090. Applied to staging 2026-11-01.",
   "0061a_table_privilege_hardening.sql":

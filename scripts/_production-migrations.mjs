@@ -35,6 +35,8 @@ export const IMMEDIATELY_AFTER = {
   // so production never runs 0077 with id/created_at settable. After 0077's
   // entry: the loop places entries in this order.
   "0092_listing_reports_column_insert.sql": "0077_listing_reports_installed_app_compat.sql",
+  // 0093 rate-limits the same door (direct listing_reports inserts): same session, right after 0092.
+  "0093_listing_reports_rate_limit.sql": "0092_listing_reports_column_insert.sql",
 };
 
 // Read-only markers for the files the 2026-11-01 audit predates. Each is TRUE
@@ -48,6 +50,9 @@ export const POST_AUDIT_MARKERS = {
   // under 0058 alone (nothing), true only under 0092's column grant.
   "0092_listing_reports_column_insert.sql":
     `has_column_privilege('anon', 'public.listing_reports', 'company_slug', 'INSERT') and not has_column_privilege('anon', 'public.listing_reports', 'created_at', 'INSERT')`,
+  // Depends only on objects 0093 creates: false before it, false after its rollback.
+  "0093_listing_reports_rate_limit.sql":
+    `to_regclass('public.listing_report_limits') is not null and exists (select 1 from pg_trigger where tgrelid = 'public.listing_reports'::regclass and tgname = 'listing_reports_guard' and not tgisinternal)`,
   "0078_storage_role_hardening.sql":
     `to_regprocedure('public.can_upload_company_assets()') is not null`,
   "0080_mineiq_search_any_term.sql":

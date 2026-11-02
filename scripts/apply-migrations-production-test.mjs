@@ -64,7 +64,7 @@ is(refusal(() => loadRecord(path.join(tmp, "missing.json")), /cannot read the au
 
 console.log("\n  PLAN: the recorded 2026-11-01 audit");
 const P = plan();
-const EXPECTED = ["0058_close_public_insert", "0077_listing_reports_installed_app_compat", "0092_listing_reports_column_insert", "0061a_table_privilege_hardening", "0062_message_attachments",
+const EXPECTED = ["0058_close_public_insert", "0077_listing_reports_installed_app_compat", "0092_listing_reports_column_insert", "0093_listing_reports_rate_limit", "0061a_table_privilege_hardening", "0062_message_attachments",
   "0063_company_initiated_threads", "0064_notification_clearing", "0065a_analytics_breakdown", "0065b_engagement_corrections", "0065c_analytics_indexes",
   "0066_mineiq_conversations", "0068_site_contract", "0069b_stripe_events", "0071_publishing_reliability", "0072_profile_drafts",
   "0073a_impression_dedupe_index", "0073b_impression_tracking", "0073c_post_events_client_guard", "0074_profile_revision_history",
@@ -87,6 +87,7 @@ ok(P.items.find((i) => i.file === "0090_notification_clear_roles.sql").prerequis
    `prerequisites are shown with where they are satisfied (0090: 0064 step ${stepOf("0064_notification_clearing.sql")}, 0076 step ${stepOf("0076_company_roles.sql")})`);
 ok(EXPECTED.indexOf("0092_listing_reports_column_insert.sql") === EXPECTED.indexOf("0077_listing_reports_installed_app_compat.sql") + 1 && EXPECTED.indexOf("0077_listing_reports_installed_app_compat.sql") === EXPECTED.indexOf("0058_close_public_insert.sql") + 1,
    "0058 -> 0077 -> 0092 back to back (Phase 3, one runner session)");
+ok(EXPECTED.indexOf("0093_listing_reports_rate_limit.sql") === EXPECTED.indexOf("0092_listing_reports_column_insert.sql") + 1, "...and 0093 right after 0092");
 ok(P.items.find((i) => i.file === "0080_mineiq_search_any_term.sql").prerequisites[0].status === "applied", "...or that production already has them (0080 needs 0050a: applied)");
 ok(P.items.filter((i) => i.source === "written after the audit").length === N_AFTER, `the ${N_AFTER} files written after the audit are planned and labelled so`);
 ok(P.items.find((i) => i.file === "0091_notification_clear_no_platform_admin.sql").prerequisites.map((p) => `${p.file}:${p.status}`).join() === `0090_notification_clear_roles.sql:step ${EXPECTED.indexOf("0090_notification_clear_roles.sql") + 1}`,
@@ -106,15 +107,15 @@ ok(P.warnings.length === 0, "no warnings against the real record", P.warnings.jo
 
 console.log("\n  PLAN: a fixture audit (0058, 0061a, 0062 applied; 0077 not)");
 const PF = plan(FIXTURE);
-ok(PF.items.length === N_FIXTURE && PF.items[0].file === "0077_listing_reports_installed_app_compat.sql" && PF.items[1].file === "0092_listing_reports_column_insert.sql" && PF.items[2].file === "0063_company_initiated_threads.sql",
-   `${N_FIXTURE} steps; 0077 goes FIRST because its partner 0058 is already applied; 0092 right behind it`, PF.items.slice(0, 3).map((i) => i.file).join(" "));
+ok(PF.items.length === N_FIXTURE && PF.items[0].file === "0077_listing_reports_installed_app_compat.sql" && PF.items[1].file === "0092_listing_reports_column_insert.sql" && PF.items[2].file === "0093_listing_reports_rate_limit.sql" && PF.items[3].file === "0063_company_initiated_threads.sql",
+   `${N_FIXTURE} steps; 0077 goes FIRST because its partner 0058 is already applied; 0092 and 0093 right behind it`, PF.items.slice(0, 3).map((i) => i.file).join(" "));
 ok(PF.warnings.some((w) => /0077.*FIRST/.test(w)) && PF.warnings.filter((w) => /manifest still lists it PENDING/.test(w)).length === 3, "it warns about that, and that the manifest still lists 0058/0061a/0062 as pending");
 ok(PF.items.find((i) => i.file === "0077_listing_reports_installed_app_compat.sql").prerequisites[0].status === "applied", "0077's prerequisite (0058) reads applied");
 {
   const log = [{ ref: PROD, file: "0077_listing_reports_installed_app_compat.sql", status: "applied" }, { ref: PROD, file: "0063_company_initiated_threads.sql", status: "applied" },
                { ref: STAGING, file: "0064_notification_clearing.sql", status: "applied" }];
   const PL = plan(FIXTURE, { log });
-  ok(PL.items[0].file === "0092_listing_reports_column_insert.sql" && PL.items[1].file === "0064_notification_clearing.sql" && PL.items.length === N_FIXTURE - 2,
+  ok(PL.items[0].file === "0092_listing_reports_column_insert.sql" && PL.items[1].file === "0093_listing_reports_rate_limit.sql" && PL.items[2].file === "0064_notification_clearing.sql" && PL.items.length === N_FIXTURE - 2,
      "the apply log subtracts what this runner applied (and ignores entries for another ref); 0092 goes first, its partner 0077 being applied", PL.items.slice(0, 2).map((i) => i.file).join(" "));
 }
 ok(JSON.stringify(plan(RECORD).items.map((i) => i.file)) === JSON.stringify(EXPECTED), "planning has no side effects (same plan twice)");

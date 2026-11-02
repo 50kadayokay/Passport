@@ -31,11 +31,11 @@ const ORDER = ["0053_phase3_0041_privilege_hardening", "0054_phase3_0041_immutab
   "0065b_engagement_corrections", "0065c_analytics_indexes", "0066_mineiq_conversations", "0067_conference_mode_feature", "0068_site_contract",
   "0069b_stripe_events", "0071_publishing_reliability", "0072_profile_drafts", "0073a_impression_dedupe_index", "0073b_impression_tracking",
   "0073c_post_events_client_guard", "0074_profile_revision_history", "0075_profile_versions_privileges", "0076_company_roles",
-  "0077_listing_reports_installed_app_compat", "0092_listing_reports_column_insert", "0078_storage_role_hardening",
+  "0077_listing_reports_installed_app_compat", "0092_listing_reports_column_insert", "0093_listing_reports_rate_limit", "0078_storage_role_hardening",
   "0080_mineiq_search_any_term", "0085_conference_booth_config", "0086_service_requests", "0087_audience_events", "0088_content_fanout",
   "0090_notification_clear_roles", "0091_notification_clear_no_platform_admin"];
-// 0077, 0078, 0080, 0085-0088, 0090 and 0091 applied to staging 2026-11-01; 0092 awaits approval.
-const NOT_ON_STAGING = new Set(["0055_enable_device_push", "0092_listing_reports_column_insert"]);
+// 0077, 0078, 0080, 0085-0088 and 0090-0092 applied to staging (0092 on 2026-11-02); 0093 awaits approval.
+const NOT_ON_STAGING = new Set(["0055_enable_device_push", "0093_listing_reports_rate_limit"]);
 const DEFERRED = new Set(["0055_enable_device_push"]);
 
 const prep = (sql) => {
