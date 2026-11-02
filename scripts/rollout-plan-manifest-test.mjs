@@ -37,7 +37,9 @@ const missing = pending.filter((f) => !files.includes(f));
 const extra = files.filter((f) => !pending.includes(f));
 ok(missing.length === 0, `every PENDING migration is in the plan (${pending.length})`, `missing: ${missing.join(", ")}`);
 ok(extra.length === 0, "the plan lists nothing that is not PENDING (no deferred or applied file)", `extra: ${extra.join(", ")}`);
-ok(!files.some((f) => f in DEFERRED), "no DEFERRED migration is in the plan");
+// HELD entries are deferred by a user decision but stay in the plan, in order, to be re-enabled.
+const held = (f) => /^HELD\b/.test(DEFERRED[f] || "");
+ok(!files.some((f) => f in DEFERRED && !held(f)), "no DEFERRED migration is in the plan (HELD ones excepted)");
 ok(files.every((f) => migrations.has(f)), "every listed file exists in supabase/migrations", files.filter((f) => !migrations.has(f)).join(", "));
 
 console.log("\n  ORDER");
@@ -45,7 +47,7 @@ const pos = Object.fromEntries(files.map((f, i) => [f, i]));
 const prereq = (f) => PREREQUISITES[f] || [];
 const late = [];
 for (const f of files) for (const p of prereq(f)) {
-  if (p in DEFERRED) late.push(`${f} needs deferred ${p}`);
+  if (p in DEFERRED && !(held(p) && held(f))) late.push(`${f} needs deferred ${p}`);
   else if (p in pos && pos[p] > pos[f]) late.push(`${f} before ${p}`);
 }
 ok(late.length === 0, "every row comes after what it needs (manifest + review prerequisites)", late.join("; "));

@@ -10,6 +10,14 @@
 // the features may be wanted later and deleting the migrations would destroy
 // the record of what was considered.
 export const DEFERRED = {
+  "0058_close_public_insert.sql":
+    "HELD by the user 2026-11-02 (Phase 3 group A): 0058 revokes the anon INSERT that mineex.ca's live homepage lead form (old code, LeadForm -> demo_bookings) uses; Re-enable after the lead-form compatibility fix is verified and approved.",
+  "0077_listing_reports_installed_app_compat.sql":
+    "HELD by the user 2026-11-02 (Phase 3 group A): 0058 revokes the anon INSERT that mineex.ca's live homepage lead form (old code, LeadForm -> demo_bookings) uses; needs 0058. Re-enable after the lead-form compatibility fix is verified and approved.",
+  "0092_listing_reports_column_insert.sql":
+    "HELD by the user 2026-11-02 (Phase 3 group A): 0058 revokes the anon INSERT that mineex.ca's live homepage lead form (old code, LeadForm -> demo_bookings) uses; needs 0077. Re-enable after the lead-form compatibility fix is verified and approved.",
+  "0093_listing_reports_rate_limit.sql":
+    "HELD by the user 2026-11-02 (Phase 3 group A): 0058 revokes the anon INSERT that mineex.ca's live homepage lead form (old code, LeadForm -> demo_bookings) uses; needs 0092. Re-enable after the lead-form compatibility fix is verified and approved.",
   "0011_outbox_ops.sql":
     "Outbox operator tooling (app_secrets, outbox_health, reconcile_outbox). The dispatcher runs without it.",
   "0027_market_quotes.sql":
