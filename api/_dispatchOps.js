@@ -10,6 +10,9 @@
 //   dead_deliveries   a delivery exhausted its retries (status dead)
 //   stuck_leases      a lease expired without completion (a run died mid-batch)
 //   backlog_age       a due delivery has waited longer than BACKLOG_ALERT_SECONDS
+//   listing_report_global_cap  0093's global listing-report cap is hit this
+//                     window or was hit last window (_listingReportOps.js); skipped
+//                     while 0093 is not applied. Raised only when a run happens.
 // One email per condition per ALERT_RESEND_MINUTES while it holds, and one when
 // it resolves, to OPS_ALERT_TO through the existing Postmark path. Without
 // OPS_ALERT_TO (or Postmark) the alert is RECORDED in ops_alerts only.
@@ -20,6 +23,7 @@
 // an external monitor polls it and pages when it returns 503.
 
 import { serviceRest } from "./_service.js";
+import { listingReportCondition, ALERT_CONDITION as LISTING_CAP } from "./_listingReportOps.js";
 
 export const BACKLOG_ALERT_SECONDS = 300;
 export const ALERT_RESEND_MINUTES = 60;
@@ -70,6 +74,13 @@ export async function outboxConditions(now = Date.now()) {
   };
 }
 
+/** Every alert condition: the outbox's, plus 0093's listing-report cap when it exists. */
+export async function allConditions(now = Date.now()) {
+  const conds = await outboxConditions(now);
+  try { const l = await listingReportCondition(now); if (l) conds[LISTING_CAP] = l; } catch { /* monitoring must not break delivery */ }
+  return conds;
+}
+
 async function sendOpsEmail(subject, text) {
   const to = process.env.OPS_ALERT_TO, token = process.env.POSTMARK_SERVER_TOKEN, from = process.env.MESSAGES_FROM_EMAIL;
   if (!to || !token || !from) return { emailed: false, reason: "ops email not configured" };
@@ -90,7 +101,7 @@ async function sendOpsEmail(subject, text) {
 export async function evaluateAlerts(now = Date.now()) {
   const out = {};
   let conds;
-  try { conds = await outboxConditions(now); } catch (e) { return { error: String(e.message || e) }; }
+  try { conds = await allConditions(now); } catch (e) { return { error: String(e.message || e) }; }
   const existing = (await rows(await serviceRest(`ops_alerts?select=condition,first_seen,last_sent,resolved_at,detail`))) || [];
   for (const [condition, { active, detail }] of Object.entries(conds)) {
     try {
@@ -100,7 +111,7 @@ export async function evaluateAlerts(now = Date.now()) {
         const ack = open && row.detail && row.detail.acknowledged_at ? { acknowledged_at: row.detail.acknowledged_at, acknowledged_by: row.detail.acknowledged_by || null } : null;
         const due = !open || (!ack && (!row.last_sent || now - Date.parse(row.last_sent) >= ALERT_RESEND_MINUTES * 60 * 1000));
         let sent = null;
-        if (due) sent = await sendOpsEmail(`[MineEx ops] ${condition}`, `Dispatcher alert: ${condition}\n${JSON.stringify(detail)}\nSince: ${open ? row.first_seen : new Date(now).toISOString()}`);
+        if (due) sent = await sendOpsEmail(`[MineEx ops] ${condition}`, `${condition === LISTING_CAP ? "Listing reports from installed apps are being refused: the global cap is full" : "Dispatcher alert"}: ${condition}\n${JSON.stringify(detail)}\nSince: ${open ? row.first_seen : new Date(now).toISOString()}`);
         const body = { condition, detail: ack ? { ...detail, ...ack } : detail, resolved_at: null, ...(open ? {} : { first_seen: new Date(now).toISOString() }), ...(due ? { last_sent: new Date(now).toISOString() } : {}) };
         await serviceRest(`ops_alerts?on_conflict=condition`, { method: "POST", prefer: "resolution=merge-duplicates,return=minimal", body });
         out[condition] = open ? (due ? "reminded" : "held") : "raised";

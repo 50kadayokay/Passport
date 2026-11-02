@@ -16,6 +16,10 @@
 // GET  ?view=delivery&id=<uuid>           one delivery in full, its event, its
 //                                         release, sibling deliveries and whether
 //                                         it may be replayed (and why not)
+// GET  ?view=listing-reports              0093's listing-report limits: this window's
+//                                         global count against the cap, capHit / warn
+//                                         (80%), recent cap hits, networks at their limit
+//                                         (counts only; also in the summary)
 // GET  ?view=history[&publication=]       events newest first with every delivery
 //      [&company=][&before=]              of each: the historical record
 // POST { action: "replay", delivery_id, expected_updated_at, confirm: true }
@@ -36,7 +40,8 @@
 
 import { requireAdmin } from "./_entitlement.js";
 import { serviceConfigured, serviceRest, invokeDispatchBestEffort } from "./_service.js";
-import { dispatcherHealth, outboxConditions, RUN_TRIGGERS } from "./_dispatchOps.js";
+import { dispatcherHealth, allConditions, RUN_TRIGGERS } from "./_dispatchOps.js";
+import { listingReportStatus } from "./_listingReportOps.js";
 import { isHistorical } from "./_listeners.js";
 
 export const STATUSES = ["pending", "processing", "failed", "dead", "succeeded"];
@@ -95,6 +100,7 @@ async function summaryView() {
     totals, by_listener: counts, alerts,
     replays: replays.map((r) => ({ at: r.started_at, ...(r.summary || {}) })),
     replay_limit_per_minute: REPLAY_LIMIT,
+    listingReports: await listingReportStatus(),
   };
 }
 
@@ -243,9 +249,10 @@ async function alertAction(admin, body) {
   }
   // resolve: only when the condition no longer holds. Otherwise the next run
   // would raise it again at once, and a "resolved" that isn't is a lie.
-  const conds = await outboxConditions();
+  const conds = await allConditions();
   if (conds[condition] && conds[condition].active) {
-    return [409, { error: "still_active", reason: `The condition still holds (${JSON.stringify(conds[condition].detail)}). Fix or replay the deliveries, or acknowledge the alert to stop reminders.` }];
+    const fix = condition === "listing_report_global_cap" ? "It clears once a window passes without the cap filling" : "Fix or replay the deliveries";
+    return [409, { error: "still_active", reason: `The condition still holds (${JSON.stringify(conds[condition].detail)}). ${fix}, or acknowledge the alert to stop reminders.` }];
   }
   const detail = { ...(row.detail || {}), resolved_by: admin.email || admin.userId };
   delete detail.acknowledged_at; delete detail.acknowledged_by;
@@ -269,7 +276,8 @@ export default async function handler(req, res) {
       else if (view === "deliveries") out = await deliveriesView(q);
       else if (view === "delivery") out = await deliveryView(q);
       else if (view === "history") out = await historyView(q);
-      else out = [400, { error: "view must be summary, deliveries, delivery or history" }];
+      else if (view === "listing-reports") out = [200, { listingReports: await listingReportStatus() }];
+      else out = [400, { error: "view must be summary, deliveries, delivery, history or listing-reports" }];
     } else {
       const body = (req.body && typeof req.body === "object") ? req.body : {};
       if (body.action === "replay") out = await replay(admin, body);

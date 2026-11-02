@@ -25,7 +25,7 @@ Every row below is checked by `npm run check:s2-pilot-disabled`
 | 4 | The only in-app callers are the best-effort nudges: publish, unpublish, revise, and an admin replay in Ops. | `api/publish.js:116` | `await invokeDispatchBestEffort();` |
 | 4a | | `api/unpublish.js:53` | `await invokeDispatchBestEffort();` |
 | 4b | | `api/revise-release.js:126` | `await invokeDispatchBestEffort();` |
-| 4c | | `api/ops.js:225` | `const nudge = await invokeDispatchBestEffort();` |
+| 4c | | `api/ops.js:231` | `const nudge = await invokeDispatchBestEffort();` |
 | 5 | A nudge is skipped when `DISPATCH_SECRET` is unset **[env]**, and it never waits more than 1.5 s or fails the publish. | `api/_service.js:136` | `if (!secret) return { dispatched: false, reason: "DISPATCH_SECRET not set" };` |
 | 5a | | `api/_service.js:141` | `signal: AbortSignal.timeout(1500),` |
 | 6 | The database schedules nothing. `outbox-drain` (pg_cron and pg_net) exists only in 0011, which is deferred; production audit Q15 found pg_cron absent. | `scripts/_migration-manifest.mjs:13` | `"0011_outbox_ops.sql":` |
