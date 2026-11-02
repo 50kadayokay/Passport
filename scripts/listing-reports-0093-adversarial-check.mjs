@@ -272,9 +272,19 @@ try {
   r = await report("anon", gw("2001:db8:2::1"));
   ok(r.ok, "the neighbouring /48 is unaffected");
   await newWindow();
+  // S3 256ef55 unmaps ::ffff:a.b.c.d to IPv4 before taking the network (by value).
+  const UNMAPS = /::ffff:0:0\/96/.test(MIG);
   const mapped = await exhaust("anon", (i) => gw(`::ffff:198.18.${(i * 7) % 256}.${(i % 200) + 1}`), NET + 5);
-  if (mapped.n === NET) finding(`IPv4-mapped IPv6 addresses (::ffff:a.b.c.d) from ${NET + 5} DIFFERENT IPv4 /24s share one network bucket: /48 of ::ffff:0:0/96 is all of IPv4. Harmless while cf-connecting-ip is plain IPv4 (phase C checks); otherwise unmap first (if family 6 and << '::ffff:0:0/96', take the IPv4 /24)`);
+  if (UNMAPS) ok(mapped.n === NET + 5, `IPv4-mapped IPv6 from ${NET + 5} different IPv4 /24s are NOT lumped into one /48 (${mapped.n} stored)`);
+  else if (mapped.n === NET) finding(`IPv4-mapped IPv6 addresses (::ffff:a.b.c.d) from ${NET + 5} DIFFERENT IPv4 /24s share one network bucket (this 0093 predates S3's 256ef55)`);
   else ok(true, `IPv4-mapped addresses from different /24s are not lumped together (${mapped.n} stored)`);
+  if (UNMAPS) {
+    await newWindow();
+    const mix = await exhaust("anon", (i) => gw(i % 2 ? `::ffff:198.19.220.${i + 1}` : `198.19.220.${i + 1}`), NET + 5);
+    ok(mix.n === NET && refusedBy(mix.refusal, "network"), `plain and ::ffff:-mapped addresses in one IPv4 /24 share its network limit of ${NET}`, `${mix.n}`);
+    ok((await netOf("::ffff:198.51.100.7")) === (await netOf("198.51.100.7")), "listing_report_network(::ffff:198.51.100.7) = listing_report_network(198.51.100.7)");
+    info("the CLIENT key still distinguishes the mapped and plain text of one address (2 buckets); the gateway, not the client, chooses the form, so not exploitable");
+  }
   r = await req("anon", { headers: gw("garbage") }, PGRST, [JSON.stringify(body())]);
   ok(r.ok && (await netOf("garbage")) === null, "an address that is not an inet: stored, no network counter (client and global only)", r.code);
   await newWindow();
