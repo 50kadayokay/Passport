@@ -198,8 +198,8 @@ console.log("\n  0093 (rate limit, right after 0092) on every path");
   const F92 = "0092_listing_reports_column_insert.sql", F93 = "0093_listing_reports_rate_limit.sql", F77 = "0077_listing_reports_installed_app_compat.sql";
   const it = buildPlan({ files: FILES, record: RECORD, q01Markers: Q01, log: applied("0058_close_public_insert.sql", F77, F92) }).items[0];
   ok(it.file === F93 && it.after === F92 && it.mode === "transaction" && it.concurrent === null, "planned right after 0092, as a transaction file");
-  ok(!it.captureError && it.captures.map((c) => c.sig).join() === "public.listing_report_client_key(),public.listing_reports_guard()",
-     "capture-on-apply pins its two functions (both new in production: listed in the capture, not restored)", it.captureError || it.captures.map((c) => c.sig).join());
+  ok(!it.captureError && it.captures.map((c) => c.sig).join() === "public.listing_report_client_ip(),public.listing_report_network(text),public.listing_report_key(text, text),public.listing_reports_guard()",
+     "capture-on-apply pins its four functions (both new in production: listed in the capture, not restored)", it.captureError || it.captures.map((c) => c.sig).join());
   ok(/to_regclass\('public\.listing_report_limits'\) is not null and exists \(select 1 from pg_trigger where tgrelid = 'public\.listing_reports'::regclass and tgname = 'listing_reports_guard'/.test(it.checkpoint), "its checkpoint: the limits table and the guard trigger exist");
   const rbSql = fs.readFileSync("supabase/rollbacks/0093_listing_reports_rate_limit.rollback.sql", "utf8");
   ok(lossyReasons(rbSql, F93, DOC).join() === "deletes rows,drops a table" && REVIEWED_NOT_LOSSY[F93].sha256 === sha256(rbSql),
