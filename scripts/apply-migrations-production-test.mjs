@@ -103,6 +103,30 @@ ok(P.items.find((i) => i.file === "0091_notification_clear_no_platform_admin.sql
   ok(table("0090_notification_clear_roles.sql") === "00 11 11", "0090's marker: false under 0064, true under 0090 AND 0091, comments or not (0090 is never re-applied over 0091)", table("0090_notification_clear_roles.sql"));
   ok(table("0091_notification_clear_no_platform_admin.sql") === "00 00 11", "0091's marker: true only under 0091, comments or not", table("0091_notification_clear_no_platform_admin.sql"));
 }
+{
+  // The 0077 / 0092 markers against listing_reports' anon INSERT as each file
+  // leaves it (grants and the insert policy, replayed from the SQL). Postgres:
+  // has_table_privilege ignores column grants; has_column_privilege counts both.
+  const st = { table: false, cols: new Set(), coalesce: false };
+  const replay = (f) => {
+    const sql = fs.readFileSync(path.join(DIR, f), "utf8").replace(/--[^\n]*/g, "");
+    for (const s of sql.split(";").map((x) => x.replace(/\s+/g, " ").trim())) {
+      if (/^revoke (insert|all) on public\.listing_reports from [^;]*\banon\b/i.test(s)) { st.table = false; st.cols.clear(); }
+      else if (/^grant insert on public\.listing_reports to [^;]*\banon\b/i.test(s)) st.table = true;
+      else { const g = /^grant insert \(([^)]*)\) on public\.listing_reports to [^;]*\banon\b/i.exec(s); if (g) g[1].split(",").forEach((c) => st.cols.add(c.trim())); }
+      if (/^create policy listing_reports_insert on public\.listing_reports\b/i.test(s)) st.coalesce = /coalesce\s*\(\s*contact/i.test(s) && /\banon\b/i.test(s);
+    }
+  };
+  const evalMarker = (sql) => Function(`return (${sql
+    .replace(/has_table_privilege\('anon', 'public\.listing_reports', 'INSERT'\)/g, String(st.table))
+    .replace(/has_column_privilege\('anon', 'public\.listing_reports', '([a-z_]+)', 'INSERT'\)/g, (_, c) => String(st.table || st.cols.has(c)))
+    .replace(/exists \(select 1 from pg_policies where [\s\S]*?policyname = 'listing_reports_insert'[\s\S]*?contact'\)/g, String(st.coalesce))
+    .replace(/\band\b/g, "&&").replace(/\bnot\b/g, "!")});`)();
+  const M = ["0077_listing_reports_installed_app_compat.sql", "0092_listing_reports_column_insert.sql"];
+  const rows = [];
+  for (const f of ["0017_listing_reports.sql", "0058_close_public_insert.sql", ...M, "0093_listing_reports_rate_limit.sql"]) { replay(f); rows.push(M.map((m) => (evalMarker(POST_AUDIT_MARKERS[m]) ? 1 : 0)).join("")); }
+  ok(rows.join(" ") === "00 00 10 11 11", "listing_reports markers after 0017 / 0058 / 0077 / 0092 / 0093: 0077's stays true under 0092 and 0093 (0077 is never re-applied over 0092), 0092's true only from 0092", rows.join(" "));
+}
 ok(P.warnings.length === 0, "no warnings against the real record", P.warnings.join("; "));
 
 console.log("\n  PLAN: a fixture audit (0058, 0061a, 0062 applied; 0077 not)");

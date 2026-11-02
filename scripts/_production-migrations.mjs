@@ -43,8 +43,13 @@ export const IMMEDIATELY_AFTER = {
 // only once that file has run. Q01's own markers (parsed from the audit SQL)
 // cover everything the audit tested.
 export const POST_AUDIT_MARKERS = {
+  // has_column_privilege, not has_table_privilege: 0092 swaps 0077's table-wide
+  // grant for a column grant, and has_table_privilege ignores column grants. A
+  // table-level test reads false under 0092, so the runner could re-apply 0077
+  // over it and reopen id/created_at (S1's verification, 2026-11-02). The
+  // policy test is what tells 0077 from 0017's state.
   "0077_listing_reports_installed_app_compat.sql":
-    `has_table_privilege('anon', 'public.listing_reports', 'INSERT') and exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'listing_reports' and policyname = 'listing_reports_insert' and 'anon' = any(roles) and with_check ~* 'coalesce\\(contact')`,
+    `has_column_privilege('anon', 'public.listing_reports', 'company_slug', 'INSERT') and exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'listing_reports' and policyname = 'listing_reports_insert' and 'anon' = any(roles) and with_check ~* 'coalesce\\(contact')`,
   // has_column_privilege is also true through a table-level grant, so
   // created_at must read NOT insertable: false under 0017/0077 (table-wide) and
   // under 0058 alone (nothing), true only under 0092's column grant.
