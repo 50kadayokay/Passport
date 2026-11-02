@@ -196,3 +196,17 @@ Apply 0080/0090 after approval, then rerun isolation and the live sweep.
   (investor app 35/0, 0 breaking), round trip 78/0, captures 15/0, npm test, production and native builds.
 - Open decision: prod's native ?manage= profile editor (any member sees it; owner saves bypass drafts; others get a
   false "Profile updated").
+
+## Batch 9: native company profile editor fixed (2026-11-02)
+- prod-v1.3.2's native ?manage= editor (user-approved fix, S3 ce810f6 + 0f4a8fa after S2's review): owners and admins
+  only, by the server's role answer (owner_id or an active owner/admin membership); saves go load -> draft -> publish
+  through /api/profile-draft, the portal's workflow; "Profile updated" only after publish succeeds, otherwise the
+  server's reason; a failed photo upload stops before any write; an open portal draft is never published from the
+  app; the app no longer touches /rest/v1/companies. Server: publish already requires owner/admin (platform admins
+  keep their portal admin power). manage-editor-test 58/0.
+- Open (user decisions, not blockers): S1's proposed 0081 trigger (unapplied) would make drafts the only path for
+  owners too, but first needs the portal's calendar, QR logo and Briefs saves moved to drafts; the feed card logo
+  reads profile.brand, which portal and app pp edits do not update (pre-existing).
+- Staging on the final code: isolation 1088/0/0/0, API authz 446/0, 25 live suites (investor app 35/0), round trip
+  78/0, captures 15/0, npm test, web and native builds. Not yet checked on a device: the native API call
+  (capacitor://localhost, same pattern as native messaging).
