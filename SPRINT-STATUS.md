@@ -210,3 +210,11 @@ Apply 0080/0090 after approval, then rerun isolation and the live sweep.
 - Staging on the final code: isolation 1088/0/0/0, API authz 446/0, 25 live suites (investor app 35/0), round trip
   78/0, captures 15/0, npm test, web and native builds. Not yet checked on a device: the native API call
   (capacitor://localhost, same pattern as native messaging).
+
+## Batch 10: overnight launch preparation (2026-11-02)
+- portal-work pushed to GitHub (secret-scanned). Read-only production audits re-run: no drift except 3 test users.
+- S1: 31-step migration verification; fixed 0077's checkpoint (would read false after 0092). S2: prod-check.mjs per
+  stage (staging dry run 51/0). S3: installed-app compatibility matrix (315/0); 0094 prepared for the one break
+  (installed Follow upsert after 0061a), not applied.
+- Staging: isolation 1088/0/0/0, authz 446/0, 25 live suites, rate-limit 119/129/131, alert 9/0, round trip 82/0,
+  captures 15/0, checkpoints 31/0, npm test and builds. Handoff: docs/MORNING-HANDOFF-2026-11-02.md.
