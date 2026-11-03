@@ -224,3 +224,8 @@ Apply 0080/0090 after approval, then rerun isolation and the live sweep.
   both checkpoints true; runner diffs showed only the intended ACLs. Read-only audits after each: only the intended grants
   changed. prod-check --stage=phase3: 35 PASS, 0 FAIL (4 INCOMPLETE need accounts). TLS now verified with Supabase's root CA
   (PRODUCTION_DB_CA_FILE). 0058, 0077, 0092, 0093 HELD (mineex.ca lead form); Phase 4 needs the 0063 messaging fix first.
+- PRODUCTION 2026-11-02, gate A2 COMPLETE: main = 50c0381 (merge of portal-work 245324e; tree identical to the tested commit),
+  Vercel passport + mineex-conference deployed (both success; mineex-conference also deploys from main, as on 746d86d).
+  prod-check --stage=deploy 35 PASS / 0 FAIL (4 INCOMPLETE need smoke accounts); new portal bundle live; mineex.ca HTML and
+  bundles byte-identical before/after; read-only audits: schema, grants, policies and functions unchanged (one new investor
+  sign-up only); apply log unchanged (0061a, 0094). Staging: 0095 + 0096 applied; full regression green. Next: approval B (Phase 3A).

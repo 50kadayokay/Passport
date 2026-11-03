@@ -112,9 +112,9 @@ const asked = [];
 const askWith = (answers) => async (q, opts = {}) => { asked.push({ q, hidden: !!opts.hidden }); return answers.shift() ?? ""; };
 const ALL = () => ["investor@test.invalid", PW.investor, "owner@test.invalid", PW.owner, "", "admin@test.invalid", PW.admin, ""];
 // The stage tests model the full rollout (no HELD files); one test below runs the real, held manifest.
-async function run(argv, { answers = null, env = { PRODUCTION_DSN_FILE: dsnFile }, manifest = UNHELD } = {}) {
+async function run(argv, { answers = null, env = { PRODUCTION_DSN_FILE: dsnFile }, manifest = UNHELD, applyLog = null } = {}) {
   const lines = [];
-  const r = await runCheck({ argv, env, fetchImpl, pgConnect, ask: answers ? askWith(answers) : null, out: (s) => lines.push(String(s)), err: (s) => lines.push(String(s)), read, manifest });
+  const r = await runCheck({ argv, env, fetchImpl, pgConnect, ask: answers ? askWith(answers) : null, out: (s) => lines.push(String(s)), err: (s) => lines.push(String(s)), read, manifest, applyLog });
   const text = lines.join("\n");
   const kinds = (k) => text.split("\n").filter((l) => l.startsWith(`  ${k.padEnd(10)}`));
   return { ...r, text, kinds };
@@ -165,6 +165,12 @@ ok(r.kinds("PASS").some((l) => /listing-report limit: 12 of 600/.test(l)), "/api
 db({ upTo: 3, extra: ["0062_message_attachments.sql"] });
 r = await run(["--stage=phase3"], { answers: ALL() });
 ok(r.kinds("FAIL").some((l) => /0062_message_attachments\.sql: not applied before its phase/.test(l)) && r.code === 1, "production: a phase-4 migration already applied FAILs (ahead of the plan)");
+// The same, but the runner's apply log records an approved apply of 0062 (as 0061a/0094 went out early on 2026-11-02).
+const LOGGED = [{ ref: "rvptronniomlqumjhyrr", file: "0062_message_attachments.sql", status: "started" }, { ref: "rvptronniomlqumjhyrr", file: "0062_message_attachments.sql", status: "applied" }];
+r = await run(["--stage=phase3"], { answers: ALL(), applyLog: LOGGED });
+ok(!r.kinds("FAIL").length && r.kinds("PASS").some((l) => /0062_message_attachments\.sql: applied ahead of its phase \(recorded in the runner's apply log\)/.test(l)), "...but a runner-LOGGED apply ahead of its phase PASSes (an approved early apply)", r.kinds("FAIL").join("\n"));
+r = await run(["--stage=phase3"], { answers: ALL(), applyLog: [{ ref: "abcdefghijklmnopqrst", file: "0062_message_attachments.sql", status: "applied" }, ...LOGGED.map((e) => ({ ...e, status: e.status === "applied" ? "rolled_back" : e.status }))] });
+ok(r.kinds("FAIL").some((l) => /0062_message_attachments\.sql: not applied before its phase/.test(l)), "...a log entry for another project, or one rolled back, does not count");
 db({ upTo: 2 });
 r = await run(["--stage=phase3"], { answers: ALL() });
 ok(r.kinds("FAIL").some((l) => /0093_listing_reports_rate_limit\.sql: applied \(this stage is past its phase\)/.test(l)), "a phase-3 migration missing at phase3 FAILs");

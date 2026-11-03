@@ -3,7 +3,7 @@
 Your steps, in order. Detail lives in `docs/PRODUCTION-ROLLOUT-PLAN.md` (the **Runbook**: commands,
 rollbacks, "never" rules, stop conditions), `docs/PRODUCTION-ENV-AUDIT.md` (variable names),
 `docs/PRODUCTION-TEST-ACCOUNTS.md` (smoke accounts) and `docs/PILOT-DISABLED-DELIVERY.md` (what stays off).
-Production so far: the code deploy and 0061a + 0094 (2026-11-02). Pilot scope: 2–3 companies.
+Production so far: the code deploys (746d86d; **50c0381 = 245324e, gate A2 complete 2026-11-02**) and 0061a + 0094 (2026-11-02). Pilot scope: 2–3 companies.
 
 ## Done
 
