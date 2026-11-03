@@ -87,8 +87,16 @@ try {
   const A = iso.ISOLATION_COMPANY_A_ID, B_SLUG = iso.ISOLATION_COMPANY_B_SLUG;
   if (!INV || !OWNER_A || !A || !B_SLUG) throw new Error("isolation fixtures missing (investor, company A owner, company A id, company B slug)");
 
+  // Staging may already carry the fixes (applied 2026-11-02): undo them inside this
+  // transaction with their own rollback files, so the controls test the unfixed state.
+  const has95 = (await q(`select to_regclass('public.public_form_limits') is not null v`))[0].v;
+  const has96 = (await q(`select count(*)::int n from information_schema.columns where table_schema = 'public' and table_name = 'conversations' and column_name = 'started_by'`))[0].n === 1;
+  if (has96) await c.query(R96);
+  if (has95) await c.query(R95);
+  if (has95 || has96) console.log(`  (staging has ${[has95 && "0095", has96 && "0096"].filter(Boolean).join(" and ")}: rolled back inside this transaction first)`);
+
   // =========================================================== CONTROLS ====
-  section("CONTROLS: staging as it is (0058 and 0063 applied, no fixes)");
+  section("CONTROLS: 0058 and 0063 applied, no fixes");
   {
     const r = await attempt(anon(), ...post("demo_bookings", HOMEPAGE));
     ok(!r.ok && r.code === "42501", "homepage lead form is refused after 0058 (the reported break)", `${r.code} ${r.msg}`);

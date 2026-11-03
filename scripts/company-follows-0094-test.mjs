@@ -77,9 +77,9 @@ ok(/follow request \(merge-duplicates\) on `company_follows` succeeds for the te
 ok(/0094 right after 0061a/.test(plan), "the runbook's apply steps name it");
 const list = read("docs/PRODUCTION-LAUNCH-CHECKLIST.md");
 {
-  // The Phase 3 row now records 0061a + 0094 as applied (2026-11-02) and the 0058 group as held.
+  // The Phase 3 row records 0061a + 0094 as applied (2026-11-02) and the rest of group A (with 0095) as remaining.
   const row = list.split("\n").find((l) => /\| Phase 3:/.test(l)) || "";
-  ok(/0061a and 0094 applied to production 2026-11-02/.test(row) && /0058, 0077, 0092, 0093 held/.test(row), "the launch checklist's Phase 3 row lists it (applied with 0061a; the 0058 group held)", row.slice(0, 160));
+  ok(/0061a and 0094 applied to production 2026-11-02/.test(row) && /Remaining group A: 0058, \*\*0095\*\*.*0077, 0092, 0093/.test(row), "the launch checklist's Phase 3 row lists it (applied with 0061a; group A with 0095 remaining)", row.slice(0, 160));
 }
 const matrix = read("docs/INSTALLED-APP-COMPATIBILITY-MATRIX.md");
 ok(/\| I12 \|[^\n]*fixed by 0094[^\n]*\| ✅ \| ✅ \| ✅ \| ✅ \| ✅ \|/.test(matrix), "the compatibility matrix reads I12 as fixed by 0094");

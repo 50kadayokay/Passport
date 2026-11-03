@@ -26,15 +26,15 @@ const url = fs.readFileSync("supabase/staging/.connection", "utf8").trim();
 if (url.includes("rvptronniomlqumjhyrr") || !url.includes("jmljfovtfxcdhjmtlnva")) { console.error("  REFUSING: not the staging project."); process.exit(2); }
 
 const ORDER = ["0053_phase3_0041_privilege_hardening", "0054_phase3_0041_immutability", "0055_enable_device_push", "0056_function_execute_hardening",
-  "0057_submission_throttle", "0058_close_public_insert", "0059_auth_user_trigger", "0060_publish_actor_hardening", "0061a_table_privilege_hardening", "0094_company_follows_upsert_grant",
-  "0061b_companies_column_grants", "0062_message_attachments", "0063_company_initiated_threads", "0064_notification_clearing", "0065a_analytics_breakdown",
+  "0057_submission_throttle", "0058_close_public_insert", "0095_public_lead_form_guard", "0059_auth_user_trigger", "0060_publish_actor_hardening", "0061a_table_privilege_hardening", "0094_company_follows_upsert_grant",
+  "0061b_companies_column_grants", "0062_message_attachments", "0063_company_initiated_threads", "0096_conversations_legacy_upsert", "0064_notification_clearing", "0065a_analytics_breakdown",
   "0065b_engagement_corrections", "0065c_analytics_indexes", "0066_mineiq_conversations", "0067_conference_mode_feature", "0068_site_contract",
   "0069b_stripe_events", "0071_publishing_reliability", "0072_profile_drafts", "0073a_impression_dedupe_index", "0073b_impression_tracking",
   "0073c_post_events_client_guard", "0074_profile_revision_history", "0075_profile_versions_privileges", "0076_company_roles",
   "0077_listing_reports_installed_app_compat", "0092_listing_reports_column_insert", "0093_listing_reports_rate_limit", "0078_storage_role_hardening",
   "0080_mineiq_search_any_term", "0085_conference_booth_config", "0086_service_requests", "0087_audience_events", "0088_content_fanout",
   "0090_notification_clear_roles", "0091_notification_clear_no_platform_admin"];
-// 0077, 0078, 0080, 0085-0088 and 0090-0093 applied to staging (0092, 0093 and 0094 on 2026-11-02).
+// 0077, 0078, 0080, 0085-0088 and 0090-0093 applied to staging (0092, 0093 and 0094 on 2026-11-02; 0095 and 0096 later that day, each placed after its partner as in production).
 const NOT_ON_STAGING = new Set(["0055_enable_device_push"]);
 const DEFERRED = new Set(["0055_enable_device_push"]);
 
