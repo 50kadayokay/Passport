@@ -75,13 +75,16 @@ async function currentCode(label, slugToUse) {
 try {
   await c.query("begin");
 
-  console.log("\n  POST-0063 (staging as it is)");
+  // 0096 (right after 0063) brings the full constraint back for the old code.
+  const post96 = (await q(`select count(*)::int n from information_schema.columns where table_schema='public' and table_name='conversations' and column_name='started_by'`))[0].n === 1;
+  console.log(`\n  POST-${post96 ? "0096" : "0063"} (staging as it is)`);
   await asService();
   await q(`delete from public.conversations where investor_id = $1 and company_slug = $2 and sender_company_id is null`, [investor, slug]);   // inside the rolled-back txn: start from "no thread yet"
-  let probe = await currentCode("current code, post-0063", slug);
-  ok(probe.ok, "post-0063: the company-start probe finds sender_company_id (company threads enabled)");
+  let probe = await currentCode(`current code, post-${post96 ? "0096" : "0063"}`, slug);
+  ok(probe.ok, "the company-start probe finds sender_company_id (company threads enabled)");
   let old = await tryq(`insert into public.conversations (investor_id, company_slug, company_name) values ($1, $2, 'Old API') on conflict (investor_id, company_slug) do update set company_name = excluded.company_name returning id`, [investor, `${slug}`]);
-  ok(!old.ok && old.code === "42P10", "SHIPPED server code (upsert on investor_id, company_slug) FAILS on post-0063 with 42P10 -> 0063 must follow the API deploy", old.code);
+  if (post96) ok(old.ok, "SHIPPED server code (upsert on investor_id, company_slug) WORKS after 0096 (mineex.ca/app keeps messaging)", old.code);
+  else ok(!old.ok && old.code === "42P10", "SHIPPED server code (upsert on investor_id, company_slug) FAILS on post-0063 with 42P10 -> 0096 must follow 0063", old.code);
 
   console.log("\n  PRE-0063 (production today; reconstructed in this transaction)");
   await asPostgres();

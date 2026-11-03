@@ -2,7 +2,8 @@
 //
 //   STAGING dry run (validates the queries, safe):
 //     node scripts/production-audit-run.mjs --target staging  <file.sql> <out.json>
-//   PRODUCTION (only after explicit approval; the operator supplies the DSN):
+//   PRODUCTION (only after explicit approval; the operator supplies the DSN; set
+//   PRODUCTION_DB_CA_FILE to Supabase's CA certificate to verify the server):
 //     PRODUCTION_DATABASE_URL=... node scripts/production-audit-run.mjs --target production <file.sql> <out.json>
 //
 // Two independent safety layers:
@@ -60,7 +61,11 @@ if (statements.length !== pieces.length || statements.length !== approved) {
   console.error(`  REFUSING: ${pieces.length} statements found, ${statements.length} are SELECT/WITH, the checker approved ${approved}.`); process.exit(3);
 }
 
-const c = new pg.Client({ connectionString: url, ssl: { rejectUnauthorized: false }, application_name: "mineex-readonly-audit" });
+// PRODUCTION_DB_CA_FILE (Supabase's CA) verifies the production server, as in the migration runner.
+const caFile = target === "production" ? (process.env.PRODUCTION_DB_CA_FILE || "").trim() : "";
+if (target === "production" && !caFile) console.log("  note: PRODUCTION_DB_CA_FILE not set; TLS is not verifying the server certificate");
+const ssl = caFile ? { ca: fs.readFileSync(caFile, "utf8"), rejectUnauthorized: true } : { rejectUnauthorized: false };
+const c = new pg.Client({ connectionString: url, ssl, application_name: "mineex-readonly-audit" });
 try { await c.connect(); }
 catch (e) { console.error(`  could not connect (${e.code || "error"}): ${scrub(e.message)}`); process.exit(1); }
 const results = [];

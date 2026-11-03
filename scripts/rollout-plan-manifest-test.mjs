@@ -37,7 +37,9 @@ const missing = pending.filter((f) => !files.includes(f));
 const extra = files.filter((f) => !pending.includes(f));
 ok(missing.length === 0, `every PENDING migration is in the plan (${pending.length})`, `missing: ${missing.join(", ")}`);
 ok(extra.length === 0, "the plan lists nothing that is not PENDING (no deferred or applied file)", `extra: ${extra.join(", ")}`);
-ok(!files.some((f) => f in DEFERRED), "no DEFERRED migration is in the plan");
+// HELD entries are deferred by a user decision but stay in the plan, in order, to be re-enabled.
+const held = (f) => /^HELD\b/.test(DEFERRED[f] || "");
+ok(!files.some((f) => f in DEFERRED && !held(f)), "no DEFERRED migration is in the plan (HELD ones excepted)");
 ok(files.every((f) => migrations.has(f)), "every listed file exists in supabase/migrations", files.filter((f) => !migrations.has(f)).join(", "));
 
 console.log("\n  ORDER");
@@ -45,7 +47,7 @@ const pos = Object.fromEntries(files.map((f, i) => [f, i]));
 const prereq = (f) => PREREQUISITES[f] || [];
 const late = [];
 for (const f of files) for (const p of prereq(f)) {
-  if (p in DEFERRED) late.push(`${f} needs deferred ${p}`);
+  if (p in DEFERRED && !(held(p) && held(f))) late.push(`${f} needs deferred ${p}`);
   else if (p in pos && pos[p] > pos[f]) late.push(`${f} before ${p}`);
 }
 ok(late.length === 0, "every row comes after what it needs (manifest + review prerequisites)", late.join("; "));
@@ -56,8 +58,10 @@ ok(needsCol.length === 0, "each row's Needs column names its pending prerequisit
 const PHASES = ["—", "3", "4", "5", "5b"];
 const phaseIdx = rows.map((r) => PHASES.indexOf(r.phase));
 ok(phaseIdx.every((p) => p >= 0) && phaseIdx.every((p, i) => i === 0 || p >= phaseIdx[i - 1]), "phases never go backwards", rows.map((r) => r.phase).join(" "));
-const i58 = pos["0058_close_public_insert.sql"], i77 = pos["0077_listing_reports_installed_app_compat.sql"];
-ok(i77 === i58 + 1, "0077 runs immediately after 0058 (same session)");
+const i58 = pos["0058_close_public_insert.sql"], i95 = pos["0095_public_lead_form_guard.sql"], i77 = pos["0077_listing_reports_installed_app_compat.sql"];
+ok(i95 === i58 + 1 && i77 === i95 + 1, "0095 runs immediately after 0058, then 0077 (same session: mineex.ca's lead forms, then installed apps' reports)");
+const i63 = pos["0063_company_initiated_threads.sql"], i96 = pos["0096_conversations_legacy_upsert.sql"];
+ok(i96 === i63 + 1, "0096 runs immediately after 0063 (mineex.ca/app's investor messaging)");
 
 console.log("\n  HOW EACH RUNS, AND ITS ROLLBACK");
 const strip = (s) => s.replace(/--[^\n]*/g, "");

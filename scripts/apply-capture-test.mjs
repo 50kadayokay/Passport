@@ -106,7 +106,7 @@ const TEXT = formatPlan(PLAN, RECORD);
   ok(/0071_publishing_reliability\.sql[\s\S]*?capture: 4 function\(s\) read from production first[^\n]*publish_publication, claim_deliveries/.test(TEXT)
      && /0072_profile_drafts\.sql[\s\S]*?capture: 7 function\(s\)[^\n]*company_go_live/.test(TEXT) && /0076_company_roles\.sql[\s\S]*?capture: 11 function\(s\)[^\n]*accept_company_invitation/.test(TEXT),
      "the printed plan says which files capture, and names the drifted functions");
-  ok(/0058_close_public_insert\.sql[\s\S]*?capture: none \(the file touches no function\)/.test(TEXT), "...and says when a step captures nothing");
+  ok(/0061a_table_privilege_hardening\.sql[\s\S]*?capture: none \(the file touches no function\)/.test(TEXT), "...and says when a step captures nothing");
   ok(PLAN.items.filter((i) => i.mode !== "concurrently").every((i) => Array.isArray(i.captures) && !i.captureError), "no step of the real plan is ambiguous");
 
   const AMBIG = "create or replace function f() returns int language sql as $$ select 1 $$;\n";

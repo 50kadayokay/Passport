@@ -30,7 +30,11 @@ export const DSN_ENV = "PRODUCTION_DSN_FILE";
 // to report a listing; 0058 closes that path. They go out back to back, with
 // nothing in between (the manifest: "in the SAME session as 0058, right after").
 export const IMMEDIATELY_AFTER = {
-  "0077_listing_reports_installed_app_compat.sql": "0058_close_public_insert.sql",
+  // 0095 reopens a validated, rate-limited, column-limited anon INSERT for
+  // mineex.ca's live lead forms, which 0058 closes: straight after 0058 (one step
+  // of exposure instead of four), then 0077's chain.
+  "0095_public_lead_form_guard.sql": "0058_close_public_insert.sql",
+  "0077_listing_reports_installed_app_compat.sql": "0095_public_lead_form_guard.sql",
   // 0092 narrows the door 0077 reopens (table-level anon INSERT -> six columns),
   // so production never runs 0077 with id/created_at settable. After 0077's
   // entry: the loop places entries in this order.
@@ -39,6 +43,9 @@ export const IMMEDIATELY_AFTER = {
   "0093_listing_reports_rate_limit.sql": "0092_listing_reports_column_insert.sql",
   // 0094 restores the one privilege installed apps' follow() needs after 0061a: right after it.
   "0094_company_follows_upsert_grant.sql": "0061a_table_privilege_hardening.sql",
+  // 0096 restores the full (investor_id, company_slug) constraint mineex.ca/app's
+  // old /api/messages upserts against, which 0063 removes: right after it.
+  "0096_conversations_legacy_upsert.sql": "0063_company_initiated_threads.sql",
 };
 
 // Read-only markers for the files the 2026-11-01 audit predates. Each is TRUE
@@ -64,6 +71,13 @@ export const POST_AUDIT_MARKERS = {
   // 0061a alone (no UPDATE), true only under 0094's column grant.
   "0094_company_follows_upsert_grant.sql":
     `has_column_privilege('authenticated', 'public.company_follows', 'user_id', 'UPDATE') and not has_table_privilege('authenticated', 'public.company_follows', 'UPDATE')`,
+  // Objects only 0095 creates: false before it and after its rollback.
+  "0095_public_lead_form_guard.sql":
+    `to_regclass('public.public_form_limits') is not null and exists (select 1 from pg_trigger where tgrelid = 'public.demo_bookings'::regclass and tgname = 'demo_bookings_public_guard' and not tgisinternal) and has_column_privilege('anon', 'public.demo_bookings', 'email', 'INSERT')`,
+  // started_by exists only under 0096 (production before 0063 already has the full
+  // constraint, so the constraint alone would read true there).
+  "0096_conversations_legacy_upsert.sql":
+    `exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'conversations' and column_name = 'started_by') and exists (select 1 from pg_constraint where conrelid = 'public.conversations'::regclass and conname = 'conversations_investor_id_company_slug_key')`,
   "0078_storage_role_hardening.sql":
     `to_regprocedure('public.can_upload_company_assets()') is not null`,
   "0080_mineiq_search_any_term.sql":

@@ -42,6 +42,8 @@ export async function loadConversations(companySlug, companyId = null) {
           ? `?or=(company_slug.eq.${encodeURIComponent(companySlug)},sender_company_id.eq.${encodeURIComponent(companyId)})`
           : `?company_slug=eq.${encodeURIComponent(companySlug)}`) +
         `&select=id,investor_id,company_slug,company_name,created_at,last_message_at,company_read_at,sender_company_id` +
+        // The sending company's name, for threads another company started (0063).
+        (companyId ? `,sender_company:sender_company_id(name)` : "") +
         `&order=last_message_at.desc&limit=200`,
       { headers: h }
     );
@@ -367,10 +369,13 @@ export function isMine(msg, conv, myCompanyId) {
  */
 export function threadName(conv, senders, myCompanyId) {
   if (isOutbound(conv, myCompanyId)) return String((conv && (conv.company_name || conv.company_slug)) || "").trim() || "Company";
+  // Another company wrote to us: name that company, not the person who pressed send.
+  if (conv && conv.sender_company_id) return String((conv.sender_company && conv.sender_company.name) || "").trim() || "Company";
   return senderName(conv, senders);
 }
 
 export function threadSubtitle(conv, senders, myCompanyId) {
   if (isOutbound(conv, myCompanyId)) return "Company · you started this conversation";
+  if (conv && conv.sender_company_id) return "Company";
   return senderSubtitle(conv, senders);
 }

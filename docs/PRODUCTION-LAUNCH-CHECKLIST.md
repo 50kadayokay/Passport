@@ -3,7 +3,7 @@
 Your steps, in order. Detail lives in `docs/PRODUCTION-ROLLOUT-PLAN.md` (the **Runbook**: commands,
 rollbacks, "never" rules, stop conditions), `docs/PRODUCTION-ENV-AUDIT.md` (variable names),
 `docs/PRODUCTION-TEST-ACCOUNTS.md` (smoke accounts) and `docs/PILOT-DISABLED-DELIVERY.md` (what stays off).
-Nothing here has been done in production. Pilot scope: 2–3 companies.
+Production so far: the code deploy and 0061a + 0094 (2026-11-02). Pilot scope: 2–3 companies.
 
 ## Done
 
@@ -39,8 +39,8 @@ Nothing here has been done in production. Pilot scope: 2–3 companies.
 |---|---|---|
 | 4a | I push `portal-work` and open the PR to `main`; **you merge it** (Vercel deploys; this also picks up `SITE_REVALIDATE_SECRET`). New features stay inert until their migrations. | a Preview build appears (delete it, check logs); Checkpoint 1 fails: Vercel instant rollback |
 | 4b | Read-only smoke (`production-smoke.mjs --production`): pages, headers, CSP Report-Only, investor feed and profile. | any FAIL |
-| 5a | Phase 3: 0058, 0077, 0092, 0093, 0061a, 0094 (0094 keeps installed apps' Follow working after 0061a; on staging since 2026-11-02) | a checkpoint fails: the runner's `--rollback` for that file |
-| 5b | Phase 4: 0062–0066 (0065c in no-transaction mode) | same |
+| 5a | Phase 3: **0061a and 0094 applied to production 2026-11-02** (checkpoints true, audits clean, phase-3 check 35/0). Remaining group A: 0058, **0095** (keeps mineex.ca's lead forms working; on staging 2026-11-02), 0077, 0092, 0093, back to back. | a checkpoint fails: the runner's `--rollback` for that file |
+| 5b | Phase 4: 0062, 0063, **0096** (keeps mineex.ca/app investor messaging working; on staging 2026-11-02), 0064–0066 (0065c in no-transaction mode). Needs the `portal-work` code deploy first. | same |
 | 5c | Phase 5: 0068–0076, 0078 (0073a no-transaction; functions captured before every file that replaces one) | same |
 | 5d | Phase 5b: 0080, 0085–0088, 0090, 0091 | same; never roll back 0071 while 0088 is applied |
 | 6 | **You**: create the draft test company, hand it to the test owner, invite the viewer. Then the full smoke and investor-app checks; delete the connection file. | any investor-app regression: stop, roll back the last phase |

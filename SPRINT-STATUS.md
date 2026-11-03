@@ -220,3 +220,7 @@ Apply 0080/0090 after approval, then rerun isolation and the live sweep.
   captures 15/0, checkpoints 31/0, npm test and builds. Handoff: docs/MORNING-HANDOFF-2026-11-02.md.
 - 0094 applied to staging (approved 2026-11-02): apply-then-rollback fidelity exact (only 2 column grants change), 0094 check 24/0,
   installed-app matrix 315/0, round trip 81/0, runner checkpoints 31/0, npm test. Phase 3 now runs all six files.
+- PRODUCTION 2026-11-02 (user-approved: 0061a and 0094 only; backup 02 Nov 09:15 UTC): 0061a then 0094 applied by the user,
+  both checkpoints true; runner diffs showed only the intended ACLs. Read-only audits after each: only the intended grants
+  changed. prod-check --stage=phase3: 35 PASS, 0 FAIL (4 INCOMPLETE need accounts). TLS now verified with Supabase's root CA
+  (PRODUCTION_DB_CA_FILE). 0058, 0077, 0092, 0093 HELD (mineex.ca lead form); Phase 4 needs the 0063 messaging fix first.

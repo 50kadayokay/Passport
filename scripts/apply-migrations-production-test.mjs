@@ -24,7 +24,7 @@ import {
   markerFor, markerSelect, buildPlan, parseArgs, checkRequest, readDsn, confirmRef, unresolved, applyOne, diffSnapshots,
 } from "./_production-migrations.mjs";
 import { runnerBody } from "./_db-egress.mjs";
-import { PENDING } from "./_migration-manifest.mjs";
+import { PENDING, DEFERRED, UNVERIFIED, PREREQUISITES, NEEDS_SUPERUSER } from "./_migration-manifest.mjs";
 
 let pass = 0, fail = 0;
 const ok = (c, m, d = "") => { if (c) { pass++; console.log(`  ✓ ${m}`); } else { fail++; console.error(`  ✗ ${m}${d ? `\n      ${d}` : ""}`); } };
@@ -64,8 +64,8 @@ is(refusal(() => loadRecord(path.join(tmp, "missing.json")), /cannot read the au
 
 console.log("\n  PLAN: the recorded 2026-11-01 audit");
 const P = plan();
-const EXPECTED = ["0058_close_public_insert", "0077_listing_reports_installed_app_compat", "0092_listing_reports_column_insert", "0093_listing_reports_rate_limit", "0061a_table_privilege_hardening", "0094_company_follows_upsert_grant", "0062_message_attachments",
-  "0063_company_initiated_threads", "0064_notification_clearing", "0065a_analytics_breakdown", "0065b_engagement_corrections", "0065c_analytics_indexes",
+const EXPECTED = ["0058_close_public_insert", "0095_public_lead_form_guard", "0077_listing_reports_installed_app_compat", "0092_listing_reports_column_insert", "0093_listing_reports_rate_limit", "0061a_table_privilege_hardening", "0094_company_follows_upsert_grant", "0062_message_attachments",
+  "0063_company_initiated_threads", "0096_conversations_legacy_upsert", "0064_notification_clearing", "0065a_analytics_breakdown", "0065b_engagement_corrections", "0065c_analytics_indexes",
   "0066_mineiq_conversations", "0068_site_contract", "0069b_stripe_events", "0071_publishing_reliability", "0072_profile_drafts",
   "0073a_impression_dedupe_index", "0073b_impression_tracking", "0073c_post_events_client_guard", "0074_profile_revision_history",
   "0075_profile_versions_privileges", "0076_company_roles", "0078_storage_role_hardening", "0080_mineiq_search_any_term",
@@ -73,24 +73,28 @@ const EXPECTED = ["0058_close_public_insert", "0077_listing_reports_installed_ap
 // What the manifest says production needs, given an audit record: its PENDING
 // files, minus what is not for production and what that audit found applied.
 const needs = (record) => Object.keys(PENDING).filter((f) => !record.not_for_production?.[f] && record.q01[f] !== "applied");
-const N = needs(RECORD).length, N_AFTER = needs(RECORD).filter((f) => !(f in RECORD.q01)).length, N_FIXTURE = needs(FIXTURE).length;
+// HELD (user decision 2026-11-02): deferred in the manifest, kept in EXPECTED for their order, not planned.
+const HELD = new Set(Object.keys(DEFERRED).filter((f) => /^HELD\b/.test(DEFERRED[f])));
+const PLANNED = EXPECTED.filter((f) => !HELD.has(f));
+const N = PLANNED.length, N_AFTER = needs(RECORD).filter((f) => !(f in RECORD.q01) && !HELD.has(f)).length, N_FIXTURE = needs(FIXTURE).length;
 ok(JSON.stringify([...EXPECTED].sort()) === JSON.stringify(needs(RECORD).sort()), `the expected order holds exactly the ${N} files the manifest says production needs`);
-ok(JSON.stringify(P.items.map((i) => i.file)) === JSON.stringify(EXPECTED), `${N} steps in the rollout plan's order (0058, then 0077 immediately, then 0061a, ...)`, P.items.map((i) => i.file).join(" "));
+ok(JSON.stringify(P.items.map((i) => i.file)) === JSON.stringify(PLANNED), `${N} steps in the rollout plan's order (0058/0095/0077/0092/0093 HELD; 0061a, 0094, 0062, 0063, 0096, ...)`, P.items.map((i) => i.file).join(" "));
 ok(P.items.every((i) => i.rollback && fs.existsSync(i.rollback)), "every step names an existing rollback file");
 ok(P.items.every((i) => i.marker && /^select coalesce\(\(/.test(i.checkpoint)), "every step has a read-only checkpoint");
 ok(P.items.filter((i) => i.mode === "concurrently").map((i) => i.file).join() === "0065c_analytics_indexes.sql,0073a_impression_dedupe_index.sql", "0065c and 0073a are marked CONCURRENTLY (the runner's no-transaction path)");
 ok(["0053", "0054", "0056", "0057", "0059", "0060", "0067"].every((n) => !P.items.some((i) => i.file.startsWith(n))), "what the audit found applied (0053/54/56/57/59/60/67) is not planned; 0059's rollback is never offered");
 ok(["0011", "0027", "0028", "0029", "0055", "0061b"].every((n) => P.deferred.some((d) => d.file.startsWith(n))) && !P.items.some((i) => /^(0011|0027|0028|0029|0055|0061b)/.test(i.file)), "deferred files (0011, 0027, 0028, 0029, 0055, 0061b) are never planned");
 ok(P.skipped.some((s) => s.file === "0000_baseline.sql") && !P.items.some((i) => i.file === "0000_baseline.sql"), "0000_baseline is not for production (its objects exist there)");
-const stepOf = (f) => EXPECTED.indexOf(f) + 1;
+const stepOf = (f) => PLANNED.indexOf(f) + 1;
 ok(P.items.find((i) => i.file === "0090_notification_clear_roles.sql").prerequisites.map((p) => `${p.file}:${p.status}`).join() === `0064_notification_clearing.sql:step ${stepOf("0064_notification_clearing.sql")},0076_company_roles.sql:step ${stepOf("0076_company_roles.sql")}`,
    `prerequisites are shown with where they are satisfied (0090: 0064 step ${stepOf("0064_notification_clearing.sql")}, 0076 step ${stepOf("0076_company_roles.sql")})`);
-ok(EXPECTED.indexOf("0092_listing_reports_column_insert.sql") === EXPECTED.indexOf("0077_listing_reports_installed_app_compat.sql") + 1 && EXPECTED.indexOf("0077_listing_reports_installed_app_compat.sql") === EXPECTED.indexOf("0058_close_public_insert.sql") + 1,
-   "0058 -> 0077 -> 0092 back to back (Phase 3, one runner session)");
+ok(EXPECTED.indexOf("0092_listing_reports_column_insert.sql") === EXPECTED.indexOf("0077_listing_reports_installed_app_compat.sql") + 1 && EXPECTED.indexOf("0077_listing_reports_installed_app_compat.sql") === EXPECTED.indexOf("0095_public_lead_form_guard.sql") + 1
+   && EXPECTED.indexOf("0095_public_lead_form_guard.sql") === EXPECTED.indexOf("0058_close_public_insert.sql") + 1,
+   "0058 -> 0095 -> 0077 -> 0092 back to back (Phase 3, one runner session)");
 ok(EXPECTED.indexOf("0093_listing_reports_rate_limit.sql") === EXPECTED.indexOf("0092_listing_reports_column_insert.sql") + 1, "...and 0093 right after 0092");
 ok(P.items.find((i) => i.file === "0080_mineiq_search_any_term.sql").prerequisites[0].status === "applied", "...or that production already has them (0080 needs 0050a: applied)");
 ok(P.items.filter((i) => i.source === "written after the audit").length === N_AFTER, `the ${N_AFTER} files written after the audit are planned and labelled so`);
-ok(P.items.find((i) => i.file === "0091_notification_clear_no_platform_admin.sql").prerequisites.map((p) => `${p.file}:${p.status}`).join() === `0090_notification_clear_roles.sql:step ${EXPECTED.indexOf("0090_notification_clear_roles.sql") + 1}`,
+ok(P.items.find((i) => i.file === "0091_notification_clear_no_platform_admin.sql").prerequisites.map((p) => `${p.file}:${p.status}`).join() === `0090_notification_clear_roles.sql:step ${PLANNED.indexOf("0090_notification_clear_roles.sql") + 1}`,
    "0091 runs after 0090, its prerequisite");
 {
   // The 0090 / 0091 markers against each version's body, with and without its
@@ -147,21 +151,65 @@ ok(P.items.find((i) => i.file === "0091_notification_clear_no_platform_admin.sql
   ok(rows.join(" ") === "00 00 10 11 11", "listing_reports markers after 0017 / 0058 / 0077 / 0092 / 0093: 0077's stays true under 0092 and 0093 (0077 is never re-applied over 0092), 0092's true only from 0092", rows.join(" "));
 }
 ok(P.warnings.length === 0, "no warnings against the real record", P.warnings.join("; "));
+{
+  // HELD (the default manifest): 0095 is held with 0058's group; 0096 is not, and follows 0063 directly.
+  const files = P.items.map((i) => i.file);
+  ok(HELD.has("0095_public_lead_form_guard.sql") && !files.includes("0095_public_lead_form_guard.sql") && P.deferred.some((d) => d.file === "0095_public_lead_form_guard.sql"),
+     "0095 is HELD with 0058/0077/0092/0093: deferred, never planned");
+  ok(!HELD.has("0096_conversations_legacy_upsert.sql") && files.indexOf("0096_conversations_legacy_upsert.sql") === files.indexOf("0063_company_initiated_threads.sql") + 1 && files.indexOf("0063_company_initiated_threads.sql") >= 0,
+     "HELD plan: 0096 directly after 0063", files.join(" "));
+  const i96 = P.items.find((i) => i.file === "0096_conversations_legacy_upsert.sql");
+  ok(i96.after === "0063_company_initiated_threads.sql" && i96.prerequisites.map((p) => `${p.file}:${p.status}`).join() === `0063_company_initiated_threads.sql:step ${stepOf("0063_company_initiated_threads.sql")}`,
+     "0096 runs IMMEDIATELY after 0063 and names it as its prerequisite (satisfied the step before)");
+  ok(i96.marker && i96.marker.from === "runner" && /started_by/.test(i96.checkpoint) && /conversations_investor_id_company_slug_key/.test(i96.checkpoint), "0096's checkpoint is its post-audit marker (started_by + the full constraint)");
+}
 
 console.log("\n  PLAN: a fixture audit (0058, 0061a, 0062 applied; 0077 not)");
-const PF = plan(FIXTURE);
-ok(PF.items.length === N_FIXTURE && PF.items[0].file === "0094_company_follows_upsert_grant.sql" && PF.items[1].file === "0077_listing_reports_installed_app_compat.sql" && PF.items[2].file === "0092_listing_reports_column_insert.sql" && PF.items[3].file === "0093_listing_reports_rate_limit.sql" && PF.items[4].file === "0063_company_initiated_threads.sql",
-   `${N_FIXTURE} steps; 0094 and 0077 go FIRST because their partners 0061a and 0058 are already applied; 0092 and 0093 right behind 0077`, PF.items.slice(0, 5).map((i) => i.file).join(" "));
-ok(PF.warnings.some((w) => /0077.*FIRST/.test(w)) && PF.warnings.some((w) => /0094.*FIRST/.test(w)) && PF.warnings.filter((w) => /manifest still lists it PENDING/.test(w)).length === 3, "it warns about that, and that the manifest still lists 0058/0061a/0062 as pending");
+// A production where 0058 is applied cannot also hold it: these fixtures plan without the HELD entries.
+const UNHELD = { DEFERRED: Object.fromEntries(Object.entries(DEFERRED).filter(([f]) => !HELD.has(f))), PENDING, UNVERIFIED, PREREQUISITES, NEEDS_SUPERUSER };
+const PF = plan(FIXTURE, { manifest: UNHELD });
+ok(JSON.stringify(PF.items.slice(0, 7).map((i) => i.file)) === JSON.stringify(["0094_company_follows_upsert_grant.sql", "0095_public_lead_form_guard.sql", "0077_listing_reports_installed_app_compat.sql",
+     "0092_listing_reports_column_insert.sql", "0093_listing_reports_rate_limit.sql", "0063_company_initiated_threads.sql", "0096_conversations_legacy_upsert.sql"]) && PF.items.length === N_FIXTURE,
+   `${N_FIXTURE} steps; 0094 and 0095 go FIRST because their partners 0061a and 0058 are already applied; 0077, 0092, 0093 right behind 0095; 0096 right after 0063`, PF.items.slice(0, 7).map((i) => i.file).join(" "));
+ok(PF.warnings.some((w) => /^0095_public_lead_form_guard\.sql goes FIRST: 0058_close_public_insert\.sql is already applied/.test(w)) && PF.warnings.some((w) => /^0094.*FIRST/.test(w)) && !PF.warnings.some((w) => /^0077.*FIRST/.test(w))
+   && PF.warnings.filter((w) => /FIRST/.test(w)).length === 2 && PF.warnings.filter((w) => /manifest still lists it PENDING/.test(w)).length === 3,
+   "it warns about that (0095 and 0094 only: 0077 now follows 0095, not 0058), and that the manifest still lists 0058/0061a/0062 as pending", PF.warnings.join("; "));
+ok(PF.items.find((i) => i.file === "0095_public_lead_form_guard.sql").prerequisites.map((p) => `${p.file}:${p.status}`).join() === "0057_submission_throttle.sql:applied,0058_close_public_insert.sql:applied",
+   "0095's prerequisites (0057, 0058) read applied");
 ok(PF.items.find((i) => i.file === "0077_listing_reports_installed_app_compat.sql").prerequisites[0].status === "applied", "0077's prerequisite (0058) reads applied");
 {
-  const log = [{ ref: PROD, file: "0077_listing_reports_installed_app_compat.sql", status: "applied" }, { ref: PROD, file: "0063_company_initiated_threads.sql", status: "applied" },
+  // A log the new chain can produce: 0095 then 0077 (after the fixture's 0058), 0063 then 0096.
+  const log = [{ ref: PROD, file: "0095_public_lead_form_guard.sql", status: "applied" }, { ref: PROD, file: "0077_listing_reports_installed_app_compat.sql", status: "applied" },
+               { ref: PROD, file: "0063_company_initiated_threads.sql", status: "applied" }, { ref: PROD, file: "0096_conversations_legacy_upsert.sql", status: "applied" },
                { ref: STAGING, file: "0064_notification_clearing.sql", status: "applied" }];
-  const PL = plan(FIXTURE, { log });
-  ok(PL.items[0].file === "0094_company_follows_upsert_grant.sql" && PL.items[1].file === "0092_listing_reports_column_insert.sql" && PL.items[2].file === "0093_listing_reports_rate_limit.sql" && PL.items[3].file === "0064_notification_clearing.sql" && PL.items.length === N_FIXTURE - 2,
-     "the apply log subtracts what this runner applied (and ignores entries for another ref); 0094 and 0092 go first, their partners 0061a and 0077 being applied", PL.items.slice(0, 3).map((i) => i.file).join(" "));
+  const PL = plan(FIXTURE, { log, manifest: UNHELD });
+  ok(JSON.stringify(PL.items.slice(0, 4).map((i) => i.file)) === JSON.stringify(["0094_company_follows_upsert_grant.sql", "0092_listing_reports_column_insert.sql", "0093_listing_reports_rate_limit.sql", "0064_notification_clearing.sql"]) && PL.items.length === N_FIXTURE - 4,
+     "the apply log subtracts what this runner applied (and ignores entries for another ref); 0094 and 0092 go first, their partners 0061a and 0077 being applied", PL.items.slice(0, 4).map((i) => i.file).join(" "));
+  ok(PL.warnings.filter((w) => /FIRST/.test(w)).map((w) => w.split(" ")[0]).sort().join() === "0092_listing_reports_column_insert.sql,0094_company_follows_upsert_grant.sql", "...and warns for exactly those two", PL.warnings.join("; "));
 }
-ok(JSON.stringify(plan(RECORD).items.map((i) => i.file)) === JSON.stringify(EXPECTED), "planning has no side effects (same plan twice)");
+{
+  // 0063 logged without 0096: 0096 goes FIRST (its partner applied), with a warning.
+  const log = [{ ref: PROD, file: "0063_company_initiated_threads.sql", status: "applied" }];
+  const PL = plan(FIXTURE, { log, manifest: UNHELD });
+  ok(PL.items[0].file === "0096_conversations_legacy_upsert.sql" && PL.warnings.some((w) => /^0096_conversations_legacy_upsert\.sql goes FIRST: 0063_company_initiated_threads\.sql is already applied/.test(w))
+     && PL.items[0].prerequisites.map((p) => `${p.file}:${p.status}`).join() === "0063_company_initiated_threads.sql:applied" && PL.items.length === N_FIXTURE - 1,
+     "0063 logged without 0096: 0096 goes FIRST, warned, its prerequisite read applied", PL.items.slice(0, 3).map((i) => i.file).join(" "));
+}
+{
+  // The real record with the hold lifted and 0058 logged as applied: 0095 FIRST (warned), then 0077's chain.
+  const log = [{ ref: PROD, file: "0058_close_public_insert.sql", status: "applied" }];
+  const PL = plan(RECORD, { log, manifest: UNHELD });
+  ok(JSON.stringify(PL.items.map((i) => i.file)) === JSON.stringify(EXPECTED.filter((f) => f !== "0058_close_public_insert.sql")),
+     "0058 logged as applied: 0095 is step 1, then 0077, 0092, 0093 (the rest unchanged)", PL.items.slice(0, 5).map((i) => i.file).join(" "));
+  ok(PL.warnings.length === 1 && /^0095_public_lead_form_guard\.sql goes FIRST: 0058_close_public_insert\.sql is already applied without it/.test(PL.warnings[0]), "...with one warning, naming 0095 and 0058", PL.warnings.join("; "));
+  ok(PL.items[0].prerequisites.map((p) => `${p.file}:${p.status}`).join() === "0057_submission_throttle.sql:applied,0058_close_public_insert.sql:applied"
+     && PL.items[1].prerequisites.map((p) => `${p.file}:${p.status}`).join() === "0058_close_public_insert.sql:applied", "0095 needs 0057 and 0058 (applied); 0077 needs 0058 (applied)");
+  // ...and with 0058 and 0095 both logged, 0077 is the one that goes FIRST.
+  const PL2 = plan(RECORD, { log: [...log, { ref: PROD, file: "0095_public_lead_form_guard.sql", status: "applied" }], manifest: UNHELD });
+  ok(PL2.items[0].file === "0077_listing_reports_installed_app_compat.sql" && PL2.items[1].file === "0092_listing_reports_column_insert.sql" && PL2.warnings.length === 1 && /^0077_listing_reports_installed_app_compat\.sql goes FIRST: 0095_public_lead_form_guard\.sql is already applied/.test(PL2.warnings[0]),
+     "0058 and 0095 logged: 0077 goes FIRST (its partner 0095 applied), 0092 behind it", PL2.warnings.join("; "));
+}
+ok(JSON.stringify(plan(RECORD).items.map((i) => i.file)) === JSON.stringify(PLANNED), "planning has no side effects (same plan twice)");
 
 console.log("\n  PLAN: unknown production state refuses");
 is(refusal(() => plan(RECORD, { manifest: { DEFERRED: {}, PENDING: {}, UNVERIFIED: { "0062_message_attachments.sql": "?" }, PREREQUISITES: {}, NEEDS_SUPERUSER: {} } }), /UNVERIFIED/), "anything UNVERIFIED in the manifest");
@@ -172,11 +220,27 @@ is(refusal(() => buildPlan({ files: [...FILES, "0099_new_thing.sql"], record: RE
    "a file newer than the audit that the manifest does not list");
 is(refusal(() => plan(RECORD, { log: [{ ref: PROD, file: "0999_ghost.sql", status: "applied" }] }), /apply log names 0999_ghost/), "the apply log names a file that does not exist");
 
+// Request checks plan without the HELD entries, so step 1 is 0058 as in the full rollout.
+const PU = plan(RECORD, { manifest: UNHELD });
+const stepOfU = (f) => EXPECTED.indexOf(f) + 1;
+console.log("\n  PLAN: the recorded audit with the hold lifted (the full rollout)");
+ok(JSON.stringify(PU.items.map((i) => i.file)) === JSON.stringify(EXPECTED) && PU.warnings.length === 0, `${EXPECTED.length} steps, exactly the expected order, no warnings`, PU.items.map((i) => i.file).join(" "));
+{
+  const at = (f) => PU.items.findIndex((i) => i.file === f);
+  ok(at("0058_close_public_insert.sql") === 0 && at("0095_public_lead_form_guard.sql") === 1 && at("0077_listing_reports_installed_app_compat.sql") === 2 && at("0092_listing_reports_column_insert.sql") === 3 && at("0093_listing_reports_rate_limit.sql") === 4,
+     "unheld: 0058 (step 1) -> 0095 (step 2) -> 0077 -> 0092 -> 0093");
+  ok(at("0096_conversations_legacy_upsert.sql") === at("0063_company_initiated_threads.sql") + 1, `unheld: 0096 directly after 0063 (step ${stepOfU("0096_conversations_legacy_upsert.sql")})`);
+  const i95 = PU.items[1];
+  ok(i95.after === "0058_close_public_insert.sql" && PU.items[2].after === "0095_public_lead_form_guard.sql"
+     && i95.prerequisites.map((p) => `${p.file}:${p.status}`).join() === "0057_submission_throttle.sql:applied,0058_close_public_insert.sql:step 1",
+     "0095 runs IMMEDIATELY after 0058 (needs 0057: applied, 0058: step 1); 0077 IMMEDIATELY after 0095");
+  ok(i95.marker && i95.marker.from === "runner" && /public_form_limits/.test(i95.checkpoint) && i95.rollback && fs.existsSync(i95.rollback), "0095 has its post-audit checkpoint and a rollback file");
+}
 console.log("\n  REFUSALS: the request (before the DSN is read)");
 const A = (s) => parseArgs(s.split(" ").filter(Boolean));
 const OK_ARGS = `--apply --only 0058_close_public_insert.sql --ref=${PROD} --approved-by=user-in-chat-2026-11-02`;
-const check = (s, log = [], p = P, opts = {}) => () => checkRequest(typeof s === "string" ? A(s) : s, p, log, opts);
-ok(checkRequest(A(OK_ARGS), P, []).file === "0058_close_public_insert.sql", "a complete request for step 1 passes the request checks");
+const check = (s, log = [], p = PU, opts = {}) => () => checkRequest(typeof s === "string" ? A(s) : s, p, log, opts);
+ok(checkRequest(A(OK_ARGS), PU, []).file === "0058_close_public_insert.sql", "a complete request for step 1 passes the request checks");
 is(refusal(check(`--only 0058_close_public_insert.sql --ref=${PROD} --approved-by=user-in-chat`), /needs --apply/), "no --apply");
 is(refusal(check(`--apply --only 0058_close_public_insert.sql --ref=${PROD}`), /--approved-by/), "no --approved-by");
 is(refusal(check(`--apply --only 0058_close_public_insert.sql --ref=${PROD} --approved-by=me`), /at least 8/), "an --approved-by too short to mean anything");
@@ -185,11 +249,11 @@ is(refusal(check(`--apply --only 0058_close_public_insert.sql --ref=${STAGING} -
 for (const bad of ["rvptronniomlqumjhyrx", "RVPTRONNIOMLQUMJHYRR", "rvptronniomlqumjhyrr.supabase.co", "rvptronniomlqumjhyr"]) {
   is(refusal(check(`--apply --only 0058_close_public_insert.sql --ref=${bad} --approved-by=user-in-chat`), /exact match/), `a ref that is not PRODUCTION_REFS exactly (${bad})`);
 }
-is(refusal(() => checkRequest({ ...A(OK_ARGS), ref: ` ${PROD}` }, P, []), /exact match/), "...or the right ref with a stray space");
+is(refusal(() => checkRequest({ ...A(OK_ARGS), ref: ` ${PROD}` }, PU, []), /exact match/), "...or the right ref with a stray space");
 is(refusal(check(`--apply --ref=${PROD} --approved-by=user-in-chat`), /--only <file>/), "no file");
 is(refusal(check(`--apply --only 0058_close_public_insert.sql --only 0077_listing_reports_installed_app_compat.sql --ref=${PROD} --approved-by=user-in-chat`), /one migration per invocation; got 2/), "two --only files");
 is(refusal(check(`--apply --only 0058_close_public_insert.sql,0077_listing_reports_installed_app_compat.sql --ref=${PROD} --approved-by=user-in-chat`), /got 2/), "a comma-separated list");
-is(refusal(check(`--apply --only 0062_message_attachments.sql --ref=${PROD} --approved-by=user-in-chat`), new RegExp(`step ${stepOf("0062_message_attachments.sql")}; step 1 is 0058`)), "a file that is not the next step");
+is(refusal(check(`--apply --only 0062_message_attachments.sql --ref=${PROD} --approved-by=user-in-chat`), new RegExp(`step ${stepOfU("0062_message_attachments.sql")}; step 1 is 0058`)), "a file that is not the next step");
 is(refusal(check(`--apply --only 0057_submission_throttle.sql --ref=${PROD} --approved-by=user-in-chat`), /not in the plan/), "a file production already has");
 is(refusal(check(`--apply --only 0055_enable_device_push.sql --ref=${PROD} --approved-by=user-in-chat`), /not in the plan/), "a deferred file");
 is(refusal(check(`--apply --only 0000_baseline.sql --ref=${PROD} --approved-by=user-in-chat`), /not in the plan/), "0000_baseline");
@@ -197,23 +261,23 @@ is(refusal(check(`--apply --record-manual 0058_close_public_insert.sql --ref=${P
 is(refusal(check(`${OK_ARGS} --force`), /unknown argument/), "an unknown flag (no --force exists)");
 {
   // A plan in which 0065c is next: the first 8 steps logged as applied.
-  const log = EXPECTED.slice(0, stepOf("0065c_analytics_indexes.sql") - 1).map((file) => ({ ref: PROD, file, status: "applied" }));
-  const P9 = plan(RECORD, { log });
-  ok(P9.items[0].file === "0065c_analytics_indexes.sql", `(with steps 1-${stepOf("0065c_analytics_indexes.sql") - 1} logged, 0065c is step 1)`);
+  const log = EXPECTED.slice(0, stepOfU("0065c_analytics_indexes.sql") - 1).map((file) => ({ ref: PROD, file, status: "applied" }));
+  const P9 = plan(RECORD, { log, manifest: UNHELD });
+  ok(P9.items[0].file === "0065c_analytics_indexes.sql", `(with steps 1-${stepOfU("0065c_analytics_indexes.sql") - 1} logged, 0065c is step 1)`);
   const it = checkRequest(A(`--apply --only 0065c_analytics_indexes.sql --ref=${PROD} --approved-by=user-in-chat`), P9, log);
   ok(it.file === "0065c_analytics_indexes.sql" && it.mode === "concurrently" && it.concurrent.length === 3, "a CONCURRENTLY file that is next passes the request checks (it runs with no transaction)");
   ok(checkRequest(A(`--record-manual 0065c_analytics_indexes.sql --ref=${PROD} --approved-by=user-in-chat`), P9, log, { kind: "record-manual" }).file === "0065c_analytics_indexes.sql",
      "...and --record-manual stays for one run by hand anyway (no connection)");
-  is(refusal(check(`--record-manual 0058_close_public_insert.sql --ref=${PROD} --approved-by=user-in-chat`, [], P, { kind: "record-manual" }), /only for CONCURRENTLY/), "--record-manual for an ordinary file");
+  is(refusal(check(`--record-manual 0058_close_public_insert.sql --ref=${PROD} --approved-by=user-in-chat`, [], PU, { kind: "record-manual" }), /only for CONCURRENTLY/), "--record-manual for an ordinary file");
 }
 {
   const log = [{ ref: PROD, file: "0058_close_public_insert.sql", status: "started" }];
   is(refusal(check(OK_ARGS, log), /unresolved run: 0058_close_public_insert.sql \(started\)/), "an earlier run that started and never finished");
   is(refusal(check(OK_ARGS, [{ ref: PROD, file: "0058_close_public_insert.sql", status: "failed" }]), /unresolved/), "an earlier run that failed");
-  ok(checkRequest(A(`--reviewed 0058_close_public_insert.sql --ref=${PROD} --approved-by=user-in-chat`), P, log, { kind: "reviewed" }).file === "0058_close_public_insert.sql",
+  ok(checkRequest(A(`--reviewed 0058_close_public_insert.sql --ref=${PROD} --approved-by=user-in-chat`), PU, log, { kind: "reviewed" }).file === "0058_close_public_insert.sql",
      "...until a person records it with --reviewed");
   ok(unresolved([...log, { file: "0058_close_public_insert.sql", status: "reviewed" }]).length === 0, "...after which nothing is unresolved");
-  is(refusal(check(`--reviewed 0062_message_attachments.sql --ref=${PROD} --approved-by=user-in-chat`, log, P, { kind: "reviewed" }), /no unresolved run/), "--reviewed for a file with nothing unresolved");
+  is(refusal(check(`--reviewed 0062_message_attachments.sql --ref=${PROD} --approved-by=user-in-chat`, log, PU, { kind: "reviewed" }), /no unresolved run/), "--reviewed for a file with nothing unresolved");
 }
 {
   // The file's own contents. The plan is built from the same text, so the
@@ -221,7 +285,7 @@ is(refusal(check(`${OK_ARGS} --force`), /unknown argument/), "an unknown flag (n
   const real = fs.readFileSync(path.join(DIR, "0058_close_public_insert.sql"), "utf8");
   const variant = (extra) => {
     const read = (f) => (f === "0058_close_public_insert.sql" ? real.replace("commit;", `${extra}\ncommit;`) : fs.readFileSync(path.join(DIR, f), "utf8"));
-    return { p: buildPlan({ files: FILES, record: RECORD, q01Markers: Q01, read }), read };
+    return { p: buildPlan({ files: FILES, record: RECORD, q01Markers: Q01, read, manifest: UNHELD }), read };
   };
   for (const [extra, what] of [["alter table public.listing_reports disable trigger all;", "DISABLE TRIGGER"], ["set session_replication_role = replica;", "session_replication_role"]]) {
     const v = variant(extra);
@@ -231,7 +295,7 @@ is(refusal(check(`${OK_ARGS} --force`), /unknown argument/), "an unknown flag (n
   is(refusal(() => checkRequest(A(OK_ARGS), e.p, [], { read: e.read }), /database egress/), "a file that adds database egress (pg_net)");
   const tx = variant("commit;\nbegin;");
   is(refusal(() => checkRequest(A(OK_ARGS), tx.p, [], { read: tx.read }), /transaction control/), "a file with its own extra transaction control");
-  is(refusal(() => checkRequest(A(OK_ARGS), P, [], { read: () => real + "\n-- edited" }), /changed after the plan/), "a file edited after the plan was built");
+  is(refusal(() => checkRequest(A(OK_ARGS), PU, [], { read: () => real + "\n-- edited" }), /changed after the plan/), "a file edited after the plan was built");
 }
 
 console.log("\n  REFUSALS: the DSN file (before connecting)");
@@ -270,27 +334,28 @@ const cli = (args, env = {}) => spawnSync(process.execPath, ["--import", "./scri
   { env: { PATH: process.env.PATH, HOME: process.env.HOME, PRODUCTION_LOG_DIR: LOGDIR, ...env }, encoding: "utf8", input: "", timeout: 20000 });
 {
   const r = cli([]);
-  ok(r.status === 0 && /nothing was connected to/.test(r.stdout) && new RegExp(`${N} to apply`).test(r.stdout) && /0077_listing_reports_installed_app_compat\.sql\n\s+sha256/.test(r.stdout),
+  ok(r.status === 0 && /nothing was connected to/.test(r.stdout) && new RegExp(`${N} to apply`).test(r.stdout) && /0061a_table_privilege_hardening\.sql\n\s+sha256/.test(r.stdout),
      `no arguments: prints the ${N}-step plan and exits 0`, `${r.status} ${r.stderr.slice(0, 200)}`);
   const f = cli(["--audit", "scripts/fixtures/production-audit-fixture.json"]);
-  ok(f.status === 0 && new RegExp(`${N_FIXTURE} to apply`).test(f.stdout) && /! 0077_listing_reports_installed_app_compat\.sql goes FIRST/.test(f.stdout), "--audit <fixture>: that audit's plan, with its warnings");
+  // The fixture has 0058 applied, which the HELD manifest defers: the CLI refuses to plan it rather than guess.
+  ok(f.status !== 0 && /0058_close_public_insert\.sql is DEFERRED in the manifest but the audit says production has it/.test(f.stdout + f.stderr), "--audit <fixture>: refused while 0058 is HELD (the fixture has it applied)");
 }
 const cliRefuses = (args, env, re, m) => { const r = cli(args, env); ok(r.status === 2 && re.test(r.stderr) && !fs.existsSync(path.join(LOGDIR, "apply-log.jsonl")), m, `${r.status} ${r.stderr.slice(0, 220)}`); return r; };
 cliRefuses([...OK_ARGS.split(" ").filter((x) => x !== "--apply")], {}, /needs --apply/, "CLI: missing --apply -> exit 2, nothing logged");
-cliRefuses(["--apply", "--only", "0058_close_public_insert.sql", `--ref=${STAGING}`, "--approved-by=user-in-chat"], {}, /STAGING/, "CLI: the staging ref -> exit 2");
-cliRefuses(["--apply", "--only", "0058_close_public_insert.sql", "--only", "0077_listing_reports_installed_app_compat.sql", `--ref=${PROD}`, "--approved-by=user-in-chat"], {}, /one migration per invocation/, "CLI: two files -> exit 2");
-cliRefuses(["--apply", "--only", "0058_close_public_insert.sql", `--ref=${PROD}`, "--approved-by=user-in-chat"], {}, /set PRODUCTION_DSN_FILE/, "CLI: a complete request without a DSN file -> exit 2");
+cliRefuses(["--apply", "--only", "0061a_table_privilege_hardening.sql", `--ref=${STAGING}`, "--approved-by=user-in-chat"], {}, /STAGING/, "CLI: the staging ref -> exit 2");
+cliRefuses(["--apply", "--only", "0061a_table_privilege_hardening.sql", "--only", "0094_company_follows_upsert_grant.sql", `--ref=${PROD}`, "--approved-by=user-in-chat"], {}, /one migration per invocation/, "CLI: two files -> exit 2");
+cliRefuses(["--apply", "--only", "0061a_table_privilege_hardening.sql", `--ref=${PROD}`, "--approved-by=user-in-chat"], {}, /set PRODUCTION_DSN_FILE/, "CLI: a complete request without a DSN file -> exit 2");
 {
   const stagingDsn = dsnFile(`postgresql://postgres:${PW}@db.${STAGING}.supabase.co:5432/postgres`);
-  const r = cliRefuses(["--apply", "--only", "0058_close_public_insert.sql", `--ref=${PROD}`, "--approved-by=user-in-chat"], { PRODUCTION_DSN_FILE: stagingDsn }, /names the STAGING project/, "CLI: a staging DSN behind a production ref -> exit 2");
+  const r = cliRefuses(["--apply", "--only", "0061a_table_privilege_hardening.sql", `--ref=${PROD}`, "--approved-by=user-in-chat"], { PRODUCTION_DSN_FILE: stagingDsn }, /names the STAGING project/, "CLI: a staging DSN behind a production ref -> exit 2");
   ok(!(r.stdout + r.stderr).includes(PW) && !(r.stdout + r.stderr).includes(STAGING + ".supabase.co"), "...and the output holds neither the password nor the DSN");
 }
 {
-  const r = cliRefuses(["--apply", "--only", "0058_close_public_insert.sql", `--ref=${PROD}`, "--approved-by=user-in-chat"], { PRODUCTION_DSN_FILE: dsnFile(GOOD_DSN) }, /interactive terminal/,
+  const r = cliRefuses(["--apply", "--only", "0061a_table_privilege_hardening.sql", `--ref=${PROD}`, "--approved-by=user-in-chat"], { PRODUCTION_DSN_FILE: dsnFile(GOOD_DSN) }, /interactive terminal/,
     "CLI: EVERYTHING valid, but stdin is not a TTY -> exit 2 before connecting (the preload would have thrown on any socket)");
   ok(!(r.stdout + r.stderr).includes(PW) && !/postgres(ql)?:\/\//.test(r.stdout + r.stderr) && !/NETWORK BLOCKED/.test(r.stderr), "...no password, no DSN, and no connection was attempted");
 }
-cliRefuses(["--record-manual", "0065c_analytics_indexes.sql", `--ref=${PROD}`, "--approved-by=user-in-chat"], {}, new RegExp(`step ${stepOf("0065c_analytics_indexes.sql")}; step 1 is 0058`), "CLI: --record-manual out of order -> exit 2");
+cliRefuses(["--record-manual", "0065c_analytics_indexes.sql", `--ref=${PROD}`, "--approved-by=user-in-chat"], {}, new RegExp(`step ${stepOf("0065c_analytics_indexes.sql")}; step 1 is 0061a`), "CLI: --record-manual out of order -> exit 2");
 {
   const src = fs.readFileSync("scripts/apply-migrations-production.mjs", "utf8") + fs.readFileSync("scripts/_production-migrations.mjs", "utf8");
   const staging = fs.readFileSync("scripts/apply-migrations.mjs", "utf8");

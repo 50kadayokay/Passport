@@ -50,7 +50,9 @@ import { PRODUCTION_REFS, STAGING_REFS, DEFAULT_AUDIT, loadRecord, parseQ01Marke
 export const STAGES = ["deploy", "phase3", "phase4", "phase5", "phase5b", "final"];
 const PHASE_OF_STAGE = { deploy: 2, phase3: 3, phase4: 4, phase5: 5, phase5b: 6, final: 6 };
 const PHASE_RANK = { "3": 3, "4": 4, "5": 5, "5b": 6 };
-const PROD = { ref: PRODUCTION_REFS[0], app: "https://mineex.ca" };
+// The production app host is the passport project (portal, investor web app and every API the native apps call).
+// mineex.ca is the separate mineex-site project (sales site), which this rollout does not change.
+const PROD = { ref: PRODUCTION_REFS[0], app: "https://passport-xi-five.vercel.app" };
 const STAGING = { ref: STAGING_REFS[0] };
 const sbUrl = (ref) => `https://${ref}.supabase.co`;
 
@@ -77,7 +79,7 @@ export function parseArgs(argv) {
   const ref = staging ? STAGING.ref : PROD.ref;
   const t = parseTarget(["--app", app, "--supabase", sbUrl(ref), ...(staging ? [] : ["--production"]), ...(argv.includes("--api-only") ? ["--api-only"] : [])]);
   if (t.refuse) return { refuse: t.refuse };
-  if (staging && /mineex\.ca$/i.test(new URL(t.app).hostname)) return { refuse: "--staging with the production web app; give the staging app URL" };
+  if (staging && /(^|\.)mineex\.ca$|^passport-xi-five\.vercel\.app$/i.test(new URL(t.app).hostname)) return { refuse: "--staging with the production web app; give the staging app URL" };
   if (!staging && new URL(t.app).hostname !== new URL(PROD.app).hostname) return { refuse: `production checks run against ${PROD.app}; --app can only change it together with --staging` };
   return { stage, staging, target: t, ref, noAccounts: argv.includes("--no-accounts"), noDb: argv.includes("--no-db") };
 }
@@ -129,7 +131,7 @@ export async function readOnly(client, sql, args) {
   } finally { await client.query("rollback").catch(() => {}); }
 }
 
-export async function runCheck({ argv, env = {}, fetchImpl = globalThis.fetch, pgConnect, ask, out = console.log, err = console.error, read = (f) => fs.readFileSync(f, "utf8"), repoRoot = process.cwd() }) {
+export async function runCheck({ argv, env = {}, fetchImpl = globalThis.fetch, pgConnect, ask, out = console.log, err = console.error, read = (f) => fs.readFileSync(f, "utf8"), repoRoot = process.cwd(), manifest }) {
   const a = parseArgs(argv);
   if (a.refuse) { err(`\n  prod-check: REFUSING -- ${a.refuse}\n`); return { verdict: "REFUSED", code: 2 }; }
   const { stage, staging, target } = a;
@@ -146,12 +148,14 @@ export async function runCheck({ argv, env = {}, fetchImpl = globalThis.fetch, p
     phases = phasesFromPlan(read("docs/PRODUCTION-ROLLOUT-PLAN.md"));
     const record = loadRecord(DEFAULT_AUDIT);
     const q01 = parseQ01Markers(read(record.query.split(" ")[0]));
-    items = buildPlan({ files: fs.readdirSync("supabase/migrations").filter((f) => f.endsWith(".sql")), record, log: [], q01Markers: q01 }).items;
+    items = buildPlan({ files: fs.readdirSync("supabase/migrations").filter((f) => f.endsWith(".sql")), record, log: [], q01Markers: q01, ...(manifest ? { manifest } : {}) }).items;
   } catch (e) { line("FAIL", "the plan's phases and the runner's markers load", e.message); }
   const expected = (f) => (phases[f] || 99) <= reached;
   const missingPhase = items.filter((i) => !phases[i.file]).map((i) => i.file);
   if (missingPhase.length) line("FAIL", "every pending migration has a phase in the plan", missingPhase.join(", "));
-  const has = (f) => expected(f);
+  // A migration is expected once its phase is reached AND the runner plans it (HELD files are not planned).
+  const planned = new Set(items.map((i) => i.file));
+  const has = (f) => planned.has(f) && expected(f);
 
   // Accounts.
   let acc = {};

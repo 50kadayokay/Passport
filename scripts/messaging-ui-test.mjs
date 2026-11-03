@@ -80,6 +80,10 @@ section("WHICH SIDE ARE WE ON");
   ok(M.threadName(out, {}, A) === "Gamma Silver Inc." && /you started/.test(M.threadSubtitle(out, {}, A)), "thread we started is named after the company we wrote to (was: our own user / 'Investor')");
   ok(M.threadName({ ...out, company_name: "" }, {}, A) === "gamma-silver", "  ...falls back to its slug, never blank");
   ok(M.threadName(inb, { "inv-1": { display_name: "Dana W" } }, A) === "Dana W" && M.threadName(inb, {}, A) === "Investor", "inbound thread: the investor's display name, else 'Investor'");
+  const fromCo = { id: "co-in", investor_id: null, started_by: "u-9", sender_company_id: "other-co", company_slug: "alpha-gold", sender_company: { name: "Beta Copper Ltd." } };
+  ok(M.threadName(fromCo, { "u-9": { display_name: "Pat K" } }, A) === "Beta Copper Ltd." && M.threadSubtitle(fromCo, {}, A) === "Company", "thread another company started (0096): named after that company, never its user's investor profile");
+  ok(M.threadName({ ...fromCo, sender_company: null }, {}, A) === "Company", "  ...'Company' when its name cannot be read");
+  ok(M.mySide(fromCo, A) === "company", "  ...and we answer as 'company'");
 }
 
 section("UNREAD");
