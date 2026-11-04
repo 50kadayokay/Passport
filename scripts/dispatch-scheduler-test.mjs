@@ -187,7 +187,8 @@ console.log("\n  SOURCE PINS");
   ok(/if \(!isTrustedCron\(req\)\) return res\.status\(401\)/.test(d) && /timingSafeEqual/.test(a) && /CRON_SECRET_MIN/.test(a), "GET runs require isTrustedCron (constant-time, minimum length)");
   ok(/IS_STAGING \? process\.env\.STAGING_CRON_SECRET : process\.env\.CRON_SECRET/.test(a), "staging uses STAGING_CRON_SECRET (CRON_SECRET is forbidden on staging)");
   const v = JSON.parse(fs.readFileSync(new URL("../vercel.json", import.meta.url), "utf8"));
-  ok(!(v.crons || []).some((c) => /\/api\/dispatch/.test(c.path)), "vercel.json has NO dispatch cron (not activated without approval)");
+  // Approved 2026-11-03: one dispatch schedule, every 5 minutes (a GET, authenticated by CRON_SECRET).
+  ok((v.crons || []).filter((c) => /\/api\/dispatch/.test(c.path)).map((c) => c.schedule).join() === "*/5 * * * *", "vercel.json schedules /api/dispatch once, every 5 minutes (approved 2026-11-03)");
 }
 
 console.log(`\n  dispatch-scheduler: ${pass} passed, ${fail} failed\n`);
