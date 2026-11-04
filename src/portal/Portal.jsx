@@ -526,62 +526,55 @@ function PageTitle({ title, sub }) {
 // again, larger.
 //
 // Every tile hands off to an existing destination. None of them owns logic.
+// Home tile icon colours: a soft fill, a stronger glyph and a faint inset ring per hue.
+const TILE_TONES = {
+  indigo:  "bg-indigo-50 text-indigo-600 ring-indigo-100 group-hover:bg-indigo-100",
+  pink:    "bg-pink-50 text-pink-600 ring-pink-100 group-hover:bg-pink-100",
+  violet:  "bg-violet-50 text-violet-600 ring-violet-100 group-hover:bg-violet-100",
+  emerald: "bg-emerald-50 text-emerald-600 ring-emerald-100 group-hover:bg-emerald-100",
+  sky:     "bg-sky-50 text-sky-600 ring-sky-100 group-hover:bg-sky-100",
+  amber:   "bg-amber-50 text-amber-600 ring-amber-100 group-hover:bg-amber-100",
+};
+
 function HomeView({ company, go, openContent, openUpdates, updatesCount = 0 }) {
   const live = profileUrl(company?.slug);
   const role = company?.role || "owner";
 
   const actions = [
     // a03: tiles a role cannot use are left out rather than shown to refuse.
-    can(role, "draftContent") && { id: "pr",      Icon: Upload,    title: "Publish Press Release",
+    can(role, "draftContent") && { id: "pr",      Icon: Upload, tone: "indigo",    title: "Publish Press Release",
       sub: "Upload a release and put it on your profile.",
       onClick: () => openContent("releases", "releases") },
-    can(role, "publishContent") && { id: "media",   Icon: ImageIcon, title: "Publish Media",
+    can(role, "publishContent") && { id: "media",   Icon: ImageIcon, tone: "pink", title: "Publish Media",
       sub: "Add photos or video investors will see.",
       onClick: () => openContent("media", "media") },
-    can(role, "draftContent") && { id: "draft",   Icon: PenLine,   title: "Draft Press Release",
+    can(role, "draftContent") && { id: "draft",   Icon: PenLine, tone: "violet",   title: "Draft Press Release",
       sub: "Write one with MineEx, from your own facts.",
       onClick: () => openContent("releases", "draft") },
-    { id: "mineiq",  Icon: Brain,     title: "Ask MineIQ",
+    { id: "mineiq",  Icon: Brain, tone: "emerald",     title: "Ask MineIQ",
       sub: "Your company's own knowledge, answered.",
       onClick: () => go("mineiq") },
-    { id: "live",    Icon: Eye,       title: "View Live Profile",
+    { id: "live",    Icon: Eye, tone: "sky",       title: "View Live Profile",
       sub: "See exactly what investors see.",
       href: live || undefined },
-    { id: "updates", Icon: Bell,      title: "Updates",
+    { id: "updates", Icon: Bell, tone: "amber",      title: "Updates",
       sub: "Messages, notifications and analytics.",
       badge: updatesCount, onClick: () => openUpdates() },
   ].filter(Boolean);
 
   return (
-    <div>
+    // One white panel on the grey canvas, holding the heading and the tiles (the pattern of
+    // Facebook's Events page). Each tile's icon has its own colour so the six actions are
+    // easy to tell apart at a glance; the tiles themselves stay white with a hairline.
+    <section className="max-w-[1040px] rounded-2xl bg-white p-7 shadow-[0_1px_2px_rgba(15,23,42,.06),0_12px_32px_-22px_rgba(15,23,42,.35)] ring-1 ring-slate-200/60">
       <h1 className="text-[27px] font-extrabold leading-tight tracking-tight text-slate-900">What would you like to do?</h1>
       <p className="mt-1.5 text-[15px] text-slate-500">Manage {company?.name || "your company"}&rsquo;s MineEx presence.</p>
 
-      {/* Built to the SIDEBAR's system, because these launch the same places
-          the sidebar does and there is no reason the same destination should
-          wear a different face on each surface: slate neutrals on white,
-          cobalt as the ONE accent, hairline borders, rounded-2xl hit areas,
-          heavy lucide strokes.
-
-          The cards are no longer forced to 1:1. A square card in this language
-          is mostly empty -- which was the first version of this page, and the
-          first thing that got rejected. Height comes from the content, and the
-          grid equalises each row. */}
-      <div className="mt-6 grid max-w-[980px] grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-        {actions.map(({ id, Icon, title, sub, onClick, href, badge }) => {
+      <div className="mt-6 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+        {actions.map(({ id, Icon, title, sub, onClick, href, badge, tone }) => {
           const inner = (
             <>
-              {/* One cube colour for all six: the sidebar's active nav state,
-                  blue-50 on blue-600. The portal's system has exactly ONE
-                  accent, so a per-action hue would be six accents competing
-                  with it -- and the colour would carry no meaning anyway,
-                  since the icon already says which action this is.
-
-                  rounded-xl rather than the sidebar's rounded-2xl so it reads
-                  as a block with corners rather than a pill, with an inset
-                  ring a step deeper than the fill for an edge. Hover deepens
-                  the fill; it never changes hue. */}
-              <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-blue-50 text-blue-600 ring-1 ring-inset ring-blue-100 transition group-hover:bg-blue-100">
+              <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-xl ring-1 ring-inset transition ${TILE_TONES[tone] || TILE_TONES.indigo}`}>
                 <Icon size={20} strokeWidth={2.2} />
               </span>
               <span className="min-w-0 flex-1">
@@ -598,13 +591,13 @@ function HomeView({ company, go, openContent, openUpdates, updatesCount = 0 }) {
               <ChevronRight size={15} strokeWidth={2.4} className="mt-1 shrink-0 text-slate-300 transition group-hover:text-slate-400" />
             </>
           );
-          const cls = "group flex items-start gap-3 rounded-2xl border border-slate-100 bg-white p-4 text-left shadow-[0_1px_2px_rgba(15,23,42,.04)] transition hover:border-slate-200 active:scale-[0.99] motion-reduce:transform-none motion-reduce:transition-none";
+          const cls = "group flex items-start gap-3 rounded-2xl border border-slate-200/70 bg-white p-4 text-left shadow-[0_1px_2px_rgba(15,23,42,.05)] transition hover:border-slate-300 hover:shadow-[0_6px_18px_-12px_rgba(15,23,42,.35)] active:scale-[0.99] motion-reduce:transform-none motion-reduce:transition-none";
           return href
             ? <a key={id} href={href} target="_blank" rel="noreferrer" className={cls}>{inner}</a>
             : <button key={id} onClick={onClick} className={cls}>{inner}</button>;
         })}
       </div>
-    </div>
+    </section>
   );
 }
 
