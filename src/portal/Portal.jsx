@@ -570,28 +570,28 @@ function HomeView({ company, go, openContent, openUpdates, updatesCount = 0 }) {
       <h1 className="text-[27px] font-extrabold leading-tight tracking-tight text-slate-900">What would you like to do?</h1>
       <p className="mt-1.5 text-[15px] text-slate-500">Manage {company?.name || "your company"}&rsquo;s MineEx presence.</p>
 
-      <div className="mt-6 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+      <div className="mt-7 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
         {actions.map(({ id, Icon, title, sub, onClick, href, badge, tone }) => {
           const inner = (
             <>
-              <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-xl ring-1 ring-inset transition ${TILE_TONES[tone] || TILE_TONES.indigo}`}>
-                <Icon size={20} strokeWidth={2.2} />
+              <span className={`grid h-12 w-12 shrink-0 place-items-center rounded-xl ring-1 ring-inset transition ${TILE_TONES[tone] || TILE_TONES.indigo}`}>
+                <Icon size={22} strokeWidth={2.2} />
               </span>
               <span className="min-w-0 flex-1">
                 <span className="flex items-center gap-2">
-                  <span className="text-[14px] font-bold tracking-tight text-slate-900">{title}</span>
+                  <span className="text-[15px] font-bold tracking-tight text-slate-900">{title}</span>
                   {badge > 0 && (
                     <span className="grid h-[18px] min-w-[18px] shrink-0 place-items-center rounded-full bg-blue-600 px-1 text-[10.5px] font-bold text-white">
                       {badge > 99 ? "99+" : badge}
                     </span>
                   )}
                 </span>
-                <span className="mt-0.5 block text-[12.5px] leading-snug text-slate-500">{sub}</span>
+                <span className="mt-1 block text-[13px] leading-snug text-slate-500">{sub}</span>
               </span>
               <ChevronRight size={15} strokeWidth={2.4} className="mt-1 shrink-0 text-slate-300 transition group-hover:text-slate-400" />
             </>
           );
-          const cls = "group flex items-start gap-3 rounded-2xl border border-slate-200/70 bg-white p-4 text-left shadow-[0_1px_2px_rgba(15,23,42,.05)] transition hover:border-slate-300 hover:shadow-[0_6px_18px_-12px_rgba(15,23,42,.35)] active:scale-[0.99] motion-reduce:transform-none motion-reduce:transition-none";
+          const cls = "group flex min-h-[104px] items-start gap-3.5 rounded-2xl border border-slate-200/70 bg-white p-5 text-left shadow-[0_1px_2px_rgba(15,23,42,.05)] transition hover:border-slate-300 hover:shadow-[0_6px_18px_-12px_rgba(15,23,42,.35)] active:scale-[0.99] motion-reduce:transform-none motion-reduce:transition-none";
           return href
             ? <a key={id} href={href} target="_blank" rel="noreferrer" className={cls}>{inner}</a>
             : <button key={id} onClick={onClick} className={cls}>{inner}</button>;
