@@ -38,7 +38,9 @@ const TABS = [
   { id: "media",    label: "Media",          Icon: ImageIcon },
 ];
 
-export default function Content({ company, tab = "releases", setTab, go = () => {}, takeover = null, setTakeover = () => {} }) {
+// `hideTabs`: the portal shows Press Releases / Media in its side column (Portal.jsx
+// ContentLayout), so the tab bar here is only drawn when nothing else offers it.
+export default function Content({ company, tab = "releases", setTab, go = () => {}, takeover = null, setTakeover = () => {}, hideTabs = false }) {
   const active = TABS.some((t) => t.id === tab) ? tab : "releases";
 
   // `takeover` is a LAUNCH INTENT, not a separate screen: "create", "draft" or
@@ -61,7 +63,7 @@ export default function Content({ company, tab = "releases", setTab, go = () => 
 
   return (
     <div>
-      <div className="flex items-center gap-1 border-b border-slate-100">
+      {!hideTabs && <div className="flex items-center gap-1 border-b border-slate-100">
         {TABS.map(({ id, label, Icon }) => {
           const on = id === active;
           return (
@@ -79,9 +81,9 @@ export default function Content({ company, tab = "releases", setTab, go = () => 
             </button>
           );
         })}
-      </div>
+      </div>}
 
-      <div className="mt-6">
+      <div className={hideTabs ? "" : "mt-6"}>
         <Suspense fallback={<Loader />}>
           {active === "releases" && (
             <Publish

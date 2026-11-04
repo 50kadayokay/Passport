@@ -231,7 +231,7 @@ export default function Portal({ company: initial, switchCompany, adminMode = fa
   // content area. Inside the padded wrapper it could only ever be a card
   // floating in the middle of the page.
   const bare = section === "press" || section === "broadcast" || section === "profile"
-            || section === "mineiq";
+            || section === "mineiq" || section === "content";
 
   return (
     <div className="flex h-[100dvh] flex-col bg-[#F0F2F5] text-slate-900">
@@ -249,7 +249,7 @@ export default function Portal({ company: initial, switchCompany, adminMode = fa
           </div>
         )}
         {bare ? (
-          <div className={`min-h-0 flex-1 ${section === "mineiq" || section === "profile" ? "overflow-hidden" : "overflow-y-auto"}`}>
+          <div className={`min-h-0 flex-1 ${section === "mineiq" || section === "profile" || section === "content" ? "overflow-hidden" : "overflow-y-auto"}`}>
             <SectionBoundary resetKey={section}>
             <Suspense fallback={<SectionLoader />}>
               {/* Legacy composer: no navigation reaches it; gated anyway so a future link cannot expose it to read-only roles. */}
@@ -260,6 +260,11 @@ export default function Portal({ company: initial, switchCompany, adminMode = fa
                 </ProfileSectionsLayout>
               )}
               {section === "mineiq"    && <MineIQ company={company} go={setSection} />}
+              {section === "content"   && (
+                <ContentLayout tab={contentTab} onTab={(id) => { setContentTakeover(null); setContentTab(id); }}>
+                  <Suspense fallback={<SectionLoader />}><Content company={company} tab={contentTab} setTab={setContentTab} go={setSection} takeover={contentTakeover} setTakeover={setContentTakeover} hideTabs /></Suspense>
+                </ContentLayout>
+              )}
             </Suspense>
             </SectionBoundary>
           </div>
@@ -273,7 +278,6 @@ export default function Portal({ company: initial, switchCompany, adminMode = fa
                   openContent={(tab, takeover) => { setContentTab(tab); setContentTakeover(takeover || null); setSectionRaw("content"); }}
                   openUpdates={() => setSectionRaw("updates")}
                   updatesCount={notifCount + msgCount} />}
-              {section === "content"   && <Suspense fallback={<SectionLoader />}><Content company={company} tab={contentTab} setTab={setContentTab} go={setSection} takeover={contentTakeover} setTakeover={setContentTakeover} /></Suspense>}
               {section === "updates"   && <Suspense fallback={<SectionLoader />}><Updates company={company} tab={updatesTab} setTab={setUpdatesTab} msgCount={msgCount} notifCount={notifCount} onNotificationsSeen={() => setNotifCount(0)} /></Suspense>}
               {section === "publish"   && <Suspense fallback={<SectionLoader />}><Publish company={company} go={setSection} view="publish" /></Suspense>}
               {section === "releases"  && <Suspense fallback={<SectionLoader />}><Publish company={company} go={setSection} view="releases" /></Suspense>}
@@ -311,46 +315,45 @@ function TopBar({ company, switchCompany }) {
       <button
         onClick={switchCompany || undefined}
         disabled={!switchCompany}
-        className={`flex min-w-0 max-w-[320px] items-center gap-2.5 rounded-full py-1 pl-1 pr-3 text-left transition ${
+        className={`flex min-w-0 max-w-[320px] items-center gap-2.5 rounded-full py-1 pl-3 pr-1 text-left transition ${
           switchCompany ? "hover:bg-slate-100 active:scale-[0.99]" : "cursor-default"
         }`}
       >
-        <CompanyMark company={company} size={34} />
-        <span className="min-w-0">
+        {switchCompany && <ChevronDown size={15} strokeWidth={2.4} className="shrink-0 text-slate-400" />}
+        <span className="min-w-0 text-right">
           <span className="block truncate text-[13.5px] font-extrabold leading-snug tracking-tight text-slate-900">
             {company?.name || company?.slug || "Company"}
           </span>
           <span className="block text-[10.5px] font-semibold capitalize text-slate-400">{company?.role || "owner"}</span>
         </span>
-        {switchCompany && <ChevronDown size={15} strokeWidth={2.4} className="shrink-0 text-slate-400" />}
+        <CompanyMark company={company} size={34} />
       </button>
     </header>
   );
 }
 
-/* ------------------------------------------------- Profile sections column */
+/* ------------------------------------------------------ Page side columns */
 
-// The profile's sections, in a white column beside the editor that collapses and expands
-// like Mine IQ's history (it used to unfold inside the main menu). Open or closed is
-// remembered per browser; storage can be unavailable, so it falls back to open.
-const PROFILE_COL_KEY = "mineex.portal.profileColumn";
-
-function ProfileSectionsLayout({ company, tab, step, go, children }) {
+// A white column beside a page that collapses to a slim strip and expands again, like
+// Mine IQ's history. Used by Profile (its sections) and Content (Press Releases / Media).
+// Open or closed is remembered per page in this browser; storage can be unavailable, so it
+// falls back to open.
+function SideColumnLayout({ title, storageKey, nav, children }) {
   const [open, setOpen] = React.useState(() => {
-    try { return localStorage.getItem(PROFILE_COL_KEY) !== "closed"; } catch (_) { return true; }
+    try { return localStorage.getItem(storageKey) !== "closed"; } catch (_) { return true; }
   });
   const toggle = () => setOpen((v) => {
-    try { localStorage.setItem(PROFILE_COL_KEY, v ? "closed" : "open"); } catch (_) {}
+    try { localStorage.setItem(storageKey, v ? "closed" : "open"); } catch (_) {}
     return !v;
   });
-  const sections = visibleProfileSections(company?.tier);
+  const label = title.toLowerCase();
 
   return (
     <div className="flex h-full min-h-0">
       <div className={`${open ? "w-[248px]" : "w-11"} shrink-0 overflow-hidden border-r border-slate-200/70 bg-white transition-[width] duration-200 ease-out`}>
         {!open && (
           <div className="flex h-[52px] items-center justify-center">
-            <button onClick={toggle} aria-label="Show profile sections" title="Show profile sections"
+            <button onClick={toggle} aria-label={`Show ${label}`} title={`Show ${label}`}
               className="grid h-7 w-7 place-items-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-slate-800">
               <PanelLeft size={15} strokeWidth={2} />
             </button>
@@ -358,40 +361,13 @@ function ProfileSectionsLayout({ company, tab, step, go, children }) {
         )}
         <div className={`h-full w-[248px] flex-col ${open ? "flex" : "hidden"}`}>
           <div className="flex h-[52px] shrink-0 items-center justify-between px-4">
-            <span className="text-[13px] font-extrabold tracking-tight text-slate-900">Company profile</span>
-            <button onClick={toggle} aria-label="Hide profile sections"
+            <span className="text-[13px] font-extrabold tracking-tight text-slate-900">{title}</span>
+            <button onClick={toggle} aria-label={`Hide ${label}`}
               className="grid h-7 w-7 place-items-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700">
               <PanelLeftClose size={15} strokeWidth={2} />
             </button>
           </div>
-          <nav className="min-h-0 flex-1 space-y-2 overflow-y-auto px-2 pb-4">
-            {sections.map((sec) => {
-              const secActive = tab === sec.key;
-              return (
-                <div key={sec.key}>
-                  <button onClick={() => go(sec.key, 0)}
-                    className={`flex w-full items-center rounded-xl px-3 py-1.5 text-left text-[13px] font-bold tracking-tight transition ${
-                      secActive ? "text-slate-900" : "text-slate-500 hover:text-slate-900"
-                    }`}>
-                    {sec.label}
-                  </button>
-                  <div className="mt-0.5 space-y-px pl-3">
-                    {sec.steps.map((st, i) => {
-                      const stepOn = secActive && step === i;
-                      return (
-                        <button key={st.key} onClick={() => go(sec.key, i)}
-                          className={`flex w-full items-center rounded-xl py-1.5 pl-3 pr-2.5 text-left text-[12.5px] transition ${
-                            stepOn ? "bg-blue-50 font-bold text-blue-600" : "font-medium text-slate-500 hover:bg-slate-50 hover:text-slate-700"
-                          }`}>
-                          <span className="min-w-0 flex-1 truncate">{st.title}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })}
-          </nav>
+          <nav className="min-h-0 flex-1 overflow-y-auto px-2 pb-4">{nav}</nav>
         </div>
       </div>
 
@@ -399,6 +375,74 @@ function ProfileSectionsLayout({ company, tab, step, go, children }) {
         {children}
       </div>
     </div>
+  );
+}
+
+function ProfileSectionsLayout({ company, tab, step, go, children }) {
+  const nav = (
+    <div className="space-y-2">
+      {visibleProfileSections(company?.tier).map((sec) => {
+        const secActive = tab === sec.key;
+        return (
+          <div key={sec.key}>
+            <button onClick={() => go(sec.key, 0)}
+              className={`flex w-full items-center rounded-xl px-3 py-1.5 text-left text-[13px] font-bold tracking-tight transition ${
+                secActive ? "text-slate-900" : "text-slate-500 hover:text-slate-900"
+              }`}>
+              {sec.label}
+            </button>
+            <div className="mt-0.5 space-y-px pl-3">
+              {sec.steps.map((st, i) => {
+                const stepOn = secActive && step === i;
+                return (
+                  <button key={st.key} onClick={() => go(sec.key, i)}
+                    className={`flex w-full items-center rounded-xl py-1.5 pl-3 pr-2.5 text-left text-[12.5px] transition ${
+                      stepOn ? "bg-blue-50 font-bold text-blue-600" : "font-medium text-slate-500 hover:bg-slate-50 hover:text-slate-700"
+                    }`}>
+                    <span className="min-w-0 flex-1 truncate">{st.title}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+  return <SideColumnLayout title="Company profile" storageKey="mineex.portal.profileColumn" nav={nav}>{children}</SideColumnLayout>;
+}
+
+// Content: Press Releases or Media in the side column; the page itself in the white panel
+// Home uses.
+const CONTENT_TABS = [
+  { id: "releases", label: "Press Releases", Icon: Megaphone },
+  { id: "media",    label: "Media",          Icon: ImageIcon },
+];
+
+function ContentLayout({ tab, onTab, children }) {
+  const active = tab === "media" ? "media" : "releases";
+  const nav = (
+    <div className="space-y-0.5">
+      {CONTENT_TABS.map(({ id, label, Icon }) => {
+        const on = id === active;
+        return (
+          <button key={id} onClick={() => onTab(id)} aria-current={on ? "page" : undefined}
+            className={`flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-[13px] font-bold tracking-tight transition ${
+              on ? "bg-blue-50 text-blue-600" : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+            }`}>
+            <Icon size={15.5} strokeWidth={on ? 2.4 : 2.2} className={on ? "text-blue-600" : "text-slate-400"} />
+            {label}
+          </button>
+        );
+      })}
+    </div>
+  );
+  return (
+    <SideColumnLayout title="Content" storageKey="mineex.portal.contentColumn" nav={nav}>
+      <div className="mx-auto max-w-6xl px-8 py-8">
+        <section className={PANEL}>{children}</section>
+      </div>
+    </SideColumnLayout>
   );
 }
 
@@ -526,6 +570,9 @@ function PageTitle({ title, sub }) {
 // again, larger.
 //
 // Every tile hands off to an existing destination. None of them owns logic.
+// The white panel pages sit in on the grey canvas (Home, Content).
+const PANEL = "rounded-2xl bg-white p-7 shadow-[0_1px_2px_rgba(15,23,42,.06),0_12px_32px_-22px_rgba(15,23,42,.35)] ring-1 ring-slate-200/60";
+
 // Home tile icon colours: a soft fill, a stronger glyph and a faint inset ring per hue.
 const TILE_TONES = {
   indigo:  "bg-indigo-50 text-indigo-600 ring-indigo-100 group-hover:bg-indigo-100",
@@ -566,7 +613,7 @@ function HomeView({ company, go, openContent, openUpdates, updatesCount = 0 }) {
     // One white panel on the grey canvas, holding the heading and the tiles (the pattern of
     // Facebook's Events page). Each tile's icon has its own colour so the six actions are
     // easy to tell apart at a glance; the tiles themselves stay white with a hairline.
-    <section className="max-w-[1040px] rounded-2xl bg-white p-7 shadow-[0_1px_2px_rgba(15,23,42,.06),0_12px_32px_-22px_rgba(15,23,42,.35)] ring-1 ring-slate-200/60">
+    <section className={`max-w-[1040px] ${PANEL}`}>
       <h1 className="text-[27px] font-extrabold leading-tight tracking-tight text-slate-900">What would you like to do?</h1>
       <p className="mt-1.5 text-[15px] text-slate-500">Manage {company?.name || "your company"}&rsquo;s MineEx presence.</p>
 

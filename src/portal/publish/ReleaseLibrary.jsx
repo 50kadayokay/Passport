@@ -60,6 +60,8 @@ function normalise(row, isDraft) {
     isMilestone: !!cls.suggestedKey,
     category: (det.category || "").trim() || UNCATEGORISED,
     documentId: det.document_id || null,
+    // The image the company picked for investors, shown on the card ahead of any other.
+    pickedAssetId: (Array.isArray(det.selected_asset_ids) && det.selected_asset_ids[0]) || null,
     hasSummary: !!(det.summary || "").trim(),
     isDraft,
     // A taken-down release keeps updates.status = 'published' (only the
@@ -230,6 +232,8 @@ export default function ReleaseLibrary({ drafts, published, onCreate, onDraft, o
     return () => { alive = false; };
   }, [companyId]);
 
+  const assetById = useMemo(() => Object.fromEntries((companyAssets || []).filter((a) => a.previewable).map((a) => [a.id, a])), [companyAssets]);
+
   const assetByDoc = useMemo(() => {
     const by = {};
     (companyAssets || []).forEach((a) => {
@@ -371,7 +375,7 @@ export default function ReleaseLibrary({ drafts, published, onCreate, onDraft, o
       ) : (
         <div className="mt-3 grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-4">
           {filtered.map((item) => (
-            <ReleaseCard key={item.id} item={item} asset={assetByDoc[item.documentId]} onOpen={onOpen}
+            <ReleaseCard key={item.id} item={item} asset={(item.pickedAssetId && assetById[item.pickedAssetId]) || assetByDoc[item.documentId]} onOpen={onOpen}
               isNew={fresh.has(item.id)} delivery={delivery[item.id] || null} />
           ))}
         </div>
