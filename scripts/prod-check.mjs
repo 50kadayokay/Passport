@@ -109,9 +109,11 @@ export function makeAsk({ input = process.stdin, output = process.stdout } = {})
 export async function askAccounts(ask) {
   const acc = {};
   for (const [k, label, optional] of [["INVESTOR", "test investor", false], ["OWNER", "test company owner", false], ["VIEWER", "test company viewer (optional)", true], ["ADMIN", "platform admin, for /api/ops (optional)", true]]) {
-    const email = await ask(`  ${label} email${optional ? " (Enter to skip)" : ""}: `);
+    // An email given in the environment is used as is; only its password is asked.
+    const preset = String(process.env[`SMOKE_${k}_EMAIL`] || "").trim();
+    const email = preset || await ask(`  ${label} email${optional ? " (Enter to skip)" : ""}: `);
     if (!email) continue;
-    const password = await ask(`  ${label} password (hidden): `, { hidden: true });
+    const password = await ask(`  paste the password for ${email} (hidden, Enter to skip): `, { hidden: true });
     if (password) { acc[`SMOKE_${k}_EMAIL`] = email; acc[`SMOKE_${k}_PASSWORD`] = password; }
   }
   const slug = await ask("  owner's company slug (Enter for their first): ");

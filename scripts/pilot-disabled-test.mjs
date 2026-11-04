@@ -36,8 +36,9 @@ for (const [n, , ev, quoted] of rows) {
 console.log("\n  CRON");
 const vercel = JSON.parse(read("vercel.json"));
 const paths = (vercel.crons || []).map((c) => c.path);
-ok(JSON.stringify(paths) === JSON.stringify(["/api/news-pull", "/api/news-process", "/api/news-notify", "/api/news-push-send"]), "vercel.json schedules exactly the four news jobs", paths.join(", "));
-ok(!paths.some((p) => /dispatch|drain|outbox|deliver/i.test(p)), "no cron points at the dispatcher or a drain");
+// The dispatcher's retry schedule was approved on 2026-11-03 (every 5 minutes); nothing else drains.
+ok(JSON.stringify(paths) === JSON.stringify(["/api/news-pull", "/api/news-process", "/api/news-notify", "/api/news-push-send", "/api/dispatch"]), "vercel.json schedules the four news jobs and the approved dispatcher retry", paths.join(", "));
+ok((vercel.crons || []).filter((c) => /dispatch|drain|outbox|deliver/i.test(c.path)).map((c) => `${c.path} ${c.schedule}`).join() === "/api/dispatch */5 * * * *", "the only drain schedule is /api/dispatch every 5 minutes");
 
 console.log("\n  DATABASE SCHEDULING (pending migrations)");
 const scheduling = Object.keys(PENDING).filter((f) => fs.existsSync(`supabase/migrations/${f}`)).filter((f) =>
