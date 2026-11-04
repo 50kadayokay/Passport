@@ -234,10 +234,12 @@ export default function Portal({ company: initial, switchCompany, adminMode = fa
             || section === "mineiq";
 
   return (
-    <div className="flex min-h-[100dvh] bg-white text-slate-900">
+    <div className="flex h-[100dvh] flex-col bg-[#F0F2F5] text-slate-900">
+      <TopBar company={company} switchCompany={switchCompany} />
+      <div className="flex min-h-0 flex-1">
       <Sidebar section={section} setSection={setSection} company={company} switchCompany={switchCompany}
         profileNav={{ tab: profTab, step: profStep, go: goProfile }} notifCount={notifCount} msgCount={msgCount} />
-      <main className="flex h-[100dvh] flex-1 flex-col overflow-hidden bg-[#F0F2F5]">
+      <main className="flex min-h-0 flex-1 flex-col overflow-hidden bg-[#F0F2F5]">
         {adminMode && (
           <div className="flex shrink-0 items-center justify-between gap-3 bg-indigo-600 px-6 py-2 text-white">
             <p className="text-[13px] font-bold">Admin editing: {company?.name || company?.slug} — changes are attributed to you.</p>
@@ -288,7 +290,37 @@ export default function Portal({ company: initial, switchCompany, adminMode = fa
           </div>
         )}
       </main>
+      </div>
     </div>
+  );
+}
+
+/* ---------------------------------------------------------------- Top bar */
+
+// White, full width, above the sidebar and the page: MineEx on the left, the company being
+// managed (its own logo and name) on the right. The company control keeps the switcher the
+// sidebar used to hold, for people who manage more than one company.
+function TopBar({ company, switchCompany }) {
+  return (
+    <header className="relative z-20 flex h-14 shrink-0 items-center justify-between bg-white px-5 shadow-[0_1px_2px_rgba(15,23,42,.06),0_4px_14px_-8px_rgba(15,23,42,.14)]">
+      <MineExLockup size={28} />
+      <button
+        onClick={switchCompany || undefined}
+        disabled={!switchCompany}
+        className={`flex min-w-0 max-w-[320px] items-center gap-2.5 rounded-full py-1 pl-1 pr-3 text-left transition ${
+          switchCompany ? "hover:bg-slate-100 active:scale-[0.99]" : "cursor-default"
+        }`}
+      >
+        <CompanyMark company={company} size={34} />
+        <span className="min-w-0">
+          <span className="block truncate text-[13.5px] font-extrabold leading-snug tracking-tight text-slate-900">
+            {company?.name || company?.slug || "Company"}
+          </span>
+          <span className="block text-[10.5px] font-semibold capitalize text-slate-400">{company?.role || "owner"}</span>
+        </span>
+        {switchCompany && <ChevronDown size={15} strokeWidth={2.4} className="shrink-0 text-slate-400" />}
+      </button>
+    </header>
   );
 }
 
@@ -332,31 +364,8 @@ function Sidebar({ section, setSection, company, switchCompany, profileNav = nul
   }, [activeKey]);
 
   return (
-    <aside className="sticky top-0 flex h-[100dvh] w-[252px] shrink-0 flex-col border-r border-slate-100 bg-white">
-      {/* MineEx lockup — the mark sits left of the M at the same height. */}
-      <div className="flex items-center px-5 pt-6">
-        <MineExLockup size={30} />
-      </div>
-
-      {/* The company being managed, carrying ITS OWN logo. */}
-      <div className="px-3 pt-5">
-        <button
-          onClick={switchCompany || undefined}
-          disabled={!switchCompany}
-          className={`flex w-full items-center gap-2.5 rounded-2xl border border-slate-100 bg-white px-2.5 py-2.5 text-left shadow-[0_1px_2px_rgba(15,23,42,.04)] transition ${
-            switchCompany ? "hover:border-slate-200 active:scale-[0.99]" : "cursor-default"
-          }`}
-        >
-          <CompanyMark company={company} size={36} />
-          <span className="min-w-0 flex-1">
-            <span className="block truncate text-[13.5px] font-extrabold leading-snug tracking-tight text-slate-900">
-              {company?.name || company?.slug || "Company"}
-            </span>
-            <span className="block text-[10.5px] font-semibold capitalize text-slate-400">{company?.role || "owner"}</span>
-          </span>
-          {switchCompany && <ChevronDown size={15} strokeWidth={2.4} className="shrink-0 text-slate-400" />}
-        </button>
-      </div>
+    <aside className="relative z-10 flex h-full w-[252px] shrink-0 flex-col bg-white pt-3 shadow-[1px_0_2px_rgba(15,23,42,.05),4px_0_14px_-6px_rgba(15,23,42,.12)]">
+      {/* MineEx and the company being managed live in the top bar (TopBar). */}
 
       {/* Grouped nav. Scrolls when Company Profile is expanded — the sub-tree makes it taller
           than the viewport — so the selected item is scrolled into view, otherwise the user

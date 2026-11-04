@@ -512,7 +512,7 @@ export default function Messages({ company, hideHeading = false }) {
         </div>
       )}
 
-      <div className={`mt-5 flex h-[calc(100dvh-260px)] min-h-[440px] overflow-hidden ${CARD}`}>
+      <div className={`mt-5 flex h-[calc(100dvh-316px)] min-h-[440px] overflow-hidden ${CARD}`}>
         {/* ---- thread list ---- */}
         <div className={`flex w-full flex-col border-r border-slate-100 sm:w-[340px] ${openId ? "hidden sm:flex" : "flex"}`}>
           <div className="shrink-0 border-b border-slate-100 p-3">
