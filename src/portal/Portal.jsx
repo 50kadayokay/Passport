@@ -237,7 +237,7 @@ export default function Portal({ company: initial, switchCompany, adminMode = fa
     <div className="flex min-h-[100dvh] bg-white text-slate-900">
       <Sidebar section={section} setSection={setSection} company={company} switchCompany={switchCompany}
         profileNav={{ tab: profTab, step: profStep, go: goProfile }} notifCount={notifCount} msgCount={msgCount} />
-      <main className="flex h-[100dvh] flex-1 flex-col overflow-hidden">
+      <main className="flex h-[100dvh] flex-1 flex-col overflow-hidden bg-[#F0F2F5]">
         {adminMode && (
           <div className="flex shrink-0 items-center justify-between gap-3 bg-indigo-600 px-6 py-2 text-white">
             <p className="text-[13px] font-bold">Admin editing: {company?.name || company?.slug} — changes are attributed to you.</p>
