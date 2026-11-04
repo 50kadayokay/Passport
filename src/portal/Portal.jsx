@@ -6,7 +6,7 @@ import {
   ChevronDown, ChevronRight, CheckCircle2, AlertCircle, ArrowRight, Sparkles, Loader2,
   Plus, Trash2, Clock, TrendingUp, FileText, Radio as RadioIcon, Check, ArrowLeft,
   Megaphone, QrCode, HelpCircle, Copy, Download, Eye, Upload, Send, Mail, Bell,
-  Presentation, Brain, PenLine, Users, Globe,
+  Presentation, Brain, PenLine, Users, Globe, PanelLeft, PanelLeftClose,
 } from "lucide-react";
 import { getUser, signOut, authHeaders, updatePassword, updateEmail } from "../lib/auth.js";
 import { profileUrl, companyLogo, companyMonogram, placardLogo } from "../lib/brand.js";
@@ -249,12 +249,16 @@ export default function Portal({ company: initial, switchCompany, adminMode = fa
           </div>
         )}
         {bare ? (
-          <div className={`min-h-0 flex-1 ${section === "mineiq" ? "overflow-hidden" : "overflow-y-auto"}`}>
+          <div className={`min-h-0 flex-1 ${section === "mineiq" || section === "profile" ? "overflow-hidden" : "overflow-y-auto"}`}>
             <SectionBoundary resetKey={section}>
             <Suspense fallback={<SectionLoader />}>
               {/* Legacy composer: no navigation reaches it; gated anyway so a future link cannot expose it to read-only roles. */}
               {(section === "press" || section === "broadcast") && can(company?.role || "owner", "draftContent") && <CommsCenter company={company} devFeatures={devFeatures} />}
-              {section === "profile"   && <Suspense fallback={<SectionLoader />}><ProfileEditor company={company} injectedProfile={injectedProfile} navTab={profTab} navStep={profStep} onNav={(t, s) => { setProfTab(t); setProfStep(s); }} /></Suspense>}
+              {section === "profile"   && (
+                <ProfileSectionsLayout company={company} tab={profTab} step={profStep} go={goProfile}>
+                  <Suspense fallback={<SectionLoader />}><ProfileEditor company={company} injectedProfile={injectedProfile} navTab={profTab} navStep={profStep} onNav={(t, s) => { setProfTab(t); setProfStep(s); }} /></Suspense>
+                </ProfileSectionsLayout>
+              )}
               {section === "mineiq"    && <MineIQ company={company} go={setSection} />}
             </Suspense>
             </SectionBoundary>
@@ -324,6 +328,80 @@ function TopBar({ company, switchCompany }) {
   );
 }
 
+/* ------------------------------------------------- Profile sections column */
+
+// The profile's sections, in a white column beside the editor that collapses and expands
+// like Mine IQ's history (it used to unfold inside the main menu). Open or closed is
+// remembered per browser; storage can be unavailable, so it falls back to open.
+const PROFILE_COL_KEY = "mineex.portal.profileColumn";
+
+function ProfileSectionsLayout({ company, tab, step, go, children }) {
+  const [open, setOpen] = React.useState(() => {
+    try { return localStorage.getItem(PROFILE_COL_KEY) !== "closed"; } catch (_) { return true; }
+  });
+  const toggle = () => setOpen((v) => {
+    try { localStorage.setItem(PROFILE_COL_KEY, v ? "closed" : "open"); } catch (_) {}
+    return !v;
+  });
+  const sections = visibleProfileSections(company?.tier);
+
+  return (
+    <div className="flex h-full min-h-0">
+      <div className={`${open ? "w-[248px]" : "w-11"} shrink-0 overflow-hidden border-r border-slate-200/70 bg-white transition-[width] duration-200 ease-out`}>
+        {!open && (
+          <div className="flex h-[52px] items-center justify-center">
+            <button onClick={toggle} aria-label="Show profile sections" title="Show profile sections"
+              className="grid h-7 w-7 place-items-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-slate-800">
+              <PanelLeft size={15} strokeWidth={2} />
+            </button>
+          </div>
+        )}
+        <div className={`h-full w-[248px] flex-col ${open ? "flex" : "hidden"}`}>
+          <div className="flex h-[52px] shrink-0 items-center justify-between px-4">
+            <span className="text-[13px] font-extrabold tracking-tight text-slate-900">Company profile</span>
+            <button onClick={toggle} aria-label="Hide profile sections"
+              className="grid h-7 w-7 place-items-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700">
+              <PanelLeftClose size={15} strokeWidth={2} />
+            </button>
+          </div>
+          <nav className="min-h-0 flex-1 space-y-2 overflow-y-auto px-2 pb-4">
+            {sections.map((sec) => {
+              const secActive = tab === sec.key;
+              return (
+                <div key={sec.key}>
+                  <button onClick={() => go(sec.key, 0)}
+                    className={`flex w-full items-center rounded-xl px-3 py-1.5 text-left text-[13px] font-bold tracking-tight transition ${
+                      secActive ? "text-slate-900" : "text-slate-500 hover:text-slate-900"
+                    }`}>
+                    {sec.label}
+                  </button>
+                  <div className="mt-0.5 space-y-px pl-3">
+                    {sec.steps.map((st, i) => {
+                      const stepOn = secActive && step === i;
+                      return (
+                        <button key={st.key} onClick={() => go(sec.key, i)}
+                          className={`flex w-full items-center rounded-xl py-1.5 pl-3 pr-2.5 text-left text-[12.5px] transition ${
+                            stepOn ? "bg-blue-50 font-bold text-blue-600" : "font-medium text-slate-500 hover:bg-slate-50 hover:text-slate-700"
+                          }`}>
+                          <span className="min-w-0 flex-1 truncate">{st.title}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </nav>
+        </div>
+      </div>
+
+      <div className="min-w-0 flex-1 overflow-y-auto">
+        {children}
+      </div>
+    </div>
+  );
+}
+
 /* ---------------------------------------------------------------- Sidebar */
 
 // Built to MINEEX_DESIGN_SYSTEM.md: slate neutrals on white, cobalt #2563eb as the one
@@ -334,25 +412,6 @@ function Sidebar({ section, setSection, company, switchCompany, profileNav = nul
   const navRef = React.useRef(null);
   const activeKey = `${section}:${profileNav ? profileNav.tab : ""}:${profileNav ? profileNav.step : ""}`;
 
-  // Whether the Company Profile sub-tree is folded open. This has to be its
-  // OWN state: it used to be derived purely from `section === "profile"`, so
-  // the chevron offered a collapse that could not happen -- clicking the
-  // parent just re-selected the section it was already on, and the tree stayed
-  // open. You cannot fold the tree by leaving the page, because leaving the
-  // page is not what the user is asking for when they click the chevron.
-  const [profileOpen, setProfileOpen] = React.useState(true);
-
-  // Re-open on ARRIVAL at the profile section, so a tree left collapsed does
-  // not stay collapsed when the user later navigates in from somewhere else
-  // (a homepage card, a sub-page link) and expects to see where they landed.
-  // Keyed on the transition, not on `section` being profile, or it would fight
-  // the toggle above on every render while already there.
-  const wasProfile = React.useRef(section === "profile");
-  React.useEffect(() => {
-    const isNow = section === "profile";
-    if (isNow && !wasProfile.current) setProfileOpen(true);
-    wasProfile.current = isNow;
-  }, [section]);
   React.useEffect(() => {
     const el = navRef.current && navRef.current.querySelector("[data-navactive='1']");
     if (!el) return;
@@ -376,77 +435,30 @@ function Sidebar({ section, setSection, company, switchCompany, profileNav = nul
             <p className="px-3 pb-1.5 text-[10.5px] font-bold uppercase tracking-[0.16em] text-slate-400">{group.title}</p>
             <div className="space-y-0.5">
               {group.items.map(({ id, label, Icon }) => {
-                const isProfile = id === "profile";
+                // Profile is a plain item: its sections live in the profile page's own
+                // collapsible column (ProfileSectionsLayout), like Mine IQ's history.
                 const on = section === id;
-                const onProfile = isProfile && section === "profile";
-                const expanded = onProfile && profileNav && profileOpen;
-                // The Company Profile parent shows an OPEN state when expanded but never the
-                // accent pill — that is reserved for the one selected sub-page, so exactly one
-                // item ever reads as active. It keeps that state while COLLAPSED too, keyed on
-                // `onProfile` rather than `expanded`: folding the tree shut does not mean you
-                // left the page, and the current section should not look unselected.
-                const parentStrong = on && !isProfile;
+                const parentStrong = on;
                 return (
                   <div key={id}>
                     <button
-                      onClick={() => {
-                        if (onProfile) { setProfileOpen((v) => !v); return; }
-                        if (isProfile) setProfileOpen(true);
-                        setSection(id);
-                      }}
-                      aria-expanded={isProfile ? Boolean(expanded) : undefined}
+                      onClick={() => setSection(id)}
                       data-navactive={parentStrong ? "1" : undefined}
                       className={`group flex w-full items-center gap-3 rounded-2xl px-3 py-2 text-[13.5px] font-bold tracking-tight transition active:scale-[0.99] ${
                         parentStrong ? "bg-blue-50 text-blue-600"
-                        : onProfile ? "text-slate-900"
                         : "text-slate-600 hover:bg-slate-50"
                       }`}
                     >
                       <Icon size={16.5} strokeWidth={parentStrong ? 2.4 : 2.2}
-                        className={parentStrong ? "text-blue-600" : onProfile ? "text-slate-700" : "text-slate-400 group-hover:text-slate-600"} />
+                        className={parentStrong ? "text-blue-600" : "text-slate-400 group-hover:text-slate-600"} />
                       <span className="flex-1 text-left">{label}</span>
                       {id === "updates" && (notifCount + msgCount) > 0 && (
                         <span className="grid h-[18px] min-w-[18px] shrink-0 place-items-center rounded-full bg-blue-600 px-1 text-[10.5px] font-bold text-white">
                           {notifCount + msgCount > 99 ? "99+" : notifCount + msgCount}
                         </span>
                       )}
-                      {isProfile && (expanded
-                        ? <ChevronDown size={15} strokeWidth={2.4} className="text-slate-400" />
-                        : <ChevronRight size={15} strokeWidth={2.4} className="text-slate-300 group-hover:text-slate-400" />)}
                     </button>
 
-                    {expanded && (
-                      // Hierarchy carried by TYPOGRAPHY: parent (icon) → major area (bold) →
-                      // sub-pages (quieter, indented). The selected sub-page takes the accent.
-                      <div className="mb-1.5 mt-1 space-y-2">
-                        {visibleProfileSections(company?.tier).map((sec) => {
-                          const secActive = profileNav.tab === sec.key;
-                          return (
-                            <div key={sec.key}>
-                              <button onClick={() => profileNav.go(sec.key, 0)}
-                                className={`flex w-full items-center rounded-xl py-1.5 pl-7 pr-3 text-left text-[13px] font-bold tracking-tight transition ${
-                                  secActive ? "text-slate-900" : "text-slate-500 hover:text-slate-900"
-                                }`}>
-                                {sec.label}
-                              </button>
-                              <div className="mt-0.5 space-y-px pl-10 pr-1.5">
-                                {sec.steps.map((s, i) => {
-                                  const stepOn = secActive && profileNav.step === i;
-                                  return (
-                                    <button key={s.key} onClick={() => profileNav.go(sec.key, i)}
-                                      className={`flex w-full items-center rounded-xl py-1.5 pl-3 pr-2.5 text-left text-[12.5px] transition ${
-                                        stepOn ? "bg-blue-50 font-bold text-blue-600" : "font-medium text-slate-500 hover:bg-slate-50 hover:text-slate-700"
-                                      }`}>
-                                      <span className="min-w-0 flex-1 truncate">{s.title}</span>
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
                   </div>
                 );
               })}
