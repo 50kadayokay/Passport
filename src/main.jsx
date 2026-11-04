@@ -727,7 +727,7 @@ function InvestorOnboarding({ onDone, onSkip }) {
 // (the Media tab), press releases → PR_YEARS (the Timeline). Static pp entries are kept;
 // real posts are prepended/merged newest-first. Best-effort — never blocks the render.
 async function mergeCompanyPosts(coId, base) {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/posts?company_id=eq.${coId}&removed_at=is.null&select=post_type,title,summary,media_url,thumbnail_url,published_at&order=published_at.desc&limit=60`, { headers: base });
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/posts?company_id=eq.${coId}&removed_at=is.null&select=post_type,title,summary,media_url,thumbnail_url,published_at,publication_id&order=published_at.desc&limit=60`, { headers: base });
   if (!res.ok) return;
   const rows = await res.json().catch(() => []);
   if (!Array.isArray(rows) || !rows.length) return;
@@ -750,7 +750,9 @@ async function mergeCompanyPosts(coId, base) {
     prs.forEach((r) => {
       const id = String(r.published_at || "").slice(0, 10);
       const m = id.match(/^(\d{4})-(\d{2})-(\d{2})/);
-      if (flat.some((e) => String(e.id) === id && e.headline === r.title)) return; // de-dupe
+      // De-dupe: the same day and headline, or the full entry the dispatcher already
+      // compiled into pp for this publication (pubKey, D1), whatever its date.
+      if (flat.some((e) => (String(e.id) === id && e.headline === r.title) || (r.publication_id && e.pubKey === `pub:${r.publication_id}`))) return;
       flat.push({ id, d: m ? `${MON[+m[2] - 1] || ""} ${+m[3]}` : "", headline: r.title, label: r.title, why: r.summary || "", key: false, takeaways: [] });
     });
     const by = {};

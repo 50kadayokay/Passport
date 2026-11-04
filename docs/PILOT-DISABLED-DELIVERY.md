@@ -26,8 +26,8 @@ Every row below is checked by `npm run check:s2-pilot-disabled`
 | 4a | | `api/unpublish.js:53` | `await invokeDispatchBestEffort();` |
 | 4b | | `api/revise-release.js:126` | `await invokeDispatchBestEffort();` |
 | 4c | | `api/ops.js:231` | `const nudge = await invokeDispatchBestEffort();` |
-| 5 | A nudge is skipped when `DISPATCH_SECRET` is unset **[env]**, and it never waits more than 1.5 s or fails the publish. | `api/_service.js:136` | `if (!secret) return { dispatched: false, reason: "DISPATCH_SECRET not set" };` |
-| 5a | | `api/_service.js:141` | `signal: AbortSignal.timeout(1500),` |
+| 5 | A nudge is skipped when `DISPATCH_SECRET` is unset **[env]**, and it never waits more than 1.5 s or fails the publish. | `api/_service.js:145` | `if (!secret) return { dispatched: false, reason: "DISPATCH_SECRET not set" };` |
+| 5a | | `api/_service.js:150` | `signal: AbortSignal.timeout(1500),` |
 | 6 | The database schedules nothing. `outbox-drain` (pg_cron and pg_net) exists only in 0011, which is deferred; production audit Q15 found pg_cron absent. | `scripts/_migration-manifest.mjs:13` | `"0011_outbox_ops.sql":` |
 | 6a | | `docs/PRODUCTION-ROLLOUT-PLAN.md` (Cron state) | `The audit (Q15) found it absent in production.` |
 | 7 | Publications never queue a device push: the only subscription for `device_push_v1` is 0055, which is deferred. | `supabase/migrations/0055_enable_device_push.sql:26` | `('device_push_v1', 'PUBLICATION_PUBLISHED')` |

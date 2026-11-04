@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { SUPABASE_URL, SUPABASE_ANON } from "../lib/supabase.js";
 import { installDemoFetchBarrier } from "../lib/demoMode.js";
 import Portal from "./Portal.jsx";
+import { COPPER_FIXTURE, KINGSMEN_PROTO_FIXTURE } from "./__fixtures/proValidation.js";
 
 // THE BARRIER GOES UP BEFORE ANYTHING ELSE RUNS.
 //
@@ -21,7 +22,16 @@ const TOKEN = "122f6394-7a90-431d-9019-5ee0645a00f6";
 
 export default function PortalDemo() {
   const [co, setCo] = useState(null);
+  // ?fixture=kproto (Kingsmen) or ?fixture=copper loads a local fictional profile instead of the
+  // database, so the profile editor can be seen in the portal shell with no connection at all.
+  const fx = new URLSearchParams(window.location.search).get("fixture");
   useEffect(() => {
+    const fixture = fx === "copper" ? COPPER_FIXTURE : fx === "kproto" ? KINGSMEN_PROTO_FIXTURE : null;
+    if (fixture) {
+      try { window.__mineexDemoCompanyId = "demo"; } catch {}
+      setCo({ id: "demo", slug: SLUG, name: fixture.name || fixture.companyName || "Kingsmen Resources Ltd.", role: "owner", status: "draft", tier: "pro", profile: fixture });
+      return;
+    }
     let ok = true;
     (async () => {
       try {

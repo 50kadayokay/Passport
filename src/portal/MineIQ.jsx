@@ -63,7 +63,7 @@ const SUGGESTIONS = [
 
      FRAME   white, hairline-separated -- the portal nav and the history column.
              The left edge of the app reads as one continuous piece of chrome.
-     CANVAS  #F7F8FA -- where the conversation happens. Recessed, so it is
+     CANVAS  #F0F2F5 -- where the conversation happens (the portal-wide canvas). Recessed, so it is
              obviously the place things sit ON.
      RAISED  white + ring + shadow -- the composer, the suggestion surfaces, the
              assistant's mark. These float on the canvas.
@@ -620,7 +620,7 @@ export default function MineIQ({ company }) {
       )}
 
       {/* CANVAS — recessed, so everything on it can be above it. */}
-      <div className="flex min-w-0 flex-1 flex-col bg-[#F7F8FA]">
+      <div className="flex min-w-0 flex-1 flex-col bg-[#F0F2F5]">
         {/* HEADER — understated. The toggle, the name, nothing else; New chat
             lives in the panel it belongs to. */}
         <div className="flex h-[52px] shrink-0 items-center gap-2.5 border-b border-slate-200/60 px-4">

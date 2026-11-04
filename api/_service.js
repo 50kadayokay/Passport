@@ -39,10 +39,17 @@ export async function serviceRest(path, { method = "GET", body, prefer } = {}) {
 }
 
 // A service-role Storage call (e.g. DELETE an object). Returns the raw fetch Response.
-export async function serviceStorage(path, { method = "GET" } = {}) {
-  // No content-type: Storage refuses a JSON content-type with an empty body (400).
+export async function serviceStorage(path, { method = "GET", body, contentType, upsert = false } = {}) {
+  // No content-type without a body: Storage refuses a JSON content-type with an empty body (400).
   const { "content-type": _ct, ...headers } = serviceHeaders();
-  return fetch(`${SB}/storage/v1/${path}`, { method, headers });
+  if (body != null) headers["content-type"] = contentType || "application/octet-stream";
+  if (upsert) headers["x-upsert"] = "true";
+  return fetch(`${SB}/storage/v1/${path}`, { method, headers, body: body ?? undefined });
+}
+
+/** The public URL of an object in a PUBLIC bucket. No request is made. */
+export function publicObjectUrl(bucket, objectPath) {
+  return `${SB}/storage/v1/object/public/${bucket}/${String(objectPath).split("/").map(encodeURIComponent).join("/")}`;
 }
 
 // The service-role data accessor injected into dispatcher listeners.
@@ -60,6 +67,8 @@ export function serviceDb() {
     },
     write(path, opts) { return serviceRest(path, opts); },
     rpc(fn, body) { return serviceRpc(fn, body); },
+    storage(path, opts) { return serviceStorage(path, opts); },
+    publicUrl(bucket, objectPath) { return publicObjectUrl(bucket, objectPath); },
   };
 }
 

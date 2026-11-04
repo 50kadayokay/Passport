@@ -31,6 +31,7 @@
 //     (api/dispatch.js, action "backfill").
 
 import { revalidateSite } from "./_siteRevalidate.js";
+import { feedSummaryFrom, publishReleaseImages, releaseTimelineEntry, mergeReleaseIntoPP, removeReleaseFromPP, updateCompiledProfile } from "./_releaseProjection.js";
 
 export const HISTORICAL_CUTOFF_HOURS = 72;
 export const FOLLOWER_CHUNK = 100;
@@ -128,24 +129,34 @@ async function feedProjectionV1(event, db) {
 
   // PUBLICATION_PUBLISHED → build the projection from authoritative data.
   let materialityLabel = null;
+  let detected = null;
   if (pub.update_id) {
     const upd = await db.getRows(`updates?id=eq.${pub.update_id}&select=detected`);
-    materialityLabel = (upd[0] && upd[0].detected && upd[0].detected.materiality) || null;
+    detected = (upd[0] && upd[0].detected) || null;
+    materialityLabel = (detected && detected.materiality) || null;
   }
   const content = pub.content || {};
   // The composer states what it published. Anything that isn't an explicit media
   // post stays a press release — the historical default, and the only type that
   // notifies followers (see inAppNotificationsV1 below).
   const postType = String(content.post_type || "") === "media" ? "media" : "press_release";
+  // A portal press release (D1): the card shows the MineEx summary, never the
+  // whole release, and the first image the company picked. The full text and the
+  // images reach investors through the profile (profileTimelineV1).
+  let releaseSummary = null, releaseImage = null;
+  if (postType === "press_release" && detected) {
+    releaseSummary = feedSummaryFrom(detected);
+    releaseImage = (await publishReleaseImages(db, pub.company_id, detected))[0] || null;
+  }
   const row = {
     publication_id: pub.id,
     company_id: pub.company_id,
     post_type: postType,
     category: content.category ? String(content.category) : null,
     title: (content.headline && String(content.headline).trim()) || "Company update",
-    summary: content.body || null,
+    summary: releaseSummary || content.body || null,
     // A media post's media_url is the video itself, so prefer an explicit thumbnail.
-    thumbnail_url: content.thumbnail_url || content.media_url || null,
+    thumbnail_url: releaseImage || content.thumbnail_url || content.media_url || null,
     source_url: content.source_url || pub.external_url || null,
     materiality_label: postType === "media" ? null : materialityLabel,
     materiality_score: postType === "media" ? null : scoreFor(materialityLabel),
@@ -508,6 +519,8 @@ async function profileTimelineV1(event, db) {
     if (cur.destination_id !== "passport") return;
     const r = await db.rpc("remove_timeline_entry", { p_company: cur.company_id, p_key: `pub:${cur.id}` });
     if (!r.ok) throw new Error(`timeline removal failed (${r.status})`);
+    // And from the compiled profile the apps read (D1).
+    await updateCompiledProfile(db, cur.company_id, (pp) => removeReleaseFromPP(pp, `pub:${cur.id}`));
     return { removed: true };
   }
   if (event.event_type !== "PUBLICATION_PUBLISHED" && event.event_type !== "PUBLICATION_REVISED") return;
@@ -525,9 +538,10 @@ async function profileTimelineV1(event, db) {
   let publishedOn = null;
   let summary = "";
   let category = null;
+  let upd = null;
   if (pub.update_id) {
-    const upds = await db.getRows(`updates?id=eq.${pub.update_id}&select=published_on,detected`);
-    const upd = upds[0];
+    const upds = await db.getRows(`updates?id=eq.${pub.update_id}&select=published_on,detected,body`);
+    upd = upds[0] || null;
     if (upd) {
       publishedOn = upd.published_on || null;
       const det = upd.detected || {};
@@ -542,20 +556,31 @@ async function profileTimelineV1(event, db) {
   const posts = await db.getRows(`posts?publication_id=eq.${pub.id}&select=id`);
   const postId = (posts[0] && posts[0].id) || null;
 
-  const entry = {
-    key: `pub:${pub.id}`,
-    publication_id: pub.id,
-    post_id: postId,
-    id: pub.id,
-    title: (content.headline && String(content.headline).trim()) || "Company update",
-    date,
-    category: category || content.category || null,
-    summary: summary || null,
-    source: "publication",
-  };
+  // A portal release carries its draft (update): the full entry the preview showed,
+  // with the release text and the picked images (D1). Anything else keeps the
+  // short entry it always had.
+  const entry = upd
+    ? releaseTimelineEntry({
+        pub, upd, date, postId,
+        imageUrls: await publishReleaseImages(db, pub.company_id, upd.detected || {}),
+      })
+    : {
+        key: `pub:${pub.id}`,
+        publication_id: pub.id,
+        post_id: postId,
+        id: pub.id,
+        title: (content.headline && String(content.headline).trim()) || "Company update",
+        date,
+        category: category || content.category || null,
+        summary: summary || null,
+        source: "publication",
+      };
+  if (upd && category && !entry.category) entry.category = category;
 
   const r = await db.rpc("upsert_timeline_entry", { p_company: pub.company_id, p_entry: entry });
   if (!r.ok) throw new Error(`timeline upsert failed (${r.status})`);
+  // The apps read the COMPILED profile (pp), not profile.timeline: put it there too.
+  await updateCompiledProfile(db, pub.company_id, (pp) => mergeReleaseIntoPP(pp, entry));
 }
 
 // a15 -- CONTENT FAN-OUT. One published record (the publication), one listener

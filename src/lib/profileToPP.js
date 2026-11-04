@@ -199,7 +199,11 @@ function mapTimeline(timeline) {
       // The release's own stage transition, for the same reason.
       stageFrom: str(e.stageFrom || ai.stageFrom),
       stageTo: str(e.stageTo || ai.stageTo),
-      key: !!e.key,
+      // A dispatcher-written entry's `key` is its identity ("pub:<id>", 0051), not
+      // the milestone flag: that one travels as `milestoneKey`. Reading the string
+      // as a boolean made every portal-published release a key milestone.
+      key: typeof e.key === "string" ? !!e.milestoneKey : !!e.key,
+      ...(typeof e.key === "string" && e.key.startsWith("pub:") ? { pubKey: e.key } : {}),
       id: str(e.date),
       label: shortLabel({ ...e, keyNumbers: keyResults.map((k) => k.value) }),
       // Refined BriefV1 (validated), when the generator produced one — this is the single field
