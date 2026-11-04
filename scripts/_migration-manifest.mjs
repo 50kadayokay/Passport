@@ -23,16 +23,6 @@ export const DEFERRED = {
 
   "0055_enable_device_push.sql":
     "Arms real push to investors' phones. Requires 0041 (from main) first, and a deliberate decision.",
-  "0058_close_public_insert.sql":
-    "HELD by the user 2026-11-02 (Phase 3 group A): 0058 revokes the anon INSERT that mineex.ca's live homepage lead form (old code, LeadForm -> demo_bookings) uses; Re-enable after the lead-form compatibility fix is verified and approved.",
-  "0077_listing_reports_installed_app_compat.sql":
-    "HELD by the user 2026-11-02 (Phase 3 group A): 0058 revokes the anon INSERT that mineex.ca's live homepage lead form (old code, LeadForm -> demo_bookings) uses; needs 0058. Re-enable after the lead-form compatibility fix is verified and approved.",
-  "0092_listing_reports_column_insert.sql":
-    "HELD by the user 2026-11-02 (Phase 3 group A): 0058 revokes the anon INSERT that mineex.ca's live homepage lead form (old code, LeadForm -> demo_bookings) uses; needs 0077. Re-enable after the lead-form compatibility fix is verified and approved.",
-  "0093_listing_reports_rate_limit.sql":
-    "HELD by the user 2026-11-02 (Phase 3 group A): 0058 revokes the anon INSERT that mineex.ca's live homepage lead form (old code, LeadForm -> demo_bookings) uses; needs 0092. Re-enable after the lead-form compatibility fix is verified and approved.",
-  "0095_public_lead_form_guard.sql":
-    "HELD by the user 2026-11-02 (Phase 3 group A): goes with 0058; re-enable the group together once approved. Keeps mineex.ca's legacy lead forms (homepage LeadForm, /site/legacy, old /api/contact anon fallback) working after 0058: anon INSERT on exactly the columns they send, a validating RLS policy (name + well-formed email required, every field length-capped), and a database rate limit keyed on the gateway-set address (5 per device per hour across both forms, 20 per /24 or /48 network per hour, 200 per hour overall, one row per request; limits in public_form_limits). Run right after 0058. Verified in a rolled-back transaction on staging (scripts/legacy-compat-0095-0096-check.mjs). Applied to staging 2026-11-02.",
 };
 
 // Applied to production on 2026-10-08 and verified. Listed here, not in
@@ -44,6 +34,8 @@ export const DEFERRED = {
 //   0059's rollback in production), 0067.
 //
 // Written this session; awaiting approval. Replay applies these in staging.
+// 2026-11-02: the Phase 3 group A hold (0058, 0077, 0092, 0093, 0095) was released by the user's
+// Phase 3A approval, after 0095 fixed mineex.ca's lead forms; the entries left DEFERRED.
 export const PENDING = {
   // Verified absent from production on 2026-10-30 by
   // supabase/audit/verify_unverified_migrations.sql. Until this session they

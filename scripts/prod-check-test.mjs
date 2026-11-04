@@ -182,11 +182,12 @@ db({ upTo: 3 });
 r = await run(["--stage=phase3"], { answers: ALL() });
 ok(r.kinds("FAIL").some((l) => /global cap is NOT full/.test(l)), "a full listing-report cap FAILs the stage");
 {
-  // The real manifest HOLDS 0058/0077/0092/0093 (user decision 2026-11-02): phase 3 is then 0061a and 0094 only.
+  // The real manifest (group A hold released 2026-11-02): phase 3 checks 0058, 0095, 0077, 0092, 0093, 0061a and 0094.
+  world({ sb: PROD_SB, app: PROD_APP, hasRoles: false, hasThreads: false });
   db({ upTo: 3 });
   const h = await run(["--stage=phase3"], { answers: ALL(), manifest: null });
-  ok(h.kinds("NOT YET").some((l) => /listing-report guard/.test(l)) && !h.kinds("FAIL").some((l) => /00(58|77|92|93)_/.test(l)) && h.kinds("PASS").some((l) => /0061a_table_privilege_hardening\.sql: applied/.test(l)) && h.kinds("PASS").some((l) => /0094_company_follows_upsert_grant\.sql: applied/.test(l)),
-     "HELD: phase 3 checks 0061a and 0094; the listing-report guard reads NOT YET, never FAIL", h.text.split("\n").filter((l) => /0061a|0094|guard|FAIL/.test(l)).join(" | ").slice(0, 900));
+  ok(h.kinds("FAIL").length === 0 && ["0058_close_public_insert", "0077_listing_reports_installed_app_compat", "0092_listing_reports_column_insert", "0093_listing_reports_rate_limit", "0061a_table_privilege_hardening", "0094_company_follows_upsert_grant"].every((f) => h.kinds("PASS").some((l) => l.includes(`${f}.sql: applied`))) && h.kinds("PASS").some((l) => /listing_reports_guard trigger/.test(l)),
+     "real manifest: phase 3 checks all of group A, 0061a and 0094; the listing-report guard PASSes", h.text.split("\n").filter((l) => /00(58|77|92|93|61a|94)|guard|FAIL/.test(l)).join(" | ").slice(0, 900));
 }
 
 console.log("\n  PHASE 5 AND FINAL");

@@ -224,6 +224,17 @@ Apply 0080/0090 after approval, then rerun isolation and the live sweep.
   both checkpoints true; runner diffs showed only the intended ACLs. Read-only audits after each: only the intended grants
   changed. prod-check --stage=phase3: 35 PASS, 0 FAIL (4 INCOMPLETE need accounts). TLS now verified with Supabase's root CA
   (PRODUCTION_DB_CA_FILE). 0058, 0077, 0092, 0093 HELD (mineex.ca lead form); Phase 4 needs the 0063 messaging fix first.
+- PRODUCTION 2026-11-03, mineex.ca LEAD FORMS FIXED: mineex-site got 4 Production variables (Supabase URL + publishable key,
+  Postmark token + sender support@mineex.ca; no service key) and a fresh deploy of the unchanged 9dfafd7 source (bundle identical
+  except the build stamp; the previous deployment kept for rollback). Live: contact (#8) and Conference Mode (#9) enquiries stored,
+  both emails delivered. Follow-ups before scaling: the shared rate-limit identity (Vercel egress IP) and Postmark's 100/month plan.
+- PRODUCTION 2026-11-03, PHASE 3A COMPLETE: 0058, 0095, 0077, 0092, 0093 applied by the runner 03:35-03:38 UTC, each checkpoint true
+  (0058 then 0095 chained; forms closed for seconds). prod-check --stage=phase3: 44 PASS, 0 FAIL, 4 INCOMPLETE (smoke accounts).
+  Read-only audit vs post-A2: only the intended changes (Q01/Q03/Q09/Q17; 4 more companies is normal activity); function source identical.
+  Before applying: a rolled-back staging rehearsal of 0058-applied/0095-failed and both recoveries (14/0), state matched production exactly.
+  mineex.ca/contact returns 502 delivery-failed: PRE-EXISTING, mineex-site has no environment variables (no Supabase URL, no
+  service key, no Postmark), so /api/contact can neither store nor email. The database accepts its exact anon insert (rolled-back
+  production transaction). No test row was stored. Phase 4 not started.
 - PRODUCTION 2026-11-02, gate A2 COMPLETE: main = 50c0381 (merge of portal-work 245324e; tree identical to the tested commit),
   Vercel passport + mineex-conference deployed (both success; mineex-conference also deploys from main, as on 746d86d).
   prod-check --stage=deploy 35 PASS / 0 FAIL (4 INCOMPLETE need smoke accounts); new portal bundle live; mineex.ca HTML and

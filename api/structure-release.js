@@ -1,5 +1,5 @@
-// Vercel serverless function — analyzes a junior-mining press release with Claude
-// and returns a structured, review-ready analysis. The Anthropic API key lives
+// Vercel serverless function — analyzes a junior-mining press release with OpenAI
+// and returns a structured, review-ready analysis. The OpenAI API key lives
 // ONLY here (server-side env var); it is never shipped to the browser.
 //
 // It separates THREE judgments (category / impact tier / key milestone), proposes
@@ -10,15 +10,17 @@
 //   extract — { text, context? }                 → full analysis from raw PR text
 //   refine  — { current, instruction, text?, context? } → revised analysis
 //
-// Set ANTHROPIC_API_KEY in Vercel (Project → Settings → Environment Variables)
-// and in .env for local `vercel dev`. Model overridable via AI_MODEL.
+// Uses OPENAI_API_KEY (Project → Settings → Environment Variables; .env for local
+// `vercel dev`). Model overridable via AI_MODEL_RELEASE. Switched from Anthropic
+// on 2026-11-03 for cost; the forced-tool contract and the analysis shape are unchanged.
 
 import { requireAiCaller, DRAFTING_ROLES } from "./_aiGuard.js";
 import { generateBrief, briefToV2 } from "./_briefGen.js";   // refined BriefV1 generator (OpenAI)
 import { validateBrief } from "./_briefValidate.js";          // deterministic re-grounding validator
 
-const MODEL = process.env.AI_MODEL || "claude-sonnet-5";
-const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
+// Not AI_MODEL: production may still name a Claude model there.
+const MODEL = process.env.AI_MODEL_RELEASE || "gpt-4o";
+const OPENAI_URL = "https://api.openai.com/v1/chat/completions";
 const SCHEMA_VERSION = 1;
 
 // Category = WHAT TYPE of event (separate from impact + milestone).
@@ -203,11 +205,11 @@ export default async function handler(req, res) {
   // SPENDING GATE. Size ceiling, then authentication, then company
   // authorisation + paid entitlement, then a rate limit that FAILS CLOSED.
   // Nothing below this line runs for an unauthorised caller, so no
-  // unauthorised request can reach Anthropic. See api/_aiGuard.js.
+  // unauthorised request can reach OpenAI. See api/_aiGuard.js.
   const caller = await requireAiCaller(req, res, { label: "structure-release", feature: "company_memory", allowOnboarding: true, roles: DRAFTING_ROLES });
   if (!caller) return;
-  const key = process.env.ANTHROPIC_API_KEY;
-  if (!key) return bad(res, 500, "Server not configured: ANTHROPIC_API_KEY is missing.");
+  const key = process.env.OPENAI_API_KEY;
+  if (!key) return bad(res, 500, "Server not configured: OPENAI_API_KEY is missing.");
 
   let body = req.body;
   if (typeof body === "string") { try { body = JSON.parse(body); } catch { return bad(res, 400, "Invalid JSON body"); } }
@@ -229,10 +231,10 @@ export default async function handler(req, res) {
       ctx,
     ].filter(Boolean).join("\n\n");
   } else if (pdf) {
-    // PDF release — Claude reads it natively via a document block (no client-side
-    // text extraction). The base64 must be the raw PDF bytes, no data: prefix.
+    // PDF release — the model reads it natively via a file part (no client-side
+    // text extraction). The client sends the raw PDF bytes as base64, no data: prefix.
     userContent = [
-      { type: "document", source: { type: "base64", media_type: "application/pdf", data: pdf } },
+      { type: "file", file: { filename: "press-release.pdf", file_data: "data:application/pdf;base64," + pdf } },
       { type: "text", text: "The attached PDF is a company press release." + ctx + "\n\nAnalyze it and emit the structured analysis." },
     ];
   } else {
@@ -240,28 +242,30 @@ export default async function handler(req, res) {
   }
 
   try {
-    const r = await fetch(ANTHROPIC_URL, {
+    const r = await fetch(OPENAI_URL, {
       method: "POST",
-      headers: { "content-type": "application/json", "x-api-key": key, "anthropic-version": "2023-06-01" },
+      headers: { "content-type": "application/json", Authorization: `Bearer ${key}` },
       body: JSON.stringify({
         model: MODEL,
         max_tokens: 3000,
-        system: SYSTEM,
-        tools: [TOOL],
-        tool_choice: { type: "tool", name: TOOL.name },
-        messages: [{ role: "user", content: userContent }],
+        messages: [{ role: "system", content: SYSTEM }, { role: "user", content: userContent }],
+        tools: [{ type: "function", function: { name: TOOL.name, description: TOOL.description, parameters: TOOL.input_schema } }],
+        tool_choice: { type: "function", function: { name: TOOL.name } },
       }),
     });
 
     if (!r.ok) {
-      const detail = await r.text().catch(() => "");
-      return bad(res, 502, `AI provider error (${r.status}): ${detail.slice(0, 300)}`);
+      // Never pass the provider's body to the browser: it can echo the release
+      // and names billing details. The status alone is enough to act on.
+      console.error(`[structure-release] provider ${r.status}: ${(await r.text().catch(() => "")).slice(0, 300)}`);
+      return bad(res, 502, `The MineEx summary is unavailable right now (AI provider ${r.status}). Your release is saved; try again shortly.`);
     }
     const data = await r.json();
-    const block = Array.isArray(data.content) && data.content.find((b) => b.type === "tool_use");
-    if (!block || !block.input) return bad(res, 502, "AI returned no structured analysis.");
+    const call = data.choices?.[0]?.message?.tool_calls?.find((c) => c.function?.name === TOOL.name);
+    let analysis = null;
+    try { analysis = call ? JSON.parse(call.function.arguments) : null; } catch { analysis = null; }
+    if (!analysis || typeof analysis !== "object") return bad(res, 502, "AI returned no structured analysis.");
 
-    const analysis = block.input;
     analysis.schemaVersion = SCHEMA_VERSION;
     analysis.model = MODEL;
 
