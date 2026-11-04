@@ -24,6 +24,7 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ||= "test-service-role-not-a-real-key";
 process.env.VITE_SUPABASE_URL ||= "https://stub-project.supabase.invalid";
 process.env.VITE_SUPABASE_ANON_KEY ||= "sb_publishable_stubKeyForOfflineTests";
 process.env.ANTHROPIC_API_KEY ||= "test-key-not-real";
+process.env.OPENAI_API_KEY ||= "test-key-not-real";
 process.env.SUBMISSION_SALT ||= "test-salt";
 
 let pass = 0, fail = 0;
@@ -39,6 +40,12 @@ globalThis.fetch = async (url, opts = {}) => {
   if (u.includes("api.anthropic.com")) {
     billable++;
     return new Response(JSON.stringify({ content: [{ type: "text", text: "{}" }] }),
+      { status: 200, headers: { "content-type": "application/json" } });
+  }
+  // structure-release calls OpenAI (2026-11-03); billed the same way.
+  if (u.includes("api.openai.com")) {
+    billable++;
+    return new Response(JSON.stringify({ choices: [{ message: { tool_calls: [{ function: { name: "emit_release_analysis", arguments: "{}" } }] } }] }),
       { status: 200, headers: { "content-type": "application/json" } });
   }
   if (u.includes("/auth/v1/user")) {
@@ -328,6 +335,6 @@ for (const name of Object.keys(handlers)) {
 
 console.log(`\n  ${pass} passed, ${fail} failed`);
 console.log(fail === 0
-  ? "  NO unauthorised request reached Anthropic. Legitimate company and admin paths intact.\n"
+  ? "  NO unauthorised request reached the AI provider. Legitimate company and admin paths intact.\n"
   : "  FAILURES above — do not deploy.\n");
 process.exit(fail ? 1 : 0);

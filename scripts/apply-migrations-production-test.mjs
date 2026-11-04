@@ -152,12 +152,12 @@ ok(P.items.find((i) => i.file === "0091_notification_clear_no_platform_admin.sql
 }
 ok(P.warnings.length === 0, "no warnings against the real record", P.warnings.join("; "));
 {
-  // HELD (the default manifest): 0095 is held with 0058's group; 0096 is not, and follows 0063 directly.
+  // The group A hold was released 2026-11-02 (Phase 3A approval): 0095 follows 0058 directly, 0096 follows 0063.
   const files = P.items.map((i) => i.file);
-  ok(HELD.has("0095_public_lead_form_guard.sql") && !files.includes("0095_public_lead_form_guard.sql") && P.deferred.some((d) => d.file === "0095_public_lead_form_guard.sql"),
-     "0095 is HELD with 0058/0077/0092/0093: deferred, never planned");
-  ok(!HELD.has("0096_conversations_legacy_upsert.sql") && files.indexOf("0096_conversations_legacy_upsert.sql") === files.indexOf("0063_company_initiated_threads.sql") + 1 && files.indexOf("0063_company_initiated_threads.sql") >= 0,
-     "HELD plan: 0096 directly after 0063", files.join(" "));
+  ok(HELD.size === 0 && files.indexOf("0095_public_lead_form_guard.sql") === files.indexOf("0058_close_public_insert.sql") + 1 && files.indexOf("0058_close_public_insert.sql") >= 0,
+     "nothing HELD: 0095 directly after 0058", files.join(" "));
+  ok(files.indexOf("0096_conversations_legacy_upsert.sql") === files.indexOf("0063_company_initiated_threads.sql") + 1 && files.indexOf("0063_company_initiated_threads.sql") >= 0,
+     "0096 directly after 0063", files.join(" "));
   const i96 = P.items.find((i) => i.file === "0096_conversations_legacy_upsert.sql");
   ok(i96.after === "0063_company_initiated_threads.sql" && i96.prerequisites.map((p) => `${p.file}:${p.status}`).join() === `0063_company_initiated_threads.sql:step ${stepOf("0063_company_initiated_threads.sql")}`,
      "0096 runs IMMEDIATELY after 0063 and names it as its prerequisite (satisfied the step before)");
@@ -337,25 +337,25 @@ const cli = (args, env = {}) => spawnSync(process.execPath, ["--import", "./scri
   ok(r.status === 0 && /nothing was connected to/.test(r.stdout) && new RegExp(`${N} to apply`).test(r.stdout) && /0061a_table_privilege_hardening\.sql\n\s+sha256/.test(r.stdout),
      `no arguments: prints the ${N}-step plan and exits 0`, `${r.status} ${r.stderr.slice(0, 200)}`);
   const f = cli(["--audit", "scripts/fixtures/production-audit-fixture.json"]);
-  // The fixture has 0058 applied, which the HELD manifest defers: the CLI refuses to plan it rather than guess.
-  ok(f.status !== 0 && /0058_close_public_insert\.sql is DEFERRED in the manifest but the audit says production has it/.test(f.stdout + f.stderr), "--audit <fixture>: refused while 0058 is HELD (the fixture has it applied)");
+  // The fixture has 0058 applied: with nothing held, its plan starts with 0058's and 0061a's partners.
+  ok(f.status === 0 && new RegExp(`${N_FIXTURE} to apply`).test(f.stdout), "--audit <fixture>: plans the fixture (0058 applied, nothing held)", `${f.status} ${(f.stdout + f.stderr).slice(0, 200)}`);
 }
 const cliRefuses = (args, env, re, m) => { const r = cli(args, env); ok(r.status === 2 && re.test(r.stderr) && !fs.existsSync(path.join(LOGDIR, "apply-log.jsonl")), m, `${r.status} ${r.stderr.slice(0, 220)}`); return r; };
 cliRefuses([...OK_ARGS.split(" ").filter((x) => x !== "--apply")], {}, /needs --apply/, "CLI: missing --apply -> exit 2, nothing logged");
 cliRefuses(["--apply", "--only", "0061a_table_privilege_hardening.sql", `--ref=${STAGING}`, "--approved-by=user-in-chat"], {}, /STAGING/, "CLI: the staging ref -> exit 2");
 cliRefuses(["--apply", "--only", "0061a_table_privilege_hardening.sql", "--only", "0094_company_follows_upsert_grant.sql", `--ref=${PROD}`, "--approved-by=user-in-chat"], {}, /one migration per invocation/, "CLI: two files -> exit 2");
-cliRefuses(["--apply", "--only", "0061a_table_privilege_hardening.sql", `--ref=${PROD}`, "--approved-by=user-in-chat"], {}, /set PRODUCTION_DSN_FILE/, "CLI: a complete request without a DSN file -> exit 2");
+cliRefuses(["--apply", "--only", "0058_close_public_insert.sql", `--ref=${PROD}`, "--approved-by=user-in-chat"], {}, /set PRODUCTION_DSN_FILE/, "CLI: a complete request without a DSN file -> exit 2");
 {
   const stagingDsn = dsnFile(`postgresql://postgres:${PW}@db.${STAGING}.supabase.co:5432/postgres`);
-  const r = cliRefuses(["--apply", "--only", "0061a_table_privilege_hardening.sql", `--ref=${PROD}`, "--approved-by=user-in-chat"], { PRODUCTION_DSN_FILE: stagingDsn }, /names the STAGING project/, "CLI: a staging DSN behind a production ref -> exit 2");
+  const r = cliRefuses(["--apply", "--only", "0058_close_public_insert.sql", `--ref=${PROD}`, "--approved-by=user-in-chat"], { PRODUCTION_DSN_FILE: stagingDsn }, /names the STAGING project/, "CLI: a staging DSN behind a production ref -> exit 2");
   ok(!(r.stdout + r.stderr).includes(PW) && !(r.stdout + r.stderr).includes(STAGING + ".supabase.co"), "...and the output holds neither the password nor the DSN");
 }
 {
-  const r = cliRefuses(["--apply", "--only", "0061a_table_privilege_hardening.sql", `--ref=${PROD}`, "--approved-by=user-in-chat"], { PRODUCTION_DSN_FILE: dsnFile(GOOD_DSN) }, /interactive terminal/,
+  const r = cliRefuses(["--apply", "--only", "0058_close_public_insert.sql", `--ref=${PROD}`, "--approved-by=user-in-chat"], { PRODUCTION_DSN_FILE: dsnFile(GOOD_DSN) }, /interactive terminal/,
     "CLI: EVERYTHING valid, but stdin is not a TTY -> exit 2 before connecting (the preload would have thrown on any socket)");
   ok(!(r.stdout + r.stderr).includes(PW) && !/postgres(ql)?:\/\//.test(r.stdout + r.stderr) && !/NETWORK BLOCKED/.test(r.stderr), "...no password, no DSN, and no connection was attempted");
 }
-cliRefuses(["--record-manual", "0065c_analytics_indexes.sql", `--ref=${PROD}`, "--approved-by=user-in-chat"], {}, new RegExp(`step ${stepOf("0065c_analytics_indexes.sql")}; step 1 is 0061a`), "CLI: --record-manual out of order -> exit 2");
+cliRefuses(["--record-manual", "0065c_analytics_indexes.sql", `--ref=${PROD}`, "--approved-by=user-in-chat"], {}, new RegExp(`step ${stepOf("0065c_analytics_indexes.sql")}; step 1 is 0058`), "CLI: --record-manual out of order -> exit 2");
 {
   const src = fs.readFileSync("scripts/apply-migrations-production.mjs", "utf8") + fs.readFileSync("scripts/_production-migrations.mjs", "utf8");
   const staging = fs.readFileSync("scripts/apply-migrations.mjs", "utf8");

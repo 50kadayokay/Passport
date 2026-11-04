@@ -43,8 +43,12 @@ export default function AuthGate({ children, title, subtitle, requireAdmin = fal
   }, [ready, signedIn]);
 
   if (!ready) return <Loader />;
+  // The key remounts the form when the peeked invite arrives: LoginScreen seeds its
+  // email and mode from props once, so without it the email box stayed empty AND
+  // locked, and an invited owner could not type their address (2026-11-03).
   if (!signedIn) return (
     <LoginScreen
+      key={invite ? `invite:${invite.email}` : "plain"}
       title={title} subtitle={subtitle}
       brand={invite ? { name: invite.company_name, logo: invite.logo } : null}
       lockedEmail={invite ? invite.email : ""}

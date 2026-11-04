@@ -112,9 +112,9 @@ const asked = [];
 const askWith = (answers) => async (q, opts = {}) => { asked.push({ q, hidden: !!opts.hidden }); return answers.shift() ?? ""; };
 const ALL = () => ["investor@test.invalid", PW.investor, "owner@test.invalid", PW.owner, "", "admin@test.invalid", PW.admin, ""];
 // The stage tests model the full rollout (no HELD files); one test below runs the real, held manifest.
-async function run(argv, { answers = null, env = { PRODUCTION_DSN_FILE: dsnFile }, manifest = UNHELD } = {}) {
+async function run(argv, { answers = null, env = { PRODUCTION_DSN_FILE: dsnFile }, manifest = UNHELD, applyLog = null } = {}) {
   const lines = [];
-  const r = await runCheck({ argv, env, fetchImpl, pgConnect, ask: answers ? askWith(answers) : null, out: (s) => lines.push(String(s)), err: (s) => lines.push(String(s)), read, manifest });
+  const r = await runCheck({ argv, env, fetchImpl, pgConnect, ask: answers ? askWith(answers) : null, out: (s) => lines.push(String(s)), err: (s) => lines.push(String(s)), read, manifest, applyLog });
   const text = lines.join("\n");
   const kinds = (k) => text.split("\n").filter((l) => l.startsWith(`  ${k.padEnd(10)}`));
   return { ...r, text, kinds };
@@ -165,6 +165,12 @@ ok(r.kinds("PASS").some((l) => /listing-report limit: 12 of 600/.test(l)), "/api
 db({ upTo: 3, extra: ["0062_message_attachments.sql"] });
 r = await run(["--stage=phase3"], { answers: ALL() });
 ok(r.kinds("FAIL").some((l) => /0062_message_attachments\.sql: not applied before its phase/.test(l)) && r.code === 1, "production: a phase-4 migration already applied FAILs (ahead of the plan)");
+// The same, but the runner's apply log records an approved apply of 0062 (as 0061a/0094 went out early on 2026-11-02).
+const LOGGED = [{ ref: "rvptronniomlqumjhyrr", file: "0062_message_attachments.sql", status: "started" }, { ref: "rvptronniomlqumjhyrr", file: "0062_message_attachments.sql", status: "applied" }];
+r = await run(["--stage=phase3"], { answers: ALL(), applyLog: LOGGED });
+ok(!r.kinds("FAIL").length && r.kinds("PASS").some((l) => /0062_message_attachments\.sql: applied ahead of its phase \(recorded in the runner's apply log\)/.test(l)), "...but a runner-LOGGED apply ahead of its phase PASSes (an approved early apply)", r.kinds("FAIL").join("\n"));
+r = await run(["--stage=phase3"], { answers: ALL(), applyLog: [{ ref: "abcdefghijklmnopqrst", file: "0062_message_attachments.sql", status: "applied" }, ...LOGGED.map((e) => ({ ...e, status: e.status === "applied" ? "rolled_back" : e.status }))] });
+ok(r.kinds("FAIL").some((l) => /0062_message_attachments\.sql: not applied before its phase/.test(l)), "...a log entry for another project, or one rolled back, does not count");
 db({ upTo: 2 });
 r = await run(["--stage=phase3"], { answers: ALL() });
 ok(r.kinds("FAIL").some((l) => /0093_listing_reports_rate_limit\.sql: applied \(this stage is past its phase\)/.test(l)), "a phase-3 migration missing at phase3 FAILs");
@@ -176,11 +182,12 @@ db({ upTo: 3 });
 r = await run(["--stage=phase3"], { answers: ALL() });
 ok(r.kinds("FAIL").some((l) => /global cap is NOT full/.test(l)), "a full listing-report cap FAILs the stage");
 {
-  // The real manifest HOLDS 0058/0077/0092/0093 (user decision 2026-11-02): phase 3 is then 0061a and 0094 only.
+  // The real manifest (group A hold released 2026-11-02): phase 3 checks 0058, 0095, 0077, 0092, 0093, 0061a and 0094.
+  world({ sb: PROD_SB, app: PROD_APP, hasRoles: false, hasThreads: false });
   db({ upTo: 3 });
   const h = await run(["--stage=phase3"], { answers: ALL(), manifest: null });
-  ok(h.kinds("NOT YET").some((l) => /listing-report guard/.test(l)) && !h.kinds("FAIL").some((l) => /00(58|77|92|93)_/.test(l)) && h.kinds("PASS").some((l) => /0061a_table_privilege_hardening\.sql: applied/.test(l)) && h.kinds("PASS").some((l) => /0094_company_follows_upsert_grant\.sql: applied/.test(l)),
-     "HELD: phase 3 checks 0061a and 0094; the listing-report guard reads NOT YET, never FAIL", h.text.split("\n").filter((l) => /0061a|0094|guard|FAIL/.test(l)).join(" | ").slice(0, 900));
+  ok(h.kinds("FAIL").length === 0 && ["0058_close_public_insert", "0077_listing_reports_installed_app_compat", "0092_listing_reports_column_insert", "0093_listing_reports_rate_limit", "0061a_table_privilege_hardening", "0094_company_follows_upsert_grant"].every((f) => h.kinds("PASS").some((l) => l.includes(`${f}.sql: applied`))) && h.kinds("PASS").some((l) => /listing_reports_guard trigger/.test(l)),
+     "real manifest: phase 3 checks all of group A, 0061a and 0094; the listing-report guard PASSes", h.text.split("\n").filter((l) => /00(58|77|92|93|61a|94)|guard|FAIL/.test(l)).join(" | ").slice(0, 900));
 }
 
 console.log("\n  PHASE 5 AND FINAL");

@@ -80,5 +80,13 @@ eq(scrubSecrets(""), "", "empty input handled");
 eq(scrubSecrets(null), "", "null input handled");
 eq(scrubSecrets("TypeError: Invalid URL"), "TypeError: Invalid URL", "ordinary text passes through");
 
+// Invite sign-in (2026-11-03): LoginScreen seeds email and mode from props once,
+// so AuthGate must remount it when the peeked invite arrives; without the key the
+// invited owner saw an empty, locked email box.
+{
+  const gate = (await import("node:fs")).readFileSync(new URL("../src/auth/AuthGate.jsx", import.meta.url), "utf8");
+  ok(/<LoginScreen\s+key=\{invite \? `invite:\$\{invite\.email\}` : "plain"\}/.test(gate), "AuthGate remounts LoginScreen when the invite email arrives");
+}
+
 console.log(`\napi auth: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

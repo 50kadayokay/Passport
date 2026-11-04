@@ -45,7 +45,7 @@ import fs from "node:fs";
 import readline from "node:readline";
 import { pathToFileURL } from "node:url";
 import { parseTarget, runSmoke, refuseRequest, makeRedactor, anonKeyFromBundle } from "./production-smoke.mjs";
-import { PRODUCTION_REFS, STAGING_REFS, DEFAULT_AUDIT, loadRecord, parseQ01Markers, buildPlan, readDsn } from "./_production-migrations.mjs";
+import { PRODUCTION_REFS, STAGING_REFS, DEFAULT_AUDIT, DEFAULT_LOG_DIR, loadRecord, parseQ01Markers, buildPlan, readDsn, readLog, appliedByLog } from "./_production-migrations.mjs";
 
 export const STAGES = ["deploy", "phase3", "phase4", "phase5", "phase5b", "final"];
 const PHASE_OF_STAGE = { deploy: 2, phase3: 3, phase4: 4, phase5: 5, phase5b: 6, final: 6 };
@@ -131,7 +131,7 @@ export async function readOnly(client, sql, args) {
   } finally { await client.query("rollback").catch(() => {}); }
 }
 
-export async function runCheck({ argv, env = {}, fetchImpl = globalThis.fetch, pgConnect, ask, out = console.log, err = console.error, read = (f) => fs.readFileSync(f, "utf8"), repoRoot = process.cwd(), manifest }) {
+export async function runCheck({ argv, env = {}, fetchImpl = globalThis.fetch, pgConnect, ask, out = console.log, err = console.error, read = (f) => fs.readFileSync(f, "utf8"), repoRoot = process.cwd(), manifest, applyLog = null }) {
   const a = parseArgs(argv);
   if (a.refuse) { err(`\n  prod-check: REFUSING -- ${a.refuse}\n`); return { verdict: "REFUSED", code: 2 }; }
   const { stage, staging, target } = a;
@@ -151,6 +151,9 @@ export async function runCheck({ argv, env = {}, fetchImpl = globalThis.fetch, p
     items = buildPlan({ files: fs.readdirSync("supabase/migrations").filter((f) => f.endsWith(".sql")), record, log: [], q01Markers: q01, ...(manifest ? { manifest } : {}) }).items;
   } catch (e) { line("FAIL", "the plan's phases and the runner's markers load", e.message); }
   const expected = (f) => (phases[f] || 99) <= reached;
+  // Files the production runner applied (and has not rolled back), from its apply log.
+  let runnerApplied = new Set();
+  if (!staging && applyLog) runnerApplied = appliedByLog(applyLog, PROD.ref);
   const missingPhase = items.filter((i) => !phases[i.file]).map((i) => i.file);
   if (missingPhase.length) line("FAIL", "every pending migration has a phase in the plan", missingPhase.join(", "));
   // A migration is expected once its phase is reached AND the runner plans it (HELD files are not planned).
@@ -259,6 +262,9 @@ export async function runCheck({ argv, env = {}, fetchImpl = globalThis.fetch, p
         else if (want) line("FAIL", `${it.file}: applied (this stage is past its phase)`, "marker reads NOT applied");
         else if (!got) line("NOT YET", `${it.file}: not applied yet`, `phase ${Object.keys(PHASE_RANK).find((k) => PHASE_RANK[k] === phases[it.file])}`);
         else if (staging) line("INFO", `${it.file}: applied on staging, ahead of this stage (expected: staging has everything)`);
+        // Ahead of this stage is fine when the runner's own log records an approved apply (2026-11-02:
+        // 0061a and 0094 went out before the rest of Phase 3). Unlogged, it is a surprise: FAIL.
+        else if (runnerApplied.has(it.file)) line("PASS", `${it.file}: applied ahead of its phase (recorded in the runner's apply log)`);
         else line("FAIL", `${it.file}: not applied before its phase`, "marker reads APPLIED: production is ahead of the plan or the log");
       }
       const one = async (sql) => (await readOnly(client, sql))[0];
@@ -308,6 +314,8 @@ if (import.meta.url === pathToFileURL(process.argv[1] || "").href) {
     await c.query("set default_transaction_read_only = on");
     return c;
   };
-  const res = await runCheck({ argv: process.argv.slice(2), env: process.env, pgConnect, ask: makeAsk() });
+  let applyLog = null;
+  try { applyLog = readLog(process.env.PRODUCTION_LOG_FILE || `${DEFAULT_LOG_DIR}/apply-log.jsonl`); } catch { applyLog = null; }
+  const res = await runCheck({ argv: process.argv.slice(2), env: process.env, pgConnect, ask: makeAsk(), applyLog });
   process.exit(res.code);
 }

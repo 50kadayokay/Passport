@@ -3,7 +3,7 @@
 Your steps, in order. Detail lives in `docs/PRODUCTION-ROLLOUT-PLAN.md` (the **Runbook**: commands,
 rollbacks, "never" rules, stop conditions), `docs/PRODUCTION-ENV-AUDIT.md` (variable names),
 `docs/PRODUCTION-TEST-ACCOUNTS.md` (smoke accounts) and `docs/PILOT-DISABLED-DELIVERY.md` (what stays off).
-Production so far: the code deploy and 0061a + 0094 (2026-11-02). Pilot scope: 2–3 companies.
+Production so far: the code deploys (746d86d; **50c0381 = 245324e, gate A2 complete 2026-11-02**) and 0061a + 0094 (2026-11-02), and Phase 3A: 0058, 0095, 0077, 0092, 0093 (2026-11-03 03:35–03:38 UTC). Pilot scope: 2–3 companies.
 
 ## Done
 
@@ -39,9 +39,9 @@ Production so far: the code deploy and 0061a + 0094 (2026-11-02). Pilot scope: 2
 |---|---|---|
 | 4a | I push `portal-work` and open the PR to `main`; **you merge it** (Vercel deploys; this also picks up `SITE_REVALIDATE_SECRET`). New features stay inert until their migrations. | a Preview build appears (delete it, check logs); Checkpoint 1 fails: Vercel instant rollback |
 | 4b | Read-only smoke (`production-smoke.mjs --production`): pages, headers, CSP Report-Only, investor feed and profile. | any FAIL |
-| 5a | Phase 3: **0061a and 0094 applied to production 2026-11-02** (checkpoints true, audits clean, phase-3 check 35/0). Remaining group A: 0058, **0095** (keeps mineex.ca's lead forms working; on staging 2026-11-02), 0077, 0092, 0093, back to back. | a checkpoint fails: the runner's `--rollback` for that file |
-| 5b | Phase 4: 0062, 0063, **0096** (keeps mineex.ca/app investor messaging working; on staging 2026-11-02), 0064–0066 (0065c in no-transaction mode). Needs the `portal-work` code deploy first. | same |
-| 5c | Phase 5: 0068–0076, 0078 (0073a no-transaction; functions captured before every file that replaces one) | same |
+| 5a | Phase 3: **0061a and 0094 applied to production 2026-11-02** (checkpoints true, audits clean, phase-3 check 35/0). **Group A applied to production 2026-11-03** (0058, 0095, 0077, 0092, 0093; every checkpoint true; prod-check phase3 44 PASS / 0 FAIL / 4 INCOMPLETE pending smoke accounts; audit diff vs post-A2 shows only the intended changes). mineex.ca's contact and Conference Mode forms were broken before this (mineex-site had no environment variables). **Fixed 2026-11-03**: four Production variables on mineex-site (VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY, POSTMARK_SERVER_TOKEN, MESSAGES_FROM_EMAIL; no service key), then a fresh `vercel deploy --prod` of the unchanged 9dfafd7 source (deployment mineex-site-11h8lrz4g; the bundle is identical to the previous one apart from the build stamp; the previous prebuilt deployment kyljlsh9s is kept for Instant Rollback). Live test: both forms stored (demo_bookings #8, #9) and both emails delivered to support@mineex.ca. | a checkpoint fails: the runner's `--rollback` for that file |
+| 5b | **Phase 4 applied to production 2026-11-03 20:55–20:59 UTC** (all 8 checkpoints true; prod-check phase4 52 PASS / 0 FAIL / 4 INCOMPLETE pending smoke accounts; audit diff vs pre-Phase-4 shows only the intended changes). Phase 4: 0062, 0063, **0096** (keeps mineex.ca/app investor messaging working; on staging 2026-11-02), 0064–0066 (0065c in no-transaction mode). Needs the `portal-work` code deploy first. | same |
+| 5c | **Phase 5 applied to production 2026-11-03 21:11–21:15 UTC** (all 11 checkpoints true; prod-check phase5 63 PASS / 0 FAIL / 4 INCOMPLETE pending smoke accounts; audit diff vs pre-Phase-5 shows only the intended changes). Phase 5: 0068–0076, 0078 (0073a no-transaction; functions captured before every file that replaces one) | same |
 | 5d | Phase 5b: 0080, 0085–0088, 0090, 0091 | same; never roll back 0071 while 0088 is applied |
 | 6 | **You**: create the draft test company, hand it to the test owner, invite the viewer. Then the full smoke and investor-app checks; delete the connection file. | any investor-app regression: stop, roll back the last phase |
 | 7 | After 24 h with no 5xx rise: **you** hand off the portal to 2–3 pilot companies. | |
@@ -56,6 +56,14 @@ Each migration runs in your terminal: the runner shows the file, you type the pr
   (the website form and `/api/submit` are unaffected). Detected by the red banner on the admin Delivery
   operations page. No email in the pilot: `OPS_ALERT_TO` is a Phase 6 variable and alerts are evaluated only
   after publish nudges. Response: raise `global_per_window` in `listing_report_limits` (one SQL update).
+- **MUST FIX BEFORE SCALING TRAFFIC: mineex.ca contact leads share one rate-limit identity.** mineex-site's
+  `/api/contact` and `/api/conference-inquiry` store leads with the anon key from Vercel's servers, so 0095's
+  guard sees Vercel's egress IP, not the visitor: past 5 per hour per egress IP (20 per /24, 200 overall)
+  storage is refused for everyone behind it. The email to support@mineex.ca still goes out and the visitor
+  still sees success, so no lead is lost while Postmark works. Fix before scaling: store through passport's
+  `/api/submit` (real client IP) or a server-side key, then re-run the 0095 spoofing check.
+- **Postmark is on the 100-emails-a-month plan** (12 used on 2026-11-03). Every mineex.ca lead and every portal
+  message notification counts; upgrade before traffic grows.
 - `user_id` on anonymous reports is unverified by design (installed apps send it with the anon key).
 - The feed card can show an older logo after a profile edit (pre-existing with portal edits).
 - Owners can still change their own published profile directly in the database (S1's proposed 0081
