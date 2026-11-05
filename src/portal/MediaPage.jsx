@@ -327,7 +327,9 @@ function Composer({ company, initialFile = null, onCancel, onPosted }) {
         </div>
       )}
 
-      <div className="mt-5 grid grid-cols-1 gap-5 lg:grid-cols-[1fr_360px]">
+      {/* The caption appears once there is something to caption: before a file is chosen
+          the drop zone has the whole width. */}
+      <div className={`mt-5 grid grid-cols-1 gap-5 ${preview ? "lg:grid-cols-[1fr_360px]" : ""}`}>
         {/* ---- the media ---- */}
         <div className={`p-5 ${CARD}`}>
           {!preview ? (
@@ -366,7 +368,7 @@ function Composer({ company, initialFile = null, onCancel, onPosted }) {
         </div>
 
         {/* ---- caption ---- */}
-        <div className="space-y-5">
+        {preview && <div className="space-y-5">
           <div className={`p-5 ${CARD}`}>
             <span className="text-[10.5px] font-bold uppercase tracking-[0.16em] text-slate-400">Caption</span>
             <textarea value={caption} rows={4}
@@ -378,10 +380,10 @@ function Composer({ company, initialFile = null, onCancel, onPosted }) {
           <div className={`p-5 ${CARD}`}>
             <div className="flex items-center gap-2">
               <Sparkles size={15} strokeWidth={2.4} className="text-blue-500" />
-              <span className="text-[10.5px] font-bold uppercase tracking-[0.16em] text-slate-400">Write it for me</span>
+              <span className="text-[10.5px] font-bold uppercase tracking-[0.16em] text-slate-400">MineIQ, write it for me</span>
             </div>
             <p className="mt-2 text-[12.5px] leading-relaxed text-slate-500">
-              Describe what's going on and MineEx will write the caption. It uses only what you say —
+              Describe what's going on and MineIQ will write the caption. It uses only what you say —
               it can't see the image, and won't guess.
             </p>
             <textarea value={hint} rows={3}
@@ -391,7 +393,7 @@ function Composer({ company, initialFile = null, onCancel, onPosted }) {
             {aiErr && <p className="mt-2 text-[12.5px] font-semibold text-rose-500">{aiErr}</p>}
             <button onClick={writeCaption} disabled={aiBusy || !hint.trim()}
               className="mt-2.5 inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-[13px] font-bold text-slate-700 transition hover:border-slate-300 disabled:cursor-not-allowed disabled:text-slate-300">
-              {aiBusy ? <><Loader2 size={14} className="animate-spin" /> Writing…</> : <><Sparkles size={14} strokeWidth={2.4} /> {caption ? "Rewrite caption" : "Generate caption"}</>}
+              {aiBusy ? <><Loader2 size={14} className="animate-spin" /> Writing…</> : <><Sparkles size={14} strokeWidth={2.4} /> {caption ? "Rewrite with MineIQ" : "Write with MineIQ"}</>}
             </button>
           </div>
 
@@ -399,7 +401,7 @@ function Composer({ company, initialFile = null, onCancel, onPosted }) {
             className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-5 py-3 text-[14px] font-bold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400">
             {stage ? <><Loader2 size={15} className="animate-spin" /> {stage}</> : <><CheckCircle2 size={15} strokeWidth={2.4} /> Post to media feed</>}
           </button>
-        </div>
+        </div>}
       </div>
     </div>
   );
